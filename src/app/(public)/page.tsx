@@ -80,7 +80,7 @@ export default function HomePage() {
               },
               {
                 title: "Struktur Organisasi",
-                desc: "Hierarki Pusat hingga Dojo/Ranting",
+                desc: "Dojo dan ranting Cabang Surabaya",
                 href: "/struktur",
                 color: "bg-inkai-black/5 text-inkai-black",
               },

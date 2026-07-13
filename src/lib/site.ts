@@ -1,0 +1,2 @@
+export const SITE_BRANCH_NAME = "SURABAYA";
+export const SITE_PROVINCE_NAME = "JAWA TIMUR";
