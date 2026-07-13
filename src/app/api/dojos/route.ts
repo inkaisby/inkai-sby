@@ -3,12 +3,20 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   const dojos = await prisma.dojo.findMany({
+    where: { isDeleted: false },
     select: {
       id: true,
-      nama: true,
-      cabang: { select: { nama: true } },
+      name: true,
+      branch: { select: { name: true } },
     },
-    orderBy: { nama: "asc" },
+    orderBy: { name: "asc" },
   });
-  return NextResponse.json(dojos);
+
+  return NextResponse.json(
+    dojos.map((d) => ({
+      id: d.id,
+      nama: d.name,
+      cabang: { nama: d.branch.name },
+    }))
+  );
 }

@@ -1,7 +1,12 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { buildAnggotaFilter, canAccessAdmin, ROLE_LABELS } from "@/lib/rbac";
+import {
+  buildMemberFilter,
+  canAccessAdmin,
+  getPrimaryAdminRole,
+  ROLE_LABELS,
+} from "@/lib/rbac";
 import { AppSidebar, UserMenu } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -19,13 +24,16 @@ export default async function AdminAnggotaPage() {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
 
-  const anggota = await prisma.anggota.findMany({
-    where: buildAnggotaFilter(session.user),
+  const members = await prisma.member.findMany({
+    where: buildMemberFilter(session.user),
     include: {
-      dojo: { include: { cabang: true } },
+      dojo: { include: { branch: true } },
     },
     orderBy: { createdAt: "desc" },
+    take: 100,
   });
+
+  const primaryRole = getPrimaryAdminRole(session.user.roles);
 
   return (
     <div className="flex min-h-screen">
@@ -49,8 +57,8 @@ export default async function AdminAnggotaPage() {
           <div className="mb-6">
             <h2 className="text-2xl font-bold">Kelola Anggota</h2>
             <p className="text-muted-foreground">
-              {ROLE_LABELS[session.user.role]} — {anggota.length} anggota dalam
-              scope Anda
+              {ROLE_LABELS[primaryRole] || primaryRole} — {members.length}{" "}
+              anggota dalam scope Anda
             </p>
           </div>
 
@@ -58,30 +66,30 @@ export default async function AdminAnggotaPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>No. Induk</TableHead>
+                  <TableHead>NIA</TableHead>
                   <TableHead>Nama</TableHead>
                   <TableHead>Sabuk</TableHead>
-                  <TableHead className="hidden sm:table-cell">
-                    Dojo/Ranting
-                  </TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="hidden sm:table-cell">Dojo/Ranting</TableHead>
                   <TableHead className="hidden md:table-cell">Cabang</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {anggota.map((a) => (
-                  <TableRow key={a.id}>
+                {members.map((m) => (
+                  <TableRow key={m.id}>
                     <TableCell className="font-mono text-sm">
-                      {a.nomorInduk}
+                      {m.nia || "-"}
                     </TableCell>
-                    <TableCell className="font-medium">{a.nama}</TableCell>
+                    <TableCell className="font-medium">{m.fullName}</TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{a.sabuk}</Badge>
+                      <Badge variant="secondary">{m.currentRank}</Badge>
                     </TableCell>
+                    <TableCell>{m.status}</TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      {a.dojo.nama}
+                      {m.dojo.name}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {a.dojo.cabang.nama}
+                      {m.dojo.branch.name}
                     </TableCell>
                   </TableRow>
                 ))}

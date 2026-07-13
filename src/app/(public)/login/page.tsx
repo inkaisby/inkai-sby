@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { isAdmin } from "@/lib/rbac";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,13 +44,9 @@ export default function LoginPage() {
 
     const sessionRes = await fetch("/api/auth/session");
     const session = await sessionRes.json();
-    const role = session?.user?.role;
+    const roles: string[] = session?.user?.roles || [];
 
-    if (role && role !== "ANGGOTA") {
-      router.push("/admin");
-    } else {
-      router.push("/dashboard");
-    }
+    router.push(isAdmin(roles) ? "/admin" : "/dashboard");
     router.refresh();
   }
 
@@ -93,9 +90,7 @@ export default function LoginPage() {
                 required
               />
             </div>
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
             <Button
               type="submit"
               className="w-full bg-inkai-red hover:bg-inkai-red/90"

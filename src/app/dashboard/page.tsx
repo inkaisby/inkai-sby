@@ -12,11 +12,15 @@ export default async function MemberDashboard() {
   const session = await auth();
   if (!session) redirect("/login");
 
-  const anggota = session.user.anggotaId
-    ? await prisma.anggota.findUnique({
-        where: { id: session.user.anggotaId },
+  const member = session.user.memberId
+    ? await prisma.member.findFirst({
+        where: { id: session.user.memberId, isDeleted: false },
         include: {
-          dojo: { include: { cabang: { include: { provinsi: true } } } },
+          dojo: {
+            include: {
+              branch: { include: { province: true } },
+            },
+          },
         },
       })
     : null;
@@ -30,7 +34,11 @@ export default async function MemberDashboard() {
       <div className="flex flex-1 flex-col">
         <header className="flex h-16 items-center justify-between border-b px-4 sm:px-6">
           <h1 className="text-lg font-bold lg:hidden">Dashboard Anggota</h1>
-          <UserMenu name={session.user.name} email={session.user.email} />
+          <UserMenu
+            name={session.user.name}
+            email={session.user.email}
+            showAdmin={false}
+          />
         </header>
         <main className="flex-1 p-4 sm:p-6">
           <div className="mb-6">
@@ -42,17 +50,17 @@ export default async function MemberDashboard() {
             </p>
           </div>
 
-          {anggota ? (
+          {member ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Nomor Induk
+                    NIA
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-2xl font-bold text-inkai-red">
-                    {anggota.nomorInduk}
+                    {member.nia || "Belum ada"}
                   </p>
                 </CardContent>
               </Card>
@@ -60,12 +68,12 @@ export default async function MemberDashboard() {
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                     <Award className="h-4 w-4" />
-                    Sabuk
+                    Sabuk / Kyu
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Badge className="bg-inkai-yellow text-inkai-black hover:bg-inkai-yellow">
-                    {anggota.sabuk}
+                    {member.currentRank}
                   </Badge>
                 </CardContent>
               </Card>
@@ -77,9 +85,9 @@ export default async function MemberDashboard() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="font-semibold">{anggota.dojo.nama}</p>
+                  <p className="font-semibold">{member.dojo.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {anggota.dojo.cabang.nama}
+                    {member.dojo.branch.name}
                   </p>
                 </CardContent>
               </Card>
@@ -93,26 +101,24 @@ export default async function MemberDashboard() {
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <p className="text-sm text-muted-foreground">Provinsi</p>
-                    <p className="font-medium">
-                      {anggota.dojo.cabang.provinsi.nama}
-                    </p>
+                    <p className="font-medium">{member.dojo.branch.province.name}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Cabang</p>
-                    <p className="font-medium">{anggota.dojo.cabang.nama}</p>
+                    <p className="font-medium">{member.dojo.branch.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Status</p>
+                    <p className="font-medium">{member.status}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Alamat Dojo</p>
-                    <p className="font-medium">
-                      {anggota.dojo.alamat || "-"}
-                    </p>
+                    <p className="font-medium">{member.dojo.address || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">
-                      Bergabung Sejak
-                    </p>
+                    <p className="text-sm text-muted-foreground">Bergabung Sejak</p>
                     <p className="font-medium">
-                      {new Date(anggota.createdAt).toLocaleDateString("id-ID")}
+                      {new Date(member.createdAt).toLocaleDateString("id-ID")}
                     </p>
                   </div>
                 </CardContent>
@@ -121,7 +127,7 @@ export default async function MemberDashboard() {
           ) : (
             <Card>
               <CardContent className="p-8 text-center text-muted-foreground">
-                Data anggota belum tersedia.
+                Data anggota belum tersedia. Hubungi admin cabang/dojo Anda.
               </CardContent>
             </Card>
           )}

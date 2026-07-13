@@ -17,20 +17,20 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function StrukturPage() {
-  const pusat = await prisma.pusat.findFirst({
+  const provinces = await prisma.province.findMany({
+    where: { isDeleted: false },
     include: {
-      provinsi: {
+      branches: {
+        where: { isDeleted: false },
         include: {
-          cabang: {
-            include: {
-              dojo: {
-                include: { _count: { select: { anggota: true } } },
-              },
-            },
+          dojos: {
+            where: { isDeleted: false },
+            include: { _count: { select: { members: true } } },
           },
         },
       },
     },
+    orderBy: { name: "asc" },
   });
 
   return (
@@ -42,8 +42,7 @@ export default async function StrukturPage() {
         Struktur Organisasi INKAI
       </h1>
       <p className="mb-10 max-w-2xl text-muted-foreground">
-        Hierarki organisasi INKAI dari tingkat nasional hingga dojo/ranting
-        di Surabaya.
+        Hierarki organisasi INKAI dari tingkat nasional hingga dojo/ranting.
       </p>
 
       <div className="mb-8 flex flex-wrap items-center justify-center gap-2 text-sm">
@@ -59,71 +58,73 @@ export default async function StrukturPage() {
         )}
       </div>
 
-      {pusat?.provinsi.map((prov) =>
-        prov.cabang.map((cabang) => (
-          <div key={cabang.id} className="space-y-4">
-            <Card className="border-inkai-red/20">
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-inkai-red" />
-                  <CardTitle className="text-lg">{pusat.nama}</CardTitle>
-                </div>
-              </CardHeader>
-            </Card>
+      <Card className="mb-6 border-inkai-red/20">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-inkai-red" />
+            <CardTitle className="text-lg">INKAI Pusat (Nasional)</CardTitle>
+          </div>
+        </CardHeader>
+      </Card>
 
-            <div className="ml-4 sm:ml-8">
-              <Card className="border-inkai-yellow/30">
-                <CardContent className="flex items-center gap-3 p-4">
-                  <MapPin className="h-5 w-5 text-inkai-yellow" />
-                  <div>
-                    <p className="font-semibold">Provinsi {prov.nama}</p>
+      {provinces.map((province) => (
+        <div key={province.id} className="mb-8 space-y-4">
+          <div className="ml-4 sm:ml-8">
+            <Card className="border-inkai-yellow/30">
+              <CardContent className="flex items-center gap-3 p-4">
+                <MapPin className="h-5 w-5 text-inkai-yellow" />
+                <div>
+                  <p className="font-semibold">Provinsi {province.name}</p>
+                  {province.headName && (
                     <p className="text-sm text-muted-foreground">
-                      Kode: {prov.kode}
+                      Ketua: {province.headName}
                     </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-            <div className="ml-8 sm:ml-16">
+          {province.branches.map((branch) => (
+            <div key={branch.id} className="ml-8 space-y-3 sm:ml-16">
               <Card>
                 <CardContent className="flex items-center gap-3 p-4">
                   <Home className="h-5 w-5 text-inkai-red" />
                   <div>
-                    <p className="font-semibold">{cabang.nama}</p>
+                    <p className="font-semibold">{branch.name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {cabang.kota}
+                      {branch.city || "-"}
                     </p>
                   </div>
                 </CardContent>
               </Card>
-            </div>
 
-            <div className="ml-12 space-y-3 sm:ml-24">
-              {cabang.dojo.map((dojo) => (
-                <Card key={dojo.id} className="bg-muted/30">
-                  <CardContent className="flex items-center justify-between p-4">
-                    <div className="flex items-center gap-3">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">{dojo.nama}</p>
-                        {dojo.alamat && (
-                          <p className="text-xs text-muted-foreground">
-                            {dojo.alamat}
-                          </p>
-                        )}
+              <div className="ml-4 space-y-3 sm:ml-8">
+                {branch.dojos.map((dojo) => (
+                  <Card key={dojo.id} className="bg-muted/30">
+                    <CardContent className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="font-medium">{dojo.name}</p>
+                          {dojo.address && (
+                            <p className="text-xs text-muted-foreground">
+                              {dojo.address}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <Badge variant="secondary">
-                      {dojo._count.anggota} anggota
-                    </Badge>
-                  </CardContent>
-                </Card>
-              ))}
+                      <Badge variant="secondary">
+                        {dojo._count.members} anggota
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
-          </div>
-        ))
-      )}
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

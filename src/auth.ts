@@ -3,37 +3,36 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/auth.config";
-import type { Role } from "@prisma/client";
 
 declare module "next-auth" {
   interface User {
-    role: Role;
-    scopeProvinsiId?: string | null;
-    scopeCabangId?: string | null;
-    scopeDojoId?: string | null;
-    anggotaId?: string | null;
+    roles: string[];
+    managedProvinceId?: string | null;
+    managedBranchId?: string | null;
+    managedDojoId?: string | null;
+    memberId?: string | null;
   }
   interface Session {
     user: {
       id: string;
       email: string;
       name: string;
-      role: Role;
-      scopeProvinsiId?: string | null;
-      scopeCabangId?: string | null;
-      scopeDojoId?: string | null;
-      anggotaId?: string | null;
+      roles: string[];
+      managedProvinceId?: string | null;
+      managedBranchId?: string | null;
+      managedDojoId?: string | null;
+      memberId?: string | null;
     };
   }
 }
 
 declare module "@auth/core/jwt" {
   interface JWT {
-    role: Role;
-    scopeProvinsiId?: string | null;
-    scopeCabangId?: string | null;
-    scopeDojoId?: string | null;
-    anggotaId?: string | null;
+    roles: string[];
+    managedProvinceId?: string | null;
+    managedBranchId?: string | null;
+    managedDojoId?: string | null;
+    memberId?: string | null;
   }
 }
 
@@ -48,8 +47,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+        const email = (credentials.email as string).trim().toLowerCase();
+
+        const user = await prisma.user.findFirst({
+          where: {
+            email: { equals: email, mode: "insensitive" },
+            isDeleted: false,
+            isActive: true,
+          },
+          include: {
+            roles: { select: { name: true } },
+            member: { select: { id: true } },
+          },
         });
 
         if (!user) return null;
@@ -60,15 +69,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         );
         if (!valid) return null;
 
+        const roles = user.roles.map((r) => r.name);
+
         return {
           id: user.id,
           email: user.email,
-          name: user.name,
-          role: user.role,
-          scopeProvinsiId: user.scopeProvinsiId,
-          scopeCabangId: user.scopeCabangId,
-          scopeDojoId: user.scopeDojoId,
-          anggotaId: user.anggotaId,
+          name: user.fullName || user.email,
+          roles,
+          managedProvinceId: user.managedProvinceId,
+          managedBranchId: user.managedBranchId,
+          managedDojoId: user.managedDojoId,
+          memberId: user.member?.id ?? null,
         };
       },
     }),

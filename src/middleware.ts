@@ -18,30 +18,27 @@ const publicPaths = [
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn = !!req.auth;
-  const role = req.auth?.user?.role;
+  const user = req.auth?.user;
 
   const isPublic =
     publicPaths.includes(pathname) ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/dojos") ||
-    pathname.startsWith("/artikel");
+    pathname.startsWith("/api/dojos");
 
   if (isPublic) return NextResponse.next();
 
-  if (!isLoggedIn) {
+  if (!isLoggedIn || !user) {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
   if (pathname.startsWith("/admin")) {
-    if (!role || !canAccessAdmin({ ...req.auth!.user!, role })) {
+    if (!canAccessAdmin(user)) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }
 
-  if (pathname.startsWith("/dashboard") && role && role !== "ANGGOTA") {
-    if (canAccessAdmin({ ...req.auth!.user!, role })) {
-      return NextResponse.redirect(new URL("/admin", req.url));
-    }
+  if (pathname.startsWith("/dashboard") && canAccessAdmin(user)) {
+    return NextResponse.redirect(new URL("/admin", req.url));
   }
 
   return NextResponse.next();

@@ -62,7 +62,7 @@ export default function DaftarPage() {
       return;
     }
 
-    setSuccess(`Pendaftaran berhasil! Nomor Induk: ${data.nomorInduk}`);
+    setSuccess(data.message || "Pendaftaran berhasil!");
     setTimeout(() => router.push("/login"), 2000);
   }
 

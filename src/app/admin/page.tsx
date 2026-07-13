@@ -2,11 +2,12 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
-  buildAnggotaFilter,
-  buildCabangFilter,
+  buildMemberFilter,
   buildDojoFilter,
+  buildBranchFilter,
   canAccessAdmin,
   getAdminScopeLabel,
+  getPrimaryAdminRole,
   ROLE_LABELS,
 } from "@/lib/rbac";
 import { AppSidebar, UserMenu } from "@/components/layout/AppShell";
@@ -21,19 +22,22 @@ export default async function AdminDashboard() {
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
 
   const user = session.user;
-  const anggotaFilter = buildAnggotaFilter(user);
+  const memberFilter = buildMemberFilter(user);
   const dojoFilter = buildDojoFilter(user);
-  const cabangFilter = buildCabangFilter(user);
+  const branchFilter = buildBranchFilter(user);
+  const primaryRole = getPrimaryAdminRole(user.roles);
 
-  const [totalAnggota, totalDojo, totalCabang, recentAnggota] =
+  const [totalMembers, totalDojos, totalBranches, recentMembers] =
     await Promise.all([
-      prisma.anggota.count({ where: anggotaFilter }),
+      prisma.member.count({ where: memberFilter }),
       prisma.dojo.count({ where: dojoFilter }),
-      user.role === "PUSAT" || user.role === "PROVINSI"
-        ? prisma.cabang.count({ where: cabangFilter })
+      ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN"].includes(
+        primaryRole
+      )
+        ? prisma.branch.count({ where: branchFilter })
         : Promise.resolve(0),
-      prisma.anggota.findMany({
-        where: anggotaFilter,
+      prisma.member.findMany({
+        where: memberFilter,
         include: { dojo: true },
         orderBy: { createdAt: "desc" },
         take: 5,
@@ -41,23 +45,20 @@ export default async function AdminDashboard() {
     ]);
 
   const stats = [
-    {
-      label: "Total Anggota",
-      value: totalAnggota,
-      icon: Users,
-      show: true,
-    },
+    { label: "Total Anggota", value: totalMembers, icon: Users, show: true },
     {
       label: "Dojo/Ranting",
-      value: totalDojo,
+      value: totalDojos,
       icon: Home,
-      show: user.role !== "DOJO",
+      show: primaryRole !== "ADMIN_DOJO",
     },
     {
       label: "Cabang",
-      value: totalCabang,
+      value: totalBranches,
       icon: Building2,
-      show: user.role === "PUSAT" || user.role === "PROVINSI",
+      show: ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN"].includes(
+        primaryRole
+      ),
     },
   ].filter((s) => s.show);
 
@@ -84,7 +85,7 @@ export default async function AdminDashboard() {
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <h2 className="text-2xl font-bold">Beranda Admin</h2>
               <Badge className="bg-inkai-red text-white hover:bg-inkai-red">
-                {ROLE_LABELS[user.role]}
+                {ROLE_LABELS[primaryRole] || primaryRole}
               </Badge>
             </div>
             <p className="flex items-center gap-1 text-muted-foreground">
@@ -114,22 +115,22 @@ export default async function AdminDashboard() {
               <CardTitle>Anggota Terbaru</CardTitle>
             </CardHeader>
             <CardContent>
-              {recentAnggota.length === 0 ? (
+              {recentMembers.length === 0 ? (
                 <p className="text-muted-foreground">Belum ada anggota.</p>
               ) : (
                 <div className="space-y-3">
-                  {recentAnggota.map((a) => (
+                  {recentMembers.map((m) => (
                     <div
-                      key={a.id}
+                      key={m.id}
                       className="flex items-center justify-between rounded-lg border p-3"
                     >
                       <div>
-                        <p className="font-medium">{a.nama}</p>
+                        <p className="font-medium">{m.fullName}</p>
                         <p className="text-sm text-muted-foreground">
-                          {a.nomorInduk} · {a.dojo.nama}
+                          {m.nia || "NIA belum ada"} · {m.dojo.name}
                         </p>
                       </div>
-                      <Badge variant="secondary">{a.sabuk}</Badge>
+                      <Badge variant="secondary">{m.currentRank}</Badge>
                     </div>
                   ))}
                 </div>
@@ -144,32 +145,25 @@ export default async function AdminDashboard() {
             <CardContent>
               <div className="space-y-2 text-sm">
                 {[
+                  { role: "ADMIN_PUSAT", scope: "Akses penuh seluruh nasional" },
                   {
-                    role: "Administrator Pusat",
-                    scope: "Akses penuh seluruh nasional",
-                  },
-                  {
-                    role: "Admin Provinsi",
+                    role: "ADMIN_PROVINCE",
                     scope: "Kelola cabang & ranting di provinsinya",
                   },
-                  {
-                    role: "Admin Cabang",
-                    scope: "Kelola dojo/ranting di cabangnya",
-                  },
-                  {
-                    role: "Admin Dojo/Ranting",
-                    scope: "Kelola anggota di rantingnya",
-                  },
+                  { role: "ADMIN_BRANCH", scope: "Kelola dojo/ranting di cabangnya" },
+                  { role: "ADMIN_DOJO", scope: "Kelola anggota di rantingnya" },
                 ].map((item) => (
                   <div
                     key={item.role}
                     className={`rounded-lg border p-3 ${
-                      ROLE_LABELS[user.role] === item.role
+                      primaryRole === item.role
                         ? "border-inkai-red bg-inkai-red/5"
                         : ""
                     }`}
                   >
-                    <p className="font-medium">{item.role}</p>
+                    <p className="font-medium">
+                      {ROLE_LABELS[item.role] || item.role}
+                    </p>
                     <p className="text-muted-foreground">{item.scope}</p>
                   </div>
                 ))}
