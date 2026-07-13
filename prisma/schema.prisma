@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  PUSAT
+  PROVINSI
+  CABANG
+  DOJO
+  ANGGOTA
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  passwordHash    String
+  name            String
+  role            Role     @default(ANGGOTA)
+  scopeProvinsiId String?
+  scopeCabangId   String?
+  scopeDojoId     String?
+  anggotaId       String?  @unique
+  anggota         Anggota? @relation(fields: [anggotaId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Pusat {
+  id       String     @id @default(cuid())
+  nama     String     @default("INKAI Pusat")
+  provinsi Provinsi[]
+}
+
+model Provinsi {
+  id      String   @id @default(cuid())
+  nama    String
+  kode    String   @unique
+  pusatId String
+  pusat   Pusat    @relation(fields: [pusatId], references: [id])
+  cabang  Cabang[]
+}
+
+model Cabang {
+  id         String   @id @default(cuid())
+  nama       String
+  kota       String
+  provinsiId String
+  provinsi   Provinsi @relation(fields: [provinsiId], references: [id])
+  dojo       Dojo[]
+}
+
+model Dojo {
+  id       String    @id @default(cuid())
+  nama     String
+  alamat   String?
+  cabangId String
+  cabang   Cabang    @relation(fields: [cabangId], references: [id])
+  anggota  Anggota[]
+}
+
+model Anggota {
+  id           String    @id @default(cuid())
+  nomorInduk   String    @unique
+  nama         String
+  tanggalLahir DateTime?
+  sabuk        String    @default("Putih")
+  dojoId       String
+  dojo         Dojo      @relation(fields: [dojoId], references: [id])
+  user         User?
+  createdAt    DateTime  @default(now())
+}
+
+model Article {
+  id        String   @id @default(cuid())
+  title     String
+  slug      String   @unique
+  excerpt   String
+  content   String
+  imageUrl  String?
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

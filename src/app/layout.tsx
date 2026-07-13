@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Providers from "@/components/Providers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,13 +14,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Inkai SBY — Solusi Digital Surabaya",
+  title: {
+    default: "INKAI Surabaya — Institut Karate-Do Indonesia",
+    template: "%s | INKAI Surabaya",
+  },
   description:
-    "Inkai SBY menyediakan layanan website development, UI/UX design, dan branding digital di Surabaya, Indonesia.",
+    "Website resmi INKAI Cabang Surabaya. Institut Karate-Do Indonesia — Integritas, Tangguh, Rendah Hati.",
   openGraph: {
-    title: "Inkai SBY — Solusi Digital Surabaya",
-    description:
-      "Partner digital terpercaya di Surabaya untuk website, desain, dan branding.",
+    title: "INKAI Surabaya",
+    description: "Institut Karate-Do Indonesia — Cabang Surabaya",
     locale: "id_ID",
     type: "website",
   },
@@ -33,9 +36,11 @@ export default function RootLayout({
   return (
     <html
       lang="id"
-      className={`${geistSans.variable} ${geistMono.variable} scroll-smooth antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
-      <body className="bg-ink-950 font-sans text-white">{children}</body>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }
