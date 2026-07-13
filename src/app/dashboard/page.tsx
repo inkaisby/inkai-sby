@@ -1,10 +1,15 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { AppSidebar, UserMenu } from "@/components/layout/AppShell";
+import {
+  MEMBER_LINKS,
+  MobileDashboardNav,
+} from "@/components/layout/MobileDashboardNav";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Award, MapPin, Calendar } from "lucide-react";
+import { Award, MapPin, Calendar, Bell } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -16,39 +21,66 @@ export default async function MemberDashboard() {
     ? await prisma.member.findFirst({
         where: { id: session.user.memberId, isDeleted: false },
         include: {
-          dojo: {
-            include: {
-              branch: { include: { province: true } },
-            },
-          },
+          dojo: { include: { branch: { include: { province: true } } } },
         },
       })
     : null;
 
+  const notifications = await prisma.notification.findMany({
+    where: { userId: session.user.id },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+  });
+
+  const links = MEMBER_LINKS.map((l) => ({
+    ...l,
+    active: l.href === "/dashboard",
+  }));
+
   return (
     <div className="flex min-h-screen">
-      <AppSidebar
-        title="Dashboard Anggota"
-        links={[{ href: "/dashboard", label: "Beranda", active: true }]}
-      />
+      <AppSidebar title="Dashboard Anggota" links={links} />
       <div className="flex flex-1 flex-col">
         <header className="flex h-16 items-center justify-between border-b px-4 sm:px-6">
-          <h1 className="text-lg font-bold lg:hidden">Dashboard Anggota</h1>
-          <UserMenu
-            name={session.user.name}
-            email={session.user.email}
-            showAdmin={false}
-          />
+          <div className="flex items-center gap-2">
+            <MobileDashboardNav title="Dashboard Anggota" links={links} />
+            <h1 className="text-lg font-bold hidden sm:block">Dashboard</h1>
+          </div>
+          <UserMenu name={session.user.name} email={session.user.email} />
         </header>
         <main className="flex-1 p-4 sm:p-6">
           <div className="mb-6">
-            <h2 className="text-2xl font-bold">
-              Selamat datang, {session.user.name}
-            </h2>
-            <p className="text-muted-foreground">
-              Dashboard anggota INKAI Surabaya
-            </p>
+            <h2 className="text-2xl font-bold">Selamat datang, {session.user.name}</h2>
+            <p className="text-muted-foreground">Dashboard anggota INKAI Surabaya</p>
           </div>
+
+          {member?.status === "PENDING" && (
+            <Card className="mb-6 border-inkai-yellow/40 bg-inkai-yellow/10">
+              <CardContent className="p-4">
+                Pendaftaran Anda sedang menunggu persetujuan admin. Anda akan
+                menerima notifikasi setelah disetujui.
+              </CardContent>
+            </Card>
+          )}
+
+          {notifications.length > 0 && (
+            <Card className="mb-6">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Bell className="h-4 w-4" />
+                  Notifikasi
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {notifications.map((n) => (
+                  <div key={n.id} className="rounded-lg border p-3 text-sm">
+                    <p className="font-medium">{n.title}</p>
+                    <p className="text-muted-foreground">{n.content}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {member ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -85,7 +117,12 @@ export default async function MemberDashboard() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="font-semibold">{member.dojo.name}</p>
+                  <Link
+                    href={`/dojo/${member.dojoId}`}
+                    className="font-semibold hover:text-inkai-red"
+                  >
+                    {member.dojo.name}
+                  </Link>
                   <p className="text-sm text-muted-foreground">
                     {member.dojo.branch.name}
                   </p>
@@ -100,26 +137,25 @@ export default async function MemberDashboard() {
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <p className="text-sm text-muted-foreground">Provinsi</p>
-                    <p className="font-medium">{member.dojo.branch.province.name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Cabang</p>
-                    <p className="font-medium">{member.dojo.branch.name}</p>
-                  </div>
-                  <div>
                     <p className="text-sm text-muted-foreground">Status</p>
                     <p className="font-medium">{member.status}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Alamat Dojo</p>
-                    <p className="font-medium">{member.dojo.address || "-"}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Bergabung Sejak</p>
                     <p className="font-medium">
                       {new Date(member.createdAt).toLocaleDateString("id-ID")}
                     </p>
+                  </div>
+                  <div className="sm:col-span-2 flex flex-wrap gap-2">
+                    <Link href="/dashboard/profil" className="text-sm text-inkai-red hover:underline">
+                      Edit profil →
+                    </Link>
+                    <Link href="/dashboard/absensi" className="text-sm text-inkai-red hover:underline">
+                      Lihat absensi →
+                    </Link>
+                    <Link href="/dashboard/iuran" className="text-sm text-inkai-red hover:underline">
+                      Lihat iuran →
+                    </Link>
                   </div>
                 </CardContent>
               </Card>

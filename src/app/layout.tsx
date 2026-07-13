@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Providers from "@/components/Providers";
+import { SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,6 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "INKAI Surabaya — Institut Karate-Do Indonesia",
     template: "%s | INKAI Surabaya",
@@ -25,6 +27,8 @@ export const metadata: Metadata = {
     description: "Institut Karate-Do Indonesia — Cabang Surabaya",
     locale: "id_ID",
     type: "website",
+    url: SITE_URL,
+    images: [{ url: "/logo-inkai.png", width: 512, height: 512, alt: "INKAI Surabaya" }],
   },
 };
 

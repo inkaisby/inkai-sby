@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
@@ -141,7 +142,12 @@ export default async function StrukturPage() {
                     <div className="flex items-center gap-3">
                       <Users className="h-4 w-4 text-muted-foreground" />
                       <div>
-                        <p className="font-medium">{dojo.name.trim()}</p>
+                        <Link
+                          href={`/dojo/${dojo.id}`}
+                          className="font-medium hover:text-inkai-red hover:underline"
+                        >
+                          {dojo.name.trim()}
+                        </Link>
                         {dojo.headName && (
                           <p className="text-xs text-muted-foreground">
                             Pelatih/Ketua: {dojo.headName}

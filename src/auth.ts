@@ -3,6 +3,8 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/auth.config";
+import { rateLimit } from "@/lib/security/rate-limit";
+import { isMemberLoginBlocked } from "@/lib/security/member-status";
 
 declare module "next-auth" {
   interface User {
@@ -49,6 +51,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const email = (credentials.email as string).trim().toLowerCase();
 
+        const loginLimit = rateLimit(`login:${email}`, {
+          max: 10,
+          windowMs: 15 * 60 * 1000,
+        });
+        if (!loginLimit.success) return null;
+
         const user = await prisma.user.findFirst({
           where: {
             email: { equals: email, mode: "insensitive" },
@@ -57,7 +65,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           },
           include: {
             roles: { select: { name: true } },
-            member: { select: { id: true } },
+            member: { select: { id: true, status: true } },
           },
         });
 
@@ -70,6 +78,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!valid) return null;
 
         const roles = user.roles.map((r) => r.name);
+        const isMemberOnly =
+          roles.length === 1 && roles[0] === "MEMBER";
+
+        if (
+          isMemberOnly &&
+          user.member &&
+          isMemberLoginBlocked(user.member.status)
+        ) {
+          return null;
+        }
 
         return {
           id: user.id,

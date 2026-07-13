@@ -11,6 +11,10 @@ import {
   ROLE_LABELS,
 } from "@/lib/rbac";
 import { AppSidebar, UserMenu } from "@/components/layout/AppShell";
+import {
+  ADMIN_LINKS,
+  MobileDashboardNav,
+} from "@/components/layout/MobileDashboardNav";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Building2, MapPin, Home } from "lucide-react";
@@ -27,7 +31,7 @@ export default async function AdminDashboard() {
   const branchFilter = buildBranchFilter(user);
   const primaryRole = getPrimaryAdminRole(user.roles);
 
-  const [totalMembers, totalDojos, totalBranches, recentMembers] =
+  const [totalMembers, totalDojos, totalBranches, recentMembers, pendingCount] =
     await Promise.all([
       prisma.member.count({ where: memberFilter }),
       prisma.dojo.count({ where: dojoFilter }),
@@ -42,10 +46,19 @@ export default async function AdminDashboard() {
         orderBy: { createdAt: "desc" },
         take: 5,
       }),
+      prisma.member.count({
+        where: { ...memberFilter, status: "PENDING" },
+      }),
     ]);
 
   const stats = [
     { label: "Total Anggota", value: totalMembers, icon: Users, show: true },
+    {
+      label: "Menunggu Approval",
+      value: pendingCount,
+      icon: Users,
+      show: true,
+    },
     {
       label: "Dojo/Ranting",
       value: totalDojos,
@@ -62,23 +75,21 @@ export default async function AdminDashboard() {
     },
   ].filter((s) => s.show);
 
+  const links = ADMIN_LINKS.map((l) => ({
+    ...l,
+    active: l.href === "/admin",
+  }));
+
   return (
     <div className="flex min-h-screen">
-      <AppSidebar
-        title="Admin Panel"
-        links={[
-          { href: "/admin", label: "Beranda Admin", active: true },
-          { href: "/admin/anggota", label: "Kelola Anggota" },
-        ]}
-      />
+      <AppSidebar title="Admin Panel" links={links} />
       <div className="flex flex-1 flex-col">
         <header className="flex h-16 items-center justify-between border-b px-4 sm:px-6">
-          <h1 className="text-lg font-bold lg:hidden">Beranda Admin</h1>
-          <UserMenu
-            name={session.user.name}
-            email={session.user.email}
-            showAdmin
-          />
+          <div className="flex items-center gap-2">
+            <MobileDashboardNav title="Admin Panel" links={links} />
+            <h1 className="text-lg font-bold hidden sm:block">Beranda Admin</h1>
+          </div>
+          <UserMenu name={session.user.name} email={session.user.email} showAdmin />
         </header>
         <main className="flex-1 p-4 sm:p-6">
           <div className="mb-6">
@@ -94,7 +105,20 @@ export default async function AdminDashboard() {
             </p>
           </div>
 
-          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {pendingCount > 0 && (
+            <Card className="mb-6 border-inkai-yellow/40 bg-inkai-yellow/10">
+              <CardContent className="p-4">
+                <p className="font-medium">
+                  {pendingCount} pendaftar menunggu persetujuan.{" "}
+                  <a href="/admin/anggota?status=PENDING" className="text-inkai-red hover:underline">
+                    Tinjau sekarang →
+                  </a>
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {stats.map((stat) => (
               <Card key={stat.label}>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -127,7 +151,7 @@ export default async function AdminDashboard() {
                       <div>
                         <p className="font-medium">{m.fullName}</p>
                         <p className="text-sm text-muted-foreground">
-                          {m.nia || "NIA belum ada"} · {m.dojo.name}
+                          {m.nia || "NIA belum ada"} · {m.dojo.name} · {m.status}
                         </p>
                       </div>
                       <Badge variant="secondary">{m.currentRank}</Badge>
@@ -135,39 +159,6 @@ export default async function AdminDashboard() {
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Hierarki RBAC</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                {[
-                  { role: "ADMIN_PUSAT", scope: "Akses penuh seluruh nasional" },
-                  {
-                    role: "ADMIN_PROVINCE",
-                    scope: "Kelola cabang & ranting di provinsinya",
-                  },
-                  { role: "ADMIN_BRANCH", scope: "Kelola dojo/ranting di cabangnya" },
-                  { role: "ADMIN_DOJO", scope: "Kelola anggota di rantingnya" },
-                ].map((item) => (
-                  <div
-                    key={item.role}
-                    className={`rounded-lg border p-3 ${
-                      primaryRole === item.role
-                        ? "border-inkai-red bg-inkai-red/5"
-                        : ""
-                    }`}
-                  >
-                    <p className="font-medium">
-                      {ROLE_LABELS[item.role] || item.role}
-                    </p>
-                    <p className="text-muted-foreground">{item.scope}</p>
-                  </div>
-                ))}
-              </div>
             </CardContent>
           </Card>
         </main>

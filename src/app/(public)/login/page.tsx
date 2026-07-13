@@ -38,7 +38,9 @@ export default function LoginPage() {
     setLoading(false);
 
     if (result?.error) {
-      setError("Email atau password salah");
+      setError(
+        "Email atau password salah. Akun baru perlu disetujui admin terlebih dahulu."
+      );
       return;
     }
 
@@ -100,6 +102,11 @@ export default function LoginPage() {
             </Button>
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">
+            <Link href="/lupa-password" className="text-inkai-red hover:underline">
+              Lupa password?
+            </Link>
+          </p>
+          <p className="mt-2 text-center text-sm text-muted-foreground">
             Belum punya akun?{" "}
             <Link href="/daftar" className="font-medium text-inkai-red hover:underline">
               Daftar di sini

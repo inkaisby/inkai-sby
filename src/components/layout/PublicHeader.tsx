@@ -14,9 +14,10 @@ import { canAccessAdmin } from "@/lib/rbac";
 const navLinks = [
   { href: "/", label: "Beranda" },
   { href: "/sejarah", label: "Sejarah" },
-  { href: "/makna-lambang", label: "Makna Lambang" },
-  { href: "/struktur", label: "Struktur Organisasi" },
-  { href: "/visi-misi", label: "Visi & Misi" },
+  { href: "/struktur", label: "Struktur" },
+  { href: "/kegiatan", label: "Kegiatan" },
+  { href: "/berita", label: "Berita" },
+  { href: "/kontak", label: "Kontak" },
 ];
 
 export default async function PublicHeader() {
