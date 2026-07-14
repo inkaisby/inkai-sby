@@ -46,7 +46,6 @@ type PrintConfig = {
   rusak: number;
   hilang: number;
   komisi: number;
-  fees: Record<BeltFeeKey, number>;
 };
 
 function emptyCounts(): Record<BeltFeeKey, number> {
@@ -88,7 +87,6 @@ export function UktPrintModal({
       rusak: 0,
       hilang: 0,
       komisi: 50000,
-      fees: { ...beltFees },
     };
   });
 
@@ -102,9 +100,8 @@ export function UktPrintModal({
       rusak: 0,
       hilang: 0,
       komisi: 50000,
-      fees: { ...beltFees },
     });
-  }, [open, defaultDojoId, dojoOptions, dojos, semester, year, beltFees]);
+  }, [open, defaultDojoId, dojoOptions, dojos, semester, year]);
 
   const selectedDojoName = dojos.find((d) => d.id === selectedDojoId)?.name || "";
   const list = useMemo(
@@ -121,7 +118,7 @@ export function UktPrintModal({
     return result;
   }, [list]);
 
-  const subtotalA = BELT_FEE_KEYS.reduce((sum, belt) => sum + counts[belt] * config.fees[belt], 0);
+  const subtotalA = BELT_FEE_KEYS.reduce((sum, belt) => sum + counts[belt] * beltFees[belt], 0);
   const subtotalB = config.rusak * 15000 + config.hilang * 100000;
   const totalC = list.length * config.komisi;
   const grandTotal = subtotalA + subtotalB - totalC;
@@ -135,7 +132,7 @@ export function UktPrintModal({
     }));
   };
 
-  const updateConfig = (field: keyof Omit<PrintConfig, "fees">, value: string | number) => {
+  const updateConfig = (field: keyof PrintConfig, value: string | number) => {
     setConfig((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -216,28 +213,6 @@ export function UktPrintModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {BELT_FEE_KEYS.map((belt) => (
-              <div key={belt} className="rounded-md border p-2">
-                <p className="text-xs font-medium">
-                  {belt} {formatRupiahNota(config.fees[belt])} × {counts[belt]} anggota
-                </p>
-                <Input
-                  type="number"
-                  className="mt-1 h-8 text-xs"
-                  value={config.fees[belt]}
-                  onChange={(e) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      fees: { ...prev.fees, [belt]: parseInt(e.target.value, 10) || 0 },
-                    }))
-                  }
-                  disabled={isDojoAdmin}
-                />
-              </div>
-            ))}
-          </div>
-
           <div
             id="print-document-ukt"
             className="print-document bg-white p-8 font-mono text-xs leading-relaxed text-black"
@@ -272,9 +247,9 @@ export function UktPrintModal({
                   <tr key={belt}>
                     <td className="py-0.5">{belt}</td>
                     <td className="py-0.5 text-right">{counts[belt]}</td>
-                    <td className="py-0.5 text-right">{formatRupiahNota(config.fees[belt])}</td>
+                    <td className="py-0.5 text-right">{formatRupiahNota(beltFees[belt])}</td>
                     <td className="py-0.5 text-right">
-                      {formatRupiahNota(counts[belt] * config.fees[belt])}
+                      {formatRupiahNota(counts[belt] * beltFees[belt])}
                     </td>
                   </tr>
                 ))}
