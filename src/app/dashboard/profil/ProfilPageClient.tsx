@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { showError, showSuccess } from "@/lib/client-toast";
 
 export default function ProfilPageClient({
   member,
@@ -31,7 +32,6 @@ export default function ProfilPageClient({
   const [fullName, setFullName] = useState(member.fullName);
   const [address, setAddress] = useState(member.address || "");
   const [phoneNumber, setPhoneNumber] = useState(member.phoneNumber || "");
-  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -42,12 +42,13 @@ export default function ProfilPageClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fullName, address, phoneNumber }),
     });
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
     if (res.ok) {
-      setMessage("Profil berhasil diperbarui");
+      showSuccess(data.message || "Profil berhasil diperbarui");
       router.refresh();
     } else {
-      setMessage("Gagal memperbarui profil");
+      showError(data.error || "Gagal memperbarui profil");
     }
   }
 
@@ -58,7 +59,7 @@ export default function ProfilPageClient({
         <CardDescription>Perbarui data pribadi Anda</CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4 max-w-lg">
+        <form onSubmit={handleSubmit} className="max-w-lg space-y-4">
           <div className="space-y-2">
             <Label>Nama Lengkap</Label>
             <Input value={fullName} onChange={(e) => setFullName(e.target.value)} required />
@@ -75,7 +76,6 @@ export default function ProfilPageClient({
             <Label>Alamat</Label>
             <Input value={address} onChange={(e) => setAddress(e.target.value)} />
           </div>
-          {message && <p className="text-sm text-muted-foreground">{message}</p>}
           <Button type="submit" disabled={loading} className="bg-inkai-red hover:bg-inkai-red/90">
             Simpan Perubahan
           </Button>

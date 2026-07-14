@@ -12,16 +12,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { showError, showSuccess } from "@/lib/client-toast";
 
 export default function LupaPasswordPage() {
   const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setMessage("");
     const res = await fetch("/api/auth/forgot-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -29,7 +28,11 @@ export default function LupaPasswordPage() {
     });
     const data = await res.json();
     setLoading(false);
-    setMessage(data.message || data.error);
+    if (res.ok) {
+      showSuccess(data.message || "Instruksi reset password telah dikirim");
+    } else {
+      showError(data.error || "Gagal mengirim instruksi reset password");
+    }
   }
 
   return (
@@ -53,7 +56,6 @@ export default function LupaPasswordPage() {
                 required
               />
             </div>
-            {message && <p className="text-sm text-muted-foreground">{message}</p>}
             <Button type="submit" disabled={loading} className="w-full bg-inkai-red hover:bg-inkai-red/90">
               Kirim Instruksi
             </Button>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
+import { notifyUser } from "@/lib/notifications";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 import { forgotPasswordSchema } from "@/lib/security/schemas";
@@ -37,6 +38,13 @@ export async function POST(request: Request) {
       email: user.email,
       action: "PASSWORD_RESET_REQUEST",
       ip,
+    });
+    await notifyUser({
+      userId: user.id,
+      title: "Permintaan Reset Password",
+      content:
+        "Instruksi reset password telah dikirim ke email Anda. Periksa inbox atau folder spam.",
+      type: "INFO",
     });
   }
 

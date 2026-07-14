@@ -2,6 +2,7 @@
 
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
+import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export default function Providers({
@@ -17,7 +18,19 @@ export default function Providers({
       refetchInterval={0}
       refetchOnWindowFocus={false}
     >
-      <ThemeProvider>{children}</ThemeProvider>
+      <ThemeProvider>
+        {children}
+        <Toaster
+          position="top-center"
+          richColors
+          closeButton
+          toastOptions={{
+            classNames: {
+              toast: "font-sans",
+            },
+          }}
+        />
+      </ThemeProvider>
     </SessionProvider>
   );
 }

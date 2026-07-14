@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
+import { notifyUser } from "@/lib/notifications";
 import { buildMemberFilter } from "@/lib/rbac";
 import { memberActionSchema } from "@/lib/security/schemas";
 import { getClientIp } from "@/lib/security/request";
@@ -66,7 +67,18 @@ export async function PATCH(request: Request, context: RouteContext) {
       userAgent: request.headers.get("user-agent"),
     });
 
-    return NextResponse.json({ success: true, status: "Active" });
+    await notifyUser({
+      userId: authResult.user.id,
+      title: "Anggota Disetujui",
+      content: `Pendaftaran ${member.fullName} berhasil disetujui.`,
+      type: "SUCCESS",
+    });
+
+    return NextResponse.json({
+      success: true,
+      status: "Active",
+      message: "Anggota berhasil disetujui",
+    });
   }
 
   await prisma.$transaction(async (tx) => {
@@ -100,5 +112,16 @@ export async function PATCH(request: Request, context: RouteContext) {
     userAgent: request.headers.get("user-agent"),
   });
 
-  return NextResponse.json({ success: true, status: "REJECTED" });
+  await notifyUser({
+    userId: authResult.user.id,
+    title: "Anggota Ditolak",
+    content: `Pendaftaran ${member.fullName} telah ditolak.`,
+    type: "WARNING",
+  });
+
+  return NextResponse.json({
+    success: true,
+    status: "REJECTED",
+    message: "Anggota berhasil ditolak",
+  });
 }

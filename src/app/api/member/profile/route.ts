@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { notifyUser } from "@/lib/notifications";
 import { z } from "zod";
 
 const profileSchema = z.object({
@@ -38,5 +39,15 @@ export async function PATCH(request: Request) {
     }),
   ]);
 
-  return NextResponse.json({ success: true });
+  await notifyUser({
+    userId: session.user.id,
+    title: "Profil Diperbarui",
+    content: "Data profil Anda berhasil disimpan.",
+    type: "SUCCESS",
+  });
+
+  return NextResponse.json({
+    success: true,
+    message: "Profil berhasil diperbarui",
+  });
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
+import { notifyUser } from "@/lib/notifications";
 import { z } from "zod";
 
 const carouselSchema = z.object({
@@ -42,5 +43,15 @@ export async function POST(request: Request) {
     details: item.title,
   });
 
-  return NextResponse.json(item, { status: 201 });
+  await notifyUser({
+    userId: authResult.user.id,
+    title: "Carousel Ditambahkan",
+    content: `Item carousel "${item.title}" berhasil disimpan.`,
+    type: "SUCCESS",
+  });
+
+  return NextResponse.json(
+    { ...item, message: "Carousel berhasil ditambahkan" },
+    { status: 201 }
+  );
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { showError, showSuccess } from "@/lib/client-toast";
 
 export function MemberActions({
   memberId,
@@ -26,9 +27,14 @@ export function MemberActions({
         ...(action === "approve" && nia ? { nia } : {}),
       }),
     });
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
-    if (res.ok) router.refresh();
-    else alert("Gagal memproses aksi");
+    if (res.ok) {
+      showSuccess(data.message || "Aksi berhasil disimpan");
+      router.refresh();
+    } else {
+      showError(data.error || "Gagal memproses aksi");
+    }
   }
 
   if (status === "Active") {

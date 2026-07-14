@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
+import { notifyUser } from "@/lib/notifications";
 import { validatePassword } from "@/lib/security/password";
 import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 import { resetPasswordSchema } from "@/lib/security/schemas";
@@ -56,5 +57,15 @@ export async function POST(request: Request) {
     ip,
   });
 
-  return NextResponse.json({ success: true });
+  await notifyUser({
+    userId: user.id,
+    title: "Password Diperbarui",
+    content: "Password akun Anda berhasil diubah. Silakan login dengan password baru.",
+    type: "SUCCESS",
+  });
+
+  return NextResponse.json({
+    success: true,
+    message: "Password berhasil diperbarui",
+  });
 }

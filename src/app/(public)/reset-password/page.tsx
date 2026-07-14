@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { showError, showSuccess } from "@/lib/client-toast";
 
 function ResetForm() {
   const router = useRouter();
@@ -20,17 +21,15 @@ function ResetForm() {
   const token = searchParams.get("token") || "";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (password !== confirm) {
-      setError("Konfirmasi password tidak cocok");
+      showError("Konfirmasi password tidak cocok");
       return;
     }
     setLoading(true);
-    setError("");
     const res = await fetch("/api/auth/reset-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -38,8 +37,12 @@ function ResetForm() {
     });
     const data = await res.json();
     setLoading(false);
-    if (res.ok) router.push("/login");
-    else setError(data.error || "Gagal reset password");
+    if (res.ok) {
+      showSuccess(data.message || "Password berhasil diperbarui");
+      router.push("/login");
+    } else {
+      showError(data.error || "Gagal reset password");
+    }
   }
 
   if (!token) {
@@ -85,7 +88,6 @@ function ResetForm() {
               required
             />
           </div>
-          {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" disabled={loading} className="w-full bg-inkai-red hover:bg-inkai-red/90">
             Simpan Password
           </Button>

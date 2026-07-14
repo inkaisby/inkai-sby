@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { showError, showSuccess } from "@/lib/client-toast";
 
 export function CarouselManager({
   initialItems,
@@ -27,31 +28,49 @@ export function CarouselManager({
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await fetch("/api/admin/carousel", {
+    const res = await fetch("/api/admin/carousel", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, imageUrl, targetUrl, order: initialItems.length }),
     });
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
-    setTitle("");
-    setImageUrl("");
-    setTargetUrl("");
-    router.refresh();
+    if (res.ok) {
+      showSuccess(data.message || "Carousel berhasil ditambahkan");
+      setTitle("");
+      setImageUrl("");
+      setTargetUrl("");
+      router.refresh();
+    } else {
+      showError(data.error || "Gagal menambahkan carousel");
+    }
   }
 
   async function toggleActive(id: string, isActive: boolean) {
-    await fetch(`/api/admin/carousel/${id}`, {
+    const res = await fetch(`/api/admin/carousel/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isActive: !isActive }),
     });
-    router.refresh();
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      showSuccess(data.message || "Carousel berhasil diperbarui");
+      router.refresh();
+    } else {
+      showError(data.error || "Gagal memperbarui carousel");
+    }
   }
 
   async function handleDelete(id: string) {
     if (!confirm("Hapus item carousel?")) return;
-    await fetch(`/api/admin/carousel/${id}`, { method: "DELETE" });
-    router.refresh();
+    const res = await fetch(`/api/admin/carousel/${id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      showSuccess(data.message || "Carousel berhasil dihapus");
+      router.refresh();
+    } else {
+      showError(data.error || "Gagal menghapus carousel");
+    }
   }
 
   return (
@@ -79,7 +98,7 @@ export function CarouselManager({
           <div key={item.id} className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="font-medium">{item.title}</p>
-              <p className="text-xs text-muted-foreground truncate max-w-md">{item.imageUrl}</p>
+              <p className="max-w-md truncate text-xs text-muted-foreground">{item.imageUrl}</p>
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => toggleActive(item.id, item.isActive)}>

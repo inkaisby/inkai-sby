@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { showError, showSuccess } from "@/lib/client-toast";
 
 type Dojo = { id: string; nama: string; cabang: { nama: string } };
 
@@ -66,11 +67,13 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
 
     if (password !== confirmPassword) {
       setError("Konfirmasi password tidak cocok");
+      showError("Konfirmasi password tidak cocok");
       return;
     }
 
     if (!dojoId) {
       setError("Pilih dojo/ranting terlebih dahulu");
+      showError("Pilih dojo/ranting terlebih dahulu");
       return;
     }
 
@@ -96,13 +99,15 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
 
     if (!res.ok) {
       setError(data.error || "Pendaftaran gagal");
+      showError(data.error || "Pendaftaran gagal");
       return;
     }
 
-    setSuccess(
+    const successMsg =
       data.message ||
-        "Pendaftaran berhasil! Akun Anda menunggu verifikasi admin sebelum bisa login."
-    );
+      "Pendaftaran berhasil! Akun Anda menunggu verifikasi admin sebelum bisa login.";
+    setSuccess(successMsg);
+    showSuccess(successMsg);
     setTimeout(() => router.push("/login"), 2500);
   }
 

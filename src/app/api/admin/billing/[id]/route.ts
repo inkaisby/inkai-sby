@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { buildBillingFilter } from "@/lib/rbac";
 import { writeAuditLog } from "@/lib/audit";
+import { notifyUser } from "@/lib/notifications";
 import { getClientIp } from "@/lib/security/request";
 import { z } from "zod";
 
@@ -81,5 +82,22 @@ export async function PATCH(request: Request, context: RouteContext) {
     userAgent: request.headers.get("user-agent"),
   });
 
-  return NextResponse.json({ success: true, status: newStatus });
+  await notifyUser({
+    userId: authResult.user.id,
+    title:
+      parsed.data.action === "approve"
+        ? "Iuran Diverifikasi"
+        : "Iuran Ditolak",
+    content: `Verifikasi iuran ${billing.member.fullName} (${newStatus}) berhasil disimpan.`,
+    type: parsed.data.action === "approve" ? "SUCCESS" : "WARNING",
+  });
+
+  return NextResponse.json({
+    success: true,
+    status: newStatus,
+    message:
+      parsed.data.action === "approve"
+        ? "Iuran berhasil diverifikasi"
+        : "Iuran berhasil ditolak",
+  });
 }

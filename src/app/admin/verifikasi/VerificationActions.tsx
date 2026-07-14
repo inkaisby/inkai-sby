@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { showError, showSuccess } from "@/lib/client-toast";
 
 export function VerificationActions({
   verificationId,
@@ -24,9 +25,14 @@ export function VerificationActions({
         ...(notes.trim() ? { adminNotes: notes.trim() } : {}),
       }),
     });
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
-    if (res.ok) router.refresh();
-    else alert("Gagal memproses verifikasi");
+    if (res.ok) {
+      showSuccess(data.message || "Verifikasi berhasil disimpan");
+      router.refresh();
+    } else {
+      showError(data.error || "Gagal memproses verifikasi");
+    }
   }
 
   return (

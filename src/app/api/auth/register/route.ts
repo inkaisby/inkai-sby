@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
+import { notifyUser } from "@/lib/notifications";
 import { surabayaDojoWhere } from "@/lib/security/branch-scope";
 import { validatePassword } from "@/lib/security/password";
 import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
@@ -119,6 +120,14 @@ export async function POST(request: Request) {
       details: `Member ${name} dojo ${dojoId}`,
       ip,
       userAgent: request.headers.get("user-agent"),
+    });
+
+    await notifyUser({
+      userId: result.user.id,
+      title: "Pendaftaran Berhasil",
+      content:
+        "Registrasi Anda telah diterima dan menunggu verifikasi admin sebelum bisa login penuh.",
+      type: "INFO",
     });
 
     return NextResponse.json({

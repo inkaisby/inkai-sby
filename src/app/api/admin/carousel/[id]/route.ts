@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
+import { notifyUser } from "@/lib/notifications";
 import { z } from "zod";
 
 const carouselUpdateSchema = z.object({
@@ -37,7 +38,17 @@ export async function PATCH(request: Request, context: RouteContext) {
     details: item.title,
   });
 
-  return NextResponse.json(item);
+  await notifyUser({
+    userId: authResult.user.id,
+    title: "Carousel Diperbarui",
+    content: `Perubahan carousel "${item.title}" berhasil disimpan.`,
+    type: "SUCCESS",
+  });
+
+  return NextResponse.json({
+    ...item,
+    message: "Carousel berhasil diperbarui",
+  });
 }
 
 export async function DELETE(_request: Request, context: RouteContext) {
@@ -54,5 +65,15 @@ export async function DELETE(_request: Request, context: RouteContext) {
     details: id,
   });
 
-  return NextResponse.json({ success: true });
+  await notifyUser({
+    userId: authResult.user.id,
+    title: "Carousel Dihapus",
+    content: "Item carousel berhasil dihapus.",
+    type: "SUCCESS",
+  });
+
+  return NextResponse.json({
+    success: true,
+    message: "Carousel berhasil dihapus",
+  });
 }

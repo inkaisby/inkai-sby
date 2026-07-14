@@ -104,6 +104,18 @@
   }
 }
 
+@keyframes inkai-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.85;
+  }
+}
+
 .inkai-hero {
   background-color: #1a0a0c;
   background-image:

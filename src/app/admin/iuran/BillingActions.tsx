@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { showError, showSuccess } from "@/lib/client-toast";
 
 export function BillingActions({ billingId }: { billingId: string }) {
   const router = useRouter();
@@ -15,9 +16,14 @@ export function BillingActions({ billingId }: { billingId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
     });
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
-    if (res.ok) router.refresh();
-    else alert("Gagal memproses verifikasi iuran");
+    if (res.ok) {
+      showSuccess(data.message || "Verifikasi iuran berhasil disimpan");
+      router.refresh();
+    } else {
+      showError(data.error || "Gagal memproses verifikasi iuran");
+    }
   }
 
   return (
