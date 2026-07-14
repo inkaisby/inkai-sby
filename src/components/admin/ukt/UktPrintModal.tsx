@@ -27,7 +27,6 @@ import {
   type UktSemester,
 } from "@/lib/ukt";
 import { printUktNotaDocument } from "@/lib/ukt-print-html";
-import { toast } from "sonner";
 
 type Props = {
   open: boolean;
@@ -128,7 +127,7 @@ export function UktPrintModal({
   };
 
   const handlePrint = () => {
-    const ok = printUktNotaDocument({
+    printUktNotaDocument({
       notaNo: config.notaNo,
       semester: config.semester,
       dojoName: selectedDojoName,
@@ -150,9 +149,6 @@ export function UktPrintModal({
         year: "numeric",
       }),
     });
-    if (!ok) {
-      toast.error("Popup diblokir browser. Izinkan popup untuk mencetak nota.");
-    }
   };
 
   const beltRows = BELT_FEE_KEYS.filter((belt) => counts[belt] > 0);

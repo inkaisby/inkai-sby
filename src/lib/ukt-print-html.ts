@@ -215,26 +215,42 @@ export function buildUktNotaPrintHtml(data: UktNotaPrintData): string {
 </html>`;
 }
 
-export function printUktNotaDocument(data: UktNotaPrintData): boolean {
+export function printUktNotaDocument(data: UktNotaPrintData): void {
   const html = buildUktNotaPrintHtml(data);
-  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
-  if (!printWindow) return false;
 
-  printWindow.document.open();
-  printWindow.document.write(html);
-  printWindow.document.close();
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText =
+    "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;";
+  document.body.appendChild(iframe);
 
-  const triggerPrint = () => {
-    printWindow.focus();
-    printWindow.print();
-  };
-
-  if (printWindow.document.readyState === "complete") {
-    setTimeout(triggerPrint, 250);
-  } else {
-    printWindow.onload = () => setTimeout(triggerPrint, 250);
+  const win = iframe.contentWindow;
+  const doc = win?.document;
+  if (!win || !doc) {
+    iframe.remove();
+    return;
   }
 
-  printWindow.onafterprint = () => printWindow.close();
-  return true;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  const cleanup = () => {
+    setTimeout(() => iframe.remove(), 800);
+  };
+
+  const doPrint = () => {
+    win.focus();
+    win.print();
+    cleanup();
+  };
+
+  const img = doc.querySelector("img");
+  if (img && !img.complete) {
+    img.addEventListener("load", () => setTimeout(doPrint, 80), { once: true });
+    img.addEventListener("error", () => setTimeout(doPrint, 80), { once: true });
+    setTimeout(doPrint, 1200);
+  } else {
+    setTimeout(doPrint, 120);
+  }
 }
