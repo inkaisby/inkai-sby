@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { buildVerificationFilter, canAccessAdmin } from "@/lib/rbac";
+import { canAccessAdmin } from "@/lib/rbac";
+import { fetchPendingVerificationClaims } from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { VerificationActions } from "./VerificationActions";
@@ -19,16 +19,9 @@ const TYPE_LABELS: Record<string, string> = {
 export default async function AdminVerifikasiPage() {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
+  if (!session.accessToken) redirect("/login");
 
-  const claims = await prisma.verification.findMany({
-    where: { ...buildVerificationFilter(session.user), status: "PENDING" },
-    include: {
-      member: { include: { dojo: true } },
-      event: { select: { title: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
+  const claims = await fetchPendingVerificationClaims(session.accessToken);
 
   return (
     <>
@@ -47,31 +40,35 @@ export default async function AdminVerifikasiPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {claims.map((c) => (
-            <Card key={c.id}>
+          {claims.map((c) => {
+            const member = c.member as Record<string, unknown> | undefined;
+            const dojo = member?.dojo as { name?: string } | undefined;
+            const event = c.event as { title?: string } | undefined;
+            return (
+            <Card key={String(c.id)}>
               <CardContent className="p-4">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="font-medium">{c.member.fullName}</p>
+                    <p className="font-medium">{String(member?.fullName ?? "—")}</p>
                     <p className="text-sm text-muted-foreground">
-                      {c.member.nia || "—"} · {c.member.dojo.name}
+                      {String(member?.nia ?? "—")} · {dojo?.name ?? "—"}
                     </p>
                   </div>
                   <Badge variant="secondary">
-                    {TYPE_LABELS[c.type] || c.type}
+                    {TYPE_LABELS[String(c.type)] || String(c.type)}
                   </Badge>
                 </div>
-                {c.data && (
-                  <p className="mb-2 text-sm">{c.data}</p>
+                {c.data != null && c.data !== "" && (
+                  <p className="mb-2 text-sm">{String(c.data)}</p>
                 )}
-                {c.event && (
+                {event != null && (
                   <p className="mb-2 text-xs text-muted-foreground">
-                    Event: {c.event.title}
+                    Event: {event.title}
                   </p>
                 )}
-                {c.proofUrl && (
+                {c.proofUrl != null && c.proofUrl !== "" && (
                   <a
-                    href={c.proofUrl}
+                    href={String(c.proofUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mb-3 inline-block text-xs text-inkai-red hover:underline"
@@ -80,12 +77,13 @@ export default async function AdminVerifikasiPage() {
                   </a>
                 )}
                 <p className="mb-3 text-xs text-muted-foreground">
-                  Diajukan: {new Date(c.createdAt).toLocaleString("id-ID")}
+                  Diajukan: {new Date(String(c.createdAt)).toLocaleString("id-ID")}
                 </p>
-                <VerificationActions verificationId={c.id} />
+                <VerificationActions verificationId={String(c.id)} />
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </>

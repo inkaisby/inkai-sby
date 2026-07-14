@@ -1,19 +1,21 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
 import {
-  buildMemberFilter,
-  buildDojoFilter,
-  buildBranchFilter,
   canAccessAdmin,
   getAdminScopeLabel,
   getPrimaryAdminRole,
   ROLE_LABELS,
-  buildEventFilter,
-  buildVerificationFilter,
-  buildBillingFilter,
 } from "@/lib/rbac";
+import {
+  fetchDashboardStats,
+  fetchMyNotifications,
+  fetchPendingBillings,
+  fetchPendingMembersCount,
+  fetchPendingVerifications,
+  fetchRecentMembers,
+  fetchUpcomingEvents,
+} from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,12 +40,6 @@ export default async function AdminDashboard() {
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
 
   const user = session.user;
-  const memberFilter = buildMemberFilter(user);
-  const dojoFilter = buildDojoFilter(user);
-  const branchFilter = buildBranchFilter(user);
-  const eventFilter = buildEventFilter(user);
-  const verificationFilter = buildVerificationFilter(user);
-  const billingFilter = buildBillingFilter(user);
   const primaryRole = getPrimaryAdminRole(user.roles);
   const includeBranches = [
     "ADMINISTRATOR",
@@ -52,105 +48,51 @@ export default async function AdminDashboard() {
     "ADMIN",
   ].includes(primaryRole);
 
+  const token = session.accessToken;
+  if (!token) redirect("/login");
+
   let totalMembers = 0;
   let totalDojos = 0;
   let totalBranches = 0;
-  let recentMembers: Awaited<
-    ReturnType<
-      typeof prisma.member.findMany<{ include: { dojo: true } }>
-    >
-  > = [];
+  let recentMembers: Awaited<ReturnType<typeof fetchRecentMembers>> = [];
   let pendingCount = 0;
   let pendingVerifications = 0;
   let pendingBillings = 0;
-  let upcomingEvents: Awaited<
-    ReturnType<
-      typeof prisma.event.findMany<{
-        include: { _count: { select: { registrations: true } } };
-      }>
-    >
-  > = [];
-  let recentNotifications: Awaited<ReturnType<typeof prisma.notification.findMany>> = [];
+  let upcomingEvents: Array<Record<string, unknown>> = [];
+  let recentNotifications: Array<Record<string, unknown>> = [];
   let unreadNotifications = 0;
 
   try {
-    // Single DB connection via interactive transaction (avoids Supabase pool exhaustion)
-    const result = await prisma.$transaction(async (tx) => {
-      const [
-        members,
-        dojos,
-        branches,
-        recent,
-        pending,
-        verifications,
-        billings,
-        events,
-        notifications,
-        unread,
-      ] = await Promise.all([
-        tx.member.count({ where: memberFilter }),
-        tx.dojo.count({ where: dojoFilter }),
-        includeBranches
-          ? tx.branch.count({ where: branchFilter })
-          : Promise.resolve(0),
-        tx.member.findMany({
-          where: memberFilter,
-          include: { dojo: true },
-          orderBy: { createdAt: "desc" },
-          take: 5,
-        }),
-        tx.member.count({
-          where: { ...memberFilter, status: "PENDING" },
-        }),
-        tx.verification.count({
-          where: { ...verificationFilter, status: "PENDING" },
-        }),
-        tx.billing.count({
-          where: { ...billingFilter, status: "WAITING_VERIFICATION" },
-        }),
-        tx.event.findMany({
-          where: { ...eventFilter, startDate: { gte: new Date() } },
-          orderBy: { startDate: "asc" },
-          take: 3,
-          include: { _count: { select: { registrations: true } } },
-        }),
-        tx.notification.findMany({
-          where: { userId: session.user.id },
-          orderBy: { createdAt: "desc" },
-          take: 5,
-        }),
-        tx.notification.count({
-          where: { userId: session.user.id, isRead: false },
-        }),
-      ]);
+    const [
+      stats,
+      recent,
+      pending,
+      verifications,
+      billings,
+      events,
+      notifications,
+    ] = await Promise.all([
+      fetchDashboardStats(token),
+      fetchRecentMembers(token),
+      fetchPendingMembersCount(token),
+      fetchPendingVerifications(token),
+      fetchPendingBillings(token),
+      fetchUpcomingEvents(token),
+      fetchMyNotifications(token),
+    ]);
 
-      return {
-        members,
-        dojos,
-        branches,
-        recent,
-        pending,
-        verifications,
-        billings,
-        events,
-        notifications,
-        unread,
-      };
-    });
-
-    totalMembers = result.members;
-    totalDojos = result.dojos;
-    totalBranches = result.branches;
-    recentMembers = result.recent;
-    pendingCount = result.pending;
-    pendingVerifications = result.verifications;
-    pendingBillings = result.billings;
-    upcomingEvents = result.events;
-    recentNotifications = result.notifications;
-    unreadNotifications = result.unread;
+    totalMembers = Number(stats?.totalMembers ?? 0);
+    totalDojos = Number(stats?.totalDojos ?? 0);
+    totalBranches = includeBranches ? Number(stats?.totalBranches ?? 0) : 0;
+    recentMembers = recent;
+    pendingCount = pending;
+    pendingVerifications = verifications.length;
+    pendingBillings = billings.length;
+    upcomingEvents = events.slice(0, 3);
+    recentNotifications = notifications.items;
+    unreadNotifications = notifications.unread;
   } catch (error) {
-    console.error("[AdminDashboard] DB error:", error);
-    throw error;
+    console.error("[AdminDashboard] API error:", error);
   }
 
   const stats = [
@@ -341,7 +283,7 @@ export default async function AdminDashboard() {
                     <div>
                       <p className="font-medium">{m.fullName}</p>
                       <p className="text-sm text-muted-foreground">
-                        {m.nia || "NIA belum ada"} · {m.dojo.name} · {m.status}
+                        {m.nia || "NIA belum ada"} · {m.dojo?.name ?? "-"} · {m.status}
                       </p>
                     </div>
                     <Badge variant="secondary">{m.currentRank}</Badge>
@@ -367,15 +309,18 @@ export default async function AdminDashboard() {
               <p className="text-muted-foreground">Belum ada event mendatang.</p>
             ) : (
               <div className="space-y-3">
-                {upcomingEvents.map((e) => (
-                  <div key={e.id} className="rounded-lg border p-3">
-                    <p className="font-medium">{e.title}</p>
+                {upcomingEvents.map((e) => {
+                  const count = (e._count as { registrations?: number } | undefined)?.registrations ?? 0;
+                  return (
+                  <div key={String(e.id)} className="rounded-lg border p-3">
+                    <p className="font-medium">{String(e.title)}</p>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(e.startDate).toLocaleDateString("id-ID")} ·{" "}
-                      {e._count.registrations} pendaftar
+                      {new Date(String(e.startDate)).toLocaleDateString("id-ID")} ·{" "}
+                      {count} pendaftar
                     </p>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -392,13 +337,13 @@ export default async function AdminDashboard() {
             <CardContent className="space-y-2">
               {recentNotifications.map((n) => (
                 <div
-                  key={n.id}
+                  key={String(n.id)}
                   className={`rounded-lg border p-3 text-sm ${
                     !n.isRead ? "border-inkai-red/30 bg-inkai-red/5" : ""
                   }`}
                 >
-                  <p className="font-medium">{n.title}</p>
-                  <p className="text-muted-foreground">{n.content}</p>
+                  <p className="font-medium">{String(n.title)}</p>
+                  <p className="text-muted-foreground">{String(n.content)}</p>
                 </div>
               ))}
             </CardContent>

@@ -1,41 +1,37 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
-import { buildMemberFilter, getPrimaryAdminRole } from "@/lib/rbac";
+import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { getPrimaryAdminRole } from "@/lib/rbac";
 import { canEditKyuBaru } from "@/lib/belt";
 import { uktRegistrationUpdateSchema } from "@/lib/security/schemas";
-import { pickUniqueEventFeeAmount, resolveRankFee } from "@/lib/ukt-fee";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+function mapActionToStatus(data: {
+  action?: string;
+  status?: string;
+}): string | undefined {
+  if (data.action === "approve" || data.status === "APPROVED") return "APPROVED";
+  if (data.action === "reject" || data.status === "REJECTED") return "REJECTED";
+  if (data.action === "mark_paid" || data.status === "PAID") return "APPROVED";
+  if (data.status) return data.status;
+  return undefined;
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
 
   const { id } = await context.params;
   const body = await request.json();
   const parsed = uktRegistrationUpdateSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
-  }
-
-  const registration = await prisma.eventRegistration.findFirst({
-    where: {
-      id,
-      member: buildMemberFilter(authResult.user),
-      event: { isDeleted: false },
-    },
-    include: {
-      member: true,
-      event: { include: { categories: true } },
-      category: true,
-    },
-  });
-
-  if (!registration) {
-    return NextResponse.json({ error: "Pendaftaran tidak ditemukan" }, { status: 404 });
   }
 
   const data = parsed.data;
@@ -53,84 +49,49 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
-  const result = await prisma.$transaction(async (tx) => {
-    const updates: Record<string, unknown> = {};
+  const patchBody: Record<string, unknown> = {};
+  const status = mapActionToStatus(data);
+  if (status) patchBody.status = status;
 
-    if (data.action === "approve" || data.status === "APPROVED") {
-      updates.status = "APPROVED";
-    } else if (data.action === "reject" || data.status === "REJECTED") {
-      updates.status = "REJECTED";
-    } else if (data.action === "mark_paid" || data.status === "PAID") {
-      updates.status = "PAID";
-    } else if (data.status) {
-      updates.status = data.status;
-    }
+  if (data.newRank) {
+    patchBody.registeredRank = data.newRank;
+  }
 
-    if (data.newRank) {
-      let category = registration.event.categories.find(
-        (c) => c.name.toLowerCase() === data.newRank!.toLowerCase(),
+  if (data.categoryId) {
+    patchBody.categoryId = data.categoryId;
+  }
+
+  const { res, data: apiData } = await inkaiFetch(
+    `/v1/events/register/${id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(patchBody),
+    },
+    authResult.token,
+  );
+
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: inkaiErrorMessage(apiData, "Gagal memperbarui pendaftaran") },
+      { status: res.status },
+    );
+  }
+
+  if (data.action === "mark_paid") {
+    const registration = apiData.data as Record<string, unknown>;
+    const member = registration.member as { billings?: Array<{ id: string; status: string }> } | undefined;
+    const billing = member?.billings?.find((b) => b.status === "PENDING");
+    if (billing) {
+      await inkaiFetch(
+        "/v1/billing/verify",
+        {
+          method: "POST",
+          body: JSON.stringify({ billingId: billing.id, status: "PAID" }),
+        },
+        authResult.token,
       );
-      if (!category) {
-        const templates = await tx.rankFeeTemplate.findMany();
-        const fee = await resolveRankFee(data.newRank, templates);
-        category = await tx.eventCategory.create({
-          data: { eventId: registration.eventId, name: data.newRank, fee },
-        });
-      }
-      updates.categoryId = category.id;
-
-      if (updates.status === "APPROVED" || updates.status === "PAID" || registration.status === "APPROVED") {
-        await tx.member.update({
-          where: { id: registration.memberId },
-          data: { currentRank: data.newRank },
-        });
-        await tx.memberRank.create({
-          data: {
-            memberId: registration.memberId,
-            rank: data.newRank,
-            date: new Date(),
-            location: registration.event.location || "Surabaya",
-            isVerified: true,
-          },
-        });
-      }
-
-      const billing = await tx.billing.findFirst({
-        where: { registrationId: id, isDeleted: false },
-      });
-      if (billing && billing.status === "PENDING") {
-        const { baseRounded, uniqueTail, total } = await pickUniqueEventFeeAmount(
-          tx,
-          registration.eventId,
-          category.fee,
-          billing.id,
-        );
-        await tx.billing.update({
-          where: { id: billing.id },
-          data: { amount: total, baseFeeAmount: baseRounded, uniqueTail },
-        });
-      }
     }
-
-    if (data.categoryId) {
-      updates.categoryId = data.categoryId;
-    }
-
-    const updated = await tx.eventRegistration.update({
-      where: { id },
-      data: updates,
-      include: { category: true, member: { include: { dojo: true } } },
-    });
-
-    if (data.action === "mark_paid") {
-      const billing = await tx.billing.findFirst({ where: { registrationId: id, isDeleted: false } });
-      if (billing) {
-        await tx.billing.update({ where: { id: billing.id }, data: { status: "PAID" } });
-      }
-    }
-
-    return updated;
-  });
+  }
 
   writeAuditLog({
     userId: authResult.user.id,
@@ -139,53 +100,42 @@ export async function PATCH(request: Request, context: RouteContext) {
     details: `Updated registration ${id}: ${JSON.stringify(data)}`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
+    token: authResult.token,
   });
 
-  return NextResponse.json({ success: true, registration: result });
+  return NextResponse.json({ success: true, registration: apiData.data });
 }
 
 export async function DELETE(request: Request, context: RouteContext) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
 
   const { id } = await context.params;
 
-  const registration = await prisma.eventRegistration.findFirst({
-    where: {
-      id,
-      member: buildMemberFilter(authResult.user),
-    },
-    include: { member: true },
-  });
+  const { res, data } = await inkaiFetch(
+    `/v1/events/register/${id}`,
+    { method: "DELETE" },
+    authResult.token,
+  );
 
-  if (!registration) {
-    return NextResponse.json({ error: "Pendaftaran tidak ditemukan" }, { status: 404 });
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: inkaiErrorMessage(data, "Gagal membatalkan pendaftaran") },
+      { status: res.status },
+    );
   }
-
-  const billing = await prisma.billing.findFirst({
-    where: { registrationId: id, isDeleted: false },
-  });
-
-  if (billing?.status === "PAID") {
-    return NextResponse.json({ error: "Tidak dapat membatalkan pendaftaran yang sudah lunas" }, { status: 400 });
-  }
-
-  const memberName = registration.member.fullName;
-
-  await prisma.$transaction(async (tx) => {
-    if (billing) {
-      await tx.billing.update({ where: { id: billing.id }, data: { isDeleted: true } });
-    }
-    await tx.eventRegistration.delete({ where: { id } });
-  });
 
   writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
     action: "UKT_REGISTRATION_CANCEL",
-    details: `Cancelled UKT registration for ${memberName} (${id})`,
+    details: `Cancelled UKT registration (${id})`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
+    token: authResult.token,
   });
 
   return NextResponse.json({ success: true, message: "Pendaftaran dibatalkan" });

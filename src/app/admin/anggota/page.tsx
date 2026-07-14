@@ -1,12 +1,11 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 import {
-  buildMemberFilter,
   canAccessAdmin,
   getPrimaryAdminRole,
   ROLE_LABELS,
 } from "@/lib/rbac";
+import { fetchAdminMembers } from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,6 +29,7 @@ export default async function AdminAnggotaPage({
 }) {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
+  if (!session.accessToken) redirect("/login");
 
   const params = await searchParams;
   const q = params.q?.trim() || "";
@@ -37,30 +37,15 @@ export default async function AdminAnggotaPage({
   const page = Math.max(1, parseInt(params.page || "1", 10));
   const pageSize = 20;
 
-  const where = {
-    ...buildMemberFilter(session.user),
-    ...(status ? { status } : {}),
-    ...(q
-      ? {
-          OR: [
-            { fullName: { contains: q, mode: "insensitive" as const } },
-            { nia: { contains: q, mode: "insensitive" as const } },
-          ],
-        }
-      : {}),
-  };
+  const result = await fetchAdminMembers(session.accessToken, {
+    page,
+    limit: pageSize,
+    search: q || undefined,
+    status: status || undefined,
+  });
 
-  const [members, total] = await Promise.all([
-    prisma.member.findMany({
-      where,
-      include: { dojo: { include: { branch: true } } },
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    prisma.member.count({ where }),
-  ]);
-
+  const members = result.ok ? result.members : [];
+  const total = result.ok ? result.total : 0;
   const primaryRole = getPrimaryAdminRole(session.user.roles);
   const totalPages = Math.ceil(total / pageSize);
 
@@ -71,6 +56,9 @@ export default async function AdminAnggotaPage({
         <p className="text-muted-foreground">
           {ROLE_LABELS[primaryRole] || primaryRole} — {total} anggota
         </p>
+        {!result.ok && (
+          <p className="mt-2 text-sm text-destructive">Gagal memuat data anggota dari API.</p>
+        )}
       </div>
 
       <form className="mb-4 flex flex-wrap gap-2">
@@ -122,7 +110,7 @@ export default async function AdminAnggotaPage({
                 </TableCell>
                 <TableCell>{m.status}</TableCell>
                 <TableCell className="hidden sm:table-cell">
-                  {m.dojo.name}
+                  {m.dojo?.name ?? "-"}
                 </TableCell>
                 <TableCell>
                   <MemberActions memberId={m.id} status={m.status} />

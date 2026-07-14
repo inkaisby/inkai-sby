@@ -15,6 +15,7 @@ export const authConfig = {
         token.managedDojoId = user.managedDojoId;
         token.memberId = user.memberId;
         token.name = user.name;
+        token.accessToken = user.accessToken;
       }
       return token;
     },
@@ -28,6 +29,7 @@ export const authConfig = {
         session.user.managedDojoId = token.managedDojoId as string | null;
         session.user.memberId = token.memberId as string | null;
       }
+      session.accessToken = (token.accessToken as string) || undefined;
       return session;
     },
   },

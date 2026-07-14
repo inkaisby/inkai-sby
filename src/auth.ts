@@ -1,14 +1,8 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/auth.config";
 import { rateLimit } from "@/lib/security/rate-limit";
-import { isMemberLoginBlocked } from "@/lib/security/member-status";
-import {
-  parseLoginIdentifier,
-  userWhereForLoginIdentifier,
-} from "@/lib/auth/parse-login-identifier";
+import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 
 declare module "next-auth" {
   interface User {
@@ -17,8 +11,10 @@ declare module "next-auth" {
     managedBranchId?: string | null;
     managedDojoId?: string | null;
     memberId?: string | null;
+    accessToken?: string;
   }
   interface Session {
+    accessToken?: string;
     user: {
       id: string;
       email: string;
@@ -39,8 +35,21 @@ declare module "@auth/core/jwt" {
     managedBranchId?: string | null;
     managedDojoId?: string | null;
     memberId?: string | null;
+    accessToken?: string;
   }
 }
+
+type BackendUser = {
+  id?: string;
+  email?: string;
+  fullName?: string;
+  roles?: string[];
+  managedProvinceId?: string | null;
+  managedBranchId?: string | null;
+  managedDojoId?: string | null;
+  memberId?: string | null;
+  member?: { id?: string; status?: string };
+};
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -54,58 +63,44 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!credentials?.email || !credentials?.password) return null;
 
         const identifier = (credentials.email as string).trim();
-        const parsed = parseLoginIdentifier(identifier);
-
-        const loginLimit = rateLimit(
-          `login:${parsed.type === "email" ? parsed.value : parsed.values.join("|")}`,
-          {
-            max: 10,
-            windowMs: 15 * 60 * 1000,
-          }
-        );
+        const loginLimit = rateLimit(`login:${identifier}`, {
+          max: 10,
+          windowMs: 15 * 60 * 1000,
+        });
         if (!loginLimit.success) return null;
 
-        const user = await prisma.user.findFirst({
-          where: {
-            ...userWhereForLoginIdentifier(parsed),
-            isDeleted: false,
-            isActive: true,
+        const { res, data } = await inkaiFetch(
+          "/v1/auth/login",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              identifier,
+              password: credentials.password,
+            }),
           },
-          include: {
-            roles: { select: { name: true } },
-            member: { select: { id: true, status: true } },
-          },
-        });
-
-        if (!user) return null;
-
-        const valid = await bcrypt.compare(
-          credentials.password as string,
-          user.passwordHash
+          null,
         );
-        if (!valid) return null;
 
-        const roles = user.roles.map((r) => r.name);
-        const isMemberOnly =
-          roles.length === 1 && roles[0] === "MEMBER";
+        if (!res.ok) return null;
 
-        if (
-          isMemberOnly &&
-          user.member &&
-          isMemberLoginBlocked(user.member.status)
-        ) {
-          return null;
-        }
+        const token = typeof data.token === "string" ? data.token : null;
+        const payload = data.data as { user?: BackendUser } | undefined;
+        const user = payload?.user;
+        if (!token || !user?.id || !user.email) return null;
+
+        const roles = Array.isArray(user.roles) ? user.roles : [];
+        const memberId = user.memberId ?? user.member?.id ?? null;
 
         return {
           id: user.id,
           email: user.email,
           name: user.fullName || user.email,
           roles,
-          managedProvinceId: user.managedProvinceId,
-          managedBranchId: user.managedBranchId,
-          managedDojoId: user.managedDojoId,
-          memberId: user.member?.id ?? null,
+          managedProvinceId: user.managedProvinceId ?? null,
+          managedBranchId: user.managedBranchId ?? null,
+          managedDojoId: user.managedDojoId ?? null,
+          memberId,
+          accessToken: token,
         };
       },
     }),

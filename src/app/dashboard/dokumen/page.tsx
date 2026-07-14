@@ -1,41 +1,32 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, ExternalLink } from "lucide-react";
+import { fetchMyMemberProfile } from "@/lib/inkai-api/member-data";
 
 export const dynamic = "force-dynamic";
 
 export default async function DokumenPage() {
   const session = await auth();
   if (!session?.user.memberId) redirect("/login");
+  if (!session.accessToken) redirect("/login");
 
-  const member = await prisma.member.findFirst({
-    where: { id: session.user.memberId, isDeleted: false },
-    select: {
-      fullName: true,
-      nik: true,
-      birthCertificateUrl: true,
-      bpjsCardUrl: true,
-      bpjsCardNumber: true,
-    },
-  });
-
-  if (!member) redirect("/dashboard");
+  const member = await fetchMyMemberProfile(session.accessToken);
+  if (!member?.id) redirect("/dashboard");
 
   const docs = [
     {
       label: "Akte Kelahiran",
-      url: member.birthCertificateUrl,
+      url: member.birthCertificateUrl as string | null,
       required: true,
     },
     {
       label: "Kartu BPJS",
-      url: member.bpjsCardUrl,
+      url: member.bpjsCardUrl as string | null,
       required: true,
       extra: member.bpjsCardNumber
-        ? `No. BPJS: ${member.bpjsCardNumber}`
+        ? `No. BPJS: ${String(member.bpjsCardNumber)}`
         : undefined,
     },
   ];
@@ -44,7 +35,7 @@ export default async function DokumenPage() {
     <>
       <h2 className="mb-2 text-2xl font-bold">Dokumen Keanggotaan</h2>
       <p className="mb-6 text-muted-foreground">
-        Dokumen {member.fullName} — data dari Supabase
+        Dokumen {String(member.fullName)} — data dari API backend
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -54,40 +45,33 @@ export default async function DokumenPage() {
               <CardTitle className="flex items-center gap-2 text-base">
                 <FileText className="h-4 w-4" />
                 {doc.label}
+                {doc.required && (
+                  <Badge variant="outline" className="text-xs">
+                    Wajib
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {doc.url ? (
-                <div className="space-y-2">
-                  <Badge className="bg-green-600 text-white">Sudah diunggah</Badge>
-                  {doc.extra && (
-                    <p className="text-sm text-muted-foreground">{doc.extra}</p>
-                  )}
-                  <a
-                    href={doc.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-inkai-red hover:underline"
-                  >
-                    Lihat dokumen <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
+                <a
+                  href={String(doc.url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-inkai-red hover:underline"
+                >
+                  Lihat dokumen <ExternalLink className="h-3 w-3" />
+                </a>
               ) : (
-                <Badge variant="secondary">Belum diunggah</Badge>
+                <p className="text-sm text-muted-foreground">Belum diunggah</p>
+              )}
+              {doc.extra && (
+                <p className="mt-2 text-xs text-muted-foreground">{doc.extra}</p>
               )}
             </CardContent>
           </Card>
         ))}
       </div>
-
-      {member.nik && (
-        <Card className="mt-4">
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">NIK</p>
-            <p className="font-mono font-medium">{member.nik}</p>
-          </CardContent>
-        </Card>
-      )}
     </>
   );
 }

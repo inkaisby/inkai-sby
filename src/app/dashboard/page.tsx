@@ -1,7 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -13,10 +12,18 @@ import {
   ClipboardCheck,
   Trophy,
 } from "lucide-react";
+import {
+  fetchMyAttendance,
+  fetchMyBillings,
+  fetchMyEventRegistrations,
+  fetchMyMemberProfile,
+  fetchMyNotifications,
+  fetchPublicUpcomingEvents,
+} from "@/lib/inkai-api/member-data";
 
 export const dynamic = "force-dynamic";
 
-function semesterAttendancePct(attendances: { checkInAt: Date }[]) {
+function semesterAttendancePct(attendances: Array<{ checkInAt: string }>) {
   const now = new Date();
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
@@ -40,57 +47,28 @@ function semesterAttendancePct(attendances: { checkInAt: Date }[]) {
 export default async function MemberDashboard() {
   const session = await auth();
   if (!session) redirect("/login");
+  if (!session.accessToken) redirect("/login");
 
-  const member = session.user.memberId
-    ? await prisma.member.findFirst({
-        where: { id: session.user.memberId, isDeleted: false },
-        include: {
-          dojo: { include: { branch: { include: { province: true } } } },
-          ranks: { orderBy: { date: "desc" }, take: 1 },
-        },
-      })
-    : null;
+  const token = session.accessToken;
+  const member = await fetchMyMemberProfile(token);
 
   const [notifications, attendances, billings, registrations, upcomingEvents] =
     await Promise.all([
-      prisma.notification.findMany({
-        where: { userId: session.user.id },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-      }),
-      member
-        ? prisma.attendance.findMany({
-            where: { memberId: member.id, isDeleted: false },
-            orderBy: { checkInAt: "desc" },
-            take: 100,
-          })
-        : Promise.resolve([]),
-      member
-        ? prisma.billing.findMany({
-            where: { memberId: member.id, isDeleted: false },
-            orderBy: { dueDate: "desc" },
-            take: 12,
-          })
-        : Promise.resolve([]),
-      member
-        ? prisma.eventRegistration.findMany({
-            where: { memberId: member.id },
-            include: { event: true },
-            orderBy: { createdAt: "desc" },
-            take: 5,
-          })
-        : Promise.resolve([]),
-      prisma.event.findMany({
-        where: { isDeleted: false, startDate: { gte: new Date() } },
-        orderBy: { startDate: "asc" },
-        take: 3,
-      }),
+      fetchMyNotifications(token, 5),
+      fetchMyAttendance(token, 100),
+      fetchMyBillings(token, 12),
+      member ? fetchMyEventRegistrations(token) : Promise.resolve([]),
+      fetchPublicUpcomingEvents(3),
     ]);
 
-  const attendanceStats = semesterAttendancePct(attendances);
+  const attendanceStats = semesterAttendancePct(
+    attendances.map((a) => ({ checkInAt: String(a.checkInAt) })),
+  );
   const unpaidMonthly = billings.filter(
-    (b) => b.type === "MONTHLY_IURAN" && b.status !== "PAID"
+    (b) => b.type === "MONTHLY_IURAN" && b.status !== "PAID",
   ).length;
+
+  const dojo = member?.dojo as { name?: string; branch?: { name?: string } } | undefined;
 
   return (
     <>
@@ -145,7 +123,7 @@ export default async function MemberDashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold text-inkai-red">
-                {member.nia || "Memproses..."}
+                {String(member.nia || "Memproses...")}
               </p>
             </CardContent>
           </Card>
@@ -158,7 +136,7 @@ export default async function MemberDashboard() {
             </CardHeader>
             <CardContent>
               <Badge className="bg-inkai-yellow text-inkai-black hover:bg-inkai-yellow">
-                {member.currentRank}
+                {String(member.currentRank)}
               </Badge>
             </CardContent>
           </Card>
@@ -194,10 +172,10 @@ export default async function MemberDashboard() {
                 href={`/dojo/${member.dojoId}`}
                 className="font-semibold hover:text-inkai-red"
               >
-                {member.dojo.name}
+                {dojo?.name ?? "—"}
               </Link>
               <p className="text-sm text-muted-foreground">
-                {member.dojo.branch.name}
+                {dojo?.branch?.name ?? "—"}
               </p>
             </CardContent>
           </Card>
@@ -227,9 +205,9 @@ export default async function MemberDashboard() {
             </CardHeader>
             <CardContent className="space-y-2">
               {notifications.map((n) => (
-                <div key={n.id} className="rounded-lg border p-3 text-sm">
-                  <p className="font-medium">{n.title}</p>
-                  <p className="text-muted-foreground">{n.content}</p>
+                <div key={String(n.id)} className="rounded-lg border p-3 text-sm">
+                  <p className="font-medium">{String(n.title)}</p>
+                  <p className="text-muted-foreground">{String(n.content)}</p>
                 </div>
               ))}
             </CardContent>
@@ -254,14 +232,14 @@ export default async function MemberDashboard() {
             ) : (
               upcomingEvents.map((e) => (
                 <Link
-                  key={e.id}
+                  key={String(e.id)}
                   href={`/kegiatan/${e.id}`}
                   className="block rounded-lg border p-3 text-sm transition-colors hover:bg-muted/50"
                 >
-                  <p className="font-medium">{e.title}</p>
+                  <p className="font-medium">{String(e.title)}</p>
                   <p className="text-muted-foreground">
-                    {new Date(e.startDate).toLocaleDateString("id-ID")}
-                    {e.location ? ` · ${e.location}` : ""}
+                    {new Date(String(e.startDate)).toLocaleDateString("id-ID")}
+                    {e.location ? ` · ${String(e.location)}` : ""}
                   </p>
                 </Link>
               ))
@@ -284,20 +262,25 @@ export default async function MemberDashboard() {
               </Link>
             </CardHeader>
             <CardContent className="space-y-2">
-              {registrations.map((r) => (
+              {registrations.slice(0, 5).map((r) => {
+                const event = r.event as { title?: string; startDate?: string } | undefined;
+                return (
                 <div
-                  key={r.id}
+                  key={String(r.id)}
                   className="flex items-center justify-between rounded-lg border p-3 text-sm"
                 >
                   <div>
-                    <p className="font-medium">{r.event.title}</p>
+                    <p className="font-medium">{event?.title ?? "—"}</p>
                     <p className="text-muted-foreground">
-                      {new Date(r.event.startDate).toLocaleDateString("id-ID")}
+                      {event?.startDate
+                        ? new Date(event.startDate).toLocaleDateString("id-ID")
+                        : "—"}
                     </p>
                   </div>
-                  <Badge variant="secondary">{r.status}</Badge>
+                  <Badge variant="secondary">{String(r.status)}</Badge>
                 </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         )}

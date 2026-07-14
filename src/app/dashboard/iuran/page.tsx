@@ -1,21 +1,17 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { fetchMyBillings } from "@/lib/inkai-api/member-data";
 
 export const dynamic = "force-dynamic";
 
 export default async function IuranPage() {
   const session = await auth();
   if (!session?.user.memberId) redirect("/login");
+  if (!session.accessToken) redirect("/login");
 
-  const billings = await prisma.billing.findMany({
-    where: { memberId: session.user.memberId, isDeleted: false },
-    include: { payment: true },
-    orderBy: { dueDate: "desc" },
-    take: 50,
-  });
+  const billings = await fetchMyBillings(session.accessToken, 50);
 
   return (
     <>
@@ -28,32 +24,35 @@ export default async function IuranPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {billings.map((b) => (
-            <Card key={b.id}>
+          {billings.map((b) => {
+            const payment = b.payment as { proofUrl?: string } | null | undefined;
+            return (
+            <Card key={String(b.id)}>
               <CardContent className="flex flex-wrap items-center justify-between gap-2 p-4">
                 <div>
-                  <p className="font-medium">{b.type}</p>
+                  <p className="font-medium">{String(b.type)}</p>
                   <p className="text-sm text-muted-foreground">
-                    {b.description || "Iuran anggota"}
+                    {String(b.description || "Iuran anggota")}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Jatuh tempo:{" "}
-                    {new Date(b.dueDate).toLocaleDateString("id-ID")}
+                    {new Date(String(b.dueDate)).toLocaleDateString("id-ID")}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="font-bold">
-                    Rp {b.amount.toLocaleString("id-ID")}
+                    Rp {Number(b.amount).toLocaleString("id-ID")}
                   </p>
                   <Badge
                     variant={b.status === "PAID" ? "default" : "secondary"}
                   >
-                    {b.status}
+                    {String(b.status)}
                   </Badge>
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </>

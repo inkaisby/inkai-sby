@@ -1,32 +1,27 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Award } from "lucide-react";
+import { fetchMyMemberProfile } from "@/lib/inkai-api/member-data";
 
 export const dynamic = "force-dynamic";
 
 export default async function PrestasiPage() {
   const session = await auth();
   if (!session?.user.memberId) redirect("/login");
+  if (!session.accessToken) redirect("/login");
 
-  const member = await prisma.member.findFirst({
-    where: { id: session.user.memberId, isDeleted: false },
-    include: {
-      ranks: { orderBy: { date: "desc" } },
-      eventRegistrations: {
-        where: { status: { in: ["PAID", "APPROVED", "SUCCESS"] } },
-        include: { event: true, category: true },
-        orderBy: { createdAt: "desc" },
-      },
-    },
-  });
+  const member = await fetchMyMemberProfile(session.accessToken);
+  if (!member?.id) redirect("/dashboard");
 
-  if (!member) redirect("/dashboard");
+  const ranks = (member.ranks as Array<Record<string, unknown>>) ?? [];
+  const eventRegistrations =
+    (member.eventRegistrations as Array<Record<string, unknown>>) ?? [];
 
-  const uktEvents = member.eventRegistrations.filter((r) => {
-    const title = r.event.title.toUpperCase();
+  const uktEvents = eventRegistrations.filter((r) => {
+    const event = r.event as { title?: string } | undefined;
+    const title = (event?.title ?? "").toUpperCase();
     return title.includes("UKT") || title.includes("UJIAN");
   });
 
@@ -43,13 +38,13 @@ export default async function PrestasiPage() {
         </CardHeader>
         <CardContent>
           <Badge className="bg-inkai-yellow text-lg text-inkai-black hover:bg-inkai-yellow">
-            {member.currentRank}
+            {String(member.currentRank)}
           </Badge>
         </CardContent>
       </Card>
 
       <h3 className="mb-3 text-lg font-semibold">Riwayat Sabuk</h3>
-      {member.ranks.length === 0 ? (
+      {ranks.length === 0 ? (
         <Card className="mb-8">
           <CardContent className="p-6 text-center text-muted-foreground">
             Belum ada riwayat kenaikan sabuk tercatat.
@@ -57,20 +52,20 @@ export default async function PrestasiPage() {
         </Card>
       ) : (
         <div className="mb-8 space-y-2">
-          {member.ranks.map((r) => (
-            <Card key={r.id}>
+          {ranks.map((r) => (
+            <Card key={String(r.id)}>
               <CardContent className="flex flex-wrap items-center justify-between gap-2 p-4">
                 <div>
-                  <p className="font-medium">{r.rank}</p>
-                  {r.location && (
-                    <p className="text-sm text-muted-foreground">{r.location}</p>
+                  <p className="font-medium">{String(r.rank)}</p>
+                  {r.location != null && r.location !== "" && (
+                    <p className="text-sm text-muted-foreground">{String(r.location)}</p>
                   )}
                 </div>
                 <div className="text-right">
                   <p className="text-sm">
-                    {new Date(r.date).toLocaleDateString("id-ID")}
+                    {new Date(String(r.date)).toLocaleDateString("id-ID")}
                   </p>
-                  {r.isVerified && (
+                  {r.isVerified === true && (
                     <Badge variant="outline" className="mt-1">
                       Terverifikasi
                     </Badge>
@@ -91,20 +86,26 @@ export default async function PrestasiPage() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {uktEvents.map((r) => (
-            <Card key={r.id}>
+          {uktEvents.map((r) => {
+            const event = r.event as { title?: string; startDate?: string } | undefined;
+            const category = r.category as { name?: string } | null | undefined;
+            return (
+            <Card key={String(r.id)}>
               <CardContent className="flex justify-between p-4">
                 <div>
-                  <p className="font-medium">{r.event.title}</p>
+                  <p className="font-medium">{event?.title ?? "—"}</p>
                   <p className="text-sm text-muted-foreground">
-                    {r.category?.name || r.registeredRank || "—"} ·{" "}
-                    {new Date(r.event.startDate).toLocaleDateString("id-ID")}
+                    {category?.name || String(r.registeredRank ?? "—")} ·{" "}
+                    {event?.startDate
+                      ? new Date(event.startDate).toLocaleDateString("id-ID")
+                      : "—"}
                   </p>
                 </div>
-                <Badge variant="secondary">{r.status}</Badge>
+                <Badge variant="secondary">{String(r.status)}</Badge>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </>

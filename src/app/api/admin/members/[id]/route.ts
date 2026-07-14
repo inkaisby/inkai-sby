@@ -1,127 +1,50 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
-import { writeAuditLog } from "@/lib/audit";
-import { notifyUser } from "@/lib/notifications";
-import { buildMemberFilter } from "@/lib/rbac";
+import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { memberActionSchema } from "@/lib/security/schemas";
-import { getClientIp } from "@/lib/security/request";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, context: RouteContext) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
 
   const { id } = await context.params;
   const body = await request.json();
   const parsed = memberActionSchema.safeParse(body);
-
   if (!parsed.success) {
     return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
   }
 
-  const member = await prisma.member.findFirst({
-    where: { id, ...buildMemberFilter(authResult.user) },
-    include: { user: true },
-  });
+  const { res, data } = await inkaiFetch(
+    `/v1/members/${id}/registration`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        action: parsed.data.action,
+        nia: parsed.data.nia,
+      }),
+    },
+    authResult.token,
+  );
 
-  if (!member) {
-    return NextResponse.json({ error: "Anggota tidak ditemukan" }, { status: 404 });
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: inkaiErrorMessage(data, "Gagal memproses anggota") },
+      { status: res.status },
+    );
   }
 
-  const ip = getClientIp(request);
-
-  if (parsed.data.action === "approve") {
-    await prisma.$transaction(async (tx) => {
-      await tx.member.update({
-        where: { id },
-        data: {
-          status: "Active",
-          ...(parsed.data.nia ? { nia: parsed.data.nia } : {}),
-        },
-      });
-      if (member.userId) {
-        await tx.user.update({
-          where: { id: member.userId },
-          data: { isActive: true },
-        });
-        await tx.notification.create({
-          data: {
-            title: "Pendaftaran Disetujui",
-            content:
-              "Selamat! Pendaftaran Anda sebagai anggota INKAI Surabaya telah disetujui. Silakan login ke dashboard.",
-            type: "SUCCESS",
-            userId: member.userId,
-          },
-        });
-      }
-    });
-
-    await writeAuditLog({
-      userId: authResult.user.id,
-      email: authResult.user.email,
-      action: "MEMBER_APPROVE",
-      details: `Approved member ${member.fullName} (${id})`,
-      ip,
-      userAgent: request.headers.get("user-agent"),
-    });
-
-    await notifyUser({
-      userId: authResult.user.id,
-      title: "Anggota Disetujui",
-      content: `Pendaftaran ${member.fullName} berhasil disetujui.`,
-      type: "SUCCESS",
-    });
-
-    return NextResponse.json({
-      success: true,
-      status: "Active",
-      message: "Anggota berhasil disetujui",
-    });
-  }
-
-  await prisma.$transaction(async (tx) => {
-    await tx.member.update({
-      where: { id },
-      data: { status: "REJECTED" },
-    });
-    if (member.userId) {
-      await tx.user.update({
-        where: { id: member.userId },
-        data: { isActive: false },
-      });
-      await tx.notification.create({
-        data: {
-          title: "Pendaftaran Ditolak",
-          content:
-            "Pendaftaran Anda belum dapat disetujui. Hubungi admin dojo/cabang untuk informasi lebih lanjut.",
-          type: "WARNING",
-          userId: member.userId,
-        },
-      });
-    }
-  });
-
-  await writeAuditLog({
-    userId: authResult.user.id,
-    email: authResult.user.email,
-    action: "MEMBER_REJECT",
-    details: `Rejected member ${member.fullName} (${id})`,
-    ip,
-    userAgent: request.headers.get("user-agent"),
-  });
-
-  await notifyUser({
-    userId: authResult.user.id,
-    title: "Anggota Ditolak",
-    content: `Pendaftaran ${member.fullName} telah ditolak.`,
-    type: "WARNING",
-  });
-
+  const payload = data.data as { status?: string } | undefined;
   return NextResponse.json({
     success: true,
-    status: "REJECTED",
-    message: "Anggota berhasil ditolak",
+    status: payload?.status,
+    message:
+      parsed.data.action === "approve"
+        ? "Anggota berhasil disetujui"
+        : "Anggota berhasil ditolak",
   });
 }

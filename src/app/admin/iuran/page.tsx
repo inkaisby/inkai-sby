@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { buildBillingFilter, canAccessAdmin } from "@/lib/rbac";
+import { canAccessAdmin } from "@/lib/rbac";
+import { fetchBillings } from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,43 +18,37 @@ export default async function AdminIuranPage({
 }) {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
+  if (!session.accessToken) redirect("/login");
 
   const params = await searchParams;
   const status = params.status?.trim() || "";
   const q = params.q?.trim() || "";
 
-  const billings = await prisma.billing.findMany({
-    where: {
-      ...buildBillingFilter(session.user),
-      ...(status ? { status } : {}),
-      ...(q
-        ? {
-            member: {
-              ...buildBillingFilter(session.user).member,
-              OR: [
-                { fullName: { contains: q, mode: "insensitive" as const } },
-                { nia: { contains: q, mode: "insensitive" as const } },
-              ],
-            },
-          }
-        : {}),
-    },
-    include: {
-      member: { include: { dojo: true } },
-      payment: true,
-    },
-    orderBy: { dueDate: "desc" },
-    take: 100,
+  let billings = await fetchBillings(session.accessToken, {
+    status: status || undefined,
+    limit: 100,
   });
 
-  const stats = billings.reduce(
+  if (q) {
+    const lower = q.toLowerCase();
+    billings = billings.filter((b) => {
+      const member = b.member as { fullName?: string; nia?: string } | undefined;
+      return (
+        member?.fullName?.toLowerCase().includes(lower) ||
+        member?.nia?.toLowerCase().includes(lower)
+      );
+    });
+  }
+
+  const stats = billings.reduce<{ paid: number; waiting: number; pending: number }>(
     (acc, b) => {
-      if (b.status === "PAID") acc.paid += b.amount;
+      const amount = Number(b.amount ?? 0);
+      if (b.status === "PAID") acc.paid += amount;
       else if (b.status === "WAITING_VERIFICATION") acc.waiting += 1;
       else if (b.status === "PENDING") acc.pending += 1;
       return acc;
     },
-    { paid: 0, waiting: 0, pending: 0 }
+    { paid: 0, waiting: 0, pending: 0 },
   );
 
   return (
@@ -101,21 +95,24 @@ export default async function AdminIuranPage({
         </Card>
       ) : (
         <div className="space-y-3">
-          {billings.map((b) => (
-            <Card key={b.id}>
+          {billings.map((b) => {
+            const member = b.member as { fullName?: string; nia?: string; dojo?: { name?: string } } | undefined;
+            const payment = b.payment as { proofUrl?: string } | null | undefined;
+            return (
+            <Card key={String(b.id)}>
               <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div>
-                  <p className="font-medium">{b.member.fullName}</p>
+                  <p className="font-medium">{member?.fullName ?? "—"}</p>
                   <p className="text-sm text-muted-foreground">
-                    {b.member.nia || "—"} · {b.member.dojo.name} · {b.type}
+                    {member?.nia || "—"} · {member?.dojo?.name ?? "—"} · {String(b.type)}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Jatuh tempo:{" "}
-                    {new Date(b.dueDate).toLocaleDateString("id-ID")}
+                    {new Date(String(b.dueDate)).toLocaleDateString("id-ID")}
                   </p>
-                  {b.payment?.proofUrl && (
+                  {payment?.proofUrl && (
                     <a
-                      href={b.payment.proofUrl}
+                      href={payment.proofUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-inkai-red hover:underline"
@@ -126,20 +123,21 @@ export default async function AdminIuranPage({
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <p className="font-bold">
-                    Rp {b.amount.toLocaleString("id-ID")}
+                    Rp {Number(b.amount).toLocaleString("id-ID")}
                   </p>
                   <Badge
                     variant={b.status === "PAID" ? "default" : "secondary"}
                   >
-                    {b.status}
+                    {String(b.status)}
                   </Badge>
                   {b.status === "WAITING_VERIFICATION" && (
-                    <BillingActions billingId={b.id} />
+                    <BillingActions billingId={String(b.id)} />
                   )}
                 </div>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </>

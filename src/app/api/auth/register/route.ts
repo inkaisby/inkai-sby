@@ -1,144 +1,84 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
-import { writeAuditLog } from "@/lib/audit";
-import { notifyUser } from "@/lib/notifications";
-import { surabayaDojoWhere } from "@/lib/security/branch-scope";
-import { validatePassword } from "@/lib/security/password";
-import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
+import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import {
   assertJsonRequest,
   assertSameOrigin,
   getClientIp,
 } from "@/lib/security/request";
 import { registerSchema } from "@/lib/security/schemas";
+import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
+import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
 
 export async function POST(request: Request) {
   try {
     if (!assertJsonRequest(request)) {
       return NextResponse.json({ error: "Invalid request" }, { status: 415 });
     }
-
     if (!assertSameOrigin(request)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const ip = getClientIp(request);
-    const limit = rateLimit(`register:${ip}`, {
-      max: 5,
-      windowMs: 60 * 60 * 1000,
-    });
-    if (!limit.success) {
-      return rateLimitResponse(limit.retryAfterSec ?? 300);
-    }
+    const limit = rateLimit(`register:${ip}`, { max: 5, windowMs: 60 * 60 * 1000 });
+    if (!limit.success) return rateLimitResponse(limit.retryAfterSec ?? 300);
 
     const body = await request.json();
     const parsed = registerSchema.safeParse(body);
-
     if (!parsed.success) {
-      const message =
-        parsed.error.issues[0]?.message || "Data tidak valid";
-      return NextResponse.json({ error: message }, { status: 400 });
-    }
-
-    const { name, email, password, dojoId, nik, phoneNumber, gender, birthDate } =
-      parsed.data;
-
-    const passwordCheck = validatePassword(password);
-    if (!passwordCheck.valid) {
       return NextResponse.json(
-        { error: passwordCheck.error },
-        { status: 400 }
+        { error: parsed.error.issues[0]?.message || "Data tidak valid" },
+        { status: 400 },
       );
     }
 
-    if (nik) {
-      const existingNik = await prisma.member.findFirst({
-        where: { nik, isDeleted: false },
-      });
-      if (existingNik) {
-        return NextResponse.json({ error: "NIK sudah terdaftar" }, { status: 400 });
-      }
-    }
+    const { name, email, password, dojoId } = parsed.data;
 
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      return NextResponse.json(
-        { error: "Email sudah terdaftar" },
-        { status: 400 }
-      );
+    const dojoRes = await inkaiFetch(`/v1/org/dojo/${dojoId}`, {}, null);
+    if (!dojoRes.res.ok) {
+      return NextResponse.json({ error: "Dojo tidak ditemukan" }, { status: 400 });
     }
-
-    const dojo = await prisma.dojo.findFirst({
-      where: { id: dojoId, ...surabayaDojoWhere },
-    });
-    if (!dojo) {
+    const dojoPayload = dojoRes.data.data as {
+      branch?: { name?: string; province?: { name?: string } };
+    } | undefined;
+    const branchName = dojoPayload?.branch?.name ?? "";
+    const provinceName = dojoPayload?.branch?.province?.name ?? "";
+    if (
+      branchName.toUpperCase() !== SITE_BRANCH_NAME ||
+      provinceName.toUpperCase() !== SITE_PROVINCE_NAME
+    ) {
       return NextResponse.json(
         { error: "Dojo tidak valid untuk Cabang Surabaya" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
-    const parsedBirthDate =
-      birthDate && birthDate.length > 0 ? new Date(birthDate) : null;
-
-    const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
+    const { res, data } = await inkaiFetch(
+      "/v1/auth/register",
+      {
+        method: "POST",
+        body: JSON.stringify({
           email,
-          passwordHash,
+          password,
           fullName: name,
-          phoneNumber: phoneNumber || null,
-          roles: {
-            connectOrCreate: {
-              where: { name: "MEMBER" },
-              create: { name: "MEMBER" },
-            },
-          },
-        },
-      });
-
-      const member = await tx.member.create({
-        data: {
-          userId: user.id,
-          fullName: name,
+          phoneNumber: parsed.data.phoneNumber || undefined,
           dojoId,
-          status: "PENDING",
-          nik: nik || null,
-          gender: gender || null,
-          birthDate: parsedBirthDate,
-        },
-      });
+        }),
+      },
+      null,
+    );
 
-      return { user, member };
-    });
-
-    await writeAuditLog({
-      email,
-      action: "REGISTER",
-      details: `Member ${name} dojo ${dojoId}`,
-      ip,
-      userAgent: request.headers.get("user-agent"),
-    });
-
-    await notifyUser({
-      userId: result.user.id,
-      title: "Pendaftaran Berhasil",
-      content:
-        "Registrasi Anda telah diterima dan menunggu verifikasi admin sebelum bisa login penuh.",
-      type: "INFO",
-    });
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: inkaiErrorMessage(data, "Registrasi gagal") },
+        { status: res.status },
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      memberId: result.member.id,
       message: "Registrasi berhasil, menunggu verifikasi admin",
     });
   } catch {
-    return NextResponse.json(
-      { error: "Terjadi kesalahan saat pendaftaran" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Terjadi kesalahan saat pendaftaran" }, { status: 500 });
   }
 }

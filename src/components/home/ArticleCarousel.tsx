@@ -50,6 +50,7 @@ export default async function ArticleCarousel() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                   </div>
                   <CardContent className="p-5">
+                    {item.createdAt && (
                     <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       {new Date(item.createdAt).toLocaleDateString("id-ID", {
                         day: "numeric",
@@ -57,6 +58,7 @@ export default async function ArticleCarousel() {
                         year: "numeric",
                       })}
                     </p>
+                    )}
                     <h3 className="mb-4 line-clamp-2 font-semibold leading-snug group-hover:text-inkai-red transition-colors">
                       {item.title}
                     </h3>

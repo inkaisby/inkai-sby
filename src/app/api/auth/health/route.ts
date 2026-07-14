@@ -1,26 +1,12 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getInkaiApiBaseUrl } from "@/lib/inkai-api/server";
 
 export async function GET() {
   try {
-    await prisma.$queryRaw`SELECT 1`;
-    const userCount = await prisma.user.count({ where: { isDeleted: false } });
-
-    return NextResponse.json({
-      ok: true,
-      database: "connected",
-      provider: "supabase-postgresql",
-      auth: "nextauth-credentials",
-      users: userCount,
-    });
+    const base = getInkaiApiBaseUrl();
+    const res = await fetch(`${base}/health/db`, { cache: "no-store" });
+    return NextResponse.json({ ok: res.ok, api: base, database: res.ok });
   } catch {
-    return NextResponse.json(
-      {
-        ok: false,
-        database: "disconnected",
-        message: "Tidak dapat terhubung ke Supabase PostgreSQL. Periksa DATABASE_URL.",
-      },
-      { status: 503 }
-    );
+    return NextResponse.json({ ok: false }, { status: 503 });
   }
 }

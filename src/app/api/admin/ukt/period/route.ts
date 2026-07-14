@@ -1,16 +1,33 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
-import { buildEventFilter, getPrimaryAdminRole } from "@/lib/rbac";
+import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { getPrimaryAdminRole } from "@/lib/rbac";
 import { uktPeriodSchema } from "@/lib/security/schemas";
 import { buildUktEventTitle } from "@/lib/ukt";
-import { surabayaBranchWhere } from "@/lib/security/branch-scope";
+import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
+
+async function resolveSurabayaBranchId(token: string) {
+  const { res, data } = await inkaiFetch("/v1/org/provinces", {}, token);
+  if (!res.ok) return null;
+  const provinces = (data.data as Array<Record<string, unknown>>) ?? [];
+  const province = provinces.find(
+    (p) => String(p.name).toUpperCase() === SITE_PROVINCE_NAME.toUpperCase(),
+  );
+  const branches = (province?.branches as Array<Record<string, unknown>>) ?? [];
+  const branch = branches.find(
+    (b) => String(b.name).toUpperCase() === SITE_BRANCH_NAME.toUpperCase(),
+  );
+  return (branch?.id as string) ?? null;
+}
 
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
 
   const body = await request.json();
   const parsed = uktPeriodSchema.safeParse(body);
@@ -21,21 +38,15 @@ export async function POST(request: Request) {
   const { semester, year, title } = parsed.data;
   const eventTitle = title || buildUktEventTitle(semester, year);
 
-  const branch = await prisma.branch.findFirst({ where: surabayaBranchWhere });
-  if (!branch) {
-    return NextResponse.json({ error: "Cabang tidak ditemukan" }, { status: 404 });
-  }
-
-  const existing = await prisma.event.findFirst({
-    where: {
-      ...buildEventFilter(authResult.user),
-      isDeleted: false,
-      title: { equals: eventTitle, mode: "insensitive" },
-    },
-  });
-
-  if (existing) {
-    return NextResponse.json({ event: existing, created: false });
+  const { res: listRes, data: listData } = await inkaiFetch("/v1/events", {}, authResult.token);
+  if (listRes.ok) {
+    const events = (listData.data as Array<Record<string, unknown>>) ?? [];
+    const existing = events.find(
+      (e) => String(e.title).toLowerCase() === eventTitle.toLowerCase(),
+    );
+    if (existing) {
+      return NextResponse.json({ event: existing, created: false });
+    }
   }
 
   const role = getPrimaryAdminRole(authResult.user.roles);
@@ -44,27 +55,39 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Hanya admin cabang yang dapat membuat periode UKT baru" }, { status: 403 });
   }
 
+  const branchId = await resolveSurabayaBranchId(authResult.token);
+  if (!branchId) {
+    return NextResponse.json({ error: "Cabang tidak ditemukan" }, { status: 404 });
+  }
+
   const startMonth = semester === "I" ? 0 : 6;
   const startDate = new Date(year, startMonth, 1);
   const endDate = new Date(year, startMonth + 6, 0, 23, 59, 59);
 
-  const event = await prisma.event.create({
-    data: {
-      title: eventTitle,
-      description: `Ujian Kenaikan Tingkat ${eventTitle}`,
-      startDate,
-      endDate,
-      branchId: branch.id,
-      createdById: authResult.user.id,
-      categories: {
-        create: [
-          { name: "Pendaftaran UKT", fee: 0 },
-        ],
-      },
+  const { res, data } = await inkaiFetch(
+    "/v1/events",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        title: eventTitle,
+        description: `Ujian Kenaikan Tingkat ${eventTitle}`,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        branchId,
+        categories: [{ name: "Pendaftaran UKT", fee: 0 }],
+      }),
     },
-    include: { categories: true },
-  });
+    authResult.token,
+  );
 
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: inkaiErrorMessage(data, "Gagal membuat periode UKT") },
+      { status: res.status },
+    );
+  }
+
+  const event = data.data;
   writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
@@ -72,6 +95,7 @@ export async function POST(request: Request) {
     details: `Created UKT period: ${eventTitle}`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
+    token: authResult.token,
   });
 
   return NextResponse.json({ event, created: true });
@@ -80,6 +104,9 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
 
   const body = await request.json();
   const { eventId, title } = body as { eventId?: string; title?: string };
@@ -93,17 +120,21 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Hanya admin cabang yang dapat mengubah label periode" }, { status: 403 });
   }
 
-  const event = await prisma.event.findFirst({
-    where: { id: eventId, ...buildEventFilter(authResult.user), isDeleted: false },
-  });
-  if (!event) {
-    return NextResponse.json({ error: "Periode UKT tidak ditemukan" }, { status: 404 });
+  const { res, data } = await inkaiFetch(
+    `/v1/events/${eventId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ title: title.trim() }),
+    },
+    authResult.token,
+  );
+
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: inkaiErrorMessage(data, "Gagal mengubah periode UKT") },
+      { status: res.status },
+    );
   }
 
-  const updated = await prisma.event.update({
-    where: { id: eventId },
-    data: { title: title.trim() },
-  });
-
-  return NextResponse.json({ event: updated });
+  return NextResponse.json({ event: data.data });
 }

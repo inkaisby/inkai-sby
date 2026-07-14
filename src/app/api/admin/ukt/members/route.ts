@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
-import { buildDojoFilter, buildMemberFilter, getPrimaryAdminRole } from "@/lib/rbac";
+import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { buildDojoFilter, getPrimaryAdminRole } from "@/lib/rbac";
 import { uktMemberCreateSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
@@ -9,6 +9,9 @@ import { getClientIp } from "@/lib/security/request";
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
 
   const body = await request.json();
   const parsed = uktMemberCreateSchema.safeParse(body);
@@ -25,47 +28,57 @@ export async function POST(request: Request) {
     }
     dojoId = authResult.user.managedDojoId;
   } else if (!dojoId) {
-    const dojo = await prisma.dojo.findFirst({
-      where: buildDojoFilter(authResult.user),
-      orderBy: { name: "asc" },
-    });
-    if (!dojo) {
+    const { res, data } = await inkaiFetch("/v1/org/dojos/all", {}, authResult.token);
+    if (!res.ok) {
       return NextResponse.json({ error: "Dojo tidak ditemukan" }, { status: 404 });
     }
-    dojoId = dojo.id;
+    const dojos = (data.data as Array<{ id: string; name: string }>) ?? [];
+    const filter = buildDojoFilter(authResult.user);
+    const scoped = dojos.filter((d) => {
+      if (filter.id) return d.id === filter.id;
+      if (filter.branchId) return true;
+      return true;
+    });
+    if (!scoped[0]) {
+      return NextResponse.json({ error: "Dojo tidak ditemukan" }, { status: 404 });
+    }
+    dojoId = scoped[0].id;
   }
 
-  const dojo = await prisma.dojo.findFirst({
-    where: { id: dojoId, ...buildDojoFilter(authResult.user) },
-  });
-  if (!dojo) {
-    return NextResponse.json({ error: "Dojo tidak ditemukan" }, { status: 404 });
-  }
-
-  const canSetNia = ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN_BRANCH", "ADMIN"].includes(role);
-
-  const member = await prisma.member.create({
-    data: {
-      fullName: parsed.data.fullName.toUpperCase(),
-      gender: parsed.data.gender || null,
-      birthPlace: parsed.data.birthPlace || null,
-      birthDate: parsed.data.birthDate ? new Date(parsed.data.birthDate) : null,
-      address: parsed.data.address || null,
-      dojoId,
-      currentRank: canSetNia ? "Putih (Kyu 10)" : "Putih (Kyu 10)",
-      nia: canSetNia ? null : null,
-      status: "Active",
+  const { res, data } = await inkaiFetch(
+    "/v1/members",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        fullName: parsed.data.fullName.toUpperCase(),
+        gender: parsed.data.gender || null,
+        birthPlace: parsed.data.birthPlace || null,
+        birthDate: parsed.data.birthDate || null,
+        address: parsed.data.address || null,
+        dojoId,
+        currentRank: "Putih (Kyu 10)",
+        status: "Active",
+      }),
     },
-    include: { dojo: true },
-  });
+    authResult.token,
+  );
 
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: inkaiErrorMessage(data, "Gagal membuat anggota") },
+      { status: res.status },
+    );
+  }
+
+  const member = data.data as Record<string, unknown>;
   writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
     action: "UKT_MEMBER_CREATE",
-    details: `Created member ${member.fullName} at ${dojo.name}`,
+    details: `Created member ${member.fullName}`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
+    token: authResult.token,
   });
 
   return NextResponse.json({ success: true, member });
@@ -74,6 +87,9 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
 
   const { searchParams } = new URL(request.url);
   const memberId = searchParams.get("memberId");
@@ -81,28 +97,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "memberId wajib" }, { status: 400 });
   }
 
-  const member = await prisma.member.findFirst({
-    where: { id: memberId, ...buildMemberFilter(authResult.user) },
-    include: {
-      dojo: { include: { branch: true } },
-      billings: {
-        where: { isDeleted: false, status: { in: ["PENDING", "WAITING_VERIFICATION"] } },
-        orderBy: { dueDate: "asc" },
-        take: 10,
-      },
-      ranks: { orderBy: { date: "desc" }, take: 5 },
-      eventRegistrations: {
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        include: { event: true, category: true },
-      },
-      user: { select: { photoUrl: true } },
-    },
-  });
-
-  if (!member) {
-    return NextResponse.json({ error: "Anggota tidak ditemukan" }, { status: 404 });
+  const { res, data } = await inkaiFetch(`/v1/members/${memberId}`, {}, authResult.token);
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: inkaiErrorMessage(data, "Anggota tidak ditemukan") },
+      { status: res.status },
+    );
   }
 
-  return NextResponse.json({ member });
+  return NextResponse.json({ member: data.data });
 }

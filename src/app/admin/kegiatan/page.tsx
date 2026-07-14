@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { buildEventFilter, canAccessAdmin } from "@/lib/rbac";
+import { canAccessAdmin } from "@/lib/rbac";
+import { fetchAdminEvents } from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
@@ -11,17 +11,9 @@ export const dynamic = "force-dynamic";
 export default async function AdminKegiatanPage() {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
+  if (!session.accessToken) redirect("/login");
 
-  const events = await prisma.event.findMany({
-    where: buildEventFilter(session.user),
-    include: {
-      branch: true,
-      _count: { select: { registrations: true } },
-    },
-    orderBy: { startDate: "desc" },
-    take: 50,
-  });
-
+  const events = await fetchAdminEvents(session.accessToken, 50);
   const now = Date.now();
 
   return (
@@ -29,7 +21,7 @@ export default async function AdminKegiatanPage() {
       <div className="mb-6">
         <h2 className="text-2xl font-bold">Event & Kegiatan</h2>
         <p className="text-muted-foreground">
-          Data event dari Supabase — {events.length} kegiatan
+          Data event dari API backend — {events.length} kegiatan
         </p>
       </div>
 
@@ -42,26 +34,28 @@ export default async function AdminKegiatanPage() {
       ) : (
         <div className="space-y-3">
           {events.map((e) => {
-            const isPast = new Date(e.endDate).getTime() < now;
+            const isPast = new Date(String(e.endDate)).getTime() < now;
+            const branch = e.branch as { name?: string } | undefined;
+            const count = (e._count as { registrations?: number } | undefined)?.registrations ?? 0;
             return (
-              <Card key={e.id}>
+              <Card key={String(e.id)}>
                 <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
                   <div>
                     <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <p className="font-medium">{e.title}</p>
+                      <p className="font-medium">{String(e.title)}</p>
                       <Badge variant={isPast ? "secondary" : "default"}>
                         {isPast ? "Selesai" : "Aktif"}
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(e.startDate).toLocaleDateString("id-ID")}
-                      {e.endDate &&
-                        ` – ${new Date(e.endDate).toLocaleDateString("id-ID")}`}
-                      {e.location && ` · ${e.location}`}
-                      {e.branch && ` · ${e.branch.name}`}
+                      {new Date(String(e.startDate)).toLocaleDateString("id-ID")}
+                      {e.endDate != null &&
+                        ` – ${new Date(String(e.endDate)).toLocaleDateString("id-ID")}`}
+                      {e.location != null && e.location !== "" && ` · ${String(e.location)}`}
+                      {branch && ` · ${branch.name}`}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {e._count.registrations} pendaftar
+                      {count} pendaftar
                     </p>
                   </div>
                   <Link

@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { buildAttendanceFilter, canAccessAdmin } from "@/lib/rbac";
+import { canAccessAdmin } from "@/lib/rbac";
+import { fetchAttendanceLogs } from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,44 +17,28 @@ export default async function AdminAbsensiPage({
 }) {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
+  if (!session.accessToken) redirect("/login");
 
   const params = await searchParams;
   const q = params.q?.trim() || "";
-  const dateStr = params.date?.trim() || "";
+  const today = new Date().toISOString().slice(0, 10);
+  const dateStr = params.date?.trim() || today;
 
-  const dateFilter = dateStr
-    ? {
-        gte: new Date(`${dateStr}T00:00:00`),
-        lt: new Date(`${dateStr}T23:59:59.999`),
-      }
-    : undefined;
-
-  const logs = await prisma.attendance.findMany({
-    where: {
-      ...buildAttendanceFilter(session.user),
-      ...(dateFilter ? { checkInAt: dateFilter } : {}),
-      ...(q
-        ? {
-            member: {
-              ...buildAttendanceFilter(session.user).member,
-              OR: [
-                { fullName: { contains: q, mode: "insensitive" as const } },
-                { nia: { contains: q, mode: "insensitive" as const } },
-              ],
-            },
-          }
-        : {}),
-    },
-    include: {
-      member: { select: { fullName: true, nia: true } },
-      dojo: { select: { name: true } },
-      event: { select: { title: true } },
-    },
-    orderBy: { checkInAt: "desc" },
-    take: 200,
+  let logs = await fetchAttendanceLogs(session.accessToken, {
+    date: dateStr,
+    limit: 200,
   });
 
-  const today = new Date().toISOString().slice(0, 10);
+  if (q) {
+    const lower = q.toLowerCase();
+    logs = logs.filter((log) => {
+      const member = log.member as { fullName?: string; nia?: string } | undefined;
+      return (
+        member?.fullName?.toLowerCase().includes(lower) ||
+        member?.nia?.toLowerCase().includes(lower)
+      );
+    });
+  }
 
   return (
     <>
@@ -69,7 +53,7 @@ export default async function AdminAbsensiPage({
         <Input
           name="date"
           type="date"
-          defaultValue={dateStr || today}
+          defaultValue={dateStr}
           className="max-w-[180px]"
         />
         <Input
@@ -94,22 +78,27 @@ export default async function AdminAbsensiPage({
         </Card>
       ) : (
         <div className="space-y-2">
-          {logs.map((log) => (
-            <Card key={log.id}>
+          {logs.map((log) => {
+            const member = log.member as { fullName?: string; nia?: string } | undefined;
+            const dojo = log.dojo as { name?: string } | undefined;
+            const event = log.event as { title?: string } | null | undefined;
+            return (
+            <Card key={String(log.id)}>
               <CardContent className="flex flex-wrap items-center justify-between gap-2 p-4 text-sm">
                 <div>
-                  <p className="font-medium">{log.member.fullName}</p>
+                  <p className="font-medium">{member?.fullName ?? "—"}</p>
                   <p className="text-muted-foreground">
-                    {log.member.nia || "—"} · {log.dojo.name}
-                    {log.event && ` · ${log.event.title}`}
+                    {member?.nia || "—"} · {dojo?.name ?? "—"}
+                    {event && ` · ${event.title}`}
                   </p>
                 </div>
                 <Badge variant="secondary">
-                  {new Date(log.checkInAt).toLocaleString("id-ID")}
+                  {new Date(String(log.checkInAt)).toLocaleString("id-ID")}
                 </Badge>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </>

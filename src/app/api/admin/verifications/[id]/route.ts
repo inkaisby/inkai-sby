@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
-import { buildVerificationFilter } from "@/lib/rbac";
-import { writeAuditLog } from "@/lib/audit";
-import { notifyUser } from "@/lib/notifications";
-import { getClientIp } from "@/lib/security/request";
+import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { z } from "zod";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -17,84 +13,39 @@ const schema = z.object({
 export async function PATCH(request: Request, context: RouteContext) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
 
   const { id } = await context.params;
-  const body = await request.json();
-  const parsed = schema.safeParse(body);
+  const parsed = schema.safeParse(await request.json());
   if (!parsed.success) {
     return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
   }
 
-  const claim = await prisma.verification.findFirst({
-    where: { id, ...buildVerificationFilter(authResult.user) },
-    include: { member: { include: { user: true } } },
-  });
+  const status = parsed.data.action === "approve" ? "APPROVED" : "REJECTED";
+  const { res, data } = await inkaiFetch(
+    `/v1/verifications/${id}/process`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        status,
+        adminNotes: parsed.data.adminNotes,
+      }),
+    },
+    authResult.token,
+  );
 
-  if (!claim) {
-    return NextResponse.json({ error: "Verifikasi tidak ditemukan" }, { status: 404 });
-  }
-
-  if (claim.status !== "PENDING") {
+  if (!res.ok) {
     return NextResponse.json(
-      { error: "Verifikasi sudah diproses" },
-      { status: 400 }
+      { error: inkaiErrorMessage(data, "Gagal memproses verifikasi") },
+      { status: res.status },
     );
   }
 
-  const ip = getClientIp(request);
-  const newStatus = parsed.data.action === "approve" ? "APPROVED" : "REJECTED";
-
-  await prisma.$transaction(async (tx) => {
-    await tx.verification.update({
-      where: { id },
-      data: {
-        status: newStatus,
-        ...(parsed.data.adminNotes ? { adminNotes: parsed.data.adminNotes } : {}),
-      },
-    });
-    if (claim.member.userId) {
-      await tx.notification.create({
-        data: {
-          title:
-            parsed.data.action === "approve"
-              ? "Verifikasi Disetujui"
-              : "Verifikasi Ditolak",
-          content:
-            parsed.data.action === "approve"
-              ? `Pengajuan ${claim.type} Anda telah disetujui admin.`
-              : `Pengajuan ${claim.type} ditolak.${parsed.data.adminNotes ? ` Catatan: ${parsed.data.adminNotes}` : ""}`,
-          type: parsed.data.action === "approve" ? "SUCCESS" : "WARNING",
-          userId: claim.member.userId,
-        },
-      });
-    }
-  });
-
-  await writeAuditLog({
-    userId: authResult.user.id,
-    email: authResult.user.email,
-    action:
-      parsed.data.action === "approve"
-        ? "VERIFICATION_APPROVE"
-        : "VERIFICATION_REJECT",
-    details: `${newStatus} verification ${id} (${claim.type}) for ${claim.member.fullName}`,
-    ip,
-    userAgent: request.headers.get("user-agent"),
-  });
-
-  await notifyUser({
-    userId: authResult.user.id,
-    title:
-      parsed.data.action === "approve"
-        ? "Verifikasi Disetujui"
-        : "Verifikasi Ditolak",
-    content: `Pengajuan ${claim.type} dari ${claim.member.fullName} berhasil diproses (${newStatus}).`,
-    type: parsed.data.action === "approve" ? "SUCCESS" : "WARNING",
-  });
-
   return NextResponse.json({
     success: true,
-    status: newStatus,
+    status,
     message:
       parsed.data.action === "approve"
         ? "Verifikasi berhasil disetujui"

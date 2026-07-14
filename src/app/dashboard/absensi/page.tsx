@@ -1,21 +1,17 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { fetchMyAttendance } from "@/lib/inkai-api/member-data";
 
 export const dynamic = "force-dynamic";
 
 export default async function AbsensiPage() {
   const session = await auth();
   if (!session?.user.memberId) redirect("/login");
+  if (!session.accessToken) redirect("/login");
 
-  const attendances = await prisma.attendance.findMany({
-    where: { memberId: session.user.memberId, isDeleted: false },
-    include: { dojo: true, event: true },
-    orderBy: { checkInAt: "desc" },
-    take: 50,
-  });
+  const attendances = await fetchMyAttendance(session.accessToken, 50);
 
   return (
     <>
@@ -28,21 +24,25 @@ export default async function AbsensiPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {attendances.map((a) => (
-            <Card key={a.id}>
+          {attendances.map((a) => {
+            const dojo = a.dojo as { name?: string } | undefined;
+            const event = a.event as { title?: string } | null | undefined;
+            return (
+            <Card key={String(a.id)}>
               <CardContent className="flex justify-between p-4">
                 <div>
-                  <p className="font-medium">{a.dojo.name}</p>
+                  <p className="font-medium">{dojo?.name ?? "—"}</p>
                   <p className="text-sm text-muted-foreground">
-                    {a.event?.title || a.method}
+                    {event?.title || String(a.method ?? "—")}
                   </p>
                 </div>
                 <Badge variant="secondary">
-                  {new Date(a.checkInAt).toLocaleString("id-ID")}
+                  {new Date(String(a.checkInAt)).toLocaleString("id-ID")}
                 </Badge>
               </CardContent>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </>

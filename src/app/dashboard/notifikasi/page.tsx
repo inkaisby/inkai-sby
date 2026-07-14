@@ -1,20 +1,17 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { fetchMyNotifications } from "@/lib/inkai-api/member-data";
 
 export const dynamic = "force-dynamic";
 
 export default async function NotifikasiPage() {
   const session = await auth();
   if (!session) redirect("/login");
+  if (!session.accessToken) redirect("/login");
 
-  const notifications = await prisma.notification.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
+  const notifications = await fetchMyNotifications(session.accessToken, 100);
 
   return (
     <>
@@ -28,20 +25,20 @@ export default async function NotifikasiPage() {
       ) : (
         <div className="space-y-3">
           {notifications.map((n) => (
-            <Card key={n.id} className={n.isRead ? "" : "border-inkai-red/30"}>
+            <Card key={String(n.id)} className={n.isRead ? "" : "border-inkai-red/30"}>
               <CardContent className="p-4">
                 <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium">{n.title}</p>
+                  <p className="font-medium">{String(n.title)}</p>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline">{n.type}</Badge>
+                    <Badge variant="outline">{String(n.type)}</Badge>
                     {!n.isRead && (
                       <Badge className="bg-inkai-red text-white">Baru</Badge>
                     )}
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground">{n.content}</p>
+                <p className="text-sm text-muted-foreground">{String(n.content)}</p>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {new Date(n.createdAt).toLocaleString("id-ID")}
+                  {new Date(String(n.createdAt)).toLocaleString("id-ID")}
                 </p>
               </CardContent>
             </Card>

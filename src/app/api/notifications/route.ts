@@ -1,38 +1,38 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
+import { inkaiFetch } from "@/lib/inkai-api/server";
 
 export async function GET() {
   const session = await auth();
-  if (!session?.user?.id) {
+  if (!session?.accessToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const notifications = await prisma.notification.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-  });
+  const { res, data } = await inkaiFetch("/v1/notifications/my", {}, session.accessToken);
+  if (!res.ok) {
+    return NextResponse.json({ error: "Gagal memuat notifikasi" }, { status: res.status });
+  }
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
-
-  return NextResponse.json({ notifications, unreadCount });
+  const list = (data.data as unknown[]) ?? [];
+  return NextResponse.json({ data: list.slice(0, 50) });
 }
 
 export async function PATCH(request: Request) {
   const session = await auth();
-  if (!session?.user?.id) {
+  if (!session?.accessToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json().catch(() => ({}));
-  const markAll = body?.markAll === true;
-
-  if (markAll) {
-    await prisma.notification.updateMany({
-      where: { userId: session.user.id, isRead: false },
-      data: { isRead: true },
-    });
+  const body = (await request.json()) as { markAll?: boolean };
+  if (body.markAll) {
+    const { res } = await inkaiFetch(
+      "/v1/notifications/read-all",
+      { method: "PATCH" },
+      session.accessToken,
+    );
+    if (!res.ok) {
+      return NextResponse.json({ error: "Gagal memperbarui notifikasi" }, { status: res.status });
+    }
     return NextResponse.json({ success: true });
   }
 

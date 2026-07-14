@@ -30,8 +30,8 @@ export default async function KegiatanDetailPage({ params }: Props) {
         <CardContent className="space-y-4 p-6">
           <p>
             <span className="font-medium">Tanggal:</span>{" "}
-            {new Date(event.startDate).toLocaleString("id-ID")} —{" "}
-            {new Date(event.endDate).toLocaleString("id-ID")}
+            {new Date(event.startDate).toLocaleString("id-ID")}
+            {event.endDate && ` — ${new Date(event.endDate).toLocaleString("id-ID")}`}
           </p>
           {event.location && (
             <p>

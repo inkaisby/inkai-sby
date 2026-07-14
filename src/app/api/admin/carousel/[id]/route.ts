@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
-import { writeAuditLog } from "@/lib/audit";
-import { notifyUser } from "@/lib/notifications";
+import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { z } from "zod";
 
 const carouselUpdateSchema = z.object({
@@ -18,35 +16,31 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function PATCH(request: Request, context: RouteContext) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
 
   const { id } = await context.params;
-  const body = await request.json();
-  const parsed = carouselUpdateSchema.safeParse(body);
+  const parsed = carouselUpdateSchema.safeParse(await request.json());
   if (!parsed.success) {
     return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
   }
 
-  const item = await prisma.newsCarousel.update({
-    where: { id },
-    data: parsed.data,
-  });
+  const { res, data } = await inkaiFetch(
+    `/v1/news-carousel/${id}`,
+    { method: "PUT", body: JSON.stringify(parsed.data) },
+    authResult.token,
+  );
 
-  await writeAuditLog({
-    userId: authResult.user.id,
-    email: authResult.user.email,
-    action: "CAROUSEL_UPDATE",
-    details: item.title,
-  });
-
-  await notifyUser({
-    userId: authResult.user.id,
-    title: "Carousel Diperbarui",
-    content: `Perubahan carousel "${item.title}" berhasil disimpan.`,
-    type: "SUCCESS",
-  });
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: inkaiErrorMessage(data, "Gagal memperbarui carousel") },
+      { status: res.status },
+    );
+  }
 
   return NextResponse.json({
-    ...item,
+    ...(data.data as object),
     message: "Carousel berhasil diperbarui",
   });
 }
@@ -54,26 +48,23 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function DELETE(_request: Request, context: RouteContext) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
 
   const { id } = await context.params;
-  await prisma.newsCarousel.delete({ where: { id } });
+  const { res, data } = await inkaiFetch(
+    `/v1/news-carousel/${id}`,
+    { method: "DELETE" },
+    authResult.token,
+  );
 
-  await writeAuditLog({
-    userId: authResult.user.id,
-    email: authResult.user.email,
-    action: "CAROUSEL_DELETE",
-    details: id,
-  });
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: inkaiErrorMessage(data, "Gagal menghapus carousel") },
+      { status: res.status },
+    );
+  }
 
-  await notifyUser({
-    userId: authResult.user.id,
-    title: "Carousel Dihapus",
-    content: "Item carousel berhasil dihapus.",
-    type: "SUCCESS",
-  });
-
-  return NextResponse.json({
-    success: true,
-    message: "Carousel berhasil dihapus",
-  });
+  return NextResponse.json({ success: true, message: "Carousel berhasil dihapus" });
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
-import { buildEventFilter, getPrimaryAdminRole } from "@/lib/rbac";
+import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { getPrimaryAdminRole } from "@/lib/rbac";
 import { uktInvoiceAckSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
@@ -13,6 +13,9 @@ function ackKey(eventId: string, dojoId: string) {
 export async function GET(request: Request) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
 
   const { searchParams } = new URL(request.url);
   const eventId = searchParams.get("eventId");
@@ -20,10 +23,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "eventId wajib" }, { status: 400 });
   }
 
-  const settings = await prisma.appSetting.findMany({
-    where: { key: { startsWith: `ukt-invoice-ack:${eventId}:` } },
-  });
+  const prefix = `ukt-invoice-ack:${eventId}:`;
+  const { res, data } = await inkaiFetch(
+    `/v1/settings?prefix=${encodeURIComponent(prefix)}`,
+    {},
+    authResult.token,
+  );
 
+  if (!res.ok) {
+    return NextResponse.json({ acks: {} });
+  }
+
+  const settings = (data.data as Array<{ key: string; value: unknown }>) ?? [];
   const acks: Record<string, { acknowledged: boolean; at: string; by: string }> = {};
   for (const s of settings) {
     const dojoId = s.key.split(":").pop()!;
@@ -41,6 +52,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
 
   const body = await request.json();
   const parsed = uktInvoiceAckSchema.safeParse(body);
@@ -49,20 +63,7 @@ export async function POST(request: Request) {
   }
 
   const { eventId, dojoId, acknowledged } = parsed.data;
-
-  const event = await prisma.event.findFirst({
-    where: { id: eventId, ...buildEventFilter(authResult.user), isDeleted: false },
-  });
-  if (!event) {
-    return NextResponse.json({ error: "Periode UKT tidak ditemukan" }, { status: 404 });
-  }
-
   const role = getPrimaryAdminRole(authResult.user.roles);
-  const isDojoAdmin = role === "ADMIN_DOJO";
-
-  if (acknowledged && !isDojoAdmin && !["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN"].includes(role)) {
-    // Ketua ranting acknowledges receipt
-  }
 
   const key = ackKey(eventId, dojoId);
   const value = {
@@ -72,11 +73,21 @@ export async function POST(request: Request) {
     role,
   };
 
-  await prisma.appSetting.upsert({
-    where: { key },
-    create: { key, value },
-    update: { value },
-  });
+  const { res, data } = await inkaiFetch(
+    `/v1/settings/${encodeURIComponent(key)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ value }),
+    },
+    authResult.token,
+  );
+
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: inkaiErrorMessage(data, "Gagal menyimpan konfirmasi invoice") },
+      { status: res.status },
+    );
+  }
 
   writeAuditLog({
     userId: authResult.user.id,
@@ -85,6 +96,7 @@ export async function POST(request: Request) {
     details: `Invoice ack for event ${eventId} dojo ${dojoId}: ${acknowledged}`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
+    token: authResult.token,
   });
 
   return NextResponse.json({ success: true, ack: value });
@@ -93,6 +105,9 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
 
   const role = getPrimaryAdminRole(authResult.user.roles);
   const canCreate = ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN_BRANCH", "ADMIN"].includes(role);
@@ -101,70 +116,32 @@ export async function PUT(request: Request) {
   }
 
   const body = await request.json();
-  const { eventId, dojoId, memberIds } = body as {
+  const { eventId, memberIds } = body as {
     eventId?: string;
     dojoId?: string;
     memberIds?: string[];
   };
 
-  if (!eventId || !dojoId || !memberIds?.length) {
+  if (!eventId || !memberIds?.length) {
     return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
   }
 
-  const registrations = await prisma.eventRegistration.findMany({
-    where: {
-      eventId,
-      memberId: { in: memberIds },
-      member: { dojoId },
-      status: { in: ["APPROVED", "PAID", "SUCCESS", "PENDING"] },
+  const { res, data } = await inkaiFetch(
+    "/v1/events/register/bulk",
+    {
+      method: "POST",
+      body: JSON.stringify({ eventId, memberIds }),
     },
-    include: {
-      member: true,
-      category: true,
-    },
-  });
+    authResult.token,
+  );
 
-  const templates = await prisma.rankFeeTemplate.findMany();
-  let created = 0;
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: inkaiErrorMessage(data, "Gagal membuat invoice") },
+      { status: res.status },
+    );
+  }
 
-  await prisma.$transaction(async (tx) => {
-    for (const reg of registrations) {
-      const existing = await tx.billing.findFirst({
-        where: { registrationId: reg.id, isDeleted: false },
-      });
-      if (existing) continue;
-
-      const baseFee = reg.category?.fee ?? templates.find((t) =>
-        reg.member.currentRank.toLowerCase().includes(t.rankName.toLowerCase().split(" ")[1] || ""),
-      )?.fee ?? 285000;
-
-      const { baseRounded, uniqueTail, total } = await pickUniqueFromTx(tx, eventId, baseFee);
-
-      await tx.billing.create({
-        data: {
-          memberId: reg.memberId,
-          registrationId: reg.id,
-          type: "EVENT_FEE",
-          amount: total,
-          baseFeeAmount: baseRounded,
-          uniqueTail,
-          description: `Invoice UKT — ${reg.member.fullName}`,
-          dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-          status: "PENDING",
-        },
-      });
-      created++;
-    }
-  });
-
-  return NextResponse.json({ success: true, created });
-}
-
-async function pickUniqueFromTx(
-  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-  eventId: string,
-  baseFee: number,
-) {
-  const { pickUniqueEventFeeAmount } = await import("@/lib/ukt-fee");
-  return pickUniqueEventFeeAmount(tx, eventId, baseFee);
+  const result = data.data as { succeeded?: unknown[] } | undefined;
+  return NextResponse.json({ success: true, created: result?.succeeded?.length ?? 0 });
 }
