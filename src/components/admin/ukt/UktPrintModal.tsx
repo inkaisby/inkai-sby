@@ -26,6 +26,8 @@ import {
   type UktMemberRow,
   type UktSemester,
 } from "@/lib/ukt";
+import { printUktNotaDocument } from "@/lib/ukt-print-html";
+import { toast } from "sonner";
 
 type Props = {
   open: boolean;
@@ -126,7 +128,31 @@ export function UktPrintModal({
   };
 
   const handlePrint = () => {
-    window.print();
+    const ok = printUktNotaDocument({
+      notaNo: config.notaNo,
+      semester: config.semester,
+      dojoName: selectedDojoName,
+      periodTitle,
+      registeredCount,
+      counts,
+      beltFees,
+      komisiRanting,
+      rusak: config.rusak,
+      hilang: config.hilang,
+      subtotalA,
+      subtotalB,
+      totalC,
+      grandTotal,
+      origin: window.location.origin,
+      printedAt: new Date().toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+    });
+    if (!ok) {
+      toast.error("Popup diblokir browser. Izinkan popup untuk mencetak nota.");
+    }
   };
 
   const beltRows = BELT_FEE_KEYS.filter((belt) => counts[belt] > 0);
@@ -205,7 +231,7 @@ export function UktPrintModal({
 
         <div
           id="print-document-ukt"
-          className="print-document mt-4 rounded-lg border bg-white p-6 font-mono text-xs leading-relaxed text-black"
+          className="mt-4 rounded-lg border bg-white p-6 font-mono text-xs leading-relaxed text-black"
         >
             <div className="relative mb-6 min-h-[72px] border-b-2 border-black pb-4">
               <img
@@ -301,88 +327,6 @@ export function UktPrintModal({
               {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
             </div>
         </div>
-
-        <style
-          dangerouslySetInnerHTML={{
-            __html: `
-          @media print {
-            @page {
-              size: A4 portrait;
-              margin: 12mm 10mm;
-            }
-
-            html, body {
-              height: auto !important;
-              overflow: visible !important;
-              background: white !important;
-              margin: 0 !important;
-              padding: 0 !important;
-            }
-
-            .no-print,
-            [data-radix-dialog-overlay],
-            [data-radix-focus-guard] {
-              display: none !important;
-            }
-
-            body * {
-              visibility: hidden !important;
-            }
-
-            .print-document,
-            .print-document * {
-              visibility: visible !important;
-            }
-
-            .ukt-print-dialog,
-            [role="dialog"] {
-              position: static !important;
-              inset: auto !important;
-              transform: none !important;
-              width: 100% !important;
-              max-width: none !important;
-              max-height: none !important;
-              height: auto !important;
-              overflow: visible !important;
-              border: none !important;
-              box-shadow: none !important;
-              padding: 0 !important;
-              margin: 0 !important;
-              background: transparent !important;
-            }
-
-            .print-document {
-              position: fixed !important;
-              left: 0 !important;
-              top: 0 !important;
-              right: 0 !important;
-              width: 100% !important;
-              max-width: 100% !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              background: white !important;
-              color: black !important;
-              border: none !important;
-              box-shadow: none !important;
-              overflow: visible !important;
-              page-break-inside: avoid;
-              break-inside: avoid;
-              z-index: 2147483647 !important;
-            }
-
-            .print-document table,
-            .print-document .ukt-signature-block {
-              page-break-inside: avoid;
-              break-inside: avoid;
-            }
-
-            .print-document .ukt-signature-space {
-              margin-bottom: 2.5rem !important;
-            }
-          }
-        `,
-          }}
-        />
       </DialogContent>
     </Dialog>
   );
