@@ -45,56 +45,113 @@ export default async function AdminDashboard() {
   const verificationFilter = buildVerificationFilter(user);
   const billingFilter = buildBillingFilter(user);
   const primaryRole = getPrimaryAdminRole(user.roles);
+  const includeBranches = [
+    "ADMINISTRATOR",
+    "ADMIN_PUSAT",
+    "ADMIN_PROVINCE",
+    "ADMIN",
+  ].includes(primaryRole);
 
-  const [
-    totalMembers,
-    totalDojos,
-    totalBranches,
-    recentMembers,
-    pendingCount,
-    pendingVerifications,
-    pendingBillings,
-    upcomingEvents,
-    recentNotifications,
-    unreadNotifications,
-  ] = await Promise.all([
-    prisma.member.count({ where: memberFilter }),
-    prisma.dojo.count({ where: dojoFilter }),
-    ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN"].includes(
-      primaryRole
-    )
-      ? prisma.branch.count({ where: branchFilter })
-      : Promise.resolve(0),
-    prisma.member.findMany({
-      where: memberFilter,
-      include: { dojo: true },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-    }),
-    prisma.member.count({
-      where: { ...memberFilter, status: "PENDING" },
-    }),
-    prisma.verification.count({
-      where: { ...verificationFilter, status: "PENDING" },
-    }),
-    prisma.billing.count({
-      where: { ...billingFilter, status: "WAITING_VERIFICATION" },
-    }),
-    prisma.event.findMany({
-      where: { ...eventFilter, startDate: { gte: new Date() } },
-      orderBy: { startDate: "asc" },
-      take: 3,
-      include: { _count: { select: { registrations: true } } },
-    }),
-    prisma.notification.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-    }),
-    prisma.notification.count({
-      where: { userId: session.user.id, isRead: false },
-    }),
-  ]);
+  let totalMembers = 0;
+  let totalDojos = 0;
+  let totalBranches = 0;
+  let recentMembers: Awaited<
+    ReturnType<
+      typeof prisma.member.findMany<{ include: { dojo: true } }>
+    >
+  > = [];
+  let pendingCount = 0;
+  let pendingVerifications = 0;
+  let pendingBillings = 0;
+  let upcomingEvents: Awaited<
+    ReturnType<
+      typeof prisma.event.findMany<{
+        include: { _count: { select: { registrations: true } } };
+      }>
+    >
+  > = [];
+  let recentNotifications: Awaited<ReturnType<typeof prisma.notification.findMany>> = [];
+  let unreadNotifications = 0;
+
+  try {
+    // Single DB connection via interactive transaction (avoids Supabase pool exhaustion)
+    const result = await prisma.$transaction(async (tx) => {
+      const [
+        members,
+        dojos,
+        branches,
+        recent,
+        pending,
+        verifications,
+        billings,
+        events,
+        notifications,
+        unread,
+      ] = await Promise.all([
+        tx.member.count({ where: memberFilter }),
+        tx.dojo.count({ where: dojoFilter }),
+        includeBranches
+          ? tx.branch.count({ where: branchFilter })
+          : Promise.resolve(0),
+        tx.member.findMany({
+          where: memberFilter,
+          include: { dojo: true },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        }),
+        tx.member.count({
+          where: { ...memberFilter, status: "PENDING" },
+        }),
+        tx.verification.count({
+          where: { ...verificationFilter, status: "PENDING" },
+        }),
+        tx.billing.count({
+          where: { ...billingFilter, status: "WAITING_VERIFICATION" },
+        }),
+        tx.event.findMany({
+          where: { ...eventFilter, startDate: { gte: new Date() } },
+          orderBy: { startDate: "asc" },
+          take: 3,
+          include: { _count: { select: { registrations: true } } },
+        }),
+        tx.notification.findMany({
+          where: { userId: session.user.id },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        }),
+        tx.notification.count({
+          where: { userId: session.user.id, isRead: false },
+        }),
+      ]);
+
+      return {
+        members,
+        dojos,
+        branches,
+        recent,
+        pending,
+        verifications,
+        billings,
+        events,
+        notifications,
+        unread,
+      };
+    });
+
+    totalMembers = result.members;
+    totalDojos = result.dojos;
+    totalBranches = result.branches;
+    recentMembers = result.recent;
+    pendingCount = result.pending;
+    pendingVerifications = result.verifications;
+    pendingBillings = result.billings;
+    upcomingEvents = result.events;
+    recentNotifications = result.notifications;
+    unreadNotifications = result.unread;
+  } catch (error) {
+    console.error("[AdminDashboard] DB error:", error);
+    throw error;
+  }
 
   const stats = [
     {
@@ -137,9 +194,7 @@ export default async function AdminDashboard() {
       value: totalBranches,
       icon: Building2,
       href: "/admin/organisasi",
-      show: ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN"].includes(
-        primaryRole
-      ),
+      show: includeBranches,
     },
   ].filter((s) => s.show);
 

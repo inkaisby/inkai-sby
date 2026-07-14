@@ -17,8 +17,8 @@ export default async function AdminLayout({
     <DashboardShell
       title="Admin Panel"
       links={ADMIN_LINKS}
-      userName={session.user.name}
-      userEmail={session.user.email}
+      userName={session.user.name || session.user.email || "Admin"}
+      userEmail={session.user.email || ""}
       showAdmin
     >
       {children}

@@ -1,4 +1,6 @@
-import { AppSidebar } from "@/components/layout/AppShell";
+"use client";
+
+import { AppSidebar, UserMenu } from "@/components/layout/AppShell";
 import { DashboardTopbar } from "@/components/layout/DashboardTopbar";
 
 export function DashboardShell({

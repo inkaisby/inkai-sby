@@ -17,8 +17,8 @@ export default async function DashboardLayout({
     <DashboardShell
       title="Dashboard Anggota"
       links={MEMBER_LINKS}
-      userName={session.user.name}
-      userEmail={session.user.email}
+      userName={session.user.name || session.user.email || "Anggota"}
+      userEmail={session.user.email || ""}
     >
       {children}
     </DashboardShell>
