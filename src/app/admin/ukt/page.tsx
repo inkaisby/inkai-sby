@@ -12,6 +12,7 @@ import {
 } from "@/lib/rbac";
 import { UktDashboard } from "@/components/admin/ukt/UktDashboard";
 import type { UktMemberRow, UktSemester } from "@/lib/ukt";
+import { computeUktKpiStats } from "@/lib/ukt";
 import { InkaiLoadingScreen } from "@/components/ui/InkaiLoadingScreen";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +50,7 @@ function buildMemberWhere(
 }
 
 function applyViewFilter(rows: UktMemberRow[], viewFilter: string) {
+  if (!viewFilter || viewFilter === "all") return rows;
   if (viewFilter === "registered") return rows.filter((r) => r.registrationId);
   if (viewFilter === "unregistered") return rows.filter((r) => !r.registrationId);
   if (viewFilter === "approved") return rows.filter((r) => ["APPROVED", "PAID", "SUCCESS"].includes(r.status));
@@ -56,6 +58,11 @@ function applyViewFilter(rows: UktMemberRow[], viewFilter: string) {
   if (viewFilter === "rejected") return rows.filter((r) => r.status === "REJECTED");
   if (viewFilter === "paid") return rows.filter((r) => r.billingStatus === "PAID" || r.status === "PAID");
   return rows;
+}
+
+function safeInt(value: string | undefined, fallback: number) {
+  const n = parseInt(value || String(fallback), 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
 async function UktPageContent({ searchParams }: { searchParams: SearchParams }) {
@@ -69,9 +76,9 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   const statusFilter = params.status?.trim() || "";
   const dojoFilter = params.dojo?.trim() || "";
   const viewFilter = params.view?.trim() || "";
-  const page = Math.max(1, parseInt(params.page || "1", 10));
-  const pageSize = [25, 50, 100, 1000].includes(parseInt(params.pageSize || "25", 10))
-    ? parseInt(params.pageSize || "25", 10)
+  const page = safeInt(params.page, 1);
+  const pageSize = [25, 50, 100, 1000].includes(safeInt(params.pageSize, 25))
+    ? safeInt(params.pageSize, 25)
     : 25;
 
   const user = session.user;
@@ -84,6 +91,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     primaryRole === "ADMIN_DOJO" && user.managedDojoId ? user.managedDojoId : "";
   const effectiveDojoFilter = autoDojoId || dojoFilter;
 
+  let dbError: string | null = null;
   let periods: { id: string; title: string; startDate: Date; endDate: Date }[] = [];
   let dojos: { id: string; name: string }[] = [];
   let selectedPeriodId: string | null = params.period || null;
@@ -203,7 +211,11 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     invoiceAckSettings = result.invoiceAckSettings;
   } catch (error) {
     console.error("[AdminUkt] DB error:", error);
-    throw error;
+    const msg = error instanceof Error ? error.message : "";
+    dbError =
+      msg.includes("max clients") || msg.includes("pool") || msg.includes("connection")
+        ? "Koneksi database sibuk. Tunggu beberapa detik lalu muat ulang."
+        : "Gagal memuat data UKT. Silakan coba lagi.";
   }
 
   const regMap = new Map(registrations.map((r) => [r.memberId, r]));
@@ -242,10 +254,9 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   if (statusFilter) {
     rows = rows.filter((r) => r.status === statusFilter);
   }
-  rows = applyViewFilter(rows, viewFilter);
 
-  const total = rows.length;
-  const pagedRows = rows.slice((page - 1) * pageSize, page * pageSize);
+  const kpiStats = computeUktKpiStats(rows);
+  const total = applyViewFilter(rows, viewFilter).length;
 
   const invoiceAcks: Record<string, { acknowledged: boolean; at: string; by: string }> = {};
   for (const s of invoiceAckSettings) {
@@ -279,7 +290,8 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
           endDate: p.endDate.toISOString(),
         }))}
         selectedPeriodId={selectedPeriodId}
-        rows={pagedRows}
+        allRows={rows}
+        kpiStats={kpiStats}
         dojos={dojos}
         total={total}
         page={page}
@@ -294,6 +306,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         year={year}
         invoiceAcks={invoiceAcks}
         canCreatePeriod={canCreatePeriod}
+        dbError={dbError}
       />
     </>
   );

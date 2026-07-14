@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Users,
@@ -60,10 +60,13 @@ import {
 import {
   type UktMemberRow,
   type UktSemester,
+  type UktKpiStats,
   isRegistrationApproved,
-  participantAmount,
+  filterUktRowsByView,
   formatUktPeriodLabel,
+  participantAmount,
 } from "@/lib/ukt";
+import { parseApiJson } from "@/lib/api-client";
 
 export type UktPeriod = {
   id: string;
@@ -77,7 +80,8 @@ export type UktDojo = { id: string; name: string };
 type Props = {
   periods: UktPeriod[];
   selectedPeriodId: string | null;
-  rows: UktMemberRow[];
+  allRows: UktMemberRow[];
+  kpiStats: UktKpiStats;
   dojos: UktDojo[];
   total: number;
   page: number;
@@ -92,6 +96,7 @@ type Props = {
   year: number;
   invoiceAcks: Record<string, { acknowledged: boolean; at: string; by: string }>;
   canCreatePeriod: boolean;
+  dbError?: string | null;
 };
 
 const PAGE_SIZES = [25, 50, 100, 1000] as const;
@@ -121,6 +126,9 @@ function statusBadge(status: string) {
 export function UktDashboard(props: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [localView, setLocalView] = useState(props.viewFilter);
+  const [localPage, setLocalPage] = useState(props.page);
+  const [yearInput, setYearInput] = useState(String(props.year));
   const [editingTitle, setEditingTitle] = useState(false);
   const [periodTitle, setPeriodTitle] = useState(
     props.periods.find((p) => p.id === props.selectedPeriodId)?.title ||
@@ -143,22 +151,32 @@ export function UktDashboard(props: Props) {
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
   const selectedPeriod = props.periods.find((p) => p.id === props.selectedPeriodId);
 
-  const kpi = useMemo(() => {
-    const registered = props.rows.filter((r) => r.registrationId);
-    const total = registered.length;
-    const disetujui = registered.filter((r) => isRegistrationApproved(r.status)).length;
-    const pending = registered.filter((r) => r.status === "PENDING").length;
-    const ditolak = registered.filter((r) => r.status === "REJECTED").length;
-    let totalTagihan = 0;
-    let totalTerbayar = 0;
-    registered.forEach((r) => {
-      const amt = participantAmount(r.billingAmount, r.billingStatus, null);
-      totalTagihan += amt;
-      if (r.billingStatus === "PAID" || r.status === "PAID") totalTerbayar += amt;
-    });
-    const belumDaftar = props.rows.filter((r) => !r.registrationId).length;
-    return { total, disetujui, pending, ditolak, totalTagihan, totalTerbayar, belumDaftar, allMembers: props.rows.length };
-  }, [props.rows]);
+  useEffect(() => {
+    setLocalView(props.viewFilter);
+  }, [props.viewFilter]);
+
+  useEffect(() => {
+    setLocalPage(props.page);
+  }, [props.page]);
+
+  useEffect(() => {
+    setYearInput(String(props.year));
+  }, [props.year]);
+
+  const filteredRows = useMemo(
+    () => filterUktRowsByView(props.allRows, localView),
+    [props.allRows, localView],
+  );
+
+  const totalFiltered = filteredRows.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / props.pageSize));
+  const safePage = Math.min(localPage, totalPages);
+  const displayRows = useMemo(() => {
+    const start = (safePage - 1) * props.pageSize;
+    return filteredRows.slice(start, start + props.pageSize);
+  }, [filteredRows, safePage, props.pageSize]);
+
+  const kpi = props.kpiStats;
 
   const navigate = useCallback(
     (updates: Record<string, string>) => {
@@ -172,7 +190,12 @@ export function UktDashboard(props: Props) {
     [router, searchParams],
   );
 
-  const totalPages = Math.max(1, Math.ceil(props.total / props.pageSize));
+  const handleKpiClick = (filter: string) => {
+    const next =
+      !filter || filter === "all" || localView === filter ? "" : filter;
+    setLocalView(next);
+    setLocalPage(1);
+  };
 
   const handleCreatePeriod = async () => {
     setLoading(true);
@@ -186,10 +209,10 @@ export function UktDashboard(props: Props) {
           title: periodTitle,
         }),
       });
-      const data = await res.json();
+      const data = await parseApiJson<{ error?: string; event?: { id: string }; created?: boolean }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal membuat periode");
       toast.success(data.created ? "Periode UKT dibuat" : "Periode UKT sudah ada");
-      navigate({ period: data.event.id });
+      navigate({ period: data.event?.id ?? "" });
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
@@ -208,7 +231,7 @@ export function UktDashboard(props: Props) {
         body: JSON.stringify({ eventId: props.selectedPeriodId, title: periodTitle }),
       });
       if (!res.ok) {
-        const data = await res.json();
+        const data = await parseApiJson<{ error?: string }>(res);
         throw new Error(data.error);
       }
       toast.success("Label periode diperbarui");
@@ -233,8 +256,8 @@ export function UktDashboard(props: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId: props.selectedPeriodId, memberId }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await parseApiJson<{ error?: string; success?: boolean }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal mendaftarkan anggota");
       toast.success("Anggota berhasil didaftarkan UKT");
       router.refresh();
     } catch (e) {
@@ -252,8 +275,8 @@ export function UktDashboard(props: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newRank, action: "approve" }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await parseApiJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal memperbarui kyu");
       toast.success("Kyu Baru diperbarui");
       router.refresh();
     } catch (e) {
@@ -272,7 +295,7 @@ export function UktDashboard(props: Props) {
         body: JSON.stringify({ action: "approve" }),
       });
       if (!res.ok) {
-        const data = await res.json();
+        const data = await parseApiJson<{ error?: string }>(res);
         throw new Error(data.error);
       }
       toast.success("Pendaftaran disetujui");
@@ -289,7 +312,7 @@ export function UktDashboard(props: Props) {
       toast.error("Pilih ranting terlebih dahulu");
       return;
     }
-    const memberIds = props.rows
+    const memberIds = props.allRows
       .filter((r) => r.registrationId && r.dojoId === props.dojoFilter)
       .map((r) => r.memberId);
     setLoading(true);
@@ -299,9 +322,9 @@ export function UktDashboard(props: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId: props.selectedPeriodId, dojoId: props.dojoFilter, memberIds }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      toast.success(`${data.created} invoice dibuat`);
+      const data = await parseApiJson<{ error?: string; created?: number }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal membuat invoice");
+      toast.success(`${data.created ?? 0} invoice dibuat`);
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
@@ -320,7 +343,7 @@ export function UktDashboard(props: Props) {
         body: JSON.stringify({ eventId: props.selectedPeriodId, dojoId, acknowledged: true }),
       });
       if (!res.ok) {
-        const data = await res.json();
+        const data = await parseApiJson<{ error?: string }>(res);
         throw new Error(data.error);
       }
       toast.success("Invoice ditandai diterima");
@@ -335,9 +358,9 @@ export function UktDashboard(props: Props) {
   const loadMemberHistory = async (memberId: string) => {
     try {
       const res = await fetch(`/api/admin/ukt/members?memberId=${memberId}`);
-      const data = await res.json();
+      const data = await parseApiJson<{ error?: string; member?: Record<string, unknown> }>(res);
       if (!res.ok) throw new Error(data.error);
-      setMemberHistory(data.member);
+      setMemberHistory(data.member ?? null);
     } catch {
       toast.error("Gagal memuat riwayat anggota");
     }
@@ -358,8 +381,8 @@ export function UktDashboard(props: Props) {
           dojoId: props.dojoFilter || undefined,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const data = await parseApiJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal menambahkan anggota");
       toast.success("Anggota berhasil ditambahkan");
       setShowAddMember(false);
       setNewMember({ fullName: "", gender: "", birthPlace: "", birthDate: "", address: "" });
@@ -372,7 +395,7 @@ export function UktDashboard(props: Props) {
   };
 
   const buildWaReport = () => {
-    const approved = props.rows.filter(
+    const approved = props.allRows.filter(
       (r) => r.registrationId && isRegistrationApproved(r.status),
     );
     if (approved.length === 0) {
@@ -437,8 +460,16 @@ export function UktDashboard(props: Props) {
             <Input
               type="number"
               className="w-24"
-              value={props.year}
-              onChange={(e) => navigate({ year: e.target.value, page: "1" })}
+              value={yearInput}
+              onChange={(e) => setYearInput(e.target.value)}
+              onBlur={() => {
+                const y = parseInt(yearInput, 10);
+                if (Number.isFinite(y) && y >= 2020 && y <= 2100) {
+                  navigate({ year: String(y), page: "1" });
+                } else {
+                  setYearInput(String(props.year));
+                }
+              }}
               min={2020}
               max={2100}
             />
@@ -514,9 +545,9 @@ export function UktDashboard(props: Props) {
           <Card
             key={card.label}
             className={`cursor-pointer transition-all hover:shadow-md hover:ring-1 hover:ring-inkai-red/30 ${
-              props.viewFilter === card.filter ? "ring-2 ring-inkai-red" : ""
+              (localView === card.filter || (!localView && card.filter === "all")) ? "ring-2 ring-inkai-red" : ""
             }`}
-            onClick={() => card.filter && navigate({ view: card.filter, page: "1" })}
+            onClick={() => card.filter && handleKpiClick(card.filter)}
           >
             <CardContent className="p-3">
               <div className="flex items-center justify-between">
@@ -529,18 +560,38 @@ export function UktDashboard(props: Props) {
         ))}
       </div>
 
+      {props.dbError && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>{props.dbError}</span>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => router.refresh()}>
+              Muat Ulang
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Search & inline filters */}
       <div className="flex flex-wrap items-center gap-2">
         <UktSearchBar
           value={props.q}
-          onSearch={(q) => navigate({ q, page: "1" })}
+          onSearch={(q) => {
+          setLocalPage(1);
+          navigate({ q, page: "1" });
+        }}
           dojoFilter={props.dojoFilter}
           periodId={props.selectedPeriodId}
         />
 
         <Select
           value={props.statusFilter || "all"}
-          onValueChange={(v) => navigate({ status: v === "all" ? "" : v, page: "1" })}
+          onValueChange={(v) => {
+            setLocalPage(1);
+            navigate({ status: v === "all" ? "" : v, page: "1" });
+          }}
         >
           <SelectTrigger className="w-36">
             <SelectValue placeholder="Status" />
@@ -558,7 +609,10 @@ export function UktDashboard(props: Props) {
         {!isDojoAdmin && (
           <Select
             value={props.dojoFilter || "all"}
-            onValueChange={(v) => navigate({ dojo: v === "all" ? "" : v, page: "1" })}
+            onValueChange={(v) => {
+              setLocalPage(1);
+              navigate({ dojo: v === "all" ? "" : v, page: "1" });
+            }}
           >
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Ranting" />
@@ -576,7 +630,10 @@ export function UktDashboard(props: Props) {
 
         <Select
           value={String(props.pageSize)}
-          onValueChange={(v) => navigate({ pageSize: v, page: "1" })}
+          onValueChange={(v) => {
+            setLocalPage(1);
+            navigate({ pageSize: v, page: "1" });
+          }}
         >
           <SelectTrigger className="w-28">
             <SelectValue />
@@ -637,22 +694,22 @@ export function UktDashboard(props: Props) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {props.rows.length === 0 ? (
+            {displayRows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={14} className="py-12 text-center text-muted-foreground">
-                  {props.rows.length === 0 && props.total === 0
+                  {props.allRows.length === 0 && !props.dbError
                     ? "Belum ada anggota. Tambahkan anggota untuk memulai pendaftaran UKT."
                     : "Tidak ada data sesuai filter."}
                 </TableCell>
               </TableRow>
             ) : (
-              props.rows.map((row, idx) => (
+              displayRows.map((row, idx) => (
                 <TableRow
                   key={row.memberId}
                   className="group transition-colors hover:bg-muted/30"
                 >
                   <TableCell className="text-muted-foreground">
-                    {(props.page - 1) * props.pageSize + idx + 1}
+                    {(safePage - 1) * props.pageSize + idx + 1}
                   </TableCell>
                   <TableCell>
                     <MemberAvatarRing
@@ -761,28 +818,28 @@ export function UktDashboard(props: Props) {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Halaman {props.page} dari {totalPages} ({props.total} data)
+            Halaman {safePage} dari {totalPages} ({totalFiltered} data)
           </p>
           <div className="flex gap-1">
             <Button
               size="sm"
               variant="outline"
-              disabled={props.page <= 1}
-              onClick={() => navigate({ page: String(props.page - 1) })}
+              disabled={safePage <= 1}
+              onClick={() => setLocalPage((p) => Math.max(1, p - 1))}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-              const start = Math.max(1, Math.min(props.page - 3, totalPages - 6));
+              const start = Math.max(1, Math.min(safePage - 3, totalPages - 6));
               const p = start + i;
               if (p > totalPages) return null;
               return (
                 <Button
                   key={p}
                   size="sm"
-                  variant={p === props.page ? "default" : "outline"}
-                  className={p === props.page ? "bg-inkai-red" : ""}
-                  onClick={() => navigate({ page: String(p) })}
+                  variant={p === safePage ? "default" : "outline"}
+                  className={p === safePage ? "bg-inkai-red" : ""}
+                  onClick={() => setLocalPage(p)}
                 >
                   {p}
                 </Button>
@@ -791,8 +848,8 @@ export function UktDashboard(props: Props) {
             <Button
               size="sm"
               variant="outline"
-              disabled={props.page >= totalPages}
-              onClick={() => navigate({ page: String(props.page + 1) })}
+              disabled={safePage >= totalPages}
+              onClick={() => setLocalPage((p) => Math.min(totalPages, p + 1))}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -928,7 +985,7 @@ export function UktDashboard(props: Props) {
           periodTitle={selectedPeriod?.title || periodTitle}
           semester={props.semester}
           year={props.year}
-          rows={props.rows.filter((r) => r.registrationId && isRegistrationApproved(r.status))}
+          rows={props.allRows.filter((r) => r.registrationId && isRegistrationApproved(r.status))}
           dojos={props.dojos}
           dojoFilter={props.dojoFilter}
         />

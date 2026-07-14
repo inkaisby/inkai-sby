@@ -78,3 +78,45 @@ export function participantAmount(
   }
   return categoryFee ?? 0;
 }
+
+export type UktKpiStats = {
+  allMembers: number;
+  total: number;
+  belumDaftar: number;
+  disetujui: number;
+  pending: number;
+  ditolak: number;
+  totalTagihan: number;
+  totalTerbayar: number;
+};
+
+export function computeUktKpiStats(rows: UktMemberRow[]): UktKpiStats {
+  const registered = rows.filter((r) => r.registrationId);
+  let totalTagihan = 0;
+  let totalTerbayar = 0;
+  registered.forEach((r) => {
+    const amt = participantAmount(r.billingAmount, r.billingStatus, null);
+    totalTagihan += amt;
+    if (r.billingStatus === "PAID" || r.status === "PAID") totalTerbayar += amt;
+  });
+  return {
+    allMembers: rows.length,
+    total: registered.length,
+    belumDaftar: rows.filter((r) => !r.registrationId).length,
+    disetujui: registered.filter((r) => isRegistrationApproved(r.status)).length,
+    pending: registered.filter((r) => r.status === "PENDING").length,
+    ditolak: registered.filter((r) => r.status === "REJECTED").length,
+    totalTagihan,
+    totalTerbayar,
+  };
+}
+
+export function filterUktRowsByView(rows: UktMemberRow[], viewFilter: string): UktMemberRow[] {
+  if (viewFilter === "registered") return rows.filter((r) => r.registrationId);
+  if (viewFilter === "unregistered") return rows.filter((r) => !r.registrationId);
+  if (viewFilter === "approved") return rows.filter((r) => ["APPROVED", "PAID", "SUCCESS"].includes(r.status));
+  if (viewFilter === "pending") return rows.filter((r) => r.status === "PENDING");
+  if (viewFilter === "rejected") return rows.filter((r) => r.status === "REJECTED");
+  if (viewFilter === "paid") return rows.filter((r) => r.billingStatus === "PAID" || r.status === "PAID");
+  return rows;
+}
