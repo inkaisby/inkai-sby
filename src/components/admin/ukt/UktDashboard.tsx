@@ -9,7 +9,6 @@ import {
   XCircle,
   Wallet,
   Banknote,
-  Search,
   Plus,
   MessageCircle,
   Printer,
@@ -52,6 +51,7 @@ import {
 } from "@/components/ui/select";
 import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
 import { UktPrintModal } from "@/components/admin/ukt/UktPrintModal";
+import { UktSearchBar } from "@/components/admin/ukt/UktSearchBar";
 import {
   BELT_RANK_OPTIONS,
   canEditKyuBaru,
@@ -529,58 +529,72 @@ export function UktDashboard(props: Props) {
         ))}
       </div>
 
-      {/* Filters */}
-      <form
-        className="flex flex-wrap items-end gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const fd = new FormData(e.currentTarget);
-          navigate({
-            q: fd.get("q") as string,
-            status: fd.get("status") as string,
-            dojo: fd.get("dojo") as string,
-            pageSize: fd.get("pageSize") as string,
-            page: "1",
-          });
-        }}
-      >
-        <div className="relative min-w-48 flex-1">
-          <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input name="q" placeholder="Cari nama / NIA..." defaultValue={props.q} className="pl-8" />
-        </div>
-        <select name="status" defaultValue={props.statusFilter} className="h-8 rounded-lg border px-2 text-sm">
-          <option value="">Semua status</option>
-          <option value="BELUM_DAFTAR">Belum Daftar</option>
-          <option value="PENDING">Pending</option>
-          <option value="APPROVED">Disetujui</option>
-          <option value="PAID">Lunas</option>
-          <option value="REJECTED">Ditolak</option>
-        </select>
+      {/* Search & inline filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <UktSearchBar
+          value={props.q}
+          onSearch={(q) => navigate({ q, page: "1" })}
+          dojoFilter={props.dojoFilter}
+          periodId={props.selectedPeriodId}
+        />
+
+        <Select
+          value={props.statusFilter || "all"}
+          onValueChange={(v) => navigate({ status: v === "all" ? "" : v, page: "1" })}
+        >
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua status</SelectItem>
+            <SelectItem value="BELUM_DAFTAR">Belum Daftar</SelectItem>
+            <SelectItem value="PENDING">Pending</SelectItem>
+            <SelectItem value="APPROVED">Disetujui</SelectItem>
+            <SelectItem value="PAID">Lunas</SelectItem>
+            <SelectItem value="REJECTED">Ditolak</SelectItem>
+          </SelectContent>
+        </Select>
+
         {!isDojoAdmin && (
-          <select name="dojo" defaultValue={props.dojoFilter} className="h-8 rounded-lg border px-2 text-sm">
-            <option value="">Semua ranting</option>
-            {props.dojos.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
+          <Select
+            value={props.dojoFilter || "all"}
+            onValueChange={(v) => navigate({ dojo: v === "all" ? "" : v, page: "1" })}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Ranting" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua ranting</SelectItem>
+              {props.dojos.map((d) => (
+                <SelectItem key={d.id} value={d.id}>
+                  {d.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         )}
-        <select name="pageSize" defaultValue={String(props.pageSize)} className="h-8 rounded-lg border px-2 text-sm">
-          {PAGE_SIZES.map((s) => (
-            <option key={s} value={s}>
-              {s} / hal
-            </option>
-          ))}
-        </select>
-        <Button type="submit" className="bg-inkai-red hover:bg-inkai-red/90">
-          Filter
-        </Button>
+
+        <Select
+          value={String(props.pageSize)}
+          onValueChange={(v) => navigate({ pageSize: v, page: "1" })}
+        >
+          <SelectTrigger className="w-28">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PAGE_SIZES.map((s) => (
+              <SelectItem key={s} value={String(s)}>
+                {s} / hal
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <Button type="button" variant="outline" onClick={() => setShowAddMember(true)}>
           <UserPlus className="mr-1 h-4 w-4" />
           Tambah Anggota
         </Button>
-      </form>
+      </div>
 
       {/* Invoice ack banner for ketua ranting */}
       {isDojoAdmin &&
