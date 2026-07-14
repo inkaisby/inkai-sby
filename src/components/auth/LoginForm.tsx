@@ -10,9 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isAdmin } from "@/lib/rbac";
 
-export default function LoginForm() {
+type LoginFormProps = {
+  idPrefix?: string;
+  onSuccess?: () => void;
+};
+
+export default function LoginForm({ idPrefix = "login", onSuccess }: LoginFormProps) {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -24,7 +29,7 @@ export default function LoginForm() {
     setError("");
 
     const result = await signIn("credentials", {
-      email: email.trim().toLowerCase(),
+      email: identifier.trim(),
       password,
       redirect: false,
     });
@@ -32,7 +37,7 @@ export default function LoginForm() {
     if (result?.error) {
       setLoading(false);
       setError(
-        "Email atau password salah. Akun baru perlu disetujui admin terlebih dahulu."
+        "Email/NIA atau password salah. Akun baru perlu disetujui admin terlebih dahulu."
       );
       return;
     }
@@ -41,6 +46,7 @@ export default function LoginForm() {
     const session = await sessionRes.json();
     const roles: string[] = session?.user?.roles || [];
 
+    onSuccess?.();
     router.push(isAdmin(roles) ? "/admin" : "/dashboard");
     router.refresh();
   }
@@ -48,17 +54,17 @@ export default function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-2">
-        <Label htmlFor="login-email">Email</Label>
+        <Label htmlFor={`${idPrefix}-identifier`}>Email atau NIA</Label>
         <div className="relative">
           <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            id="login-email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="nama@email.com"
+            id={`${idPrefix}-identifier`}
+            type="text"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            placeholder="nama@email.com atau NIA"
             className="pl-9"
-            autoComplete="email"
+            autoComplete="username"
             required
           />
         </div>
@@ -66,7 +72,7 @@ export default function LoginForm() {
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label htmlFor="login-password">Password</Label>
+          <Label htmlFor={`${idPrefix}-password`}>Password</Label>
           <Link
             href="/lupa-password"
             className="text-xs font-medium text-inkai-red hover:underline"
@@ -77,7 +83,7 @@ export default function LoginForm() {
         <div className="relative">
           <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            id="login-password"
+            id={`${idPrefix}-password`}
             type={showPassword ? "text" : "password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}

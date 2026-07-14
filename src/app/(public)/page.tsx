@@ -2,10 +2,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { BookOpen, Shield, Users, Target, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import ArticleCarousel from "@/components/home/ArticleCarousel";
 import ArticleCarouselSkeleton from "@/components/home/ArticleCarouselSkeleton";
+import HomeHeroCTA from "@/components/home/HomeHeroCTA";
 
 export const revalidate = 60;
 
@@ -64,23 +64,7 @@ export default function HomePage() {
               Membentuk karateka berintegritas, tangguh, dan rendah hati melalui
               disiplin, dedikasi, dan nilai-nilai budo karate.
             </p>
-            <div className="flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
-              <Button
-                asChild
-                size="lg"
-                className="h-12 rounded-xl bg-inkai-yellow px-8 text-base font-semibold text-inkai-black shadow-lg shadow-inkai-yellow/25 transition-all hover:bg-inkai-yellow/90 hover:shadow-xl hover:shadow-inkai-yellow/30"
-              >
-                <Link href="/daftar">Daftar Anggota</Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="h-12 rounded-xl border-white/25 bg-white/5 px-8 text-base font-medium text-white backdrop-blur-sm transition-all hover:border-white/40 hover:bg-white/15 hover:text-white"
-              >
-                <Link href="/sejarah">Pelajari Sejarah</Link>
-              </Button>
-            </div>
+            <HomeHeroCTA />
           </div>
 
           <div className="relative flex-shrink-0">

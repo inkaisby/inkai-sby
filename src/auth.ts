@@ -5,6 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/auth.config";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { isMemberLoginBlocked } from "@/lib/security/member-status";
+import {
+  parseLoginIdentifier,
+  userWhereForLoginIdentifier,
+} from "@/lib/auth/parse-login-identifier";
 
 declare module "next-auth" {
   interface User {
@@ -49,17 +53,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const email = (credentials.email as string).trim().toLowerCase();
+        const identifier = (credentials.email as string).trim();
+        const parsed = parseLoginIdentifier(identifier);
 
-        const loginLimit = rateLimit(`login:${email}`, {
-          max: 10,
-          windowMs: 15 * 60 * 1000,
-        });
+        const loginLimit = rateLimit(
+          `login:${parsed.type === "email" ? parsed.value : parsed.values.join("|")}`,
+          {
+            max: 10,
+            windowMs: 15 * 60 * 1000,
+          }
+        );
         if (!loginLimit.success) return null;
 
         const user = await prisma.user.findFirst({
           where: {
-            email: { equals: email, mode: "insensitive" },
+            ...userWhereForLoginIdentifier(parsed),
             isDeleted: false,
             isActive: true,
           },

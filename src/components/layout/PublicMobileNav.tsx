@@ -54,7 +54,7 @@ export default function PublicMobileNav() {
             </Link>
           ))}
           <hr className="my-2" />
-          <PublicHeaderAuthMobile />
+          <PublicHeaderAuthMobile onLoginClick={() => setOpen(false)} />
         </nav>
       </SheetContent>
     </Sheet>

@@ -4,14 +4,28 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { canAccessAdmin } from "@/lib/rbac";
+import { useLoginModal } from "@/components/auth/LoginModal";
 
-function GuestAuthDesktop() {
+type GuestAuthProps = {
+  onLoginClick?: () => void;
+};
+
+function GuestAuthDesktop({ onLoginClick }: GuestAuthProps) {
+  const { openLogin } = useLoginModal();
+
   return (
     <div className="hidden items-center gap-2 md:flex">
-      <Button asChild variant="ghost" size="sm" className="rounded-lg font-medium">
-        <Link href="/login" prefetch>
-          Login
-        </Link>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="rounded-lg font-medium"
+        onClick={() => {
+          onLoginClick?.();
+          openLogin();
+        }}
+      >
+        Login
       </Button>
       <Button
         asChild
@@ -26,16 +40,21 @@ function GuestAuthDesktop() {
   );
 }
 
-function GuestAuthMobile() {
+function GuestAuthMobile({ onLoginClick }: GuestAuthProps) {
+  const { openLogin } = useLoginModal();
+
   return (
     <>
-      <Link
-        href="/login"
-        prefetch
-        className="rounded-lg px-3 py-2 text-sm font-medium hover:bg-muted"
+      <button
+        type="button"
+        onClick={() => {
+          onLoginClick?.();
+          openLogin();
+        }}
+        className="rounded-lg px-3 py-2 text-left text-sm font-medium hover:bg-muted"
       >
         Login
-      </Link>
+      </button>
       <Link
         href="/daftar"
         prefetch
@@ -66,7 +85,7 @@ export function PublicHeaderAuthDesktop() {
   return <GuestAuthDesktop />;
 }
 
-export function PublicHeaderAuthMobile() {
+export function PublicHeaderAuthMobile({ onLoginClick }: GuestAuthProps) {
   const { data: session, status } = useSession();
 
   if (status === "authenticated" && session?.user) {
@@ -84,5 +103,5 @@ export function PublicHeaderAuthMobile() {
     );
   }
 
-  return <GuestAuthMobile />;
+  return <GuestAuthMobile onLoginClick={onLoginClick} />;
 }
