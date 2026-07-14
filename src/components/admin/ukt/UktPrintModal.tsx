@@ -219,9 +219,18 @@ export function UktPrintModal({
             id="print-document-ukt"
             className="print-document bg-white p-8 font-mono text-xs leading-relaxed text-black"
           >
-            <div className="mb-6 border-b-2 border-black pb-4 text-center">
-              <div className="text-lg font-bold">INKAI — INSTITUT KARATE-DO INDONESIA</div>
-              <div className="text-sm">KOTA SURABAYA</div>
+            <div className="mb-6 flex items-center justify-center gap-4 border-b-2 border-black pb-4">
+              <img
+                src="/logo-inkai.png"
+                alt="Logo INKAI"
+                width={72}
+                height={72}
+                className="h-16 w-16 shrink-0 object-contain"
+              />
+              <div>
+                <div className="text-lg font-bold">INKAI — INSTITUT KARATE-DO INDONESIA</div>
+                <div className="text-sm">KOTA SURABAYA</div>
+              </div>
             </div>
 
             <h4 className="mb-6 text-center text-sm font-bold uppercase tracking-wide">
