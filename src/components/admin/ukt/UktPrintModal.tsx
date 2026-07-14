@@ -133,8 +133,8 @@ export function UktPrintModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto sm:max-w-4xl">
-        <DialogHeader>
+      <DialogContent className="ukt-print-dialog max-h-[90vh] max-w-4xl overflow-y-auto sm:max-w-4xl">
+        <DialogHeader className="no-print">
           <DialogTitle className="flex items-center justify-between">
             <span>Cetak Nota Pembayaran UKT</span>
             <div className="flex gap-2">
@@ -149,7 +149,7 @@ export function UktPrintModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 rounded-lg border p-4">
+        <div className="no-print space-y-4 rounded-lg border p-4">
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="col-span-2">
               <label className="text-xs text-muted-foreground">Ranting</label>
@@ -201,11 +201,12 @@ export function UktPrintModal({
               {isDojoAdmin && " (diatur cabang)"}
             </div>
           </div>
+        </div>
 
-          <div
-            id="print-document-ukt"
-            className="print-document bg-white p-8 font-mono text-xs leading-relaxed text-black"
-          >
+        <div
+          id="print-document-ukt"
+          className="print-document mt-4 rounded-lg border bg-white p-6 font-mono text-xs leading-relaxed text-black"
+        >
             <div className="relative mb-6 min-h-[72px] border-b-2 border-black pb-4">
               <img
                 src="/logo-inkai.png"
@@ -285,13 +286,13 @@ export function UktPrintModal({
               </div>
             </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-8 text-center text-sm">
+            <div className="mt-6 grid grid-cols-2 gap-6 text-center text-sm ukt-signature-block">
               <div>
-                <div className="mb-16">Ketua Ranting</div>
+                <div className="mb-12 ukt-signature-space">Ketua Ranting</div>
                 <div className="border-t border-black pt-1">( _________________ )</div>
               </div>
               <div>
-                <div className="mb-16">Bendahara Cabang</div>
+                <div className="mb-12 ukt-signature-space">Bendahara Cabang</div>
                 <div className="border-t border-black pt-1">Habibur Rahman</div>
               </div>
             </div>
@@ -299,20 +300,84 @@ export function UktPrintModal({
             <div className="mt-4 text-center text-xs text-gray-500">
               {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
             </div>
-          </div>
         </div>
 
         <style
           dangerouslySetInnerHTML={{
             __html: `
           @media print {
-            body * { visibility: hidden !important; }
-            .print-document, .print-document * { visibility: visible !important; }
+            @page {
+              size: A4 portrait;
+              margin: 12mm 10mm;
+            }
+
+            html, body {
+              height: auto !important;
+              overflow: visible !important;
+              background: white !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+
+            .no-print,
+            [data-radix-dialog-overlay],
+            [data-radix-focus-guard] {
+              display: none !important;
+            }
+
+            body * {
+              visibility: hidden !important;
+            }
+
+            .print-document,
+            .print-document * {
+              visibility: visible !important;
+            }
+
+            .ukt-print-dialog,
+            [role="dialog"] {
+              position: static !important;
+              inset: auto !important;
+              transform: none !important;
+              width: 100% !important;
+              max-width: none !important;
+              max-height: none !important;
+              height: auto !important;
+              overflow: visible !important;
+              border: none !important;
+              box-shadow: none !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              background: transparent !important;
+            }
+
             .print-document {
-              position: absolute !important;
+              position: fixed !important;
               left: 0 !important;
               top: 0 !important;
+              right: 0 !important;
               width: 100% !important;
+              max-width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: white !important;
+              color: black !important;
+              border: none !important;
+              box-shadow: none !important;
+              overflow: visible !important;
+              page-break-inside: avoid;
+              break-inside: avoid;
+              z-index: 2147483647 !important;
+            }
+
+            .print-document table,
+            .print-document .ukt-signature-block {
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+
+            .print-document .ukt-signature-space {
+              margin-bottom: 2.5rem !important;
             }
           }
         `,
