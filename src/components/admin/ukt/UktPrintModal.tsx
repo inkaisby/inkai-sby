@@ -120,7 +120,7 @@ export function UktPrintModal({
 
   const subtotalA = BELT_FEE_KEYS.reduce((sum, belt) => sum + counts[belt] * beltFees[belt], 0);
   const subtotalB = config.rusak * 15000 + config.hilang * 100000;
-  const totalC = list.length * config.komisi;
+  const totalC = isDojoAdmin ? 0 : list.length * config.komisi;
   const grandTotal = subtotalA + subtotalB - totalC;
 
   const handleDojoChange = (dojoId: string) => {
@@ -203,14 +203,16 @@ export function UktPrintModal({
                 onChange={(e) => updateConfig("hilang", parseInt(e.target.value, 10) || 0)}
               />
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Komisi Ranting/orang</label>
-              <Input
-                type="number"
-                value={config.komisi}
-                onChange={(e) => updateConfig("komisi", parseInt(e.target.value, 10) || 0)}
-              />
-            </div>
+            {!isDojoAdmin && (
+              <div>
+                <label className="text-xs text-muted-foreground">Komisi Ranting/orang</label>
+                <Input
+                  type="number"
+                  value={config.komisi}
+                  onChange={(e) => updateConfig("komisi", parseInt(e.target.value, 10) || 0)}
+                />
+              </div>
+            )}
           </div>
 
           <div
@@ -265,12 +267,14 @@ export function UktPrintModal({
                 <span>Subtotal B (Buku Rusak/Hilang)</span>
                 <span>{formatRupiahNota(subtotalB)}</span>
               </div>
-              <div className="flex justify-between">
-                <span>
-                  Komisi Ranting ({list.length} × {formatRupiahNota(config.komisi)})
-                </span>
-                <span>- {formatRupiahNota(totalC)}</span>
-              </div>
+              {!isDojoAdmin && (
+                <div className="flex justify-between">
+                  <span>
+                    Komisi Ranting ({list.length} × {formatRupiahNota(config.komisi)})
+                  </span>
+                  <span>- {formatRupiahNota(totalC)}</span>
+                </div>
+              )}
               <div className="flex justify-between border-t border-black pt-2 text-base font-bold">
                 <span>TOTAL</span>
                 <span>{formatRupiahNota(grandTotal)}</span>
