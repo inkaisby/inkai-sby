@@ -9,9 +9,10 @@ type AuditParams = {
   userAgent?: string | null;
 };
 
-export async function writeAuditLog(params: AuditParams) {
-  try {
-    await prisma.auditLog.create({
+/** Fire-and-forget — never blocks API response. */
+export function writeAuditLog(params: AuditParams): void {
+  prisma.auditLog
+    .create({
       data: {
         userId: params.userId ?? undefined,
         email: params.email ?? undefined,
@@ -20,8 +21,6 @@ export async function writeAuditLog(params: AuditParams) {
         ip: params.ip ?? undefined,
         userAgent: params.userAgent ?? undefined,
       },
-    });
-  } catch {
-    // Audit failure must not break primary flow
-  }
+    })
+    .catch(() => {});
 }

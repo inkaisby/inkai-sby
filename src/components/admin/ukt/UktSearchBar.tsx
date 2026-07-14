@@ -1,42 +1,38 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Search, X, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { shortRankLabel } from "@/lib/belt";
-
-export type UktSearchSuggestion = {
-  id: string;
-  fullName: string;
-  nia: string | null;
-  dojoName: string;
-  currentRank: string;
-};
+import type { UktMemberRow } from "@/lib/ukt";
 
 type Props = {
+  allRows: UktMemberRow[];
   value: string;
-  onSearch: (q: string) => void;
-  dojoFilter?: string;
-  periodId?: string | null;
+  onChange: (q: string) => void;
   placeholder?: string;
 };
 
+function matchQuery(row: UktMemberRow, q: string) {
+  const needle = q.toLowerCase();
+  return (
+    row.fullName.toLowerCase().includes(needle) ||
+    (row.nia?.toLowerCase().includes(needle) ?? false)
+  );
+}
+
 export function UktSearchBar({
+  allRows,
   value,
-  onSearch,
-  dojoFilter,
-  periodId,
+  onChange,
   placeholder = "Cari nama atau NIA…",
 }: Props) {
   const [query, setQuery] = useState(value);
-  const [suggestions, setSuggestions] = useState<UktSearchSuggestion[]>([]);
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const suggestTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -54,63 +50,34 @@ export function UktSearchBar({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const fetchSuggestions = useCallback(
-    async (q: string) => {
-      if (q.length < 2) {
-        setSuggestions([]);
-        return;
-      }
-      setLoading(true);
-      try {
-        const params = new URLSearchParams({ q });
-        if (dojoFilter) params.set("dojo", dojoFilter);
-        if (periodId) params.set("period", periodId);
-        const res = await fetch(`/api/admin/ukt/suggest?${params}`);
-        const data = await res.json();
-        setSuggestions(data.suggestions || []);
-        setOpen((data.suggestions || []).length > 0);
-      } catch {
-        setSuggestions([]);
-        setOpen(false);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [dojoFilter, periodId],
-  );
+  const suggestions = useMemo(() => {
+    if (query.trim().length < 2) return [];
+    return allRows.filter((r) => matchQuery(r, query.trim())).slice(0, 8);
+  }, [allRows, query]);
 
   const applySearch = useCallback(
     (q: string) => {
       setQuery(q);
       setOpen(false);
-      setSuggestions([]);
       setActiveIndex(-1);
-      onSearch(q.trim());
+      onChange(q.trim());
     },
-    [onSearch],
+    [onChange],
   );
 
   const handleInputChange = (v: string) => {
     setQuery(v);
     setActiveIndex(-1);
-    clearTimeout(suggestTimer.current);
-    clearTimeout(searchTimer.current);
-
-    if (v.length >= 2) {
-      suggestTimer.current = setTimeout(() => fetchSuggestions(v), 250);
-    } else {
-      setSuggestions([]);
-      setOpen(false);
-    }
-
-    searchTimer.current = setTimeout(() => onSearch(v.trim()), 500);
+    setOpen(v.trim().length >= 2);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => onChange(v.trim()), 180);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!open || suggestions.length === 0) {
       if (e.key === "Enter") {
         e.preventDefault();
-        clearTimeout(searchTimer.current);
+        clearTimeout(debounceRef.current);
         applySearch(query);
       }
       return;
@@ -124,7 +91,7 @@ export function UktSearchBar({
       setActiveIndex((i) => (i > 0 ? i - 1 : suggestions.length - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      clearTimeout(searchTimer.current);
+      clearTimeout(debounceRef.current);
       if (activeIndex >= 0) {
         applySearch(suggestions[activeIndex].fullName);
       } else {
@@ -137,12 +104,10 @@ export function UktSearchBar({
   };
 
   const handleClear = () => {
-    clearTimeout(suggestTimer.current);
-    clearTimeout(searchTimer.current);
+    clearTimeout(debounceRef.current);
     setQuery("");
-    setSuggestions([]);
     setOpen(false);
-    onSearch("");
+    onChange("");
     inputRef.current?.focus();
   };
 
@@ -158,25 +123,22 @@ export function UktSearchBar({
           if (suggestions.length > 0) setOpen(true);
         }}
         placeholder={placeholder}
-        className="pr-16 pl-8"
+        className="pr-8 pl-8"
         autoComplete="off"
         role="combobox"
         aria-expanded={open}
         aria-autocomplete="list"
       />
-      <div className="absolute top-1/2 right-2 z-10 flex -translate-y-1/2 items-center gap-1">
-        {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-        {query && (
-          <button
-            type="button"
-            onClick={handleClear}
-            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Hapus pencarian"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+      {query && (
+        <button
+          type="button"
+          onClick={handleClear}
+          className="absolute top-1/2 right-2 z-10 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="Hapus pencarian"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
 
       {open && suggestions.length > 0 && (
         <ul
@@ -184,7 +146,7 @@ export function UktSearchBar({
           role="listbox"
         >
           {suggestions.map((s, i) => (
-            <li key={s.id} role="option" aria-selected={i === activeIndex}>
+            <li key={s.memberId} role="option" aria-selected={i === activeIndex}>
               <button
                 type="button"
                 className={cn(
@@ -200,7 +162,7 @@ export function UktSearchBar({
                   {s.nia || "—"}
                 </span>
                 <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
-                  {shortRankLabel(s.currentRank)}
+                  {shortRankLabel(s.kyuLama)}
                 </span>
                 <span className="hidden shrink-0 text-xs text-muted-foreground md:inline">
                   {s.dojoName}

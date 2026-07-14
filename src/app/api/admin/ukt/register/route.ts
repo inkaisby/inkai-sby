@@ -87,7 +87,7 @@ export async function POST(request: Request) {
       return { registration, billing, memberName: member.fullName, eventTitle: event.title };
     });
 
-    await writeAuditLog({
+    writeAuditLog({
       userId: authResult.user.id,
       email: authResult.user.email,
       action: "UKT_REGISTER",

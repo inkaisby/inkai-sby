@@ -1,5 +1,9 @@
-import { InkaiLoadingScreen } from "@/components/ui/InkaiLoadingScreen";
+import { AdminTableSkeleton } from "@/components/ui/AdminTableSkeleton";
 
 export default function AdminLoading() {
-  return <InkaiLoadingScreen message="Memuat panel admin..." />;
+  return (
+    <div className="p-1">
+      <AdminTableSkeleton />
+    </div>
+  );
 }

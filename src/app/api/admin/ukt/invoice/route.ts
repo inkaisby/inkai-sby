@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     update: { value },
   });
 
-  await writeAuditLog({
+  writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
     action: acknowledged ? "UKT_INVOICE_ACK" : "UKT_INVOICE_UNACK",

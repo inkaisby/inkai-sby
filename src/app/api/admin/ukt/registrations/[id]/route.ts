@@ -132,7 +132,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     return updated;
   });
 
-  await writeAuditLog({
+  writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
     action: "UKT_REGISTRATION_UPDATE",

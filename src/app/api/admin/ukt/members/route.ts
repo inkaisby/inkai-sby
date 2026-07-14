@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     include: { dojo: true },
   });
 
-  await writeAuditLog({
+  writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
     action: "UKT_MEMBER_CREATE",

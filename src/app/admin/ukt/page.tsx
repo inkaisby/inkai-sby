@@ -1,6 +1,5 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import {
   buildDojoFilter,
@@ -12,8 +11,6 @@ import {
 } from "@/lib/rbac";
 import { UktDashboard } from "@/components/admin/ukt/UktDashboard";
 import type { UktMemberRow, UktSemester } from "@/lib/ukt";
-import { computeUktKpiStats } from "@/lib/ukt";
-import { InkaiLoadingScreen } from "@/components/ui/InkaiLoadingScreen";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -22,48 +19,7 @@ type SearchParams = Promise<{
   period?: string;
   semester?: string;
   year?: string;
-  q?: string;
-  status?: string;
-  dojo?: string;
-  page?: string;
-  pageSize?: string;
-  view?: string;
 }>;
-
-function buildMemberWhere(
-  memberFilter: ReturnType<typeof buildMemberFilter>,
-  effectiveDojoFilter: string,
-  q: string,
-) {
-  return {
-    ...memberFilter,
-    ...(effectiveDojoFilter ? { dojoId: effectiveDojoFilter } : {}),
-    ...(q
-      ? {
-          OR: [
-            { fullName: { contains: q, mode: "insensitive" as const } },
-            { nia: { contains: q, mode: "insensitive" as const } },
-          ],
-        }
-      : {}),
-  };
-}
-
-function applyViewFilter(rows: UktMemberRow[], viewFilter: string) {
-  if (!viewFilter || viewFilter === "all") return rows;
-  if (viewFilter === "registered") return rows.filter((r) => r.registrationId);
-  if (viewFilter === "unregistered") return rows.filter((r) => !r.registrationId);
-  if (viewFilter === "approved") return rows.filter((r) => ["APPROVED", "PAID", "SUCCESS"].includes(r.status));
-  if (viewFilter === "pending") return rows.filter((r) => r.status === "PENDING");
-  if (viewFilter === "rejected") return rows.filter((r) => r.status === "REJECTED");
-  if (viewFilter === "paid") return rows.filter((r) => r.billingStatus === "PAID" || r.status === "PAID");
-  return rows;
-}
-
-function safeInt(value: string | undefined, fallback: number) {
-  const n = parseInt(value || String(fallback), 10);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
 
 async function UktPageContent({ searchParams }: { searchParams: SearchParams }) {
   const session = await auth();
@@ -71,25 +27,13 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
 
   const params = await searchParams;
   const semester = (params.semester === "II" ? "II" : "I") as UktSemester;
-  const year = Math.min(2100, Math.max(2020, parseInt(params.year || String(new Date().getFullYear()), 10)));
-  const q = params.q?.trim() || "";
-  const statusFilter = params.status?.trim() || "";
-  const dojoFilter = params.dojo?.trim() || "";
-  const viewFilter = params.view?.trim() || "";
-  const page = safeInt(params.page, 1);
-  const pageSize = [25, 50, 100, 1000].includes(safeInt(params.pageSize, 25))
-    ? safeInt(params.pageSize, 25)
-    : 25;
+  const year = Math.min(2100, Math.max(2020, parseInt(params.year || String(new Date().getFullYear()), 10) || new Date().getFullYear()));
 
   const user = session.user;
   const primaryRole = getPrimaryAdminRole(user.roles);
   const memberFilter = buildMemberFilter(user);
   const dojoWhere = buildDojoFilter(user);
   const eventFilter = buildEventFilter(user);
-
-  const autoDojoId =
-    primaryRole === "ADMIN_DOJO" && user.managedDojoId ? user.managedDojoId : "";
-  const effectiveDojoFilter = autoDojoId || dojoFilter;
 
   let dbError: string | null = null;
   let periods: { id: string; title: string; startDate: Date; endDate: Date }[] = [];
@@ -142,45 +86,38 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
 
       const periodId = params.period || periodRows[0]?.id || null;
 
-      const [regRows, memberRows, ackRows] = await Promise.all([
-        periodId
-          ? tx.eventRegistration.findMany({
-              where: { eventId: periodId },
-              select: {
-                id: true,
-                memberId: true,
-                status: true,
-                registeredRank: true,
-                category: { select: { name: true } },
-              },
-            })
-          : Promise.resolve([]),
-        tx.member.findMany({
-          where: buildMemberWhere(memberFilter, effectiveDojoFilter, q),
-          include: {
-            dojo: { select: { name: true } },
-            user: { select: { photoUrl: true } },
-            _count: {
-              select: {
-                billings: {
-                  where: {
-                    isDeleted: false,
-                    status: { in: ["PENDING", "WAITING_VERIFICATION"] },
-                  },
+      const memberRows = await tx.member.findMany({
+        where: memberFilter,
+        include: {
+          dojo: { select: { name: true } },
+          user: { select: { photoUrl: true } },
+          _count: {
+            select: {
+              billings: {
+                where: {
+                  isDeleted: false,
+                  status: { in: ["PENDING", "WAITING_VERIFICATION"] },
                 },
-                verifications: { where: { status: "PENDING" } },
               },
+              verifications: { where: { status: "PENDING" } },
             },
           },
-          orderBy: { fullName: "asc" },
-        }),
-        periodId
-          ? tx.appSetting.findMany({
-              where: { key: { startsWith: `ukt-invoice-ack:${periodId}:` } },
-              select: { key: true, value: true },
-            })
-          : Promise.resolve([]),
-      ]);
+        },
+        orderBy: { fullName: "asc" },
+      });
+
+      const regRows = periodId
+        ? await tx.eventRegistration.findMany({
+            where: { eventId: periodId },
+            select: {
+              id: true,
+              memberId: true,
+              status: true,
+              registeredRank: true,
+              category: { select: { name: true } },
+            },
+          })
+        : [];
 
       const regIds = regRows.map((r) => r.id);
       const billingRows =
@@ -190,6 +127,13 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
               select: { registrationId: true, status: true, amount: true },
             })
           : [];
+
+      const ackRows = periodId
+        ? await tx.appSetting.findMany({
+            where: { key: { startsWith: `ukt-invoice-ack:${periodId}:` } },
+            select: { key: true, value: true },
+          })
+        : [];
 
       return {
         periods: periodRows,
@@ -223,7 +167,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     billings.filter((b) => b.registrationId).map((b) => [b.registrationId!, b]),
   );
 
-  let rows: UktMemberRow[] = members.map((m) => {
+  const allRows: UktMemberRow[] = members.map((m) => {
     const reg = regMap.get(m.id);
     const regBilling = reg ? billingMap.get(reg.id) : null;
 
@@ -251,13 +195,6 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     };
   });
 
-  if (statusFilter) {
-    rows = rows.filter((r) => r.status === statusFilter);
-  }
-
-  const kpiStats = computeUktKpiStats(rows);
-  const total = applyViewFilter(rows, viewFilter).length;
-
   const invoiceAcks: Record<string, { acknowledged: boolean; at: string; by: string }> = {};
   for (const s of invoiceAckSettings) {
     const dojoId = s.key.split(":").pop()!;
@@ -268,6 +205,9 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
       by: val.by || "",
     };
   }
+
+  const autoDojoId =
+    primaryRole === "ADMIN_DOJO" && user.managedDojoId ? user.managedDojoId : "";
 
   const canCreatePeriod = ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN_BRANCH", "ADMIN"].includes(
     primaryRole,
@@ -290,16 +230,8 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
           endDate: p.endDate.toISOString(),
         }))}
         selectedPeriodId={selectedPeriodId}
-        allRows={rows}
-        kpiStats={kpiStats}
+        allRows={allRows}
         dojos={dojos}
-        total={total}
-        page={page}
-        pageSize={pageSize}
-        q={q}
-        statusFilter={statusFilter}
-        dojoFilter={effectiveDojoFilter}
-        viewFilter={viewFilter}
         userRoles={user.roles}
         primaryRole={primaryRole}
         semester={semester}
@@ -307,15 +239,12 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         invoiceAcks={invoiceAcks}
         canCreatePeriod={canCreatePeriod}
         dbError={dbError}
+        defaultDojoFilter={autoDojoId}
       />
     </>
   );
 }
 
 export default function AdminUktPage({ searchParams }: { searchParams: SearchParams }) {
-  return (
-    <Suspense fallback={<InkaiLoadingScreen />}>
-      <UktPageContent searchParams={searchParams} />
-    </Suspense>
-  );
+  return <UktPageContent searchParams={searchParams} />;
 }

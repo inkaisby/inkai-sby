@@ -60,11 +60,11 @@ import {
 import {
   type UktMemberRow,
   type UktSemester,
-  type UktKpiStats,
   isRegistrationApproved,
   filterUktRowsByView,
   formatUktPeriodLabel,
   participantAmount,
+  computeUktKpiStats,
 } from "@/lib/ukt";
 import { parseApiJson } from "@/lib/api-client";
 
@@ -81,15 +81,7 @@ type Props = {
   periods: UktPeriod[];
   selectedPeriodId: string | null;
   allRows: UktMemberRow[];
-  kpiStats: UktKpiStats;
   dojos: UktDojo[];
-  total: number;
-  page: number;
-  pageSize: number;
-  q: string;
-  statusFilter: string;
-  dojoFilter: string;
-  viewFilter: string;
   userRoles: string[];
   primaryRole: string;
   semester: UktSemester;
@@ -97,6 +89,7 @@ type Props = {
   invoiceAcks: Record<string, { acknowledged: boolean; at: string; by: string }>;
   canCreatePeriod: boolean;
   dbError?: string | null;
+  defaultDojoFilter?: string;
 };
 
 const PAGE_SIZES = [25, 50, 100, 1000] as const;
@@ -126,8 +119,12 @@ function statusBadge(status: string) {
 export function UktDashboard(props: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [localView, setLocalView] = useState(props.viewFilter);
-  const [localPage, setLocalPage] = useState(props.page);
+  const [localQ, setLocalQ] = useState("");
+  const [localStatus, setLocalStatus] = useState("");
+  const [localDojo, setLocalDojo] = useState(props.defaultDojoFilter || "");
+  const [localView, setLocalView] = useState("");
+  const [localPage, setLocalPage] = useState(1);
+  const [localPageSize, setLocalPageSize] = useState(25);
   const [yearInput, setYearInput] = useState(String(props.year));
   const [editingTitle, setEditingTitle] = useState(false);
   const [periodTitle, setPeriodTitle] = useState(
@@ -150,35 +147,43 @@ export function UktDashboard(props: Props) {
   const isCabang = canEditKyuBaru(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
   const selectedPeriod = props.periods.find((p) => p.id === props.selectedPeriodId);
-
-  useEffect(() => {
-    setLocalView(props.viewFilter);
-  }, [props.viewFilter]);
-
-  useEffect(() => {
-    setLocalPage(props.page);
-  }, [props.page]);
+  const effectiveDojo = isDojoAdmin ? props.defaultDojoFilter || "" : localDojo;
 
   useEffect(() => {
     setYearInput(String(props.year));
   }, [props.year]);
 
+  const scopedRows = useMemo(() => {
+    let rows = props.allRows;
+    if (effectiveDojo) rows = rows.filter((r) => r.dojoId === effectiveDojo);
+    if (localStatus) rows = rows.filter((r) => r.status === localStatus);
+    if (localQ.trim()) {
+      const q = localQ.toLowerCase();
+      rows = rows.filter(
+        (r) =>
+          r.fullName.toLowerCase().includes(q) ||
+          (r.nia?.toLowerCase().includes(q) ?? false),
+      );
+    }
+    return rows;
+  }, [props.allRows, effectiveDojo, localStatus, localQ]);
+
+  const kpi = useMemo(() => computeUktKpiStats(scopedRows), [scopedRows]);
+
   const filteredRows = useMemo(
-    () => filterUktRowsByView(props.allRows, localView),
-    [props.allRows, localView],
+    () => filterUktRowsByView(scopedRows, localView),
+    [scopedRows, localView],
   );
 
   const totalFiltered = filteredRows.length;
-  const totalPages = Math.max(1, Math.ceil(totalFiltered / props.pageSize));
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / localPageSize));
   const safePage = Math.min(localPage, totalPages);
   const displayRows = useMemo(() => {
-    const start = (safePage - 1) * props.pageSize;
-    return filteredRows.slice(start, start + props.pageSize);
-  }, [filteredRows, safePage, props.pageSize]);
+    const start = (safePage - 1) * localPageSize;
+    return filteredRows.slice(start, start + localPageSize);
+  }, [filteredRows, safePage, localPageSize]);
 
-  const kpi = props.kpiStats;
-
-  const navigate = useCallback(
+  const navigatePeriod = useCallback(
     (updates: Record<string, string>) => {
       const params = new URLSearchParams(searchParams.toString());
       Object.entries(updates).forEach(([k, v]) => {
@@ -212,7 +217,7 @@ export function UktDashboard(props: Props) {
       const data = await parseApiJson<{ error?: string; event?: { id: string }; created?: boolean }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal membuat periode");
       toast.success(data.created ? "Periode UKT dibuat" : "Periode UKT sudah ada");
-      navigate({ period: data.event?.id ?? "" });
+      navigatePeriod({ period: data.event?.id ?? "" });
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
@@ -308,19 +313,19 @@ export function UktDashboard(props: Props) {
   };
 
   const handleCreateInvoice = async () => {
-    if (!props.selectedPeriodId || !props.dojoFilter) {
+    if (!props.selectedPeriodId || !effectiveDojo) {
       toast.error("Pilih ranting terlebih dahulu");
       return;
     }
     const memberIds = props.allRows
-      .filter((r) => r.registrationId && r.dojoId === props.dojoFilter)
+      .filter((r) => r.registrationId && r.dojoId === effectiveDojo)
       .map((r) => r.memberId);
     setLoading(true);
     try {
       const res = await fetch("/api/admin/ukt/invoice", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId: props.selectedPeriodId, dojoId: props.dojoFilter, memberIds }),
+        body: JSON.stringify({ eventId: props.selectedPeriodId, dojoId: effectiveDojo, memberIds }),
       });
       const data = await parseApiJson<{ error?: string; created?: number }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal membuat invoice");
@@ -378,7 +383,7 @@ export function UktDashboard(props: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...newMember,
-          dojoId: props.dojoFilter || undefined,
+          dojoId: effectiveDojo || undefined,
         }),
       });
       const data = await parseApiJson<{ error?: string }>(res);
@@ -402,8 +407,8 @@ export function UktDashboard(props: Props) {
       toast.error("Belum ada peserta disetujui");
       return;
     }
-    const dojoName = props.dojoFilter
-      ? props.dojos.find((d) => d.id === props.dojoFilter)?.name || "Ranting"
+    const dojoName = effectiveDojo
+      ? props.dojos.find((d) => d.id === effectiveDojo)?.name || "Ranting"
       : "Semua Ranting";
     const lines = approved.map((r, i) => {
       const rk = shortRankLabel(r.kyuBaru || r.kyuLama);
@@ -447,7 +452,7 @@ export function UktDashboard(props: Props) {
           <div className="flex flex-wrap items-center gap-2">
             <Select
               value={props.semester}
-              onValueChange={(v) => navigate({ semester: v, page: "1" })}
+              onValueChange={(v) => navigatePeriod({ semester: v })}
             >
               <SelectTrigger className="w-28">
                 <SelectValue />
@@ -465,7 +470,7 @@ export function UktDashboard(props: Props) {
               onBlur={() => {
                 const y = parseInt(yearInput, 10);
                 if (Number.isFinite(y) && y >= 2020 && y <= 2100) {
-                  navigate({ year: String(y), page: "1" });
+                  navigatePeriod({ year: String(y) });
                 } else {
                   setYearInput(String(props.year));
                 }
@@ -501,7 +506,7 @@ export function UktDashboard(props: Props) {
             {props.periods.length > 0 && (
               <Select
                 value={props.selectedPeriodId || ""}
-                onValueChange={(v) => navigate({ period: v, page: "1" })}
+                onValueChange={(v) => navigatePeriod({ period: v })}
               >
                 <SelectTrigger className="w-52">
                   <SelectValue placeholder="Pilih periode" />
@@ -577,20 +582,19 @@ export function UktDashboard(props: Props) {
       {/* Search & inline filters */}
       <div className="flex flex-wrap items-center gap-2">
         <UktSearchBar
-          value={props.q}
-          onSearch={(q) => {
-          setLocalPage(1);
-          navigate({ q, page: "1" });
-        }}
-          dojoFilter={props.dojoFilter}
-          periodId={props.selectedPeriodId}
+          allRows={props.allRows}
+          value={localQ}
+          onChange={(q) => {
+            setLocalQ(q);
+            setLocalPage(1);
+          }}
         />
 
         <Select
-          value={props.statusFilter || "all"}
+          value={localStatus || "all"}
           onValueChange={(v) => {
+            setLocalStatus(v === "all" ? "" : v);
             setLocalPage(1);
-            navigate({ status: v === "all" ? "" : v, page: "1" });
           }}
         >
           <SelectTrigger className="w-36">
@@ -608,10 +612,10 @@ export function UktDashboard(props: Props) {
 
         {!isDojoAdmin && (
           <Select
-            value={props.dojoFilter || "all"}
+            value={localDojo || "all"}
             onValueChange={(v) => {
+              setLocalDojo(v === "all" ? "" : v);
               setLocalPage(1);
-              navigate({ dojo: v === "all" ? "" : v, page: "1" });
             }}
           >
             <SelectTrigger className="w-40">
@@ -629,10 +633,10 @@ export function UktDashboard(props: Props) {
         )}
 
         <Select
-          value={String(props.pageSize)}
+          value={String(localPageSize)}
           onValueChange={(v) => {
+            setLocalPageSize(parseInt(v, 10));
             setLocalPage(1);
-            navigate({ pageSize: v, page: "1" });
           }}
         >
           <SelectTrigger className="w-28">
@@ -655,16 +659,16 @@ export function UktDashboard(props: Props) {
 
       {/* Invoice ack banner for ketua ranting */}
       {isDojoAdmin &&
-        props.dojoFilter &&
+        effectiveDojo &&
         props.selectedPeriodId &&
-        !props.invoiceAcks[props.dojoFilter]?.acknowledged && (
+        !props.invoiceAcks[effectiveDojo]?.acknowledged && (
           <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
             <CardContent className="flex items-center justify-between p-4">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-amber-600" />
                 <span>Invoice UKT dari cabang belum ditandai diterima</span>
               </div>
-              <Button size="sm" onClick={() => handleAckInvoice(props.dojoFilter)} disabled={loading}>
+              <Button size="sm" onClick={() => handleAckInvoice(effectiveDojo)} disabled={loading}>
                 <Check className="mr-1 h-4 w-4" />
                 Tandai Diterima
               </Button>
@@ -709,7 +713,7 @@ export function UktDashboard(props: Props) {
                   className="group transition-colors hover:bg-muted/30"
                 >
                   <TableCell className="text-muted-foreground">
-                    {(safePage - 1) * props.pageSize + idx + 1}
+                    {(safePage - 1) * localPageSize + idx + 1}
                   </TableCell>
                   <TableCell>
                     <MemberAvatarRing
@@ -987,7 +991,7 @@ export function UktDashboard(props: Props) {
           year={props.year}
           rows={props.allRows.filter((r) => r.registrationId && isRegistrationApproved(r.status))}
           dojos={props.dojos}
-          dojoFilter={props.dojoFilter}
+          dojoFilter={effectiveDojo}
         />
       )}
     </div>
