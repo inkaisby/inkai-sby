@@ -167,8 +167,10 @@ export async function DELETE(request: Request, context: RouteContext) {
   });
 
   if (billing?.status === "PAID") {
-    return NextResponse.json({ error: "Tidak dapat menghapus pendaftaran yang sudah lunas" }, { status: 400 });
+    return NextResponse.json({ error: "Tidak dapat membatalkan pendaftaran yang sudah lunas" }, { status: 400 });
   }
+
+  const memberName = registration.member.fullName;
 
   await prisma.$transaction(async (tx) => {
     if (billing) {
@@ -177,5 +179,14 @@ export async function DELETE(request: Request, context: RouteContext) {
     await tx.eventRegistration.delete({ where: { id } });
   });
 
-  return NextResponse.json({ success: true });
+  writeAuditLog({
+    userId: authResult.user.id,
+    email: authResult.user.email,
+    action: "UKT_REGISTRATION_CANCEL",
+    details: `Cancelled UKT registration for ${memberName} (${id})`,
+    ip: getClientIp(request),
+    userAgent: request.headers.get("user-agent"),
+  });
+
+  return NextResponse.json({ success: true, message: "Pendaftaran dibatalkan" });
 }

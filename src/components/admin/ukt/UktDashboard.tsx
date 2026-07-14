@@ -20,6 +20,8 @@ import {
   AlertTriangle,
   Pencil,
   Check,
+  Trash2,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -103,6 +105,17 @@ function formatDate(d: string | null) {
   });
 }
 
+function canCancelUktRegistration(row: UktMemberRow): boolean {
+  if (!row.registrationId) return false;
+  if (row.billingStatus === "PAID" || row.status === "PAID") return false;
+  return true;
+}
+
+function formatRupiah(amount: number | null) {
+  if (amount == null) return null;
+  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount);
+}
+
 function statusBadge(status: string) {
   const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
     PENDING: { label: "Pending", variant: "secondary" },
@@ -136,6 +149,7 @@ export function UktDashboard(props: Props) {
   const [showAddMember, setShowAddMember] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; name: string } | null>(null);
   const [newMember, setNewMember] = useState({
     fullName: "",
     gender: "",
@@ -307,6 +321,44 @@ export function UktDashboard(props: Props) {
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReject = async (registrationId: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reject" }),
+      });
+      const data = await parseApiJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal menolak");
+      toast.success("Pendaftaran ditolak");
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelRegistration = async (registrationId: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
+        method: "DELETE",
+      });
+      const data = await parseApiJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal membatalkan");
+      toast.success("Peserta berhasil dibatalkan dari UKT");
+      setCancelTarget(null);
+      setSelectedMember(null);
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal membatalkan");
     } finally {
       setLoading(false);
     }
@@ -694,7 +746,7 @@ export function UktDashboard(props: Props) {
               <TableHead className="hidden md:table-cell">Dokumen</TableHead>
               <TableHead className="hidden sm:table-cell">Ranting</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="w-24">Aksi</TableHead>
+              <TableHead className="min-w-28">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -788,28 +840,74 @@ export function UktDashboard(props: Props) {
                     </div>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell text-xs">{row.dojoName}</TableCell>
-                  <TableCell>{statusBadge(row.registrationId ? row.status : "BELUM_DAFTAR")}</TableCell>
                   <TableCell>
-                    {!row.registrationId ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => handleRegister(row.memberId)}
-                        disabled={loading || !props.selectedPeriodId}
-                      >
-                        Daftar
-                      </Button>
-                    ) : isCabang && row.status === "PENDING" ? (
-                      <Button
-                        size="sm"
-                        className="h-7 bg-green-600 text-xs hover:bg-green-700"
-                        onClick={() => handleApprove(row.registrationId!)}
-                        disabled={loading}
-                      >
-                        Setujui
-                      </Button>
-                    ) : null}
+                    <div className="space-y-1">
+                      {statusBadge(row.registrationId ? row.status : "BELUM_DAFTAR")}
+                      {row.billingAmount != null && (
+                        <p className="text-xs text-muted-foreground">
+                          {formatRupiah(row.billingAmount)}
+                          {row.billingStatus === "PAID" ? " · Lunas" : row.billingStatus === "WAITING_VERIFICATION" ? " · Menunggu" : ""}
+                        </p>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {!row.registrationId ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => handleRegister(row.memberId)}
+                          disabled={loading || !props.selectedPeriodId}
+                        >
+                          Daftar
+                        </Button>
+                      ) : (
+                        <>
+                          {isCabang && row.status === "PENDING" && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="h-7 bg-green-600 text-xs hover:bg-green-700"
+                                onClick={() => handleApprove(row.registrationId!)}
+                                disabled={loading}
+                              >
+                                Setujui
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => handleReject(row.registrationId!)}
+                                disabled={loading}
+                              >
+                                <Ban className="mr-0.5 h-3 w-3" />
+                                Tolak
+                              </Button>
+                            </>
+                          )}
+                          {canCancelUktRegistration(row) && (isDojoAdmin || isCabang) && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-7 text-xs"
+                              onClick={() =>
+                                setCancelTarget({
+                                  id: row.registrationId!,
+                                  name: row.fullName,
+                                })
+                              }
+                              disabled={loading}
+                              title="Batalkan pendaftaran UKT"
+                            >
+                              <Trash2 className="mr-0.5 h-3 w-3" />
+                              Batal
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -910,7 +1008,22 @@ export function UktDashboard(props: Props) {
                   </div>
                 )}
               </div>
-              <DialogFooter>
+              <DialogFooter className="gap-2 sm:gap-0">
+                {selectedMember.registrationId && canCancelUktRegistration(selectedMember) && (isDojoAdmin || isCabang) && (
+                  <Button
+                    variant="destructive"
+                    onClick={() =>
+                      setCancelTarget({
+                        id: selectedMember.registrationId!,
+                        name: selectedMember.fullName,
+                      })
+                    }
+                    disabled={loading}
+                  >
+                    <Trash2 className="mr-1 h-4 w-4" />
+                    Batalkan UKT
+                  </Button>
+                )}
                 {!selectedMember.registrationId && (
                   <Button
                     className="bg-inkai-red"
@@ -926,6 +1039,31 @@ export function UktDashboard(props: Props) {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel confirmation */}
+      <Dialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Batalkan Pendaftaran UKT?</DialogTitle>
+            <DialogDescription>
+              Peserta <strong>{cancelTarget?.name}</strong> akan dihapus dari daftar UKT periode ini.
+              Tagihan yang belum lunas ikut dibatalkan. Tindakan ini tidak dapat dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelTarget(null)} disabled={loading}>
+              Tutup
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => cancelTarget && handleCancelRegistration(cancelTarget.id)}
+              disabled={loading}
+            >
+              Ya, Batalkan
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
