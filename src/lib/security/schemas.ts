@@ -81,6 +81,7 @@ export const uktBeltFeesSchema = z.object({
   HIJAU: z.coerce.number().int().min(0).max(10_000_000),
   BIRU: z.coerce.number().int().min(0).max(10_000_000),
   COKELAT: z.coerce.number().int().min(0).max(10_000_000),
+  komisiRanting: z.coerce.number().int().min(0).max(1_000_000),
 });
 
 export const uktInvoiceAckSchema = z.object({

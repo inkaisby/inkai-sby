@@ -17,10 +17,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getBeltGroup } from "@/lib/belt";
 import {
   BELT_FEE_KEYS,
   buildNotaNumber,
+  countNotaBeltGroups,
   formatRupiahNota,
   type BeltFeeKey,
   type UktMemberRow,
@@ -37,6 +37,7 @@ type Props = {
   dojos: { id: string; name: string }[];
   dojoFilter: string;
   beltFees: Record<BeltFeeKey, number>;
+  komisiRanting: number;
   isDojoAdmin: boolean;
 };
 
@@ -45,12 +46,7 @@ type PrintConfig = {
   semester: string;
   rusak: number;
   hilang: number;
-  komisi: number;
 };
-
-function emptyCounts(): Record<BeltFeeKey, number> {
-  return { PUTIH: 0, KUNING: 0, HIJAU: 0, BIRU: 0, COKELAT: 0 };
-}
 
 export function UktPrintModal({
   open,
@@ -62,6 +58,7 @@ export function UktPrintModal({
   dojos,
   dojoFilter,
   beltFees,
+  komisiRanting,
   isDojoAdmin,
 }: Props) {
   const dojoOptions = useMemo(() => {
@@ -86,7 +83,6 @@ export function UktPrintModal({
       semester: `${semester} / ${year}`,
       rusak: 0,
       hilang: 0,
-      komisi: 50000,
     };
   });
 
@@ -99,7 +95,6 @@ export function UktPrintModal({
       semester: `${semester} / ${year}`,
       rusak: 0,
       hilang: 0,
-      komisi: 50000,
     });
   }, [open, defaultDojoId, dojoOptions, dojos, semester, year]);
 
@@ -109,18 +104,12 @@ export function UktPrintModal({
     [rows, selectedDojoName],
   );
 
-  const counts = useMemo(() => {
-    const result = emptyCounts();
-    list.forEach((r) => {
-      const grp = getBeltGroup(r.kyuBaru || r.kyuLama);
-      if (grp in result) result[grp as BeltFeeKey]++;
-    });
-    return result;
-  }, [list]);
+  const counts = useMemo(() => countNotaBeltGroups(list, beltFees), [list, beltFees]);
+  const registeredCount = list.length;
 
   const subtotalA = BELT_FEE_KEYS.reduce((sum, belt) => sum + counts[belt] * beltFees[belt], 0);
   const subtotalB = config.rusak * 15000 + config.hilang * 100000;
-  const totalC = isDojoAdmin ? 0 : list.length * config.komisi;
+  const totalC = registeredCount * komisiRanting;
   const grandTotal = subtotalA + subtotalB - totalC;
 
   const handleDojoChange = (dojoId: string) => {
@@ -139,6 +128,8 @@ export function UktPrintModal({
   const handlePrint = () => {
     window.print();
   };
+
+  const beltRows = BELT_FEE_KEYS.filter((belt) => counts[belt] > 0);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -203,16 +194,12 @@ export function UktPrintModal({
                 onChange={(e) => updateConfig("hilang", parseInt(e.target.value, 10) || 0)}
               />
             </div>
-            {!isDojoAdmin && (
-              <div>
-                <label className="text-xs text-muted-foreground">Komisi Ranting/orang</label>
-                <Input
-                  type="number"
-                  value={config.komisi}
-                  onChange={(e) => updateConfig("komisi", parseInt(e.target.value, 10) || 0)}
-                />
-              </div>
-            )}
+            <div className="col-span-2 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              Terdaftar: <span className="font-medium text-foreground">{registeredCount} anggota</span>
+              {" · "}
+              Komisi: <span className="font-medium text-foreground">{formatRupiahNota(komisiRanting)} / orang</span>
+              {isDojoAdmin && " (diatur cabang)"}
+            </div>
           </div>
 
           <div
@@ -243,6 +230,7 @@ export function UktPrintModal({
               <div>SEMESTER : {config.semester}</div>
               <div className="col-span-2 font-bold uppercase">RANTING : {selectedDojoName}</div>
               <div className="col-span-2">Agenda : {periodTitle}</div>
+              <div className="col-span-2">Jumlah Peserta : {registeredCount} anggota</div>
             </div>
 
             <table className="mb-4 w-full text-sm">
@@ -255,16 +243,24 @@ export function UktPrintModal({
                 </tr>
               </thead>
               <tbody>
-                {BELT_FEE_KEYS.map((belt) => (
-                  <tr key={belt}>
-                    <td className="py-0.5">{belt}</td>
-                    <td className="py-0.5 text-right">{counts[belt]}</td>
-                    <td className="py-0.5 text-right">{formatRupiahNota(beltFees[belt])}</td>
-                    <td className="py-0.5 text-right">
-                      {formatRupiahNota(counts[belt] * beltFees[belt])}
+                {beltRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-2 text-center text-muted-foreground">
+                      Belum ada peserta terdaftar
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  beltRows.map((belt) => (
+                    <tr key={belt}>
+                      <td className="py-0.5">{belt}</td>
+                      <td className="py-0.5 text-right">{counts[belt]}</td>
+                      <td className="py-0.5 text-right">{formatRupiahNota(beltFees[belt])}</td>
+                      <td className="py-0.5 text-right">
+                        {formatRupiahNota(counts[belt] * beltFees[belt])}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
 
@@ -277,14 +273,12 @@ export function UktPrintModal({
                 <span>Subtotal B (Buku Rusak/Hilang)</span>
                 <span>{formatRupiahNota(subtotalB)}</span>
               </div>
-              {!isDojoAdmin && (
-                <div className="flex justify-between">
-                  <span>
-                    Komisi Ranting ({list.length} × {formatRupiahNota(config.komisi)})
-                  </span>
-                  <span>- {formatRupiahNota(totalC)}</span>
-                </div>
-              )}
+              <div className="flex justify-between">
+                <span>
+                  Komisi Ranting ({registeredCount} × {formatRupiahNota(komisiRanting)})
+                </span>
+                <span>- {formatRupiahNota(totalC)}</span>
+              </div>
               <div className="flex justify-between border-t border-black pt-2 text-base font-bold">
                 <span>TOTAL</span>
                 <span>{formatRupiahNota(grandTotal)}</span>

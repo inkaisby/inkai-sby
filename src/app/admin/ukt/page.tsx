@@ -11,7 +11,7 @@ import {
 } from "@/lib/rbac";
 import { UktDashboard } from "@/components/admin/ukt/UktDashboard";
 import type { UktMemberRow, UktSemester } from "@/lib/ukt";
-import { beltFeesFromTemplates } from "@/lib/ukt";
+import { beltFeesFromTemplates, DEFAULT_KOMISI_RANTING, UKT_KOMISI_SETTING_KEY } from "@/lib/ukt";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -66,10 +66,11 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   let billings: { registrationId: string | null; status: string; amount: number }[] = [];
   let invoiceAckSettings: { key: string; value: unknown }[] = [];
   let beltFees = beltFeesFromTemplates([]);
+  let komisiRanting = DEFAULT_KOMISI_RANTING;
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const [periodRows, dojoRows, feeTemplates] = await Promise.all([
+      const [periodRows, dojoRows, feeTemplates, komisiSetting] = await Promise.all([
         tx.event.findMany({
           where: {
             ...eventFilter,
@@ -85,6 +86,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
           select: { id: true, name: true },
         }),
         tx.rankFeeTemplate.findMany(),
+        tx.appSetting.findUnique({ where: { key: UKT_KOMISI_SETTING_KEY } }),
       ]);
 
       const periodId = params.period || periodRows[0]?.id || null;
@@ -147,6 +149,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         billings: billingRows,
         invoiceAckSettings: ackRows,
         feeTemplates,
+        komisiSetting,
       };
     });
 
@@ -158,6 +161,11 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     billings = result.billings;
     invoiceAckSettings = result.invoiceAckSettings;
     beltFees = beltFeesFromTemplates(result.feeTemplates);
+    const komisiValue = result.komisiSetting?.value;
+    komisiRanting =
+      typeof komisiValue === "number" && Number.isFinite(komisiValue)
+        ? Math.round(komisiValue)
+        : DEFAULT_KOMISI_RANTING;
   } catch (error) {
     console.error("[AdminUkt] DB error:", error);
     const msg = error instanceof Error ? error.message : "";
@@ -246,6 +254,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         dbError={dbError}
         defaultDojoFilter={autoDojoId}
         beltFees={beltFees}
+        komisiRanting={komisiRanting}
       />
     </>
   );

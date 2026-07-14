@@ -1,4 +1,13 @@
+import { getBeltGroup } from "@/lib/belt";
+
 export type UktSemester = "I" | "II";
+
+export const DEFAULT_KOMISI_RANTING = 50000;
+export const UKT_KOMISI_SETTING_KEY = "ukt-komisi-ranting";
+
+export function isNotaParticipant(status: string): boolean {
+  return status !== "REJECTED" && status !== "BELUM_DAFTAR";
+}
 
 export function currentSemester(): UktSemester {
   return new Date().getMonth() < 6 ? "I" : "II";
@@ -62,6 +71,76 @@ export function beltFeesFromTemplates(
     if (match) fees[key] = Math.round(match.fee);
   }
   return fees;
+}
+
+const KYU_TARGET_BELT: Record<number, BeltFeeKey> = {
+  10: "PUTIH",
+  9: "PUTIH",
+  8: "KUNING",
+  7: "KUNING",
+  6: "HIJAU",
+  5: "BIRU",
+  4: "BIRU",
+  3: "COKELAT",
+  2: "COKELAT",
+  1: "COKELAT",
+};
+
+function beltGroupFromKyuText(rankRaw: string | null | undefined): BeltFeeKey | null {
+  if (!rankRaw) return null;
+  const match = rankRaw.match(/kyu\s*(\d+)/i);
+  if (!match) return null;
+  return KYU_TARGET_BELT[parseInt(match[1], 10)] ?? null;
+}
+
+function beltGroupFromBilling(
+  amount: number | null,
+  beltFees: Record<BeltFeeKey, number>,
+): BeltFeeKey | null {
+  if (amount == null) return null;
+  for (const belt of BELT_FEE_KEYS) {
+    const fee = beltFees[belt];
+    if (amount >= fee && amount <= fee + 999) return belt;
+  }
+  return null;
+}
+
+export function resolveNotaBeltGroup(
+  row: UktMemberRow,
+  beltFees: Record<BeltFeeKey, number>,
+): BeltFeeKey | null {
+  if (row.kyuBaru) {
+    const fromBaru = getBeltGroup(row.kyuBaru);
+    if (fromBaru !== "LAINNYA") return fromBaru as BeltFeeKey;
+    const fromBaruKyu = beltGroupFromKyuText(row.kyuBaru);
+    if (fromBaruKyu) return fromBaruKyu;
+  }
+
+  const fromBilling = beltGroupFromBilling(row.billingAmount, beltFees);
+  if (fromBilling) return fromBilling;
+
+  const fromLama = getBeltGroup(row.kyuLama);
+  if (fromLama !== "LAINNYA") return fromLama as BeltFeeKey;
+
+  return beltGroupFromKyuText(row.kyuLama);
+}
+
+export function countNotaBeltGroups(
+  rows: UktMemberRow[],
+  beltFees: Record<BeltFeeKey, number>,
+): Record<BeltFeeKey, number> {
+  const result: Record<BeltFeeKey, number> = {
+    PUTIH: 0,
+    KUNING: 0,
+    HIJAU: 0,
+    BIRU: 0,
+    COKELAT: 0,
+  };
+  for (const row of rows) {
+    const grp = resolveNotaBeltGroup(row, beltFees);
+    if (grp) result[grp]++;
+  }
+  return result;
 }
 
 export const APPROVED_STATUSES = new Set(["APPROVED", "SUCCESS", "PAID"]);

@@ -66,6 +66,7 @@ import {
   BELT_FEE_KEYS,
   formatRupiahNota,
   isRegistrationApproved,
+  isNotaParticipant,
   filterUktRowsByView,
   formatUktPeriodLabel,
   participantAmount,
@@ -96,6 +97,7 @@ type Props = {
   dbError?: string | null;
   defaultDojoFilter?: string;
   beltFees: Record<BeltFeeKey, number>;
+  komisiRanting: number;
 };
 
 const PAGE_SIZES = [25, 50, 100, 1000] as const;
@@ -154,6 +156,7 @@ export function UktDashboard(props: Props) {
   const [showPrint, setShowPrint] = useState(false);
   const [showBeltFees, setShowBeltFees] = useState(false);
   const [beltFees, setBeltFees] = useState(props.beltFees);
+  const [komisiRanting, setKomisiRanting] = useState(props.komisiRanting);
   const [loading, setLoading] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<{ id: string; name: string } | null>(null);
   const [newMember, setNewMember] = useState({
@@ -169,7 +172,8 @@ export function UktDashboard(props: Props) {
 
   useEffect(() => {
     setBeltFees(props.beltFees);
-  }, [props.beltFees]);
+    setKomisiRanting(props.komisiRanting);
+  }, [props.beltFees, props.komisiRanting]);
   const selectedPeriod = props.periods.find((p) => p.id === props.selectedPeriodId);
   const effectiveDojo = isDojoAdmin ? props.defaultDojoFilter || "" : localDojo;
 
@@ -380,7 +384,7 @@ export function UktDashboard(props: Props) {
       const res = await fetch("/api/admin/ukt/fees", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(beltFees),
+        body: JSON.stringify({ ...beltFees, komisiRanting }),
       });
       const data = await parseApiJson<{ error?: string }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal menyimpan biaya sabuk");
@@ -1170,10 +1174,11 @@ export function UktDashboard(props: Props) {
           periodTitle={selectedPeriod?.title || periodTitle}
           semester={props.semester}
           year={props.year}
-          rows={props.allRows.filter((r) => r.registrationId && isRegistrationApproved(r.status))}
+          rows={props.allRows.filter((r) => r.registrationId && isNotaParticipant(r.status))}
           dojos={props.dojos}
           dojoFilter={effectiveDojo}
           beltFees={beltFees}
+          komisiRanting={komisiRanting}
           isDojoAdmin={isDojoAdmin}
         />
       )}
@@ -1183,7 +1188,7 @@ export function UktDashboard(props: Props) {
           <DialogHeader>
             <DialogTitle>Atur Biaya Sabuk UKT</DialogTitle>
             <DialogDescription>
-              Nominal biaya per sabuk ditentukan oleh admin cabang dan digunakan untuk pendaftaran serta cetak nota.
+              Nominal biaya sabuk dan komisi ranting ditentukan oleh admin cabang untuk pendaftaran serta cetak nota.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
@@ -1205,6 +1210,17 @@ export function UktDashboard(props: Props) {
                 </span>
               </div>
             ))}
+            <div className="flex items-center gap-3 border-t pt-3">
+              <span className="w-20 text-sm font-medium">Komisi</span>
+              <Input
+                type="number"
+                value={komisiRanting}
+                onChange={(e) => setKomisiRanting(parseInt(e.target.value, 10) || 0)}
+              />
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {formatRupiahNota(komisiRanting)} / orang
+              </span>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowBeltFees(false)}>
