@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LogOut, Home, User } from "lucide-react";
+import { LogOut, Home, User, Bell } from "lucide-react";
 
 export function UserMenu({
   name,
@@ -48,19 +48,18 @@ export function UserMenu({
           <p className="text-xs text-muted-foreground">{email}</p>
         </div>
         <DropdownMenuItem asChild>
+          <Link href={showAdmin ? "/admin/notifikasi" : "/dashboard/notifikasi"}>
+            <Bell className="mr-2 h-4 w-4" />
+            Notifikasi
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
           <Link href="/">
             <Home className="mr-2 h-4 w-4" />
             Beranda Publik
           </Link>
         </DropdownMenuItem>
-        {showAdmin ? (
-          <DropdownMenuItem asChild>
-            <Link href="/admin">
-              <User className="mr-2 h-4 w-4" />
-              Admin Panel
-            </Link>
-          </DropdownMenuItem>
-        ) : (
+        {!showAdmin && (
           <DropdownMenuItem asChild>
             <Link href="/dashboard">
               <User className="mr-2 h-4 w-4" />
