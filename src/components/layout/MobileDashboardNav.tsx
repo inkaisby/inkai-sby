@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +20,8 @@ export function MobileDashboardNav({
   title: string;
   links: NavLink[];
 }) {
+  const pathname = usePathname();
+
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -30,19 +33,27 @@ export function MobileDashboardNav({
       <SheetContent side="left" className="w-72">
         <SheetTitle className="text-base font-bold">{title}</SheetTitle>
         <nav className="mt-6 flex flex-col gap-1">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`rounded-lg px-3 py-2 text-sm font-medium ${
-                link.active
-                  ? "bg-inkai-red text-white"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {links.map((link) => {
+            const isActive =
+              link.active ??
+              (pathname === link.href ||
+                (link.href !== "/dashboard" &&
+                  link.href !== "/admin" &&
+                  pathname.startsWith(link.href)));
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`rounded-lg px-3 py-2 text-sm font-medium ${
+                  isActive
+                    ? "bg-inkai-red text-white"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
       </SheetContent>
     </Sheet>
@@ -52,6 +63,11 @@ export function MobileDashboardNav({
 export const ADMIN_LINKS = [
   { href: "/admin", label: "Beranda Admin" },
   { href: "/admin/anggota", label: "Kelola Anggota" },
+  { href: "/admin/iuran", label: "Iuran Anggota" },
+  { href: "/admin/organisasi", label: "Organisasi" },
+  { href: "/admin/verifikasi", label: "Verifikasi" },
+  { href: "/admin/kegiatan", label: "Event & Kegiatan" },
+  { href: "/admin/absensi", label: "Absensi" },
   { href: "/admin/carousel", label: "Carousel Beranda" },
   { href: "/admin/audit", label: "Log Audit" },
 ];
@@ -62,4 +78,7 @@ export const MEMBER_LINKS = [
   { href: "/dashboard/absensi", label: "Absensi" },
   { href: "/dashboard/iuran", label: "Iuran" },
   { href: "/dashboard/kegiatan", label: "Kegiatan Saya" },
+  { href: "/dashboard/prestasi", label: "Prestasi & Sabuk" },
+  { href: "/dashboard/dokumen", label: "Dokumen" },
+  { href: "/dashboard/notifikasi", label: "Notifikasi" },
 ];

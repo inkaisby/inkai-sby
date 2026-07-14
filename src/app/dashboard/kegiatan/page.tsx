@@ -2,11 +2,6 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { AppSidebar, UserMenu } from "@/components/layout/AppShell";
-import {
-  MEMBER_LINKS,
-  MobileDashboardNav,
-} from "@/components/layout/MobileDashboardNav";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -22,52 +17,38 @@ export default async function MemberKegiatanPage() {
     orderBy: { createdAt: "desc" },
   });
 
-  const links = MEMBER_LINKS.map((l) => ({
-    ...l,
-    active: l.href === "/dashboard/kegiatan",
-  }));
-
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar title="Dashboard Anggota" links={links} />
-      <div className="flex flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between border-b px-4 sm:px-6">
-          <MobileDashboardNav title="Dashboard Anggota" links={links} />
-          <UserMenu name={session.user.name} email={session.user.email} />
-        </header>
-        <main className="flex-1 p-4 sm:p-6">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-2xl font-bold">Kegiatan Saya</h2>
-            <Link href="/kegiatan" className="text-sm text-inkai-red hover:underline">
-              Lihat semua kegiatan →
-            </Link>
-          </div>
-          {registrations.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center text-muted-foreground">
-                Anda belum terdaftar di kegiatan manapun.
+    <>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-2xl font-bold">Kegiatan Saya</h2>
+        <Link href="/kegiatan" className="text-sm text-inkai-red hover:underline">
+          Lihat semua kegiatan →
+        </Link>
+      </div>
+      {registrations.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center text-muted-foreground">
+            Anda belum terdaftar di kegiatan manapun.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {registrations.map((r) => (
+            <Card key={r.id}>
+              <CardContent className="flex justify-between p-4">
+                <div>
+                  <p className="font-medium">{r.event.title}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(r.event.startDate).toLocaleDateString("id-ID")}
+                    {r.category && ` · ${r.category.name}`}
+                  </p>
+                </div>
+                <Badge variant="secondary">{r.status}</Badge>
               </CardContent>
             </Card>
-          ) : (
-            <div className="space-y-3">
-              {registrations.map((r) => (
-                <Card key={r.id}>
-                  <CardContent className="flex justify-between p-4">
-                    <div>
-                      <p className="font-medium">{r.event.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(r.event.startDate).toLocaleDateString("id-ID")}
-                        {r.category && ` · ${r.category.name}`}
-                      </p>
-                    </div>
-                    <Badge variant="secondary">{r.status}</Badge>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </main>
-      </div>
-    </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }

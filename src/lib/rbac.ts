@@ -140,3 +140,42 @@ export function buildProvinceFilter(user: SessionUser) {
   }
   return { id: "none", isDeleted: false };
 }
+
+export function buildEventFilter(user: SessionUser) {
+  const role = getPrimaryAdminRole(user.roles);
+
+  if (role === "ADMINISTRATOR" || role === "ADMIN_PUSAT" || role === "ADMIN") {
+    return { isDeleted: false };
+  }
+  if (role === "ADMIN_PROVINCE" && user.managedProvinceId) {
+    return {
+      isDeleted: false,
+      branch: { provinceId: user.managedProvinceId, isDeleted: false },
+    };
+  }
+  if (role === "ADMIN_BRANCH" && user.managedBranchId) {
+    return { isDeleted: false, branchId: user.managedBranchId };
+  }
+  if (role === "ADMIN_DOJO" && user.managedDojoId) {
+    return {
+      isDeleted: false,
+      branch: {
+        isDeleted: false,
+        dojos: { some: { id: user.managedDojoId, isDeleted: false } },
+      },
+    };
+  }
+  return { id: "none", isDeleted: false };
+}
+
+export function buildBillingFilter(user: SessionUser) {
+  return { isDeleted: false, member: buildMemberFilter(user) };
+}
+
+export function buildVerificationFilter(user: SessionUser) {
+  return { member: buildMemberFilter(user) };
+}
+
+export function buildAttendanceFilter(user: SessionUser) {
+  return { isDeleted: false, member: buildMemberFilter(user) };
+}

@@ -1,6 +1,8 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { canAccessAdmin } from "@/lib/rbac";
+import { DashboardShell } from "@/components/layout/DashboardShell";
+import { ADMIN_LINKS } from "@/components/layout/MobileDashboardNav";
 
 export default async function AdminLayout({
   children,
@@ -10,5 +12,16 @@ export default async function AdminLayout({
   const session = await auth();
   if (!session) redirect("/login");
   if (!canAccessAdmin(session.user)) redirect("/dashboard");
-  return <>{children}</>;
+
+  return (
+    <DashboardShell
+      title="Admin Panel"
+      links={ADMIN_LINKS}
+      userName={session.user.name}
+      userEmail={session.user.email}
+      showAdmin
+    >
+      {children}
+    </DashboardShell>
+  );
 }

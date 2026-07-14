@@ -3,6 +3,7 @@
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -86,6 +87,8 @@ export function AppSidebar({
   title: string;
   links: { href: string; label: string; active?: boolean }[];
 }) {
+  const pathname = usePathname();
+
   return (
     <aside className="hidden w-64 flex-shrink-0 border-r bg-muted/30 lg:block">
       <div className="flex h-16 items-center gap-2 border-b px-4">
@@ -99,19 +102,27 @@ export function AppSidebar({
         <p className="text-sm font-bold">{title}</p>
       </div>
       <nav className="p-3">
-        {links.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className={`mb-1 block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              link.active
-                ? "bg-inkai-red text-white"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            {link.label}
-          </Link>
-        ))}
+        {links.map((link) => {
+          const isActive =
+            link.active ??
+            (pathname === link.href ||
+              (link.href !== "/dashboard" &&
+                link.href !== "/admin" &&
+                pathname.startsWith(link.href)));
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`mb-1 block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                isActive
+                  ? "bg-inkai-red text-white"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              {link.label}
+            </Link>
+          );
+        })}
       </nav>
     </aside>
   );
