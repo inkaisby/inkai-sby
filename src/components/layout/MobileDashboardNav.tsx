@@ -64,6 +64,7 @@ export const ADMIN_LINKS = [
   { href: "/admin", label: "Beranda Admin" },
   { href: "/admin/anggota", label: "Kelola Anggota" },
   { href: "/admin/iuran", label: "Iuran Anggota" },
+  { href: "/admin/ukt", label: "UKT" },
   { href: "/admin/organisasi", label: "Organisasi" },
   { href: "/admin/verifikasi", label: "Verifikasi" },
   { href: "/admin/kegiatan", label: "Event & Kegiatan" },

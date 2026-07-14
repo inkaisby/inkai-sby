@@ -47,3 +47,36 @@ export const memberActionSchema = z.object({
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
+
+export const uktPeriodSchema = z.object({
+  semester: z.enum(["I", "II"]),
+  year: z.coerce.number().int().min(2020).max(2100),
+  title: z.string().trim().min(3).max(120).optional(),
+});
+
+export const uktRegisterSchema = z.object({
+  eventId: z.string().uuid(),
+  memberId: z.string().uuid(),
+});
+
+export const uktRegistrationUpdateSchema = z.object({
+  action: z.enum(["approve", "reject", "update_kyu", "mark_paid"]).optional(),
+  categoryId: z.string().uuid().optional(),
+  newRank: z.string().trim().min(2).max(64).optional(),
+  status: z.enum(["PENDING", "APPROVED", "REJECTED", "PAID", "SUCCESS"]).optional(),
+});
+
+export const uktMemberCreateSchema = z.object({
+  fullName: z.string().trim().min(2).max(100),
+  gender: z.enum(["L", "P"]).optional(),
+  birthPlace: z.string().trim().max(100).optional(),
+  birthDate: z.string().optional(),
+  address: z.string().trim().max(300).optional(),
+  dojoId: z.string().uuid().optional(),
+});
+
+export const uktInvoiceAckSchema = z.object({
+  eventId: z.string().uuid(),
+  dojoId: z.string().uuid(),
+  acknowledged: z.boolean(),
+});

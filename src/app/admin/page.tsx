@@ -218,6 +218,12 @@ export default async function AdminDashboard() {
       icon: Wallet,
     },
     {
+      label: "Kelola UKT",
+      desc: "Pendaftaran ujian kenaikan tingkat",
+      href: "/admin/ukt",
+      icon: ShieldCheck,
+    },
+    {
       label: "Kelola Organisasi",
       desc: "Cabang, dojo, dan ranting",
       href: "/admin/organisasi",
