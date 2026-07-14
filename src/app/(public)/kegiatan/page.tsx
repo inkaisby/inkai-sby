@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
-import { SITE_BRANCH_NAME } from "@/lib/site";
+import { getUpcomingEvents } from "@/lib/public-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "lucide-react";
@@ -11,22 +10,10 @@ export const metadata: Metadata = {
   description: "Kegiatan dan event INKAI Cabang Surabaya.",
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function KegiatanPage() {
-  const branch = await prisma.branch.findFirst({
-    where: { name: { equals: SITE_BRANCH_NAME, mode: "insensitive" }, isDeleted: false },
-  });
-
-  const events = await prisma.event.findMany({
-    where: {
-      isDeleted: false,
-      ...(branch ? { branchId: branch.id } : {}),
-      startDate: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
-    },
-    orderBy: { startDate: "asc" },
-    take: 50,
-  });
+  const events = await getUpcomingEvents();
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 sm:py-16">
@@ -47,7 +34,7 @@ export default async function KegiatanPage() {
       ) : (
         <div className="space-y-4">
           {events.map((event) => (
-            <Link key={event.id} href={`/kegiatan/${event.id}`}>
+            <Link key={event.id} href={`/kegiatan/${event.id}`} prefetch>
               <Card className="transition-shadow hover:shadow-md">
                 <CardContent className="flex gap-4 p-6">
                   <Calendar className="h-5 w-5 text-inkai-red shrink-0 mt-0.5" />

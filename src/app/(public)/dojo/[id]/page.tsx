@@ -1,33 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { surabayaDojoWhere } from "@/lib/security/branch-scope";
+import { getDojoDetail } from "@/lib/public-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { MapPin, Phone, Clock, Users } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const dojo = await prisma.dojo.findFirst({
-    where: { id, ...surabayaDojoWhere },
-  });
+  const dojo = await getDojoDetail(id);
   return { title: dojo ? `Dojo ${dojo.name.trim()}` : "Dojo" };
 }
 
 export default async function DojoDetailPage({ params }: Props) {
   const { id } = await params;
-  const dojo = await prisma.dojo.findFirst({
-    where: { id, ...surabayaDojoWhere },
-    include: {
-      branch: true,
-      _count: { select: { members: true } },
-    },
-  });
+  const dojo = await getDojoDetail(id);
 
   if (!dojo) notFound();
 
@@ -81,6 +72,7 @@ export default async function DojoDetailPage({ params }: Props) {
 
       <Link
         href={`/daftar?dojo=${dojo.id}`}
+        prefetch
         className="inline-flex rounded-lg bg-inkai-red px-4 py-2 text-sm font-medium text-white hover:bg-inkai-red/90"
       >
         Daftar di dojo ini

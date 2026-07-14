@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
-import { prisma } from "@/lib/prisma";
+import { getActiveNewsCarousel } from "@/lib/public-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -10,13 +10,10 @@ export const metadata: Metadata = {
   description: "Berita dan artikel INKAI Cabang Surabaya.",
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function BeritaPage() {
-  const items = await prisma.newsCarousel.findMany({
-    where: { isActive: true },
-    orderBy: { order: "asc" },
-  });
+  const items = await getActiveNewsCarousel();
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 sm:py-16">

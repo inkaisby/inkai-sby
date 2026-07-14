@@ -25,45 +25,41 @@ export default function PublicFooter() {
           <div>
             <p className="mb-3 font-semibold text-inkai-yellow">Navigasi</p>
             <nav className="flex flex-col gap-2 text-sm text-white/70">
-              <Link href="/sejarah" className="hover:text-white">
+              <Link href="/sejarah" prefetch className="hover:text-white">
                 Sejarah
               </Link>
-              <Link href="/makna-lambang" className="hover:text-white">
+              <Link href="/makna-lambang" prefetch className="hover:text-white">
                 Makna Lambang
               </Link>
-              <Link href="/struktur" className="hover:text-white">
+              <Link href="/struktur" prefetch className="hover:text-white">
                 Struktur Organisasi
               </Link>
-              <Link href="/visi-misi" className="hover:text-white">
+              <Link href="/visi-misi" prefetch className="hover:text-white">
                 Visi & Misi
               </Link>
-              <Link href="/kegiatan" className="hover:text-white">
+              <Link href="/kegiatan" prefetch className="hover:text-white">
                 Kegiatan
               </Link>
-              <Link href="/berita" className="hover:text-white">
+              <Link href="/berita" prefetch className="hover:text-white">
                 Berita
               </Link>
-              <Link href="/kontak" className="hover:text-white">
+              <Link href="/kontak" prefetch className="hover:text-white">
                 Kontak
-              </Link>
-              <Link href="/keamanan-siber" className="hover:text-white">
-                Keamanan Siber
               </Link>
             </nav>
           </div>
           <div>
             <p className="mb-3 font-semibold text-inkai-yellow">Kontak</p>
             <div className="flex flex-col gap-2 text-sm text-white/70">
-              <p>{SITE_CONTACT.phone}</p>
-              <Link href={`mailto:${SITE_CONTACT.email}`} className="hover:text-white">
-                {SITE_CONTACT.email}
-              </Link>
               <Link
                 href={`https://wa.me/${SITE_CONTACT.whatsapp}`}
                 target="_blank"
                 className="hover:text-white"
               >
-                WhatsApp
+                {SITE_CONTACT.phone} (WA)
+              </Link>
+              <Link href={`mailto:${SITE_CONTACT.email}`} className="hover:text-white">
+                {SITE_CONTACT.email}
               </Link>
             </div>
           </div>

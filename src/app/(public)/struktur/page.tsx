@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { prisma } from "@/lib/prisma";
-import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
+import { getBranchStructure } from "@/lib/public-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -18,27 +17,10 @@ export const metadata: Metadata = {
     "Struktur organisasi INKAI Cabang Surabaya — dojo dan ranting di bawah Provinsi Jawa Timur.",
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export default async function StrukturPage() {
-  const branch = await prisma.branch.findFirst({
-    where: {
-      isDeleted: false,
-      name: { equals: SITE_BRANCH_NAME, mode: "insensitive" },
-      province: {
-        isDeleted: false,
-        name: { equals: SITE_PROVINCE_NAME, mode: "insensitive" },
-      },
-    },
-    include: {
-      province: true,
-      dojos: {
-        where: { isDeleted: false },
-        include: { _count: { select: { members: true } } },
-        orderBy: { name: "asc" },
-      },
-    },
-  });
+  const branch = await getBranchStructure();
 
   const totalMembers =
     branch?.dojos.reduce((sum, dojo) => sum + dojo._count.members, 0) ?? 0;
@@ -144,6 +126,7 @@ export default async function StrukturPage() {
                       <div>
                         <Link
                           href={`/dojo/${dojo.id}`}
+                          prefetch
                           className="font-medium hover:text-inkai-red hover:underline"
                         >
                           {dojo.name.trim()}

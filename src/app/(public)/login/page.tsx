@@ -1,119 +1,81 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { Suspense } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { isAdmin } from "@/lib/rbac";
+import { useSearchParams } from "next/navigation";
+import AuthShell from "@/components/auth/AuthShell";
+import LoginForm from "@/components/auth/LoginForm";
+import RegisterForm from "@/components/auth/RegisterForm";
 
-export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    });
-
-    setLoading(false);
-
-    if (result?.error) {
-      setError(
-        "Email atau password salah. Akun baru perlu disetujui admin terlebih dahulu."
-      );
-      return;
-    }
-
-    const sessionRes = await fetch("/api/auth/session");
-    const session = await sessionRes.json();
-    const roles: string[] = session?.user?.roles || [];
-
-    router.push(isAdmin(roles) ? "/admin" : "/dashboard");
-    router.refresh();
-  }
+function AuthTabs() {
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab") === "daftar" ? "daftar" : "login";
+  const dojo = searchParams.get("dojo") || "";
 
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4 py-12">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <Image
-            src="/logo-inkai.png"
-            alt="Logo INKAI"
-            width={72}
-            height={72}
-            className="mx-auto mb-2 rounded-full"
-          />
-          <CardTitle className="text-2xl">Masuk</CardTitle>
-          <CardDescription>
-            Masuk ke akun INKAI Surabaya Anda
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="email@example.com"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <Button
-              type="submit"
-              className="w-full bg-inkai-red hover:bg-inkai-red/90"
-              disabled={loading}
-            >
-              {loading ? "Memproses..." : "Masuk"}
-            </Button>
-          </form>
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            <Link href="/lupa-password" className="text-inkai-red hover:underline">
-              Lupa password?
-            </Link>
-          </p>
-          <p className="mt-2 text-center text-sm text-muted-foreground">
+    <>
+      <div className="mb-6 flex rounded-xl bg-muted p-1">
+        <Link
+          href="/login"
+          className={`flex-1 rounded-lg py-2.5 text-center text-sm font-medium transition-colors ${
+            tab === "login"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Login
+        </Link>
+        <Link
+          href={dojo ? `/login?tab=daftar&dojo=${dojo}` : "/login?tab=daftar"}
+          className={`flex-1 rounded-lg py-2.5 text-center text-sm font-medium transition-colors ${
+            tab === "daftar"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Daftar
+        </Link>
+      </div>
+
+      {tab === "login" ? (
+        <>
+          <LoginForm />
+          <p className="mt-5 text-center text-sm text-muted-foreground">
             Belum punya akun?{" "}
-            <Link href="/daftar" className="font-medium text-inkai-red hover:underline">
+            <Link
+              href={dojo ? `/login?tab=daftar&dojo=${dojo}` : "/login?tab=daftar"}
+              className="font-medium text-inkai-red hover:underline"
+            >
               Daftar di sini
             </Link>
           </p>
-        </CardContent>
-      </Card>
-    </div>
+        </>
+      ) : (
+        <>
+          <RegisterForm preselectedDojo={dojo} />
+          <p className="mt-5 text-center text-sm text-muted-foreground">
+            Sudah punya akun?{" "}
+            <Link href="/login" className="font-medium text-inkai-red hover:underline">
+              Login di sini
+            </Link>
+          </p>
+        </>
+      )}
+    </>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <AuthShell
+      title="INKAI Surabaya"
+      subtitle={
+        "Masuk atau daftar sebagai anggota Institut Karate-Do Indonesia"
+      }
+    >
+      <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-muted" />}>
+        <AuthTabs />
+      </Suspense>
+    </AuthShell>
   );
 }

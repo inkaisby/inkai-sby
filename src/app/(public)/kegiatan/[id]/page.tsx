@@ -1,25 +1,22 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { getEventDetail } from "@/lib/public-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const event = await prisma.event.findFirst({ where: { id, isDeleted: false } });
+  const event = await getEventDetail(id);
   return { title: event?.title || "Kegiatan" };
 }
 
 export default async function KegiatanDetailPage({ params }: Props) {
   const { id } = await params;
-  const event = await prisma.event.findFirst({
-    where: { id, isDeleted: false },
-    include: { categories: true },
-  });
+  const event = await getEventDetail(id);
 
   if (!event) notFound();
 
