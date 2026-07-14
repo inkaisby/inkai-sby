@@ -62,6 +62,9 @@ import {
 import {
   type UktMemberRow,
   type UktSemester,
+  type BeltFeeKey,
+  BELT_FEE_KEYS,
+  formatRupiahNota,
   isRegistrationApproved,
   filterUktRowsByView,
   formatUktPeriodLabel,
@@ -92,6 +95,7 @@ type Props = {
   canCreatePeriod: boolean;
   dbError?: string | null;
   defaultDojoFilter?: string;
+  beltFees: Record<BeltFeeKey, number>;
 };
 
 const PAGE_SIZES = [25, 50, 100, 1000] as const;
@@ -148,6 +152,8 @@ export function UktDashboard(props: Props) {
   const [memberHistory, setMemberHistory] = useState<Record<string, unknown> | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
+  const [showBeltFees, setShowBeltFees] = useState(false);
+  const [beltFees, setBeltFees] = useState(props.beltFees);
   const [loading, setLoading] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<{ id: string; name: string } | null>(null);
   const [newMember, setNewMember] = useState({
@@ -160,6 +166,10 @@ export function UktDashboard(props: Props) {
 
   const isCabang = canEditKyuBaru(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
+
+  useEffect(() => {
+    setBeltFees(props.beltFees);
+  }, [props.beltFees]);
   const selectedPeriod = props.periods.find((p) => p.id === props.selectedPeriodId);
   const effectiveDojo = isDojoAdmin ? props.defaultDojoFilter || "" : localDojo;
 
@@ -364,6 +374,26 @@ export function UktDashboard(props: Props) {
     }
   };
 
+  const handleSaveBeltFees = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/ukt/fees", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(beltFees),
+      });
+      const data = await parseApiJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal menyimpan biaya sabuk");
+      toast.success("Biaya sabuk berhasil disimpan");
+      setShowBeltFees(false);
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal menyimpan");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCreateInvoice = async () => {
     if (!props.selectedPeriodId || !effectiveDojo) {
       toast.error("Pilih ranting terlebih dahulu");
@@ -505,6 +535,7 @@ export function UktDashboard(props: Props) {
             <Select
               value={props.semester}
               onValueChange={(v) => navigatePeriod({ semester: v })}
+              disabled={isDojoAdmin}
             >
               <SelectTrigger className="w-28">
                 <SelectValue />
@@ -520,6 +551,10 @@ export function UktDashboard(props: Props) {
               value={yearInput}
               onChange={(e) => setYearInput(e.target.value)}
               onBlur={() => {
+                if (isDojoAdmin) {
+                  setYearInput(String(props.year));
+                  return;
+                }
                 const y = parseInt(yearInput, 10);
                 if (Number.isFinite(y) && y >= 2020 && y <= 2100) {
                   navigatePeriod({ year: String(y) });
@@ -529,6 +564,7 @@ export function UktDashboard(props: Props) {
               }}
               min={2020}
               max={2100}
+              disabled={isDojoAdmin}
             />
             {editingTitle && isCabang ? (
               <div className="flex items-center gap-1">
@@ -559,6 +595,7 @@ export function UktDashboard(props: Props) {
               <Select
                 value={props.selectedPeriodId || ""}
                 onValueChange={(v) => navigatePeriod({ period: v })}
+                disabled={isDojoAdmin}
               >
                 <SelectTrigger className="w-52">
                   <SelectValue placeholder="Pilih periode" />
@@ -586,6 +623,12 @@ export function UktDashboard(props: Props) {
               <Printer className="mr-1 h-4 w-4" />
               Cetak Nota
             </Button>
+            {isCabang && (
+              <Button variant="outline" onClick={() => setShowBeltFees(true)}>
+                <Wallet className="mr-1 h-4 w-4" />
+                Biaya Sabuk
+              </Button>
+            )}
             {isCabang && props.selectedPeriodId && (
               <Button variant="outline" onClick={handleCreateInvoice} disabled={loading}>
                 <FileText className="mr-1 h-4 w-4" />
@@ -1130,8 +1173,49 @@ export function UktDashboard(props: Props) {
           rows={props.allRows.filter((r) => r.registrationId && isRegistrationApproved(r.status))}
           dojos={props.dojos}
           dojoFilter={effectiveDojo}
+          beltFees={beltFees}
+          isDojoAdmin={isDojoAdmin}
         />
       )}
+
+      <Dialog open={showBeltFees} onOpenChange={setShowBeltFees}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Atur Biaya Sabuk UKT</DialogTitle>
+            <DialogDescription>
+              Nominal biaya per sabuk ditentukan oleh admin cabang dan digunakan untuk pendaftaran serta cetak nota.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            {BELT_FEE_KEYS.map((belt) => (
+              <div key={belt} className="flex items-center gap-3">
+                <span className="w-20 text-sm font-medium">{belt}</span>
+                <Input
+                  type="number"
+                  value={beltFees[belt]}
+                  onChange={(e) =>
+                    setBeltFees((prev) => ({
+                      ...prev,
+                      [belt]: parseInt(e.target.value, 10) || 0,
+                    }))
+                  }
+                />
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {formatRupiahNota(beltFees[belt])}
+                </span>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBeltFees(false)}>
+              Batal
+            </Button>
+            <Button className="bg-inkai-red" onClick={handleSaveBeltFees} disabled={loading}>
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -29,13 +29,40 @@ export function buildNotaNumber(dojoSlug: string, semester: UktSemester, year: n
   return `UKT/SBY/${slug}/${semester}/${year}`;
 }
 
-export const DEFAULT_BELT_FEES: Record<string, number> = {
+export const BELT_FEE_KEYS = ["PUTIH", "KUNING", "HIJAU", "BIRU", "COKELAT"] as const;
+export type BeltFeeKey = (typeof BELT_FEE_KEYS)[number];
+
+export const DEFAULT_BELT_FEES: Record<BeltFeeKey, number> = {
   PUTIH: 285000,
   KUNING: 295000,
   HIJAU: 305000,
   BIRU: 315000,
   COKELAT: 345000,
 };
+
+const BELT_FEE_LABELS: Record<BeltFeeKey, string> = {
+  PUTIH: "Putih",
+  KUNING: "Kuning",
+  HIJAU: "Hijau",
+  BIRU: "Biru",
+  COKELAT: "Cokelat",
+};
+
+export function formatRupiahNota(amount: number): string {
+  return `Rp ${amount.toLocaleString("id-ID")},-`;
+}
+
+export function beltFeesFromTemplates(
+  templates: { rankName: string; fee: number }[],
+): Record<BeltFeeKey, number> {
+  const fees = { ...DEFAULT_BELT_FEES };
+  for (const key of BELT_FEE_KEYS) {
+    const label = BELT_FEE_LABELS[key].toLowerCase();
+    const match = templates.find((t) => t.rankName.trim().toLowerCase().includes(label));
+    if (match) fees[key] = Math.round(match.fee);
+  }
+  return fees;
+}
 
 export const APPROVED_STATUSES = new Set(["APPROVED", "SUCCESS", "PAID"]);
 

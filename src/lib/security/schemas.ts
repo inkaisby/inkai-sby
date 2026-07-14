@@ -75,6 +75,14 @@ export const uktMemberCreateSchema = z.object({
   dojoId: z.string().uuid().optional(),
 });
 
+export const uktBeltFeesSchema = z.object({
+  PUTIH: z.coerce.number().int().min(0).max(10_000_000),
+  KUNING: z.coerce.number().int().min(0).max(10_000_000),
+  HIJAU: z.coerce.number().int().min(0).max(10_000_000),
+  BIRU: z.coerce.number().int().min(0).max(10_000_000),
+  COKELAT: z.coerce.number().int().min(0).max(10_000_000),
+});
+
 export const uktInvoiceAckSchema = z.object({
   eventId: z.string().uuid(),
   dojoId: z.string().uuid(),

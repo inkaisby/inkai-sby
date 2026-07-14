@@ -11,6 +11,7 @@ import {
 } from "@/lib/rbac";
 import { UktDashboard } from "@/components/admin/ukt/UktDashboard";
 import type { UktMemberRow, UktSemester } from "@/lib/ukt";
+import { beltFeesFromTemplates } from "@/lib/ukt";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -64,10 +65,11 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   }[] = [];
   let billings: { registrationId: string | null; status: string; amount: number }[] = [];
   let invoiceAckSettings: { key: string; value: unknown }[] = [];
+  let beltFees = beltFeesFromTemplates([]);
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const [periodRows, dojoRows] = await Promise.all([
+      const [periodRows, dojoRows, feeTemplates] = await Promise.all([
         tx.event.findMany({
           where: {
             ...eventFilter,
@@ -82,6 +84,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
           orderBy: { name: "asc" },
           select: { id: true, name: true },
         }),
+        tx.rankFeeTemplate.findMany(),
       ]);
 
       const periodId = params.period || periodRows[0]?.id || null;
@@ -143,6 +146,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         members: memberRows,
         billings: billingRows,
         invoiceAckSettings: ackRows,
+        feeTemplates,
       };
     });
 
@@ -153,6 +157,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     members = result.members;
     billings = result.billings;
     invoiceAckSettings = result.invoiceAckSettings;
+    beltFees = beltFeesFromTemplates(result.feeTemplates);
   } catch (error) {
     console.error("[AdminUkt] DB error:", error);
     const msg = error instanceof Error ? error.message : "";
@@ -240,6 +245,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         canCreatePeriod={canCreatePeriod}
         dbError={dbError}
         defaultDojoFilter={autoDojoId}
+        beltFees={beltFees}
       />
     </>
   );
