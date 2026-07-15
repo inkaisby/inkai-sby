@@ -60,14 +60,14 @@ export function isUktRegistrationOpen(period: UktPeriodSchedule): boolean {
 }
 
 export function formatUktRegistrationDeadline(iso: string): string {
-  return new Date(iso).toLocaleString("id-ID", {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const datePart = d.toLocaleDateString("id-ID", {
     day: "numeric",
     month: "short",
     year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
   });
+  return `${datePart}, ${pad(d.getHours())}.${pad(d.getMinutes())}`;
 }
 
 export function toDateTimeLocalInput(iso: string): string {
@@ -86,6 +86,18 @@ export function toTimeInput(iso: string): string {
 
 export function combineDateAndTimeLocal(date: string, time: string): Date {
   return new Date(`${date}T${time}:00`);
+}
+
+export const HOURS_24 = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+export const MINUTES_60 = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
+
+export function splitTimeInput(time: string): { hour: string; minute: string } {
+  const [hour = "00", minute = "00"] = time.split(":");
+  return { hour: hour.padStart(2, "0"), minute: minute.padStart(2, "0") };
+}
+
+export function joinTimeInput(hour: string, minute: string): string {
+  return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
 }
 
 export function parseUktEventTitle(title: string): { semester: UktSemester; year: number } | null {

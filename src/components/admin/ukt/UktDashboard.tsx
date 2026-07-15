@@ -77,6 +77,10 @@ import {
   toDateInput,
   toTimeInput,
   combineDateAndTimeLocal,
+  HOURS_24,
+  MINUTES_60,
+  splitTimeInput,
+  joinTimeInput,
 } from "@/lib/ukt";
 import { parseApiJson } from "@/lib/api-client";
 
@@ -293,6 +297,8 @@ export function UktDashboard(props: Props) {
       setLoading(false);
     }
   };
+
+  const registrationTimeParts = splitTimeInput(registrationDeadlineTime || "00:00");
 
   const openRegistrationDeadlineDialog = () => {
     if (!registrationDeadlineIso) return;
@@ -1252,17 +1258,48 @@ export function UktDashboard(props: Props) {
               />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="ukt-registration-time" className="text-sm font-medium">
-                Jam (24 jam)
-              </label>
-              <Input
-                id="ukt-registration-time"
-                type="time"
-                lang="id-ID"
-                step={60}
-                value={registrationDeadlineTime}
-                onChange={(e) => setRegistrationDeadlineTime(e.target.value)}
-              />
+              <label className="text-sm font-medium">Jam</label>
+              <div className="flex items-center gap-1.5">
+                <Select
+                  value={registrationTimeParts.hour}
+                  onValueChange={(hour) =>
+                    setRegistrationDeadlineTime(
+                      joinTimeInput(hour, registrationTimeParts.minute),
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-[4.5rem]">
+                    <SelectValue placeholder="JJ" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-52">
+                    {HOURS_24.map((hour) => (
+                      <SelectItem key={hour} value={hour}>
+                        {hour}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-sm font-semibold text-muted-foreground">.</span>
+                <Select
+                  value={registrationTimeParts.minute}
+                  onValueChange={(minute) =>
+                    setRegistrationDeadlineTime(
+                      joinTimeInput(registrationTimeParts.hour, minute),
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-[4.5rem]">
+                    <SelectValue placeholder="MM" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-52">
+                    {MINUTES_60.map((minute) => (
+                      <SelectItem key={minute} value={minute}>
+                        {minute}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
