@@ -12,6 +12,7 @@ type Props = {
   value: string;
   onChange: (q: string) => void;
   placeholder?: string;
+  showRegistrationStatus?: boolean;
 };
 
 function matchQuery(row: UktMemberRow, q: string) {
@@ -27,6 +28,7 @@ export function UktSearchBar({
   value,
   onChange,
   placeholder = "Cari nama atau NIA…",
+  showRegistrationStatus = false,
 }: Props) {
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
@@ -167,6 +169,18 @@ export function UktSearchBar({
                 <span className="hidden shrink-0 text-xs text-muted-foreground md:inline">
                   {s.dojoName}
                 </span>
+                {showRegistrationStatus && (
+                  <span
+                    className={cn(
+                      "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                      s.registrationId
+                        ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400"
+                        : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400",
+                    )}
+                  >
+                    {s.registrationId ? "Terdaftar" : "Belum daftar"}
+                  </span>
+                )}
               </button>
             </li>
           ))}

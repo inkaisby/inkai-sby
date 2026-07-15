@@ -21,7 +21,6 @@ import {
   Pencil,
   Check,
   Trash2,
-  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -124,7 +123,7 @@ function formatRupiah(amount: number | null) {
 
 function statusBadge(status: string) {
   const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    PENDING: { label: "Pending", variant: "secondary" },
+    PENDING: { label: "Terdaftar", variant: "default" },
     APPROVED: { label: "Disetujui", variant: "default" },
     PAID: { label: "Lunas", variant: "default" },
     SUCCESS: { label: "Lunas", variant: "default" },
@@ -198,10 +197,13 @@ export function UktDashboard(props: Props) {
 
   const kpi = useMemo(() => computeUktKpiStats(scopedRows), [scopedRows]);
 
-  const filteredRows = useMemo(
-    () => filterUktRowsByView(scopedRows, localView),
-    [scopedRows, localView],
-  );
+  const filteredRows = useMemo(() => {
+    // Saat view "Terdaftar UKT" + pencarian aktif, tampilkan semua peserta yang cocok
+    // agar admin bisa mendaftarkan anggota baru lewat tombol Daftar UKT.
+    const viewFilter =
+      localView === "registered" && localQ.trim() ? "" : localView;
+    return filterUktRowsByView(scopedRows, viewFilter);
+  }, [scopedRows, localView, localQ]);
 
   const totalFiltered = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / localPageSize));
@@ -291,7 +293,7 @@ export function UktDashboard(props: Props) {
       });
       const data = await parseApiJson<{ error?: string; success?: boolean }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal mendaftarkan anggota");
-      toast.success("Anggota berhasil didaftarkan UKT");
+      toast.success("Anggota berhasil didaftarkan dan disetujui otomatis");
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal mendaftarkan");
@@ -311,46 +313,6 @@ export function UktDashboard(props: Props) {
       const data = await parseApiJson<{ error?: string }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal memperbarui kyu");
       toast.success("Kyu Baru diperbarui");
-      router.refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleApprove = async (registrationId: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "approve" }),
-      });
-      if (!res.ok) {
-        const data = await parseApiJson<{ error?: string }>(res);
-        throw new Error(data.error);
-      }
-      toast.success("Pendaftaran disetujui");
-      router.refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleReject = async (registrationId: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "reject" }),
-      });
-      const data = await parseApiJson<{ error?: string }>(res);
-      if (!res.ok) throw new Error(data.error || "Gagal menolak");
-      toast.success("Pendaftaran ditolak");
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
@@ -524,7 +486,7 @@ export function UktDashboard(props: Props) {
     { label: "Terdaftar UKT", value: kpi.total, icon: FileText, color: "text-indigo-600", filter: "registered" },
     { label: "Belum Daftar", value: kpi.belumDaftar, icon: UserPlus, color: "text-amber-600", filter: "unregistered" },
     { label: "Disetujui/Lunas", value: kpi.disetujui, icon: CheckCircle2, color: "text-green-600", filter: "approved" },
-    { label: "Pending", value: kpi.pending, icon: Clock, color: "text-yellow-600", filter: "pending" },
+    { label: "Belum Lunas", value: kpi.pending, icon: Clock, color: "text-yellow-600", filter: "pending" },
     { label: "Total Tagihan", value: `Rp ${(kpi.totalTagihan / 1000).toFixed(0)}rb`, icon: Wallet, color: "text-purple-600", filter: "" },
     { label: "Terbayar", value: `Rp ${(kpi.totalTerbayar / 1000).toFixed(0)}rb`, icon: Banknote, color: "text-emerald-600", filter: "paid" },
     { label: "Ditolak", value: kpi.ditolak, icon: XCircle, color: "text-red-600", filter: "rejected" },
@@ -687,6 +649,12 @@ export function UktDashboard(props: Props) {
             setLocalQ(q);
             setLocalPage(1);
           }}
+          placeholder={
+            localView === "registered"
+              ? "Cari nama untuk daftarkan peserta UKT…"
+              : "Cari nama atau NIA…"
+          }
+          showRegistrationStatus={localView === "registered"}
         />
 
         <Select
@@ -702,7 +670,7 @@ export function UktDashboard(props: Props) {
           <SelectContent>
             <SelectItem value="all">Semua status</SelectItem>
             <SelectItem value="BELUM_DAFTAR">Belum Daftar</SelectItem>
-            <SelectItem value="PENDING">Pending</SelectItem>
+            <SelectItem value="PENDING">Terdaftar</SelectItem>
             <SelectItem value="APPROVED">Disetujui</SelectItem>
             <SelectItem value="PAID">Lunas</SelectItem>
             <SelectItem value="REJECTED">Ditolak</SelectItem>
@@ -908,32 +876,10 @@ export function UktDashboard(props: Props) {
                           onClick={() => handleRegister(row.memberId)}
                           disabled={loading || !props.selectedPeriodId}
                         >
-                          Daftar
+                          Daftar UKT
                         </Button>
                       ) : (
                         <>
-                          {isCabang && row.status === "PENDING" && (
-                            <>
-                              <Button
-                                size="sm"
-                                className="h-7 bg-green-600 text-xs hover:bg-green-700"
-                                onClick={() => handleApprove(row.registrationId!)}
-                                disabled={loading}
-                              >
-                                Setujui
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
-                                onClick={() => handleReject(row.registrationId!)}
-                                disabled={loading}
-                              >
-                                <Ban className="mr-0.5 h-3 w-3" />
-                                Tolak
-                              </Button>
-                            </>
-                          )}
                           {canCancelUktRegistration(row) && (isDojoAdmin || isCabang) && (
                             <Button
                               size="sm"

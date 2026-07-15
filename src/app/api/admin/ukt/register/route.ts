@@ -43,8 +43,32 @@ export async function POST(request: Request) {
     }
 
     const registration = data.data as Record<string, unknown>;
-    const member = registration.member as { fullName?: string } | undefined;
-    const event = registration.event as { title?: string } | undefined;
+    const registrationId = String(registration.id);
+
+    const { res: approveRes, data: approveData } = await inkaiFetch(
+      `/v1/events/register/${registrationId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ status: "APPROVED" }),
+      },
+      authResult.token,
+    );
+
+    if (!approveRes.ok) {
+      return NextResponse.json(
+        {
+          error: inkaiErrorMessage(
+            approveData,
+            "Pendaftaran dibuat tetapi gagal disetujui otomatis",
+          ),
+        },
+        { status: approveRes.status },
+      );
+    }
+
+    const approvedRegistration = (approveData.data as Record<string, unknown>) ?? registration;
+    const member = approvedRegistration.member as { fullName?: string } | undefined;
+    const event = approvedRegistration.event as { title?: string } | undefined;
 
     writeAuditLog({
       userId: authResult.user.id,
@@ -59,7 +83,7 @@ export async function POST(request: Request) {
     const billings = (member as { billings?: Array<{ id: string }> } | undefined)?.billings;
     return NextResponse.json({
       success: true,
-      registrationId: registration.id,
+      registrationId: approvedRegistration.id ?? registrationId,
       billingId: billings?.[0]?.id ?? null,
     });
   } catch (error) {
