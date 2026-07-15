@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
@@ -6,10 +7,19 @@ import { fetchAdminEvents } from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminKegiatanPage() {
+export default function AdminKegiatanPage() {
+  return (
+    <Suspense fallback={<AdminPageLoader rows={4} />}>
+      <AdminKegiatanContent />
+    </Suspense>
+  );
+}
+
+async function AdminKegiatanContent() {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
   const token = await getInkaiAccessToken();

@@ -1,5 +1,9 @@
-import { InkaiLoadingScreen } from "@/components/ui/InkaiLoadingScreen";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export default function DashboardLoading() {
-  return <InkaiLoadingScreen message="Memuat dashboard anggota..." />;
+  return (
+    <div className="p-1">
+      <AdminPageLoader message="Memuat dashboard anggota..." rows={4} />
+    </div>
+  );
 }

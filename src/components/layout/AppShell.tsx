@@ -2,6 +2,7 @@
 
 import { signOut } from "next-auth/react";
 import Link from "next/link";
+import { SidebarNavLink } from "@/components/layout/SidebarNavLink";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -109,17 +110,12 @@ export function AppSidebar({
                 link.href !== "/admin" &&
                 pathname.startsWith(link.href)));
           return (
-            <Link
+            <SidebarNavLink
               key={link.href}
               href={link.href}
-              className={`mb-1 block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-inkai-red text-white"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              {link.label}
-            </Link>
+              label={link.label}
+              isActive={isActive}
+            />
           );
         })}
       </nav>

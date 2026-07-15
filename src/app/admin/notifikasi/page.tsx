@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
@@ -5,10 +6,19 @@ import { canAccessAdmin } from "@/lib/rbac";
 import { fetchAllNotifications } from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminNotifikasiPage() {
+export default function AdminNotifikasiPage() {
+  return (
+    <Suspense fallback={<AdminPageLoader rows={5} />}>
+      <AdminNotifikasiContent />
+    </Suspense>
+  );
+}
+
+async function AdminNotifikasiContent() {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
   const token = await getInkaiAccessToken();

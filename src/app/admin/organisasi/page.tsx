@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
@@ -6,10 +7,19 @@ import { fetchOrgStructure } from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, Home, MapPin, Users } from "lucide-react";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminOrganisasiPage() {
+export default function AdminOrganisasiPage() {
+  return (
+    <Suspense fallback={<AdminPageLoader rows={4} />}>
+      <AdminOrganisasiContent />
+    </Suspense>
+  );
+}
+
+async function AdminOrganisasiContent() {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
   const token = await getInkaiAccessToken();

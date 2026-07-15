@@ -1,22 +1,12 @@
-import { auth } from "@/auth";
-import { getInkaiAccessToken } from "@/lib/inkai-api/session";
-import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import Link from "next/link";
 import {
-  canAccessAdmin,
   getAdminScopeLabel,
   getPrimaryAdminRole,
   ROLE_LABELS,
 } from "@/lib/rbac";
-import {
-  fetchDashboardStats,
-  fetchMyNotifications,
-  fetchPendingBillings,
-  fetchPendingMembersCount,
-  fetchPendingVerifications,
-  fetchRecentMembers,
-  fetchUpcomingEvents,
-} from "@/lib/inkai-api/admin-data";
+import { fetchAdminDashboardBundle } from "@/lib/inkai-api/admin-data";
+import { requireAdminSession } from "@/lib/admin-session";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,14 +23,21 @@ import {
   ChevronRight,
   Map,
 } from "lucide-react";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminDashboard() {
-  const session = await auth();
-  if (!session || !canAccessAdmin(session.user)) redirect("/login");
+export default function AdminDashboard() {
+  return (
+    <Suspense fallback={<AdminPageLoader rows={4} />}>
+      <AdminDashboardContent />
+    </Suspense>
+  );
+}
 
-  const user = session.user;
+async function AdminDashboardContent() {
+  const { user, token } = await requireAdminSession();
+
   const primaryRole = getPrimaryAdminRole(user.roles);
   const includeBranches = [
     "ADMINISTRATOR",
@@ -49,13 +46,10 @@ export default async function AdminDashboard() {
     "ADMIN",
   ].includes(primaryRole);
 
-  const token = await getInkaiAccessToken();
-  if (!token) redirect("/login");
-
   let totalMembers = 0;
   let totalDojos = 0;
   let totalBranches = 0;
-  let recentMembers: Awaited<ReturnType<typeof fetchRecentMembers>> = [];
+  let recentMembers: Awaited<ReturnType<typeof fetchAdminDashboardBundle>>["recentMembers"] = [];
   let pendingCount = 0;
   let pendingVerifications = 0;
   let pendingBillings = 0;
@@ -64,34 +58,18 @@ export default async function AdminDashboard() {
   let unreadNotifications = 0;
 
   try {
-    const [
-      stats,
-      recent,
-      pending,
-      verifications,
-      billings,
-      events,
-      notifications,
-    ] = await Promise.all([
-      fetchDashboardStats(token),
-      fetchRecentMembers(token),
-      fetchPendingMembersCount(token),
-      fetchPendingVerifications(token),
-      fetchPendingBillings(token),
-      fetchUpcomingEvents(token),
-      fetchMyNotifications(token),
-    ]);
+    const bundle = await fetchAdminDashboardBundle(token);
 
-    totalMembers = Number(stats?.totalMembers ?? 0);
-    totalDojos = Number(stats?.totalDojos ?? 0);
-    totalBranches = includeBranches ? Number(stats?.totalBranches ?? 0) : 0;
-    recentMembers = recent;
-    pendingCount = pending;
-    pendingVerifications = verifications.length;
-    pendingBillings = billings.length;
-    upcomingEvents = events.slice(0, 3);
-    recentNotifications = notifications.items;
-    unreadNotifications = notifications.unread;
+    totalMembers = Number(bundle.stats?.totalMembers ?? 0);
+    totalDojos = Number(bundle.stats?.totalDojos ?? 0);
+    totalBranches = includeBranches ? Number(bundle.stats?.totalBranches ?? 0) : 0;
+    recentMembers = bundle.recentMembers;
+    pendingCount = bundle.pendingCount;
+    pendingVerifications = bundle.pendingVerifications;
+    pendingBillings = bundle.pendingBillings;
+    upcomingEvents = bundle.upcomingEvents;
+    recentNotifications = bundle.notifications.items;
+    unreadNotifications = bundle.notifications.unread;
   } catch (error) {
     console.error("[AdminDashboard] API error:", error);
   }

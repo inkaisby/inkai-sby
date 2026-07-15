@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
@@ -6,12 +7,25 @@ import { fetchAttendanceLogs } from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<{ date?: string; q?: string }>;
 
-export default async function AdminAbsensiPage({
+export default function AdminAbsensiPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  return (
+    <Suspense fallback={<AdminPageLoader rows={6} />}>
+      <AdminAbsensiContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function AdminAbsensiContent({
   searchParams,
 }: {
   searchParams: SearchParams;

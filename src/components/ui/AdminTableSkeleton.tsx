@@ -1,6 +1,14 @@
-export function AdminTableSkeleton({ rows = 6 }: { rows?: number }) {
+import { cn } from "@/lib/utils";
+
+export function AdminTableSkeleton({
+  rows = 6,
+  className,
+}: {
+  rows?: number;
+  className?: string;
+}) {
   return (
-    <div className="animate-pulse space-y-4" aria-hidden>
+    <div className={cn("animate-pulse space-y-4", className)} aria-hidden>
       <div className="flex gap-2">
         <div className="h-8 flex-1 rounded-lg bg-muted" />
         <div className="h-8 w-28 rounded-lg bg-muted" />

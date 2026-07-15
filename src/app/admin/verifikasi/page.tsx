@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
@@ -6,6 +7,7 @@ import { fetchPendingVerificationClaims } from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { VerificationActions } from "./VerificationActions";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,15 @@ const TYPE_LABELS: Record<string, string> = {
   MONTHLY_IURAN: "Iuran Bulanan",
 };
 
-export default async function AdminVerifikasiPage() {
+export default function AdminVerifikasiPage() {
+  return (
+    <Suspense fallback={<AdminPageLoader rows={5} />}>
+      <AdminVerifikasiContent />
+    </Suspense>
+  );
+}
+
+async function AdminVerifikasiContent() {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
   const token = await getInkaiAccessToken();

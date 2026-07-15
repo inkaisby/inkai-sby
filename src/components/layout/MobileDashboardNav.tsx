@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { SidebarNavLink } from "@/components/layout/SidebarNavLink";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,17 +41,12 @@ export function MobileDashboardNav({
                   link.href !== "/admin" &&
                   pathname.startsWith(link.href)));
             return (
-              <Link
+              <SidebarNavLink
                 key={link.href}
                 href={link.href}
-                className={`rounded-lg px-3 py-2 text-sm font-medium ${
-                  isActive
-                    ? "bg-inkai-red text-white"
-                    : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {link.label}
-              </Link>
+                label={link.label}
+                isActive={isActive}
+              />
             );
           })}
         </nav>

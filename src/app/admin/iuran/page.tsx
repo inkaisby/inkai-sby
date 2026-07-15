@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
@@ -7,12 +8,25 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { BillingActions } from "./BillingActions";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<{ status?: string; q?: string }>;
 
-export default async function AdminIuranPage({
+export default function AdminIuranPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  return (
+    <Suspense fallback={<AdminPageLoader rows={6} />}>
+      <AdminIuranContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function AdminIuranContent({
   searchParams,
 }: {
   searchParams: SearchParams;

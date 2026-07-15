@@ -1,12 +1,22 @@
+import { Suspense } from "react";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { canAccessAdmin } from "@/lib/rbac";
 import { fetchCarouselItems } from "@/lib/inkai-api/admin-data";
 import { CarouselManager } from "./CarouselManager";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminCarouselPage() {
+export default function AdminCarouselPage() {
+  return (
+    <Suspense fallback={<AdminPageLoader rows={3} />}>
+      <AdminCarouselContent />
+    </Suspense>
+  );
+}
+
+async function AdminCarouselContent() {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
 

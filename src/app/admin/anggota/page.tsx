@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
@@ -18,12 +19,25 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { MemberActions } from "./MemberActions";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<{ q?: string; status?: string; page?: string }>;
 
-export default async function AdminAnggotaPage({
+export default function AdminAnggotaPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  return (
+    <Suspense fallback={<AdminPageLoader rows={6} />}>
+      <AdminAnggotaContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function AdminAnggotaContent({
   searchParams,
 }: {
   searchParams: SearchParams;

@@ -1,12 +1,22 @@
+import { Suspense } from "react";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import { canAccessAdmin } from "@/lib/rbac";
 import { fetchAuditLogs } from "@/lib/inkai-api/admin-data";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminAuditPage() {
+export default function AdminAuditPage() {
+  return (
+    <Suspense fallback={<AdminPageLoader rows={6} />}>
+      <AdminAuditContent />
+    </Suspense>
+  );
+}
+
+async function AdminAuditContent() {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
   const token = await getInkaiAccessToken();

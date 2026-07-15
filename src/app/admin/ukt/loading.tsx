@@ -1,5 +1,5 @@
-import { AdminTableSkeleton } from "@/components/ui/AdminTableSkeleton";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export default function UktLoading() {
-  return <AdminTableSkeleton rows={8} />;
+  return <AdminPageLoader rows={8} message="Memuat data UKT..." />;
 }
