@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { getPrimaryAdminRole } from "@/lib/rbac";
-import { uktPeriodSchema } from "@/lib/security/schemas";
-import { buildUktEventTitle } from "@/lib/ukt";
+import { uktPeriodPatchSchema, uktPeriodSchema } from "@/lib/security/schemas";
+import { buildUktEventDates, buildUktEventTitle } from "@/lib/ukt";
 import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
@@ -20,6 +20,50 @@ async function resolveSurabayaBranchId(token: string) {
     (b) => String(b.name).toUpperCase() === SITE_BRANCH_NAME.toUpperCase(),
   );
   return (branch?.id as string) ?? null;
+}
+
+async function fetchEventRecord(token: string, eventId: string) {
+  const { res, data } = await inkaiFetch(`/v1/events/${eventId}`, {}, token);
+  if (!res.ok) return null;
+  return (data.data as Record<string, unknown>) ?? null;
+}
+
+function buildEventPatchBody(
+  existing: Record<string, unknown>,
+  updates: {
+    title?: string;
+    registrationCloseAt?: string;
+  },
+) {
+  const nextTitle = updates.title?.trim() || String(existing.title ?? "");
+  let nextStart = new Date(String(existing.startDate));
+  let nextEnd = new Date(String(existing.endDate));
+  let nextRegClose: string | null = existing.registrationCloseAt
+    ? String(existing.registrationCloseAt)
+    : null;
+
+  if (updates.registrationCloseAt) {
+    const close = new Date(updates.registrationCloseAt);
+    if (Number.isNaN(close.getTime())) {
+      throw new Error("Batas pendaftaran tidak valid");
+    }
+    nextRegClose = close.toISOString();
+    if (close.getTime() > nextStart.getTime()) {
+      nextStart = close;
+    }
+    if (close.getTime() > nextEnd.getTime()) {
+      nextEnd = close;
+    }
+  }
+
+  return {
+    title: nextTitle,
+    description: existing.description ?? "",
+    startDate: nextStart.toISOString(),
+    endDate: nextEnd.toISOString(),
+    location: existing.location ?? "",
+    registrationCloseAt: nextRegClose,
+  };
 }
 
 export async function POST(request: Request) {
@@ -60,9 +104,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Cabang tidak ditemukan" }, { status: 404 });
   }
 
-  const startMonth = semester === "I" ? 0 : 6;
-  const startDate = new Date(year, startMonth, 1);
-  const endDate = new Date(year, startMonth + 6, 0, 23, 59, 59);
+  const { startDate, endDate, registrationCloseAt } = buildUktEventDates(semester, year);
 
   const { res, data } = await inkaiFetch(
     "/v1/events",
@@ -73,6 +115,7 @@ export async function POST(request: Request) {
         description: `Ujian Kenaikan Tingkat ${eventTitle}`,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
+        registrationCloseAt: registrationCloseAt.toISOString(),
         branchId,
         categories: [{ name: "Pendaftaran UKT", fee: 0 }],
       }),
@@ -109,22 +152,42 @@ export async function PATCH(request: Request) {
   }
 
   const body = await request.json();
-  const { eventId, title } = body as { eventId?: string; title?: string };
-  if (!eventId || !title?.trim()) {
+  const parsed = uktPeriodPatchSchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
+  }
+
+  const { eventId, title, registrationCloseAt } = parsed.data;
+  if (!title && !registrationCloseAt) {
+    return NextResponse.json({ error: "Tidak ada perubahan" }, { status: 400 });
   }
 
   const role = getPrimaryAdminRole(authResult.user.roles);
   const canEdit = ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN_BRANCH", "ADMIN"].includes(role);
   if (!canEdit) {
-    return NextResponse.json({ error: "Hanya admin cabang yang dapat mengubah label periode" }, { status: 403 });
+    return NextResponse.json({ error: "Hanya admin cabang yang dapat mengubah periode UKT" }, { status: 403 });
+  }
+
+  const existing = await fetchEventRecord(authResult.token, eventId);
+  if (!existing) {
+    return NextResponse.json({ error: "Periode UKT tidak ditemukan" }, { status: 404 });
+  }
+
+  let patchBody: ReturnType<typeof buildEventPatchBody>;
+  try {
+    patchBody = buildEventPatchBody(existing, { title, registrationCloseAt });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Data tidak valid" },
+      { status: 400 },
+    );
   }
 
   const { res, data } = await inkaiFetch(
     `/v1/events/${eventId}`,
     {
       method: "PATCH",
-      body: JSON.stringify({ title: title.trim() }),
+      body: JSON.stringify(patchBody),
     },
     authResult.token,
   );
@@ -135,6 +198,16 @@ export async function PATCH(request: Request) {
       { status: res.status },
     );
   }
+
+  writeAuditLog({
+    userId: authResult.user.id,
+    email: authResult.user.email,
+    action: "UKT_PERIOD_UPDATE",
+    details: `Updated UKT period ${eventId}: ${JSON.stringify({ title, registrationCloseAt })}`,
+    ip: getClientIp(request),
+    userAgent: request.headers.get("user-agent"),
+    token: authResult.token,
+  });
 
   return NextResponse.json({ event: data.data });
 }

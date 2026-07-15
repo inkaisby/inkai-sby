@@ -34,7 +34,13 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   const primaryRole = getPrimaryAdminRole(user.roles);
   let dbError: string | null = null;
 
-  let periods: { id: string; title: string; startDate: string; endDate: string }[] = [];
+  let periods: {
+    id: string;
+    title: string;
+    startDate: string;
+    endDate: string;
+    registrationCloseAt?: string | null;
+  }[] = [];
   let dojos: { id: string; name: string }[] = [];
   let selectedPeriodId: string | null = params.period || null;
   let allRows: Awaited<ReturnType<typeof fetchUktDashboardData>>["allRows"] = [];

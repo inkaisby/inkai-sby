@@ -355,6 +355,7 @@ export async function fetchUktDashboardData(
     title: String(p.title),
     startDate: String(p.startDate),
     endDate: String(p.endDate),
+    registrationCloseAt: p.registrationCloseAt ? String(p.registrationCloseAt) : null,
   }));
 
   let selectedPeriodId = periodFromUrl || periods[0]?.id || null;

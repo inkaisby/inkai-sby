@@ -54,6 +54,12 @@ export const uktPeriodSchema = z.object({
   title: z.string().trim().min(3).max(120).optional(),
 });
 
+export const uktPeriodPatchSchema = z.object({
+  eventId: z.string().uuid(),
+  title: z.string().trim().min(3).max(120).optional(),
+  registrationCloseAt: z.string().datetime().optional(),
+});
+
 export const uktRegisterSchema = z.object({
   eventId: z.string().uuid(),
   memberId: z.string().uuid(),

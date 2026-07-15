@@ -21,6 +21,60 @@ export function buildUktEventTitle(semester: UktSemester, year: number): string 
   return `UKT ${formatUktPeriodLabel(semester, year)}`;
 }
 
+/** Rentang kalender semester UKT (Jan–Jun atau Jul–Des). */
+export function buildUktSemesterWindow(semester: UktSemester, year: number) {
+  const startMonth = semester === "I" ? 0 : 6;
+  const semesterStart = new Date(year, startMonth, 1, 0, 0, 0, 0);
+  const semesterEnd = new Date(year, startMonth + 6, 0, 23, 59, 59, 999);
+  return { semesterStart, semesterEnd };
+}
+
+/**
+ * Tanggal event untuk backend: batas pendaftaran = akhir semester.
+ * Backend mensyaratkan registrationCloseAt <= startDate; jika kosong, startDate jadi deadline.
+ */
+export function buildUktEventDates(semester: UktSemester, year: number) {
+  const { semesterEnd } = buildUktSemesterWindow(semester, year);
+  return {
+    startDate: semesterEnd,
+    endDate: semesterEnd,
+    registrationCloseAt: semesterEnd,
+  };
+}
+
+export type UktPeriodSchedule = {
+  startDate: string;
+  endDate: string;
+  registrationCloseAt?: string | null;
+};
+
+export function getUktRegistrationDeadline(period: UktPeriodSchedule): Date {
+  if (period.registrationCloseAt) {
+    return new Date(period.registrationCloseAt);
+  }
+  return new Date(period.startDate);
+}
+
+export function isUktRegistrationOpen(period: UktPeriodSchedule): boolean {
+  return Date.now() <= getUktRegistrationDeadline(period).getTime();
+}
+
+export function formatUktRegistrationDeadline(iso: string): string {
+  return new Date(iso).toLocaleString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function toDateTimeLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function parseUktEventTitle(title: string): { semester: UktSemester; year: number } | null {
   const match = title.match(/semester\s*(I|II)\s*[-/]\s*(\d{4})/i);
   if (!match) return null;
