@@ -5,10 +5,14 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
+
+/** Keep logo loader visible briefly so fast navigations still feel polished. */
+const MIN_NAVIGATION_MS = 750;
 
 type NavigationContextValue = {
   isNavigating: boolean;
@@ -25,19 +29,36 @@ const NavigationContext = createContext<NavigationContextValue>({
 export function NavigationProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
-
-  useEffect(() => {
-    setPendingHref(null);
-  }, [pathname]);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const navStartedAt = useRef<number | null>(null);
 
   const startNavigation = useCallback((href: string) => {
-    if (href !== pathname) setPendingHref(href);
+    if (href !== pathname) {
+      navStartedAt.current = Date.now();
+      setPendingHref(href);
+      setIsNavigating(true);
+    }
   }, [pathname]);
+
+  useEffect(() => {
+    if (!pendingHref || navStartedAt.current === null) return;
+
+    const elapsed = Date.now() - navStartedAt.current;
+    const remaining = Math.max(0, MIN_NAVIGATION_MS - elapsed);
+
+    const timer = setTimeout(() => {
+      setPendingHref(null);
+      setIsNavigating(false);
+      navStartedAt.current = null;
+    }, remaining);
+
+    return () => clearTimeout(timer);
+  }, [pathname, pendingHref]);
 
   return (
     <NavigationContext.Provider
       value={{
-        isNavigating: pendingHref !== null,
+        isNavigating,
         pendingHref,
         startNavigation,
       }}

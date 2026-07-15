@@ -4,19 +4,39 @@ import { AppSidebar, UserMenu } from "@/components/layout/AppShell";
 import { DashboardTopbar } from "@/components/layout/DashboardTopbar";
 import { NavigationProvider, useNavigation } from "@/components/layout/NavigationProvider";
 import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
+import { useEffect, useState } from "react";
 
 function MainContent({ children }: { children: React.ReactNode }) {
   const { isNavigating } = useNavigation();
+  const [overlayVisible, setOverlayVisible] = useState(false);
+
+  useEffect(() => {
+    if (isNavigating) {
+      setOverlayVisible(true);
+      return;
+    }
+
+    if (!overlayVisible) return;
+
+    const timer = setTimeout(() => setOverlayVisible(false), 280);
+    return () => clearTimeout(timer);
+  }, [isNavigating, overlayVisible]);
 
   return (
     <main className="relative flex-1 p-4 sm:p-6">
-      {isNavigating && (
+      {overlayVisible && (
         <div
-          className="absolute inset-0 z-10 flex items-start justify-center bg-background/50 pt-20 backdrop-blur-[2px]"
+          className={`absolute inset-0 z-10 flex items-start justify-center bg-background/50 pt-20 backdrop-blur-[2px] transition-opacity duration-300 ${
+            isNavigating ? "opacity-100" : "opacity-0"
+          }`}
           aria-live="polite"
           aria-label="Memuat halaman"
         >
-          <div className="rounded-2xl border bg-background/90 px-10 py-8 shadow-lg backdrop-blur-sm">
+          <div
+            className={`rounded-2xl border bg-background/90 px-10 py-8 shadow-lg backdrop-blur-sm transition-transform duration-300 ${
+              isNavigating ? "scale-100" : "scale-[0.98]"
+            }`}
+          >
             <InkaiLogoLoader size="md" message="Memuat data..." />
           </div>
         </div>
