@@ -111,7 +111,13 @@ function mapEventSummary(raw: Record<string, unknown>): PublicEventSummary {
 }
 
 async function fetchCarousel(activeOnly: boolean, limit?: number): Promise<CarouselItem[]> {
-  const { res, data } = await inkaiFetch("/v1/news-carousel", {}, null);
+  let res: Response;
+  let data: Record<string, unknown>;
+  try {
+    ({ res, data } = await inkaiFetch("/v1/news-carousel", {}, null));
+  } catch {
+    return [];
+  }
   if (!res.ok) return [];
   let items = ((data.data as Array<Record<string, unknown>>) ?? []).map((i) => ({
     id: String(i.id),

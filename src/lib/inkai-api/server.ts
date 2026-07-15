@@ -1,10 +1,15 @@
+/** Production inkai-backend — override via INKAI_API_URL / NEXT_PUBLIC_INKAI_API_URL. */
+const DEFAULT_INKAI_API_URL = "https://inkai-ecosystem.vercel.app";
+
 export function getInkaiApiBaseUrl(): string {
   const url =
     process.env.INKAI_API_URL?.trim() ||
     process.env.NEXT_PUBLIC_INKAI_API_URL?.trim() ||
-    "";
+    (process.env.VERCEL ? DEFAULT_INKAI_API_URL : "");
   if (!url) {
-    throw new Error("INKAI_API_URL belum diset di environment.");
+    throw new Error(
+      "INKAI_API_URL belum diset. Tambahkan ke .env.local (dev) atau Vercel Environment Variables.",
+    );
   }
   return url.replace(/\/$/, "");
 }
