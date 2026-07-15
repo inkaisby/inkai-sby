@@ -74,7 +74,9 @@ import {
   formatUktRegistrationDeadline,
   getUktRegistrationDeadline,
   isUktRegistrationOpen,
-  toDateTimeLocalInput,
+  toDateInput,
+  toTimeInput,
+  combineDateAndTimeLocal,
 } from "@/lib/ukt";
 import { parseApiJson } from "@/lib/api-client";
 
@@ -165,7 +167,8 @@ export function UktDashboard(props: Props) {
   const [loading, setLoading] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<{ id: string; name: string } | null>(null);
   const [showRegistrationDeadline, setShowRegistrationDeadline] = useState(false);
-  const [registrationDeadlineInput, setRegistrationDeadlineInput] = useState("");
+  const [registrationDeadlineDate, setRegistrationDeadlineDate] = useState("");
+  const [registrationDeadlineTime, setRegistrationDeadlineTime] = useState("");
   const [newMember, setNewMember] = useState({
     fullName: "",
     gender: "",
@@ -293,13 +296,14 @@ export function UktDashboard(props: Props) {
 
   const openRegistrationDeadlineDialog = () => {
     if (!registrationDeadlineIso) return;
-    setRegistrationDeadlineInput(toDateTimeLocalInput(registrationDeadlineIso));
+    setRegistrationDeadlineDate(toDateInput(registrationDeadlineIso));
+    setRegistrationDeadlineTime(toTimeInput(registrationDeadlineIso));
     setShowRegistrationDeadline(true);
   };
 
   const handleSaveRegistrationDeadline = async () => {
-    if (!props.selectedPeriodId || !registrationDeadlineInput) return;
-    const closeAt = new Date(registrationDeadlineInput);
+    if (!props.selectedPeriodId || !registrationDeadlineDate || !registrationDeadlineTime) return;
+    const closeAt = combineDateAndTimeLocal(registrationDeadlineDate, registrationDeadlineTime);
     if (Number.isNaN(closeAt.getTime())) {
       toast.error("Batas pendaftaran tidak valid");
       return;
@@ -654,9 +658,9 @@ export function UktDashboard(props: Props) {
 
       {props.selectedPeriodId && selectedPeriod && (
         <Card className="border-muted">
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <CalendarClock className="h-4 w-4 text-muted-foreground" />
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
+              <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="text-muted-foreground">Batas pendaftaran:</span>
               <span className="font-medium">
                 {registrationDeadlineIso
@@ -666,19 +670,20 @@ export function UktDashboard(props: Props) {
               <Badge variant={registrationOpen ? "default" : "secondary"}>
                 {registrationOpen ? "Masih terbuka" : "Sudah tutup"}
               </Badge>
+              {isCabang && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2"
+                  onClick={openRegistrationDeadlineDialog}
+                  disabled={loading}
+                >
+                  <Pencil className="mr-1 h-3 w-3" />
+                  Atur
+                </Button>
+              )}
             </div>
-            {isCabang && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={openRegistrationDeadlineDialog}
-                disabled={loading}
-              >
-                <Pencil className="mr-1 h-3.5 w-3.5" />
-                Atur Batas Pendaftaran
-              </Button>
-            )}
           </CardContent>
         </Card>
       )}
@@ -1229,26 +1234,38 @@ export function UktDashboard(props: Props) {
       )}
 
       <Dialog open={showRegistrationDeadline} onOpenChange={setShowRegistrationDeadline}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-sm gap-4">
           <DialogHeader>
-            <DialogTitle>Atur Batas Pendaftaran UKT</DialogTitle>
-            <DialogDescription>
-              Pendaftaran ranting ditutup otomatis setelah tanggal/jam ini. Perpanjang jika periode UKT
-              masih menerima peserta baru.
-            </DialogDescription>
+            <DialogTitle>Batas Pendaftaran UKT</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
-            <label htmlFor="ukt-registration-deadline" className="text-sm font-medium">
-              Tutup pendaftaran pada
-            </label>
-            <Input
-              id="ukt-registration-deadline"
-              type="datetime-local"
-              value={registrationDeadlineInput}
-              onChange={(e) => setRegistrationDeadlineInput(e.target.value)}
-            />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="ukt-registration-date" className="text-sm font-medium">
+                Tanggal
+              </label>
+              <Input
+                id="ukt-registration-date"
+                type="date"
+                lang="id-ID"
+                value={registrationDeadlineDate}
+                onChange={(e) => setRegistrationDeadlineDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="ukt-registration-time" className="text-sm font-medium">
+                Jam (24 jam)
+              </label>
+              <Input
+                id="ukt-registration-time"
+                type="time"
+                lang="id-ID"
+                step={60}
+                value={registrationDeadlineTime}
+                onChange={(e) => setRegistrationDeadlineTime(e.target.value)}
+              />
+            </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setShowRegistrationDeadline(false)} disabled={loading}>
               Batal
             </Button>

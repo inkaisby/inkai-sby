@@ -66,6 +66,7 @@ export function formatUktRegistrationDeadline(iso: string): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
 }
 
@@ -73,6 +74,18 @@ export function toDateTimeLocalInput(iso: string): string {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export function toDateInput(iso: string): string {
+  return toDateTimeLocalInput(iso).slice(0, 10);
+}
+
+export function toTimeInput(iso: string): string {
+  return toDateTimeLocalInput(iso).slice(11, 16);
+}
+
+export function combineDateAndTimeLocal(date: string, time: string): Date {
+  return new Date(`${date}T${time}:00`);
 }
 
 export function parseUktEventTitle(title: string): { semester: UktSemester; year: number } | null {
