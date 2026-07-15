@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import { canAccessAdmin } from "@/lib/rbac";
 import { fetchAttendanceLogs } from "@/lib/inkai-api/admin-data";
@@ -17,14 +18,15 @@ export default async function AdminAbsensiPage({
 }) {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
-  if (!session.accessToken) redirect("/login");
+  const token = await getInkaiAccessToken();
+  if (!token) redirect("/login");
 
   const params = await searchParams;
   const q = params.q?.trim() || "";
   const today = new Date().toISOString().slice(0, 10);
   const dateStr = params.date?.trim() || today;
 
-  let logs = await fetchAttendanceLogs(session.accessToken, {
+  let logs = await fetchAttendanceLogs(token, {
     date: dateStr,
     limit: 200,
   });

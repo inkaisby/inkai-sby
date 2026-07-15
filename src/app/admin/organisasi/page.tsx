@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import { canAccessAdmin, getPrimaryAdminRole } from "@/lib/rbac";
 import { fetchOrgStructure } from "@/lib/inkai-api/admin-data";
@@ -11,10 +12,11 @@ export const dynamic = "force-dynamic";
 export default async function AdminOrganisasiPage() {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
-  if (!session.accessToken) redirect("/login");
+  const token = await getInkaiAccessToken();
+  if (!token) redirect("/login");
 
   const role = getPrimaryAdminRole(session.user.roles);
-  const { provinces, branches, dojos } = await fetchOrgStructure(session.accessToken);
+  const { provinces, branches, dojos } = await fetchOrgStructure(token);
 
   const showProvinces = ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN"].includes(role);
   const showBranches = ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN_BRANCH", "ADMIN"].includes(role);

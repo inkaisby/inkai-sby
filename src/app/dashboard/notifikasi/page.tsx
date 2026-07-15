@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,9 +10,10 @@ export const dynamic = "force-dynamic";
 export default async function NotifikasiPage() {
   const session = await auth();
   if (!session) redirect("/login");
-  if (!session.accessToken) redirect("/login");
+  const token = await getInkaiAccessToken();
+  if (!token) redirect("/login");
 
-  const notifications = await fetchMyNotifications(session.accessToken, 100);
+  const notifications = await fetchMyNotifications(token, 100);
 
   return (
     <>

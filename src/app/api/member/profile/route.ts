@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 
 export async function PATCH(request: Request) {
   const session = await auth();
-  if (!session?.user.memberId || !session.accessToken) {
+  const token = await getInkaiAccessToken();
+  if (!session?.user.memberId || !token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -12,7 +14,7 @@ export async function PATCH(request: Request) {
   const { res, data } = await inkaiFetch(
     "/v1/members/me",
     { method: "PATCH", body: JSON.stringify(body) },
-    session.accessToken,
+    token,
   );
 
   if (!res.ok) {

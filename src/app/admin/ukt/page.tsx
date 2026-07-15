@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import {
   canAccessAdmin,
@@ -35,8 +36,7 @@ type SearchParams = Promise<{
 async function UktPageContent({ searchParams }: { searchParams: SearchParams }) {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
-  if (!session.accessToken) redirect("/login");
-
+  
   const params = await searchParams;
   const semester = (params.semester === "II" ? "II" : "I") as UktSemester;
   const year = Math.min(
@@ -45,7 +45,8 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   );
 
   const user = session.user;
-  const token = session.accessToken;
+  const token = await getInkaiAccessToken();
+  if (!token) redirect("/login");
   const primaryRole = getPrimaryAdminRole(user.roles);
 
   let dbError: string | null = null;

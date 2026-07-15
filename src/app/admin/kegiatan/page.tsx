@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import { canAccessAdmin } from "@/lib/rbac";
 import { fetchAdminEvents } from "@/lib/inkai-api/admin-data";
@@ -11,9 +12,10 @@ export const dynamic = "force-dynamic";
 export default async function AdminKegiatanPage() {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
-  if (!session.accessToken) redirect("/login");
+  const token = await getInkaiAccessToken();
+  if (!token) redirect("/login");
 
-  const events = await fetchAdminEvents(session.accessToken, 50);
+  const events = await fetchAdminEvents(token, 50);
   const now = Date.now();
 
   return (

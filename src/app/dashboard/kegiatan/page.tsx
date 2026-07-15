@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -10,9 +11,10 @@ export const dynamic = "force-dynamic";
 export default async function MemberKegiatanPage() {
   const session = await auth();
   if (!session?.user.memberId) redirect("/login");
-  if (!session.accessToken) redirect("/login");
+  const token = await getInkaiAccessToken();
+  if (!token) redirect("/login");
 
-  const registrations = await fetchMyEventRegistrations(session.accessToken);
+  const registrations = await fetchMyEventRegistrations(token);
 
   return (
     <>

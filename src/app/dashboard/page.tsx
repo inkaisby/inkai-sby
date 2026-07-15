@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -47,9 +48,9 @@ function semesterAttendancePct(attendances: Array<{ checkInAt: string }>) {
 export default async function MemberDashboard() {
   const session = await auth();
   if (!session) redirect("/login");
-  if (!session.accessToken) redirect("/login");
 
-  const token = session.accessToken;
+  const token = await getInkaiAccessToken();
+  if (!token) redirect("/login");
   const member = await fetchMyMemberProfile(token);
 
   const [notifications, attendances, billings, registrations, upcomingEvents] =

@@ -54,6 +54,7 @@ export default function LoginForm({ idPrefix = "login", onSuccess }: LoginFormPr
     const destination = isAdmin(roles) ? "/admin" : "/dashboard";
 
     onSuccess?.();
+    router.refresh();
     router.push(destination);
   }
 

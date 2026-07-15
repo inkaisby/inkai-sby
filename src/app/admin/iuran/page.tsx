@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import { canAccessAdmin } from "@/lib/rbac";
 import { fetchBillings } from "@/lib/inkai-api/admin-data";
@@ -18,13 +19,14 @@ export default async function AdminIuranPage({
 }) {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
-  if (!session.accessToken) redirect("/login");
+  const token = await getInkaiAccessToken();
+  if (!token) redirect("/login");
 
   const params = await searchParams;
   const status = params.status?.trim() || "";
   const q = params.q?.trim() || "";
 
-  let billings = await fetchBillings(session.accessToken, {
+  let billings = await fetchBillings(token, {
     status: status || undefined,
     limit: 100,
   });

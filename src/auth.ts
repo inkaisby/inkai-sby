@@ -1,8 +1,13 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { cookies } from "next/headers";
 import { authConfig } from "@/auth.config";
 import { rateLimit } from "@/lib/security/rate-limit";
-import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { inkaiFetch } from "@/lib/inkai-api/server";
+import {
+  getInkaiTokenCookieOptions,
+  INKAI_TOKEN_COOKIE,
+} from "@/lib/inkai-api/cookies";
 
 declare module "next-auth" {
   interface User {
@@ -53,6 +58,12 @@ type BackendUser = {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  events: {
+    async signOut() {
+      const cookieStore = await cookies();
+      cookieStore.delete(INKAI_TOKEN_COOKIE);
+    },
+  },
   providers: [
     Credentials({
       credentials: {
@@ -91,6 +102,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const roles = Array.isArray(user.roles) ? user.roles : [];
         const memberId = user.memberId ?? user.member?.id ?? null;
 
+        const cookieStore = await cookies();
+        cookieStore.set(INKAI_TOKEN_COOKIE, token, getInkaiTokenCookieOptions());
+
         return {
           id: user.id,
           email: user.email,
@@ -100,7 +114,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           managedBranchId: user.managedBranchId ?? null,
           managedDojoId: user.managedDojoId ?? null,
           memberId,
-          accessToken: token,
         };
       },
     }),

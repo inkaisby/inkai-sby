@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import { fetchMyMemberProfile } from "@/lib/inkai-api/member-data";
 import ProfilPageClient from "./ProfilPageClient";
@@ -8,9 +9,10 @@ export const dynamic = "force-dynamic";
 export default async function ProfilPage() {
   const session = await auth();
   if (!session) redirect("/login");
-  if (!session.accessToken) redirect("/login");
+  const token = await getInkaiAccessToken();
+  if (!token) redirect("/login");
 
-  const member = await fetchMyMemberProfile(session.accessToken);
+  const member = await fetchMyMemberProfile(token);
   if (!member?.id) redirect("/dashboard");
 
   return (

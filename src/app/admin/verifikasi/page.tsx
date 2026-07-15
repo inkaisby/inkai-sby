@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import { canAccessAdmin } from "@/lib/rbac";
 import { fetchPendingVerificationClaims } from "@/lib/inkai-api/admin-data";
@@ -19,9 +20,10 @@ const TYPE_LABELS: Record<string, string> = {
 export default async function AdminVerifikasiPage() {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
-  if (!session.accessToken) redirect("/login");
+  const token = await getInkaiAccessToken();
+  if (!token) redirect("/login");
 
-  const claims = await fetchPendingVerificationClaims(session.accessToken);
+  const claims = await fetchPendingVerificationClaims(token);
 
   return (
     <>

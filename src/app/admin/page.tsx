@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
@@ -48,7 +49,7 @@ export default async function AdminDashboard() {
     "ADMIN",
   ].includes(primaryRole);
 
-  const token = session.accessToken;
+  const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
 
   let totalMembers = 0;

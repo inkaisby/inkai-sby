@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import {
   canAccessAdmin,
@@ -29,7 +30,8 @@ export default async function AdminAnggotaPage({
 }) {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
-  if (!session.accessToken) redirect("/login");
+  const token = await getInkaiAccessToken();
+  if (!token) redirect("/login");
 
   const params = await searchParams;
   const q = params.q?.trim() || "";
@@ -37,7 +39,7 @@ export default async function AdminAnggotaPage({
   const page = Math.max(1, parseInt(params.page || "1", 10));
   const pageSize = 20;
 
-  const result = await fetchAdminMembers(session.accessToken, {
+  const result = await fetchAdminMembers(token, {
     page,
     limit: pageSize,
     search: q || undefined,

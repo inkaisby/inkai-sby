@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { inkaiFetch } from "@/lib/inkai-api/server";
 
 export async function GET() {
   const session = await auth();
-  if (!session?.accessToken) {
+  const token = await getInkaiAccessToken();
+  if (!session || !token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { res, data } = await inkaiFetch("/v1/notifications/my", {}, session.accessToken);
+  const { res, data } = await inkaiFetch("/v1/notifications/my", {}, token);
   if (!res.ok) {
     return NextResponse.json({ error: "Gagal memuat notifikasi" }, { status: res.status });
   }
@@ -19,7 +21,8 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   const session = await auth();
-  if (!session?.accessToken) {
+  const token = await getInkaiAccessToken();
+  if (!session || !token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -28,7 +31,7 @@ export async function PATCH(request: Request) {
     const { res } = await inkaiFetch(
       "/v1/notifications/read-all",
       { method: "PATCH" },
-      session.accessToken,
+      token,
     );
     if (!res.ok) {
       return NextResponse.json({ error: "Gagal memperbarui notifikasi" }, { status: res.status });

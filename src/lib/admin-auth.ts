@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { canAccessAdmin, type SessionUser } from "@/lib/rbac";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { NextResponse } from "next/server";
 
 export async function requireAdmin() {
@@ -7,5 +8,9 @@ export async function requireAdmin() {
   if (!session?.user || !canAccessAdmin(session.user)) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-  return { user: session.user as SessionUser, token: session.accessToken ?? null };
+  const token = await getInkaiAccessToken();
+  if (!token) {
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  return { user: session.user as SessionUser, token };
 }

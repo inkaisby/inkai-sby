@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,9 +11,10 @@ export const dynamic = "force-dynamic";
 export default async function DokumenPage() {
   const session = await auth();
   if (!session?.user.memberId) redirect("/login");
-  if (!session.accessToken) redirect("/login");
+  const token = await getInkaiAccessToken();
+  if (!token) redirect("/login");
 
-  const member = await fetchMyMemberProfile(session.accessToken);
+  const member = await fetchMyMemberProfile(token);
   if (!member?.id) redirect("/dashboard");
 
   const docs = [

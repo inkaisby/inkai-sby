@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,9 +10,10 @@ export const dynamic = "force-dynamic";
 export default async function IuranPage() {
   const session = await auth();
   if (!session?.user.memberId) redirect("/login");
-  if (!session.accessToken) redirect("/login");
+  const token = await getInkaiAccessToken();
+  if (!token) redirect("/login");
 
-  const billings = await fetchMyBillings(session.accessToken, 50);
+  const billings = await fetchMyBillings(token, 50);
 
   return (
     <>
