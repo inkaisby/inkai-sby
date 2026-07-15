@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { SidebarNavLink } from "@/components/layout/SidebarNavLink";
@@ -10,10 +11,12 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LogOut, Home, User, Bell } from "lucide-react";
+import { SwitchAccountModal } from "@/components/auth/SwitchAccountModal";
+import { LogOut, Home, User, Bell, ArrowLeftRight } from "lucide-react";
 
 export function UserMenu({
   name,
@@ -24,6 +27,8 @@ export function UserMenu({
   email: string;
   showAdmin?: boolean;
 }) {
+  const [switchOpen, setSwitchOpen] = useState(false);
+
   const initials = name
     .split(" ")
     .map((n) => n[0])
@@ -32,6 +37,7 @@ export function UserMenu({
     .toUpperCase();
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="gap-2">
@@ -68,6 +74,11 @@ export function UserMenu({
             </Link>
           </DropdownMenuItem>
         )}
+        <DropdownMenuItem onSelect={() => setSwitchOpen(true)}>
+          <ArrowLeftRight className="mr-2 h-4 w-4" />
+          Ganti Akun
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => signOut({ callbackUrl: "/" })}
           className="text-destructive"
@@ -77,6 +88,13 @@ export function UserMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+
+    <SwitchAccountModal
+      open={switchOpen}
+      onOpenChange={setSwitchOpen}
+      currentEmail={email}
+    />
+    </>
   );
 }
 
