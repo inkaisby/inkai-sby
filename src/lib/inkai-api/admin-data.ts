@@ -15,6 +15,10 @@ export type AdminMemberRow = {
   currentRank: string;
   status: string;
   dojo: { name: string; branch?: { name: string } };
+  birthCertificateUrl?: string | null;
+  bpjsCardUrl?: string | null;
+  bpjsCardNumber?: string | null;
+  photoUrl?: string | null;
 };
 
 function listMetaTotal(data: Record<string, unknown>, fallback: number) {

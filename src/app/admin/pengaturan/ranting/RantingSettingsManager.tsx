@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,13 +14,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { showError, showSuccess } from "@/lib/client-toast";
-import { Archive, KeyRound, Pencil, RotateCcw, Sparkles } from "lucide-react";
 import {
-  CredentialsReveal,
-  type CredentialPayload,
-} from "@/components/admin/pengaturan/CredentialsReveal";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { showError, showSuccess } from "@/lib/client-toast";
+import {
+  Archive,
+  Check,
+  Copy,
+  KeyRound,
+  Pencil,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 import { generateSimplePassword } from "@/lib/security/password";
+
 export type RantingRow = {
   id: string;
   name: string;
@@ -41,6 +53,11 @@ export type RantingRow = {
 };
 
 type Mode = "create" | "edit" | "login" | "reset" | null;
+
+type RevealedCredential = {
+  loginEmail: string;
+  loginPassword: string;
+};
 
 const emptyForm = {
   name: "",
@@ -75,12 +92,80 @@ export function RantingSettingsManager({
   const [targetId, setTargetId] = useState<string | null>(null);
   const [targetName, setTargetName] = useState("");
   const [form, setForm] = useState({ ...emptyForm, branchId: defaultBranchId });
-  const [credential, setCredential] = useState<CredentialPayload | null>(null);
+  const [detailDojoId, setDetailDojoId] = useState<string | null>(null);
+  const [revealedByDojoId, setRevealedByDojoId] = useState<
+    Record<string, RevealedCredential>
+  >({});
+  const [pendingReveal, setPendingReveal] = useState<RevealedCredential | null>(
+    null,
+  );
+  const [copiedCredential, setCopiedCredential] = useState(false);
 
   const targetDojo = useMemo(
     () => dojos.find((d) => d.id === targetId) ?? null,
     [dojos, targetId],
   );
+
+  const detailDojo = useMemo(
+    () => dojos.find((d) => d.id === detailDojoId) ?? null,
+    [dojos, detailDojoId],
+  );
+
+  const detailCredential = detailDojoId
+    ? (revealedByDojoId[detailDojoId] ?? null)
+    : null;
+
+  useEffect(() => {
+    if (!pendingReveal) return;
+    const match = dojos.find(
+      (d) =>
+        d.adminEmail?.toLowerCase() === pendingReveal.loginEmail.toLowerCase(),
+    );
+    if (!match) return;
+    setRevealedByDojoId((prev) => ({
+      ...prev,
+      [match.id]: pendingReveal,
+    }));
+    setDetailDojoId(match.id);
+    setCopiedCredential(false);
+    setPendingReveal(null);
+  }, [dojos, pendingReveal]);
+
+  function revealCredential(
+    dojoId: string,
+    loginEmail: string,
+    loginPassword: string,
+  ) {
+    setRevealedByDojoId((prev) => ({
+      ...prev,
+      [dojoId]: { loginEmail, loginPassword },
+    }));
+    setDetailDojoId(dojoId);
+    setCopiedCredential(false);
+  }
+
+  function dismissDetailCredential() {
+    if (!detailDojoId) return;
+    setRevealedByDojoId((prev) => {
+      const next = { ...prev };
+      delete next[detailDojoId];
+      return next;
+    });
+    setCopiedCredential(false);
+  }
+
+  async function copyDetailCredential() {
+    if (!detailCredential) return;
+    const text = `Username: ${detailCredential.loginEmail}\nPassword: ${detailCredential.loginPassword}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedCredential(true);
+      showSuccess("Kredensial disalin ke clipboard");
+      setTimeout(() => setCopiedCredential(false), 2000);
+    } catch {
+      showSuccess("Salin manual dari kotak di bawah");
+    }
+  }
 
   function setField(key: keyof typeof form, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -105,7 +190,6 @@ export function RantingSettingsManager({
   }
 
   function openCreate() {
-    setCredential(null);
     setMode("create");
     setTargetId(null);
     setTargetName("");
@@ -113,7 +197,6 @@ export function RantingSettingsManager({
   }
 
   function openEdit(d: RantingRow) {
-    setCredential(null);
     setMode("edit");
     setTargetId(d.id);
     setTargetName(d.name);
@@ -136,7 +219,6 @@ export function RantingSettingsManager({
   }
 
   function openLogin(d: RantingRow) {
-    setCredential(null);
     setMode("login");
     setTargetId(d.id);
     setTargetName(d.name);
@@ -150,7 +232,6 @@ export function RantingSettingsManager({
   }
 
   function openReset(d: RantingRow) {
-    setCredential(null);
     setMode("reset");
     setTargetId(d.id);
     setTargetName(d.name);
@@ -233,12 +314,8 @@ export function RantingSettingsManager({
       setLoading(false);
       if (res.ok) {
         showSuccess(data.message || "Berhasil");
-        if (data.loginEmail && data.loginPassword) {
-          setCredential({
-            title: `Kredensial ${data.dojoName || targetName}`,
-            loginEmail: data.loginEmail,
-            loginPassword: data.loginPassword,
-          });
+        if (data.loginEmail && data.loginPassword && targetId) {
+          revealCredential(targetId, data.loginEmail, data.loginPassword);
         }
         resetPanel();
         router.refresh();
@@ -279,11 +356,18 @@ export function RantingSettingsManager({
     if (res.ok) {
       showSuccess(data.message || "Berhasil disimpan");
       if (data.loginEmail && data.loginPassword) {
-        setCredential({
-          title: `Kredensial ranting baru`,
-          loginEmail: data.loginEmail,
-          loginPassword: data.loginPassword,
-        });
+        const newId =
+          (typeof data.data?.id === "string" && data.data.id) ||
+          (typeof data.data?.dojoId === "string" && data.data.dojoId) ||
+          null;
+        if (newId) {
+          revealCredential(newId, data.loginEmail, data.loginPassword);
+        } else {
+          setPendingReveal({
+            loginEmail: data.loginEmail,
+            loginPassword: data.loginPassword,
+          });
+        }
       }
       resetPanel();
       router.refresh();
@@ -305,15 +389,10 @@ export function RantingSettingsManager({
 
   return (
     <div className="space-y-4">
-      <CredentialsReveal
-        credential={credential}
-        onDismiss={() => setCredential(null)}
-      />
-
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           Buat username &amp; password agar pengurus ranting bisa login. Password
-          dikonfirmasi dua kali.
+          dikonfirmasi dua kali. Klik baris untuk melihat detail kredensial.
         </p>
         <Button
           type="button"
@@ -566,7 +645,11 @@ export function RantingSettingsManager({
               </TableRow>
             ) : (
               dojos.map((d) => (
-                <TableRow key={d.id}>
+                <TableRow
+                  key={d.id}
+                  className="cursor-pointer"
+                  onClick={() => setDetailDojoId(d.id)}
+                >
                   <TableCell className="font-medium">{d.name}</TableCell>
                   <TableCell className="hidden sm:table-cell text-muted-foreground">
                     {d.branchName || "—"}
@@ -601,7 +684,10 @@ export function RantingSettingsManager({
                   <TableCell className="hidden md:table-cell">
                     <Badge variant="secondary">{d.memberCount ?? 0}</Badge>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell
+                    className="text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="flex flex-wrap justify-end gap-1">
                       <Button
                         size="sm"
@@ -653,6 +739,180 @@ export function RantingSettingsManager({
           </TableBody>
         </Table>
       </div>
+
+      <Sheet
+        open={Boolean(detailDojo)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailDojoId(null);
+            setCopiedCredential(false);
+          }
+        }}
+      >
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+          {detailDojo ? (
+            <>
+              <SheetHeader>
+                <SheetTitle>{detailDojo.name}</SheetTitle>
+                <SheetDescription>
+                  Detail ranting &amp; akun login
+                </SheetDescription>
+              </SheetHeader>
+
+              <div className="space-y-4 px-4 pb-6">
+                {detailCredential ? (
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-emerald-800 dark:text-emerald-300">
+                          Kredensial {detailDojo.name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Salin sekarang — password tidak ditampilkan lagi
+                          setelah ditutup.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={dismissDetailCredential}
+                        aria-label="Sembunyikan password"
+                      >
+                        ×
+                      </Button>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-lg border bg-background px-3 py-2">
+                        <p className="text-xs text-muted-foreground">Username</p>
+                        <p className="font-mono text-sm break-all">
+                          {detailCredential.loginEmail}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border bg-background px-3 py-2">
+                        <p className="text-xs text-muted-foreground">Password</p>
+                        <p className="font-mono text-sm">
+                          {detailCredential.loginPassword}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={copyDetailCredential}
+                        className="gap-1.5"
+                      >
+                        {copiedCredential ? (
+                          <Check className="h-3.5 w-3.5" />
+                        ) : (
+                          <Copy className="h-3.5 w-3.5" />
+                        )}
+                        {copiedCredential
+                          ? "Tersalin"
+                          : "Salin Username + Password"}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+                    <p className="font-semibold text-emerald-800 dark:text-emerald-300">
+                      Kredensial {detailDojo.name}
+                    </p>
+                    {detailDojo.adminEmail ? (
+                      <>
+                        <div className="mt-3 rounded-lg border bg-background px-3 py-2">
+                          <p className="text-xs text-muted-foreground">
+                            Username
+                          </p>
+                          <p className="font-mono text-sm break-all">
+                            {detailDojo.adminEmail}
+                          </p>
+                        </div>
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          Password tidak bisa ditampilkan lagi. Gunakan{" "}
+                          <span className="font-medium text-foreground">
+                            Reset PW
+                          </span>{" "}
+                          untuk membuat password baru, lalu salin dari sini.
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="mt-3 gap-1.5"
+                          onClick={() => {
+                            setDetailDojoId(null);
+                            openReset(detailDojo);
+                          }}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Reset Password
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Belum ada akun login untuk ranting ini.
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="mt-3 gap-1.5"
+                          onClick={() => {
+                            setDetailDojoId(null);
+                            openLogin(detailDojo);
+                          }}
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                          Buat Login
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <div className="grid gap-3 text-sm">
+                  <DetailField label="Cabang" value={detailDojo.branchName} />
+                  <DetailField label="PIC" value={detailDojo.headName} />
+                  <DetailField
+                    label="Kecamatan"
+                    value={detailDojo.kecamatan}
+                  />
+                  <DetailField
+                    label="Tempat Latihan"
+                    value={detailDojo.tempatLatihan}
+                  />
+                  <DetailField label="Alamat" value={detailDojo.address} />
+                  <DetailField label="Telepon" value={detailDojo.phoneNumber} />
+                  <DetailField label="Jadwal" value={detailDojo.schedule} />
+                  <DetailField
+                    label="Anggota"
+                    value={String(detailDojo.memberCount ?? 0)}
+                  />
+                </div>
+              </div>
+            </>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}
+
+function DetailField({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | null;
+}) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-foreground">{value?.trim() || "—"}</p>
     </div>
   );
 }
