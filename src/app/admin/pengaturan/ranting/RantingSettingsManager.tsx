@@ -15,12 +15,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { showError, showSuccess } from "@/lib/client-toast";
-import { Archive, KeyRound, Pencil, RotateCcw } from "lucide-react";
+import { Archive, KeyRound, Pencil, RotateCcw, Sparkles } from "lucide-react";
 import {
   CredentialsReveal,
   type CredentialPayload,
 } from "@/components/admin/pengaturan/CredentialsReveal";
-
+import { generatePassword } from "@/lib/security/password";
 export type RantingRow = {
   id: string;
   name: string;
@@ -84,6 +84,16 @@ export function RantingSettingsManager({
 
   function setField(key: keyof typeof form, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function fillGeneratedPassword() {
+    const password = generatePassword(10);
+    setForm((prev) => ({
+      ...prev,
+      adminPassword: password,
+      adminPasswordConfirm: password,
+    }));
+    showSuccess("Password otomatis diisi. Salin sebelum menyimpan.");
   }
 
   function resetPanel() {
@@ -462,8 +472,21 @@ export function RantingSettingsManager({
                   </span>
                 </div>
               )}
-              <div className="space-y-1.5">
-                <Label>Password</Label>
+              <div className="space-y-1.5 sm:col-span-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Password</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    onClick={fillGeneratedPassword}
+                    disabled={loading}
+                  >
+                    <Sparkles className="size-3.5" />
+                    Generate Password
+                  </Button>
+                </div>
                 <Input
                   type="text"
                   value={form.adminPassword}
@@ -473,7 +496,7 @@ export function RantingSettingsManager({
                   autoComplete="new-password"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:col-span-2">
                 <Label>Konfirmasi Password</Label>
                 <Input
                   type="text"
