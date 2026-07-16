@@ -37,8 +37,31 @@ export default function LoginForm({
     setPhase("signing-in");
     setError("");
 
+    const identifierValue = identifier.trim();
+
+    const precheck = await fetch("/api/auth/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        identifier: identifierValue,
+        password,
+      }),
+    });
+    const preData = await precheck.json().catch(() => ({}));
+
+    if (!precheck.ok) {
+      setPhase("idle");
+      const msg =
+        typeof preData.error === "string"
+          ? preData.error
+          : "Email/NIA atau password salah.";
+      setError(msg);
+      showError(msg);
+      return;
+    }
+
     const result = await signIn("credentials", {
-      email: identifier.trim(),
+      email: identifierValue,
       password,
       redirect: false,
     });
@@ -46,7 +69,7 @@ export default function LoginForm({
     if (result?.error) {
       setPhase("idle");
       const msg =
-        "Email/NIA atau password salah. Akun baru perlu disetujui admin terlebih dahulu.";
+        "Login gagal membuat sesi. Coba lagi — jika berulang, server autentikasi sedang bermasalah.";
       setError(msg);
       showError(msg);
       return;

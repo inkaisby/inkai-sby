@@ -2,7 +2,6 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { cookies } from "next/headers";
 import { authConfig } from "@/auth.config";
-import { rateLimit } from "@/lib/security/rate-limit";
 import { inkaiFetch } from "@/lib/inkai-api/server";
 import {
   getInkaiTokenCookieOptions,
@@ -74,23 +73,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!credentials?.email || !credentials?.password) return null;
 
         const identifier = (credentials.email as string).trim();
-        const loginLimit = rateLimit(`login:${identifier}`, {
-          max: 10,
-          windowMs: 15 * 60 * 1000,
-        });
-        if (!loginLimit.success) return null;
 
-        const { res, data } = await inkaiFetch(
-          "/v1/auth/login",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              identifier,
-              password: credentials.password,
-            }),
-          },
-          null,
-        );
+        let res: Response;
+        let data: Record<string, unknown>;
+        try {
+          ({ res, data } = await inkaiFetch(
+            "/v1/auth/login",
+            {
+              method: "POST",
+              body: JSON.stringify({
+                identifier,
+                password: credentials.password,
+              }),
+            },
+            null,
+          ));
+        } catch {
+          return null;
+        }
 
         if (!res.ok) return null;
 
