@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Users, Clock, UserCheck, UserX, FileWarning } from "lucide-react";
+import { Users, Clock, UserCheck, UserX, FileWarning, IdCard } from "lucide-react";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
@@ -22,6 +22,7 @@ import {
   parsePageSize,
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
 import { MembersTable } from "./MembersTable";
+import { AnggotaAddButton } from "./AnggotaAddButton";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,7 @@ type SearchParams = Promise<{
   status?: string;
   dojoId?: string;
   docs?: string;
+  nia?: string;
   page?: string;
   pageSize?: string;
 }>;
@@ -79,6 +81,7 @@ async function AdminAnggotaContent({
   const q = params.q?.trim() || "";
   const status = params.status?.trim() || "";
   const docs = params.docs === "incomplete" ? "incomplete" : "";
+  const niaFilter = params.nia === "missing" ? "missing" : "";
   const page = parsePage(params.page);
   const pageSize = parsePageSize(params.pageSize, PAGE_SIZE_OPTIONS, 25);
 
@@ -128,6 +131,9 @@ async function AdminAnggotaContent({
   if (docs === "incomplete") {
     members = members.filter((m) => !isDocumentComplete(m));
   }
+  if (niaFilter === "missing") {
+    members = members.filter((m) => !m.nia?.trim());
+  }
 
   const total = result.ok ? result.total : 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -137,10 +143,13 @@ async function AdminAnggotaContent({
     q,
     dojoId: lockedDojoId ? "" : dojoId,
     docs,
+    nia: niaFilter,
     pageSize: String(pageSize),
   };
 
-  const hasFilters = Boolean(q || status || (!lockedDojoId && dojoId) || docs);
+  const hasFilters = Boolean(
+    q || status || (!lockedDojoId && dojoId) || docs || niaFilter,
+  );
 
   const kpis = [
     {
@@ -148,15 +157,15 @@ async function AdminAnggotaContent({
       label: "Total",
       value: allCount.ok ? allCount.total : total,
       icon: Users,
-      href: buildHref({ ...kpiBase, status: "" }),
-      active: !status && !docs,
+      href: buildHref({ ...kpiBase, status: "", docs: "", nia: "" }),
+      active: !status && !docs && !niaFilter,
     },
     {
       key: "pending",
       label: "Menunggu",
       value: pendingCount.ok ? pendingCount.total : 0,
       icon: Clock,
-      href: buildHref({ ...kpiBase, status: "PENDING" }),
+      href: buildHref({ ...kpiBase, status: "PENDING", docs: "", nia: "" }),
       active: status === "PENDING",
       accent: "text-amber-600",
     },
@@ -165,8 +174,8 @@ async function AdminAnggotaContent({
       label: "Aktif",
       value: activeCount.ok ? activeCount.total : 0,
       icon: UserCheck,
-      href: buildHref({ ...kpiBase, status: "Active" }),
-      active: status === "Active",
+      href: buildHref({ ...kpiBase, status: "Active", docs: "", nia: "" }),
+      active: status === "Active" && !niaFilter,
       accent: "text-emerald-600",
     },
     {
@@ -174,7 +183,7 @@ async function AdminAnggotaContent({
       label: "Ditolak",
       value: rejectedCount.ok ? rejectedCount.total : 0,
       icon: UserX,
-      href: buildHref({ ...kpiBase, status: "REJECTED" }),
+      href: buildHref({ ...kpiBase, status: "REJECTED", docs: "", nia: "" }),
       active: status === "REJECTED",
       accent: "text-destructive",
     },
@@ -186,32 +195,54 @@ async function AdminAnggotaContent({
       href: buildHref({
         ...kpiBase,
         status,
+        nia: "",
         docs: docs === "incomplete" ? "" : "incomplete",
       }),
       active: docs === "incomplete",
       accent: "text-orange-600",
       hint: "Filter halaman",
     },
+    {
+      key: "nia",
+      label: "Tanpa NIA",
+      value: "—",
+      icon: IdCard,
+      href: buildHref({
+        ...kpiBase,
+        docs: "",
+        nia: niaFilter === "missing" ? "" : "missing",
+      }),
+      active: niaFilter === "missing",
+      accent: "text-amber-700",
+      hint: "Filter halaman",
+    },
   ] as const;
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Kelola Anggota</h2>
-        <p className="text-muted-foreground">
-          {ROLE_LABELS[primaryRole] || primaryRole} — {total} anggota
-          {dojoId && dojos.length
-            ? ` · ${dojos.find((d) => d.id === dojoId)?.name || "Dojo"}`
-            : ""}
-        </p>
-        {!result.ok && (
-          <p className="mt-2 text-sm text-destructive">
-            Gagal memuat data anggota dari API.
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold">Kelola Anggota</h2>
+          <p className="text-muted-foreground">
+            {ROLE_LABELS[primaryRole] || primaryRole} — {total} anggota
+            {dojoId && dojos.length
+              ? ` · ${dojos.find((d) => d.id === dojoId)?.name || "Dojo"}`
+              : ""}
           </p>
-        )}
+          {!result.ok && (
+            <p className="mt-2 text-sm text-destructive">
+              Gagal memuat data anggota dari API.
+            </p>
+          )}
+        </div>
+        <AnggotaAddButton
+          dojos={dojos.map((d) => ({ id: d.id, name: d.name }))}
+          defaultDojoId={lockedDojoId || dojoId || ""}
+          lockDojo={Boolean(lockedDojoId)}
+        />
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {kpis.map((kpi) => {
           const Icon = kpi.icon;
           return (
@@ -303,6 +334,18 @@ async function AdminAnggotaContent({
           </select>
         </div>
 
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">NIA</label>
+          <select
+            name="nia"
+            defaultValue={niaFilter}
+            className="h-8 min-w-[140px] rounded-lg border px-2 text-sm"
+          >
+            <option value="">Semua NIA</option>
+            <option value="missing">Belum ada NIA</option>
+          </select>
+        </div>
+
         <button
           type="submit"
           className="h-8 rounded-lg bg-inkai-red px-4 text-sm text-white"
@@ -320,14 +363,14 @@ async function AdminAnggotaContent({
         ) : null}
       </form>
 
-      {docs === "incomplete" ? (
+      {docs === "incomplete" || niaFilter === "missing" ? (
         <p className="mb-3 text-xs text-muted-foreground">
-          Filter dokumen belum lengkap diterapkan pada data halaman ini
-          ({members.length} ditampilkan).
+          Filter tambahan diterapkan pada data halaman ini ({members.length}{" "}
+          ditampilkan).
         </p>
       ) : null}
 
-      <MembersTable members={members} />
+      <MembersTable members={members} userRoles={session.user.roles} />
 
       <SettingsPagination
         page={safePage}
@@ -340,6 +383,7 @@ async function AdminAnggotaContent({
           status,
           dojoId: lockedDojoId ? "" : dojoId,
           docs,
+          nia: niaFilter,
         }}
       />
     </>

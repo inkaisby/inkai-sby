@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { uktMemberCreateSchema } from "@/lib/security/schemas";
 import { createAdminMember } from "@/lib/admin-member-create";
 
@@ -26,30 +25,6 @@ export async function POST(request: Request) {
     token: authResult.token,
     input: parsed.data,
     request,
-    auditAction: "UKT_MEMBER_CREATE",
+    auditAction: "MEMBER_CREATE",
   });
-}
-
-export async function GET(request: Request) {
-  const authResult = await requireAdmin();
-  if ("error" in authResult) return authResult.error;
-  if (!authResult.token) {
-    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
-  const memberId = searchParams.get("memberId");
-  if (!memberId) {
-    return NextResponse.json({ error: "memberId wajib" }, { status: 400 });
-  }
-
-  const { res, data } = await inkaiFetch(`/v1/members/${memberId}`, {}, authResult.token);
-  if (!res.ok) {
-    return NextResponse.json(
-      { error: inkaiErrorMessage(data, "Anggota tidak ditemukan") },
-      { status: res.status },
-    );
-  }
-
-  return NextResponse.json({ member: data.data });
 }

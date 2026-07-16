@@ -54,6 +54,7 @@ import {
 import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
 import { UktPrintModal } from "@/components/admin/ukt/UktPrintModal";
 import { UktSearchBar } from "@/components/admin/ukt/UktSearchBar";
+import { AddMemberDialog } from "@/components/admin/AddMemberDialog";
 import {
   BELT_RANK_OPTIONS,
   canEditKyuBaru,
@@ -173,13 +174,6 @@ export function UktDashboard(props: Props) {
   const [showRegistrationDeadline, setShowRegistrationDeadline] = useState(false);
   const [registrationDeadlineDate, setRegistrationDeadlineDate] = useState("");
   const [registrationDeadlineTime, setRegistrationDeadlineTime] = useState("");
-  const [newMember, setNewMember] = useState({
-    fullName: "",
-    gender: "",
-    birthPlace: "",
-    birthDate: "",
-    address: "",
-  });
 
   const isCabang = canEditKyuBaru(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
@@ -473,34 +467,6 @@ export function UktDashboard(props: Props) {
       setMemberHistory(data.member ?? null);
     } catch {
       toast.error("Gagal memuat riwayat anggota");
-    }
-  };
-
-  const handleAddMember = async () => {
-    if (!newMember.fullName.trim()) {
-      toast.error("Nama wajib diisi");
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await fetch("/api/admin/ukt/members", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...newMember,
-          dojoId: effectiveDojo || undefined,
-        }),
-      });
-      const data = await parseApiJson<{ error?: string }>(res);
-      if (!res.ok) throw new Error(data.error || "Gagal menambahkan anggota");
-      toast.success("Anggota berhasil ditambahkan");
-      setShowAddMember(false);
-      setNewMember({ fullName: "", gender: "", birthPlace: "", birthDate: "", address: "" });
-      router.refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -1171,56 +1137,14 @@ export function UktDashboard(props: Props) {
       </Dialog>
 
       {/* Add member modal */}
-      <Dialog open={showAddMember} onOpenChange={setShowAddMember}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Tambah Anggota Baru</DialogTitle>
-            <DialogDescription>
-              Ketua ranting dapat menambahkan anggota baru ke ranting.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <Input
-              placeholder="Nama Lengkap *"
-              value={newMember.fullName}
-              onChange={(e) => setNewMember({ ...newMember, fullName: e.target.value })}
-            />
-            <select
-              className="h-8 w-full rounded-lg border px-2 text-sm"
-              value={newMember.gender}
-              onChange={(e) => setNewMember({ ...newMember, gender: e.target.value })}
-            >
-              <option value="">Jenis Kelamin</option>
-              <option value="L">Laki-laki</option>
-              <option value="P">Perempuan</option>
-            </select>
-            <Input
-              placeholder="Tempat Lahir"
-              value={newMember.birthPlace}
-              onChange={(e) => setNewMember({ ...newMember, birthPlace: e.target.value })}
-            />
-            <Input
-              type="date"
-              placeholder="Tanggal Lahir"
-              value={newMember.birthDate}
-              onChange={(e) => setNewMember({ ...newMember, birthDate: e.target.value })}
-            />
-            <Input
-              placeholder="Alamat"
-              value={newMember.address}
-              onChange={(e) => setNewMember({ ...newMember, address: e.target.value })}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddMember(false)}>
-              Batal
-            </Button>
-            <Button className="bg-inkai-red" onClick={handleAddMember} disabled={loading}>
-              Simpan
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AddMemberDialog
+        open={showAddMember}
+        onOpenChange={setShowAddMember}
+        dojos={props.dojos}
+        defaultDojoId={effectiveDojo}
+        lockDojo={isDojoAdmin}
+        apiPath="/api/admin/ukt/members"
+      />
 
       {/* Print modal */}
       {showPrint && (

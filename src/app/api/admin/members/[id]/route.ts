@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { canAssignNia } from "@/lib/belt";
 import { memberActionSchema } from "@/lib/security/schemas";
+import { writeAuditLog } from "@/lib/audit";
+import { getClientIp } from "@/lib/security/request";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -37,6 +40,51 @@ export async function PATCH(request: Request, context: RouteContext) {
   const parsed = memberActionSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
+  }
+
+  if (parsed.data.action === "set_nia") {
+    if (!canAssignNia(authResult.user.roles)) {
+      return NextResponse.json(
+        { error: "Hanya pengurus cabang yang dapat mengisi NIA" },
+        { status: 403 },
+      );
+    }
+    const nia = parsed.data.nia?.trim();
+    if (!nia) {
+      return NextResponse.json({ error: "NIA wajib diisi" }, { status: 400 });
+    }
+
+    const { res, data } = await inkaiFetch(
+      `/v1/members/${id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ nia }),
+      },
+      authResult.token,
+    );
+
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: inkaiErrorMessage(data, "Gagal menyimpan NIA") },
+        { status: res.status },
+      );
+    }
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "MEMBER_SET_NIA",
+      details: `Set NIA ${nia} for member ${id}`,
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      token: authResult.token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      member: data.data,
+      message: "NIA berhasil disimpan",
+    });
   }
 
   const { res, data } = await inkaiFetch(

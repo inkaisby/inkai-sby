@@ -42,7 +42,7 @@ export const resetPasswordSchema = z.object({
 });
 
 export const memberActionSchema = z.object({
-  action: z.enum(["approve", "reject"]),
+  action: z.enum(["approve", "reject", "set_nia"]),
   nia: z.string().trim().max(32).optional(),
 });
 
@@ -79,7 +79,24 @@ export const uktMemberCreateSchema = z.object({
   birthDate: z.string().optional(),
   address: z.string().trim().max(300).optional(),
   dojoId: z.string().uuid().optional(),
+  nik: z
+    .string()
+    .trim()
+    .regex(/^\d{16}$/, "NIK harus 16 digit")
+    .optional()
+    .or(z.literal("")),
+  phoneNumber: z
+    .string()
+    .trim()
+    .min(10, "Nomor telepon tidak valid")
+    .max(20)
+    .optional()
+    .or(z.literal("")),
+  currentRank: z.string().trim().min(2).max(64).optional(),
 });
+
+/** Alias semantik untuk create anggota dari Kelola Anggota / UKT */
+export const adminMemberCreateSchema = uktMemberCreateSchema;
 
 export const uktBeltFeesSchema = z.object({
   PUTIH: z.coerce.number().int().min(0).max(10_000_000),

@@ -133,7 +133,13 @@ function memberPhotoUrl(member: AdminMemberRow) {
   return nested.user?.photoUrl ?? null;
 }
 
-export function MembersTable({ members }: { members: AdminMemberRow[] }) {
+export function MembersTable({
+  members,
+  userRoles = [],
+}: {
+  members: AdminMemberRow[];
+  userRoles?: string[];
+}) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<MemberDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -232,7 +238,16 @@ export function MembersTable({ members }: { members: AdminMemberRow[] }) {
                     />
                   </TableCell>
                   <TableCell className="font-mono text-sm">
-                    {m.nia || "-"}
+                    {m.nia ? (
+                      m.nia
+                    ) : (
+                      <Badge
+                        variant="outline"
+                        className="text-xs text-amber-700 border-amber-300 bg-amber-50"
+                      >
+                        Belum ada NIA
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="font-medium text-inkai-red">
                     {m.fullName}
@@ -253,7 +268,12 @@ export function MembersTable({ members }: { members: AdminMemberRow[] }) {
                     {m.dojo?.name ?? "-"}
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
-                    <MemberActions memberId={m.id} status={m.status} />
+                    <MemberActions
+                      memberId={m.id}
+                      status={m.status}
+                      nia={m.nia}
+                      userRoles={userRoles}
+                    />
                   </TableCell>
                 </TableRow>
               ))
@@ -288,7 +308,19 @@ export function MembersTable({ members }: { members: AdminMemberRow[] }) {
               </span>
             </SheetTitle>
             <SheetDescription className="flex flex-wrap items-center gap-2">
-              <span>NIA: {str(detail?.nia)}</span>
+              <span>
+                NIA:{" "}
+                {detail?.nia ? (
+                  str(detail.nia)
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="text-xs text-amber-700 border-amber-300 bg-amber-50"
+                  >
+                    Belum ada NIA
+                  </Badge>
+                )}
+              </span>
               {detail?.status ? (
                 <MemberStatusBadge status={String(detail.status)} />
               ) : null}
@@ -318,6 +350,7 @@ export function MembersTable({ members }: { members: AdminMemberRow[] }) {
                         <Badge variant="secondary">{currentRank || "-"}</Badge>
                       }
                     />
+                    <DetailRow label="NIK" value={str(detail.nik)} />
                     <DetailRow
                       label="Tempat lahir"
                       value={str(detail.birthPlace)}
@@ -436,14 +469,37 @@ export function MembersTable({ members }: { members: AdminMemberRow[] }) {
                   </section>
                 ) : null}
 
-                {detail.status === "PENDING" || detail.status === "REJECTED" ? (
+                {detail.status === "PENDING" ||
+                detail.status === "REJECTED" ||
+                (detail.status === "Active" && !detail.nia) ? (
                   <section className="border-t pt-4">
                     <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                      Aksi registrasi
+                      {detail.status === "Active" ? "NIA" : "Aksi registrasi"}
                     </h3>
                     <MemberActions
                       memberId={String(detail.id)}
                       status={String(detail.status)}
+                      nia={
+                        typeof detail.nia === "string" ? detail.nia : null
+                      }
+                      userRoles={userRoles}
+                      compact
+                      onSuccess={() => {
+                        const row = members.find(
+                          (m) => m.id === String(detail.id),
+                        );
+                        if (row) void openDetail(row);
+                        else if (selectedId) {
+                          void openDetail({
+                            id: selectedId,
+                            fullName: String(detail.fullName || ""),
+                            nia: null,
+                            currentRank: String(detail.currentRank || ""),
+                            status: String(detail.status || ""),
+                            dojo: { name: "" },
+                          });
+                        }
+                      }}
                     />
                   </section>
                 ) : null}

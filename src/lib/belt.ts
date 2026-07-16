@@ -69,3 +69,10 @@ export function canEditKyuBaru(roles: string[]): boolean {
   ]);
   return roles.some((r) => elevated.has(r));
 }
+
+/** Cabang ke atas yang mengisi / assign NIA */
+export function canAssignNia(roles: string[]): boolean {
+  return canEditKyuBaru(roles);
+}
+
+export const DEFAULT_MEMBER_RANK = "Putih (Kyu 10)";
