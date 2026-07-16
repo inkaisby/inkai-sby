@@ -95,3 +95,117 @@ export const uktInvoiceAckSchema = z.object({
   dojoId: z.string().uuid(),
   acknowledged: z.boolean(),
 });
+
+export const adminUserPatchSchema = z.object({
+  userId: z.string().uuid(),
+  isActive: z.boolean().optional(),
+  fullName: z.string().trim().min(2).max(100).optional(),
+});
+
+export const branchCreateSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  provinceId: z.string().uuid(),
+  headName: z.string().trim().max(120).optional().or(z.literal("")),
+  adminEmail: z.string().trim().toLowerCase().email(),
+  adminPassword: z.string().min(8).max(72).optional().or(z.literal("")),
+});
+
+export const branchUpdateSchema = z.object({
+  name: z.string().trim().min(2).max(120).optional(),
+  headName: z.string().trim().max(120).optional().or(z.literal("")),
+  adminEmail: z.string().trim().toLowerCase().email().optional().or(z.literal("")),
+  adminPassword: z.string().min(8).max(72).optional().or(z.literal("")),
+});
+
+export const rantingCreateSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  branchId: z.string().uuid(),
+  headName: z.string().trim().max(120).optional().or(z.literal("")),
+  contactPerson: z.string().trim().max(120).optional().or(z.literal("")),
+  address: z.string().trim().max(300).optional().or(z.literal("")),
+  kecamatan: z.string().trim().max(120).optional().or(z.literal("")),
+  tempatLatihan: z.string().trim().max(200).optional().or(z.literal("")),
+  phoneNumber: z.string().trim().max(20).optional().or(z.literal("")),
+  schedule: z.string().trim().max(200).optional().or(z.literal("")),
+  bankName: z.string().trim().max(80).optional().or(z.literal("")),
+  bankAccountNumber: z.string().trim().max(40).optional().or(z.literal("")),
+  bankAccountName: z.string().trim().max(120).optional().or(z.literal("")),
+  adminEmail: z.string().trim().toLowerCase().email("Username login harus berupa email"),
+  adminPassword: z.string().min(8).max(72),
+  adminPasswordConfirm: z.string().min(8).max(72),
+}).refine((d) => d.adminPassword === d.adminPasswordConfirm, {
+  message: "Konfirmasi password tidak cocok",
+  path: ["adminPasswordConfirm"],
+});
+
+export const rantingUpdateSchema = z.object({
+  name: z.string().trim().min(2).max(120).optional(),
+  headName: z.string().trim().max(120).optional().or(z.literal("")),
+  contactPerson: z.string().trim().max(120).optional().or(z.literal("")),
+  address: z.string().trim().max(300).optional().or(z.literal("")),
+  kecamatan: z.string().trim().max(120).optional().or(z.literal("")),
+  tempatLatihan: z.string().trim().max(200).optional().or(z.literal("")),
+  phoneNumber: z.string().trim().max(20).optional().or(z.literal("")),
+  schedule: z.string().trim().max(200).optional().or(z.literal("")),
+  bankName: z.string().trim().max(80).optional().or(z.literal("")),
+  bankAccountNumber: z.string().trim().max(40).optional().or(z.literal("")),
+  bankAccountName: z.string().trim().max(120).optional().or(z.literal("")),
+  adminEmail: z.string().trim().toLowerCase().email().optional().or(z.literal("")),
+  adminPassword: z.string().min(8).max(72).optional().or(z.literal("")),
+});
+
+/** Cabang membuat/mengganti akun login admin ranting */
+export const rantingLoginSchema = z
+  .object({
+    dojoId: z.string().uuid(),
+    adminEmail: z.string().trim().toLowerCase().email("Username login harus berupa email"),
+    adminPassword: z.string().min(8).max(72),
+    adminPasswordConfirm: z.string().min(8).max(72),
+  })
+  .refine((d) => d.adminPassword === d.adminPasswordConfirm, {
+    message: "Konfirmasi password tidak cocok",
+    path: ["adminPasswordConfirm"],
+  });
+
+export const rantingResetPasswordSchema = z
+  .object({
+    dojoId: z.string().uuid(),
+    adminPassword: z.string().min(8).max(72),
+    adminPasswordConfirm: z.string().min(8).max(72),
+  })
+  .refine((d) => d.adminPassword === d.adminPasswordConfirm, {
+    message: "Konfirmasi password tidak cocok",
+    path: ["adminPasswordConfirm"],
+  });
+
+export const softDeleteSchema = z.object({
+  id: z.string().uuid(),
+  restore: z.boolean().optional(),
+});
+
+export const akunProfileSchema = z.object({
+  fullName: z.string().trim().min(2).max(100),
+  phoneNumber: z.string().trim().min(10).max(20).optional().or(z.literal("")),
+});
+
+export const akunPasswordSchema = z
+  .object({
+    oldPassword: z.string().min(1),
+    newPassword: z.string().min(8).max(72),
+    newPasswordConfirm: z.string().min(8).max(72),
+  })
+  .refine((d) => d.newPassword === d.newPasswordConfirm, {
+    message: "Konfirmasi password baru tidak cocok",
+    path: ["newPasswordConfirm"],
+  });
+
+export const rolePermissionsSchema = z.object({
+  permissionIds: z.array(z.string().uuid()),
+});
+
+export const geofencingSchema = z.object({
+  dojoId: z.string().uuid(),
+  latitude: z.coerce.number().min(-90).max(90),
+  longitude: z.coerce.number().min(-180).max(180),
+  geofenceRadius: z.coerce.number().int().min(10).max(5000),
+});

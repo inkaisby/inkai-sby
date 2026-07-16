@@ -5,6 +5,7 @@ import { MobileDashboardNav } from "@/components/layout/MobileDashboardNav";
 import { UserMenu } from "@/components/layout/AppShell";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { ThemeToggle } from "@/components/theme-toggle";
+import type { NavItem } from "@/lib/dashboard-nav";
 
 const ADMIN_TITLES: Record<string, string> = {
   "/admin": "Beranda Admin",
@@ -18,6 +19,13 @@ const ADMIN_TITLES: Record<string, string> = {
   "/admin/carousel": "Carousel Beranda",
   "/admin/audit": "Log Audit",
   "/admin/notifikasi": "Notifikasi",
+  "/admin/pengaturan": "Pengaturan",
+  "/admin/pengaturan/user": "Pengaturan User",
+  "/admin/pengaturan/cabang": "Pengaturan Cabang",
+  "/admin/pengaturan/ranting": "Pengaturan Ranting",
+  "/admin/pengaturan/peran": "Role & Hak Akses",
+  "/admin/pengaturan/geofencing": "Geofencing Absensi",
+  "/admin/pengaturan/akun": "Akun Saya",
 };
 
 const MEMBER_TITLES: Record<string, string> = {
@@ -36,6 +44,7 @@ function resolveTitle(pathname: string, showAdmin: boolean) {
   if (map[pathname]) return map[pathname];
   const match = Object.keys(map)
     .filter((k) => k !== (showAdmin ? "/admin" : "/dashboard"))
+    .sort((a, b) => b.length - a.length)
     .find((k) => pathname.startsWith(k));
   return match ? map[match] : showAdmin ? "Admin Panel" : "Dashboard Anggota";
 }
@@ -48,7 +57,7 @@ export function DashboardTopbar({
   showAdmin = false,
 }: {
   title: string;
-  links: { href: string; label: string }[];
+  links: NavItem[];
   userName: string;
   userEmail: string;
   showAdmin?: boolean;

@@ -4,6 +4,7 @@ import { AppSidebar, UserMenu } from "@/components/layout/AppShell";
 import { DashboardTopbar } from "@/components/layout/DashboardTopbar";
 import { NavigationProvider, useNavigation } from "@/components/layout/NavigationProvider";
 import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
+import type { NavItem } from "@/lib/dashboard-nav";
 import { useEffect, useState } from "react";
 
 function MainContent({ children }: { children: React.ReactNode }) {
@@ -55,7 +56,7 @@ export function DashboardShell({
   children,
 }: {
   title: string;
-  links: { href: string; label: string }[];
+  links: NavItem[];
   userName: string;
   userEmail: string;
   showAdmin?: boolean;

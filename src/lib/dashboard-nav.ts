@@ -1,4 +1,24 @@
-export const ADMIN_LINKS = [
+export type NavLink = {
+  href: string;
+  label: string;
+};
+
+export type NavGroup = {
+  label: string;
+  children: NavLink[];
+};
+
+export type NavItem = NavLink | NavGroup;
+
+export function isNavGroup(item: NavItem): item is NavGroup {
+  return "children" in item && Array.isArray(item.children);
+}
+
+export function flattenNavLinks(items: NavItem[]): NavLink[] {
+  return items.flatMap((item) => (isNavGroup(item) ? item.children : [item]));
+}
+
+export const ADMIN_LINKS: NavItem[] = [
   { href: "/admin", label: "Beranda Admin" },
   { href: "/admin/anggota", label: "Kelola Anggota" },
   { href: "/admin/iuran", label: "Iuran Anggota" },
@@ -9,9 +29,21 @@ export const ADMIN_LINKS = [
   { href: "/admin/absensi", label: "Absensi" },
   { href: "/admin/carousel", label: "Carousel Beranda" },
   { href: "/admin/audit", label: "Log Audit" },
+  {
+    label: "Pengaturan",
+    children: [
+      { href: "/admin/pengaturan", label: "Ringkasan" },
+      { href: "/admin/pengaturan/user", label: "Pengaturan User" },
+      { href: "/admin/pengaturan/cabang", label: "Pengaturan Cabang" },
+      { href: "/admin/pengaturan/ranting", label: "Pengaturan Ranting" },
+      { href: "/admin/pengaturan/peran", label: "Role & Hak Akses" },
+      { href: "/admin/pengaturan/geofencing", label: "Geofencing Absensi" },
+      { href: "/admin/pengaturan/akun", label: "Akun Saya" },
+    ],
+  },
 ];
 
-export const MEMBER_LINKS = [
+export const MEMBER_LINKS: NavItem[] = [
   { href: "/dashboard", label: "Beranda" },
   { href: "/dashboard/profil", label: "Profil Saya" },
   { href: "/dashboard/absensi", label: "Absensi" },

@@ -1,6 +1,7 @@
 "use client";
 
 import { SidebarNavLink } from "@/components/layout/SidebarNavLink";
+import { SidebarNavGroup } from "@/components/layout/SidebarNavGroup";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,15 +11,14 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-
-type NavLink = { href: string; label: string; active?: boolean };
+import { isNavGroup, type NavItem } from "@/lib/dashboard-nav";
 
 export function MobileDashboardNav({
   title,
   links,
 }: {
   title: string;
-  links: NavLink[];
+  links: NavItem[];
 }) {
   const pathname = usePathname();
 
@@ -33,18 +33,26 @@ export function MobileDashboardNav({
       <SheetContent side="left" className="w-72">
         <SheetTitle className="text-base font-bold">{title}</SheetTitle>
         <nav className="mt-6 flex flex-col gap-1">
-          {links.map((link) => {
+          {links.map((item) => {
+            if (isNavGroup(item)) {
+              return (
+                <SidebarNavGroup
+                  key={item.label}
+                  label={item.label}
+                  items={item.children}
+                />
+              );
+            }
             const isActive =
-              link.active ??
-              (pathname === link.href ||
-                (link.href !== "/dashboard" &&
-                  link.href !== "/admin" &&
-                  pathname.startsWith(link.href)));
+              pathname === item.href ||
+              (item.href !== "/dashboard" &&
+                item.href !== "/admin" &&
+                pathname.startsWith(item.href));
             return (
               <SidebarNavLink
-                key={link.href}
-                href={link.href}
-                label={link.label}
+                key={item.href}
+                href={item.href}
+                label={item.label}
                 isActive={isActive}
               />
             );

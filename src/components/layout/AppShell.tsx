@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SwitchAccountModal } from "@/components/auth/SwitchAccountModal";
+import { SidebarNavGroup } from "@/components/layout/SidebarNavGroup";
+import { isNavGroup, type NavItem } from "@/lib/dashboard-nav";
 import { LogOut, Home, User, Bell, ArrowLeftRight } from "lucide-react";
 
 export function UserMenu({
@@ -103,7 +105,7 @@ export function AppSidebar({
   links,
 }: {
   title: string;
-  links: { href: string; label: string; active?: boolean }[];
+  links: NavItem[];
 }) {
   const pathname = usePathname();
 
@@ -120,18 +122,26 @@ export function AppSidebar({
         <p className="text-sm font-bold">{title}</p>
       </div>
       <nav className="p-3">
-        {links.map((link) => {
+        {links.map((item) => {
+          if (isNavGroup(item)) {
+            return (
+              <SidebarNavGroup
+                key={item.label}
+                label={item.label}
+                items={item.children}
+              />
+            );
+          }
           const isActive =
-            link.active ??
-            (pathname === link.href ||
-              (link.href !== "/dashboard" &&
-                link.href !== "/admin" &&
-                pathname.startsWith(link.href)));
+            pathname === item.href ||
+            (item.href !== "/dashboard" &&
+              item.href !== "/admin" &&
+              pathname.startsWith(item.href));
           return (
             <SidebarNavLink
-              key={link.href}
-              href={link.href}
-              label={link.label}
+              key={item.href}
+              href={item.href}
+              label={item.label}
               isActive={isActive}
             />
           );
