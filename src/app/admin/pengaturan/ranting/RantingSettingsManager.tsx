@@ -20,7 +20,7 @@ import {
   CredentialsReveal,
   type CredentialPayload,
 } from "@/components/admin/pengaturan/CredentialsReveal";
-import { generatePassword } from "@/lib/security/password";
+import { generateSimplePassword } from "@/lib/security/password";
 export type RantingRow = {
   id: string;
   name: string;
@@ -87,13 +87,14 @@ export function RantingSettingsManager({
   }
 
   function fillGeneratedPassword() {
-    const password = generatePassword(10);
+    const seed = targetName || form.name || "Inkai";
+    const password = generateSimplePassword(seed);
     setForm((prev) => ({
       ...prev,
       adminPassword: password,
       adminPasswordConfirm: password,
     }));
-    showSuccess("Password otomatis diisi. Salin sebelum menyimpan.");
+    showSuccess(`Password diisi: ${password}`);
   }
 
   function resetPanel() {

@@ -36,25 +36,25 @@ export function validatePassword(password: string): PasswordValidation {
   return { valid: true };
 }
 
-/** Generates a readable password that passes validatePassword (letters + digits). */
+/**
+ * Simple memorable password from a name seed, e.g. "AIRLANGGA" → "Airlangga123".
+ * Includes uppercase + lowercase + digits (backend-compatible).
+ */
+export function generateSimplePassword(seed?: string | null): string {
+  const raw = (seed || "Inkai").trim();
+  const firstToken =
+    raw.split(/[\s/|\\,_.-]+/).find((part) => /[a-zA-Z]/.test(part)) || "Inkai";
+  const lettersOnly = firstToken.replace(/[^a-zA-Z]/g, "") || "Inkai";
+  const base =
+    lettersOnly.charAt(0).toUpperCase() + lettersOnly.slice(1).toLowerCase();
+  let password = `${base}123`;
+  if (password.length < 8) {
+    password = `${base}${"12345678".slice(0, Math.max(0, 8 - base.length))}`;
+  }
+  return validatePassword(password).valid ? password : "InkaiSby123";
+}
+
+/** @deprecated Prefer generateSimplePassword for admin UX */
 export function generatePassword(length = 10): string {
-  const letters = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  const digits = "23456789";
-  const all = letters + digits;
-  const pick = (charset: string) =>
-    charset[Math.floor(Math.random() * charset.length)]!;
-
-  const chars: string[] = [pick(letters), pick(digits)];
-  const size = Math.max(8, length);
-  for (let i = chars.length; i < size; i++) {
-    chars.push(pick(all));
-  }
-
-  for (let i = chars.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [chars[i], chars[j]] = [chars[j]!, chars[i]!];
-  }
-
-  const password = chars.join("");
-  return validatePassword(password).valid ? password : generatePassword(length);
+  return generateSimplePassword(`Pass${length}`);
 }

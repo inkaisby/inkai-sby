@@ -11,15 +11,21 @@ import {
   SettingsSearchForm,
   paginateSlice,
   parsePage,
+  parsePageSize,
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
 import { UserSettingsTable } from "./UserSettingsTable";
 import { ShieldCheck, UserCheck, UserX, Users } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 50, 100, 1000];
 
-type SearchParams = Promise<{ q?: string; status?: string; page?: string }>;
+type SearchParams = Promise<{
+  q?: string;
+  status?: string;
+  page?: string;
+  pageSize?: string;
+}>;
 
 export default function PengaturanUserPage({
   searchParams,
@@ -45,6 +51,7 @@ async function PengaturanUserContent({
   const q = params.q?.trim() || "";
   const status = params.status?.trim() || "";
   const page = parsePage(params.page);
+  const pageSize = parsePageSize(params.pageSize, PAGE_SIZE_OPTIONS, 10);
 
   const baseWhere = buildAdminUserWhere(user);
 
@@ -106,7 +113,7 @@ async function PengaturanUserContent({
   const { rows, total, totalPages, page: safePage } = paginateSlice(
     mapped,
     page,
-    PAGE_SIZE,
+    pageSize,
   );
 
   return (
@@ -155,7 +162,8 @@ async function PengaturanUserContent({
         page={safePage}
         totalPages={totalPages}
         total={total}
-        pageSize={PAGE_SIZE}
+        pageSize={pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
         baseParams={{ q, status }}
       />
     </>

@@ -13,15 +13,21 @@ import {
   SettingsSearchForm,
   paginateSlice,
   parsePage,
+  parsePageSize,
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
 import { GeofencingManager } from "./GeofencingManager";
 import { MapPin, Navigation, CircleDot, Building2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 50, 100, 1000];
 
-type SearchParams = Promise<{ q?: string; status?: string; page?: string }>;
+type SearchParams = Promise<{
+  q?: string;
+  status?: string;
+  page?: string;
+  pageSize?: string;
+}>;
 
 export default function PengaturanGeofencingPage({
   searchParams,
@@ -47,6 +53,7 @@ async function PengaturanGeofencingContent({
   const q = params.q?.trim().toLowerCase() || "";
   const status = params.status?.trim() || "";
   const page = parsePage(params.page);
+  const pageSize = parsePageSize(params.pageSize, PAGE_SIZE_OPTIONS, 10);
 
   const dojos = await prisma.dojo.findMany({
     where: buildScopedDojoWhere(user),
@@ -95,7 +102,7 @@ async function PengaturanGeofencingContent({
   const { rows, total, totalPages, page: safePage } = paginateSlice(
     filtered,
     page,
-    PAGE_SIZE,
+    pageSize,
   );
 
   return (
@@ -143,7 +150,8 @@ async function PengaturanGeofencingContent({
         page={safePage}
         totalPages={totalPages}
         total={total}
-        pageSize={PAGE_SIZE}
+        pageSize={pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
         baseParams={{ q, status }}
       />
     </>

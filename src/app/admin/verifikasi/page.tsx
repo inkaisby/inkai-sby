@@ -179,10 +179,11 @@ async function AdminVerifikasiContent({
                     Diajukan:{" "}
                     {new Date(String(c.createdAt)).toLocaleString("id-ID")}
                   </p>
-                  <VerificationActions
-                    verificationId={String(c.id)}
-                    type={claimType}
-                  />
+                <VerificationActions
+                  verificationId={String(c.id)}
+                  type={claimType}
+                  nameHint={String(member?.fullName ?? "")}
+                />
                 </CardContent>
               </Card>
             );

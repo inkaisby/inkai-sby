@@ -6,14 +6,16 @@ import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { showError, showSuccess } from "@/lib/client-toast";
-import { generatePassword } from "@/lib/security/password";
+import { generateSimplePassword } from "@/lib/security/password";
 
 export function VerificationActions({
   verificationId,
   type,
+  nameHint,
 }: {
   verificationId: string;
   type?: string;
+  nameHint?: string | null;
 }) {
   const router = useRouter();
   const [notes, setNotes] = useState("");
@@ -24,10 +26,10 @@ export function VerificationActions({
   const isPasswordReset = type === "PASSWORD_RESET";
 
   function fillGeneratedPassword() {
-    const password = generatePassword(10);
+    const password = generateSimplePassword(nameHint || "Anggota");
     setNewPassword(password);
     setConfirmPassword(password);
-    showSuccess("Password otomatis diisi. Salin sebelum menyimpan.");
+    showSuccess(`Password diisi: ${password}`);
   }
 
   async function handleAction(action: "approve" | "reject") {

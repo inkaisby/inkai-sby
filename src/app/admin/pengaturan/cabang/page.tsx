@@ -11,15 +11,21 @@ import {
   SettingsSearchForm,
   paginateSlice,
   parsePage,
+  parsePageSize,
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
 import { CabangSettingsManager } from "./CabangSettingsManager";
 import { Building2, Home, MapPin, UserCheck } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 50, 100, 1000];
 
-type SearchParams = Promise<{ q?: string; provinceId?: string; page?: string }>;
+type SearchParams = Promise<{
+  q?: string;
+  provinceId?: string;
+  page?: string;
+  pageSize?: string;
+}>;
 
 export default function PengaturanCabangPage({
   searchParams,
@@ -45,6 +51,7 @@ async function PengaturanCabangContent({
   const q = params.q?.trim().toLowerCase() || "";
   const provinceId = params.provinceId?.trim() || "";
   const page = parsePage(params.page);
+  const pageSize = parsePageSize(params.pageSize, PAGE_SIZE_OPTIONS, 10);
 
   const { provinces, branches } = await fetchOrgStructure(token);
 
@@ -103,7 +110,7 @@ async function PengaturanCabangContent({
   const { rows, total, totalPages, page: safePage } = paginateSlice(
     filtered,
     page,
-    PAGE_SIZE,
+    pageSize,
   );
 
   return (
@@ -151,7 +158,8 @@ async function PengaturanCabangContent({
         page={safePage}
         totalPages={totalPages}
         total={total}
-        pageSize={PAGE_SIZE}
+        pageSize={pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
         baseParams={{ q, provinceId }}
       />
     </>

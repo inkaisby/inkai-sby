@@ -12,19 +12,21 @@ import {
   SettingsSearchForm,
   paginateSlice,
   parsePage,
+  parsePageSize,
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
 import { RantingSettingsManager } from "./RantingSettingsManager";
 import { Home, KeyRound, Users, Building2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 50, 100, 1000];
 
 type SearchParams = Promise<{
   q?: string;
   branchId?: string;
   login?: string;
   page?: string;
+  pageSize?: string;
 }>;
 
 export default function PengaturanRantingPage({
@@ -52,6 +54,7 @@ async function PengaturanRantingContent({
   const branchFilter = params.branchId?.trim() || "";
   const loginFilter = params.login?.trim() || "";
   const page = parsePage(params.page);
+  const pageSize = parsePageSize(params.pageSize, PAGE_SIZE_OPTIONS, 10);
 
   const role = getPrimaryAdminRole(user.roles);
   const lockedBranchId =
@@ -140,7 +143,7 @@ async function PengaturanRantingContent({
   const { rows, total, totalPages, page: safePage } = paginateSlice(
     filtered,
     page,
-    PAGE_SIZE,
+    pageSize,
   );
 
   return (
@@ -173,9 +176,10 @@ async function PengaturanRantingContent({
           { value: "yes", label: "Sudah punya login" },
           { value: "no", label: "Belum punya login" },
         ]}
-        extraHidden={
-          !lockedBranchId && branchFilter ? { branchId: branchFilter } : undefined
-        }
+        extraHidden={{
+          pageSize: String(pageSize),
+          ...(!lockedBranchId && branchFilter ? { branchId: branchFilter } : {}),
+        }}
       />
 
       {!lockedBranchId && scopedBranches.length > 1 ? (
@@ -216,7 +220,8 @@ async function PengaturanRantingContent({
         page={safePage}
         totalPages={totalPages}
         total={total}
-        pageSize={PAGE_SIZE}
+        pageSize={pageSize}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
         baseParams={{
           q,
           login: loginFilter,
