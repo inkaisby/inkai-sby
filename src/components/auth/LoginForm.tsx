@@ -15,11 +15,16 @@ import { showError } from "@/lib/client-toast";
 type LoginFormProps = {
   idPrefix?: string;
   onSuccess?: () => void;
+  onForgotPassword?: () => void;
 };
 
 type LoginPhase = "idle" | "signing-in" | "entering";
 
-export default function LoginForm({ idPrefix = "login", onSuccess }: LoginFormProps) {
+export default function LoginForm({
+  idPrefix = "login",
+  onSuccess,
+  onForgotPassword,
+}: LoginFormProps) {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -88,12 +93,22 @@ export default function LoginForm({ idPrefix = "login", onSuccess }: LoginFormPr
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor={`${idPrefix}-password`}>Password</Label>
-            <Link
-              href="/lupa-password"
-              className="text-xs font-medium text-inkai-red hover:underline"
-            >
-              Lupa password?
-            </Link>
+            {onForgotPassword ? (
+              <button
+                type="button"
+                onClick={onForgotPassword}
+                className="text-xs font-medium text-inkai-red hover:underline"
+              >
+                Lupa password?
+              </button>
+            ) : (
+              <Link
+                href="/lupa-password"
+                className="text-xs font-medium text-inkai-red hover:underline"
+              >
+                Lupa password?
+              </Link>
+            )}
           </div>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

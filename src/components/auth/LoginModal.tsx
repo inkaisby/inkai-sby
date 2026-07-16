@@ -11,9 +11,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import LoginForm from "@/components/auth/LoginForm";
+import ForgotPasswordForm from "@/components/auth/ForgotPasswordForm";
+
+type AuthModalView = "login" | "forgot";
 
 type LoginModalContextValue = {
   openLogin: () => void;
+  openForgotPassword: () => void;
   closeLogin: () => void;
 };
 
@@ -29,16 +33,33 @@ export function useLoginModal() {
 
 export function LoginModalProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [view, setView] = useState<AuthModalView>("login");
+
+  function openLogin() {
+    setView("login");
+    setOpen(true);
+  }
+
+  function openForgotPassword() {
+    setView("forgot");
+    setOpen(true);
+  }
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) setView("login");
+  }
 
   return (
     <LoginModalContext.Provider
       value={{
-        openLogin: () => setOpen(true),
+        openLogin,
+        openForgotPassword,
         closeLogin: () => setOpen(false),
       }}
     >
       {children}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="gap-0 overflow-hidden border-border/60 p-0 sm:max-w-md">
           <div className="border-b bg-gradient-to-br from-inkai-red/8 via-background to-inkai-yellow/8 px-6 pb-5 pt-6">
             <DialogHeader className="items-center text-center">
@@ -51,28 +72,42 @@ export function LoginModalProvider({ children }: { children: React.ReactNode }) 
                   className="rounded-full"
                 />
               </div>
-              <DialogTitle className="text-lg font-bold">Masuk Anggota</DialogTitle>
+              <DialogTitle className="text-lg font-bold">
+                {view === "login" ? "Masuk Anggota" : "Lupa Password"}
+              </DialogTitle>
               <DialogDescription>
-                Login dengan email atau NIA yang terdaftar di database INKAI Surabaya.
+                {view === "login"
+                  ? "Login dengan email atau NIA yang terdaftar di database INKAI Surabaya."
+                  : "Ajukan reset password ke ranting/dojo untuk diverifikasi pengurus."}
               </DialogDescription>
             </DialogHeader>
           </div>
 
           <div className="px-6 py-5">
-            <LoginForm
-              idPrefix="modal"
-              onSuccess={() => setOpen(false)}
-            />
-            <p className="mt-4 text-center text-sm text-muted-foreground">
-              Belum punya akun?{" "}
-              <Link
-                href="/daftar"
-                className="font-medium text-inkai-red hover:underline"
-                onClick={() => setOpen(false)}
-              >
-                Daftar di sini
-              </Link>
-            </p>
+            {view === "login" ? (
+              <>
+                <LoginForm
+                  idPrefix="modal"
+                  onSuccess={() => setOpen(false)}
+                  onForgotPassword={() => setView("forgot")}
+                />
+                <p className="mt-4 text-center text-sm text-muted-foreground">
+                  Belum punya akun?{" "}
+                  <Link
+                    href="/daftar"
+                    className="font-medium text-inkai-red hover:underline"
+                    onClick={() => setOpen(false)}
+                  >
+                    Daftar di sini
+                  </Link>
+                </p>
+              </>
+            ) : (
+              <ForgotPasswordForm
+                idPrefix="modal-forgot"
+                onBackToLogin={() => setView("login")}
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>

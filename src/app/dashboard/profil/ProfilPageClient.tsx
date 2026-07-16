@@ -90,7 +90,7 @@ export default function ProfilPageClient({
         </form>
         <p className="mt-4 text-sm text-muted-foreground">
           <Link href="/lupa-password" className="text-inkai-red hover:underline">
-            Ubah password
+            Lupa / reset password lewat ranting
           </Link>
         </p>
       </div>

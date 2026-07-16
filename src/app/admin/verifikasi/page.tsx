@@ -13,10 +13,13 @@ export const dynamic = "force-dynamic";
 
 const TYPE_LABELS: Record<string, string> = {
   RANK_UPGRADE: "Kenaikan Sabuk",
+  RANK_PROMOTION: "Kenaikan Sabuk",
   TRANSFER: "Pindah Dojo",
+  DOJO_TRANSFER: "Pindah Dojo",
   DOCUMENT: "Dokumen",
   ACHIEVEMENT: "Prestasi",
   MONTHLY_IURAN: "Iuran Bulanan",
+  PASSWORD_RESET: "Reset Password",
 };
 
 export default function AdminVerifikasiPage() {
@@ -40,7 +43,8 @@ async function AdminVerifikasiContent() {
       <div className="mb-6">
         <h2 className="text-2xl font-bold">Antrean Verifikasi</h2>
         <p className="text-muted-foreground">
-          {claims.length} pengajuan menunggu persetujuan
+          {claims.length} pengajuan menunggu persetujuan (termasuk reset
+          password anggota)
         </p>
       </div>
 
@@ -56,6 +60,16 @@ async function AdminVerifikasiContent() {
             const member = c.member as Record<string, unknown> | undefined;
             const dojo = member?.dojo as { name?: string } | undefined;
             const event = c.event as { title?: string } | undefined;
+            const claimType = String(c.type);
+            let resetEmail: string | null = null;
+            if (claimType === "PASSWORD_RESET" && c.data != null) {
+              try {
+                const parsed = JSON.parse(String(c.data)) as { email?: string };
+                resetEmail = parsed.email ?? null;
+              } catch {
+                resetEmail = null;
+              }
+            }
             return (
             <Card key={String(c.id)}>
               <CardContent className="p-4">
@@ -65,12 +79,26 @@ async function AdminVerifikasiContent() {
                     <p className="text-sm text-muted-foreground">
                       {String(member?.nia ?? "—")} · {dojo?.name ?? "—"}
                     </p>
+                    {resetEmail ? (
+                      <p className="text-sm font-medium text-inkai-red">
+                        Email login: {resetEmail}
+                      </p>
+                    ) : null}
                   </div>
-                  <Badge variant="secondary">
-                    {TYPE_LABELS[String(c.type)] || String(c.type)}
+                  <Badge
+                    variant="secondary"
+                    className={
+                      claimType === "PASSWORD_RESET"
+                        ? "bg-inkai-red/10 text-inkai-red"
+                        : undefined
+                    }
+                  >
+                    {TYPE_LABELS[claimType] || claimType}
                   </Badge>
                 </div>
-                {c.data != null && c.data !== "" && (
+                {claimType !== "PASSWORD_RESET" &&
+                  c.data != null &&
+                  c.data !== "" && (
                   <p className="mb-2 text-sm">{String(c.data)}</p>
                 )}
                 {event != null && (
@@ -78,7 +106,7 @@ async function AdminVerifikasiContent() {
                     Event: {event.title}
                   </p>
                 )}
-                {c.proofUrl != null && c.proofUrl !== "" && (
+                {c.proofUrl != null && c.proofUrl !== "" && c.proofUrl !== "—" && (
                   <a
                     href={String(c.proofUrl)}
                     target="_blank"
@@ -91,7 +119,10 @@ async function AdminVerifikasiContent() {
                 <p className="mb-3 text-xs text-muted-foreground">
                   Diajukan: {new Date(String(c.createdAt)).toLocaleString("id-ID")}
                 </p>
-                <VerificationActions verificationId={String(c.id)} />
+                <VerificationActions
+                  verificationId={String(c.id)}
+                  type={claimType}
+                />
               </CardContent>
             </Card>
             );
