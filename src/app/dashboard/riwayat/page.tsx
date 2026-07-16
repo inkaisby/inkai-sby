@@ -9,30 +9,41 @@ import { MemberPageHeader } from "@/components/member/MemberPageHeader";
 
 export const dynamic = "force-dynamic";
 
-export default async function MemberKegiatanPage() {
+export default async function RiwayatPage() {
   const session = await auth();
   if (!session?.user.memberId) redirect("/login");
   const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
 
   const registrations = await fetchMyEventRegistrations(token);
+  const now = Date.now();
+
+  const past = registrations.filter((r) => {
+    const event = r.event as
+      | { startDate?: string; endDate?: string }
+      | undefined;
+    if (!event) return false;
+    const end = event.endDate
+      ? new Date(event.endDate).getTime()
+      : event.startDate
+        ? new Date(event.startDate).getTime()
+        : 0;
+    return end < now;
+  });
 
   return (
     <>
-      <MemberPageHeader
-        title="Kegiatan Saya"
-      />
-      {registrations.length === 0 ? (
+      <MemberPageHeader title="Riwayat Kegiatan" />
+      {past.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          Anda belum terdaftar di kegiatan manapun.
+          Belum ada riwayat kegiatan.
         </div>
       ) : (
         <div className="space-y-3">
-          {registrations.map((r) => {
+          {past.map((r) => {
             const event = r.event as
               | { id?: string; title?: string; startDate?: string }
               | undefined;
-            const category = r.category as { name?: string } | null | undefined;
             return (
               <Link
                 key={String(r.id)}
@@ -49,7 +60,6 @@ export default async function MemberKegiatanPage() {
                     {event?.startDate
                       ? new Date(event.startDate).toLocaleDateString("id-ID")
                       : "—"}
-                    {category && ` · ${category.name}`}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

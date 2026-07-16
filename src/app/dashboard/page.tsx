@@ -295,7 +295,9 @@ export default async function MemberDashboard() {
                 <Link
                   key={String(r.id)}
                   href={
-                    event?.id ? `/kegiatan/${event.id}` : "/dashboard/kegiatan"
+                    event?.id
+                      ? `/dashboard/kegiatan/${event.id}`
+                      : "/dashboard/kegiatan"
                   }
                   className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card/80 p-3.5 transition-colors hover:bg-muted/40"
                 >
@@ -341,7 +343,10 @@ export default async function MemberDashboard() {
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-extrabold">Event Terdekat</h2>
-          <Link href="/kegiatan" className="text-xs font-semibold text-inkai-red">
+          <Link
+            href="/dashboard/kegiatan"
+            className="text-xs font-semibold text-inkai-red"
+          >
             Lihat Semua
           </Link>
         </div>
@@ -375,7 +380,7 @@ export default async function MemberDashboard() {
               return (
                 <Link
                   key={String(e.id)}
-                  href={`/kegiatan/${e.id}`}
+                  href={`/dashboard/kegiatan/${e.id}`}
                   className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card/80 p-3.5 transition-colors hover:bg-muted/40"
                 >
                   <div

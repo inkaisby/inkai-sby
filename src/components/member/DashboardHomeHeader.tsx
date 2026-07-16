@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { Bell, LogOut } from "lucide-react";
+import { Bell, LogOut, MessageCircle, ScrollText } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ThemeIconButton } from "@/components/member/ThemeIconButton";
 
 export function DashboardHomeHeader({
   name,
@@ -44,7 +45,22 @@ export function DashboardHomeHeader({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5">
+        <Link
+          href="/dashboard/panduan"
+          className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/80 text-foreground transition-colors hover:bg-muted"
+          aria-label="Panduan"
+        >
+          <ScrollText size={18} />
+        </Link>
+        <Link
+          href="/dashboard/pesan"
+          className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/80 text-foreground transition-colors hover:bg-muted"
+          aria-label="Pesan"
+        >
+          <MessageCircle size={18} />
+        </Link>
+        <ThemeIconButton />
         <Link
           href="/dashboard/notifikasi"
           className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-muted/80 text-foreground transition-colors hover:bg-muted"

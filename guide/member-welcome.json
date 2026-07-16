@@ -1,0 +1,24 @@
+{
+  "version": "1",
+  "enabled": true,
+  "title": "Panduan singkat",
+  "subtitle": "Beberapa hal yang membantu Anda mulai menggunakan dashboard anggota INKAI Surabaya.",
+  "items": [
+    {
+      "heading": "Dashboard",
+      "text": "Di beranda Anda melihat kartu anggota, pintasan fitur, dan informasi event."
+    },
+    {
+      "heading": "Profil & kelengkapan data",
+      "text": "Lengkapi profil dan dokumen yang diminta agar bisa mendaftar kegiatan."
+    },
+    {
+      "heading": "Notifikasi & pesan",
+      "text": "Periksa ikon lonceng dan menu pesan untuk pengumuman dari pengurus."
+    }
+  ],
+  "footer": "Anda bisa membaca panduan ini lagi lewat ikon panduan di beranda.",
+  "primaryCtaLabel": "Mengerti, jangan tampilkan lagi",
+  "fullGuideLinkLabel": "Buka halaman panduan",
+  "fullGuidePath": "/dashboard/panduan"
+}

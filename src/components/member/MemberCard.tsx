@@ -22,7 +22,7 @@ export function MemberCard({
     : null;
 
   return (
-    <div className="relative min-h-[220px] w-full overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-card via-secondary/40 to-card shadow-[0_10px_30px_rgba(200,16,46,0.12)] dark:from-[#20222b] dark:via-[#292c37] dark:to-[#1b1c24] dark:shadow-[0_10px_30px_rgba(200,16,46,0.18)]">
+    <div className="member-fade-in relative min-h-[220px] w-full overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-card via-secondary/40 to-card shadow-[0_10px_30px_rgba(200,16,46,0.12)] dark:from-[#20222b] dark:via-[#292c37] dark:to-[#1b1c24] dark:shadow-[0_10px_30px_rgba(200,16,46,0.18)]">
       <Shield
         className="pointer-events-none absolute -right-5 -bottom-5 text-foreground/[0.03]"
         size={150}
