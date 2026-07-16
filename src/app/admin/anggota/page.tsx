@@ -220,29 +220,22 @@ async function AdminAnggotaContent({
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold">Kelola Anggota</h2>
-          <p className="text-muted-foreground">
-            {ROLE_LABELS[primaryRole] || primaryRole} — {total} anggota
-            {dojoId && dojos.length
-              ? ` · ${dojos.find((d) => d.id === dojoId)?.name || "Dojo"}`
-              : ""}
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold">Kelola Anggota</h2>
+        <p className="text-muted-foreground">
+          {ROLE_LABELS[primaryRole] || primaryRole} — {total} anggota
+          {dojoId && dojos.length
+            ? ` · ${dojos.find((d) => d.id === dojoId)?.name || "Dojo"}`
+            : ""}
+        </p>
+        {!result.ok && (
+          <p className="mt-2 text-sm text-destructive">
+            Gagal memuat data anggota dari API.
           </p>
-          {!result.ok && (
-            <p className="mt-2 text-sm text-destructive">
-              Gagal memuat data anggota dari API.
-            </p>
-          )}
-        </div>
-        <AnggotaAddButton
-          dojos={dojos.map((d) => ({ id: d.id, name: d.name }))}
-          defaultDojoId={lockedDojoId || dojoId || ""}
-          lockDojo={Boolean(lockedDojoId)}
-        />
+        )}
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {kpis.map((kpi) => {
           const Icon = kpi.icon;
           return (
@@ -272,6 +265,14 @@ async function AdminAnggotaContent({
             </Link>
           );
         })}
+      </div>
+
+      <div className="mb-4">
+        <AnggotaAddButton
+          dojos={dojos.map((d) => ({ id: d.id, name: d.name }))}
+          defaultDojoId={lockedDojoId || dojoId || ""}
+          lockDojo={Boolean(lockedDojoId)}
+        />
       </div>
 
       <form className="mb-4 flex flex-wrap items-end gap-2">
