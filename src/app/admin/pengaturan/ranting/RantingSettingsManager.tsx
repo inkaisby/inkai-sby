@@ -473,7 +473,7 @@ export function RantingSettingsManager({
                 </div>
               )}
               <div className="space-y-1.5 sm:col-span-2">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
                   <Label>Password</Label>
                   <Button
                     type="button"

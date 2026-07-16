@@ -88,7 +88,7 @@ export function VerificationActions({
   if (isPasswordReset) {
     return (
       <div className="space-y-2 rounded-lg border border-inkai-red/20 bg-inkai-red/5 p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs font-semibold text-inkai-red">
             Ubah password email anggota
           </p>
