@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { requireAdminSession } from "@/lib/admin-session";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
-import { ROLE_LABELS } from "@/lib/rbac";
+import { ROLE_LABELS, getPrimaryAdminRole } from "@/lib/rbac";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { SettingsKpiGrid } from "@/components/admin/pengaturan/SettingsKpiGrid";
 import { SettingsLoadWarning } from "@/components/admin/pengaturan/SettingsLoadWarning";
@@ -21,6 +21,9 @@ export default function PengaturanAkunPage() {
 
 async function PengaturanAkunContent() {
   const { user } = await requireAdminSession();
+  if (getPrimaryAdminRole(user.roles) === "ADMIN_DOJO") {
+    redirect("/admin/pengaturan");
+  }
 
   const dbUserResult = await withPrismaFallback(
     "pengaturan-akun",

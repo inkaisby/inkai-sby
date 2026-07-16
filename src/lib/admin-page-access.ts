@@ -10,16 +10,21 @@ const DOJO_ALLOWED_PREFIXES = [
   "/admin/kegiatan",
   "/admin/absensi",
   "/admin/notifikasi",
-  "/admin/pengaturan/ranting",
-  "/admin/pengaturan/akun",
+  "/admin/pengaturan",
 ];
 
 const DOJO_BLOCKED_EXACT = new Set([
-  "/admin/pengaturan",
   "/admin/organisasi",
   "/admin/carousel",
   "/admin/audit",
 ]);
+
+const DOJO_BLOCKED_PENGATURAN_CHILDREN = [
+  "/admin/pengaturan/user",
+  "/admin/pengaturan/cabang",
+  "/admin/pengaturan/peran",
+  "/admin/pengaturan/geofencing",
+];
 
 export function canAccessAdminPath(roles: string[], pathname: string): boolean {
   const role = getPrimaryAdminRole(roles);
@@ -28,8 +33,20 @@ export function canAccessAdminPath(roles: string[], pathname: string): boolean {
   if (role !== "ADMIN_DOJO") return true;
 
   if (DOJO_BLOCKED_EXACT.has(path)) return false;
+  if (DOJO_BLOCKED_PENGATURAN_CHILDREN.some((p) => path === p || path.startsWith(`${p}/`))) {
+    return false;
+  }
 
-  // Exact /admin home is allowed
+  // Ranting/akun lama diarahkan ke hub; tetap boleh diload (redirect di page)
+  if (
+    path === "/admin/pengaturan/ranting" ||
+    path.startsWith("/admin/pengaturan/ranting/") ||
+    path === "/admin/pengaturan/akun" ||
+    path.startsWith("/admin/pengaturan/akun/")
+  ) {
+    return true;
+  }
+
   if (path === "/admin") return true;
 
   return DOJO_ALLOWED_PREFIXES.some(
@@ -41,6 +58,6 @@ export function canAccessAdminPath(roles: string[], pathname: string): boolean {
 
 export function adminFallbackPath(roles: string[]): string {
   const role = getPrimaryAdminRole(roles);
-  if (role === "ADMIN_DOJO") return "/admin/pengaturan/ranting";
+  if (role === "ADMIN_DOJO") return "/admin/pengaturan";
   return "/admin";
 }

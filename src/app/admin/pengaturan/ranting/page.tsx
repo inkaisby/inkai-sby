@@ -51,6 +51,10 @@ async function PengaturanRantingContent({
   const { user, token } = await requireAdminSession();
   if (!canManageRanting(user)) redirect("/admin/pengaturan");
 
+  const role = getPrimaryAdminRole(user.roles);
+  // Admin ranting memakai halaman Pengaturan gabungan
+  if (role === "ADMIN_DOJO") redirect("/admin/pengaturan");
+
   const params = await searchParams;
   const q = params.q?.trim().toLowerCase() || "";
   const branchFilter = params.branchId?.trim() || "";
@@ -58,7 +62,6 @@ async function PengaturanRantingContent({
   const page = parsePage(params.page);
   const pageSize = parsePageSize(params.pageSize, PAGE_SIZE_OPTIONS, 10);
 
-  const role = getPrimaryAdminRole(user.roles);
   const lockedBranchId =
     role === "ADMIN_BRANCH" ? user.managedBranchId ?? null : null;
   const lockedDojoId =

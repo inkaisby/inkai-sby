@@ -131,6 +131,12 @@ export function RantingSettingsManager({
     setRevealedByDojoId(loadStoredCredentials());
   }, []);
 
+  useEffect(() => {
+    if (!selfManagedOnly || dojos.length !== 1 || mode) return;
+    openEdit(dojos[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only auto-open once when single own dojo loads
+  }, [selfManagedOnly, dojos]);
+
   const targetDojo = useMemo(
     () => dojos.find((d) => d.id === targetId) ?? null,
     [dojos, targetId],

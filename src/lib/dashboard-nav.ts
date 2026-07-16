@@ -51,7 +51,7 @@ export function getAdminNavLinks(roles: string[]): NavItem[] {
 
   if (role !== "ADMIN_DOJO") return ADMIN_LINKS;
 
-  // Ranting: operasional + data ranting sendiri (tanpa organisasi/carousel/audit)
+  // Ranting: satu menu Pengaturan (data ranting + akun digabung)
   return [
     { href: "/admin", label: "Beranda Admin" },
     { href: "/admin/anggota", label: "Kelola Anggota" },
@@ -60,13 +60,7 @@ export function getAdminNavLinks(roles: string[]): NavItem[] {
     { href: "/admin/verifikasi", label: "Verifikasi" },
     { href: "/admin/kegiatan", label: "Event & Kegiatan" },
     { href: "/admin/absensi", label: "Absensi" },
-    {
-      label: "Pengaturan",
-      children: [
-        { href: "/admin/pengaturan/ranting", label: "Pengaturan Ranting" },
-        { href: "/admin/pengaturan/akun", label: "Akun Saya" },
-      ],
-    },
+    { href: "/admin/pengaturan", label: "Pengaturan" },
   ];
 }
 

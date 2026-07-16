@@ -33,10 +33,22 @@ import {
   User,
   Users,
 } from "lucide-react";
+import { DojoPengaturanContent } from "./DojoPengaturanContent";
 
 export const dynamic = "force-dynamic";
 
 export default async function PengaturanHubPage() {
+  const { user } = await requireAdminSession();
+  const role = getPrimaryAdminRole(user.roles);
+
+  if (role === "ADMIN_DOJO") {
+    return <DojoPengaturanContent />;
+  }
+
+  return <PengaturanHubContent />;
+}
+
+async function PengaturanHubContent() {
   const { user, token } = await requireAdminSession();
   const role = getPrimaryAdminRole(user.roles);
 
