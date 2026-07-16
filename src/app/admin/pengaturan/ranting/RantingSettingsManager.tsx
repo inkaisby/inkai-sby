@@ -59,6 +59,29 @@ type RevealedCredential = {
   loginPassword: string;
 };
 
+const CREDENTIAL_STORAGE_KEY = "inkai-ranting-credentials-v1";
+
+function loadStoredCredentials(): Record<string, RevealedCredential> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(CREDENTIAL_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, RevealedCredential>;
+    if (!parsed || typeof parsed !== "object") return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function persistCredentials(map: Record<string, RevealedCredential>) {
+  try {
+    localStorage.setItem(CREDENTIAL_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
 const emptyForm = {
   name: "",
   branchId: "",
@@ -101,6 +124,10 @@ export function RantingSettingsManager({
   );
   const [copiedCredential, setCopiedCredential] = useState(false);
 
+  useEffect(() => {
+    setRevealedByDojoId(loadStoredCredentials());
+  }, []);
+
   const targetDojo = useMemo(
     () => dojos.find((d) => d.id === targetId) ?? null,
     [dojos, targetId],
@@ -111,9 +138,15 @@ export function RantingSettingsManager({
     [dojos, detailDojoId],
   );
 
-  const detailCredential = detailDojoId
-    ? (revealedByDojoId[detailDojoId] ?? null)
-    : null;
+  const detailCredential = useMemo(() => {
+    if (!detailDojo?.adminEmail) return null;
+    const stored = revealedByDojoId[detailDojo.id];
+    return {
+      loginEmail: stored?.loginEmail || detailDojo.adminEmail,
+      loginPassword:
+        stored?.loginPassword || generateSimplePassword(detailDojo.name),
+    };
+  }, [detailDojo, revealedByDojoId]);
 
   useEffect(() => {
     if (!pendingReveal) return;
@@ -122,35 +155,34 @@ export function RantingSettingsManager({
         d.adminEmail?.toLowerCase() === pendingReveal.loginEmail.toLowerCase(),
     );
     if (!match) return;
-    setRevealedByDojoId((prev) => ({
-      ...prev,
-      [match.id]: pendingReveal,
-    }));
+    saveCredential(match.id, pendingReveal.loginEmail, pendingReveal.loginPassword);
     setDetailDojoId(match.id);
     setCopiedCredential(false);
     setPendingReveal(null);
   }, [dojos, pendingReveal]);
+
+  function saveCredential(
+    dojoId: string,
+    loginEmail: string,
+    loginPassword: string,
+  ) {
+    setRevealedByDojoId((prev) => {
+      const next = {
+        ...prev,
+        [dojoId]: { loginEmail, loginPassword },
+      };
+      persistCredentials(next);
+      return next;
+    });
+  }
 
   function revealCredential(
     dojoId: string,
     loginEmail: string,
     loginPassword: string,
   ) {
-    setRevealedByDojoId((prev) => ({
-      ...prev,
-      [dojoId]: { loginEmail, loginPassword },
-    }));
+    saveCredential(dojoId, loginEmail, loginPassword);
     setDetailDojoId(dojoId);
-    setCopiedCredential(false);
-  }
-
-  function dismissDetailCredential() {
-    if (!detailDojoId) return;
-    setRevealedByDojoId((prev) => {
-      const next = { ...prev };
-      delete next[detailDojoId];
-      return next;
-    });
     setCopiedCredential(false);
   }
 
@@ -391,8 +423,8 @@ export function RantingSettingsManager({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Buat username &amp; password agar pengurus ranting bisa login. Password
-          dikonfirmasi dua kali. Klik baris untuk melihat detail kredensial.
+          Buat username &amp; password agar pengurus ranting bisa login. Klik
+          baris untuk melihat kredensial kapan saja.
         </p>
         <Button
           type="button"
@@ -762,25 +794,14 @@ export function RantingSettingsManager({
               <div className="space-y-4 px-4 pb-6">
                 {detailCredential ? (
                   <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
-                    <div className="mb-2 flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold text-emerald-800 dark:text-emerald-300">
-                          Kredensial {detailDojo.name}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Salin sekarang — password tidak ditampilkan lagi
-                          setelah ditutup.
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={dismissDetailCredential}
-                        aria-label="Sembunyikan password"
-                      >
-                        ×
-                      </Button>
+                    <div className="mb-2">
+                      <p className="font-semibold text-emerald-800 dark:text-emerald-300">
+                        Kredensial {detailDojo.name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Username dan password akun login ranting — bisa dilihat
+                        dan disalin kapan saja.
+                      </p>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2">
                       <div className="rounded-lg border bg-background px-3 py-2">
@@ -820,57 +841,22 @@ export function RantingSettingsManager({
                     <p className="font-semibold text-emerald-800 dark:text-emerald-300">
                       Kredensial {detailDojo.name}
                     </p>
-                    {detailDojo.adminEmail ? (
-                      <>
-                        <div className="mt-3 rounded-lg border bg-background px-3 py-2">
-                          <p className="text-xs text-muted-foreground">
-                            Username
-                          </p>
-                          <p className="font-mono text-sm break-all">
-                            {detailDojo.adminEmail}
-                          </p>
-                        </div>
-                        <p className="mt-3 text-sm text-muted-foreground">
-                          Password tidak bisa ditampilkan lagi. Gunakan{" "}
-                          <span className="font-medium text-foreground">
-                            Reset PW
-                          </span>{" "}
-                          untuk membuat password baru, lalu salin dari sini.
-                        </p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="mt-3 gap-1.5"
-                          onClick={() => {
-                            setDetailDojoId(null);
-                            openReset(detailDojo);
-                          }}
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                          Reset Password
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          Belum ada akun login untuk ranting ini.
-                        </p>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="mt-3 gap-1.5"
-                          onClick={() => {
-                            setDetailDojoId(null);
-                            openLogin(detailDojo);
-                          }}
-                        >
-                          <KeyRound className="h-3.5 w-3.5" />
-                          Buat Login
-                        </Button>
-                      </>
-                    )}
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Belum ada akun login untuk ranting ini.
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-3 gap-1.5"
+                      onClick={() => {
+                        setDetailDojoId(null);
+                        openLogin(detailDojo);
+                      }}
+                    >
+                      <KeyRound className="h-3.5 w-3.5" />
+                      Buat Login
+                    </Button>
                   </div>
                 )}
 
