@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { showError, showSuccess } from "@/lib/client-toast";
+import { generatePassword } from "@/lib/security/password";
 
 export function VerificationActions({
   verificationId,
@@ -20,6 +22,13 @@ export function VerificationActions({
   const [loading, setLoading] = useState(false);
 
   const isPasswordReset = type === "PASSWORD_RESET";
+
+  function fillGeneratedPassword() {
+    const password = generatePassword(10);
+    setNewPassword(password);
+    setConfirmPassword(password);
+    showSuccess("Password otomatis diisi. Salin sebelum menyimpan.");
+  }
 
   async function handleAction(action: "approve" | "reject") {
     setLoading(true);
@@ -79,11 +88,24 @@ export function VerificationActions({
   if (isPasswordReset) {
     return (
       <div className="space-y-2 rounded-lg border border-inkai-red/20 bg-inkai-red/5 p-3">
-        <p className="text-xs font-semibold text-inkai-red">
-          Ubah password email anggota
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs font-semibold text-inkai-red">
+            Ubah password email anggota
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            onClick={fillGeneratedPassword}
+            disabled={loading}
+          >
+            <Sparkles className="size-3.5" />
+            Generate Password
+          </Button>
+        </div>
         <Input
-          type="password"
+          type="text"
           placeholder="Password baru"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
@@ -91,7 +113,7 @@ export function VerificationActions({
           autoComplete="new-password"
         />
         <Input
-          type="password"
+          type="text"
           placeholder="Konfirmasi password baru"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
