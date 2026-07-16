@@ -5,9 +5,10 @@ import {
   buildScopedDojoWhere,
   canManageGeofencing,
 } from "@/lib/pengaturan";
-import { prisma } from "@/lib/prisma";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { SettingsKpiGrid } from "@/components/admin/pengaturan/SettingsKpiGrid";
+import { SettingsLoadWarning } from "@/components/admin/pengaturan/SettingsLoadWarning";
 import {
   SettingsPagination,
   SettingsSearchForm,
@@ -55,18 +56,24 @@ async function PengaturanGeofencingContent({
   const page = parsePage(params.page);
   const pageSize = parsePageSize(params.pageSize, PAGE_SIZE_OPTIONS, 10);
 
-  const dojos = await prisma.dojo.findMany({
-    where: buildScopedDojoWhere(user),
-    select: {
-      id: true,
-      name: true,
-      latitude: true,
-      longitude: true,
-      geofenceRadius: true,
-      branch: { select: { name: true } },
-    },
-    orderBy: { name: "asc" },
-  });
+  const dojosResult = await withPrismaFallback(
+    "pengaturan-geofencing",
+    () =>
+      prisma.dojo.findMany({
+        where: buildScopedDojoWhere(user),
+        select: {
+          id: true,
+          name: true,
+          latitude: true,
+          longitude: true,
+          geofenceRadius: true,
+          branch: { select: { name: true } },
+        },
+        orderBy: { name: "asc" },
+      }),
+    [],
+  );
+  const dojos = dojosResult.data;
 
   const mapped = dojos.map((d) => ({
     id: d.id,
@@ -113,6 +120,10 @@ async function PengaturanGeofencingContent({
           Atur titik pusat dan radius maksimal absensi anggota per ranting
         </p>
       </div>
+
+      {dojosResult.failed ? (
+        <SettingsLoadWarning message="Data geofencing sementara tidak tersedia (database sibuk). Coba refresh sebentar lagi." />
+      ) : null}
 
       <SettingsKpiGrid
         items={[

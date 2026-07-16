@@ -147,40 +147,48 @@ export const getActiveNewsCarouselPreview = unstable_cache(
 );
 
 async function fetchBranchStructure(): Promise<PublicBranchStructure | null> {
-  const { res, data } = await inkaiFetch("/v1/org/provinces", {}, null);
-  if (!res.ok) return null;
+  try {
+    const { res, data } = await inkaiFetch("/v1/org/provinces", {}, null, {
+      timeoutMs: 25_000,
+      retries: 1,
+    });
+    if (!res.ok) return null;
 
-  const provinces = (data.data as Array<Record<string, unknown>>) ?? [];
-  const province = provinces.find(
-    (p) => String(p.name).toUpperCase() === SITE_PROVINCE_NAME.toUpperCase(),
-  );
-  if (!province) return null;
+    const provinces = (data.data as Array<Record<string, unknown>>) ?? [];
+    const province = provinces.find(
+      (p) => String(p.name).toUpperCase() === SITE_PROVINCE_NAME.toUpperCase(),
+    );
+    if (!province) return null;
 
-  const branches = (province.branches as Array<Record<string, unknown>>) ?? [];
-  const branch = branches.find(
-    (b) => String(b.name).toUpperCase() === SITE_BRANCH_NAME.toUpperCase(),
-  );
-  if (!branch) return null;
+    const branches = (province.branches as Array<Record<string, unknown>>) ?? [];
+    const branch = branches.find(
+      (b) => String(b.name).toUpperCase() === SITE_BRANCH_NAME.toUpperCase(),
+    );
+    if (!branch) return null;
 
-  return {
-    id: String(branch.id),
-    name: String(branch.name ?? ""),
-    headName: (branch.headName as string | null) ?? null,
-    city: (branch.city as string | null) ?? null,
-    province: {
-      id: String(province.id),
-      name: String(province.name ?? ""),
-      headName: (province.headName as string | null) ?? null,
-    },
-    dojos: ((branch.dojos as Array<Record<string, unknown>>) ?? []).map((d) => ({
-      id: String(d.id),
-      name: String(d.name ?? ""),
-      address: (d.address as string | null) ?? null,
-      headName: (d.headName as string | null) ?? null,
-      kecamatan: (d.kecamatan as string | null) ?? null,
-      _count: { members: (d._count as { members?: number })?.members ?? 0 },
-    })),
-  };
+    return {
+      id: String(branch.id),
+      name: String(branch.name ?? ""),
+      headName: (branch.headName as string | null) ?? null,
+      city: (branch.city as string | null) ?? null,
+      province: {
+        id: String(province.id),
+        name: String(province.name ?? ""),
+        headName: (province.headName as string | null) ?? null,
+      },
+      dojos: ((branch.dojos as Array<Record<string, unknown>>) ?? []).map((d) => ({
+        id: String(d.id),
+        name: String(d.name ?? ""),
+        address: (d.address as string | null) ?? null,
+        headName: (d.headName as string | null) ?? null,
+        kecamatan: (d.kecamatan as string | null) ?? null,
+        _count: { members: (d._count as { members?: number })?.members ?? 0 },
+      })),
+    };
+  } catch (error) {
+    console.error("[fetchBranchStructure]", error);
+    return null;
+  }
 }
 
 export const getBranchStructure = unstable_cache(
@@ -191,22 +199,31 @@ export const getBranchStructure = unstable_cache(
 
 export const getUpcomingEvents = unstable_cache(
   async (): Promise<PublicEventSummary[]> => {
-    const { res, data } = await inkaiFetch("/v1/events", {}, null);
-    if (!res.ok) return [];
+    try {
+      const { res, data } = await inkaiFetch("/v1/events", {}, null);
+      if (!res.ok) return [];
 
-    const branch = await fetchBranchStructure();
-    const branchId = branch?.id;
-    const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+      const branch = await fetchBranchStructure();
+      const branchId = branch?.id;
+      const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
 
-    const events = (data.data as Array<Record<string, unknown>>) ?? [];
-    return events
-      .filter((e) => {
-        if (branchId && e.branchId !== branchId) return false;
-        return new Date(String(e.startDate)).getTime() >= cutoff;
-      })
-      .sort((a, b) => new Date(String(a.startDate)).getTime() - new Date(String(b.startDate)).getTime())
-      .slice(0, 50)
-      .map(mapEventSummary);
+      const events = (data.data as Array<Record<string, unknown>>) ?? [];
+      return events
+        .filter((e) => {
+          if (branchId && e.branchId !== branchId) return false;
+          return new Date(String(e.startDate)).getTime() >= cutoff;
+        })
+        .sort(
+          (a, b) =>
+            new Date(String(a.startDate)).getTime() -
+            new Date(String(b.startDate)).getTime(),
+        )
+        .slice(0, 50)
+        .map(mapEventSummary);
+    } catch (error) {
+      console.error("[getUpcomingEvents]", error);
+      return [];
+    }
   },
   ["upcoming-events"],
   { revalidate: 60, tags: ["events"] },
@@ -215,18 +232,23 @@ export const getUpcomingEvents = unstable_cache(
 const getDojoByIdCached = (id: string) =>
   unstable_cache(
     async (): Promise<PublicDojoDetail | null> => {
-      const { res, data } = await inkaiFetch(`/v1/org/dojo/${id}`, {}, null);
-      if (!res.ok) return null;
-      const dojo = (data.data as Record<string, unknown>) ?? null;
-      if (!dojo) return null;
-      const branch = dojo.branch as Record<string, unknown> | undefined;
-      if (
-        branch &&
-        String(branch.name).toUpperCase() !== SITE_BRANCH_NAME.toUpperCase()
-      ) {
+      try {
+        const { res, data } = await inkaiFetch(`/v1/org/dojo/${id}`, {}, null);
+        if (!res.ok) return null;
+        const dojo = (data.data as Record<string, unknown>) ?? null;
+        if (!dojo) return null;
+        const branch = dojo.branch as Record<string, unknown> | undefined;
+        if (
+          branch &&
+          String(branch.name).toUpperCase() !== SITE_BRANCH_NAME.toUpperCase()
+        ) {
+          return null;
+        }
+        return mapDojoDetail(dojo);
+      } catch (error) {
+        console.error("[getDojoDetail]", id, error);
         return null;
       }
-      return mapDojoDetail(dojo);
     },
     [`dojo-detail-${id}`],
     { revalidate: 60, tags: ["dojo", `dojo-${id}`] },
@@ -235,10 +257,15 @@ const getDojoByIdCached = (id: string) =>
 const getEventByIdCached = (id: string) =>
   unstable_cache(
     async (): Promise<PublicEventDetail | null> => {
-      const { res, data } = await inkaiFetch(`/v1/events/${id}`, {}, null);
-      if (!res.ok) return null;
-      const event = (data.data as Record<string, unknown>) ?? null;
-      return event ? mapEventDetail(event) : null;
+      try {
+        const { res, data } = await inkaiFetch(`/v1/events/${id}`, {}, null);
+        if (!res.ok) return null;
+        const event = (data.data as Record<string, unknown>) ?? null;
+        return event ? mapEventDetail(event) : null;
+      } catch (error) {
+        console.error("[getEventDetail]", id, error);
+        return null;
+      }
     },
     [`event-detail-${id}`],
     { revalidate: 60, tags: ["events", `event-${id}`] },

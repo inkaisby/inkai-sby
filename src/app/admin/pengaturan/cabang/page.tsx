@@ -14,6 +14,7 @@ import {
   parsePageSize,
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
 import { CabangSettingsManager } from "./CabangSettingsManager";
+import { SettingsLoadWarning } from "@/components/admin/pengaturan/SettingsLoadWarning";
 import { Building2, Home, MapPin, UserCheck } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -54,18 +55,33 @@ async function PengaturanCabangContent({
   const pageSize = parsePageSize(params.pageSize, PAGE_SIZE_OPTIONS, 10);
 
   const { provinces, branches } = await fetchOrgStructure(token);
+  const orgLoadFailed = provinces.length === 0 && branches.length === 0;
 
   const branchIds = branches.map((b) => String(b.id));
-  const admins = branchIds.length
-    ? await prisma.user.findMany({
+  let admins: Array<{ email: string; managedBranchId: string | null }> = [];
+  let adminLoadFailed = false;
+
+  if (branchIds.length) {
+    try {
+      admins = await prisma.user.findMany({
         where: {
           isDeleted: false,
           managedBranchId: { in: branchIds },
           roles: { some: { name: "ADMIN_BRANCH" } },
         },
         select: { email: true, managedBranchId: true },
-      })
-    : [];
+      });
+    } catch (error) {
+      console.error("[pengaturan/cabang] prisma admins", error);
+      adminLoadFailed = true;
+    }
+  }
+
+  const warning = orgLoadFailed
+    ? "Data organisasi belum berhasil dimuat (API sibuk/timeout). Tekan refresh sebentar lagi."
+    : adminLoadFailed
+      ? "Data username login sementara tidak tersedia (database sibuk). Daftar cabang tetap ditampilkan."
+      : null;
   const adminByBranch = new Map(
     admins
       .filter((a) => a.managedBranchId)
@@ -121,6 +137,8 @@ async function PengaturanCabangContent({
           Tambah dan ubah cabang beserta akun admin cabang
         </p>
       </div>
+
+      {warning ? <SettingsLoadWarning message={warning} /> : null}
 
       <SettingsKpiGrid
         items={[

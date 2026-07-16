@@ -9,11 +9,25 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
-  if (!session) redirect("/login");
-  const token = await getInkaiAccessToken();
-  if (!token) redirect("/login");
-  if (canAccessAdmin(session.user)) redirect("/admin");
+  try {
+    const session = await auth();
+    if (!session) redirect("/login");
+    const token = await getInkaiAccessToken();
+    if (!token) redirect("/login");
+    if (canAccessAdmin(session.user)) redirect("/admin");
 
-  return <MemberMobileShell>{children}</MemberMobileShell>;
+    return <MemberMobileShell>{children}</MemberMobileShell>;
+  } catch (error) {
+    // Next.js redirect() throws; rethrow those.
+    if (
+      error &&
+      typeof error === "object" &&
+      "digest" in error &&
+      String((error as { digest?: string }).digest || "").startsWith("NEXT_REDIRECT")
+    ) {
+      throw error;
+    }
+    console.error("[DashboardLayout]", error);
+    redirect("/login");
+  }
 }

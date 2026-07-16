@@ -22,13 +22,53 @@ export type InkaiFetchResult = {
 
 export type InkaiFetchOptions = {
   timeoutMs?: number;
+  /** Extra attempts after the first failure (network / abort). Default 1. */
+  retries?: number;
+  /**
+   * When true, network/timeout errors rethrow instead of returning HTTP 503.
+   * Prefer soft-fail (default) for SSR pages so menus stay usable.
+   */
+  throwOnNetworkError?: boolean;
 };
 
-export async function inkaiFetch(
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableFetchError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const name = error.name.toLowerCase();
+  const message = error.message.toLowerCase();
+  return (
+    name === "aborterror" ||
+    message.includes("aborted") ||
+    message.includes("timeout") ||
+    message.includes("fetch failed") ||
+    message.includes("network") ||
+    message.includes("econnreset") ||
+    message.includes("socket")
+  );
+}
+
+function unavailableResult(path: string, error: unknown): InkaiFetchResult {
+  const message =
+    error instanceof Error ? error.message : "Inkai API unavailable";
+  console.error(`[inkaiFetch] ${path}`, error);
+  return {
+    res: new Response(JSON.stringify({ error: message }), {
+      status: 503,
+      statusText: "Service Unavailable",
+      headers: { "Content-Type": "application/json" },
+    }),
+    data: { error: message, path },
+  };
+}
+
+async function inkaiFetchOnce(
   path: string,
-  init: RequestInit = {},
-  token?: string | null,
-  options: InkaiFetchOptions = {},
+  init: RequestInit,
+  token: string | null | undefined,
+  timeoutMs: number,
 ): Promise<InkaiFetchResult> {
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && init.body) {
@@ -39,7 +79,6 @@ export async function inkaiFetch(
   }
 
   const controller = new AbortController();
-  const timeoutMs = options.timeoutMs ?? INKAI_FETCH_TIMEOUT_MS;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
@@ -52,12 +91,62 @@ export async function inkaiFetch(
 
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     return { res, data };
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.name === "AbortError" ||
+        error.message.toLowerCase().includes("aborted"))
+    ) {
+      throw new Error(
+        `Timed out fetching Inkai API ${path} after ${timeoutMs}ms`,
+      );
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
 }
 
-export function inkaiErrorMessage(data: Record<string, unknown>, fallback: string) {
+/**
+ * Fetch Inkai backend. Network/timeout failures soft-fail as HTTP 503 by default
+ * so SSR pages/menus degrade instead of crashing the whole segment.
+ */
+export async function inkaiFetch(
+  path: string,
+  init: RequestInit = {},
+  token?: string | null,
+  options: InkaiFetchOptions = {},
+): Promise<InkaiFetchResult> {
+  const timeoutMs = options.timeoutMs ?? INKAI_FETCH_TIMEOUT_MS;
+  const retries = Math.max(0, options.retries ?? 1);
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await inkaiFetchOnce(path, init, token, timeoutMs);
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries && isRetryableFetchError(error)) {
+        await sleep(400 * (attempt + 1));
+        continue;
+      }
+      break;
+    }
+  }
+
+  if (options.throwOnNetworkError) {
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Inkai API request failed");
+  }
+
+  return unavailableResult(path, lastError);
+}
+
+export function inkaiErrorMessage(
+  data: Record<string, unknown>,
+  fallback: string,
+) {
   if (typeof data.message === "string") return data.message;
   if (typeof data.error === "string") return data.error;
   return fallback;

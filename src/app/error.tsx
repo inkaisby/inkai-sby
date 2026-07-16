@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { SegmentErrorPanel } from "@/components/SegmentErrorPanel";
 
-export default function AdminError({
+export default function RootError({
   error,
   reset,
 }: {
@@ -11,16 +11,16 @@ export default function AdminError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[AdminError]", error);
+    console.error("[RootError]", error);
   }, [error]);
 
   return (
     <SegmentErrorPanel
-      title="Gagal memuat Admin Panel"
+      title="Gagal memuat halaman"
       error={error}
       reset={reset}
-      homeHref="/admin"
-      homeLabel="Beranda Admin"
+      homeHref="/"
+      homeLabel="Beranda"
     />
   );
 }

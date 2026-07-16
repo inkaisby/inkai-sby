@@ -2,10 +2,11 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/admin-session";
 import { canManageUsers, buildAdminUserWhere } from "@/lib/pengaturan";
-import { prisma } from "@/lib/prisma";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { ROLE_LABELS } from "@/lib/rbac";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { SettingsKpiGrid } from "@/components/admin/pengaturan/SettingsKpiGrid";
+import { SettingsLoadWarning } from "@/components/admin/pengaturan/SettingsLoadWarning";
 import {
   SettingsPagination,
   SettingsSearchForm,
@@ -55,44 +56,51 @@ async function PengaturanUserContent({
 
   const baseWhere = buildAdminUserWhere(user);
 
-  const [allUsers, activeCount, inactiveCount] = await Promise.all([
-    prisma.user.findMany({
-      where: {
-        AND: [
-          baseWhere,
-          q
-            ? {
-                OR: [
-                  { email: { contains: q, mode: "insensitive" } },
-                  { fullName: { contains: q, mode: "insensitive" } },
-                  { phoneNumber: { contains: q, mode: "insensitive" } },
-                ],
-              }
-            : {},
-          status === "active"
-            ? { isActive: true }
-            : status === "inactive"
-              ? { isActive: false }
-              : {},
-        ],
-      },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        phoneNumber: true,
-        isActive: true,
-        createdAt: true,
-        roles: { select: { name: true } },
-        managedProvince: { select: { name: true } },
-        managedBranch: { select: { name: true } },
-        managedDojo: { select: { name: true } },
-      },
-      orderBy: { email: "asc" },
-    }),
-    prisma.user.count({ where: { AND: [baseWhere, { isActive: true }] } }),
-    prisma.user.count({ where: { AND: [baseWhere, { isActive: false }] } }),
-  ]);
+  const usersResult = await withPrismaFallback(
+    "pengaturan-user-list",
+    () =>
+      Promise.all([
+        prisma.user.findMany({
+          where: {
+            AND: [
+              baseWhere,
+              q
+                ? {
+                    OR: [
+                      { email: { contains: q, mode: "insensitive" } },
+                      { fullName: { contains: q, mode: "insensitive" } },
+                      { phoneNumber: { contains: q, mode: "insensitive" } },
+                    ],
+                  }
+                : {},
+              status === "active"
+                ? { isActive: true }
+                : status === "inactive"
+                  ? { isActive: false }
+                  : {},
+            ],
+          },
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            phoneNumber: true,
+            isActive: true,
+            createdAt: true,
+            roles: { select: { name: true } },
+            managedProvince: { select: { name: true } },
+            managedBranch: { select: { name: true } },
+            managedDojo: { select: { name: true } },
+          },
+          orderBy: { email: "asc" },
+        }),
+        prisma.user.count({ where: { AND: [baseWhere, { isActive: true }] } }),
+        prisma.user.count({ where: { AND: [baseWhere, { isActive: false }] } }),
+      ]),
+    [[], 0, 0] as const,
+  );
+
+  const [allUsers, activeCount, inactiveCount] = usersResult.data;
 
   const roleSet = new Set(allUsers.flatMap((u) => u.roles.map((r) => r.name)));
   const mapped = allUsers.map((u) => ({
@@ -124,6 +132,10 @@ async function PengaturanUserContent({
           Kelola akun admin. Akun baru dibuat saat menambah cabang/ranting.
         </p>
       </div>
+
+      {usersResult.failed ? (
+        <SettingsLoadWarning message="Data user sementara tidak tersedia (database sibuk). Coba refresh sebentar lagi." />
+      ) : null}
 
       <SettingsKpiGrid
         items={[

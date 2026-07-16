@@ -15,6 +15,7 @@ import {
   parsePageSize,
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
 import { RantingSettingsManager } from "./RantingSettingsManager";
+import { SettingsLoadWarning } from "@/components/admin/pengaturan/SettingsLoadWarning";
 import { Home, KeyRound, Users, Building2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +62,8 @@ async function PengaturanRantingContent({
     role === "ADMIN_BRANCH" ? user.managedBranchId ?? null : null;
 
   const { branches, dojos } = await fetchOrgStructure(token);
+  const loadPartial =
+    branches.length === 0 && dojos.length === 0 ? "org" : null;
 
   let scopedBranches = branches.map((b) => ({
     id: String(b.id),
@@ -77,8 +80,16 @@ async function PengaturanRantingContent({
   }
 
   const dojoIds = scopedDojos.map((d) => String(d.id));
-  const admins = dojoIds.length
-    ? await prisma.user.findMany({
+  let admins: Array<{
+    email: string;
+    isActive: boolean;
+    managedDojoId: string | null;
+  }> = [];
+  let adminLoadFailed = false;
+
+  if (dojoIds.length) {
+    try {
+      admins = await prisma.user.findMany({
         where: {
           isDeleted: false,
           managedDojoId: { in: dojoIds },
@@ -89,8 +100,19 @@ async function PengaturanRantingContent({
           isActive: true,
           managedDojoId: true,
         },
-      })
-    : [];
+      });
+    } catch (error) {
+      console.error("[pengaturan/ranting] prisma admins", error);
+      adminLoadFailed = true;
+    }
+  }
+
+  const warning =
+    loadPartial === "org"
+      ? "Data organisasi belum berhasil dimuat (API sibuk/timeout). Tekan refresh sebentar lagi."
+      : adminLoadFailed
+        ? "Data username login sementara tidak tersedia (database sibuk). Daftar ranting tetap ditampilkan."
+        : null;
 
   const adminByDojo = new Map(
     admins
@@ -155,6 +177,8 @@ async function PengaturanRantingContent({
           ranting
         </p>
       </div>
+
+      {warning ? <SettingsLoadWarning message={warning} /> : null}
 
       <SettingsKpiGrid
         items={[

@@ -40,24 +40,30 @@ export async function fetchAdminMembers(
     dojoId?: string;
   } = {},
 ) {
-  const qs = new URLSearchParams();
-  qs.set("page", String(opts.page ?? 1));
-  qs.set("limit", String(opts.limit ?? 20));
-  if (opts.search) qs.set("search", opts.search);
-  if (opts.status) qs.set("status", opts.status);
-  if (opts.dojoId) qs.set("dojoId", opts.dojoId);
+  try {
+    const qs = new URLSearchParams();
+    qs.set("page", String(opts.page ?? 1));
+    qs.set("limit", String(opts.limit ?? 20));
+    if (opts.search) qs.set("search", opts.search);
+    if (opts.status) qs.set("status", opts.status);
+    if (opts.dojoId) qs.set("dojoId", opts.dojoId);
 
-  const { res, data } = await inkaiFetch(`/v1/members?${qs}`, {}, token);
-  if (!res.ok) return { ok: false as const, error: "Gagal memuat anggota" };
+    const { res, data } = await inkaiFetch(`/v1/members?${qs}`, {}, token);
+    if (!res.ok) return { ok: false as const, error: "Gagal memuat anggota" };
 
-  const members = (data.data as AdminMemberRow[]) ?? [];
-  const meta = (data.meta as { total?: number; page?: number; limit?: number }) ?? {};
-  return {
-    ok: true as const,
-    members,
-    total: meta.total ?? members.length,
-    page: meta.page ?? 1,
-  };
+    const members = (data.data as AdminMemberRow[]) ?? [];
+    const meta =
+      (data.meta as { total?: number; page?: number; limit?: number }) ?? {};
+    return {
+      ok: true as const,
+      members,
+      total: meta.total ?? members.length,
+      page: meta.page ?? 1,
+    };
+  } catch (error) {
+    console.error("[fetchAdminMembers]", error);
+    return { ok: false as const, error: "Gagal memuat anggota" };
+  }
 }
 
 export async function fetchDashboardStats(token: string) {
@@ -175,25 +181,40 @@ export const fetchAdminEvents = cache(async (token: string, limit = 50) => {
 });
 
 export const fetchOrgStructure = cache(async (token: string) => {
-  const { res, data } = await inkaiFetch("/v1/org/provinces", {}, token);
-  if (!res.ok) return { provinces: [], branches: [], dojos: [] };
+  try {
+    // Full org tree can be slow under load — longer timeout + one retry.
+    const { res, data } = await inkaiFetch("/v1/org/provinces", {}, token, {
+      timeoutMs: 25_000,
+      retries: 1,
+    });
+    if (!res.ok) return { provinces: [], branches: [], dojos: [] };
 
-  const provinces = (data.data as Array<Record<string, unknown>>) ?? [];
-  const branches: Array<Record<string, unknown>> = [];
-  const dojos: Array<Record<string, unknown>> = [];
-  for (const p of provinces) {
-    for (const b of (p.branches as Array<Record<string, unknown>>) ?? []) {
-      branches.push({ ...b, province: { id: p.id, name: p.name } });
-      for (const d of (b.dojos as Array<Record<string, unknown>>) ?? []) {
-        dojos.push({
-          ...d,
-          branch: { id: b.id, name: b.name, province: { id: p.id, name: p.name } },
-          _count: { members: (d._count as { members?: number })?.members ?? 0 },
-        });
+    const provinces = (data.data as Array<Record<string, unknown>>) ?? [];
+    const branches: Array<Record<string, unknown>> = [];
+    const dojos: Array<Record<string, unknown>> = [];
+    for (const p of provinces) {
+      for (const b of (p.branches as Array<Record<string, unknown>>) ?? []) {
+        branches.push({ ...b, province: { id: p.id, name: p.name } });
+        for (const d of (b.dojos as Array<Record<string, unknown>>) ?? []) {
+          dojos.push({
+            ...d,
+            branch: {
+              id: b.id,
+              name: b.name,
+              province: { id: p.id, name: p.name },
+            },
+            _count: {
+              members: (d._count as { members?: number })?.members ?? 0,
+            },
+          });
+        }
       }
     }
+    return { provinces, branches, dojos };
+  } catch (error) {
+    console.error("[fetchOrgStructure]", error);
+    return { provinces: [], branches: [], dojos: [] };
   }
-  return { provinces, branches, dojos };
 });
 
 export const fetchAdminDojos = cache(async (token: string) => {

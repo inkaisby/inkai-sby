@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { buildMemberFilter, type SessionUser } from "@/lib/rbac";
 
 export const VERIFICATION_TYPE_LABELS: Record<string, string> = {
@@ -77,24 +77,36 @@ export async function fetchVerificationHistory(
     member: memberWhere,
   };
 
-  const [total, rows] = await Promise.all([
-    prisma.verification.count({ where }),
-    prisma.verification.findMany({
-      where,
-      include: {
-        member: {
-          select: {
-            fullName: true,
-            nia: true,
-            dojo: { select: { name: true } },
+  const [totalResult, rowsResult] = await Promise.all([
+    withPrismaFallback(
+      "verification-history-count",
+      () => prisma.verification.count({ where }),
+      0,
+    ),
+    withPrismaFallback(
+      "verification-history-rows",
+      () =>
+        prisma.verification.findMany({
+          where,
+          include: {
+            member: {
+              select: {
+                fullName: true,
+                nia: true,
+                dojo: { select: { name: true } },
+              },
+            },
           },
-        },
-      },
-      orderBy: { updatedAt: "desc" },
-      skip: (page - 1) * limit,
-      take: limit,
-    }),
+          orderBy: { updatedAt: "desc" },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+      [],
+    ),
   ]);
+
+  const total = totalResult.data;
+  const rows = rowsResult.data;
 
   return {
     total,
