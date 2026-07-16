@@ -4,7 +4,7 @@ const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co",
+  "img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co https://api.qrserver.com",
   "font-src 'self'",
   "connect-src 'self'",
   "frame-ancestors 'none'",

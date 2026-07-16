@@ -3,8 +3,9 @@ import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { ChevronRight } from "lucide-react";
 import { fetchMyEventRegistrations } from "@/lib/inkai-api/member-data";
+import { MemberPageHeader } from "@/components/member/MemberPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -18,28 +19,37 @@ export default async function MemberKegiatanPage() {
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-2xl font-bold">Kegiatan Saya</h2>
-        <Link href="/kegiatan" className="text-sm text-inkai-red hover:underline">
-          Lihat semua kegiatan →
-        </Link>
-      </div>
+      <MemberPageHeader
+        title="Kegiatan Saya"
+        rightSlot={
+          <Link
+            href="/kegiatan"
+            className="text-[10px] font-semibold text-inkai-red"
+            aria-label="Lihat semua kegiatan"
+          >
+            Semua
+          </Link>
+        }
+      />
       {registrations.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
-            Anda belum terdaftar di kegiatan manapun.
-          </CardContent>
-        </Card>
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          Anda belum terdaftar di kegiatan manapun.
+        </div>
       ) : (
         <div className="space-y-3">
           {registrations.map((r) => {
-            const event = r.event as { title?: string; startDate?: string } | undefined;
+            const event = r.event as
+              | { id?: string; title?: string; startDate?: string }
+              | undefined;
             const category = r.category as { name?: string } | null | undefined;
             return (
-            <Card key={String(r.id)}>
-              <CardContent className="flex justify-between p-4">
-                <div>
-                  <p className="font-medium">{event?.title ?? "—"}</p>
+              <Link
+                key={String(r.id)}
+                href={event?.id ? `/kegiatan/${event.id}` : "/kegiatan"}
+                className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card p-4 transition-colors hover:bg-muted/40"
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold">{event?.title ?? "—"}</p>
                   <p className="text-sm text-muted-foreground">
                     {event?.startDate
                       ? new Date(event.startDate).toLocaleDateString("id-ID")
@@ -47,9 +57,11 @@ export default async function MemberKegiatanPage() {
                     {category && ` · ${category.name}`}
                   </p>
                 </div>
-                <Badge variant="secondary">{String(r.status)}</Badge>
-              </CardContent>
-            </Card>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Badge variant="secondary">{String(r.status)}</Badge>
+                  <ChevronRight size={16} className="text-muted-foreground" />
+                </div>
+              </Link>
             );
           })}
         </div>

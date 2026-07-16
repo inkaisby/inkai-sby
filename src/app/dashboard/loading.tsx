@@ -1,9 +1,9 @@
-import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
 
 export default function DashboardLoading() {
   return (
-    <div className="p-1">
-      <AdminPageLoader message="Memuat dashboard anggota..." rows={4} />
+    <div className="flex min-h-[50vh] items-center justify-center pt-10">
+      <InkaiLogoLoader size="md" message="Memuat..." />
     </div>
   );
 }
