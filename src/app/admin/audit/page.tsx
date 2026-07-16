@@ -3,6 +3,10 @@ import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import { canAccessAdmin } from "@/lib/rbac";
+import {
+  adminFallbackPath,
+  canAccessAdminPath,
+} from "@/lib/admin-page-access";
 import { fetchAuditLogs } from "@/lib/inkai-api/admin-data";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
@@ -19,6 +23,9 @@ export default function AdminAuditPage() {
 async function AdminAuditContent() {
   const session = await auth();
   if (!session || !canAccessAdmin(session.user)) redirect("/login");
+  if (!canAccessAdminPath(session.user.roles ?? [], "/admin/audit")) {
+    redirect(adminFallbackPath(session.user.roles ?? []));
+  }
   const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
 

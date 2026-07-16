@@ -1,3 +1,5 @@
+import { getPrimaryAdminRole } from "@/lib/rbac";
+
 export type NavLink = {
   href: string;
   label: string;
@@ -42,6 +44,31 @@ export const ADMIN_LINKS: NavItem[] = [
     ],
   },
 ];
+
+/** Sidebar links filtered by admin role. */
+export function getAdminNavLinks(roles: string[]): NavItem[] {
+  const role = getPrimaryAdminRole(roles);
+
+  if (role !== "ADMIN_DOJO") return ADMIN_LINKS;
+
+  // Ranting: operasional + data ranting sendiri (tanpa organisasi/carousel/audit)
+  return [
+    { href: "/admin", label: "Beranda Admin" },
+    { href: "/admin/anggota", label: "Kelola Anggota" },
+    { href: "/admin/iuran", label: "Iuran Anggota" },
+    { href: "/admin/ukt", label: "UKT" },
+    { href: "/admin/verifikasi", label: "Verifikasi" },
+    { href: "/admin/kegiatan", label: "Event & Kegiatan" },
+    { href: "/admin/absensi", label: "Absensi" },
+    {
+      label: "Pengaturan",
+      children: [
+        { href: "/admin/pengaturan/ranting", label: "Pengaturan Ranting" },
+        { href: "/admin/pengaturan/akun", label: "Akun Saya" },
+      ],
+    },
+  ];
+}
 
 export const MEMBER_LINKS: NavItem[] = [
   { href: "/dashboard", label: "Beranda" },

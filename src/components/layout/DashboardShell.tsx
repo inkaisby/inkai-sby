@@ -1,6 +1,7 @@
 "use client";
 
 import { AppSidebar, UserMenu } from "@/components/layout/AppShell";
+import { AdminAccessGate } from "@/components/layout/AdminAccessGate";
 import { DashboardTopbar } from "@/components/layout/DashboardTopbar";
 import { NavigationProvider, useNavigation } from "@/components/layout/NavigationProvider";
 import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
@@ -53,6 +54,7 @@ export function DashboardShell({
   userName,
   userEmail,
   showAdmin = false,
+  roles = [],
   children,
 }: {
   title: string;
@@ -60,6 +62,7 @@ export function DashboardShell({
   userName: string;
   userEmail: string;
   showAdmin?: boolean;
+  roles?: string[];
   children: React.ReactNode;
 }) {
   return (
@@ -74,7 +77,13 @@ export function DashboardShell({
             userEmail={userEmail}
             showAdmin={showAdmin}
           />
-          <MainContent>{children}</MainContent>
+          {showAdmin ? (
+            <AdminAccessGate roles={roles}>
+              <MainContent>{children}</MainContent>
+            </AdminAccessGate>
+          ) : (
+            <MainContent>{children}</MainContent>
+          )}
         </div>
       </div>
     </NavigationProvider>

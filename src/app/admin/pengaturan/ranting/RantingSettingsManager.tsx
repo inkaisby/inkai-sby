@@ -103,10 +103,13 @@ export function RantingSettingsManager({
   branches,
   dojos,
   lockedBranchId,
+  selfManagedOnly = false,
 }: {
   branches: { id: string; name: string }[];
   dojos: RantingRow[];
   lockedBranchId?: string | null;
+  /** Admin ranting: hanya ubah data sendiri, tanpa tambah/arsip/login. */
+  selfManagedOnly?: boolean;
 }) {
   const router = useRouter();
   const defaultBranchId = lockedBranchId || branches[0]?.id || "";
@@ -423,17 +426,20 @@ export function RantingSettingsManager({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Buat username &amp; password agar pengurus ranting bisa login. Klik
-          baris untuk melihat kredensial kapan saja.
+          {selfManagedOnly
+            ? "Klik Ubah untuk memperbarui data ranting Anda."
+            : "Buat username & password agar pengurus ranting bisa login. Klik baris untuk melihat kredensial kapan saja."}
         </p>
-        <Button
-          type="button"
-          onClick={openCreate}
-          disabled={loading}
-          className="bg-inkai-red hover:bg-inkai-red/90"
-        >
-          Tambah Ranting
-        </Button>
+        {!selfManagedOnly && (
+          <Button
+            type="button"
+            onClick={openCreate}
+            disabled={loading}
+            className="bg-inkai-red hover:bg-inkai-red/90"
+          >
+            Tambah Ranting
+          </Button>
+        )}
       </div>
 
       {mode && (
@@ -721,28 +727,32 @@ export function RantingSettingsManager({
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex flex-wrap justify-end gap-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={loading}
-                        onClick={() => openLogin(d)}
-                        className="gap-1"
-                      >
-                        <KeyRound className="h-3.5 w-3.5" />
-                        {d.adminEmail ? "Ganti Login" : "Buat Login"}
-                      </Button>
-                      {d.adminEmail ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={loading}
-                          onClick={() => openReset(d)}
-                          className="gap-1"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                          Reset PW
-                        </Button>
-                      ) : null}
+                      {!selfManagedOnly && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={loading}
+                            onClick={() => openLogin(d)}
+                            className="gap-1"
+                          >
+                            <KeyRound className="h-3.5 w-3.5" />
+                            {d.adminEmail ? "Ganti Login" : "Buat Login"}
+                          </Button>
+                          {d.adminEmail ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={loading}
+                              onClick={() => openReset(d)}
+                              className="gap-1"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                              Reset PW
+                            </Button>
+                          ) : null}
+                        </>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -751,18 +761,20 @@ export function RantingSettingsManager({
                         className="gap-1"
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                        Data
+                        {selfManagedOnly ? "Ubah" : "Data"}
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={loading}
-                        onClick={() => archiveDojo(d)}
-                        className="gap-1 text-destructive"
-                      >
-                        <Archive className="h-3.5 w-3.5" />
-                        Arsip
-                      </Button>
+                      {!selfManagedOnly && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={loading}
+                          onClick={() => archiveDojo(d)}
+                          className="gap-1 text-destructive"
+                        >
+                          <Archive className="h-3.5 w-3.5" />
+                          Arsip
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -792,7 +804,7 @@ export function RantingSettingsManager({
               </SheetHeader>
 
               <div className="space-y-4 px-4 pb-6">
-                {detailCredential ? (
+                {!selfManagedOnly && detailCredential ? (
                   <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
                     <div className="mb-2">
                       <p className="font-semibold text-emerald-800 dark:text-emerald-300">
@@ -836,7 +848,7 @@ export function RantingSettingsManager({
                       </Button>
                     </div>
                   </div>
-                ) : (
+                ) : !selfManagedOnly ? (
                   <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
                     <p className="font-semibold text-emerald-800 dark:text-emerald-300">
                       Kredensial {detailDojo.name}
@@ -858,7 +870,7 @@ export function RantingSettingsManager({
                       Buat Login
                     </Button>
                   </div>
-                )}
+                ) : null}
 
                 <div className="grid gap-3 text-sm">
                   <DetailField label="Cabang" value={detailDojo.branchName} />

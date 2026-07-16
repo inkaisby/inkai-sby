@@ -16,6 +16,7 @@ import {
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
 import { RantingSettingsManager } from "./RantingSettingsManager";
 import { SettingsLoadWarning } from "@/components/admin/pengaturan/SettingsLoadWarning";
+import { Card, CardContent } from "@/components/ui/card";
 import { Home, KeyRound, Users, Building2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +61,9 @@ async function PengaturanRantingContent({
   const role = getPrimaryAdminRole(user.roles);
   const lockedBranchId =
     role === "ADMIN_BRANCH" ? user.managedBranchId ?? null : null;
+  const lockedDojoId =
+    role === "ADMIN_DOJO" ? user.managedDojoId ?? null : null;
+  const selfManagedOnly = role === "ADMIN_DOJO";
 
   const { branches, dojos } = await fetchOrgStructure(token);
   const loadPartial =
@@ -77,6 +81,44 @@ async function PengaturanRantingContent({
       const branch = d.branch as { id?: string } | undefined;
       return String(branch?.id || "") === lockedBranchId;
     });
+  }
+
+  if (lockedDojoId) {
+    scopedDojos = scopedDojos.filter((d) => String(d.id) === lockedDojoId);
+    const own = scopedDojos[0];
+    const branch = own?.branch as { id?: string; name?: string } | undefined;
+    if (branch?.id) {
+      scopedBranches = [
+        { id: String(branch.id), name: String(branch.name || "Cabang") },
+      ];
+    }
+  }
+
+  if (selfManagedOnly && !lockedDojoId) {
+    return (
+      <>
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold">Pengaturan Ranting</h2>
+          <p className="text-muted-foreground">
+            Akun Anda belum terhubung ke ranting.
+          </p>
+        </div>
+        <Card>
+          <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
+            <p>
+              Field <code className="text-foreground">managedDojoId</code> pada
+              akun admin ranting masih kosong, sehingga data ranting tidak bisa
+              ditampilkan atau diubah.
+            </p>
+            <p>
+              Minta admin cabang membuka{" "}
+              <strong className="text-foreground">Pengaturan Ranting</strong> dan
+              memastikan akun login Anda terhubung ke ranting yang benar.
+            </p>
+          </CardContent>
+        </Card>
+      </>
+    );
   }
 
   const dojoIds = scopedDojos.map((d) => String(d.id));
@@ -173,8 +215,9 @@ async function PengaturanRantingContent({
       <div className="mb-6">
         <h2 className="text-2xl font-bold">Pengaturan Ranting</h2>
         <p className="text-muted-foreground">
-          Kelola ranting dan buat akun login (username + password) untuk pengurus
-          ranting
+          {selfManagedOnly
+            ? "Perbarui data ranting Anda (alamat, jadwal, rekening, dan kontak)."
+            : "Kelola ranting dan buat akun login (username + password) untuk pengurus ranting"}
         </p>
       </div>
 
@@ -236,6 +279,7 @@ async function PengaturanRantingContent({
 
       <RantingSettingsManager
         lockedBranchId={lockedBranchId}
+        selfManagedOnly={selfManagedOnly}
         branches={scopedBranches}
         dojos={rows}
       />

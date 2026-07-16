@@ -4,6 +4,7 @@ import { writeAuditLog } from "@/lib/audit";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import {
   assertDojoInScope,
+  canAdministerRantingAccounts,
   canManageRanting,
   findEmailConflict,
 } from "@/lib/pengaturan";
@@ -52,6 +53,12 @@ export async function POST(request: Request) {
   if ("error" in authResult) return authResult.error;
   if (!canManageRanting(authResult.user)) {
     return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
+  }
+  if (!canAdministerRantingAccounts(authResult.user)) {
+    return NextResponse.json(
+      { error: "Admin ranting tidak dapat menambah ranting baru" },
+      { status: 403 },
+    );
   }
 
   const parsed = rantingCreateSchema.safeParse(await request.json());
@@ -196,6 +203,17 @@ export async function PATCH(request: Request) {
   }
 
   const d = parsed.data;
+
+  // Admin ranting hanya boleh ubah data profil ranting, bukan kredensial login
+  if (!canAdministerRantingAccounts(authResult.user)) {
+    if (d.adminEmail || d.adminPassword) {
+      return NextResponse.json(
+        { error: "Gunakan menu Akun Saya untuk mengubah kredensial login" },
+        { status: 403 },
+      );
+    }
+  }
+
   const body = {
     ...(d.name ? { name: d.name } : {}),
     ...(d.headName !== undefined ? { headName: cleanOptional(d.headName) } : {}),
@@ -218,8 +236,12 @@ export async function PATCH(request: Request) {
     ...(d.bankAccountName !== undefined
       ? { bankAccountName: cleanOptional(d.bankAccountName) }
       : {}),
-    ...(d.adminEmail ? { adminEmail: d.adminEmail } : {}),
-    ...(d.adminPassword ? { adminPassword: d.adminPassword } : {}),
+    ...(canAdministerRantingAccounts(authResult.user) && d.adminEmail
+      ? { adminEmail: d.adminEmail }
+      : {}),
+    ...(canAdministerRantingAccounts(authResult.user) && d.adminPassword
+      ? { adminPassword: d.adminPassword }
+      : {}),
   };
 
   const { res, data } = await inkaiFetch(
@@ -257,6 +279,12 @@ export async function DELETE(request: Request) {
   if ("error" in authResult) return authResult.error;
   if (!canManageRanting(authResult.user)) {
     return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
+  }
+  if (!canAdministerRantingAccounts(authResult.user)) {
+    return NextResponse.json(
+      { error: "Admin ranting tidak dapat mengarsipkan ranting" },
+      { status: 403 },
+    );
   }
 
   const parsed = softDeleteSchema.safeParse(await request.json());

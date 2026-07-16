@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
-import { assertDojoInScope, canManageRanting } from "@/lib/pengaturan";
+import { assertDojoInScope, canAdministerRantingAccounts, canManageRanting } from "@/lib/pengaturan";
 import { getClientIp } from "@/lib/security/request";
 import { rantingResetPasswordSchema } from "@/lib/security/schemas";
 import { validatePassword } from "@/lib/security/password";
@@ -14,6 +14,12 @@ export async function POST(request: Request) {
   if ("error" in authResult) return authResult.error;
   if (!canManageRanting(authResult.user)) {
     return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
+  }
+  if (!canAdministerRantingAccounts(authResult.user)) {
+    return NextResponse.json(
+      { error: "Gunakan menu Akun Saya untuk mengubah password Anda" },
+      { status: 403 },
+    );
   }
 
   const parsed = rantingResetPasswordSchema.safeParse(await request.json());

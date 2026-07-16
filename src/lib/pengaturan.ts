@@ -55,6 +55,19 @@ export function canManageBranches(user: SessionUser) {
 
 export function canManageRanting(user: SessionUser) {
   const role = getPrimaryAdminRole(user.roles);
+  return [
+    "ADMINISTRATOR",
+    "ADMIN_PUSAT",
+    "ADMIN_PROVINCE",
+    "ADMIN_BRANCH",
+    "ADMIN_DOJO",
+    "ADMIN",
+  ].includes(role);
+}
+
+/** Tambah / arsip ranting & kelola akun login ranting lain — bukan admin ranting sendiri. */
+export function canAdministerRantingAccounts(user: SessionUser) {
+  const role = getPrimaryAdminRole(user.roles);
   return ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN_BRANCH", "ADMIN"].includes(
     role,
   );

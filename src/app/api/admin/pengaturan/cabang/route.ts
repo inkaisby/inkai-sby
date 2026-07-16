@@ -17,6 +17,8 @@ import {
 import { validatePassword } from "@/lib/security/password";
 import { fetchOrgStructure } from "@/lib/inkai-api/admin-data";
 import { prisma } from "@/lib/prisma";
+import { SITE_BRANCH_NAME } from "@/lib/site";
+import { syncKetuaFromBranch } from "@/lib/pengurus-sync";
 
 export async function GET() {
   const authResult = await requireAdmin();
@@ -204,10 +206,28 @@ export async function PATCH(request: Request) {
     token: authResult.token,
   });
 
+  let pengurusSync: { ok: boolean; updated?: boolean; error?: string } | null =
+    null;
+  if (parsed.data.headName !== undefined) {
+    const branchRow = data.data as { name?: string } | undefined;
+    let name = parsed.data.name || branchRow?.name || "";
+    if (!name) {
+      const local = await prisma.branch.findUnique({
+        where: { id },
+        select: { name: true },
+      });
+      name = local?.name || "";
+    }
+    if (String(name).toUpperCase() === SITE_BRANCH_NAME.toUpperCase()) {
+      pengurusSync = await syncKetuaFromBranch(parsed.data.headName || "");
+    }
+  }
+
   return NextResponse.json({
     success: true,
     data: data.data,
     message: "Cabang berhasil diperbarui",
+    pengurusSync,
   });
 }
 

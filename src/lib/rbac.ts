@@ -37,6 +37,17 @@ export function canAccessAdmin(user: SessionUser) {
   return isAdmin(user.roles);
 }
 
+export function canEditPengurus(roles: string[]) {
+  const role = getPrimaryAdminRole(roles);
+  return [
+    "ADMINISTRATOR",
+    "ADMIN_PUSAT",
+    "ADMIN_PROVINCE",
+    "ADMIN_BRANCH",
+    "ADMIN",
+  ].includes(role);
+}
+
 export function getPrimaryAdminRole(roles: string[]) {
   const order = [
     "ADMINISTRATOR",
