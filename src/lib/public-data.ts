@@ -45,6 +45,18 @@ export type PublicEventSummary = {
   location: string | null;
 };
 
+export type PublicMemberVerify = {
+  fullName: string;
+  nia: string | null;
+  currentRank: string;
+  status: string;
+  dojoName: string;
+  branchName: string;
+  provinceName: string;
+  photoUrl: string | null;
+  joinedAt: string | null;
+};
+
 export type PublicBranchStructure = {
   id: string;
   name: string;
@@ -274,3 +286,55 @@ const getEventByIdCached = (id: string) =>
 export const getDojoDetail = cache((id: string) => getDojoByIdCached(id));
 
 export const getEventDetail = cache((id: string) => getEventByIdCached(id));
+
+function mapMemberVerify(raw: Record<string, unknown>): PublicMemberVerify {
+  return {
+    fullName: String(raw.fullName ?? ""),
+    nia: (raw.nia as string | null) ?? null,
+    currentRank: String(raw.currentRank ?? ""),
+    status: String(raw.status ?? ""),
+    dojoName: String(raw.dojoName ?? ""),
+    branchName: String(raw.branchName ?? ""),
+    provinceName: String(raw.provinceName ?? ""),
+    photoUrl: (raw.photoUrl as string | null) ?? null,
+    joinedAt: raw.joinedAt ? String(raw.joinedAt) : null,
+  };
+}
+
+const getMemberVerifyCached = (id: string) =>
+  unstable_cache(
+    async (): Promise<PublicMemberVerify | null> => {
+      const trimmed = id.trim();
+      if (!trimmed) return null;
+
+      try {
+        const { res, data } = await inkaiFetch(
+          `/v1/members/verify/${encodeURIComponent(trimmed)}`,
+          {},
+          null,
+        );
+        if (!res.ok) return null;
+
+        const raw = (data.data as Record<string, unknown>) ?? null;
+        if (!raw) return null;
+
+        const member = mapMemberVerify(raw);
+        if (
+          member.branchName.toUpperCase() !== SITE_BRANCH_NAME.toUpperCase()
+        ) {
+          return null;
+        }
+
+        return member;
+      } catch (error) {
+        console.error("[getMemberVerification]", id, error);
+        return null;
+      }
+    },
+    [`member-verify-${id}`],
+    { revalidate: 60, tags: ["member-verify", `member-verify-${id}`] },
+  )();
+
+export const getMemberVerification = cache((id: string) =>
+  getMemberVerifyCached(id),
+);

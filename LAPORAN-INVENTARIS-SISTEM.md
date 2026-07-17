@@ -65,6 +65,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/kegiatan/[id]` | Detail kegiatan |
 | `/berita` | Berita dari carousel |
 | `/dojo/[id]` | Profil ranting/dojo |
+| `/v/[id]` | Verifikasi kartu anggota (scan QR — UUID atau NIA) |
 | `/kontak` | Kontak sekretariat |
 | `/keamanan-siber` | Kebijakan keamanan siber |
 | `/login` | Login & registrasi |
@@ -78,7 +79,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Modul | Status | Fungsi |
 |-------|--------|--------|
-| Beranda | Aktif | Kartu anggota, KPI absensi, tagihan, kegiatan, notifikasi |
+| Beranda | Aktif | Kartu anggota (QR → `/v/[id]`), KPI absensi, tagihan, kegiatan, notifikasi |
 | Profil | Aktif | Edit data pribadi (bukan Kyu/DAN) |
 | Absensi | Aktif | Riwayat + check-in GPS (kode QR opsional) |
 | Iuran | Aktif | Daftar tagihan + unggah bukti pembayaran |
@@ -149,7 +150,7 @@ Pusat / Nasional
 | Kyu / DAN | Tidak edit sendiri | Tidak edit | **Edit Kyu (UKT & anggota)** | Tidak edit (hanya lihat) |
 | Event (UKT, Gashuku, pertandingan) | Lihat & daftar sendiri | Daftarkan anggota ranting | **Buat event** + lihat pendaftar | Lihat event & pendaftar |
 | NIA | Lihat sendiri | Tidak assign | **Assign NIA** | Lihat saja |
-| Iuran | Lihat & bayar sendiri | Lihat + verifikasi bukti | Kelola iuran cabang | Lihat iuran provinsi |
+| Iuran | Lihat & bayar sendiri | **Edit tagihan + verifikasi bukti + tandai lunas** (scope dojo) | **Kelola iuran** cabang (edit/verifikasi/lunas) | Lihat saja (tanpa edit) |
 
 ---
 
@@ -221,6 +222,11 @@ Pusat / Nasional
 - Carousel beranda dikelola admin.
 - Struktur & pengurus dikelola di modul Organisasi (terbatas role).
 
+### 9.7 Verifikasi kartu anggota (publik)
+1. QR pada kartu anggota dashboard mengarah ke `/v/[id]` (`id` = UUID anggota atau NIA).
+2. Halaman publik menampilkan nama, NIA, sabuk, status, dojo, cabang (data dari Inkai API).
+3. Scope dibatasi anggota Cabang Surabaya; halaman tidak di-index mesin pencari.
+
 ---
 
 ## 10. Integrasi teknis
@@ -242,7 +248,8 @@ Pusat / Nasional
 |------|--------|----------------------------------|
 | Portal publik | Lengkap | Konten organisasi & kegiatan |
 | Dashboard anggota inti | Lengkap | Profil, iuran, absensi, kegiatan, sabuk, materi, store, pesan, pindah |
-| Admin anggota / iuran / UKT | Lengkap | Multi-select bayar, verifikasi Cabang, sabuk target, nota tanpa kode unik |
+| Admin anggota / iuran / UKT | Lengkap | Iuran: edit/lunas/verifikasi (ranting+cabang); UKT multi-select, nota tanpa kode unik |
+| Verifikasi kartu (publik) | Aktif | `/v/[id]` — scan QR kartu anggota |
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
 | Materi / Store / Pesan / Pindah / Piagam | Aktif | Prisma lokal + verifikasi admin |
 | RBAC wilayah | Diterapkan | Matriks tampil di Pengaturan & Role |
@@ -274,7 +281,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 ```
 /api/auth/*                 Login, register, forgot/reset password
 /api/admin/members/*        Kelola anggota
-/api/admin/billing/*        Verifikasi iuran
+/api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
 /api/admin/ukt/*            Periode, register, invoice, fees, Kyu
 /api/admin/pengaturan/*     User, cabang, ranting, roles, geofencing, akun
 /api/admin/verifications/*  Proses klaim
@@ -294,6 +301,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/member/attendance/checkin  Check-in absensi GPS
 /api/notifications/*        Notifikasi
 /api/dojos                  Daftar dojo publik
+Inkai API `/v1/members/verify/[id]`  Verifikasi kartu anggota (publik, via halaman `/v/[id]`)
 ```
 
 ---
@@ -305,8 +313,9 @@ Sistem INKAI Surabaya sudah mencakup **siklus inti organisasi karate**: keanggot
 Yang paling matang untuk operasional cabang saat ini:
 
 - Kelola anggota & NIA  
-- Iuran + verifikasi (+ upload bukti dari anggota)  
+- Iuran: upload bukti anggota + **edit/lunas/verifikasi** oleh ketua ranting & cabang  
 - UKT end-to-end (daftar → bayar → verifikasi → sabuk target → nota tanpa kode unik)  
+- Verifikasi kartu anggota publik (`/v/[id]`)  
 - Event non-UKT (buat di admin)  
 - Absensi anggota (GPS) + laporan admin  
 - Materi, store, pesan, pindah dojo, unggah piagam  
@@ -328,6 +337,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 17 Juli 2026 | Update: upload bukti iuran & check-in absensi anggota; alur UKT multi-select + verifikasi Cabang + status Selesai; nominal UKT tanpa kode unik (selaras nota); rule Cursor wajib update dokumen ini |
 | 17 Juli 2026 | Selesaikan stub: Materi, Store, Pesan, Pindah Dojo, unggah Piagam; buat event non-UKT di admin; API & nav terkait |
 | 17 Juli 2026 | Iuran: ketua ranting/cabang dapat edit tagihan, tandai lunas, verifikasi bukti (+ catatan); scope ranting ke dojo |
+| 17 Juli 2026 | Halaman publik `/v/[id]` — verifikasi kartu anggota via scan QR (Inkai API `/v1/members/verify/[id]`, scope cabang Surabaya) |
 
 ---
 
