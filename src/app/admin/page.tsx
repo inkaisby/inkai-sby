@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
+import { buildDefaultUktAdminUrl } from "@/lib/ukt";
 
 export const dynamic = "force-dynamic";
 
@@ -142,7 +143,7 @@ async function AdminDashboardContent() {
     {
       label: "Kelola UKT",
       desc: "Pendaftaran ujian kenaikan tingkat",
-      href: "/admin/ukt",
+      href: buildDefaultUktAdminUrl(),
       icon: ShieldCheck,
     },
     {

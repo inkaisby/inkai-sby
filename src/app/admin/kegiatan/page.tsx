@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { CreateEventForm } from "@/components/admin/CreateEventForm";
+import { buildUktAdminUrlFromEvent } from "@/lib/ukt";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +86,7 @@ async function AdminKegiatanContent() {
                   <div className="flex gap-3">
                     {isUkt ? (
                       <Link
-                        href="/admin/ukt"
+                        href={buildUktAdminUrlFromEvent(String(e.title), String(e.id))}
                         className="text-sm text-inkai-red hover:underline"
                       >
                         Kelola UKT →

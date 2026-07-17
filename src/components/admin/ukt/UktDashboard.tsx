@@ -22,6 +22,9 @@ import {
   Check,
   Trash2,
   CalendarClock,
+  Download,
+  LayoutList,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,20 +70,36 @@ import {
   type UktSemester,
   type BeltFeeKey,
   BELT_FEE_KEYS,
+  buildUktBranchRecapText,
+  buildUktDojoRecaps,
+  buildUktRecapCsv,
+  canApplyUktKyuBaru,
+  computeUktOperationalKpi,
+  formatUktRegistrationBlockers,
   formatRupiahNota,
+  getUktRegistrationBlockersWithWaiver,
   isRegistrationApproved,
   isNotaParticipant,
   isUktBillingUnpaid,
   isUktSelesai,
   filterUktRowsByView,
+  filterUktRowsByDisplayStatus,
   formatUktPeriodLabel,
   participantAmount,
-  computeUktKpiStats,
   formatUktRegistrationDeadline,
   getUktRegistrationDeadline,
   isUktRegistrationOpen,
+  findUktPeriodForTerm,
+  parseUktEventTitle,
+  resolveUktDisplayStatus,
+  summarizeRowEligibility,
+  triggerCsvDownload,
   toDateInput,
   toTimeInput,
+  uktDisplayStatusLabel,
+  UKT_DISPLAY_FILTER_OPTIONS,
+  UKT_MIN_ATTENDANCE_PCT,
+  type UktRegistrationBlocker,
   combineDateAndTimeLocal,
   HOURS_24,
   MINUTES_60,
@@ -108,7 +127,6 @@ type Props = {
   primaryRole: string;
   semester: UktSemester;
   year: number;
-  invoiceAcks: Record<string, { acknowledged: boolean; at: string; by: string }>;
   canCreatePeriod: boolean;
   dbError?: string | null;
   defaultDojoFilter?: string;
@@ -139,30 +157,21 @@ function formatRupiah(amount: number | null) {
 }
 
 function statusBadge(row: UktMemberRow) {
-  if (!row.registrationId) {
-    return <Badge variant="outline">Belum Daftar</Badge>;
-  }
-  if (isUktSelesai(row)) {
-    return (
-      <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">
-        Selesai
-      </Badge>
-    );
-  }
-  if (row.billingStatus === "PAID" || row.status === "PAID") {
-    return <Badge variant="default">Lunas</Badge>;
-  }
-  if (row.billingStatus === "WAITING_VERIFICATION") {
-    return <Badge variant="secondary">Menunggu verifikasi</Badge>;
-  }
-  const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    PENDING: { label: "Terdaftar", variant: "default" },
-    APPROVED: { label: "Disetujui", variant: "default" },
-    SUCCESS: { label: "Lunas", variant: "default" },
-    REJECTED: { label: "Ditolak", variant: "destructive" },
+  const displayStatus = resolveUktDisplayStatus(row);
+  const map: Record<string, string> = {
+    selesai: "bg-emerald-600 hover:bg-emerald-600 text-white",
+    lulus: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
+    gagal: "bg-red-100 text-red-700 hover:bg-red-100",
+    mengulang: "bg-orange-100 text-orange-700 hover:bg-orange-100",
+    menunggu_ujian: "bg-blue-100 text-blue-700 hover:bg-blue-100",
+    menunggu_verifikasi: "bg-amber-100 text-amber-700 hover:bg-amber-100",
+    belum_bayar: "bg-amber-100 text-amber-700 hover:bg-amber-100",
   };
-  const s = map[row.status] || { label: row.status, variant: "outline" as const };
-  return <Badge variant={s.variant}>{s.label}</Badge>;
+  const className = map[displayStatus];
+  if (className) return <Badge className={className}>{uktDisplayStatusLabel(displayStatus)}</Badge>;
+  if (displayStatus === "ditolak") return <Badge variant="destructive">{uktDisplayStatusLabel(displayStatus)}</Badge>;
+  if (displayStatus === "belum_daftar") return <Badge variant="outline">{uktDisplayStatusLabel(displayStatus)}</Badge>;
+  return <Badge variant="default">{uktDisplayStatusLabel(displayStatus)}</Badge>;
 }
 
 export function UktDashboard(props: Props) {
@@ -194,9 +203,19 @@ export function UktDashboard(props: Props) {
   const [registrationDeadlineTime, setRegistrationDeadlineTime] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [printOnlySelected, setPrintOnlySelected] = useState(false);
+  const [compactView, setCompactView] = useState(false);
+  const [showCreateWizard, setShowCreateWizard] = useState(false);
+  const [wizardStep, setWizardStep] = useState(0);
+  const [waiverTarget, setWaiverTarget] = useState<UktMemberRow | null>(null);
+  const [waiverBlockers, setWaiverBlockers] = useState<UktRegistrationBlocker[]>([]);
+  const [waiverNote, setWaiverNote] = useState("");
 
   const isCabang = canEditKyuBaru(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
+
+  useEffect(() => {
+    if (isDojoAdmin) setCompactView(true);
+  }, [isDojoAdmin]);
 
   useEffect(() => {
     setBeltFees(props.beltFees);
@@ -216,7 +235,7 @@ export function UktDashboard(props: Props) {
   const scopedRows = useMemo(() => {
     let rows = props.allRows;
     if (effectiveDojo) rows = rows.filter((r) => r.dojoId === effectiveDojo);
-    if (localStatus) rows = rows.filter((r) => r.status === localStatus);
+    if (localStatus) rows = filterUktRowsByDisplayStatus(rows, localStatus);
     if (localQ.trim()) {
       const q = localQ.toLowerCase();
       rows = rows.filter(
@@ -228,7 +247,7 @@ export function UktDashboard(props: Props) {
     return rows;
   }, [props.allRows, effectiveDojo, localStatus, localQ]);
 
-  const kpi = useMemo(() => computeUktKpiStats(scopedRows), [scopedRows]);
+  const kpi = useMemo(() => computeUktOperationalKpi(scopedRows), [scopedRows]);
 
   const filteredRows = useMemo(() => {
     // Saat view "Terdaftar UKT" + pencarian aktif, tampilkan semua peserta yang cocok
@@ -237,6 +256,11 @@ export function UktDashboard(props: Props) {
       localView === "registered" && localQ.trim() ? "" : localView;
     return filterUktRowsByView(scopedRows, viewFilter);
   }, [scopedRows, localView, localQ]);
+
+  const dojoRecaps = useMemo(
+    () => buildUktDojoRecaps(scopedRows, props.dojos),
+    [scopedRows, props.dojos],
+  );
 
   const totalFiltered = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / localPageSize));
@@ -296,12 +320,40 @@ export function UktDashboard(props: Props) {
     [router, searchParams],
   );
 
+  const syncNavigateTerm = useCallback(
+    (updates: { semester?: UktSemester; year?: number }) => {
+      const semester = updates.semester ?? props.semester;
+      const year = updates.year ?? props.year;
+      const match = findUktPeriodForTerm(props.periods, semester, year);
+      navigatePeriod({
+        semester,
+        year: String(year),
+        period: match?.id ?? "",
+      });
+    },
+    [navigatePeriod, props.periods, props.semester, props.year],
+  );
+
+  const periodsForTerm = useMemo(
+    () =>
+      props.periods.filter((p) => {
+        const parsed = parseUktEventTitle(p.title);
+        return parsed?.semester === props.semester && parsed?.year === props.year;
+      }),
+    [props.periods, props.semester, props.year],
+  );
+
   const handleKpiClick = (filter: string) => {
     const next =
       !filter || filter === "all" || localView === filter ? "" : filter;
     setLocalView(next);
     setLocalPage(1);
   };
+
+  const selectedUnpaidCount = useMemo(
+    () => selectedRows.filter((r) => r.registrationId && isUktBillingUnpaid(r)).length,
+    [selectedRows],
+  );
 
   const handleCreatePeriod = async () => {
     setLoading(true);
@@ -318,7 +370,73 @@ export function UktDashboard(props: Props) {
       const data = await parseApiJson<{ error?: string; event?: { id: string }; created?: boolean }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal membuat periode");
       toast.success(data.created ? "Periode UKT dibuat" : "Periode UKT sudah ada");
-      navigatePeriod({ period: data.event?.id ?? "" });
+      setShowCreateWizard(false);
+      setWizardStep(0);
+      navigatePeriod({
+        semester: props.semester,
+        year: String(props.year),
+        period: data.event?.id ?? "",
+      });
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportCsv = () => {
+    const title = selectedPeriod?.title || formatUktPeriodLabel(props.semester, props.year);
+    const rows =
+      selectedIds.size > 0
+        ? selectedRows.filter((r) => r.registrationId)
+        : scopedRows.filter((r) => r.registrationId);
+    if (rows.length === 0) {
+      toast.error("Tidak ada peserta terdaftar untuk diekspor");
+      return;
+    }
+    const csv = buildUktRecapCsv(rows, title);
+    const slug = title.replace(/[^\w-]+/g, "-").slice(0, 40);
+    triggerCsvDownload(`ukt-rekap-${slug}.csv`, csv);
+    toast.success(`${rows.length} baris diekspor ke CSV`);
+  };
+
+  const openWaiverDialog = (row: UktMemberRow) => {
+    const blockers = getUktRegistrationBlockersWithWaiver(
+      row,
+      { registrationOpen },
+      null,
+    ).filter((b) => b !== "PERIODE_TUTUP");
+    setWaiverTarget(row);
+    setWaiverBlockers(blockers);
+    setWaiverNote("");
+  };
+
+  const handleSubmitWaiver = async () => {
+    if (!waiverTarget || !props.selectedPeriodId || waiverBlockers.length === 0) {
+      toast.error("Pilih syarat yang dikecualikan");
+      return;
+    }
+    if (waiverNote.trim().length < 5) {
+      toast.error("Catatan pengecualian minimal 5 karakter");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/ukt/waiver", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: props.selectedPeriodId,
+          memberId: waiverTarget.memberId,
+          blockers: waiverBlockers,
+          note: waiverNote.trim(),
+        }),
+      });
+      const data = await parseApiJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal menyimpan pengecualian");
+      toast.success("Pengecualian pendaftaran disimpan");
+      setWaiverTarget(null);
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
@@ -424,6 +542,7 @@ export function UktDashboard(props: Props) {
         body: JSON.stringify({
           newRank,
           action: "approve",
+          eventId: props.selectedPeriodId,
           memberId: row.memberId,
           previousRank:
             row.kyuLama && row.kyuLama !== "—" ? row.kyuLama : undefined,
@@ -440,6 +559,29 @@ export function UktDashboard(props: Props) {
           ? `Sabuk target diisi — status Selesai: ${formatRankLabel(newRank)}`
           : data.message || `Sabuk diperbarui: ${formatRankLabel(newRank)}`,
       );
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExamResult = async (
+    registrationId: string,
+    examResult: "LULUS" | "GAGAL" | "MENGULANG",
+  ) => {
+    if (!props.selectedPeriodId) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId: props.selectedPeriodId, examResult }),
+      });
+      const data = await parseApiJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal menyimpan hasil ujian");
+      toast.success(`Hasil ujian disimpan: ${examResult}`);
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
@@ -482,47 +624,6 @@ export function UktDashboard(props: Props) {
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal menyimpan");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateInvoice = async () => {
-    if (!props.selectedPeriodId || !effectiveDojo) {
-      toast.error("Pilih ranting terlebih dahulu");
-      return;
-    }
-    const fromSelection = selectedRows.filter(
-      (r) => r.registrationId && r.dojoId === effectiveDojo,
-    );
-    const memberIds = (
-      fromSelection.length > 0
-        ? fromSelection
-        : props.allRows.filter((r) => r.registrationId && r.dojoId === effectiveDojo)
-    ).map((r) => r.memberId);
-    if (memberIds.length === 0) {
-      toast.error("Tidak ada peserta untuk dibuatkan invoice");
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await fetch("/api/admin/ukt/invoice", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventId: props.selectedPeriodId,
-          dojoId: effectiveDojo,
-          memberIds,
-        }),
-      });
-      const data = await parseApiJson<{ error?: string; created?: number }>(res);
-      if (!res.ok) throw new Error(data.error || "Gagal membuat invoice");
-      toast.success(
-        `${data.created ?? memberIds.length} peserta masuk invoice${fromSelection.length ? " (terpilih)" : ""}`,
-      );
-      router.refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
       setLoading(false);
     }
@@ -611,28 +712,6 @@ export function UktDashboard(props: Props) {
     setShowPrint(true);
   };
 
-  const handleAckInvoice = async (dojoId: string) => {
-    if (!props.selectedPeriodId) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/admin/ukt/invoice", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId: props.selectedPeriodId, dojoId, acknowledged: true }),
-      });
-      if (!res.ok) {
-        const data = await parseApiJson<{ error?: string }>(res);
-        throw new Error(data.error);
-      }
-      toast.success("Invoice ditandai diterima");
-      router.refresh();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const loadMemberHistory = async (memberId: string) => {
     try {
       const res = await fetch(`/api/admin/ukt/members?memberId=${memberId}`);
@@ -645,6 +724,17 @@ export function UktDashboard(props: Props) {
   };
 
   const buildWaReport = () => {
+    if (!effectiveDojo && isCabang) {
+      const text = buildUktBranchRecapText(
+        selectedPeriod?.title || periodTitle,
+        dojoRecaps.filter((r) => r.totalMembers > 0),
+      );
+      navigator.clipboard.writeText(text).then(
+        () => toast.success("Rekap cabang disalin — tempel di WhatsApp"),
+        () => toast.error("Gagal menyalin"),
+      );
+      return;
+    }
     const approved = props.allRows.filter(
       (r) => r.registrationId && isRegistrationApproved(r.status),
     );
@@ -680,13 +770,13 @@ export function UktDashboard(props: Props) {
 
   const kpiCards = [
     { label: "Total Anggota", value: kpi.allMembers, icon: Users, color: "text-blue-600", filter: "all" },
-    { label: "Terdaftar UKT", value: kpi.total, icon: FileText, color: "text-indigo-600", filter: "registered" },
     { label: "Belum Daftar", value: kpi.belumDaftar, icon: UserPlus, color: "text-amber-600", filter: "unregistered" },
-    { label: "Disetujui/Lunas", value: kpi.disetujui, icon: CheckCircle2, color: "text-green-600", filter: "approved" },
-    { label: "Belum Lunas", value: kpi.pending, icon: Clock, color: "text-yellow-600", filter: "pending" },
-    { label: "Total Tagihan", value: `Rp ${(kpi.totalTagihan / 1000).toFixed(0)}rb`, icon: Wallet, color: "text-purple-600", filter: "" },
-    { label: "Terbayar", value: `Rp ${(kpi.totalTerbayar / 1000).toFixed(0)}rb`, icon: Banknote, color: "text-emerald-600", filter: "paid" },
-    { label: "Ditolak", value: kpi.ditolak, icon: XCircle, color: "text-red-600", filter: "rejected" },
+    { label: "Belum Bayar", value: kpi.belumBayar, icon: Clock, color: "text-yellow-600", filter: "belum_bayar" },
+    { label: "Menunggu Verif.", value: kpi.menungguVerifikasi, icon: Wallet, color: "text-purple-600", filter: "menunggu_verifikasi" },
+    { label: "Menunggu Ujian", value: kpi.menungguUjian, icon: FileText, color: "text-indigo-600", filter: "menunggu_ujian" },
+    { label: "Lulus", value: kpi.lulus, icon: CheckCircle2, color: "text-emerald-600", filter: "lulus" },
+    { label: "Selesai", value: kpi.selesai, icon: Check, color: "text-green-600", filter: "selesai" },
+    { label: "Gagal/Mengulang", value: kpi.gagal + kpi.mengulang, icon: XCircle, color: "text-red-600", filter: "gagal" },
   ];
 
   return (
@@ -697,8 +787,7 @@ export function UktDashboard(props: Props) {
           <div className="flex flex-wrap items-center gap-2">
             <Select
               value={props.semester}
-              onValueChange={(v) => navigatePeriod({ semester: v })}
-              disabled={isDojoAdmin}
+              onValueChange={(v) => syncNavigateTerm({ semester: v as UktSemester })}
             >
               <SelectTrigger className="w-28">
                 <SelectValue />
@@ -714,20 +803,15 @@ export function UktDashboard(props: Props) {
               value={yearInput}
               onChange={(e) => setYearInput(e.target.value)}
               onBlur={() => {
-                if (isDojoAdmin) {
-                  setYearInput(String(props.year));
-                  return;
-                }
                 const y = parseInt(yearInput, 10);
                 if (Number.isFinite(y) && y >= 2020 && y <= 2100) {
-                  navigatePeriod({ year: String(y) });
+                  syncNavigateTerm({ year: y });
                 } else {
                   setYearInput(String(props.year));
                 }
               }}
               min={2020}
               max={2100}
-              disabled={isDojoAdmin}
             />
             {editingTitle && isCabang ? (
               <div className="flex items-center gap-1">
@@ -754,17 +838,22 @@ export function UktDashboard(props: Props) {
             )}
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
-            {props.periods.length > 0 && (
+            {periodsForTerm.length > 1 && (
               <Select
                 value={props.selectedPeriodId || ""}
-                onValueChange={(v) => navigatePeriod({ period: v })}
-                disabled={isDojoAdmin}
+                onValueChange={(v) =>
+                  navigatePeriod({
+                    semester: props.semester,
+                    year: String(props.year),
+                    period: v,
+                  })
+                }
               >
                 <SelectTrigger className="w-52">
                   <SelectValue placeholder="Pilih periode" />
                 </SelectTrigger>
                 <SelectContent>
-                  {props.periods.map((p) => (
+                  {periodsForTerm.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.title}
                     </SelectItem>
@@ -773,9 +862,22 @@ export function UktDashboard(props: Props) {
               </Select>
             )}
             {!props.selectedPeriodId && props.canCreatePeriod && (
-              <Button onClick={handleCreatePeriod} disabled={loading} className="bg-inkai-red hover:bg-inkai-red/90">
+              <Button
+                onClick={() => {
+                  setWizardStep(0);
+                  setShowCreateWizard(true);
+                }}
+                disabled={loading}
+                className="bg-inkai-red hover:bg-inkai-red/90"
+              >
                 <Plus className="mr-1 h-4 w-4" />
                 Buat Periode
+              </Button>
+            )}
+            {isCabang && props.selectedPeriodId && (
+              <Button variant="outline" onClick={handleExportCsv}>
+                <Download className="mr-1 h-4 w-4" />
+                Export CSV
               </Button>
             )}
             <Button variant="outline" onClick={buildWaReport}>
@@ -786,14 +888,14 @@ export function UktDashboard(props: Props) {
               <Printer className="mr-1 h-4 w-4" />
               Cetak Nota
             </Button>
-            {(isDojoAdmin || isCabang) && (
+            {(isDojoAdmin || isCabang) && selectedIds.size === 0 && (
               <Button
                 variant="outline"
                 onClick={() => openPrintNota(true)}
                 disabled={selectedIds.size === 0}
               >
                 <Printer className="mr-1 h-4 w-4" />
-                Nota Terpilih ({selectedIds.size})
+                Nota Terpilih
               </Button>
             )}
             {isCabang && (
@@ -802,35 +904,22 @@ export function UktDashboard(props: Props) {
                 Biaya Sabuk
               </Button>
             )}
-            {isCabang && props.selectedPeriodId && (
-              <Button variant="outline" onClick={handleCreateInvoice} disabled={loading}>
-                <FileText className="mr-1 h-4 w-4" />
-                Buat Invoice{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
-              </Button>
-            )}
-            {isCabang && selectedIds.size > 0 && (
-              <Button
-                className="bg-inkai-red hover:bg-inkai-red/90"
-                onClick={() => void handleBulkMarkPaid()}
-                disabled={loading}
-              >
-                <CheckCircle2 className="mr-1 h-4 w-4" />
-                Verifikasi Bayar ({selectedIds.size})
-              </Button>
-            )}
-            {isDojoAdmin && selectedIds.size > 0 && (
-              <Button
-                className="bg-inkai-red hover:bg-inkai-red/90"
-                onClick={() => openPrintNota(true)}
-                disabled={loading}
-              >
-                <Banknote className="mr-1 h-4 w-4" />
-                Siap Bayar UKT ({selectedIds.size})
-              </Button>
-            )}
           </div>
         </CardContent>
       </Card>
+
+      {isDojoAdmin && !props.selectedPeriodId && (
+        <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="flex flex-wrap items-center gap-3 p-4 text-sm text-amber-800 dark:text-amber-200">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>
+              Periode UKT <b>{formatUktPeriodLabel(props.semester, props.year)}</b> belum
+              dibuat oleh admin cabang. Pilih semester lain jika perlu melihat riwayat, atau
+              hubungi cabang untuk membuka periode baru.
+            </span>
+          </CardContent>
+        </Card>
+      )}
 
       {props.selectedPeriodId && selectedPeriod && (
         <Card className="border-muted">
@@ -883,6 +972,55 @@ export function UktDashboard(props: Props) {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 z-50 w-[min(640px,94vw)] -translate-x-1/2">
+          <Card className="shadow-xl">
+            <CardContent className="flex flex-wrap items-center gap-2 p-3">
+              <div className="min-w-[120px] flex-1 text-sm text-muted-foreground">
+                <span className="font-medium text-inkai-red">{selectedIds.size} terpilih</span>
+              </div>
+              {(isDojoAdmin || isCabang) && (
+                <Button variant="outline" size="sm" onClick={() => openPrintNota(true)} disabled={loading}>
+                  <Printer className="mr-1 h-4 w-4" />
+                  Nota
+                </Button>
+              )}
+              {isDojoAdmin && (
+                <Button
+                  size="sm"
+                  className="bg-inkai-red hover:bg-inkai-red/90"
+                  onClick={() => openPrintNota(true)}
+                  disabled={loading}
+                >
+                  <Banknote className="mr-1 h-4 w-4" />
+                  Siap Bayar
+                </Button>
+              )}
+              {isCabang && selectedUnpaidCount > 0 && (
+                <Button
+                  size="sm"
+                  className="bg-inkai-red hover:bg-inkai-red/90"
+                  onClick={() => void handleBulkMarkPaid()}
+                  disabled={loading}
+                >
+                  <CheckCircle2 className="mr-1 h-4 w-4" />
+                  Verifikasi ({selectedUnpaidCount})
+                </Button>
+              )}
+              {isCabang && (
+                <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={loading}>
+                  <Download className="mr-1 h-4 w-4" />
+                  CSV
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())} disabled={loading}>
+                Tutup
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* KPI Cards */}
@@ -944,18 +1082,28 @@ export function UktDashboard(props: Props) {
             setLocalPage(1);
           }}
         >
-          <SelectTrigger className="w-36">
+          <SelectTrigger className="w-44">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Semua status</SelectItem>
-            <SelectItem value="BELUM_DAFTAR">Belum Daftar</SelectItem>
-            <SelectItem value="PENDING">Terdaftar</SelectItem>
-            <SelectItem value="APPROVED">Disetujui</SelectItem>
-            <SelectItem value="PAID">Lunas / Selesai</SelectItem>
-            <SelectItem value="REJECTED">Ditolak</SelectItem>
+            {UKT_DISPLAY_FILTER_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setCompactView((v) => !v)}
+          title={compactView ? "Tampilan lengkap" : "Tampilan ringkas"}
+        >
+          <LayoutList className="mr-1 h-4 w-4" />
+          {compactView ? "Lengkap" : "Ringkas"}
+        </Button>
 
         {!isDojoAdmin && (
           <Select
@@ -1004,25 +1152,6 @@ export function UktDashboard(props: Props) {
         </Button>
       </div>
 
-      {/* Invoice ack banner for ketua ranting */}
-      {isDojoAdmin &&
-        effectiveDojo &&
-        props.selectedPeriodId &&
-        !props.invoiceAcks[effectiveDojo]?.acknowledged && (
-          <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-amber-600" />
-                <span>Invoice UKT dari cabang belum ditandai diterima</span>
-              </div>
-              <Button size="sm" onClick={() => handleAckInvoice(effectiveDojo)} disabled={loading}>
-                <Check className="mr-1 h-4 w-4" />
-                Tandai Diterima
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
       {isDojoAdmin && (
         <Card className="border-muted">
           <CardContent className="p-3 text-sm text-muted-foreground">
@@ -1045,7 +1174,7 @@ export function UktDashboard(props: Props) {
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border shadow-sm">
+      <div className="mt-2 overflow-x-auto rounded-xl border shadow-sm">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
@@ -1063,14 +1192,24 @@ export function UktDashboard(props: Props) {
               <TableHead className="w-14">Foto</TableHead>
               <TableHead>NIA</TableHead>
               <TableHead>Nama Lengkap</TableHead>
-              <TableHead className="hidden md:table-cell">Tempat</TableHead>
-              <TableHead className="hidden lg:table-cell">Tgl Lahir</TableHead>
-              <TableHead className="hidden sm:table-cell">JK</TableHead>
-              <TableHead className="hidden xl:table-cell">Alamat</TableHead>
+              {!compactView && !isDojoAdmin && (
+                <>
+                  <TableHead className="hidden md:table-cell">Tempat</TableHead>
+                  <TableHead className="hidden lg:table-cell">Tgl Lahir</TableHead>
+                  <TableHead className="hidden sm:table-cell">JK</TableHead>
+                  <TableHead className="hidden xl:table-cell">Alamat</TableHead>
+                </>
+              )}
               <TableHead>Sabuk saat ini</TableHead>
               <TableHead>Sabuk target</TableHead>
-              <TableHead className="hidden md:table-cell">Dokumen</TableHead>
-              <TableHead className="hidden sm:table-cell">Ranting</TableHead>
+              {(compactView || isDojoAdmin) && (
+                <>
+                  <TableHead className="min-w-20">Kehadiran</TableHead>
+                  <TableHead className="min-w-28">Syarat</TableHead>
+                </>
+              )}
+              {!isDojoAdmin && !compactView && <TableHead className="hidden md:table-cell">Dokumen</TableHead>}
+              {!isDojoAdmin && !compactView && <TableHead className="hidden sm:table-cell">Ranting</TableHead>}
               <TableHead>Status</TableHead>
               <TableHead className="min-w-28">Aksi</TableHead>
             </TableRow>
@@ -1078,7 +1217,7 @@ export function UktDashboard(props: Props) {
           <TableBody>
             {displayRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={15} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={20} className="py-12 text-center text-muted-foreground">
                   {props.allRows.length === 0 && !props.dbError
                     ? "Belum ada anggota. Tambahkan anggota untuk memulai pendaftaran UKT."
                     : "Tidak ada data sesuai filter."}
@@ -1133,12 +1272,16 @@ export function UktDashboard(props: Props) {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">{row.birthPlace || "-"}</TableCell>
-                  <TableCell className="hidden lg:table-cell">{formatDate(row.birthDate)}</TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    {formatGenderLabel(row.gender) || "-"}
-                  </TableCell>
-                  <TableCell className="hidden max-w-32 truncate xl:table-cell">{row.address || "-"}</TableCell>
+                  {!compactView && !isDojoAdmin && (
+                    <>
+                      <TableCell className="hidden md:table-cell">{row.birthPlace || "-"}</TableCell>
+                      <TableCell className="hidden lg:table-cell">{formatDate(row.birthDate)}</TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        {formatGenderLabel(row.gender) || "-"}
+                      </TableCell>
+                      <TableCell className="hidden max-w-32 truncate xl:table-cell">{row.address || "-"}</TableCell>
+                    </>
+                  )}
                   <TableCell>
                     <Badge variant="secondary" className="text-xs">
                       {formatRankLabel(row.kyuLama) || "—"}
@@ -1167,25 +1310,65 @@ export function UktDashboard(props: Props) {
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <div className="flex gap-1">
-                      {row.birthCertificateUrl ? (
-                        <a href={row.birthCertificateUrl} target="_blank" rel="noreferrer">
-                          <Badge variant="outline" className="text-xs">Akte</Badge>
-                        </a>
-                      ) : (
-                        <Badge variant="outline" className="text-xs text-muted-foreground">Akte</Badge>
-                      )}
-                      {row.bpjsCardUrl ? (
-                        <a href={row.bpjsCardUrl} target="_blank" rel="noreferrer">
-                          <Badge variant="outline" className="text-xs">BPJS</Badge>
-                        </a>
-                      ) : (
-                        <Badge variant="outline" className="text-xs text-muted-foreground">BPJS</Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell text-xs">{row.dojoName}</TableCell>
+                  {(compactView || isDojoAdmin) && (
+                    <>
+                      <TableCell className="text-xs">
+                        {row.attendancePct != null ? (
+                          <span
+                            className={
+                              row.attendancePct >= UKT_MIN_ATTENDANCE_PCT
+                                ? "text-emerald-600"
+                                : "text-amber-600"
+                            }
+                          >
+                            {row.attendancePct}%
+                            <span className="block text-muted-foreground">{row.attendanceCount}×</span>
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {(() => {
+                          const eligibility = summarizeRowEligibility(row, registrationOpen);
+                          return (
+                            <span
+                              className={eligibility.ok ? "text-emerald-600" : "text-amber-700"}
+                              title={eligibility.label}
+                            >
+                              {eligibility.ok ? "✓" : "!"}{" "}
+                              {eligibility.label.length > 28
+                                ? `${eligibility.label.slice(0, 28)}…`
+                                : eligibility.label}
+                            </span>
+                          );
+                        })()}
+                      </TableCell>
+                    </>
+                  )}
+                  {!isDojoAdmin && !compactView && (
+                    <TableCell className="hidden md:table-cell">
+                      <div className="flex gap-1">
+                        {row.birthCertificateUrl ? (
+                          <a href={row.birthCertificateUrl} target="_blank" rel="noreferrer">
+                            <Badge variant="outline" className="text-xs">Akte</Badge>
+                          </a>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-muted-foreground">Akte</Badge>
+                        )}
+                        {row.bpjsCardUrl ? (
+                          <a href={row.bpjsCardUrl} target="_blank" rel="noreferrer">
+                            <Badge variant="outline" className="text-xs">BPJS</Badge>
+                          </a>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-muted-foreground">BPJS</Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
+                  {!isDojoAdmin && !compactView && (
+                    <TableCell className="hidden sm:table-cell text-xs">{row.dojoName}</TableCell>
+                  )}
                   <TableCell>
                     <div className="space-y-1">
                       {statusBadge(row)}
@@ -1201,20 +1384,53 @@ export function UktDashboard(props: Props) {
                                 : ""}
                         </p>
                       )}
+                      {row.examResult && (
+                        <p className="text-xs text-muted-foreground">
+                          Hasil ujian: {row.examResult}
+                        </p>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {!row.registrationId ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          onClick={() => handleRegister(row.memberId)}
-                          disabled={loading || !props.selectedPeriodId}
-                        >
-                          Daftar UKT
-                        </Button>
+                        (() => {
+                          const blockers = getUktRegistrationBlockersWithWaiver(
+                            row,
+                            { registrationOpen },
+                            row.registrationWaiver,
+                          );
+                          const blocked = blockers.length > 0;
+                          return (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => handleRegister(row.memberId)}
+                                disabled={loading || !props.selectedPeriodId || blocked}
+                                title={
+                                  blocked ? formatUktRegistrationBlockers(blockers) : "Daftarkan ke UKT"
+                                }
+                              >
+                                Daftar UKT
+                              </Button>
+                              {isCabang && blocked && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  onClick={() => openWaiverDialog(row)}
+                                  disabled={loading}
+                                  title="Berikan pengecualian syarat pendaftaran"
+                                >
+                                  <ShieldCheck className="mr-0.5 h-3 w-3" />
+                                  Waiver
+                                </Button>
+                              )}
+                            </>
+                          );
+                        })()
                       ) : (
                         <>
                           {isCabang && isUktBillingUnpaid(row) && (
@@ -1230,6 +1446,29 @@ export function UktDashboard(props: Props) {
                               Verifikasi
                             </Button>
                           )}
+                          {isCabang &&
+                            (row.billingStatus === "PAID" || row.status === "PAID" || row.status === "SUCCESS") && (
+                              <Select
+                                value={row.examResult || "PENDING"}
+                                onValueChange={(v) => {
+                                  if (v === "PENDING") return;
+                                  void handleExamResult(
+                                    row.registrationId!,
+                                    v as "LULUS" | "GAGAL" | "MENGULANG",
+                                  );
+                                }}
+                              >
+                                <SelectTrigger className="h-7 w-[124px] text-xs">
+                                  <SelectValue placeholder="Hasil ujian" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="PENDING">Hasil Ujian</SelectItem>
+                                  <SelectItem value="LULUS">Lulus</SelectItem>
+                                  <SelectItem value="GAGAL">Tidak Lulus</SelectItem>
+                                  <SelectItem value="MENGULANG">Mengulang</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
                           {canCancelUktRegistration(row) && (isDojoAdmin || isCabang) && (
                             <Button
                               size="sm"
@@ -1336,6 +1575,13 @@ export function UktDashboard(props: Props) {
                     </div>
                   </div>
                 )}
+                {selectedMember.attendancePct != null && (
+                  <div className="rounded-lg border bg-muted/40 p-3">
+                    <div className="font-medium">
+                      Kehadiran semester: {selectedMember.attendancePct}% ({selectedMember.attendanceCount} hadir)
+                    </div>
+                  </div>
+                )}
                 {memberHistory && (
                   <div>
                     <h4 className="mb-2 flex items-center gap-1 font-medium">
@@ -1369,16 +1615,27 @@ export function UktDashboard(props: Props) {
                   </Button>
                 )}
                 {!selectedMember.registrationId && (
+                  (() => {
+                    const blockers = getUktRegistrationBlockersWithWaiver(
+                      selectedMember,
+                      { registrationOpen },
+                      selectedMember.registrationWaiver,
+                    );
+                    const blocked = blockers.length > 0;
+                    return (
                   <Button
                     className="bg-inkai-red"
                     onClick={() => {
                       handleRegister(selectedMember.memberId);
                       setSelectedMember(null);
                     }}
-                    disabled={loading || !props.selectedPeriodId}
+                    disabled={loading || !props.selectedPeriodId || blocked}
+                    title={blocked ? formatUktRegistrationBlockers(blockers) : "Daftar UKT"}
                   >
                     Daftar UKT
                   </Button>
+                    );
+                  })()
                 )}
               </DialogFooter>
             </>
@@ -1563,6 +1820,135 @@ export function UktDashboard(props: Props) {
             </Button>
             <Button className="bg-inkai-red" onClick={handleSaveBeltFees} disabled={loading}>
               Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCreateWizard} onOpenChange={setShowCreateWizard}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Wizard Periode UKT Baru</DialogTitle>
+            <DialogDescription>
+              Langkah {wizardStep + 1} dari 3 — {formatUktPeriodLabel(props.semester, props.year)}
+            </DialogDescription>
+          </DialogHeader>
+          {wizardStep === 0 && (
+            <div className="space-y-3 text-sm">
+              <p>
+                Periode <b>{formatUktPeriodLabel(props.semester, props.year)}</b> akan dibuat
+                sebagai event UKT terpisah dengan batas pendaftaran default akhir semester.
+              </p>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                  Judul periode
+                </label>
+                <Input value={periodTitle} onChange={(e) => setPeriodTitle(e.target.value)} />
+              </div>
+            </div>
+          )}
+          {wizardStep === 1 && (
+            <div className="space-y-2 text-sm">
+              <p className="text-muted-foreground">
+                Pastikan biaya sabuk & komisi ranting sudah benar sebelum membuka periode.
+              </p>
+              {BELT_FEE_KEYS.map((belt) => (
+                <div key={belt} className="flex justify-between gap-2">
+                  <span>{belt}</span>
+                  <span className="font-medium">{formatRupiahNota(beltFees[belt])}</span>
+                </div>
+              ))}
+              <div className="flex justify-between border-t pt-2">
+                <span>Komisi ranting</span>
+                <span className="font-medium">{formatRupiahNota(komisiRanting)} / orang</span>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setShowBeltFees(true)}>
+                Ubah biaya sabuk
+              </Button>
+            </div>
+          )}
+          {wizardStep === 2 && (
+            <div className="space-y-2 text-sm">
+              <p>Siap membuat periode dengan ringkasan berikut:</p>
+              <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+                <li>Judul: {periodTitle}</li>
+                <li>Semester {props.semester} · Tahun {props.year}</li>
+                <li>Ketua ranting dapat mendaftarkan anggota setelah periode aktif</li>
+                <li>Notifikasi otomatis dikirim saat status UKT berubah</li>
+              </ul>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (wizardStep === 0) setShowCreateWizard(false);
+                else setWizardStep((s) => s - 1);
+              }}
+              disabled={loading}
+            >
+              {wizardStep === 0 ? "Batal" : "Kembali"}
+            </Button>
+            {wizardStep < 2 ? (
+              <Button className="bg-inkai-red" onClick={() => setWizardStep((s) => s + 1)}>
+                Lanjut
+              </Button>
+            ) : (
+              <Button className="bg-inkai-red" onClick={() => void handleCreatePeriod()} disabled={loading}>
+                Buat Periode
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!waiverTarget} onOpenChange={(o) => !o && setWaiverTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pengecualian Syarat UKT</DialogTitle>
+            <DialogDescription>
+              {waiverTarget ? formatMemberName(waiverTarget.fullName) : ""} — hanya admin cabang
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">Pilih syarat yang dikecualikan:</p>
+            {(["IURAN_TUNGGAKAN", "DOKUMEN_KURANG", "ABSENSI_KURANG"] as UktRegistrationBlocker[]).map(
+              (key) => (
+                <label key={key} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-inkai-red"
+                    checked={waiverBlockers.includes(key)}
+                    onChange={(e) => {
+                      setWaiverBlockers((prev) =>
+                        e.target.checked ? [...prev, key] : prev.filter((b) => b !== key),
+                      );
+                    }}
+                  />
+                  {key === "IURAN_TUNGGAKAN" && "Iuran tunggak"}
+                  {key === "DOKUMEN_KURANG" && "Dokumen kurang"}
+                  {key === "ABSENSI_KURANG" && "Absensi di bawah 75%"}
+                </label>
+              ),
+            )}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Catatan audit (wajib)
+              </label>
+              <textarea
+                className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={waiverNote}
+                onChange={(e) => setWaiverNote(e.target.value)}
+                placeholder="Alasan pengecualian untuk arsip pengurus…"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWaiverTarget(null)}>
+              Batal
+            </Button>
+            <Button className="bg-inkai-red" onClick={() => void handleSubmitWaiver()} disabled={loading}>
+              Simpan Pengecualian
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -32,21 +32,36 @@ function longestPrefixMatch(pathname: string, map: Record<string, string>): stri
 }
 
 /** Keep the user on an equivalent page after switching accounts (e.g. cabang UKT → ranting UKT). */
-export function resolvePageForNewAccount(pathname: string, roles: string[]): string {
+export function resolvePageForNewAccount(
+  pathname: string,
+  roles: string[],
+  search = "",
+): string {
   const userIsAdmin = isAdmin(roles);
+  const query = search.replace(/^\?/, "");
+  const querySuffix = query ? `?${query}` : "";
 
   if (pathname.startsWith("/admin")) {
     if (!userIsAdmin) {
-      return longestPrefixMatch(pathname, ADMIN_TO_MEMBER) ?? "/dashboard";
+      const mapped = longestPrefixMatch(pathname, ADMIN_TO_MEMBER) ?? "/dashboard";
+      // Pertahankan semester/tahun UKT saat pindah ke halaman anggota setara
+      if (pathname.startsWith("/admin/ukt") && query) {
+        return `${mapped}${querySuffix}`;
+      }
+      return mapped;
     }
-    return pathname;
+    return `${pathname}${querySuffix}`;
   }
 
   if (pathname.startsWith("/dashboard")) {
     if (userIsAdmin) {
-      return longestPrefixMatch(pathname, MEMBER_TO_ADMIN) ?? "/admin";
+      const mapped = longestPrefixMatch(pathname, MEMBER_TO_ADMIN) ?? "/admin";
+      if (pathname.startsWith("/dashboard/prestasi") && query) {
+        return `${mapped}${querySuffix}`;
+      }
+      return mapped;
     }
-    return pathname;
+    return `${pathname}${querySuffix}`;
   }
 
   return userIsAdmin ? "/admin" : "/dashboard";

@@ -25,7 +25,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 |--------|------------|
 | Digitalisasi keanggotaan | Registrasi, verifikasi, NIA, dokumen, sabuk |
 | Operasional ranting–cabang | Kelola anggota, iuran, absensi, event |
-| Ujian Kenaikan Tingkat (UKT) | Periode, pendaftaran, Kyu Lama/Baru, invoice |
+| Ujian Kenaikan Tingkat (UKT) | Periode, pendaftaran, Kyu Lama/Baru, nota |
 | Transparansi organisasi | Struktur wilayah, pengurus, konten publik |
 | Kontrol akses wilayah | RBAC User → Ranting → Cabang → Pengprov → Pusat |
 
@@ -199,13 +199,18 @@ Pusat / Nasional
 4. Status: `PENDING` → `WAITING_VERIFICATION` → `PAID` / ditolak.
 
 ### 9.3 UKT (Ujian Kenaikan Tingkat)
-1. **Cabang** membuat periode UKT per semester.
-2. **Ranting** mendaftarkan anggota (snapshot **Sabuk saat ini / Kyu Lama** dikunci).
-3. **Ranting** memilih peserta (multi-select) → **Nota Terpilih** / **Siap Bayar UKT** selaras baris terpilih.
-4. **Cabang** **memverifikasi pembayaran** (per baris / bulk) dan mengisi **Sabuk target / Kyu Baru**.
-5. Status **Selesai** bila sudah lunas + sabuk target terisi; sabuk resmi anggota diperbarui + riwayat.
-6. Cetak nota memakai tabel biaya sabuk bulat; **tanpa kode unik** (+1…999). Tampilan tagihan UKT juga menampilkan nominal dasar (selaras nota).
-7. Gate: tanggungan iuran dapat menghambat pendaftaran.
+1. **Cabang** membuat periode UKT per semester (Semester I = Jan–Jun, Semester II = Jul–Des); setiap semester = **event terpisah** dengan registrasi & pembayaran sendiri.
+2. URL admin `/admin/ukt?semester=I|II&year=YYYY&period=<eventId>` — dropdown semester/tahun **otomatis** memilih event yang cocok; bila periode belum ada, tampil tombol **Buat Periode**.
+3. **Ranting** mendaftarkan anggota (snapshot **Sabuk saat ini / Kyu Lama** dikunci per periode).
+4. Pendaftaran UKT kini memakai **gate operasional**: periode masih terbuka, **iuran tidak menunggak**, **dokumen Akte + BPJS lengkap**, dan **kehadiran semester minimal 75%**.
+5. **Ranting** memilih peserta (multi-select) → **Nota Terpilih** / **Siap Bayar UKT** selaras baris terpilih.
+6. **Cabang** **memverifikasi pembayaran** (per baris / bulk), lalu mencatat **hasil ujian**: `LULUS` / `GAGAL` / `MENGULANG`.
+7. **Sabuk target / Kyu Baru** hanya dapat diisi setelah peserta **lunas** dan hasil ujian ditandai **LULUS**.
+8. Status operasional UKT disederhanakan untuk UI: **Belum Daftar / Belum Bayar / Menunggu Verifikasi / Menunggu Ujian / Lulus Ujian / Tidak Lulus / Mengulang / Selesai**.
+9. Status **Selesai** bila sudah lunas + lulus + sabuk target terisi; sabuk resmi anggota diperbarui + riwayat.
+10. Cetak nota memakai tabel biaya sabuk bulat; **tanpa kode unik** (+1…999). Nomor nota memuat semester (`UKT/SBY/{RANTING}/I|II/{tahun}`).
+11. Batas pendaftaran default = akhir semester; cabang dapat **perpanjang** manual.
+12. Dashboard anggota menampilkan **kartu Status UKT** di beranda & Prestasi; admin cabang dapat **export CSV**, **waiver** syarat, wizard buat periode, dan action bar terpadu (nota + verifikasi).
 
 ### 9.4 Kegiatan & absensi
 - **Cabang** dapat membuat event non-UKT di `/admin/kegiatan` (Gashuku, pertandingan, dll.).
@@ -250,7 +255,7 @@ Pusat / Nasional
 |------|--------|----------------------------------|
 | Portal publik | Lengkap | Konten organisasi & kegiatan |
 | Dashboard anggota inti | Lengkap | Profil, iuran, absensi, kegiatan, sabuk, materi, store, pesan, pindah |
-| Admin anggota / iuran / UKT | Lengkap | Iuran: edit/lunas/verifikasi (ranting+cabang); UKT multi-select, nota tanpa kode unik |
+| Admin anggota / iuran / UKT | Lengkap | Iuran: edit/lunas/verifikasi (ranting+cabang); UKT pakai gate iuran+dokumen+absensi, hasil ujian, rekap ranting, nota tanpa kode unik |
 | Verifikasi kartu (publik) | Aktif | `/v/[id]` — scan QR kartu anggota |
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
 | Materi / Store / Pesan / Pindah / Piagam | Aktif | Prisma lokal + verifikasi admin |
@@ -258,6 +263,13 @@ Pusat / Nasional
 | Upload bukti iuran (anggota) | Aktif | `/dashboard/iuran` + `/api/member/billing/[id]` |
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` + `/api/member/attendance/checkin` |
 | Nominal UKT | Tanpa kode unik | `uktBaseFeeAmount` — tampilan/KPI strip +1…999 agar = nota |
+| Eligibility UKT | Diterapkan | Gate periode tutup, iuran, dokumen, absensi semester minimum 75% |
+| Hasil ujian UKT | Aktif | Cabang tetapkan `LULUS` / `GAGAL` / `MENGULANG`; Kyu Baru **wajib** setelah LULUS |
+| Status UKT anggota | Aktif | `/api/member/ukt-status` + kartu status di beranda & Prestasi (CTA langkah berikutnya) |
+| Filter/KPI UKT operasional | Aktif | Status UI selaras: Belum Bayar, Menunggu Verif/Ujian, Lulus, Selesai |
+| Pengecualian UKT (waiver) | Aktif | Cabang kecualikan iuran/dokumen/absensi + catatan audit |
+| Export rekap UKT | Aktif | CSV per periode/ranting dari admin UKT |
+| Notifikasi UKT | Aktif | Otomatis ke anggota saat daftar, verifikasi bayar, hasil ujian, selesai |
 | Ketergantungan API | Ada | Halaman degrade jika API sibuk/timeout |
 | Email & Blob | Opsional | Perlu env production |
 
@@ -270,7 +282,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 1. **Jumlah anggota** aktif / pending / tanpa NIA / dokumen kurang  
 2. **Sebaran per ranting**  
 3. **Iuran** — lunas, pending, menunggu verifikasi, nilai rupiah  
-4. **UKT** — peserta per periode, Kyu Lama → Kyu Baru, status pembayaran  
+4. **UKT** — peserta per periode, Kyu Lama → Kyu Baru, status pembayaran, hasil ujian, kelulusan per ranting  
 5. **Absensi** — kehadiran harian / semester (untuk eligibility)  
 6. **Verifikasi** — antrian & yang selesai  
 7. **Event** — jumlah kegiatan & pendaftar  
@@ -284,12 +296,13 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/auth/*                 Login, register (+ identitas/sabuk lengkap), forgot/reset password
 /api/admin/members/*        Kelola anggota
 /api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
-/api/admin/ukt/*            Periode, register, invoice, fees, Kyu
+/api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees, Kyu
 /api/admin/pengaturan/*     User, cabang, ranting, roles, geofencing, akun
 /api/admin/verifications/*  Proses klaim
 /api/admin/carousel/*       Carousel beranda
 /api/admin/upload           Upload ke Blob
 /api/member/profile          GET sabuk kartu (no-store) + PATCH profil
+/api/member/ukt-status       Kartu status UKT periode aktif untuk anggota
 /api/admin/events           Buat event non-UKT (Cabang)
 /api/admin/materi/*         CRUD materi digital
 /api/admin/store/*          Produk & status pesanan
@@ -344,6 +357,11 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 17 Juli 2026 | Registrasi publik selaras admin: `MemberFormSections` (Identitas + Sabuk), field birthPlace/address/currentRank, `registerSchema` & `POST /api/auth/register` teruskan semua field ke Inkai API; perbaikan fetch `/api/dojos` (`data.data`) |
 | 17 Juli 2026 | Nav topbar **Dojo / Ranting** → `/dojo`: daftar lengkap dojo Cabang Surabaya (alamat, kontak, jadwal, tempat latihan; tanpa jumlah anggota) |
 | 17 Juli 2026 | Field **NIA opsional** di form Tambah Anggota Baru (admin/anggota, admin/ukt, login?tab=daftar) — `MemberIdentitySection`, `uktMemberCreateSchema`, `registerSchema`, create & register API |
+| 17 Juli 2026 | UKT admin: sinkron otomatis semester/tahun ↔ event periode (`findUktPeriodForTerm`, redirect URL kanonik, ganti semester langsung pilih event yang cocok) |
+| 17 Juli 2026 | UKT ranting: navigasi semester/tahun sama cabang, link menu ke URL kanonik, banner jika periode belum dibuat, pertahankan query saat ganti akun |
+| 17 Juli 2026 | UKT lengkap: gate pendaftaran (periode, iuran, dokumen, absensi), hasil ujian `LULUS/GAGAL/MENGULANG`, Kyu Baru hanya setelah lulus+lunas, rekap ranting untuk WA, dan kartu status UKT anggota |
+| 17 Juli 2026 | UKT: hapus alur invoice (buat/konfirmasi); pembayaran ranting–cabang cukup lewat **nota** (Cetak Nota / Nota Terpilih / Siap Bayar UKT) |
+| 17 Juli 2026 | UKT operasional lengkap: filter/KPI status operasional, kolom kehadiran+syarat, action bar terpadu, hard block Kyu Baru, waiver cabang, export CSV, wizard periode, notifikasi anggota, kartu UKT di beranda |
 
 ---
 

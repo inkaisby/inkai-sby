@@ -75,6 +75,15 @@ export const uktRegisterSchema = z.object({
   memberId: z.string().uuid(),
 });
 
+export const uktWaiverSchema = z.object({
+  eventId: z.string().uuid(),
+  memberId: z.string().uuid(),
+  blockers: z
+    .array(z.enum(["IURAN_TUNGGAKAN", "DOKUMEN_KURANG", "ABSENSI_KURANG"]))
+    .min(1),
+  note: z.string().trim().min(5).max(500),
+});
+
 export const uktRegistrationUpdateSchema = z.object({
   action: z.enum(["approve", "reject", "update_kyu", "mark_paid"]).optional(),
   categoryId: z.string().uuid().optional(),
@@ -83,6 +92,8 @@ export const uktRegistrationUpdateSchema = z.object({
   previousRank: z.string().trim().min(1).max(64).optional(),
   memberId: z.string().uuid().optional(),
   status: z.enum(["PENDING", "APPROVED", "REJECTED", "PAID", "SUCCESS"]).optional(),
+  examResult: z.enum(["LULUS", "GAGAL", "MENGULANG"]).optional(),
+  eventId: z.string().uuid().optional(),
 });
 
 export const uktMemberCreateSchema = z.object({
@@ -125,12 +136,6 @@ export const uktBeltFeesSchema = z.object({
   BIRU: z.coerce.number().int().min(0).max(10_000_000),
   COKELAT: z.coerce.number().int().min(0).max(10_000_000),
   komisiRanting: z.coerce.number().int().min(0).max(1_000_000),
-});
-
-export const uktInvoiceAckSchema = z.object({
-  eventId: z.string().uuid(),
-  dojoId: z.string().uuid(),
-  acknowledged: z.boolean(),
 });
 
 export const adminUserPatchSchema = z.object({

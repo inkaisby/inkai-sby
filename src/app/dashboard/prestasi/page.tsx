@@ -6,7 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Award } from "lucide-react";
 import { fetchMyMemberProfile } from "@/lib/inkai-api/member-data";
 import { MemberPageHeader } from "@/components/member/MemberPageHeader";
+import { UktStatusCard } from "@/components/member/UktStatusCard";
 import { PiagamUploadClient } from "@/components/member/PiagamUploadClient";
+import {
+  resolveUktDisplayStatus,
+  uktDisplayStatusLabel,
+} from "@/lib/ukt";
 import { formatRankLabel } from "@/lib/belt";
 import { cn } from "@/lib/utils";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
@@ -96,6 +101,8 @@ export default async function PrestasiPage({ searchParams }: Props) {
 
       {activeTab === "Sabuk" && (
         <>
+          <UktStatusCard />
+
           <div className="mb-6 rounded-2xl border border-border/60 bg-card p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
               <Award className="h-4 w-4 text-inkai-red" />
@@ -188,6 +195,32 @@ function EventList({ items }: { items: Array<Record<string, unknown>> }) {
           | { title?: string; startDate?: string }
           | undefined;
         const category = r.category as { name?: string } | null | undefined;
+        const displayStatus = resolveUktDisplayStatus({
+          memberId: "",
+          registrationId: String(r.id),
+          photoUrl: null,
+          nia: null,
+          fullName: "",
+          birthPlace: null,
+          birthDate: null,
+          gender: null,
+          address: null,
+          kyuLama: "",
+          kyuBaru: category?.name ?? null,
+          birthCertificateUrl: null,
+          bpjsCardUrl: null,
+          dojoName: "",
+          dojoId: "",
+          status: String(r.status ?? ""),
+          billingId: null,
+          billingStatus: null,
+          billingAmount: null,
+          outstandingDues: 0,
+          pendingVerifications: 0,
+          attendanceCount: 0,
+          attendancePct: null,
+          examResult: null,
+        });
         return (
           <div
             key={String(r.id)}
@@ -206,7 +239,7 @@ function EventList({ items }: { items: Array<Record<string, unknown>> }) {
               </p>
             </div>
             <Badge variant="secondary" className="shrink-0">
-              {String(r.status)}
+              {uktDisplayStatusLabel(displayStatus)}
             </Badge>
           </div>
         );

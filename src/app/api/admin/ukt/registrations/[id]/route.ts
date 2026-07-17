@@ -14,6 +14,8 @@ import { uktRegistrationUpdateSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
 import { prisma } from "@/lib/prisma";
+import { uktExamResultKey } from "@/lib/ukt";
+import { notifyUktStatusChange } from "@/lib/ukt-notify";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -217,6 +219,78 @@ export async function PATCH(request: Request, context: RouteContext) {
   const role = getPrimaryAdminRole(authResult.user.roles);
   const isCabang = canEditKyuBaru(authResult.user.roles);
 
+  if (data.examResult) {
+    if (!isCabang) {
+      return NextResponse.json(
+        { error: "Hanya admin cabang yang dapat mencatat hasil ujian" },
+        { status: 403 },
+      );
+    }
+    if (!data.eventId) {
+      return NextResponse.json({ error: "eventId wajib untuk hasil ujian" }, { status: 400 });
+    }
+
+    const key = uktExamResultKey(data.eventId, id);
+    const value = {
+      result: data.examResult,
+      at: new Date().toISOString(),
+      by: authResult.user.email,
+    };
+    const { res, data: apiData } = await inkaiFetch(
+      `/v1/settings/${encodeURIComponent(key)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ value }),
+      },
+      authResult.token,
+    );
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: inkaiErrorMessage(apiData, "Gagal menyimpan hasil ujian") },
+        { status: res.status },
+      );
+    }
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "UKT_EXAM_RESULT",
+      details: `UKT ${id}: hasil ${data.examResult}`,
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      token: authResult.token,
+    });
+
+    const { res: regRes, data: regData } = await inkaiFetch(
+      `/v1/events/register/${id}`,
+      {},
+      authResult.token,
+    );
+    if (regRes.ok) {
+      const reg = regData.data as Record<string, unknown>;
+      const member = reg.member as { id?: string; fullName?: string } | undefined;
+      const event = reg.event as { title?: string } | undefined;
+      const memberId = String(member?.id ?? reg.memberId ?? "");
+      if (memberId) {
+        const displayStatus =
+          data.examResult === "LULUS"
+            ? "lulus"
+            : data.examResult === "GAGAL"
+              ? "gagal"
+              : "mengulang";
+        await notifyUktStatusChange({
+          token: authResult.token,
+          memberId,
+          memberName: String(member?.fullName ?? "Anggota"),
+          periodTitle: String(event?.title ?? "UKT"),
+          displayStatus,
+        });
+      }
+    }
+
+    return NextResponse.json({ success: true, examResult: data.examResult });
+  }
+
   if (data.newRank && !isCabang) {
     return NextResponse.json(
       { error: "Kyu Baru hanya dapat diubah oleh admin cabang" },
@@ -242,6 +316,39 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   // Cabang mengisi Kyu Baru = lulus UKT → update sabuk resmi anggota
   if (data.newRank) {
+    if (!data.eventId) {
+      return NextResponse.json(
+        { error: "eventId wajib untuk mengisi sabuk target" },
+        { status: 400 },
+      );
+    }
+
+    const { res: settingRes, data: settingData } = await inkaiFetch(
+      `/v1/settings/${encodeURIComponent(uktExamResultKey(data.eventId, id))}`,
+      {},
+      authResult.token,
+    );
+    if (!settingRes.ok) {
+      return NextResponse.json(
+        {
+          error:
+            "Hasil ujian belum dicatat. Tandai peserta LULUS terlebih dahulu sebelum mengisi sabuk target.",
+        },
+        { status: 400 },
+      );
+    }
+    const val = (settingData.data as { value?: { result?: string } } | undefined)?.value;
+    const examResult = String(val?.result ?? "").toUpperCase();
+    if (examResult !== "LULUS") {
+      return NextResponse.json(
+        {
+          error:
+            "Sabuk target hanya dapat diisi setelah peserta ditandai Lulus ujian dan pembayaran lunas",
+        },
+        { status: 400 },
+      );
+    }
+
     const applied = await applyKyuBaruToMember({
       registrationId: id,
       newRank: data.newRank,
@@ -266,6 +373,22 @@ export async function PATCH(request: Request, context: RouteContext) {
       userAgent: request.headers.get("user-agent"),
       token: authResult.token,
     });
+
+    if (applied.memberId) {
+      await notifyUktStatusChange({
+        token: authResult.token,
+        memberId: applied.memberId,
+        memberName: String(
+          (applied.registration?.member as { fullName?: string } | undefined)?.fullName ??
+            "Anggota",
+        ),
+        periodTitle: String(
+          (applied.registration?.event as { title?: string } | undefined)?.title ?? "UKT",
+        ),
+        displayStatus: "selesai",
+        extra: `Sabuk resmi diperbarui ke ${applied.kyuBaru}.`,
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -303,7 +426,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (data.action === "mark_paid") {
     const registration = apiData.data as Record<string, unknown>;
     const member = registration.member as
-      | { billings?: Array<{ id: string; status: string }> }
+      | { id?: string; fullName?: string; billings?: Array<{ id: string; status: string }> }
       | undefined;
     const billing = member?.billings?.find((b) => b.status === "PENDING");
     if (billing) {
@@ -315,6 +438,18 @@ export async function PATCH(request: Request, context: RouteContext) {
         },
         authResult.token,
       );
+    }
+    const memberId = String(member?.id ?? registration.memberId ?? "");
+    const event = registration.event as { title?: string } | undefined;
+    if (memberId) {
+      await notifyUktStatusChange({
+        token: authResult.token,
+        memberId,
+        memberName: String(member?.fullName ?? "Anggota"),
+        periodTitle: String(event?.title ?? "UKT"),
+        displayStatus: "menunggu_ujian",
+        extra: "Pembayaran UKT telah diverifikasi.",
+      });
     }
   }
 

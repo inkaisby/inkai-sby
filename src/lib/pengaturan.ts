@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ADMIN_ROLES, getPrimaryAdminRole, type SessionUser } from "@/lib/rbac";
+import { buildDefaultUktAdminUrl } from "@/lib/ukt";
 
 export const SETTINGS_HUB = [
   {
@@ -36,7 +37,7 @@ export const SETTINGS_HUB = [
 ] as const;
 
 export const SETTINGS_SHORTCUTS = [
-  { href: "/admin/ukt", title: "UKT & Iuran Ujian", description: "Tarif sabuk & komisi ranting" },
+  { href: buildDefaultUktAdminUrl(), title: "UKT & Iuran Ujian", description: "Tarif sabuk & komisi ranting" },
   { href: "/admin/carousel", title: "Carousel Beranda", description: "Konten visual beranda publik" },
   { href: "/admin/audit", title: "Log Audit", description: "Jejak aksi sensitif admin" },
 ] as const;

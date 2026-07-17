@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import {
   getPrimaryAdminRole,
   ROLE_LABELS,
@@ -7,6 +8,9 @@ import { canCreateEventsByWilayah } from "@/lib/wilayah-rbac";
 import { UktDashboard } from "@/components/admin/ukt/UktDashboard";
 import {
   beltFeesFromTemplates,
+  buildUktAdminUrl,
+  currentSemester,
+  findUktPeriodForTerm,
   type UktSemester,
 } from "@/lib/ukt";
 import { fetchUktDashboardData } from "@/lib/inkai-api/admin-data";
@@ -26,7 +30,9 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   const { user, token } = await requireAdminSession();
 
   const params = await searchParams;
-  const semester = (params.semester === "II" ? "II" : "I") as UktSemester;
+  const semester = (
+    params.semester === "II" ? "II" : params.semester === "I" ? "I" : currentSemester()
+  ) as UktSemester;
   const year = Math.min(
     2100,
     Math.max(2020, parseInt(params.year || String(new Date().getFullYear()), 10) || new Date().getFullYear()),
@@ -45,17 +51,28 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   let dojos: { id: string; name: string }[] = [];
   let selectedPeriodId: string | null = params.period || null;
   let allRows: Awaited<ReturnType<typeof fetchUktDashboardData>>["allRows"] = [];
-  let invoiceAcks: Record<string, { acknowledged: boolean; at: string; by: string }> = {};
   let beltFees = beltFeesFromTemplates([]);
   let komisiRanting = 0;
 
   try {
-    const data = await fetchUktDashboardData(token, user, params.period || null);
+    const data = await fetchUktDashboardData(token, user, {
+      periodFromUrl: params.period || null,
+      semester,
+      year,
+    });
     periods = data.periods;
     dojos = data.dojos;
     selectedPeriodId = data.selectedPeriodId;
+
+    const canonicalPeriod = findUktPeriodForTerm(periods, semester, year)?.id ?? null;
+    const urlNeedsSync =
+      params.semester !== semester ||
+      params.year !== String(year) ||
+      (params.period ?? "") !== (canonicalPeriod ?? "");
+    if (urlNeedsSync) {
+      redirect(buildUktAdminUrl(semester, year, canonicalPeriod));
+    }
     allRows = data.allRows;
-    invoiceAcks = data.invoiceAcks;
     beltFees = data.beltFees;
     komisiRanting = data.komisiRanting;
     if (!data.ok) dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
@@ -87,7 +104,6 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         primaryRole={primaryRole}
         semester={semester}
         year={year}
-        invoiceAcks={invoiceAcks}
         canCreatePeriod={canCreatePeriod}
         dbError={dbError}
         defaultDojoFilter={autoDojoId}

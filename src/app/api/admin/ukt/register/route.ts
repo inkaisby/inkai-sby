@@ -10,6 +10,8 @@ import { canRegisterMembersToEvents } from "@/lib/wilayah-rbac";
 import { uktRegisterSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
+import { validateUktRegistrationEligibility } from "@/lib/ukt-register";
+import { notifyUktStatusChange } from "@/lib/ukt-notify";
 
 export const maxDuration = 30;
 
@@ -39,6 +41,15 @@ export async function POST(request: Request) {
     }
 
     const { eventId, memberId } = parsed.data;
+
+    const eligibility = await validateUktRegistrationEligibility(
+      authResult.token,
+      eventId,
+      memberId,
+    );
+    if (!eligibility.ok) {
+      return NextResponse.json({ error: eligibility.error }, { status: 400 });
+    }
 
     const { res, data } = await inkaiFetch(
       "/v1/events/register",
@@ -115,6 +126,15 @@ export async function POST(request: Request) {
       ip: getClientIp(request),
       userAgent: request.headers.get("user-agent"),
       token: authResult.token,
+    });
+
+    await notifyUktStatusChange({
+      token: authResult.token,
+      memberId,
+      memberName: String(member?.fullName ?? "Anggota"),
+      periodTitle: String(event?.title ?? "UKT"),
+      displayStatus: "belum_bayar",
+      extra: "Silakan koordinasi pembayaran UKT dengan ketua ranting.",
     });
 
     const billings = (member as { billings?: Array<{ id: string }> } | undefined)?.billings;

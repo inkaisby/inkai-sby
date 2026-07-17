@@ -114,25 +114,7 @@ export default function LoginForm({
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor={`${idPrefix}-password`}>Password</Label>
-            {onForgotPassword ? (
-              <button
-                type="button"
-                onClick={onForgotPassword}
-                className="text-xs font-medium text-inkai-red hover:underline"
-              >
-                Lupa password?
-              </button>
-            ) : (
-              <Link
-                href="/lupa-password"
-                className="text-xs font-medium text-inkai-red hover:underline"
-              >
-                Lupa password?
-              </Link>
-            )}
-          </div>
+          <Label htmlFor={`${idPrefix}-password`}>Password</Label>
           <div className="relative">
             <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -155,6 +137,24 @@ export default function LoginForm({
             >
               {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
+          </div>
+          <div className="flex justify-end">
+            {onForgotPassword ? (
+              <button
+                type="button"
+                onClick={onForgotPassword}
+                className="text-xs font-medium text-inkai-red hover:underline"
+              >
+                Lupa password?
+              </button>
+            ) : (
+              <Link
+                href="/lupa-password"
+                className="text-xs font-medium text-inkai-red hover:underline"
+              >
+                Lupa password?
+              </Link>
+            )}
           </div>
         </div>
 

@@ -1,4 +1,5 @@
 import { getPrimaryAdminRole } from "@/lib/rbac";
+import { buildDefaultUktAdminUrl } from "@/lib/ukt";
 
 export type NavLink = {
   href: string;
@@ -18,6 +19,13 @@ export function isNavGroup(item: NavItem): item is NavGroup {
 
 export function flattenNavLinks(items: NavItem[]): NavLink[] {
   return items.flatMap((item) => (isNavGroup(item) ? item.children : [item]));
+}
+
+function withFreshUktHref(items: NavItem[]): NavItem[] {
+  const uktHref = buildDefaultUktAdminUrl();
+  return items.map((item) =>
+    !isNavGroup(item) && item.label === "UKT" ? { ...item, href: uktHref } : item,
+  );
 }
 
 export const ADMIN_LINKS: NavItem[] = [
@@ -52,10 +60,10 @@ export const ADMIN_LINKS: NavItem[] = [
 export function getAdminNavLinks(roles: string[]): NavItem[] {
   const role = getPrimaryAdminRole(roles);
 
-  if (role !== "ADMIN_DOJO") return ADMIN_LINKS;
+  if (role !== "ADMIN_DOJO") return withFreshUktHref(ADMIN_LINKS);
 
   // Ranting: satu menu Pengaturan (data ranting + akun digabung)
-  return [
+  return withFreshUktHref([
     { href: "/admin", label: "Beranda Admin" },
     { href: "/admin/anggota", label: "Kelola Anggota" },
     { href: "/admin/iuran", label: "Iuran Anggota" },
@@ -67,7 +75,7 @@ export function getAdminNavLinks(roles: string[]): NavItem[] {
     { href: "/admin/pesan", label: "Pesan" },
     { href: "/admin/absensi", label: "Absensi" },
     { href: "/admin/pengaturan", label: "Pengaturan" },
-  ];
+  ]);
 }
 
 export const MEMBER_LINKS: NavItem[] = [

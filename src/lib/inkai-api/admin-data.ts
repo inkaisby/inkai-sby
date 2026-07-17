@@ -8,7 +8,14 @@ import {
   DEFAULT_KOMISI_RANTING,
   UKT_KOMISI_SETTING_KEY,
   uktBaseFeeAmount,
+  resolveUktSelectedPeriodId,
+  computeSemesterAttendance,
+  buildUktExamResultMap,
+  buildUktWaiverMap,
+  type UktExamResult,
   type UktMemberRow,
+  type UktRegistrationWaiver,
+  type UktSemester,
 } from "@/lib/ukt";
 
 export type AdminMemberRow = {
@@ -382,8 +389,13 @@ function buildVerificationCountMap(verifications: Array<Record<string, unknown>>
 export async function fetchUktDashboardData(
   token: string,
   user: SessionUser,
-  periodFromUrl: string | null,
+  opts: {
+    periodFromUrl?: string | null;
+    semester: UktSemester;
+    year: number;
+  },
 ) {
+  const { periodFromUrl = null, semester, year } = opts;
   const primaryRole = getPrimaryAdminRole(user.roles);
   const memberQuery: { limit: number; page: number; dojoId?: string } = {
     limit: 500,
@@ -402,8 +414,10 @@ export async function fetchUktDashboardData(
     komisiRanting,
     billingsRes,
     pendingVerificationsRes,
+    attendanceRes,
     eventDetailInitial,
-    ackSettingsInitial,
+    examSettingsInitial,
+    waiverSettingsInitial,
   ] = await Promise.all([
     inkaiFetch("/v1/events?limit=40", {}, token),
     fetchAdminDojos(token),
@@ -412,9 +426,13 @@ export async function fetchUktDashboardData(
     fetchUktKomisiRanting(token, UKT_KOMISI_SETTING_KEY, DEFAULT_KOMISI_RANTING),
     inkaiFetch("/v1/billing?limit=250", {}, token),
     inkaiFetch("/v1/verifications/pending", {}, token),
+    inkaiFetch("/v1/attendance?limit=3000", {}, token),
     periodFromUrl ? fetchEventDetail(token, periodFromUrl) : Promise.resolve(null),
     periodFromUrl
-      ? fetchSettingsByPrefix(token, `ukt-invoice-ack:${periodFromUrl}:`)
+      ? fetchSettingsByPrefix(token, `ukt-exam-result:${periodFromUrl}:`)
+      : Promise.resolve([]),
+    periodFromUrl
+      ? fetchSettingsByPrefix(token, `ukt-registration-waiver:${periodFromUrl}:`)
       : Promise.resolve([]),
   ]);
 
@@ -430,16 +448,44 @@ export async function fetchUktDashboardData(
     registrationCloseAt: p.registrationCloseAt ? String(p.registrationCloseAt) : null,
   }));
 
-  let selectedPeriodId = periodFromUrl || periods[0]?.id || null;
+  let selectedPeriodId = resolveUktSelectedPeriodId(
+    periods,
+    semester,
+    year,
+    periodFromUrl,
+  );
   let eventDetail = eventDetailInitial;
-  let ackSettings = ackSettingsInitial;
+  let examSettings = examSettingsInitial;
+  let waiverSettings = waiverSettingsInitial;
 
   if (selectedPeriodId && selectedPeriodId !== periodFromUrl) {
-    [eventDetail, ackSettings] = await Promise.all([
+    [eventDetail, examSettings, waiverSettings] = await Promise.all([
       fetchEventDetail(token, selectedPeriodId),
-      fetchSettingsByPrefix(token, `ukt-invoice-ack:${selectedPeriodId}:`),
+      fetchSettingsByPrefix(token, `ukt-exam-result:${selectedPeriodId}:`),
+      fetchSettingsByPrefix(token, `ukt-registration-waiver:${selectedPeriodId}:`),
     ]);
   }
+
+  const attendanceLogs = attendanceRes.res.ok
+    ? ((attendanceRes.data.data as Array<Record<string, unknown>>) ?? []).map((log) => {
+        const member = log.member as { id?: string } | undefined;
+        return {
+          checkInAt: String(log.checkInAt ?? log.createdAt ?? ""),
+          memberId: String(member?.id ?? log.memberId ?? ""),
+        };
+      })
+    : [];
+  const { countByMember, pctByMember } = computeSemesterAttendance(
+    attendanceLogs,
+    semester,
+    year,
+  );
+  const examResultMap = selectedPeriodId
+    ? buildUktExamResultMap(examSettings, selectedPeriodId)
+    : new Map<string, UktExamResult>();
+  const waiverMap = selectedPeriodId
+    ? buildUktWaiverMap(waiverSettings, selectedPeriodId)
+    : new Map<string, UktRegistrationWaiver>();
 
   const beltFees = feesRes.res.ok
     ? beltFeesFromTemplates(
@@ -463,7 +509,6 @@ export async function fetchUktDashboardData(
 
   const regMap = new Map<string, Record<string, unknown>>();
   const billingMap = new Map<string, Record<string, unknown>>();
-  const invoiceAcks: Record<string, { acknowledged: boolean; at: string; by: string }> = {};
 
   if (selectedPeriodId && eventDetail) {
     const registrations = (eventDetail.registrations as Array<Record<string, unknown>>) ?? [];
@@ -473,16 +518,6 @@ export async function fetchUktDashboardData(
       const billings = (member?.billings as Array<Record<string, unknown>>) ?? [];
       const billing = billings.find((b) => b.registrationId === reg.id) ?? billings[0];
       if (billing?.registrationId) billingMap.set(String(billing.registrationId), billing);
-    }
-
-    for (const s of ackSettings) {
-      const dojoId = s.key.split(":").pop()!;
-      const val = s.value as { acknowledged?: boolean; at?: string; by?: string };
-      invoiceAcks[dojoId] = {
-        acknowledged: !!val.acknowledged,
-        at: val.at || "",
-        by: val.by || "",
-      };
     }
   }
 
@@ -525,6 +560,10 @@ export async function fetchUktDashboardData(
       ),
       outstandingDues: billingCountByMember.get(m.id) ?? 0,
       pendingVerifications: verificationCountByMember.get(m.id) ?? 0,
+      attendanceCount: countByMember.get(m.id) ?? 0,
+      attendancePct: pctByMember.get(m.id) ?? null,
+      examResult: reg?.id ? examResultMap.get(String(reg.id)) ?? null : null,
+      registrationWaiver: waiverMap.get(m.id) ?? null,
     };
   });
 
@@ -533,7 +572,6 @@ export async function fetchUktDashboardData(
     selectedPeriodId,
     dojos,
     allRows,
-    invoiceAcks,
     beltFees,
     komisiRanting,
     ok: eventsRes.res.ok || membersResult.ok,

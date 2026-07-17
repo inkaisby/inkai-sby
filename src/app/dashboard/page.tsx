@@ -20,6 +20,7 @@ import {
 import { DashboardHomeHeader } from "@/components/member/DashboardHomeHeader";
 import { MemberCard } from "@/components/member/MemberCard";
 import { QuickActions } from "@/components/member/QuickActions";
+import { UktStatusCard } from "@/components/member/UktStatusCard";
 import { formatMemberName, formatRankLabel, resolveMemberDisplayRank } from "@/lib/belt";
 import { cn } from "@/lib/utils";
 
@@ -188,6 +189,10 @@ export default async function MemberDashboard() {
             </p>
           </div>
         </div>
+      )}
+
+      {(member?.status === "Active" || member?.status === "ACTIVE") && (
+        <UktStatusCard compact />
       )}
 
       {unpaidMonthly > 0 &&

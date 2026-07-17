@@ -132,9 +132,7 @@ export function SwitchAccountModal({
           ? window.location.search.replace(/^\?/, "")
           : "";
       const fullCurrentPath = `${pathname}${search ? `?${search}` : ""}`;
-      const targetPathname = resolvePageForNewAccount(pathname, roles);
-      const targetPath =
-        targetPathname === pathname ? fullCurrentPath : targetPathname;
+      const targetPath = resolvePageForNewAccount(pathname, roles, search);
 
       const primaryRole = getPrimaryAdminRole(roles);
       const roleLabel = ROLE_LABELS[primaryRole] || primaryRole;
