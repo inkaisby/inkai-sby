@@ -25,11 +25,21 @@ export const registerSchema = z.object({
     .string()
     .trim()
     .min(10, "Nomor telepon tidak valid")
-    .max(15)
+    .max(20)
     .optional()
     .or(z.literal("")),
   gender: z.enum(["L", "P"]).optional().or(z.literal("")),
+  birthPlace: z.string().trim().max(100).optional().or(z.literal("")),
   birthDate: z.string().optional().or(z.literal("")),
+  address: z.string().trim().max(300).optional().or(z.literal("")),
+  currentRank: z.string().trim().min(2).max(64).optional(),
+  nia: z
+    .string()
+    .trim()
+    .min(2, "NIA minimal 2 karakter")
+    .max(32, "NIA maksimal 32 karakter")
+    .optional()
+    .or(z.literal("")),
 });
 
 export const forgotPasswordSchema = z.object({
@@ -96,6 +106,13 @@ export const uktMemberCreateSchema = z.object({
     .optional()
     .or(z.literal("")),
   currentRank: z.string().trim().min(2).max(64).optional(),
+  nia: z
+    .string()
+    .trim()
+    .min(2, "NIA minimal 2 karakter")
+    .max(32, "NIA maksimal 32 karakter")
+    .optional()
+    .or(z.literal("")),
 });
 
 /** Alias semantik untuk create anggota dari Kelola Anggota / UKT */

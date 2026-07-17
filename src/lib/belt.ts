@@ -126,6 +126,60 @@ export function needsRankNormalization(rankRaw: string | null | undefined): bool
   return Boolean(formatted && formatted !== raw);
 }
 
+function beltRankIndex(rankRaw: string | null | undefined): number {
+  const formatted = formatRankLabel(rankRaw);
+  if (!formatted) return -1;
+  return BELT_RANK_OPTIONS.findIndex(
+    (opt) => opt.toLowerCase() === formatted.toLowerCase(),
+  );
+}
+
+type MemberRankSource = {
+  currentRank?: string | null;
+  ranks?: Array<{ rank?: string | null; date?: string | Date | null }> | null;
+  eventRegistrations?: Array<{
+    status?: string | null;
+    registeredRank?: string | null;
+    event?: { title?: string | null } | null;
+  }> | null;
+};
+
+/** Sabuk tampilan kartu anggota — ambil yang paling tinggi dari currentRank, riwayat, dan UKT selesai. */
+export function resolveMemberDisplayRank(source: MemberRankSource): string {
+  const candidates: string[] = [];
+
+  const current = formatRankLabel(source.currentRank);
+  if (current) candidates.push(current);
+
+  for (const entry of source.ranks ?? []) {
+    const rank = formatRankLabel(entry.rank);
+    if (rank) candidates.push(rank);
+  }
+
+  for (const reg of source.eventRegistrations ?? []) {
+    const title = String(reg.event?.title ?? "").toUpperCase();
+    if (!title.includes("UKT") && !title.includes("UJIAN")) continue;
+
+    const status = String(reg.status ?? "").toUpperCase();
+    if (!["PAID", "SUCCESS", "APPROVED"].includes(status)) continue;
+
+    const { kyuBaru } = decodeUktRegisteredRank(reg.registeredRank);
+    if (kyuBaru) candidates.push(kyuBaru);
+  }
+
+  let best = "";
+  let bestIdx = -1;
+  for (const rank of candidates) {
+    const idx = beltRankIndex(rank);
+    if (idx > bestIdx) {
+      bestIdx = idx;
+      best = rank;
+    }
+  }
+
+  return best;
+}
+
 /** Pemisah snapshot Kyu Lama ‖ Kyu Baru di EventRegistration.registeredRank */
 export const UKT_RANK_SEP = " || ";
 

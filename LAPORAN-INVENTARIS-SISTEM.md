@@ -64,11 +64,12 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/kegiatan` | Daftar kegiatan |
 | `/kegiatan/[id]` | Detail kegiatan |
 | `/berita` | Berita dari carousel |
+| `/dojo` | Daftar dojo/ranting Cabang Surabaya (detail lengkap, tanpa jumlah anggota) |
 | `/dojo/[id]` | Profil ranting/dojo |
 | `/v/[id]` | Verifikasi kartu anggota (scan QR — UUID atau NIA) |
 | `/kontak` | Kontak sekretariat |
 | `/keamanan-siber` | Kebijakan keamanan siber |
-| `/login` | Login & registrasi |
+| `/login` | Login & registrasi (form selaras admin: identitas, sabuk, akun, dojo) |
 | `/daftar` | Redirect ke form daftar |
 | `/lupa-password` | Ajuan reset password |
 | `/reset-password` | Set password baru |
@@ -79,7 +80,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Modul | Status | Fungsi |
 |-------|--------|--------|
-| Beranda | Aktif | Kartu anggota (QR → `/v/[id]`), KPI absensi, tagihan, kegiatan, notifikasi |
+| Beranda | Aktif | Kartu anggota (QR → `/v/[id]`, sabuk live refresh), KPI absensi, tagihan, kegiatan, notifikasi |
 | Profil | Aktif | Edit data pribadi (bukan Kyu/DAN) |
 | Absensi | Aktif | Riwayat + check-in GPS (kode QR opsional) |
 | Iuran | Aktif | Daftar tagihan + unggah bukti pembayaran |
@@ -181,11 +182,12 @@ Pusat / Nasional
 ## 9. Alur bisnis yang sudah berjalan
 
 ### 9.1 Keanggotaan
-1. Calon anggota daftar via `/login?tab=daftar`.
-2. Status menunggu verifikasi.
-3. Admin memverifikasi di `/admin/verifikasi` atau kelola anggota.
-4. Cabang dapat mengisi **NIA**.
-5. Anggota melengkapi profil & dokumen.
+1. Calon anggota daftar via `/login?tab=daftar` — form **Identitas** (nama, JK, tempat/tgl lahir, alamat, NIK, **NIA opsional**, telepon), **Sabuk** (Kyu saat ini), **Akun** (email/password), **Dojo**; selaras dengan **Tambah Anggota Baru** di `/admin/anggota` dan `/admin/ukt`.
+2. `POST /api/auth/register` dan `POST /api/admin/members` meneruskan semua field anggota (termasuk NIA jika diisi) ke Inkai API.
+3. Status menunggu verifikasi (publik) atau aktif langsung (admin/ranting).
+4. Admin memverifikasi di `/admin/verifikasi` atau kelola anggota.
+5. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran.
+6. Anggota melengkapi profil & dokumen.
 
 ### 9.2 Iuran
 1. Tagihan iuran bulanan muncul di sistem.
@@ -279,7 +281,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 ## 13. Peta route API utama (lampiran teknis)
 
 ```
-/api/auth/*                 Login, register, forgot/reset password
+/api/auth/*                 Login, register (+ identitas/sabuk lengkap), forgot/reset password
 /api/admin/members/*        Kelola anggota
 /api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
 /api/admin/ukt/*            Periode, register, invoice, fees, Kyu
@@ -287,7 +289,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/verifications/*  Proses klaim
 /api/admin/carousel/*       Carousel beranda
 /api/admin/upload           Upload ke Blob
-/api/member/*               Profil, daftar event, upload bukti iuran, check-in absensi
+/api/member/profile          GET sabuk kartu (no-store) + PATCH profil
 /api/admin/events           Buat event non-UKT (Cabang)
 /api/admin/materi/*         CRUD materi digital
 /api/admin/store/*          Produk & status pesanan
@@ -338,6 +340,10 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 17 Juli 2026 | Selesaikan stub: Materi, Store, Pesan, Pindah Dojo, unggah Piagam; buat event non-UKT di admin; API & nav terkait |
 | 17 Juli 2026 | Iuran: ketua ranting/cabang dapat edit tagihan, tandai lunas, verifikasi bukti (+ catatan); scope ranting ke dojo |
 | 17 Juli 2026 | Halaman publik `/v/[id]` — verifikasi kartu anggota via scan QR (Inkai API `/v1/members/verify/[id]`, scope cabang Surabaya) |
+| 17 Juli 2026 | Kartu anggota dashboard: sabuk dari `resolveMemberDisplayRank` (currentRank + riwayat + UKT selesai) + refresh otomatis via `GET /api/member/profile` tanpa cache |
+| 17 Juli 2026 | Registrasi publik selaras admin: `MemberFormSections` (Identitas + Sabuk), field birthPlace/address/currentRank, `registerSchema` & `POST /api/auth/register` teruskan semua field ke Inkai API; perbaikan fetch `/api/dojos` (`data.data`) |
+| 17 Juli 2026 | Nav topbar **Dojo / Ranting** → `/dojo`: daftar lengkap dojo Cabang Surabaya (alamat, kontak, jadwal, tempat latihan; tanpa jumlah anggota) |
+| 17 Juli 2026 | Field **NIA opsional** di form Tambah Anggota Baru (admin/anggota, admin/ukt, login?tab=daftar) — `MemberIdentitySection`, `uktMemberCreateSchema`, `registerSchema`, create & register API |
 
 ---
 

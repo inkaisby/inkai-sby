@@ -44,6 +44,7 @@ export async function createAdminMember(opts: {
 
   const currentRank = input.currentRank?.trim() || DEFAULT_MEMBER_RANK;
   const nik = input.nik?.trim() || undefined;
+  const nia = input.nia?.trim() || undefined;
   const phoneNumber = input.phoneNumber?.trim() || undefined;
 
   const payload: Record<string, unknown> = {
@@ -57,6 +58,7 @@ export async function createAdminMember(opts: {
     status: "Active",
   };
   if (nik) payload.nik = nik;
+  if (nia) payload.nia = nia;
   if (phoneNumber) payload.phoneNumber = phoneNumber;
 
   const { res, data } = await inkaiFetch(
@@ -77,7 +79,7 @@ export async function createAdminMember(opts: {
     userId: user.id,
     email: user.email,
     action: opts.auditAction || "MEMBER_CREATE",
-    details: `Created member ${member.fullName} (${currentRank})`,
+    details: `Created member ${member.fullName} (${currentRank})${nia ? ` NIA ${nia}` : ""}`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token,

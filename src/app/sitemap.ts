@@ -11,6 +11,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/kontak",
     "/berita",
     "/kegiatan",
+    "/dojo",
     "/keamanan-siber",
     "/login",
     "/daftar",

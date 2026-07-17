@@ -13,6 +13,18 @@ export type CarouselItem = {
   createdAt?: string;
 };
 
+export type PublicDojoListItem = {
+  id: string;
+  name: string;
+  headName: string | null;
+  contactPerson: string | null;
+  address: string | null;
+  kecamatan: string | null;
+  phoneNumber: string | null;
+  schedule: string | null;
+  tempatLatihan: string | null;
+};
+
 export type PublicDojoDetail = {
   id: string;
   name: string;
@@ -72,6 +84,20 @@ export type PublicBranchStructure = {
     _count: { members: number };
   }>;
 };
+
+function mapDojoListItem(raw: Record<string, unknown>): PublicDojoListItem {
+  return {
+    id: String(raw.id),
+    name: String(raw.name ?? ""),
+    headName: (raw.headName as string | null) ?? null,
+    contactPerson: (raw.contactPerson as string | null) ?? null,
+    address: (raw.address as string | null) ?? null,
+    kecamatan: (raw.kecamatan as string | null) ?? null,
+    phoneNumber: (raw.phoneNumber as string | null) ?? null,
+    schedule: (raw.schedule as string | null) ?? null,
+    tempatLatihan: (raw.tempatLatihan as string | null) ?? null,
+  };
+}
 
 function mapDojoDetail(raw: Record<string, unknown>): PublicDojoDetail {
   const branch = raw.branch as Record<string, unknown> | undefined;
@@ -209,6 +235,36 @@ export const getBranchStructure = unstable_cache(
   { revalidate: 60, tags: ["branch", "dojo"] },
 );
 
+async function fetchBranchDojosList(): Promise<PublicDojoListItem[]> {
+  try {
+    const branch = await fetchBranchStructure();
+    if (!branch?.id) return [];
+
+    const { res, data } = await inkaiFetch(
+      `/v1/org/dojos/${branch.id}`,
+      {},
+      null,
+      { timeoutMs: 25_000, retries: 1 },
+    );
+    if (!res.ok) return [];
+
+    const items = (data.data as Array<Record<string, unknown>>) ?? [];
+    return items
+      .filter((d) => d.isDeleted !== true)
+      .map(mapDojoListItem)
+      .sort((a, b) => a.name.localeCompare(b.name, "id"));
+  } catch (error) {
+    console.error("[fetchBranchDojosList]", error);
+    return [];
+  }
+}
+
+export const getBranchDojosList = unstable_cache(
+  async () => fetchBranchDojosList(),
+  ["branch-dojos-list"],
+  { revalidate: 60, tags: ["branch", "dojo"] },
+);
+
 export const getUpcomingEvents = unstable_cache(
   async (): Promise<PublicEventSummary[]> => {
     try {
@@ -301,40 +357,33 @@ function mapMemberVerify(raw: Record<string, unknown>): PublicMemberVerify {
   };
 }
 
-const getMemberVerifyCached = (id: string) =>
-  unstable_cache(
-    async (): Promise<PublicMemberVerify | null> => {
-      const trimmed = id.trim();
-      if (!trimmed) return null;
+export const getMemberVerification = cache(
+  async (id: string): Promise<PublicMemberVerify | null> => {
+    const trimmed = id.trim();
+    if (!trimmed) return null;
 
-      try {
-        const { res, data } = await inkaiFetch(
-          `/v1/members/verify/${encodeURIComponent(trimmed)}`,
-          {},
-          null,
-        );
-        if (!res.ok) return null;
+    try {
+      const { res, data } = await inkaiFetch(
+        `/v1/members/verify/${encodeURIComponent(trimmed)}`,
+        {},
+        null,
+      );
+      if (!res.ok) return null;
 
-        const raw = (data.data as Record<string, unknown>) ?? null;
-        if (!raw) return null;
+      const raw = (data.data as Record<string, unknown>) ?? null;
+      if (!raw) return null;
 
-        const member = mapMemberVerify(raw);
-        if (
-          member.branchName.toUpperCase() !== SITE_BRANCH_NAME.toUpperCase()
-        ) {
-          return null;
-        }
-
-        return member;
-      } catch (error) {
-        console.error("[getMemberVerification]", id, error);
+      const member = mapMemberVerify(raw);
+      if (
+        member.branchName.toUpperCase() !== SITE_BRANCH_NAME.toUpperCase()
+      ) {
         return null;
       }
-    },
-    [`member-verify-${id}`],
-    { revalidate: 60, tags: ["member-verify", `member-verify-${id}`] },
-  )();
 
-export const getMemberVerification = cache((id: string) =>
-  getMemberVerifyCached(id),
+      return member;
+    } catch (error) {
+      console.error("[getMemberVerification]", id, error);
+      return null;
+    }
+  },
 );

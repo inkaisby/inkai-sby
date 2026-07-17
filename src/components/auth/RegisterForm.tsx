@@ -2,16 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  User,
-  Mail,
-  Lock,
-  Phone,
-  CreditCard,
-  Loader2,
-  Eye,
-  EyeOff,
-} from "lucide-react";
+import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +13,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  MemberBeltSection,
+  MemberIdentitySection,
+  type MemberFormFields,
+  validateMemberFormFields,
+} from "@/components/member/MemberFormSections";
+import { DEFAULT_MEMBER_RANK } from "@/lib/belt";
 import { showError, showSuccess } from "@/lib/client-toast";
 
 type Dojo = { id: string; nama: string; cabang: { nama: string } };
@@ -30,17 +28,25 @@ type RegisterFormProps = {
   preselectedDojo?: string;
 };
 
+const emptyMemberFields = (): MemberFormFields => ({
+  fullName: "",
+  gender: "",
+  birthPlace: "",
+  birthDate: "",
+  address: "",
+  nik: "",
+  nia: "",
+  phoneNumber: "",
+  currentRank: DEFAULT_MEMBER_RANK,
+});
+
 export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps) {
   const router = useRouter();
-  const [name, setName] = useState("");
+  const [memberFields, setMemberFields] = useState<MemberFormFields>(emptyMemberFields);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [nik, setNik] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [gender, setGender] = useState("");
-  const [birthDate, setBirthDate] = useState("");
   const [dojoId, setDojoId] = useState(preselectedDojo);
   const [dojos, setDojos] = useState<Dojo[]>([]);
   const [dojosLoading, setDojosLoading] = useState(true);
@@ -51,7 +57,7 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
   useEffect(() => {
     fetch("/api/dojos")
       .then((r) => r.json())
-      .then((data) => setDojos(Array.isArray(data) ? data : []))
+      .then((data) => setDojos(Array.isArray(data?.data) ? data.data : []))
       .catch(() => setError("Gagal memuat daftar dojo dari database"))
       .finally(() => setDojosLoading(false));
   }, []);
@@ -60,10 +66,24 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
     if (preselectedDojo) setDojoId(preselectedDojo);
   }, [preselectedDojo]);
 
+  function setMemberField<K extends keyof MemberFormFields>(
+    key: K,
+    value: MemberFormFields[K],
+  ) {
+    setMemberFields((prev) => ({ ...prev, [key]: value }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    const validationError = validateMemberFormFields(memberFields);
+    if (validationError) {
+      setError(validationError);
+      showError(validationError);
+      return;
+    }
 
     if (password !== confirmPassword) {
       setError("Konfirmasi password tidak cocok");
@@ -83,14 +103,18 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name,
+        name: memberFields.fullName.trim(),
         email,
         password,
         dojoId,
-        nik,
-        phoneNumber,
-        gender,
-        birthDate,
+        nik: memberFields.nik.trim() || undefined,
+        nia: memberFields.nia.trim() || undefined,
+        phoneNumber: memberFields.phoneNumber.trim() || undefined,
+        gender: memberFields.gender || undefined,
+        birthPlace: memberFields.birthPlace.trim() || undefined,
+        birthDate: memberFields.birthDate || undefined,
+        address: memberFields.address.trim() || undefined,
+        currentRank: memberFields.currentRank || DEFAULT_MEMBER_RANK,
       }),
     });
 
@@ -113,172 +137,109 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="space-y-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-inkai-red">
-          Data Pribadi
-        </p>
-      </div>
+      <MemberIdentitySection
+        idPrefix="register"
+        form={memberFields}
+        onChange={setMemberField}
+      />
 
-      <div className="space-y-2">
-        <Label htmlFor="register-name">Nama Lengkap</Label>
-        <div className="relative">
-          <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id="register-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="pl-9"
-            placeholder="Nama sesuai KTP"
-            required
-          />
-        </div>
-      </div>
+      <MemberBeltSection
+        idPrefix="register"
+        form={memberFields}
+        onChange={setMemberField}
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="register-nik">NIK</Label>
-          <div className="relative">
-            <CreditCard className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="register-nik"
-              value={nik}
-              onChange={(e) => setNik(e.target.value)}
-              className="pl-9"
-              placeholder="16 digit"
-              pattern="\d{16}"
-            />
-          </div>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="register-phone">Telepon / WA</Label>
-          <div className="relative">
-            <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="register-phone"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              className="pl-9"
-              placeholder="08xxxxxxxxxx"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label>Jenis Kelamin</Label>
-          <Select value={gender} onValueChange={setGender}>
-            <SelectTrigger>
-              <SelectValue placeholder="Pilih" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="L">Laki-laki</SelectItem>
-              <SelectItem value="P">Perempuan</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="register-birth">Tanggal Lahir</Label>
-          <Input
-            id="register-birth"
-            type="date"
-            value={birthDate}
-            onChange={(e) => setBirthDate(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-1 pt-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-inkai-red">
+      <section className="space-y-3">
+        <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
           Akun
-        </p>
-      </div>
+        </h3>
 
-      <div className="space-y-2">
-        <Label htmlFor="register-email">Email</Label>
-        <div className="relative">
-          <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id="register-email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="pl-9"
-            placeholder="nama@email.com"
-            autoComplete="email"
-            required
-          />
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="register-password">Password</Label>
+          <Label htmlFor="register-email">Email</Label>
           <div className="relative">
-            <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              id="register-password"
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="pl-9 pr-10"
+              id="register-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="pl-9"
+              placeholder="nama@email.com"
+              autoComplete="email"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="register-password">Password</Label>
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="register-password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pl-9 pr-10"
+                minLength={8}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="register-confirm">Konfirmasi Password</Label>
+            <Input
+              id="register-confirm"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               minLength={8}
               required
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
-            >
-              {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-            </button>
           </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="register-confirm">Konfirmasi Password</Label>
-          <Input
-            id="register-confirm"
-            type="password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            minLength={8}
-            required
-          />
-        </div>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Minimal 8 karakter, kombinasi huruf dan angka.
-      </p>
-
-      <div className="space-y-1 pt-1">
-        <p className="text-xs font-semibold uppercase tracking-wide text-inkai-red">
-          Dojo / Ranting
+        <p className="text-xs text-muted-foreground">
+          Minimal 8 karakter, kombinasi huruf dan angka.
         </p>
-      </div>
+      </section>
 
-      <div className="space-y-2">
-        <Label>Dojo/Ranting (Cabang Surabaya)</Label>
-        <Select
-          value={dojoId}
-          onValueChange={setDojoId}
-          disabled={dojosLoading}
-          required
-        >
-          <SelectTrigger>
-            <SelectValue
-              placeholder={dojosLoading ? "Memuat dojo..." : "Pilih dojo/ranting"}
-            />
-          </SelectTrigger>
-          <SelectContent>
-            {dojos.map((d) => (
-              <SelectItem key={d.id} value={d.id}>
-                {d.nama}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <section className="space-y-3">
+        <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          Dojo
+        </h3>
+
+        <div className="space-y-2">
+          <Label>Dojo / Ranting (Cabang Surabaya)</Label>
+          <Select
+            value={dojoId}
+            onValueChange={setDojoId}
+            disabled={dojosLoading}
+            required
+          >
+            <SelectTrigger>
+              <SelectValue
+                placeholder={dojosLoading ? "Memuat dojo..." : "Pilih dojo/ranting"}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {dojos.map((d) => (
+                <SelectItem key={d.id} value={d.id}>
+                  {d.nama}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </section>
 
       {error && (
         <p className="rounded-lg border border-destructive/20 bg-destructive/5 px-3 py-2 text-sm text-destructive">

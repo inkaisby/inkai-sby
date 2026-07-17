@@ -2,23 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const navLinks = [
-  { href: "/", label: "Beranda" },
-  { href: "/sejarah", label: "Sejarah" },
-  { href: "/struktur", label: "Struktur" },
-  { href: "/kegiatan", label: "Kegiatan" },
-  { href: "/berita", label: "Berita" },
-  { href: "/kontak", label: "Kontak" },
-];
+import { isPublicNavActive, publicNavLinks } from "@/lib/public-nav";
 
 export default function PublicNavLinks() {
   const pathname = usePathname();
 
   return (
     <nav className="hidden items-center gap-0.5 lg:flex">
-      {navLinks.map((link) => {
-        const active = pathname === link.href;
+      {publicNavLinks.map((link) => {
+        const active = isPublicNavActive(
+          pathname,
+          link.href,
+          link.matchPrefix,
+        );
 
         return (
           <Link

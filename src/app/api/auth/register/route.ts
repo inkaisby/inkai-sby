@@ -7,6 +7,7 @@ import {
 } from "@/lib/security/request";
 import { registerSchema } from "@/lib/security/schemas";
 import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
+import { DEFAULT_MEMBER_RANK } from "@/lib/belt";
 import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
 
 export async function POST(request: Request) {
@@ -31,7 +32,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, email, password, dojoId } = parsed.data;
+    const {
+      name,
+      email,
+      password,
+      dojoId,
+      nik,
+      gender,
+      birthPlace,
+      birthDate,
+      address,
+      currentRank,
+      phoneNumber,
+      nia,
+    } = parsed.data;
 
     const dojoRes = await inkaiFetch(`/v1/org/dojo/${dojoId}`, {}, null);
     if (!dojoRes.res.ok) {
@@ -59,9 +73,16 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           email,
           password,
-          fullName: name,
-          phoneNumber: parsed.data.phoneNumber || undefined,
+          fullName: name.toUpperCase(),
+          phoneNumber: phoneNumber || undefined,
           dojoId,
+          nik: nik || undefined,
+          gender: gender || undefined,
+          birthPlace: birthPlace || undefined,
+          birthDate: birthDate || undefined,
+          address: address || undefined,
+          currentRank: currentRank?.trim() || DEFAULT_MEMBER_RANK,
+          nia: nia || undefined,
         }),
       },
       null,

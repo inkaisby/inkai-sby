@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { Shield } from "lucide-react";
 
 interface MemberCardProps {
@@ -10,13 +11,68 @@ interface MemberCardProps {
   qrValue?: string;
 }
 
+type ProfilePayload = {
+  nia?: string;
+  fullName?: string;
+  belt?: string | null;
+  dojo?: string;
+};
+
 export function MemberCard({
-  nia,
-  name,
-  dojo,
-  highestBelt,
+  nia: initialNia,
+  name: initialName,
+  dojo: initialDojo,
+  highestBelt: initialBelt,
   qrValue,
 }: MemberCardProps) {
+  const [nia, setNia] = useState(initialNia);
+  const [name, setName] = useState(initialName);
+  const [dojo, setDojo] = useState(initialDojo);
+  const [belt, setBelt] = useState(initialBelt?.trim() || "—");
+
+  useEffect(() => {
+    setNia(initialNia);
+    setName(initialName);
+    setDojo(initialDojo);
+    setBelt(initialBelt?.trim() || "—");
+  }, [initialNia, initialName, initialDojo, initialBelt]);
+
+  const refreshCard = useCallback(async () => {
+    try {
+      const res = await fetch("/api/member/profile", { cache: "no-store" });
+      if (!res.ok) return;
+
+      const data = (await res.json()) as ProfilePayload;
+      if (data.fullName) setName(data.fullName);
+      if (data.nia) setNia(data.nia);
+      if (data.dojo) setDojo(data.dojo);
+      if (data.belt) setBelt(data.belt);
+    } catch {
+      // Tetap tampilkan data SSR awal jika refresh gagal.
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshCard();
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshCard();
+    };
+
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", refreshCard);
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") refreshCard();
+    }, 15_000);
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", refreshCard);
+      window.clearInterval(interval);
+    };
+  }, [refreshCard]);
+
   const qrSrc = qrValue
     ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(qrValue)}`
     : null;
@@ -52,7 +108,7 @@ export function MemberCard({
               {nia}
             </h2>
             <p className="m-0 mt-1 text-[13px] font-semibold text-foreground/80">
-              {highestBelt?.trim() || "—"}
+              {belt}
             </p>
             <p className="m-0 text-xs font-medium text-muted-foreground">{dojo}</p>
           </div>

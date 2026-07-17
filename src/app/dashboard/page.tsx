@@ -20,7 +20,7 @@ import {
 import { DashboardHomeHeader } from "@/components/member/DashboardHomeHeader";
 import { MemberCard } from "@/components/member/MemberCard";
 import { QuickActions } from "@/components/member/QuickActions";
-import { formatMemberName, formatRankLabel } from "@/lib/belt";
+import { formatMemberName, formatRankLabel, resolveMemberDisplayRank } from "@/lib/belt";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -127,7 +127,20 @@ export default async function MemberDashboard() {
   );
   const nia = String(member?.nia || "MEMPROSES NIA...");
   const belt =
-    formatRankLabel(String(member?.currentRank || "")) || "Belum tercatat";
+    formatRankLabel(
+      resolveMemberDisplayRank({
+        currentRank: String(member?.currentRank ?? ""),
+        ranks: member?.ranks as Array<{
+          rank?: string | null;
+          date?: string | Date | null;
+        }>,
+        eventRegistrations: member?.eventRegistrations as Array<{
+          status?: string | null;
+          registeredRank?: string | null;
+          event?: { title?: string | null } | null;
+        }>,
+      }),
+    ) || "Belum tercatat";
   const photoUrl = (member?.photoUrl as string | null | undefined) ?? null;
   const memberId = String(member?.id || session.user.memberId || "");
   const qrValue = memberId

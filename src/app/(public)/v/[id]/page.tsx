@@ -6,7 +6,7 @@ import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ id: string }> };
 
