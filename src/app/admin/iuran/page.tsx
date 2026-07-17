@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
-import { canAccessAdmin } from "@/lib/rbac";
+import { canAccessAdmin, getPrimaryAdminRole } from "@/lib/rbac";
+import { canManageIuranByWilayah } from "@/lib/wilayah-rbac";
 import { fetchBillings } from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,11 +40,26 @@ async function AdminIuranContent({
   const params = await searchParams;
   const status = params.status?.trim() || "";
   const q = params.q?.trim() || "";
+  const canEdit = canManageIuranByWilayah(session.user.roles ?? []);
+  const role = getPrimaryAdminRole(session.user.roles ?? []);
+  const managedDojoId = session.user.managedDojoId ?? null;
 
   let billings = await fetchBillings(token, {
     status: status || undefined,
     limit: 100,
   });
+
+  // Scope ketua ranting ke anggota dojo-nya (jika dojoId tersedia di payload)
+  if (role === "ADMIN_DOJO" && managedDojoId) {
+    billings = billings.filter((b) => {
+      const member = b.member as
+        | { dojo?: { id?: string }; dojoId?: string }
+        | undefined;
+      const dojoId = member?.dojo?.id ?? member?.dojoId;
+      if (!dojoId) return true;
+      return dojoId === managedDojoId;
+    });
+  }
 
   if (q) {
     const lower = q.toLowerCase();
@@ -75,6 +91,17 @@ async function AdminIuranContent({
           Total lunas: Rp {stats.paid.toLocaleString("id-ID")} · Menunggu
           verifikasi: {stats.waiting} · Pending: {stats.pending}
         </p>
+        {canEdit ? (
+          <p className="mt-1 text-sm text-muted-foreground">
+            Ketua ranting/cabang dapat <strong>mengedit</strong> nominal & jatuh
+            tempo, <strong>menandai lunas</strong> (tunai), serta menyetujui/menolak
+            bukti transfer.
+          </p>
+        ) : (
+          <p className="mt-1 text-sm text-muted-foreground">
+            Mode lihat saja — kelola iuran dilakukan oleh ranting/cabang.
+          </p>
+        )}
       </div>
 
       <form className="mb-4 flex flex-wrap gap-2">
@@ -112,46 +139,63 @@ async function AdminIuranContent({
       ) : (
         <div className="space-y-3">
           {billings.map((b) => {
-            const member = b.member as { fullName?: string; nia?: string; dojo?: { name?: string } } | undefined;
+            const member = b.member as {
+              fullName?: string;
+              nia?: string;
+              dojo?: { name?: string };
+            } | undefined;
             const payment = b.payment as { proofUrl?: string } | null | undefined;
             return (
-            <Card key={String(b.id)}>
-              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-                <div>
-                  <p className="font-medium">{member?.fullName ?? "—"}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {member?.nia || "—"} · {member?.dojo?.name ?? "—"} · {String(b.type)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Jatuh tempo:{" "}
-                    {new Date(String(b.dueDate)).toLocaleDateString("id-ID")}
-                  </p>
-                  {payment?.proofUrl && (
-                    <a
-                      href={payment.proofUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-inkai-red hover:underline"
+              <Card key={String(b.id)}>
+                <CardContent className="flex flex-wrap items-start justify-between gap-3 p-4">
+                  <div>
+                    <p className="font-medium">{member?.fullName ?? "—"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {member?.nia || "—"} · {member?.dojo?.name ?? "—"} ·{" "}
+                      {String(b.type)}
+                    </p>
+                    {b.description != null && String(b.description) !== "" && (
+                      <p className="text-sm text-muted-foreground">
+                        {String(b.description)}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Jatuh tempo:{" "}
+                      {new Date(String(b.dueDate)).toLocaleDateString("id-ID")}
+                    </p>
+                    {payment?.proofUrl && (
+                      <a
+                        href={payment.proofUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-inkai-red hover:underline"
+                      >
+                        Lihat bukti transfer
+                      </a>
+                    )}
+                  </div>
+                  <div className="flex min-w-[200px] flex-col items-end gap-2">
+                    <p className="font-bold">
+                      Rp {Number(b.amount).toLocaleString("id-ID")}
+                    </p>
+                    <Badge
+                      variant={b.status === "PAID" ? "default" : "secondary"}
                     >
-                      Lihat bukti transfer
-                    </a>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <p className="font-bold">
-                    Rp {Number(b.amount).toLocaleString("id-ID")}
-                  </p>
-                  <Badge
-                    variant={b.status === "PAID" ? "default" : "secondary"}
-                  >
-                    {String(b.status)}
-                  </Badge>
-                  {b.status === "WAITING_VERIFICATION" && (
-                    <BillingActions billingId={String(b.id)} />
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                      {String(b.status)}
+                    </Badge>
+                    <BillingActions
+                      billingId={String(b.id)}
+                      status={String(b.status)}
+                      amount={Number(b.amount)}
+                      dueDate={String(b.dueDate)}
+                      description={
+                        b.description != null ? String(b.description) : null
+                      }
+                      canEdit={canEdit}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
             );
           })}
         </div>

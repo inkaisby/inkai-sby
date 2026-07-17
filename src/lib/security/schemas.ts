@@ -235,6 +235,20 @@ export const memberBillingProofSchema = z.object({
   paymentMethod: z.string().trim().max(40).optional(),
 });
 
+export const adminBillingPatchSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.enum(["approve", "reject", "mark_paid"]),
+    adminNotes: z.string().trim().max(500).optional(),
+  }),
+  z.object({
+    action: z.literal("update"),
+    amount: z.coerce.number().min(0).max(50_000_000).optional(),
+    dueDate: z.string().min(1).optional(),
+    description: z.string().trim().max(500).optional().nullable(),
+    adminNotes: z.string().trim().max(500).optional(),
+  }),
+]);
+
 export const memberAttendanceCheckinSchema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180),

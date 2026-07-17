@@ -101,7 +101,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi |
 | Kelola Anggota | Cari/filter, detail (kyu, iuran, akun), NIA, dokumen |
-| Iuran Anggota | Verifikasi bukti pembayaran |
+| Iuran Anggota | Verifikasi bukti + **edit tagihan** (nominal/jatuh tempo) + tandai lunas (ranting/cabang) |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota (tanpa kode unik) |
 | Organisasi | Wilayah & susunan pengurus |
 | Verifikasi | Antrian klaim (anggota, dokumen, reset password, dll.) |
@@ -189,7 +189,10 @@ Pusat / Nasional
 ### 9.2 Iuran
 1. Tagihan iuran bulanan muncul di sistem.
 2. Anggota melihat tagihan di `/dashboard/iuran` dan dapat **mengunggah bukti** pembayaran.
-3. Admin ranting/cabang memverifikasi bukti di `/admin/iuran`.
+3. **Ketua ranting / cabang** di `/admin/iuran` dapat:
+   - mengedit nominal, jatuh tempo, deskripsi (tagihan belum lunas);
+   - menandai lunas (tunai/setoran ranting) tanpa menunggu unggah bukti;
+   - menyetujui / menolak bukti transfer (+ catatan).
 4. Status: `PENDING` → `WAITING_VERIFICATION` → `PAID` / ditolak.
 
 ### 9.3 UKT (Ujian Kenaikan Tingkat)
@@ -324,6 +327,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 17 Juli 2026 | Inventaris awal berdasarkan codebase `inkai-sby` (fitur, RBAC wilayah, UKT, celah) |
 | 17 Juli 2026 | Update: upload bukti iuran & check-in absensi anggota; alur UKT multi-select + verifikasi Cabang + status Selesai; nominal UKT tanpa kode unik (selaras nota); rule Cursor wajib update dokumen ini |
 | 17 Juli 2026 | Selesaikan stub: Materi, Store, Pesan, Pindah Dojo, unggah Piagam; buat event non-UKT di admin; API & nav terkait |
+| 17 Juli 2026 | Iuran: ketua ranting/cabang dapat edit tagihan, tandai lunas, verifikasi bukti (+ catatan); scope ranting ke dojo |
 
 ---
 

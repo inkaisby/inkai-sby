@@ -60,9 +60,9 @@ export const WILAYAH_MATRIX: WilayahMatrixRow[] = [
     label: "Iuran",
     cells: {
       USER: "Lihat & bayar iuran sendiri",
-      RANTING: "Lihat iuran anggota ranting + verifikasi bukti",
-      CABANG: "Lihat & kelola iuran wilayah cabang",
-      PENGPROV: "Lihat iuran wilayah provinsi",
+      RANTING: "Lihat + verifikasi bukti + edit tagihan & tandai lunas (ranting)",
+      CABANG: "Lihat & kelola iuran wilayah cabang (edit/verifikasi)",
+      PENGPROV: "Lihat iuran wilayah provinsi (tanpa edit)",
     },
   },
 ];
@@ -129,6 +129,14 @@ export function canRegisterMembersToEvents(roles: string[]) {
     r === "ADMIN_BRANCH" ||
     r === "ADMIN_DOJO"
   );
+}
+
+/**
+ * Kelola/edit iuran anggota — Ranting & Cabang (+ nasional).
+ * Pengprov hanya lihat.
+ */
+export function canManageIuranByWilayah(roles: string[]) {
+  return isCabangAdmin(roles) || isRantingAdmin(roles);
 }
 
 /** Edit akun anggota lain — bukan ranting, bukan anggota biasa. */
