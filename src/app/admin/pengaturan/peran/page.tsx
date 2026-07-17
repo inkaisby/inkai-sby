@@ -5,6 +5,7 @@ import { canManageRoles } from "@/lib/pengaturan";
 import { inkaiFetch } from "@/lib/inkai-api/server";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { RolePermissionsManager } from "./RolePermissionsManager";
+import { WilayahPermissionsMatrix } from "@/components/admin/WilayahPermissionsMatrix";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,10 @@ async function PengaturanPeranContent() {
             Gagal memuat data role dari API.
           </p>
         )}
+      </div>
+
+      <div className="mb-8">
+        <WilayahPermissionsMatrix />
       </div>
 
       <RolePermissionsManager

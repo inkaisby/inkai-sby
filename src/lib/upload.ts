@@ -45,3 +45,6 @@ export async function uploadAdminFile(
 
   return { url: blob.url, pathname: blob.pathname };
 }
+
+/** Alias generik (admin & anggota). */
+export const uploadPublicFile = uploadAdminFile;

@@ -1,0 +1,22 @@
+---
+description: Selalu update LAPORAN-INVENTARIS-SISTEM.md saat fitur/alur berubah
+alwaysApply: true
+---
+
+# Laporan Inventaris Sistem
+
+Setiap kali mengubah fitur, alur bisnis, RBAC, API, atau status kelengkapan modul di `inkai-sby`, **wajib** memperbarui `LAPORAN-INVENTARIS-SISTEM.md` di root repo pada turn yang sama.
+
+## Apa yang harus di-update
+
+- Tabel modul (publik / dashboard / admin) jika status atau fungsi berubah
+- Alur bisnis (§9) jika workflow berubah
+- Matriks RBAC / hierarki jika hak akses berubah
+- Status kelengkapan & celah (§11) dan prioritas kesimpulan (§14)
+- Peta API (§13) jika endpoint baru/berubah
+- **Riwayat penyusunan (§15)** — tambah baris tanggal + ringkasan singkat perubahan
+
+## Jangan
+
+- Jangan membuat dokumen inventaris baru; edit file yang sudah ada
+- Jangan menunda update “nanti”; lakukan bersamaan dengan perubahan kode

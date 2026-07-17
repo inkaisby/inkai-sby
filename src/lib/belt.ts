@@ -47,6 +47,179 @@ export function shortRankLabel(rankRaw: string | null | undefined): string {
   return r;
 }
 
+/** Canonical display: "Putih (Kyu 10)", "Hitam (DAN 3)", … */
+export function formatRankLabel(rankRaw: string | null | undefined): string {
+  const r = (rankRaw || "").trim();
+  if (!r) return "";
+
+  const exact = BELT_RANK_OPTIONS.find(
+    (opt) => opt.toLowerCase() === r.toLowerCase(),
+  );
+  if (exact) return exact;
+
+  const kyu = r.match(/kyu\s*(\d+)/i);
+  if (kyu) {
+    const byKyu = BELT_RANK_OPTIONS.find((opt) =>
+      new RegExp(`kyu\\s*${kyu[1]}\\b`, "i").test(opt),
+    );
+    if (byKyu) return byKyu;
+  }
+
+  const dan = r.match(/dan\s*(\d+)/i);
+  if (dan) {
+    const n = Number(dan[1]);
+    if (n >= 1 && n <= 10) return `Hitam (DAN ${n})`;
+  }
+
+  const lower = r.toLowerCase();
+  if (lower === "putih" || lower.includes("putih")) return DEFAULT_MEMBER_RANK;
+  if (lower.includes("kuning")) {
+    return BELT_RANK_OPTIONS.find((o) => o.startsWith("Kuning")) ?? r;
+  }
+  if (lower.includes("hijau")) {
+    return BELT_RANK_OPTIONS.find((o) => o.startsWith("Hijau")) ?? r;
+  }
+  if (lower.includes("biru")) {
+    return BELT_RANK_OPTIONS.find((o) => o.startsWith("Biru")) ?? r;
+  }
+  if (lower.includes("coklat")) {
+    return BELT_RANK_OPTIONS.find((o) => o.startsWith("Coklat")) ?? r;
+  }
+  if (lower.includes("hitam")) return "Hitam (DAN 1)";
+
+  return r;
+}
+
+/** Nama tampilan seragam (huruf besar). */
+export function formatMemberName(name: string | null | undefined): string {
+  const n = (name || "").trim();
+  return n ? n.toUpperCase() : "";
+}
+
+/** JK seragam: L / P. */
+export function formatGenderLabel(gender: string | null | undefined): string {
+  const g = (gender || "").trim().toLowerCase();
+  if (!g) return "";
+  if (g === "l" || g === "male" || g === "laki-laki" || g === "laki" || g === "m") {
+    return "L";
+  }
+  if (g === "p" || g === "female" || g === "perempuan" || g === "f" || g === "wanita") {
+    return "P";
+  }
+  return gender!.trim().toUpperCase();
+}
+
+/** Nilai gender untuk disimpan ke DB (L/P saja). */
+export function normalizeGenderStorage(
+  gender: string | null | undefined,
+): "L" | "P" | null {
+  const label = formatGenderLabel(gender);
+  if (label === "L" || label === "P") return label;
+  return null;
+}
+
+/** Apakah string sabuk perlu dinormalisasi ke format kanonik. */
+export function needsRankNormalization(rankRaw: string | null | undefined): boolean {
+  const raw = (rankRaw || "").trim();
+  if (!raw) return false;
+  const formatted = formatRankLabel(raw);
+  return Boolean(formatted && formatted !== raw);
+}
+
+/** Pemisah snapshot Kyu Lama ‖ Kyu Baru di EventRegistration.registeredRank */
+export const UKT_RANK_SEP = " || ";
+
+export function encodeUktRegisteredRank(kyuLama: string, kyuBaru: string): string {
+  const lama = formatRankLabel(kyuLama) || kyuLama.trim();
+  const baru = formatRankLabel(kyuBaru) || kyuBaru.trim();
+  return `${lama}${UKT_RANK_SEP}${baru}`;
+}
+
+export function ranksEqual(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  const left = (formatRankLabel(a) || (a || "").trim()).toLowerCase();
+  const right = (formatRankLabel(b) || (b || "").trim()).toLowerCase();
+  return Boolean(left && right && left === right);
+}
+
+/**
+ * Decode snapshot UKT.
+ * - Format baru: "Putih (Kyu 10) || Hitam (DAN 1)"
+ * - Legacy: seluruh string = Kyu Baru saja (kyuLama null)
+ */
+export function decodeUktRegisteredRank(
+  registeredRank: string | null | undefined,
+): { kyuLama: string | null; kyuBaru: string | null } {
+  const raw = (registeredRank || "").trim();
+  if (!raw) return { kyuLama: null, kyuBaru: null };
+
+  const separators = [UKT_RANK_SEP, "\n→\n", " → ", "→"];
+  for (const sep of separators) {
+    if (!raw.includes(sep)) continue;
+    const idx = raw.indexOf(sep);
+    const lamaRaw = raw.slice(0, idx).trim();
+    const baruRaw = raw.slice(idx + sep.length).trim();
+    // Snapshot lama-only (saat daftar, belum ada kyu baru)
+    if (lamaRaw && !baruRaw) {
+      return {
+        kyuLama: formatRankLabel(lamaRaw) || lamaRaw,
+        kyuBaru: null,
+      };
+    }
+    if (lamaRaw && baruRaw) {
+      return {
+        kyuLama: formatRankLabel(lamaRaw) || lamaRaw,
+        kyuBaru: formatRankLabel(baruRaw) || baruRaw,
+      };
+    }
+  }
+
+  // Legacy: registeredRank hanya menyimpan Kyu Baru
+  return {
+    kyuLama: null,
+    kyuBaru: formatRankLabel(raw) || raw,
+  };
+}
+
+/** Resolve kolom Kyu Lama / Baru untuk tabel UKT — Kyu Lama tidak ikut currentRank setelah naik. */
+export function resolveUktRankColumns(
+  registeredRank: string | null | undefined,
+  memberCurrentRank: string | null | undefined,
+  categoryName?: string | null,
+): { kyuLama: string; kyuBaru: string | null } {
+  const decoded = decodeUktRegisteredRank(registeredRank);
+  const current =
+    formatRankLabel(memberCurrentRank) || (memberCurrentRank || "").trim();
+
+  // Snapshot lengkap / lama-only
+  if (decoded.kyuLama) {
+    return {
+      kyuLama: decoded.kyuLama,
+      kyuBaru: decoded.kyuBaru || categoryName || null,
+    };
+  }
+
+  // Legacy: registeredRank = kyu baru saja
+  if (decoded.kyuBaru) {
+    // Sabuk resmi sudah naik: jangan tarik kyu lama dari currentRank (bug utama).
+    // Tanpa snapshot, kyu lama tidak diketahui — biarkan kosong visual via current
+    // hanya jika belum diterapkan.
+    if (!ranksEqual(current, decoded.kyuBaru) && current) {
+      return { kyuLama: current, kyuBaru: decoded.kyuBaru };
+    }
+    // Sudah diterapkan tanpa snapshot lama: tetap tampilkan kyu baru;
+    // kyu lama tidak boleh = kyu baru → tampilkan "—" lewat string kosong di UI
+    return { kyuLama: "—", kyuBaru: decoded.kyuBaru };
+  }
+
+  return {
+    kyuLama: current || DEFAULT_MEMBER_RANK,
+    kyuBaru: categoryName || null,
+  };
+}
+
 export type BeltGroup = "PUTIH" | "KUNING" | "HIJAU" | "BIRU" | "COKELAT" | "LAINNYA";
 
 export function getBeltGroup(rankRaw: string | null | undefined): BeltGroup {
@@ -60,17 +233,17 @@ export function getBeltGroup(rankRaw: string | null | undefined): BeltGroup {
 }
 
 export function canEditKyuBaru(roles: string[]): boolean {
+  // Matriks WILAYAH: hanya Cabang (+ nasional). Pengprov & Ranting tidak edit Kyu.
   const elevated = new Set([
     "ADMINISTRATOR",
     "ADMIN_PUSAT",
-    "ADMIN_PROVINCE",
     "ADMIN_BRANCH",
     "ADMIN",
   ]);
   return roles.some((r) => elevated.has(r));
 }
 
-/** Cabang ke atas yang mengisi / assign NIA */
+/** Cabang ke atas yang mengisi / assign NIA (Pengprov tidak assign). */
 export function canAssignNia(roles: string[]): boolean {
   return canEditKyuBaru(roles);
 }

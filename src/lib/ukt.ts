@@ -140,6 +140,22 @@ export function formatRupiahNota(amount: number): string {
   return `Rp ${amount.toLocaleString("id-ID")},-`;
 }
 
+/**
+ * UKT tidak memakai kode unik (+1..999). Billing dari API bisa masih
+ * menyimpan amount = baseFee + uniqueTail; tampilan/nota pakai base saja.
+ */
+export function uktBaseFeeAmount(
+  amount: number | null | undefined,
+  baseFeeAmount?: number | null | undefined,
+): number | null {
+  if (baseFeeAmount != null && !Number.isNaN(Number(baseFeeAmount))) {
+    return Math.round(Number(baseFeeAmount));
+  }
+  if (amount == null || Number.isNaN(Number(amount))) return null;
+  const n = Math.round(Number(amount));
+  return n - (n % 1000);
+}
+
 export function beltFeesFromTemplates(
   templates: { rankName: string; fee: number }[],
 ): Record<BeltFeeKey, number> {
@@ -245,11 +261,29 @@ export type UktMemberRow = {
   dojoName: string;
   dojoId: string;
   status: string;
+  billingId: string | null;
   billingStatus: string | null;
   billingAmount: number | null;
   outstandingDues: number;
   pendingVerifications: number;
 };
+
+/** Selesai = pembayaran lunas + sabuk target (Kyu Baru) sudah diisi cabang. */
+export function isUktSelesai(row: UktMemberRow): boolean {
+  const paid =
+    row.billingStatus === "PAID" ||
+    row.status === "PAID" ||
+    row.status === "SUCCESS";
+  return paid && Boolean(row.kyuBaru?.trim());
+}
+
+export function isUktBillingUnpaid(row: UktMemberRow): boolean {
+  if (!row.registrationId) return false;
+  if (row.billingStatus === "PAID" || row.status === "PAID" || row.status === "SUCCESS") {
+    return false;
+  }
+  return true;
+}
 
 export function participantAmount(
   billingAmount: number | null,
@@ -258,7 +292,7 @@ export function participantAmount(
 ): number {
   if (billingAmount != null && billingStatus) {
     if (billingStatus === "PAID" || billingStatus === "PENDING" || billingStatus === "WAITING_VERIFICATION") {
-      return billingAmount;
+      return uktBaseFeeAmount(billingAmount) ?? billingAmount;
     }
   }
   return categoryFee ?? 0;

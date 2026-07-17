@@ -20,6 +20,7 @@ import {
 import { DashboardHomeHeader } from "@/components/member/DashboardHomeHeader";
 import { MemberCard } from "@/components/member/MemberCard";
 import { QuickActions } from "@/components/member/QuickActions";
+import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -121,10 +122,12 @@ export default async function MemberDashboard() {
     | undefined;
   const dojoLine = [dojo?.name, dojo?.branch?.name].filter(Boolean).join(" - ");
 
-  const displayName =
-    String(member?.fullName || session.user.name || "Anggota");
+  const displayName = formatMemberName(
+    String(member?.fullName || session.user.name || "Anggota"),
+  );
   const nia = String(member?.nia || "MEMPROSES NIA...");
-  const belt = String(member?.currentRank || "Belum tercatat");
+  const belt =
+    formatRankLabel(String(member?.currentRank || "")) || "Belum tercatat";
   const photoUrl = (member?.photoUrl as string | null | undefined) ?? null;
   const memberId = String(member?.id || session.user.memberId || "");
   const qrValue = memberId

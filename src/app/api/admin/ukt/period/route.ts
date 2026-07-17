@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
-import { getPrimaryAdminRole } from "@/lib/rbac";
+import { canCreateEventsByWilayah } from "@/lib/wilayah-rbac";
 import { uktPeriodPatchSchema, uktPeriodSchema } from "@/lib/security/schemas";
 import { buildUktEventDates, buildUktEventTitle } from "@/lib/ukt";
 import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
@@ -93,8 +93,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const role = getPrimaryAdminRole(authResult.user.roles);
-  const canCreate = ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN_BRANCH", "ADMIN"].includes(role);
+  const canCreate = canCreateEventsByWilayah(authResult.user.roles);
   if (!canCreate) {
     return NextResponse.json({ error: "Hanya admin cabang yang dapat membuat periode UKT baru" }, { status: 403 });
   }
@@ -162,8 +161,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Tidak ada perubahan" }, { status: 400 });
   }
 
-  const role = getPrimaryAdminRole(authResult.user.roles);
-  const canEdit = ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN_BRANCH", "ADMIN"].includes(role);
+  const canEdit = canCreateEventsByWilayah(authResult.user.roles);
   if (!canEdit) {
     return NextResponse.json({ error: "Hanya admin cabang yang dapat mengubah periode UKT" }, { status: 403 });
   }

@@ -156,7 +156,25 @@ async function AdminVerifikasiContent({
                   {claimType !== "PASSWORD_RESET" &&
                     c.data != null &&
                     c.data !== "" && (
-                      <p className="mb-2 text-sm">{String(c.data)}</p>
+                      <p className="mb-2 text-sm whitespace-pre-wrap">
+                        {(() => {
+                          try {
+                            const parsed = JSON.parse(String(c.data)) as Record<
+                              string,
+                              unknown
+                            >;
+                            if (claimType === "DOJO_TRANSFER" || claimType === "TRANSFER") {
+                              return `${parsed.fromDojoName ?? "—"} → ${parsed.targetDojoName ?? "—"}\n${parsed.reason ?? ""}`;
+                            }
+                            if (claimType === "ACHIEVEMENT") {
+                              return `${parsed.title ?? "Piagam"}${parsed.notes ? `\n${parsed.notes}` : ""}`;
+                            }
+                            return JSON.stringify(parsed, null, 2);
+                          } catch {
+                            return String(c.data);
+                          }
+                        })()}
+                      </p>
                     )}
                   {event != null && (
                     <p className="mb-2 text-xs text-muted-foreground">

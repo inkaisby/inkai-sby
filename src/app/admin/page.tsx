@@ -24,6 +24,7 @@ import {
   Map,
 } from "lucide-react";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { formatMemberName, formatRankLabel } from "@/lib/belt";
 
 export const dynamic = "force-dynamic";
 
@@ -260,12 +261,14 @@ async function AdminDashboardContent() {
                     className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
                   >
                     <div>
-                      <p className="font-medium">{m.fullName}</p>
+                      <p className="font-medium">{formatMemberName(m.fullName)}</p>
                       <p className="text-sm text-muted-foreground">
                         {m.nia || "NIA belum ada"} · {m.dojo?.name ?? "-"} · {m.status}
                       </p>
                     </div>
-                    <Badge variant="secondary">{m.currentRank}</Badge>
+                    <Badge variant="secondary">
+                      {formatRankLabel(m.currentRank) || "—"}
+                    </Badge>
                   </Link>
                 ))}
               </div>

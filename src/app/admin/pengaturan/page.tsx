@@ -34,6 +34,7 @@ import {
   Users,
 } from "lucide-react";
 import { DojoPengaturanContent } from "./DojoPengaturanContent";
+import { WilayahPermissionsMatrix } from "@/components/admin/WilayahPermissionsMatrix";
 
 export const dynamic = "force-dynamic";
 
@@ -177,6 +178,10 @@ async function PengaturanHubContent() {
             : []),
         ]}
       />
+
+      <div className="mb-8">
+        <WilayahPermissionsMatrix />
+      </div>
 
       <div className="overflow-x-auto rounded-xl border">
         <Table>

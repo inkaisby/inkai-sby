@@ -3,6 +3,7 @@ import {
   getPrimaryAdminRole,
   ROLE_LABELS,
 } from "@/lib/rbac";
+import { canCreateEventsByWilayah } from "@/lib/wilayah-rbac";
 import { UktDashboard } from "@/components/admin/ukt/UktDashboard";
 import {
   beltFeesFromTemplates,
@@ -66,9 +67,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   const autoDojoId =
     primaryRole === "ADMIN_DOJO" && user.managedDojoId ? user.managedDojoId : "";
 
-  const canCreatePeriod = ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN_BRANCH", "ADMIN"].includes(
-    primaryRole,
-  );
+  const canCreatePeriod = canCreateEventsByWilayah(user.roles);
 
   return (
     <>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { getPrimaryAdminRole } from "@/lib/rbac";
+import { canCreateEventsByWilayah } from "@/lib/wilayah-rbac";
 import { uktInvoiceAckSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
@@ -109,8 +110,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
   }
 
-  const role = getPrimaryAdminRole(authResult.user.roles);
-  const canCreate = ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN_BRANCH", "ADMIN"].includes(role);
+  const canCreate = canCreateEventsByWilayah(authResult.user.roles);
   if (!canCreate) {
     return NextResponse.json({ error: "Hanya admin cabang yang dapat membuat invoice" }, { status: 403 });
   }

@@ -23,7 +23,9 @@ import {
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
 import { MembersTable } from "./MembersTable";
 import { AnggotaAddButton } from "./AnggotaAddButton";
+import { NormalizeMembersButton } from "./NormalizeMembersButton";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { canEditKyuBaru } from "@/lib/belt";
 
 export const dynamic = "force-dynamic";
 
@@ -267,12 +269,15 @@ async function AdminAnggotaContent({
         })}
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap gap-2">
         <AnggotaAddButton
           dojos={dojos.map((d) => ({ id: d.id, name: d.name }))}
           defaultDojoId={lockedDojoId || dojoId || ""}
           lockDojo={Boolean(lockedDojoId)}
         />
+        {canEditKyuBaru(session.user.roles ?? []) ? (
+          <NormalizeMembersButton />
+        ) : null}
       </div>
 
       <form className="mb-4 flex flex-wrap items-end gap-2">

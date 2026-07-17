@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ExternalLink } from "lucide-react";
+import { Copy, Check, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -19,11 +20,26 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
-import { showError } from "@/lib/client-toast";
+import { showError, showSuccess } from "@/lib/client-toast";
 import type { AdminMemberRow } from "@/lib/inkai-api/admin-data";
+import {
+  formatGenderLabel,
+  formatMemberName,
+  formatRankLabel,
+} from "@/lib/belt";
+import { generateSimplePassword } from "@/lib/security/password";
 import { MemberActions } from "./MemberActions";
 
 type MemberDetail = Record<string, unknown>;
+
+type BillingRow = {
+  id?: string;
+  type?: string;
+  description?: string | null;
+  amount?: number;
+  status?: string;
+  dueDate?: string;
+};
 
 function formatDate(value: unknown) {
   if (!value) return "-";
@@ -36,9 +52,57 @@ function formatDate(value: unknown) {
   });
 }
 
+function formatRp(amount: unknown) {
+  const n = Number(amount);
+  if (Number.isNaN(n)) return "-";
+  return `Rp ${n.toLocaleString("id-ID")}`;
+}
+
 function str(value: unknown, fallback = "-") {
   if (value == null || value === "") return fallback;
   return String(value);
+}
+
+function billingStatusLabel(status: string) {
+  const map: Record<string, { label: string; className: string }> = {
+    PAID: {
+      label: "Lunas",
+      className:
+        "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200",
+    },
+    PENDING: {
+      label: "Belum bayar",
+      className:
+        "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200",
+    },
+    WAITING_VERIFICATION: {
+      label: "Menunggu verifikasi",
+      className:
+        "border-sky-300 bg-sky-50 text-sky-800 dark:bg-sky-950/30 dark:text-sky-200",
+    },
+  };
+  return (
+    map[status] || {
+      label: status || "—",
+      className: "",
+    }
+  );
+}
+
+function billingTypeLabel(type: string) {
+  if (type === "MONTHLY_IURAN") return "Iuran bulanan";
+  if (type === "EVENT" || type === "UKT") return "UKT / Event";
+  return type || "Tagihan";
+}
+
+/** Password referensi yang sering dipakai: nama depan huruf kecil + 123 → jonathan123 */
+function memberPasswordHint(fullName: string): string {
+  const first =
+    fullName
+      .split(/\s+/)
+      .find((p) => /[a-zA-Z]/.test(p))
+      ?.replace(/[^a-zA-Z]/g, "") || "inkai";
+  return `${first.toLowerCase()}123`;
 }
 
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
@@ -133,6 +197,39 @@ function memberPhotoUrl(member: AdminMemberRow) {
   return nested.user?.photoUrl ?? null;
 }
 
+function CopyableValue({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      showSuccess("Disalin");
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      showError("Gagal menyalin");
+    }
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="font-mono">{value}</span>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        className="h-7 w-7"
+        onClick={() => void copy()}
+        aria-label="Salin"
+      >
+        {copied ? (
+          <Check className="h-3.5 w-3.5" />
+        ) : (
+          <Copy className="h-3.5 w-3.5" />
+        )}
+      </Button>
+    </span>
+  );
+}
+
 export function MembersTable({
   members,
   userRoles = [],
@@ -181,6 +278,7 @@ export function MembersTable({
     (detail?.eventRegistrations as
       | Array<{ status?: string; event?: { title?: string } }>
       | undefined) ?? [];
+  const billings = (detail?.billings as BillingRow[] | undefined) ?? [];
 
   const fullName = str(detail?.fullName, "");
   const currentRank = str(detail?.currentRank, "");
@@ -195,6 +293,16 @@ export function MembersTable({
     typeof detail?.bpjsCardUrl === "string" ? detail.bpjsCardUrl : null;
   const bpjsCardNumber =
     typeof detail?.bpjsCardNumber === "string" ? detail.bpjsCardNumber : null;
+
+  const passwordHint = fullName
+    ? memberPasswordHint(fullName)
+    : typeof detail?.suggestedPassword === "string"
+      ? detail.suggestedPassword
+      : "";
+  const passwordAdminStyle = fullName ? generateSimplePassword(fullName) : "";
+
+  const unpaid = billings.filter((b) => b.status && b.status !== "PAID");
+  const paidCount = billings.filter((b) => b.status === "PAID").length;
 
   return (
     <>
@@ -250,10 +358,12 @@ export function MembersTable({
                     )}
                   </TableCell>
                   <TableCell className="font-medium text-inkai-red">
-                    {m.fullName}
+                    {formatMemberName(m.fullName)}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{m.currentRank}</Badge>
+                    <Badge variant="secondary">
+                      {formatRankLabel(m.currentRank) || "—"}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <MemberStatusBadge status={m.status} />
@@ -304,7 +414,9 @@ export function MembersTable({
                 size="lg"
               />
               <span className="leading-tight">
-                {loading ? "Memuat..." : fullName || "Detail Anggota"}
+                {loading
+                  ? "Memuat..."
+                  : formatMemberName(fullName) || "Detail Anggota"}
               </span>
             </SheetTitle>
             <SheetDescription className="flex flex-wrap items-center gap-2">
@@ -330,7 +442,7 @@ export function MembersTable({
           <div className="space-y-5 p-4">
             {loading ? (
               <div className="space-y-3">
-                {Array.from({ length: 6 }).map((_, i) => (
+                {Array.from({ length: 8 }).map((_, i) => (
                   <div
                     key={i}
                     className="h-4 animate-pulse rounded bg-muted"
@@ -345,9 +457,11 @@ export function MembersTable({
                   </h3>
                   <dl className="space-y-2">
                     <DetailRow
-                      label="Sabuk"
+                      label="Kyu saat ini"
                       value={
-                        <Badge variant="secondary">{currentRank || "-"}</Badge>
+                        <Badge variant="secondary">
+                          {formatRankLabel(currentRank) || "-"}
+                        </Badge>
                       }
                     />
                     <DetailRow label="NIK" value={str(detail.nik)} />
@@ -361,9 +475,13 @@ export function MembersTable({
                     />
                     <DetailRow
                       label="Jenis kelamin"
-                      value={str(detail.gender)}
+                      value={formatGenderLabel(str(detail.gender, "")) || "-"}
                     />
                     <DetailRow label="Alamat" value={str(detail.address)} />
+                    <DetailRow
+                      label="Terdaftar"
+                      value={formatDate(detail.createdAt)}
+                    />
                   </dl>
                 </section>
 
@@ -379,7 +497,113 @@ export function MembersTable({
                       label="Telepon"
                       value={str(user?.phoneNumber ?? detail.phoneNumber)}
                     />
+                    <DetailRow
+                      label="Iuran/bln"
+                      value={
+                        detail.monthlyDuesAmount != null
+                          ? formatRp(detail.monthlyDuesAmount)
+                          : "-"
+                      }
+                    />
                   </dl>
+                </section>
+
+                <section className="space-y-2.5">
+                  <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    Akun login
+                  </h3>
+                  <dl className="space-y-2">
+                    <DetailRow
+                      label="Username"
+                      value={
+                        user?.email ? (
+                          <CopyableValue value={String(user.email)} />
+                        ) : (
+                          "-"
+                        )
+                      }
+                    />
+                    <DetailRow
+                      label="Password"
+                      value={
+                        passwordHint ? (
+                          <CopyableValue value={passwordHint} />
+                        ) : (
+                          "-"
+                        )
+                      }
+                    />
+                  </dl>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Password referensi (nama depan + 123). Bila anggota sudah
+                    mengubah password, gunakan reset password ranting.
+                    {passwordAdminStyle &&
+                    passwordAdminStyle !== passwordHint
+                      ? ` Pola admin: ${passwordAdminStyle}.`
+                      : null}
+                  </p>
+                </section>
+
+                <section className="space-y-2.5">
+                  <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    Iuran
+                  </h3>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <Badge variant="outline">
+                      Total tagihan: {billings.length}
+                    </Badge>
+                    <Badge variant="outline" className="text-emerald-700">
+                      Lunas: {paidCount}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={
+                        unpaid.length > 0
+                          ? "border-amber-300 text-amber-800"
+                          : ""
+                      }
+                    >
+                      Belum lunas: {unpaid.length}
+                    </Badge>
+                  </div>
+                  {billings.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Belum ada data iuran.
+                    </p>
+                  ) : (
+                    <ul className="max-h-48 space-y-2 overflow-y-auto rounded-lg border p-2">
+                      {billings.slice(0, 12).map((b, i) => {
+                        const st = billingStatusLabel(String(b.status || ""));
+                        return (
+                          <li
+                            key={String(b.id || i)}
+                            className="flex items-start justify-between gap-2 text-sm"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-medium">
+                                {billingTypeLabel(String(b.type || ""))}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {str(b.description, "Iuran anggota")} · JT{" "}
+                                {formatDate(b.dueDate)}
+                              </p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <p className="font-semibold">
+                                {formatRp(b.amount)}
+                              </p>
+                              <Badge
+                                variant="outline"
+                                className={`mt-0.5 text-[10px] ${st.className}`}
+                              >
+                                {st.label}
+                              </Badge>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </section>
 
                 <section className="space-y-2.5">
@@ -433,23 +657,32 @@ export function MembersTable({
                   </dl>
                 </section>
 
-                {ranks.length > 0 ? (
-                  <section className="space-y-2.5">
-                    <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                      Riwayat sabuk
-                    </h3>
+                <section className="space-y-2.5">
+                  <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    Riwayat sabuk
+                  </h3>
+                  {ranks.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Belum ada riwayat. Kyu saat ini:{" "}
+                      <span className="font-medium text-foreground">
+                        {formatRankLabel(currentRank) || "—"}
+                      </span>
+                    </p>
+                  ) : (
                     <ul className="max-h-36 space-y-1 overflow-y-auto rounded-lg border p-2 text-sm">
                       {ranks.map((r, i) => (
                         <li key={i} className="flex justify-between gap-2">
-                          <span>{str(r.rank)}</span>
+                          <span>
+                            {formatRankLabel(str(r.rank, "")) || str(r.rank)}
+                          </span>
                           <span className="text-muted-foreground">
                             {formatDate(r.date)}
                           </span>
                         </li>
                       ))}
                     </ul>
-                  </section>
-                ) : null}
+                  )}
+                </section>
 
                 {eventRegistrations.length > 0 ? (
                   <section className="space-y-2.5">

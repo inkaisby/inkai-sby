@@ -5,8 +5,15 @@ import { canAssignNia } from "@/lib/belt";
 import { memberActionSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
+import { generateSimplePassword } from "@/lib/security/password";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+function asBillingList(data: Record<string, unknown>): Array<Record<string, unknown>> {
+  const raw = data.data;
+  if (Array.isArray(raw)) return raw as Array<Record<string, unknown>>;
+  return [];
+}
 
 export async function GET(_request: Request, context: RouteContext) {
   const authResult = await requireAdmin();
@@ -25,7 +32,40 @@ export async function GET(_request: Request, context: RouteContext) {
     );
   }
 
-  return NextResponse.json({ member: data.data });
+  const member = (data.data as Record<string, unknown>) ?? {};
+
+  // Iuran: coba filter memberId, fallback filter dari list
+  let billings: Array<Record<string, unknown>> = [];
+  const nested = member.billings;
+  if (Array.isArray(nested) && nested.length > 0) {
+    billings = nested as Array<Record<string, unknown>>;
+  } else {
+    const qs = new URLSearchParams({ limit: "100", memberId: id });
+    const { res: bRes, data: bData } = await inkaiFetch(
+      `/v1/billing?${qs}`,
+      {},
+      authResult.token,
+    );
+    if (bRes.ok) {
+      billings = asBillingList(bData).filter((b) => {
+        const mid =
+          (b.member as { id?: string } | undefined)?.id ??
+          (b.memberId as string | undefined);
+        return !mid || String(mid) === id;
+      });
+    }
+  }
+
+  const fullName = String(member.fullName || "");
+  const suggestedPassword = generateSimplePassword(fullName);
+
+  return NextResponse.json({
+    member: {
+      ...member,
+      billings,
+      suggestedPassword,
+    },
+  });
 }
 
 export async function PATCH(request: Request, context: RouteContext) {

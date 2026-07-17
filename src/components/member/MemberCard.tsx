@@ -31,9 +31,14 @@ export function MemberCard({
       <div className="relative z-[2] flex h-full justify-between gap-3 p-6">
         <div className="flex min-w-0 flex-1 flex-col justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-inkai-red text-sm font-bold text-white">
-              I
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo-inkai.png"
+              alt="Logo INKAI"
+              width={32}
+              height={32}
+              className="h-8 w-8 rounded-lg object-contain"
+            />
             <span className="text-xs font-extrabold tracking-[1.5px] text-muted-foreground">
               KARTU ANGGOTA
             </span>

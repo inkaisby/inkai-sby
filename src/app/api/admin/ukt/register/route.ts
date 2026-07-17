@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import {
+  DEFAULT_MEMBER_RANK,
+  encodeUktRegisteredRank,
+  formatRankLabel,
+} from "@/lib/belt";
+import { canRegisterMembersToEvents } from "@/lib/wilayah-rbac";
 import { uktRegisterSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
@@ -13,6 +19,13 @@ export async function POST(request: Request) {
     if ("error" in authResult) return authResult.error;
     if (!authResult.token) {
       return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+    }
+
+    if (!canRegisterMembersToEvents(authResult.user.roles)) {
+      return NextResponse.json(
+        { error: "Anda tidak berwenang mendaftarkan anggota ke event" },
+        { status: 403 },
+      );
     }
 
     const body = await request.json().catch(() => null);
@@ -45,11 +58,35 @@ export async function POST(request: Request) {
     const registration = data.data as Record<string, unknown>;
     const registrationId = String(registration.id);
 
+    // Kunci Kyu Lama saat daftar (snapshot sabuk saat ini) — tidak berubah saat Kyu Baru diisi
+    let kyuLamaSnapshot = "";
+    const regMember = registration.member as { currentRank?: string } | undefined;
+    if (regMember?.currentRank) {
+      kyuLamaSnapshot =
+        formatRankLabel(regMember.currentRank) || regMember.currentRank;
+    } else {
+      const { res: mRes, data: mData } = await inkaiFetch(
+        `/v1/members/${memberId}`,
+        {},
+        authResult.token,
+      );
+      if (mRes.ok) {
+        const member = mData.data as { currentRank?: string };
+        kyuLamaSnapshot =
+          formatRankLabel(member?.currentRank) ||
+          String(member?.currentRank || "");
+      }
+    }
+    if (!kyuLamaSnapshot) kyuLamaSnapshot = DEFAULT_MEMBER_RANK;
+
     const { res: approveRes, data: approveData } = await inkaiFetch(
       `/v1/events/register/${registrationId}`,
       {
         method: "PUT",
-        body: JSON.stringify({ status: "APPROVED" }),
+        body: JSON.stringify({
+          status: "APPROVED",
+          registeredRank: encodeUktRegisteredRank(kyuLamaSnapshot, ""),
+        }),
       },
       authResult.token,
     );

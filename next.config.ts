@@ -4,9 +4,10 @@ const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co https://api.qrserver.com",
+  "img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co https://api.qrserver.com https://*.blob.vercel-storage.com https://*.public.blob.vercel-storage.com",
   "font-src 'self'",
   "connect-src 'self'",
+  "media-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -20,7 +21,8 @@ const securityHeaders = [
   { key: "X-DNS-Prefetch-Control", value: "on" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=()",
+    value:
+      "camera=(self), microphone=(), geolocation=(self), payment=()",
   },
   {
     key: "Strict-Transport-Security",

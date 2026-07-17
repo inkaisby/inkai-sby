@@ -2,8 +2,12 @@ import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { fetchMyAttendance } from "@/lib/inkai-api/member-data";
+import {
+  fetchMyAttendance,
+  fetchMyMemberProfile,
+} from "@/lib/inkai-api/member-data";
 import { MemberPageHeader } from "@/components/member/MemberPageHeader";
+import { AttendanceCheckIn } from "@/components/member/AttendanceCheckIn";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +17,23 @@ export default async function AbsensiPage() {
   const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
 
-  const attendances = await fetchMyAttendance(token, 50);
+  const [attendances, member] = await Promise.all([
+    fetchMyAttendance(token, 50),
+    fetchMyMemberProfile(token),
+  ]);
+
+  const dojoId =
+    (member as { dojoId?: string } | null)?.dojoId ||
+    ((member?.dojo as { id?: string } | undefined)?.id ?? null);
 
   return (
     <>
-      <MemberPageHeader title="Riwayat Absensi" />
+      <MemberPageHeader title="Absensi" />
+      <AttendanceCheckIn defaultDojoId={dojoId} />
+
+      <h3 className="mb-3 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+        Riwayat
+      </h3>
       {attendances.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
           Belum ada riwayat absensi.

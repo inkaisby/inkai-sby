@@ -1,10 +1,13 @@
 import { cache } from "react";
 import { inkaiFetch } from "./server";
 import { getPrimaryAdminRole, type SessionUser } from "@/lib/rbac";
+import { resolveUktRankColumns } from "@/lib/belt";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
 import {
   beltFeesFromTemplates,
   DEFAULT_KOMISI_RANTING,
   UKT_KOMISI_SETTING_KEY,
+  uktBaseFeeAmount,
   type UktMemberRow,
 } from "@/lib/ukt";
 
@@ -143,8 +146,52 @@ export async function fetchAllNotifications(token: string, limit = 100) {
 
 export async function fetchPendingVerificationClaims(token: string) {
   const { res, data } = await inkaiFetch("/v1/verifications/pending", {}, token);
-  if (!res.ok) return [];
-  return (data.data as Array<Record<string, unknown>>) ?? [];
+  const apiClaims = res.ok
+    ? ((data.data as Array<Record<string, unknown>>) ?? [])
+    : [];
+
+  // Gabung klaim lokal (pindah dojo / piagam / reset password) agar selalu terlihat
+  const localRes = await withPrismaFallback(
+    "pending-local-verifications",
+    () =>
+      prisma.verification.findMany({
+        where: {
+          status: "PENDING",
+          type: {
+            in: [
+              "PASSWORD_RESET",
+              "DOJO_TRANSFER",
+              "TRANSFER",
+              "ACHIEVEMENT",
+              "DOCUMENT",
+            ],
+          },
+        },
+        include: {
+          member: {
+            select: {
+              id: true,
+              fullName: true,
+              nia: true,
+              dojo: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+    [] as Array<Record<string, unknown>>,
+  );
+
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const c of apiClaims) {
+    byId.set(String(c.id), c);
+  }
+  for (const c of localRes.data as Array<Record<string, unknown>>) {
+    const id = String(c.id);
+    if (!byId.has(id)) byId.set(id, c);
+  }
+  return Array.from(byId.values());
 }
 
 export async function fetchBillings(
@@ -445,6 +492,11 @@ export async function fetchUktDashboardData(
     const category = reg?.category as { name?: string } | null | undefined;
     const memberUser = reg?.member as { user?: { photoUrl?: string } } | undefined;
     const memberData = (reg?.member as Record<string, unknown> | undefined) ?? m;
+    const { kyuLama, kyuBaru } = resolveUktRankColumns(
+      typeof reg?.registeredRank === "string" ? reg.registeredRank : null,
+      m.currentRank,
+      category?.name,
+    );
 
     return {
       memberId: m.id,
@@ -456,15 +508,21 @@ export async function fetchUktDashboardData(
       birthDate: memberData.birthDate ? String(memberData.birthDate) : null,
       gender: (memberData.gender as string | null) ?? null,
       address: (memberData.address as string | null) ?? null,
-      kyuLama: String(reg?.registeredRank ?? m.currentRank),
-      kyuBaru: category?.name ?? null,
+      kyuLama,
+      kyuBaru,
       birthCertificateUrl: (memberData.birthCertificateUrl as string | null) ?? null,
       bpjsCardUrl: (memberData.bpjsCardUrl as string | null) ?? null,
       dojoName: m.dojo?.name ?? "—",
       dojoId: String((m as Record<string, unknown>).dojoId ?? ""),
       status: reg?.status ? String(reg.status) : "BELUM_DAFTAR",
+      billingId: regBilling?.id ? String(regBilling.id) : null,
       billingStatus: regBilling?.status ? String(regBilling.status) : null,
-      billingAmount: regBilling?.amount != null ? Number(regBilling.amount) : null,
+      billingAmount: uktBaseFeeAmount(
+        regBilling?.amount != null ? Number(regBilling.amount) : null,
+        regBilling?.baseFeeAmount != null
+          ? Number(regBilling.baseFeeAmount)
+          : null,
+      ),
       outstandingDues: billingCountByMember.get(m.id) ?? 0,
       pendingVerifications: verificationCountByMember.get(m.id) ?? 0,
     };

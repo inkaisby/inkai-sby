@@ -6,7 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Award } from "lucide-react";
 import { fetchMyMemberProfile } from "@/lib/inkai-api/member-data";
 import { MemberPageHeader } from "@/components/member/MemberPageHeader";
+import { PiagamUploadClient } from "@/components/member/PiagamUploadClient";
+import { formatRankLabel } from "@/lib/belt";
 import { cn } from "@/lib/utils";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +59,20 @@ export default async function PrestasiPage({ searchParams }: Props) {
     );
   });
 
+  const piagamClaims = await withPrismaFallback(
+    "member-piagam",
+    () =>
+      prisma.verification.findMany({
+        where: {
+          memberId: session.user.memberId!,
+          type: "ACHIEVEMENT",
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      }),
+    [],
+  );
+
   return (
     <>
       <MemberPageHeader title="Prestasi & Sabuk" />
@@ -85,7 +102,7 @@ export default async function PrestasiPage({ searchParams }: Props) {
               Sabuk Saat Ini
             </div>
             <Badge className="bg-inkai-yellow text-base text-inkai-black hover:bg-inkai-yellow">
-              {String(member.currentRank)}
+              {formatRankLabel(String(member.currentRank)) || "—"}
             </Badge>
           </div>
 
@@ -102,7 +119,9 @@ export default async function PrestasiPage({ searchParams }: Props) {
                   className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/60 bg-card p-4"
                 >
                   <div>
-                    <p className="font-semibold">{String(r.rank)}</p>
+                    <p className="font-semibold">
+                      {formatRankLabel(String(r.rank)) || String(r.rank)}
+                    </p>
                     {r.location != null && r.location !== "" && (
                       <p className="text-sm text-muted-foreground">
                         {String(r.location)}
@@ -135,14 +154,19 @@ export default async function PrestasiPage({ searchParams }: Props) {
         </>
       )}
 
-      {activeTab === "Piagam" &&
-        (piagamEvents.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            Belum ada piagam tercatat. Fitur unggah piagam segera hadir.
-          </div>
-        ) : (
-          <EventList items={piagamEvents} />
-        ))}
+      {activeTab === "Piagam" && (
+        <PiagamUploadClient
+          items={piagamClaims.data.map((c) => ({
+            id: c.id,
+            status: c.status,
+            data: c.data,
+            proofUrl: c.proofUrl,
+            createdAt: c.createdAt.toISOString(),
+            adminNotes: c.adminNotes,
+          }))}
+          eventItems={piagamEvents}
+        />
+      )}
 
       {activeTab === "Pelatihan" &&
         (pelatihanEvents.length === 0 ? (
@@ -172,7 +196,10 @@ function EventList({ items }: { items: Array<Record<string, unknown>> }) {
             <div className="min-w-0">
               <p className="font-semibold">{event?.title ?? "—"}</p>
               <p className="text-sm text-muted-foreground">
-                {category?.name || String(r.registeredRank ?? "—")} ·{" "}
+                {formatRankLabel(
+                  String(category?.name || r.registeredRank || ""),
+                ) || "—"}{" "}
+                ·{" "}
                 {event?.startDate
                   ? new Date(event.startDate).toLocaleDateString("id-ID")
                   : "—"}

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { shortRankLabel } from "@/lib/belt";
+import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import type { UktMemberRow } from "@/lib/ukt";
 
 type Props = {
@@ -159,12 +159,14 @@ export function UktSearchBar({
                 onClick={() => applySearch(s.fullName)}
                 onMouseEnter={() => setActiveIndex(i)}
               >
-                <span className="min-w-0 flex-1 truncate font-medium">{s.fullName}</span>
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {formatMemberName(s.fullName)}
+                </span>
                 <span className="shrink-0 font-mono text-xs text-muted-foreground">
                   {s.nia || "—"}
                 </span>
                 <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
-                  {shortRankLabel(s.kyuLama)}
+                  {formatRankLabel(s.kyuLama) || "—"}
                 </span>
                 <span className="hidden shrink-0 text-xs text-muted-foreground md:inline">
                   {s.dojoName}

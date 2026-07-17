@@ -58,7 +58,9 @@ import { AddMemberDialog } from "@/components/admin/AddMemberDialog";
 import {
   BELT_RANK_OPTIONS,
   canEditKyuBaru,
-  shortRankLabel,
+  formatGenderLabel,
+  formatMemberName,
+  formatRankLabel,
 } from "@/lib/belt";
 import {
   type UktMemberRow,
@@ -68,6 +70,8 @@ import {
   formatRupiahNota,
   isRegistrationApproved,
   isNotaParticipant,
+  isUktBillingUnpaid,
+  isUktSelesai,
   filterUktRowsByView,
   formatUktPeriodLabel,
   participantAmount,
@@ -134,16 +138,30 @@ function formatRupiah(amount: number | null) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount);
 }
 
-function statusBadge(status: string) {
+function statusBadge(row: UktMemberRow) {
+  if (!row.registrationId) {
+    return <Badge variant="outline">Belum Daftar</Badge>;
+  }
+  if (isUktSelesai(row)) {
+    return (
+      <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">
+        Selesai
+      </Badge>
+    );
+  }
+  if (row.billingStatus === "PAID" || row.status === "PAID") {
+    return <Badge variant="default">Lunas</Badge>;
+  }
+  if (row.billingStatus === "WAITING_VERIFICATION") {
+    return <Badge variant="secondary">Menunggu verifikasi</Badge>;
+  }
   const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
     PENDING: { label: "Terdaftar", variant: "default" },
     APPROVED: { label: "Disetujui", variant: "default" },
-    PAID: { label: "Lunas", variant: "default" },
     SUCCESS: { label: "Lunas", variant: "default" },
     REJECTED: { label: "Ditolak", variant: "destructive" },
-    BELUM_DAFTAR: { label: "Belum Daftar", variant: "outline" },
   };
-  const s = map[status] || { label: status, variant: "outline" as const };
+  const s = map[row.status] || { label: row.status, variant: "outline" as const };
   return <Badge variant={s.variant}>{s.label}</Badge>;
 }
 
@@ -174,6 +192,8 @@ export function UktDashboard(props: Props) {
   const [showRegistrationDeadline, setShowRegistrationDeadline] = useState(false);
   const [registrationDeadlineDate, setRegistrationDeadlineDate] = useState("");
   const [registrationDeadlineTime, setRegistrationDeadlineTime] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [printOnlySelected, setPrintOnlySelected] = useState(false);
 
   const isCabang = canEditKyuBaru(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
@@ -225,6 +245,44 @@ export function UktDashboard(props: Props) {
     const start = (safePage - 1) * localPageSize;
     return filteredRows.slice(start, start + localPageSize);
   }, [filteredRows, safePage, localPageSize]);
+
+  const selectableRows = useMemo(
+    () =>
+      filteredRows.filter(
+        (r) => r.registrationId && isNotaParticipant(r.status) && isUktBillingUnpaid(r),
+      ),
+    [filteredRows],
+  );
+
+  const selectedRows = useMemo(
+    () => props.allRows.filter((r) => selectedIds.has(r.memberId)),
+    [props.allRows, selectedIds],
+  );
+
+  const allSelectableChecked =
+    selectableRows.length > 0 &&
+    selectableRows.every((r) => selectedIds.has(r.memberId));
+
+  const toggleSelect = (memberId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(memberId)) next.delete(memberId);
+      else next.add(memberId);
+      return next;
+    });
+  };
+
+  const toggleSelectAllSelectable = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelectableChecked) {
+        selectableRows.forEach((r) => next.delete(r.memberId));
+      } else {
+        selectableRows.forEach((r) => next.add(r.memberId));
+      }
+      return next;
+    });
+  };
 
   const navigatePeriod = useCallback(
     (updates: Record<string, string>) => {
@@ -353,17 +411,35 @@ export function UktDashboard(props: Props) {
     }
   };
 
-  const handleKyuUpdate = async (registrationId: string, newRank: string) => {
+  const handleKyuUpdate = async (
+    registrationId: string,
+    newRank: string,
+    row: UktMemberRow,
+  ) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ newRank, action: "approve" }),
+        body: JSON.stringify({
+          newRank,
+          action: "approve",
+          memberId: row.memberId,
+          previousRank:
+            row.kyuLama && row.kyuLama !== "—" ? row.kyuLama : undefined,
+        }),
       });
-      const data = await parseApiJson<{ error?: string }>(res);
+      const data = await parseApiJson<{ error?: string; message?: string; kyuBaru?: string }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal memperbarui kyu");
-      toast.success("Kyu Baru diperbarui");
+      const paid =
+        row.billingStatus === "PAID" ||
+        row.status === "PAID" ||
+        row.status === "SUCCESS";
+      toast.success(
+        paid
+          ? `Sabuk target diisi — status Selesai: ${formatRankLabel(newRank)}`
+          : data.message || `Sabuk diperbarui: ${formatRankLabel(newRank)}`,
+      );
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
@@ -416,25 +492,123 @@ export function UktDashboard(props: Props) {
       toast.error("Pilih ranting terlebih dahulu");
       return;
     }
-    const memberIds = props.allRows
-      .filter((r) => r.registrationId && r.dojoId === effectiveDojo)
-      .map((r) => r.memberId);
+    const fromSelection = selectedRows.filter(
+      (r) => r.registrationId && r.dojoId === effectiveDojo,
+    );
+    const memberIds = (
+      fromSelection.length > 0
+        ? fromSelection
+        : props.allRows.filter((r) => r.registrationId && r.dojoId === effectiveDojo)
+    ).map((r) => r.memberId);
+    if (memberIds.length === 0) {
+      toast.error("Tidak ada peserta untuk dibuatkan invoice");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/admin/ukt/invoice", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId: props.selectedPeriodId, dojoId: effectiveDojo, memberIds }),
+        body: JSON.stringify({
+          eventId: props.selectedPeriodId,
+          dojoId: effectiveDojo,
+          memberIds,
+        }),
       });
       const data = await parseApiJson<{ error?: string; created?: number }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal membuat invoice");
-      toast.success(`${data.created ?? 0} invoice dibuat`);
+      toast.success(
+        `${data.created ?? memberIds.length} peserta masuk invoice${fromSelection.length ? " (terpilih)" : ""}`,
+      );
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleMarkPaid = async (row: UktMemberRow) => {
+    if (!row.registrationId) return;
+    setLoading(true);
+    try {
+      if (row.billingId) {
+        const res = await fetch(`/api/admin/billing/${row.billingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "approve" }),
+        });
+        const data = await parseApiJson<{ error?: string }>(res);
+        if (!res.ok) throw new Error(data.error || "Gagal verifikasi pembayaran");
+      } else {
+        const res = await fetch(`/api/admin/ukt/registrations/${row.registrationId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "mark_paid" }),
+        });
+        const data = await parseApiJson<{ error?: string }>(res);
+        if (!res.ok) throw new Error(data.error || "Gagal menandai lunas");
+      }
+      toast.success(
+        row.kyuBaru
+          ? "Pembayaran diverifikasi — status Selesai"
+          : "Pembayaran diverifikasi. Isi sabuk target untuk menyelesaikan.",
+      );
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkMarkPaid = async () => {
+    const targets = selectedRows.filter(
+      (r) => r.registrationId && isUktBillingUnpaid(r),
+    );
+    if (targets.length === 0) {
+      toast.error("Pilih peserta yang belum lunas");
+      return;
+    }
+    setLoading(true);
+    let ok = 0;
+    try {
+      for (const row of targets) {
+        try {
+          if (row.billingId) {
+            const res = await fetch(`/api/admin/billing/${row.billingId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "approve" }),
+            });
+            if (res.ok) ok += 1;
+          } else if (row.registrationId) {
+            const res = await fetch(`/api/admin/ukt/registrations/${row.registrationId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "mark_paid" }),
+            });
+            if (res.ok) ok += 1;
+          }
+        } catch {
+          /* continue */
+        }
+      }
+      toast.success(`${ok}/${targets.length} pembayaran diverifikasi`);
+      setSelectedIds(new Set());
+      router.refresh();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openPrintNota = (onlySelected: boolean) => {
+    if (onlySelected && selectedRows.length === 0) {
+      toast.error("Pilih peserta yang akan masuk nota");
+      return;
+    }
+    setPrintOnlySelected(onlySelected);
+    setShowPrint(true);
   };
 
   const handleAckInvoice = async (dojoId: string) => {
@@ -482,8 +656,8 @@ export function UktDashboard(props: Props) {
       ? props.dojos.find((d) => d.id === effectiveDojo)?.name || "Ranting"
       : "Semua Ranting";
     const lines = approved.map((r, i) => {
-      const rk = shortRankLabel(r.kyuBaru || r.kyuLama);
-      return `${i + 1}. ${r.fullName}${rk ? ` ${rk}` : ""}`;
+      const rk = formatRankLabel(r.kyuBaru || r.kyuLama);
+      return `${i + 1}. ${formatMemberName(r.fullName)}${rk ? ` ${rk}` : ""}`;
     });
     let total = 0;
     approved.forEach((r) => {
@@ -608,10 +782,20 @@ export function UktDashboard(props: Props) {
               <MessageCircle className="mr-1 h-4 w-4" />
               Laporan WA
             </Button>
-            <Button variant="outline" onClick={() => setShowPrint(true)}>
+            <Button variant="outline" onClick={() => openPrintNota(false)}>
               <Printer className="mr-1 h-4 w-4" />
               Cetak Nota
             </Button>
+            {(isDojoAdmin || isCabang) && (
+              <Button
+                variant="outline"
+                onClick={() => openPrintNota(true)}
+                disabled={selectedIds.size === 0}
+              >
+                <Printer className="mr-1 h-4 w-4" />
+                Nota Terpilih ({selectedIds.size})
+              </Button>
+            )}
             {isCabang && (
               <Button variant="outline" onClick={() => setShowBeltFees(true)}>
                 <Wallet className="mr-1 h-4 w-4" />
@@ -621,7 +805,27 @@ export function UktDashboard(props: Props) {
             {isCabang && props.selectedPeriodId && (
               <Button variant="outline" onClick={handleCreateInvoice} disabled={loading}>
                 <FileText className="mr-1 h-4 w-4" />
-                Buat Invoice
+                Buat Invoice{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+              </Button>
+            )}
+            {isCabang && selectedIds.size > 0 && (
+              <Button
+                className="bg-inkai-red hover:bg-inkai-red/90"
+                onClick={() => void handleBulkMarkPaid()}
+                disabled={loading}
+              >
+                <CheckCircle2 className="mr-1 h-4 w-4" />
+                Verifikasi Bayar ({selectedIds.size})
+              </Button>
+            )}
+            {isDojoAdmin && selectedIds.size > 0 && (
+              <Button
+                className="bg-inkai-red hover:bg-inkai-red/90"
+                onClick={() => openPrintNota(true)}
+                disabled={loading}
+              >
+                <Banknote className="mr-1 h-4 w-4" />
+                Siap Bayar UKT ({selectedIds.size})
               </Button>
             )}
           </div>
@@ -748,7 +952,7 @@ export function UktDashboard(props: Props) {
             <SelectItem value="BELUM_DAFTAR">Belum Daftar</SelectItem>
             <SelectItem value="PENDING">Terdaftar</SelectItem>
             <SelectItem value="APPROVED">Disetujui</SelectItem>
-            <SelectItem value="PAID">Lunas</SelectItem>
+            <SelectItem value="PAID">Lunas / Selesai</SelectItem>
             <SelectItem value="REJECTED">Ditolak</SelectItem>
           </SelectContent>
         </Select>
@@ -819,11 +1023,42 @@ export function UktDashboard(props: Props) {
           </Card>
         )}
 
+      {isDojoAdmin && (
+        <Card className="border-muted">
+          <CardContent className="p-3 text-sm text-muted-foreground">
+            Centang peserta yang akan dibayar, lalu pakai <b>Nota Terpilih</b> /{" "}
+            <b>Siap Bayar UKT</b> agar daftar selaras dengan nota. Cabang akan
+            memverifikasi pembayaran dan mengisi sabuk target hingga status{" "}
+            <b>Selesai</b>.
+          </CardContent>
+        </Card>
+      )}
+
+      {isCabang && (
+        <Card className="border-muted">
+          <CardContent className="p-3 text-sm text-muted-foreground">
+            Verifikasi pembayaran (per baris atau massal), lalu isi{" "}
+            <b>Sabuk target</b>. Status menjadi <b>Selesai</b> setelah lunas +
+            sabuk target terisi.
+          </CardContent>
+        </Card>
+      )}
+
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border shadow-sm">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
+              <TableHead className="w-10">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-inkai-red"
+                  checked={allSelectableChecked}
+                  onChange={toggleSelectAllSelectable}
+                  title="Pilih semua yang belum lunas"
+                  aria-label="Pilih semua yang belum lunas"
+                />
+              </TableHead>
               <TableHead className="w-10">No</TableHead>
               <TableHead className="w-14">Foto</TableHead>
               <TableHead>NIA</TableHead>
@@ -832,8 +1067,8 @@ export function UktDashboard(props: Props) {
               <TableHead className="hidden lg:table-cell">Tgl Lahir</TableHead>
               <TableHead className="hidden sm:table-cell">JK</TableHead>
               <TableHead className="hidden xl:table-cell">Alamat</TableHead>
-              <TableHead>Kyu Lama</TableHead>
-              <TableHead>Kyu Baru</TableHead>
+              <TableHead>Sabuk saat ini</TableHead>
+              <TableHead>Sabuk target</TableHead>
               <TableHead className="hidden md:table-cell">Dokumen</TableHead>
               <TableHead className="hidden sm:table-cell">Ranting</TableHead>
               <TableHead>Status</TableHead>
@@ -843,7 +1078,7 @@ export function UktDashboard(props: Props) {
           <TableBody>
             {displayRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={14} className="py-12 text-center text-muted-foreground">
+                <TableCell colSpan={15} className="py-12 text-center text-muted-foreground">
                   {props.allRows.length === 0 && !props.dbError
                     ? "Belum ada anggota. Tambahkan anggota untuk memulai pendaftaran UKT."
                     : "Tidak ada data sesuai filter."}
@@ -855,13 +1090,27 @@ export function UktDashboard(props: Props) {
                   key={row.memberId}
                   className="group transition-colors hover:bg-muted/30"
                 >
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-inkai-red"
+                      checked={selectedIds.has(row.memberId)}
+                      disabled={
+                        !row.registrationId ||
+                        !isNotaParticipant(row.status) ||
+                        !isUktBillingUnpaid(row)
+                      }
+                      onChange={() => toggleSelect(row.memberId)}
+                      aria-label={`Pilih ${row.fullName}`}
+                    />
+                  </TableCell>
                   <TableCell className="text-muted-foreground">
                     {(safePage - 1) * localPageSize + idx + 1}
                   </TableCell>
                   <TableCell>
                     <MemberAvatarRing
                       fullName={row.fullName}
-                      currentRank={row.kyuLama}
+                      currentRank={row.kyuBaru || row.kyuLama}
                       photoUrl={row.photoUrl}
                       size="sm"
                     />
@@ -876,7 +1125,7 @@ export function UktDashboard(props: Props) {
                         loadMemberHistory(row.memberId);
                       }}
                     >
-                      {row.fullName}
+                      {formatMemberName(row.fullName)}
                     </button>
                     {(row.outstandingDues > 0 || row.pendingVerifications > 0) && (
                       <span className="ml-1 inline-flex text-amber-500" title="Ada tanggungan">
@@ -886,19 +1135,23 @@ export function UktDashboard(props: Props) {
                   </TableCell>
                   <TableCell className="hidden md:table-cell">{row.birthPlace || "-"}</TableCell>
                   <TableCell className="hidden lg:table-cell">{formatDate(row.birthDate)}</TableCell>
-                  <TableCell className="hidden sm:table-cell">{row.gender || "-"}</TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {formatGenderLabel(row.gender) || "-"}
+                  </TableCell>
                   <TableCell className="hidden max-w-32 truncate xl:table-cell">{row.address || "-"}</TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="text-xs">
-                      {shortRankLabel(row.kyuLama)}
+                      {formatRankLabel(row.kyuLama) || "—"}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     {row.registrationId && isCabang ? (
                       <select
                         className="h-7 max-w-36 rounded border px-1 text-xs"
-                        value={row.kyuBaru || ""}
-                        onChange={(e) => handleKyuUpdate(row.registrationId!, e.target.value)}
+                        value={row.kyuBaru ? formatRankLabel(row.kyuBaru) : ""}
+                        onChange={(e) =>
+                          handleKyuUpdate(row.registrationId!, e.target.value, row)
+                        }
                         disabled={loading}
                       >
                         <option value="">— Pilih —</option>
@@ -909,7 +1162,9 @@ export function UktDashboard(props: Props) {
                         ))}
                       </select>
                     ) : (
-                      <span className="text-sm">{row.kyuBaru ? shortRankLabel(row.kyuBaru) : "-"}</span>
+                      <span className="text-sm">
+                        {row.kyuBaru ? formatRankLabel(row.kyuBaru) : "-"}
+                      </span>
                     )}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
@@ -933,11 +1188,17 @@ export function UktDashboard(props: Props) {
                   <TableCell className="hidden sm:table-cell text-xs">{row.dojoName}</TableCell>
                   <TableCell>
                     <div className="space-y-1">
-                      {statusBadge(row.registrationId ? row.status : "BELUM_DAFTAR")}
+                      {statusBadge(row)}
                       {row.billingAmount != null && (
                         <p className="text-xs text-muted-foreground">
                           {formatRupiah(row.billingAmount)}
-                          {row.billingStatus === "PAID" ? " · Lunas" : row.billingStatus === "WAITING_VERIFICATION" ? " · Menunggu" : ""}
+                          {row.billingStatus === "PAID"
+                            ? " · Lunas"
+                            : row.billingStatus === "WAITING_VERIFICATION"
+                              ? " · Menunggu"
+                              : row.billingStatus === "PENDING"
+                                ? " · Belum bayar"
+                                : ""}
                         </p>
                       )}
                     </div>
@@ -956,6 +1217,19 @@ export function UktDashboard(props: Props) {
                         </Button>
                       ) : (
                         <>
+                          {isCabang && isUktBillingUnpaid(row) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => void handleMarkPaid(row)}
+                              disabled={loading}
+                              title="Verifikasi pembayaran UKT"
+                            >
+                              <CheckCircle2 className="mr-0.5 h-3 w-3" />
+                              Verifikasi
+                            </Button>
+                          )}
                           {canCancelUktRegistration(row) && (isDojoAdmin || isCabang) && (
                             <Button
                               size="sm"
@@ -1040,7 +1314,7 @@ export function UktDashboard(props: Props) {
                     currentRank={selectedMember.kyuLama}
                     photoUrl={selectedMember.photoUrl}
                   />
-                  {selectedMember.fullName}
+                  {formatMemberName(selectedMember.fullName)}
                 </DialogTitle>
                 <DialogDescription>
                   NIA: {selectedMember.nia || "-"} · {selectedMember.dojoName}
@@ -1050,8 +1324,9 @@ export function UktDashboard(props: Props) {
                 <div className="grid grid-cols-2 gap-2">
                   <div><span className="text-muted-foreground">Tempat Lahir:</span> {selectedMember.birthPlace || "-"}</div>
                   <div><span className="text-muted-foreground">Tgl Lahir:</span> {formatDate(selectedMember.birthDate)}</div>
-                  <div><span className="text-muted-foreground">Jenis Kelamin:</span> {selectedMember.gender || "-"}</div>
-                  <div><span className="text-muted-foreground">Kyu Lama:</span> {selectedMember.kyuLama}</div>
+                  <div><span className="text-muted-foreground">Jenis Kelamin:</span> {formatGenderLabel(selectedMember.gender) || "-"}</div>
+                  <div><span className="text-muted-foreground">Sabuk saat ini:</span> {formatRankLabel(selectedMember.kyuLama) || "—"}</div>
+                  <div><span className="text-muted-foreground">Sabuk target:</span> {selectedMember.kyuBaru ? formatRankLabel(selectedMember.kyuBaru) : "—"}</div>
                 </div>
                 {selectedMember.outstandingDues > 0 && (
                   <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:bg-amber-950/20">
@@ -1150,11 +1425,17 @@ export function UktDashboard(props: Props) {
       {showPrint && (
         <UktPrintModal
           open={showPrint}
-          onClose={() => setShowPrint(false)}
+          onClose={() => {
+            setShowPrint(false);
+            setPrintOnlySelected(false);
+          }}
           periodTitle={selectedPeriod?.title || periodTitle}
           semester={props.semester}
           year={props.year}
-          rows={props.allRows.filter((r) => r.registrationId && isNotaParticipant(r.status))}
+          rows={(printOnlySelected && selectedRows.length > 0
+            ? selectedRows
+            : props.allRows
+          ).filter((r) => r.registrationId && isNotaParticipant(r.status))}
           dojos={props.dojos}
           dojoFilter={effectiveDojo}
           beltFees={beltFees}

@@ -69,6 +69,9 @@ export const uktRegistrationUpdateSchema = z.object({
   action: z.enum(["approve", "reject", "update_kyu", "mark_paid"]).optional(),
   categoryId: z.string().uuid().optional(),
   newRank: z.string().trim().min(2).max(64).optional(),
+  /** Sabuk saat ini (Kyu Lama) dari baris UKT — untuk snapshot bila GET registrasi gagal */
+  previousRank: z.string().trim().min(1).max(64).optional(),
+  memberId: z.string().uuid().optional(),
   status: z.enum(["PENDING", "APPROVED", "REJECTED", "PAID", "SUCCESS"]).optional(),
 });
 
@@ -225,4 +228,18 @@ export const geofencingSchema = z.object({
   latitude: z.coerce.number().min(-90).max(90),
   longitude: z.coerce.number().min(-180).max(180),
   geofenceRadius: z.coerce.number().int().min(10).max(5000),
+});
+
+export const memberBillingProofSchema = z.object({
+  proofUrl: z.string().url("URL bukti tidak valid"),
+  paymentMethod: z.string().trim().max(40).optional(),
+});
+
+export const memberAttendanceCheckinSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  method: z.enum(["QR_SCAN", "GPS", "MANUAL"]).optional(),
+  qrPayload: z.string().trim().max(500).optional(),
+  dojoId: z.string().uuid().optional(),
+  eventId: z.string().uuid().optional(),
 });
