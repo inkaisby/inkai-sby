@@ -109,9 +109,9 @@ export function parseUktEventTitle(title: string): { semester: UktSemester; year
   };
 }
 
-export type UktPeriodOption = { id: string; title: string };
+export type UktPeriodOption = { id: string; title: string; startDate?: string };
 
-/** Cari event UKT yang cocok dengan semester + tahun (judul standar atau parse judul). */
+/** Cari event UKT yang cocok dengan semester + tahun (judul standar, parse judul, atau rentang tanggal). */
 export function findUktPeriodForTerm(
   periods: UktPeriodOption[],
   semester: UktSemester,
@@ -120,15 +120,29 @@ export function findUktPeriodForTerm(
   const expectedTitle = buildUktEventTitle(semester, year).toLowerCase();
   const byTitle = periods.find((p) => p.title.toLowerCase() === expectedTitle);
   if (byTitle) return byTitle;
-  return (
+  const byParsed =
     periods.find((p) => {
       const parsed = parseUktEventTitle(p.title);
       return parsed?.semester === semester && parsed?.year === year;
+    }) ?? null;
+  if (byParsed) return byParsed;
+
+  const { semesterStart, semesterEnd } = buildUktSemesterWindow(semester, year);
+  const startMs = semesterStart.getTime();
+  const endMs = semesterEnd.getTime();
+  return (
+    periods.find((p) => {
+      if (!p.startDate) return false;
+      const t = new Date(p.startDate).getTime();
+      return Number.isFinite(t) && t >= startMs && t <= endMs;
     }) ?? null
   );
 }
 
-/** Pilih periode aktif: URL `period` hanya dipakai jika selaras semester/tahun. */
+/**
+ * Pilih periode aktif: URL `period` dipakai kecuali judulnya jelas milik semester/tahun lain.
+ * Judul tanpa pola semester (atau belum di-parse) tetap dihormati agar kontrol batas pendaftaran tidak hilang.
+ */
 export function resolveUktSelectedPeriodId(
   periods: UktPeriodOption[],
   semester: UktSemester,
@@ -140,10 +154,10 @@ export function resolveUktSelectedPeriodId(
     const urlPeriod = periods.find((p) => p.id === periodFromUrl);
     if (!urlPeriod) return matchByTerm?.id ?? null;
     const parsed = parseUktEventTitle(urlPeriod.title);
-    if (parsed?.semester === semester && parsed?.year === year) {
-      return periodFromUrl;
+    if (parsed && (parsed.semester !== semester || parsed.year !== year)) {
+      return matchByTerm?.id ?? null;
     }
-    return matchByTerm?.id ?? null;
+    return periodFromUrl;
   }
   return matchByTerm?.id ?? null;
 }

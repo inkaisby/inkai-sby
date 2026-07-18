@@ -388,6 +388,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | Paket lengkap celah ops: pesan unread+cari+broadcast, organisasi→pengaturan deep-link, geofence pratinjau peta, audit filter/export, beranda KPI pesan, preset peran |
 | 18 Juli 2026 | Beranda anggota: checklist keanggotaan+CTA, dojo/jadwal/absen hari ini/PIC WA, aksi cepat kontekstual+sheet lainnya, badge pesan unread, agenda gabungan |
 | 18 Juli 2026 | Seed akun Pengprov Jatim (`ADMIN_PROVINCE`): `pengprovjatim@gmail.com` via `scripts/seed-pengprov-jatim.ts` |
+| 18 Juli 2026 | Fix admin UKT: `redirect()` URL kanonik tidak lagi tertangkap sebagai gagal API; periode dari query digabung ke daftar event; resolusi periode longgar + limit events 200 agar kartu batas pendaftaran (tanggal/jam) tidak hilang |
 
 ---
 

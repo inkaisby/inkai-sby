@@ -313,7 +313,7 @@ export async function fetchAuditLogs(token: string, limit = 100) {
 }
 
 export async function fetchUktPeriods(token: string) {
-  const { res, data } = await inkaiFetch("/v1/events?limit=40", {}, token);
+  const { res, data } = await inkaiFetch("/v1/events?limit=200", {}, token);
   if (!res.ok) return [];
   return filterUktEvents((data.data as Array<Record<string, unknown>>) ?? []);
 }
@@ -322,6 +322,27 @@ export async function fetchEventDetail(token: string, eventId: string) {
   const { res, data } = await inkaiFetch(`/v1/events/${eventId}`, {}, token);
   if (!res.ok) return null;
   return (data.data as Record<string, unknown>) ?? null;
+}
+
+function periodOptionFromEvent(event: Record<string, unknown>, idFallback?: string) {
+  return {
+    id: String(event.id ?? idFallback ?? ""),
+    title: String(event.title ?? ""),
+    startDate: String(event.startDate ?? ""),
+    endDate: String(event.endDate ?? ""),
+    registrationCloseAt: event.registrationCloseAt
+      ? String(event.registrationCloseAt)
+      : null,
+  };
+}
+
+function upsertPeriodOption(
+  periods: ReturnType<typeof periodOptionFromEvent>[],
+  next: ReturnType<typeof periodOptionFromEvent>,
+) {
+  const idx = periods.findIndex((p) => p.id === next.id);
+  if (idx < 0) return [...periods, next];
+  return periods.map((p, i) => (i === idx ? { ...p, ...next } : p));
 }
 
 export async function fetchUktKomisiRanting(token: string, key: string, fallback: number) {
@@ -419,7 +440,7 @@ export async function fetchUktDashboardData(
     examSettingsInitial,
     waiverSettingsInitial,
   ] = await Promise.all([
-    inkaiFetch("/v1/events?limit=40", {}, token),
+    inkaiFetch("/v1/events?limit=200", {}, token),
     fetchAdminDojos(token),
     fetchAdminMembers(token, memberQuery),
     inkaiFetch("/v1/events/rank-fee-templates", {}, token),
@@ -436,17 +457,25 @@ export async function fetchUktDashboardData(
       : Promise.resolve([]),
   ]);
 
-  const periodRows = eventsRes.res.ok
-    ? filterUktEvents((eventsRes.data.data as Array<Record<string, unknown>>) ?? [])
+  let periods = eventsRes.res.ok
+    ? filterUktEvents((eventsRes.data.data as Array<Record<string, unknown>>) ?? []).map((p) =>
+        periodOptionFromEvent(p),
+      )
     : [];
 
-  const periods = periodRows.map((p) => ({
-    id: String(p.id),
-    title: String(p.title),
-    startDate: String(p.startDate),
-    endDate: String(p.endDate),
-    registrationCloseAt: p.registrationCloseAt ? String(p.registrationCloseAt) : null,
-  }));
+  // Pastikan periode dari URL masuk daftar (list events bisa miss).
+  if (
+    periodFromUrl &&
+    eventDetailInitial &&
+    String(eventDetailInitial.title ?? "")
+      .toUpperCase()
+      .includes("UKT")
+  ) {
+    periods = upsertPeriodOption(
+      periods,
+      periodOptionFromEvent(eventDetailInitial, periodFromUrl),
+    );
+  }
 
   let selectedPeriodId = resolveUktSelectedPeriodId(
     periods,
@@ -464,6 +493,14 @@ export async function fetchUktDashboardData(
       fetchSettingsByPrefix(token, `ukt-exam-result:${selectedPeriodId}:`),
       fetchSettingsByPrefix(token, `ukt-registration-waiver:${selectedPeriodId}:`),
     ]);
+  }
+
+  // Sinkronkan tanggal/batas pendaftaran dari detail event agar kartu "Atur" akurat.
+  if (selectedPeriodId && eventDetail) {
+    periods = upsertPeriodOption(
+      periods,
+      periodOptionFromEvent(eventDetail, selectedPeriodId),
+    );
   }
 
   const attendanceLogs = attendanceRes.res.ok

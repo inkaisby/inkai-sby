@@ -10,7 +10,6 @@ import {
   beltFeesFromTemplates,
   buildUktAdminUrl,
   currentSemester,
-  findUktPeriodForTerm,
   type UktSemester,
 } from "@/lib/ukt";
 import { fetchUktDashboardData } from "@/lib/inkai-api/admin-data";
@@ -19,6 +18,15 @@ import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
+
+function isNextRedirectError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "digest" in error &&
+    String((error as { digest?: string }).digest || "").startsWith("NEXT_REDIRECT")
+  );
+}
 
 type SearchParams = Promise<{
   period?: string;
@@ -64,7 +72,8 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     dojos = data.dojos;
     selectedPeriodId = data.selectedPeriodId;
 
-    const canonicalPeriod = findUktPeriodForTerm(periods, semester, year)?.id ?? null;
+    // URL kanonik mengikuti periode yang benar-benar ter-resolve (bukan re-query terpisah).
+    const canonicalPeriod = data.selectedPeriodId;
     const urlNeedsSync =
       params.semester !== semester ||
       params.year !== String(year) ||
@@ -77,6 +86,8 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     komisiRanting = data.komisiRanting;
     if (!data.ok) dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
   } catch (error) {
+    // redirect() melempar NEXT_REDIRECT — jangan tampilkan sebagai gagal API.
+    if (isNextRedirectError(error)) throw error;
     console.error("[AdminUkt] API error:", error);
     dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
   }
