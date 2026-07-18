@@ -60,6 +60,11 @@ async function PengaturanCabangContent({
   const branchIds = branches.map((b) => String(b.id));
   let admins: Array<{ email: string; managedBranchId: string | null }> = [];
   let adminLoadFailed = false;
+  let archivedBranches: Array<{
+    id: string;
+    name: string;
+    province: { name: string } | null;
+  }> = [];
 
   if (branchIds.length) {
     try {
@@ -75,6 +80,21 @@ async function PengaturanCabangContent({
       console.error("[pengaturan/cabang] prisma admins", error);
       adminLoadFailed = true;
     }
+  }
+
+  try {
+    archivedBranches = await prisma.branch.findMany({
+      where: { isDeleted: true },
+      select: {
+        id: true,
+        name: true,
+        province: { select: { name: true } },
+      },
+      orderBy: { name: "asc" },
+      take: 50,
+    });
+  } catch {
+    archivedBranches = [];
   }
 
   const warning = orgLoadFailed
@@ -170,6 +190,12 @@ async function PengaturanCabangContent({
           name: String(p.name),
         }))}
         branches={rows}
+        archived={archivedBranches.map((b) => ({
+          id: b.id,
+          name: b.name,
+          provinceName: b.province?.name || "—",
+          isDeleted: true,
+        }))}
       />
 
       <SettingsPagination

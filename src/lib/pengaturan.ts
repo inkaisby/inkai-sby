@@ -7,40 +7,74 @@ export const SETTINGS_HUB = [
   {
     href: "/admin/pengaturan/user",
     title: "Pengaturan User",
-    description: "Kelola akun admin, status aktif, dan cakupan wilayah.",
+    description: "Kelola akun admin, role, cakupan, reset password, dan status aktif.",
+    group: "akun" as const,
   },
   {
     href: "/admin/pengaturan/cabang",
     title: "Pengaturan Cabang",
-    description: "Tambah atau ubah data cabang beserta akun admin cabang.",
+    description: "Tambah, ubah, arsipkan, atau pulihkan data cabang beserta admin.",
+    group: "wilayah" as const,
   },
   {
     href: "/admin/pengaturan/ranting",
     title: "Pengaturan Ranting",
-    description: "Kelola ranting dan buat username/password login admin ranting.",
+    description: "Kelola ranting, login admin, rekening, dan arsip/pulihkan.",
+    group: "wilayah" as const,
+  },
+  {
+    href: "/admin/pengaturan/kebijakan",
+    title: "Profil & Kebijakan",
+    description: "Kontak sekretariat, rekening cabang, iuran default, instruksi bayar.",
+    group: "kebijakan" as const,
   },
   {
     href: "/admin/pengaturan/peran",
     title: "Role & Hak Akses",
     description: "Atur permission menu per role (Administrator).",
+    group: "akun" as const,
   },
   {
     href: "/admin/pengaturan/geofencing",
     title: "Geofencing Absensi",
-    description: "Atur koordinat dan radius maksimal absensi per ranting.",
+    description: "Atur koordinat dan radius absensi per ranting (dengan lokasi perangkat).",
+    group: "operasional" as const,
   },
   {
     href: "/admin/pengaturan/akun",
     title: "Akun Saya",
-    description: "Ubah profil dan password akun admin yang sedang login.",
+    description: "Ubah profil dan password akun yang sedang login.",
+    group: "akun" as const,
   },
 ] as const;
 
 export const SETTINGS_SHORTCUTS = [
-  { href: buildDefaultUktAdminUrl(), title: "UKT & Iuran Ujian", description: "Tarif sabuk & komisi ranting" },
-  { href: "/admin/carousel", title: "Carousel Beranda", description: "Konten visual beranda publik" },
-  { href: "/admin/audit", title: "Log Audit", description: "Jejak aksi sensitif admin" },
+  {
+    href: buildDefaultUktAdminUrl(),
+    title: "Tarif UKT & Komisi",
+    description: "Biaya sabuk & komisi ranting (modul UKT)",
+    kind: "kebijakan" as const,
+  },
+  {
+    href: "/admin/carousel",
+    title: "Carousel Beranda",
+    description: "Konten visual beranda publik",
+    kind: "konten" as const,
+  },
+  {
+    href: "/admin/audit",
+    title: "Log Audit",
+    description: "Jejak aksi sensitif admin",
+    kind: "audit" as const,
+  },
 ] as const;
+
+export const SETTINGS_GROUP_LABELS: Record<string, string> = {
+  akun: "Akun & akses",
+  wilayah: "Wilayah",
+  kebijakan: "Kebijakan organisasi",
+  operasional: "Operasional lapangan",
+};
 
 export function canManageUsers(user: SessionUser) {
   const role = getPrimaryAdminRole(user.roles);
@@ -76,6 +110,17 @@ export function canAdministerRantingAccounts(user: SessionUser) {
 
 export function canManageRoles(user: SessionUser) {
   return user.roles.includes("ADMINISTRATOR");
+}
+
+export function canManageKebijakan(user: SessionUser) {
+  const role = getPrimaryAdminRole(user.roles);
+  return [
+    "ADMINISTRATOR",
+    "ADMIN_PUSAT",
+    "ADMIN_PROVINCE",
+    "ADMIN_BRANCH",
+    "ADMIN",
+  ].includes(role);
 }
 
 export function canManageGeofencing(user: SessionUser) {

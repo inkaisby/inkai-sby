@@ -29,14 +29,17 @@ export type BranchRow = {
   provinceName?: string;
   dojoCount?: number;
   adminEmail?: string | null;
+  isDeleted?: boolean;
 };
 
 export function CabangSettingsManager({
   provinces,
   branches,
+  archived = [],
 }: {
   provinces: { id: string; name: string }[];
   branches: BranchRow[];
+  archived?: BranchRow[];
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -139,6 +142,24 @@ export function CabangSettingsManager({
       router.refresh();
     } else {
       showError(data.error || "Gagal mengarsipkan");
+    }
+  }
+
+  async function restoreBranch(b: BranchRow) {
+    if (!confirm(`Pulihkan cabang "${b.name}" dari arsip?`)) return;
+    setLoading(true);
+    const res = await fetch("/api/admin/pengaturan/cabang", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: b.id, restore: true }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setLoading(false);
+    if (res.ok) {
+      showSuccess(data.message || "Cabang dipulihkan");
+      router.refresh();
+    } else {
+      showError(data.error || "Gagal memulihkan");
     }
   }
 
@@ -327,6 +348,45 @@ export function CabangSettingsManager({
           </TableBody>
         </Table>
       </div>
+
+      {archived.length > 0 ? (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-muted-foreground">
+            Arsip cabang ({archived.length})
+          </h3>
+          <div className="overflow-x-auto rounded-xl border border-dashed">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nama</TableHead>
+                  <TableHead className="hidden sm:table-cell">Provinsi</TableHead>
+                  <TableHead className="text-right">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {archived.map((b) => (
+                  <TableRow key={b.id}>
+                    <TableCell className="font-medium">{b.name}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-muted-foreground">
+                      {b.provinceName || "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={loading}
+                        onClick={() => void restoreBranch(b)}
+                      >
+                        Pulihkan
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

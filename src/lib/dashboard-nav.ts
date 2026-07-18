@@ -49,6 +49,7 @@ export const ADMIN_LINKS: NavItem[] = [
       { href: "/admin/pengaturan/user", label: "Pengaturan User" },
       { href: "/admin/pengaturan/cabang", label: "Pengaturan Cabang" },
       { href: "/admin/pengaturan/ranting", label: "Pengaturan Ranting" },
+      { href: "/admin/pengaturan/kebijakan", label: "Profil & Kebijakan" },
       { href: "/admin/pengaturan/peran", label: "Role & Hak Akses" },
       { href: "/admin/pengaturan/geofencing", label: "Geofencing Absensi" },
       { href: "/admin/pengaturan/akun", label: "Akun Saya" },

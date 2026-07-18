@@ -178,8 +178,69 @@ export const uktBeltFeesSchema = z.object({
 
 export const adminUserPatchSchema = z.object({
   userId: z.string().uuid(),
+  action: z
+    .enum(["update", "reset_password"])
+    .optional()
+    .default("update"),
   isActive: z.boolean().optional(),
   fullName: z.string().trim().min(2).max(100).optional(),
+  phoneNumber: z.string().trim().max(20).optional().or(z.literal("")),
+  role: z
+    .enum([
+      "ADMINISTRATOR",
+      "ADMIN_PUSAT",
+      "ADMIN_PROVINCE",
+      "ADMIN_BRANCH",
+      "ADMIN_DOJO",
+      "ADMIN",
+    ])
+    .optional(),
+  managedProvinceId: z.string().uuid().nullable().optional(),
+  managedBranchId: z.string().uuid().nullable().optional(),
+  managedDojoId: z.string().uuid().nullable().optional(),
+  newPassword: z.string().min(8).max(72).optional(),
+  newPasswordConfirm: z.string().min(8).max(72).optional(),
+});
+
+export const adminUserCreateSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().email(),
+    fullName: z.string().trim().min(2).max(100),
+    phoneNumber: z.string().trim().max(20).optional().or(z.literal("")),
+    role: z.enum([
+      "ADMIN_PROVINCE",
+      "ADMIN_BRANCH",
+      "ADMIN_DOJO",
+      "ADMIN",
+    ]),
+    managedProvinceId: z.string().uuid().optional().nullable(),
+    managedBranchId: z.string().uuid().optional().nullable(),
+    managedDojoId: z.string().uuid().optional().nullable(),
+    password: z.string().min(8).max(72),
+    passwordConfirm: z.string().min(8).max(72),
+  })
+  .refine((d) => d.password === d.passwordConfirm, {
+    message: "Konfirmasi password tidak cocok",
+    path: ["passwordConfirm"],
+  });
+
+export const branchOrgProfileSchema = z.object({
+  address: z.string().trim().max(300),
+  phone: z.string().trim().max(30),
+  whatsapp: z.string().trim().max(30),
+  email: z.string().trim().email().or(z.literal("")),
+  hours: z.string().trim().max(120),
+  bankName: z.string().trim().max(80),
+  bankAccountNumber: z.string().trim().max(40),
+  bankAccountName: z.string().trim().max(120),
+  paymentInstructions: z.string().trim().max(1000),
+  mapsUrl: z.string().trim().max(300),
+});
+
+export const operationalDefaultsSchema = z.object({
+  monthlyDuesAmount: z.coerce.number().min(0).max(10_000_000),
+  paymentInstructions: z.string().trim().max(1000),
+  forcePasswordHint: z.boolean().optional(),
 });
 
 export const branchCreateSchema = z.object({

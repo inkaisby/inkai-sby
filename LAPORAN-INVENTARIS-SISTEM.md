@@ -115,7 +115,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Absensi | Laporan absensi harian |
 | Carousel Beranda | Kelola berita visual publik |
 | Log Audit | Jejak aksi sensitif (pusat) |
-| Pengaturan | User, cabang, ranting, peran/RBAC, geofencing, akun |
+| Pengaturan | User (CRUD/role/cakupan/reset), cabang/ranting (+arsip pulihkan), **profil & kebijakan**, peran/RBAC, geofencing (lokasi perangkat), akun |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
@@ -303,7 +303,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/members/archived Daftar arsip soft-delete
 /api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
 /api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees, Kyu
-/api/admin/pengaturan/*     User, cabang, ranting, roles, geofencing, akun
+/api/admin/pengaturan/*     User, cabang, ranting, roles, geofencing, akun, kebijakan
 /api/admin/verifications/*  Proses klaim
 /api/admin/carousel/*       Carousel beranda
 /api/admin/upload           Upload ke Blob
@@ -371,6 +371,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | Nama file dikunci sebagai living context agentic; rule Cursor + `AGENTS.md` wajib baca inventaris sebelum develop, update di turn yang sama |
 | 18 Juli 2026 | Admin anggota: nonaktifkan/aktifkan ulang + hapus soft-delete (konfirmasi nama untuk ber-NIA); KPI/filter Nonaktif; RBAC ranting vs cabang; login blokir status INACTIVE |
 | 18 Juli 2026 | Paket lengkap lifecycle anggota: alasan+jenis (INACTIVE/SUSPENDED), notifikasi, tombol Nonaktif terlihat, bulk nonaktif, arsip+pulihkan, dampak hapus, filter ≥N bulan, metadata di detail, QR nonaktif jelas |
+| 18 Juli 2026 | Paket lengkap Pengaturan: hub kartu+checklist, profil/kebijakan cabang, user create/edit/reset/export, geofence lokasi perangkat, arsip pulihkan cabang/ranting, kredensial tanpa localStorage |
 
 ---
 

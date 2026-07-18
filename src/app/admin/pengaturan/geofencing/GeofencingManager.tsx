@@ -84,7 +84,7 @@ export function GeofencingManager({ dojos }: { dojos: GeofenceDojo[] }) {
               Edit: {dojos.find((d) => d.id === editingId)?.name}
             </h3>
             <p className="text-sm text-muted-foreground">
-              Ambil koordinat dari Google Maps (klik kanan → koordinat).
+              Pakai lokasi perangkat, atau salin koordinat dari Google Maps.
             </p>
           </div>
           <div className="space-y-1.5">
@@ -116,7 +116,41 @@ export function GeofencingManager({ dojos }: { dojos: GeofenceDojo[] }) {
               required
             />
           </div>
-          <div className="flex gap-2 sm:col-span-3">
+          <div className="flex flex-wrap gap-2 sm:col-span-3">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loading}
+              onClick={() => {
+                if (!navigator.geolocation) {
+                  showError("Perangkat tidak mendukung geolokasi");
+                  return;
+                }
+                navigator.geolocation.getCurrentPosition(
+                  (pos) => {
+                    setLatitude(String(pos.coords.latitude));
+                    setLongitude(String(pos.coords.longitude));
+                    showSuccess("Lokasi perangkat diambil");
+                  },
+                  () => showError("Gagal membaca lokasi — izinkan akses lokasi"),
+                  { enableHighAccuracy: true, timeout: 12_000 },
+                );
+              }}
+            >
+              Pakai lokasi saya
+            </Button>
+            {latitude && longitude ? (
+              <a
+                href={`https://www.google.com/maps?q=${encodeURIComponent(
+                  `${latitude},${longitude}`,
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex h-8 items-center rounded-lg border px-3 text-sm hover:bg-muted"
+              >
+                Lihat di Maps
+              </a>
+            ) : null}
             <Button
               type="submit"
               disabled={loading}

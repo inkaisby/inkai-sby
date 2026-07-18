@@ -131,6 +131,11 @@ async function PengaturanRantingContent({
     managedDojoId: string | null;
   }> = [];
   let adminLoadFailed = false;
+  let archivedDojos: Array<{
+    id: string;
+    name: string;
+    branch: { name: string } | null;
+  }> = [];
 
   if (dojoIds.length) {
     try {
@@ -149,6 +154,26 @@ async function PengaturanRantingContent({
     } catch (error) {
       console.error("[pengaturan/ranting] prisma admins", error);
       adminLoadFailed = true;
+    }
+  }
+
+  if (!selfManagedOnly) {
+    try {
+      archivedDojos = await prisma.dojo.findMany({
+        where: {
+          isDeleted: true,
+          ...(lockedBranchId ? { branchId: lockedBranchId } : {}),
+        },
+        select: {
+          id: true,
+          name: true,
+          branch: { select: { name: true } },
+        },
+        orderBy: { name: "asc" },
+        take: 50,
+      });
+    } catch {
+      archivedDojos = [];
     }
   }
 
@@ -285,6 +310,14 @@ async function PengaturanRantingContent({
         selfManagedOnly={selfManagedOnly}
         branches={scopedBranches}
         dojos={rows}
+        archived={archivedDojos.map((d) => ({
+          id: d.id,
+          name: d.name,
+          branchName: d.branch?.name || "—",
+          memberCount: 0,
+          adminEmail: null,
+          adminIsActive: null,
+        }))}
       />
 
       <SettingsPagination

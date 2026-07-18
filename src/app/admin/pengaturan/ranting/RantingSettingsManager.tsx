@@ -59,29 +59,6 @@ type RevealedCredential = {
   loginPassword: string;
 };
 
-const CREDENTIAL_STORAGE_KEY = "inkai-ranting-credentials-v1";
-
-function loadStoredCredentials(): Record<string, RevealedCredential> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(CREDENTIAL_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Record<string, RevealedCredential>;
-    if (!parsed || typeof parsed !== "object") return {};
-    return parsed;
-  } catch {
-    return {};
-  }
-}
-
-function persistCredentials(map: Record<string, RevealedCredential>) {
-  try {
-    localStorage.setItem(CREDENTIAL_STORAGE_KEY, JSON.stringify(map));
-  } catch {
-    // ignore quota / private mode
-  }
-}
-
 const emptyForm = {
   name: "",
   branchId: "",
@@ -104,12 +81,14 @@ export function RantingSettingsManager({
   dojos,
   lockedBranchId,
   selfManagedOnly = false,
+  archived = [],
 }: {
   branches: { id: string; name: string }[];
   dojos: RantingRow[];
   lockedBranchId?: string | null;
   /** Admin ranting: hanya ubah data sendiri, tanpa tambah/arsip/login. */
   selfManagedOnly?: boolean;
+  archived?: RantingRow[];
 }) {
   const router = useRouter();
   const defaultBranchId = lockedBranchId || branches[0]?.id || "";
@@ -126,10 +105,6 @@ export function RantingSettingsManager({
     null,
   );
   const [copiedCredential, setCopiedCredential] = useState(false);
-
-  useEffect(() => {
-    setRevealedByDojoId(loadStoredCredentials());
-  }, []);
 
   useEffect(() => {
     if (!selfManagedOnly || dojos.length !== 1 || mode) return;
@@ -150,10 +125,15 @@ export function RantingSettingsManager({
   const detailCredential = useMemo(() => {
     if (!detailDojo?.adminEmail) return null;
     const stored = revealedByDojoId[detailDojo.id];
+    if (!stored) {
+      return {
+        loginEmail: detailDojo.adminEmail,
+        loginPassword: "",
+      };
+    }
     return {
-      loginEmail: stored?.loginEmail || detailDojo.adminEmail,
-      loginPassword:
-        stored?.loginPassword || generateSimplePassword(detailDojo.name),
+      loginEmail: stored.loginEmail || detailDojo.adminEmail,
+      loginPassword: stored.loginPassword,
     };
   }, [detailDojo, revealedByDojoId]);
 
@@ -175,14 +155,11 @@ export function RantingSettingsManager({
     loginEmail: string,
     loginPassword: string,
   ) {
-    setRevealedByDojoId((prev) => {
-      const next = {
-        ...prev,
-        [dojoId]: { loginEmail, loginPassword },
-      };
-      persistCredentials(next);
-      return next;
-    });
+    // Hanya di memori sesi — tidak persist ke localStorage
+    setRevealedByDojoId((prev) => ({
+      ...prev,
+      [dojoId]: { loginEmail, loginPassword },
+    }));
   }
 
   function revealCredential(
@@ -306,6 +283,24 @@ export function RantingSettingsManager({
       router.refresh();
     } else {
       showError(data.error || "Gagal mengarsipkan");
+    }
+  }
+
+  async function restoreDojo(d: RantingRow) {
+    if (!confirm(`Pulihkan ranting "${d.name}" dari arsip?`)) return;
+    setLoading(true);
+    const res = await fetch("/api/admin/pengaturan/ranting", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: d.id, restore: true }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setLoading(false);
+    if (res.ok) {
+      showSuccess(data.message || "Ranting dipulihkan");
+      router.refresh();
+    } else {
+      showError(data.error || "Gagal memulihkan");
     }
   }
 
@@ -789,6 +784,45 @@ export function RantingSettingsManager({
           </TableBody>
         </Table>
       </div>
+
+      {archived.length > 0 && !selfManagedOnly ? (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-muted-foreground">
+            Arsip ranting ({archived.length})
+          </h3>
+          <div className="overflow-x-auto rounded-xl border border-dashed">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nama</TableHead>
+                  <TableHead className="hidden sm:table-cell">Cabang</TableHead>
+                  <TableHead className="text-right">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {archived.map((d) => (
+                  <TableRow key={d.id}>
+                    <TableCell className="font-medium">{d.name}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-muted-foreground">
+                      {d.branchName || "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={loading}
+                        onClick={() => void restoreDojo(d)}
+                      >
+                        Pulihkan
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      ) : null}
 
       <Sheet
         open={Boolean(detailDojo)}
