@@ -23,6 +23,13 @@ export const metadata: Metadata = {
   },
   description:
     "Website resmi INKAI Cabang Surabaya. Institut Karate-Do Indonesia — Integritas, Tangguh, Rendah Hati.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   openGraph: {
     title: "INKAI Surabaya",
     description: "Institut Karate-Do Indonesia — Cabang Surabaya",
