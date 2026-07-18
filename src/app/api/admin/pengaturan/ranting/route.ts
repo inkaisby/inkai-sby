@@ -69,9 +69,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const pwCheck = validatePassword(parsed.data.adminPassword);
-  if (!pwCheck.valid) {
-    return NextResponse.json({ error: pwCheck.error }, { status: 400 });
+  const d = parsed.data;
+
+  if (d.adminPassword) {
+    const pwCheck = validatePassword(d.adminPassword);
+    if (!pwCheck.valid) {
+      return NextResponse.json({ error: pwCheck.error }, { status: 400 });
+    }
   }
 
   const branchResolved = resolveBranchIdForCreate(
@@ -82,23 +86,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: branchResolved.error }, { status: 400 });
   }
 
-  const conflict = await findEmailConflict(parsed.data.adminEmail);
-  if (conflict) {
-    return NextResponse.json(
-      {
-        error: `Email ${parsed.data.adminEmail} sudah dipakai akun lain${
-          conflict.managedDojo?.name
-            ? ` (admin ranting ${conflict.managedDojo.name})`
-            : conflict.managedBranch?.name
-              ? ` (admin cabang ${conflict.managedBranch.name})`
-              : ""
-        }`,
-      },
-      { status: 409 },
-    );
+  if (d.adminEmail) {
+    const conflict = await findEmailConflict(d.adminEmail);
+    if (conflict) {
+      return NextResponse.json(
+        {
+          error: `Email ${d.adminEmail} sudah dipakai akun lain${
+            conflict.managedDojo?.name
+              ? ` (admin ranting ${conflict.managedDojo.name})`
+              : conflict.managedBranch?.name
+                ? ` (admin cabang ${conflict.managedBranch.name})`
+                : ""
+          }`,
+        },
+        { status: 409 },
+      );
+    }
   }
 
-  const d = parsed.data;
   const body = {
     name: d.name,
     branchId: branchResolved.branchId,
@@ -112,8 +117,12 @@ export async function POST(request: Request) {
     bankName: cleanOptional(d.bankName),
     bankAccountNumber: cleanOptional(d.bankAccountNumber),
     bankAccountName: cleanOptional(d.bankAccountName),
-    adminEmail: d.adminEmail,
-    adminPassword: d.adminPassword,
+    ...(d.adminEmail
+      ? {
+          adminEmail: d.adminEmail,
+          ...(d.adminPassword ? { adminPassword: d.adminPassword } : {}),
+        }
+      : {}),
   };
 
   const { res, data } = await inkaiFetch(
@@ -146,9 +155,15 @@ export async function POST(request: Request) {
   return NextResponse.json({
     success: true,
     data: data.data,
-    message: `Ranting berhasil ditambahkan. Admin ranting bisa login dengan ${d.adminEmail}`,
-    loginEmail: d.adminEmail,
-    loginPassword: d.adminPassword,
+    message: d.adminEmail
+      ? `Ranting berhasil ditambahkan. Admin ranting bisa login dengan ${d.adminEmail}`
+      : "Ranting berhasil ditambahkan. Tambahkan akun pengurus lewat tombol Akun.",
+    ...(d.adminEmail
+      ? {
+          loginEmail: d.adminEmail,
+          loginPassword: d.adminPassword,
+        }
+      : {}),
   });
 }
 

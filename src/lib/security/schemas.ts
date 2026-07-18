@@ -247,7 +247,13 @@ export const branchCreateSchema = z.object({
   name: z.string().trim().min(2).max(120),
   provinceId: z.string().uuid(),
   headName: z.string().trim().max(120).optional().or(z.literal("")),
-  adminEmail: z.string().trim().toLowerCase().email(),
+  adminEmail: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email()
+    .optional()
+    .or(z.literal("")),
   adminPassword: z.string().min(8).max(72).optional().or(z.literal("")),
 });
 
@@ -271,13 +277,25 @@ export const rantingCreateSchema = z.object({
   bankName: z.string().trim().max(80).optional().or(z.literal("")),
   bankAccountNumber: z.string().trim().max(40).optional().or(z.literal("")),
   bankAccountName: z.string().trim().max(120).optional().or(z.literal("")),
-  adminEmail: z.string().trim().toLowerCase().email("Username login harus berupa email"),
-  adminPassword: z.string().min(8).max(72),
-  adminPasswordConfirm: z.string().min(8).max(72),
-}).refine((d) => d.adminPassword === d.adminPasswordConfirm, {
-  message: "Konfirmasi password tidak cocok",
-  path: ["adminPasswordConfirm"],
-});
+  adminEmail: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Username login harus berupa email")
+    .optional()
+    .or(z.literal("")),
+  adminPassword: z.string().min(8).max(72).optional().or(z.literal("")),
+  adminPasswordConfirm: z.string().min(8).max(72).optional().or(z.literal("")),
+}).refine(
+  (d) =>
+    !d.adminPassword ||
+    !d.adminPasswordConfirm ||
+    d.adminPassword === d.adminPasswordConfirm,
+  {
+    message: "Konfirmasi password tidak cocok",
+    path: ["adminPasswordConfirm"],
+  },
+);
 
 export const rantingUpdateSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
@@ -361,6 +379,10 @@ export const wilayahAccountCreateSchema = z
     password: z.string().min(8).max(72),
     passwordConfirm: z.string().min(8).max(72),
     setAsPrimary: z.boolean().optional(),
+    jabatan: z
+      .enum(["KETUA", "SEKRETARIS", "BENDAHARA", "PENGURUS"])
+      .optional()
+      .nullable(),
   })
   .refine((d) => d.password === d.passwordConfirm, {
     message: "Konfirmasi password tidak cocok",
@@ -376,9 +398,17 @@ export const wilayahAccountPatchSchema = z.object({
     "deactivate",
     "set_primary",
     "reset_password",
+    "set_jabatan",
+    "handover",
   ]),
   newPassword: z.string().min(8).max(72).optional(),
   newPasswordConfirm: z.string().min(8).max(72).optional(),
+  jabatan: z
+    .enum(["KETUA", "SEKRETARIS", "BENDAHARA", "PENGURUS"])
+    .optional()
+    .nullable(),
+  note: z.string().trim().max(500).optional().or(z.literal("")),
+  deactivatePrevious: z.boolean().optional(),
 });
 
 export const memberBillingProofSchema = z.object({

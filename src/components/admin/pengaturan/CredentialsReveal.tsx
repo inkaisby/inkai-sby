@@ -20,6 +20,7 @@ export function CredentialsReveal({
   onDismiss: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [sent, setSent] = useState(false);
   if (!credential) return null;
 
   async function copyAll() {
@@ -34,6 +35,12 @@ export function CredentialsReveal({
     }
   }
 
+  function dismiss() {
+    setCopied(false);
+    setSent(false);
+    onDismiss();
+  }
+
   return (
     <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
       <div className="mb-2 flex items-start justify-between gap-2">
@@ -46,7 +53,7 @@ export function CredentialsReveal({
               "Salin sekarang — password tidak ditampilkan lagi setelah ditutup."}
           </p>
         </div>
-        <Button type="button" size="sm" variant="ghost" onClick={onDismiss}>
+        <Button type="button" size="sm" variant="ghost" onClick={dismiss}>
           <X className="h-4 w-4" />
         </Button>
       </div>
@@ -60,10 +67,37 @@ export function CredentialsReveal({
           <p className="font-mono text-sm">{credential.loginPassword}</p>
         </div>
       </div>
-      <div className="mt-3">
-        <Button type="button" size="sm" variant="outline" onClick={copyAll} className="gap-1.5">
+      <div className="mt-3 space-y-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={copyAll}
+          className="gap-1.5"
+        >
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
           {copied ? "Tersalin" : "Salin Username + Password"}
+        </Button>
+        <label className="flex items-start gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={sent}
+            onChange={(e) => setSent(e.target.checked)}
+          />
+          <span>
+            Sudah dikirim ke yang bersangkutan (WA / email / tatap muka). Jangan
+            simpan password di chat grup terbuka.
+          </span>
+        </label>
+        <Button
+          type="button"
+          size="sm"
+          className="bg-inkai-red hover:bg-inkai-red/90"
+          disabled={!sent}
+          onClick={dismiss}
+        >
+          Tutup kredensial
         </Button>
       </div>
     </div>

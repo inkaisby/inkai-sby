@@ -15,11 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { showError, showSuccess } from "@/lib/client-toast";
-import { Archive, Users } from "lucide-react";
-import {
-  CredentialsReveal,
-  type CredentialPayload,
-} from "@/components/admin/pengaturan/CredentialsReveal";
+import { Archive, Star, Users } from "lucide-react";
 import { WilayahAccountsPanel } from "@/components/admin/pengaturan/WilayahAccountsPanel";
 import {
   Sheet,
@@ -38,6 +34,7 @@ export type BranchRow = {
   dojoCount?: number;
   adminEmail?: string | null;
   adminCount?: number;
+  adminIsPrimary?: boolean;
   isDeleted?: boolean;
 };
 
@@ -56,11 +53,7 @@ export function CabangSettingsManager({
   const [name, setName] = useState("");
   const [headName, setHeadName] = useState("");
   const [provinceId, setProvinceId] = useState(provinces[0]?.id ?? "");
-  const [adminEmail, setAdminEmail] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
-  const [adminPasswordConfirm, setAdminPasswordConfirm] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [credential, setCredential] = useState<CredentialPayload | null>(null);
   const [accountsBranch, setAccountsBranch] = useState<BranchRow | null>(null);
 
   function resetForm() {
@@ -68,22 +61,12 @@ export function CabangSettingsManager({
     setEditingId(null);
     setName("");
     setHeadName("");
-    setAdminEmail("");
-    setAdminPassword("");
-    setAdminPasswordConfirm("");
     setProvinceId(provinces[0]?.id ?? "");
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return;
-
-    if (!editingId || adminPassword) {
-      if (adminPassword !== adminPasswordConfirm) {
-        showError("Konfirmasi password tidak cocok");
-        return;
-      }
-    }
 
     setLoading(true);
 
@@ -92,8 +75,6 @@ export function CabangSettingsManager({
       name,
       headName,
       ...(editingId ? {} : { provinceId }),
-      adminEmail,
-      adminPassword,
     };
 
     const res = await fetch("/api/admin/pengaturan/cabang", {
@@ -106,14 +87,17 @@ export function CabangSettingsManager({
 
     if (res.ok) {
       showSuccess(data.message || "Berhasil disimpan");
-      if (data.loginEmail && adminPassword) {
-        setCredential({
-          title: `Kredensial admin cabang`,
-          loginEmail: data.loginEmail,
-          loginPassword: adminPassword,
-        });
-      }
+      const newId =
+        !editingId &&
+        (typeof data.data?.id === "string"
+          ? data.data.id
+          : typeof data.data?.branchId === "string"
+            ? data.data.branchId
+            : null);
       resetForm();
+      if (newId) {
+        setAccountsBranch({ id: newId, name, headName, adminCount: 0 });
+      }
       router.refresh();
     } else {
       showError(data.error || "Gagal menyimpan cabang");
@@ -121,14 +105,10 @@ export function CabangSettingsManager({
   }
 
   function startEdit(b: BranchRow) {
-    setCredential(null);
     setOpenForm(true);
     setEditingId(b.id);
     setName(b.name);
     setHeadName(b.headName || "");
-    setAdminEmail(b.adminEmail || "");
-    setAdminPassword("");
-    setAdminPasswordConfirm("");
   }
 
   async function archiveBranch(b: BranchRow) {
@@ -175,25 +155,16 @@ export function CabangSettingsManager({
 
   return (
     <div className="space-y-4">
-      <CredentialsReveal
-        credential={credential}
-        onDismiss={() => setCredential(null)}
-      />
-
       <div className="flex justify-end">
         <Button
           type="button"
           disabled={loading}
           className="bg-inkai-red hover:bg-inkai-red/90"
           onClick={() => {
-            setCredential(null);
             setOpenForm(true);
             setEditingId(null);
             setName("");
             setHeadName("");
-            setAdminEmail("");
-            setAdminPassword("");
-            setAdminPasswordConfirm("");
           }}
         >
           Tambah Cabang
@@ -210,7 +181,8 @@ export function CabangSettingsManager({
               {editingId ? "Ubah Cabang" : "Tambah Cabang"}
             </h3>
             <p className="text-sm text-muted-foreground">
-              Email admin wajib — akun ADMIN_BRANCH akan dibuat/diperbarui.
+              Data organisasi saja. Akun pengurus ditambah lewat tombol{" "}
+              <strong>Akun</strong> (multi-email per cabang).
             </p>
           </div>
 
@@ -239,38 +211,6 @@ export function CabangSettingsManager({
           <div className="space-y-1.5">
             <Label>Ketua</Label>
             <Input value={headName} onChange={(e) => setHeadName(e.target.value)} />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Username Admin (Email)</Label>
-            <Input
-              type="email"
-              value={adminEmail}
-              onChange={(e) => setAdminEmail(e.target.value)}
-              required={!editingId}
-              placeholder={editingId ? "Kosongkan jika tidak diganti" : ""}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Password Admin</Label>
-            <Input
-              type="text"
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              required={!editingId}
-              placeholder={editingId ? "Kosongkan jika tidak diganti" : "Min. 8 karakter"}
-              autoComplete="new-password"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Konfirmasi Password</Label>
-            <Input
-              type="text"
-              value={adminPasswordConfirm}
-              onChange={(e) => setAdminPasswordConfirm(e.target.value)}
-              required={!editingId || !!adminPassword}
-              placeholder="Ulangi password"
-              autoComplete="new-password"
-            />
           </div>
           <div className="flex gap-2 sm:col-span-2">
             <Button
@@ -325,7 +265,15 @@ export function CabangSettingsManager({
                   <TableCell className="hidden lg:table-cell">
                     {b.adminCount && b.adminCount > 0 ? (
                       <div className="space-y-0.5">
-                        <Badge variant="secondary">{b.adminCount} akun</Badge>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <Badge variant="secondary">{b.adminCount} akun</Badge>
+                          {b.adminIsPrimary ? (
+                            <Badge className="gap-0.5 bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-200">
+                              <Star className="h-3 w-3" />
+                              PIC
+                            </Badge>
+                          ) : null}
+                        </div>
                         {b.adminEmail ? (
                           <p className="font-mono text-[10px] text-muted-foreground truncate max-w-[10rem]">
                             {b.adminEmail}
@@ -432,8 +380,8 @@ export function CabangSettingsManager({
               <SheetHeader>
                 <SheetTitle>Akun admin — {accountsBranch.name}</SheetTitle>
                 <SheetDescription>
-                  Beberapa email boleh mengelola cabang yang sama. PIC utama
-                  ditandai; akun aktif terakhir tidak bisa dinonaktifkan.
+                  Satu pintu multi-akun: jabatan, PIC, serah terima, reset
+                  password. Akun aktif terakhir tidak bisa dinonaktifkan.
                 </SheetDescription>
               </SheetHeader>
               <div className="px-4 pb-6">

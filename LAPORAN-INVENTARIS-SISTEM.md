@@ -115,7 +115,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Absensi | Laporan absensi harian |
 | Carousel Beranda | Kelola berita visual publik |
 | Log Audit | Jejak aksi sensitif (pusat) |
-| Pengaturan | User (CRUD/role/cakupan/reset), cabang/ranting (**multi-akun** + arsip pulihkan), **profil & kebijakan**, peran/RBAC, geofencing (lokasi perangkat), akun |
+| Pengaturan | User (CRUD/role/cakupan/reset), cabang/ranting (**multi-akun** + jabatan/PIC/handover + arsip), **profil & kebijakan**, peran/RBAC, geofencing, akun |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
@@ -264,7 +264,7 @@ Pusat / Nasional
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
 | Materi / Store / Pesan / Pindah / Piagam | Aktif | Prisma lokal + verifikasi admin |
 | RBAC wilayah | Diterapkan | Matriks tampil di Pengaturan & Role; multi-akun per cabang/ranting + PIC |
-| Pengaturan wilayah | Lengkap | Multi-akun (`/wilayah-accounts`), arsip pulihkan, profil/kebijakan |
+| Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC (notifikasi prioritas + kontak resmi), serah terima, konfirmasi nonaktif/reset |
 | Upload bukti iuran (anggota) | Aktif | `/dashboard/iuran` + `/api/member/billing/[id]` |
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` + `/api/member/attendance/checkin` |
 | Nominal UKT | Tanpa kode unik | `uktBaseFeeAmount` — tampilan/KPI strip +1…999 agar = nota |
@@ -374,6 +374,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | Paket lengkap lifecycle anggota: alasan+jenis (INACTIVE/SUSPENDED), notifikasi, tombol Nonaktif terlihat, bulk nonaktif, arsip+pulihkan, dampak hapus, filter ≥N bulan, metadata di detail, QR nonaktif jelas |
 | 18 Juli 2026 | Paket lengkap Pengaturan: hub kartu+checklist, profil/kebijakan cabang, user create/edit/reset/export, geofence lokasi perangkat, arsip pulihkan cabang/ranting, kredensial tanpa localStorage |
 | 18 Juli 2026 | Multi-akun per wilayah: beberapa email ADMIN_BRANCH/ADMIN_DOJO per cabang/ranting, PIC utama (AppSetting), proteksi nonaktif akun terakhir, panel Akun + API `/wilayah-accounts`, audit & notifikasi rekan |
+| 18 Juli 2026 | Paket lanjutan multi-akun: satu jalur akun (form create tanpa login), jabatan, handover PIC + riwayat, PIC notifikasi prioritas & kontak resmi, konfirmasi nonaktif/reset, empty CTA, checklist kirim kredensial |
 
 ---
 

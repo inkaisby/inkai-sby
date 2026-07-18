@@ -65,28 +65,36 @@ export async function POST(request: Request) {
     }
   }
 
-  const conflict = await findEmailConflict(parsed.data.adminEmail);
-  if (conflict) {
-    return NextResponse.json(
-      {
-        error: `Email ${parsed.data.adminEmail} sudah dipakai akun lain${
-          conflict.managedBranch?.name
-            ? ` (admin cabang ${conflict.managedBranch.name})`
-            : conflict.managedDojo?.name
-              ? ` (admin ranting ${conflict.managedDojo.name})`
-              : ""
-        }`,
-      },
-      { status: 409 },
-    );
+  if (parsed.data.adminEmail) {
+    const conflict = await findEmailConflict(parsed.data.adminEmail);
+    if (conflict) {
+      return NextResponse.json(
+        {
+          error: `Email ${parsed.data.adminEmail} sudah dipakai akun lain${
+            conflict.managedBranch?.name
+              ? ` (admin cabang ${conflict.managedBranch.name})`
+              : conflict.managedDojo?.name
+                ? ` (admin ranting ${conflict.managedDojo.name})`
+                : ""
+          }`,
+        },
+        { status: 409 },
+      );
+    }
   }
 
   const body = {
     name: parsed.data.name,
     provinceId: parsed.data.provinceId,
     headName: parsed.data.headName || undefined,
-    adminEmail: parsed.data.adminEmail,
-    ...(parsed.data.adminPassword ? { adminPassword: parsed.data.adminPassword } : {}),
+    ...(parsed.data.adminEmail
+      ? {
+          adminEmail: parsed.data.adminEmail,
+          ...(parsed.data.adminPassword
+            ? { adminPassword: parsed.data.adminPassword }
+            : {}),
+        }
+      : {}),
   };
 
   const { res, data } = await inkaiFetch(

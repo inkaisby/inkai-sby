@@ -20,6 +20,7 @@ import {
 import { showError, showSuccess } from "@/lib/client-toast";
 import { generateSimplePassword } from "@/lib/security/password";
 import {
+  ArrowRightLeft,
   KeyRound,
   Plus,
   Star,
@@ -28,6 +29,13 @@ import {
   Users,
 } from "lucide-react";
 
+const JABATAN_OPTIONS = [
+  { value: "KETUA", label: "Ketua" },
+  { value: "SEKRETARIS", label: "Sekretaris" },
+  { value: "BENDAHARA", label: "Bendahara" },
+  { value: "PENGURUS", label: "Pengurus" },
+] as const;
+
 type AccountRow = {
   id: string;
   email: string;
@@ -35,7 +43,26 @@ type AccountRow = {
   phoneNumber: string | null;
   isActive: boolean;
   isPrimary: boolean;
+  jabatan: string | null;
+  jabatanLabel: string | null;
   createdAt: string;
+};
+
+type PrimaryContact = {
+  userId: string;
+  email: string;
+  fullName: string | null;
+  phoneNumber: string | null;
+  jabatan: string | null;
+  jabatanLabel: string | null;
+} | null;
+
+type HandoverRow = {
+  at: string;
+  fromUserId: string | null;
+  toUserId: string;
+  note: string;
+  byEmail: string;
 };
 
 export function WilayahAccountsPanel({
@@ -50,10 +77,19 @@ export function WilayahAccountsPanel({
   compact?: boolean;
 }) {
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
+  const [primaryContact, setPrimaryContact] = useState<PrimaryContact>(null);
+  const [handovers, setHandovers] = useState<HandoverRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [resetId, setResetId] = useState<string | null>(null);
+  const [resetTarget, setResetTarget] = useState<AccountRow | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<AccountRow | null>(
+    null,
+  );
+  const [handoverTarget, setHandoverTarget] = useState<AccountRow | null>(null);
+  const [deactivateConfirm, setDeactivateConfirm] = useState("");
+  const [handoverNote, setHandoverNote] = useState("");
+  const [deactivatePrevious, setDeactivatePrevious] = useState(false);
   const [credential, setCredential] = useState<CredentialPayload | null>(null);
 
   const [email, setEmail] = useState("");
@@ -62,6 +98,7 @@ export function WilayahAccountsPanel({
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [setAsPrimary, setSetAsPrimary] = useState(false);
+  const [jabatan, setJabatan] = useState<string>("PENGURUS");
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
 
@@ -74,8 +111,12 @@ export function WilayahAccountsPanel({
       if (!res.ok) {
         showError(data.error || "Gagal memuat akun");
         setAccounts([]);
+        setPrimaryContact(null);
+        setHandovers([]);
       } else {
         setAccounts((data.data as AccountRow[]) ?? []);
+        setPrimaryContact((data.primaryContact as PrimaryContact) ?? null);
+        setHandovers((data.handovers as HandoverRow[]) ?? []);
       }
     } catch {
       showError("Gagal memuat akun");
@@ -98,10 +139,11 @@ export function WilayahAccountsPanel({
     setPassword(pw);
     setPasswordConfirm(pw);
     setSetAsPrimary(accounts.length === 0);
+    setJabatan(accounts.length === 0 ? "KETUA" : "PENGURUS");
   }
 
   function openReset(a: AccountRow) {
-    setResetId(a.id);
+    setResetTarget(a);
     const pw = generateSimplePassword(a.fullName || a.email);
     setNewPassword(pw);
     setNewPasswordConfirm(pw);
@@ -121,6 +163,7 @@ export function WilayahAccountsPanel({
         password,
         passwordConfirm,
         setAsPrimary,
+        jabatan,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -133,7 +176,7 @@ export function WilayahAccountsPanel({
           title: `Akun baru — ${wilayahName}`,
           loginEmail: data.loginEmail,
           loginPassword: data.loginPassword,
-          hint: "Salin sekarang. Tidak disimpan di browser.",
+          hint: "Salin, kirim ke pengurus, lalu centang checklist.",
         });
       }
       void load();
@@ -144,8 +187,14 @@ export function WilayahAccountsPanel({
 
   async function patch(
     userId: string,
-    action: "activate" | "deactivate" | "set_primary" | "reset_password",
-    extra?: Record<string, string>,
+    action:
+      | "activate"
+      | "deactivate"
+      | "set_primary"
+      | "reset_password"
+      | "set_jabatan"
+      | "handover",
+    extra?: Record<string, string | boolean | null>,
   ) {
     setBusy(true);
     const res = await fetch("/api/admin/pengaturan/wilayah-accounts", {
@@ -164,13 +213,22 @@ export function WilayahAccountsPanel({
     if (res.ok) {
       showSuccess(data.message || "Berhasil");
       if (action === "reset_password" && data.loginEmail && data.loginPassword) {
-        setResetId(null);
+        setResetTarget(null);
         setCredential({
           title: `Password direset — ${wilayahName}`,
           loginEmail: data.loginEmail,
           loginPassword: data.loginPassword,
-          hint: "Salin sekarang. Tidak disimpan di browser.",
+          hint: "Password lama hangus. Salin & kirim ke pemilik akun.",
         });
+      }
+      if (action === "deactivate") {
+        setDeactivateTarget(null);
+        setDeactivateConfirm("");
+      }
+      if (action === "handover") {
+        setHandoverTarget(null);
+        setHandoverNote("");
+        setDeactivatePrevious(false);
       }
       void load();
     } else {
@@ -187,6 +245,25 @@ export function WilayahAccountsPanel({
         credential={credential}
         onDismiss={() => setCredential(null)}
       />
+
+      {primaryContact ? (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm">
+          <p className="font-medium text-amber-900 dark:text-amber-200">
+            Kontak resmi (PIC)
+          </p>
+          <p className="text-muted-foreground">
+            {primaryContact.fullName || "—"}
+            {primaryContact.jabatanLabel
+              ? ` · ${primaryContact.jabatanLabel}`
+              : ""}
+            {" · "}
+            <span className="font-mono text-xs">{primaryContact.email}</span>
+            {primaryContact.phoneNumber
+              ? ` · ${primaryContact.phoneNumber}`
+              : ""}
+          </p>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -218,10 +295,22 @@ export function WilayahAccountsPanel({
       {loading ? (
         <p className="text-sm text-muted-foreground">Memuat daftar akun…</p>
       ) : accounts.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
-          Belum ada akun. Tambahkan email pengurus agar tidak saling pinjam
-          password.
-        </p>
+        <div className="rounded-lg border border-dashed px-3 py-6 text-center">
+          <p className="text-sm font-medium">Belum ada akun pengurus</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Tambahkan email sendiri per pengurus — jangan saling pinjam
+            password.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            className="mt-3 bg-inkai-red hover:bg-inkai-red/90"
+            onClick={openAdd}
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            Tambah akun pertama
+          </Button>
+        </div>
       ) : (
         <ul className="divide-y rounded-lg border">
           {accounts.map((a) => (
@@ -229,7 +318,7 @@ export function WilayahAccountsPanel({
               key={a.id}
               className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
             >
-              <div className="min-w-0">
+              <div className="min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="font-medium truncate">
                     {a.fullName || "—"}
@@ -237,8 +326,11 @@ export function WilayahAccountsPanel({
                   {a.isPrimary ? (
                     <Badge className="gap-1 bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-200">
                       <Star className="h-3 w-3" />
-                      PIC utama
+                      PIC
                     </Badge>
+                  ) : null}
+                  {a.jabatanLabel ? (
+                    <Badge variant="secondary">{a.jabatanLabel}</Badge>
                   ) : null}
                   <Badge variant={a.isActive ? "default" : "outline"}>
                     {a.isActive ? "Aktif" : "Nonaktif"}
@@ -247,6 +339,23 @@ export function WilayahAccountsPanel({
                 <p className="font-mono text-xs text-muted-foreground truncate">
                   {a.email}
                 </p>
+                <select
+                  className="h-7 max-w-[11rem] rounded border bg-background px-1.5 text-xs"
+                  value={a.jabatan || ""}
+                  disabled={busy}
+                  onChange={(e) =>
+                    void patch(a.id, "set_jabatan", {
+                      jabatan: e.target.value || null,
+                    })
+                  }
+                >
+                  <option value="">Tanpa jabatan</option>
+                  {JABATAN_OPTIONS.map((j) => (
+                    <option key={j.value} value={j.value}>
+                      {j.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex flex-wrap gap-1">
                 {!a.isPrimary && a.isActive ? (
@@ -255,10 +364,14 @@ export function WilayahAccountsPanel({
                     size="sm"
                     variant="outline"
                     disabled={busy}
-                    onClick={() => void patch(a.id, "set_primary")}
-                    title="Jadikan PIC utama"
+                    onClick={() => {
+                      setHandoverTarget(a);
+                      setHandoverNote("");
+                      setDeactivatePrevious(false);
+                    }}
+                    title="Serah terima PIC"
                   >
-                    <Star className="h-3.5 w-3.5" />
+                    <ArrowRightLeft className="h-3.5 w-3.5" />
                   </Button>
                 ) : null}
                 <Button
@@ -276,9 +389,14 @@ export function WilayahAccountsPanel({
                   size="sm"
                   variant="outline"
                   disabled={busy}
-                  onClick={() =>
-                    void patch(a.id, a.isActive ? "deactivate" : "activate")
-                  }
+                  onClick={() => {
+                    if (a.isActive) {
+                      setDeactivateTarget(a);
+                      setDeactivateConfirm("");
+                    } else {
+                      void patch(a.id, "activate");
+                    }
+                  }}
                   title={a.isActive ? "Nonaktifkan" : "Aktifkan"}
                 >
                   {a.isActive ? (
@@ -293,13 +411,31 @@ export function WilayahAccountsPanel({
         </ul>
       )}
 
+      {handovers.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">
+            Riwayat serah terima PIC
+          </p>
+          <ul className="space-y-1 text-xs text-muted-foreground">
+            {handovers.slice(0, 5).map((h, i) => (
+              <li key={`${h.at}-${i}`} className="rounded border px-2 py-1.5">
+                {new Date(h.at).toLocaleString("id-ID")} · ke{" "}
+                {accounts.find((a) => a.id === h.toUserId)?.email || h.toUserId}
+                {h.note ? ` — ${h.note}` : ""}
+                <span className="block opacity-70">oleh {h.byEmail}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Tambah akun — {wilayahName}</DialogTitle>
             <DialogDescription>
-              Setiap pengurus punya email sendiri. Password ditampilkan sekali
-              setelah dibuat.
+              Satu pintu untuk akun wilayah. Password ditampilkan sekali setelah
+              dibuat.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -326,6 +462,20 @@ export function WilayahAccountsPanel({
               />
             </div>
             <div className="space-y-1">
+              <Label>Jabatan</Label>
+              <select
+                className="h-8 w-full rounded-lg border px-2 text-sm"
+                value={jabatan}
+                onChange={(e) => setJabatan(e.target.value)}
+              >
+                {JABATAN_OPTIONS.map((j) => (
+                  <option key={j.value} value={j.value}>
+                    {j.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
               <Label>Password</Label>
               <Input
                 value={password}
@@ -345,7 +495,7 @@ export function WilayahAccountsPanel({
                 checked={setAsPrimary}
                 onChange={(e) => setSetAsPrimary(e.target.checked)}
               />
-              Jadikan PIC utama (kontak & notifikasi)
+              Jadikan PIC utama (kontak resmi & notifikasi prioritas)
             </label>
           </div>
           <DialogFooter>
@@ -363,12 +513,17 @@ export function WilayahAccountsPanel({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!resetId} onOpenChange={(o) => !o && setResetId(null)}>
+      <Dialog
+        open={!!resetTarget}
+        onOpenChange={(o) => !o && setResetTarget(null)}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Reset password</DialogTitle>
             <DialogDescription>
-              Password baru ditampilkan sekali setelah disimpan.
+              Password lama untuk{" "}
+              <span className="font-mono">{resetTarget?.email}</span> akan
+              hangus segera setelah disimpan.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -388,21 +543,134 @@ export function WilayahAccountsPanel({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setResetId(null)}>
+            <Button variant="outline" onClick={() => setResetTarget(null)}>
               Batal
             </Button>
             <Button
               className="bg-inkai-red hover:bg-inkai-red/90"
-              disabled={busy || !resetId}
+              disabled={busy || !resetTarget}
               onClick={() =>
-                resetId &&
-                void patch(resetId, "reset_password", {
+                resetTarget &&
+                void patch(resetTarget.id, "reset_password", {
                   newPassword,
                   newPasswordConfirm,
                 })
               }
             >
-              Reset
+              Reset &amp; hanguskan password lama
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!deactivateTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDeactivateTarget(null);
+            setDeactivateConfirm("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nonaktifkan akun</DialogTitle>
+            <DialogDescription>
+              Ketik email akun untuk konfirmasi:{" "}
+              <span className="font-mono">{deactivateTarget?.email}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={deactivateConfirm}
+            onChange={(e) => setDeactivateConfirm(e.target.value)}
+            placeholder="email akun"
+            autoComplete="off"
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeactivateTarget(null);
+                setDeactivateConfirm("");
+              }}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={
+                busy ||
+                !deactivateTarget ||
+                deactivateConfirm.trim().toLowerCase() !==
+                  deactivateTarget.email.toLowerCase()
+              }
+              onClick={() =>
+                deactivateTarget &&
+                void patch(deactivateTarget.id, "deactivate")
+              }
+            >
+              Nonaktifkan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!handoverTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setHandoverTarget(null);
+            setHandoverNote("");
+            setDeactivatePrevious(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Serah terima PIC</DialogTitle>
+            <DialogDescription>
+              Pindahkan PIC utama ke{" "}
+              <strong>{handoverTarget?.fullName || handoverTarget?.email}</strong>
+              . Notifikasi prioritas & kontak resmi mengikuti PIC baru.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Catatan periode / alasan (opsional)</Label>
+              <Input
+                value={handoverNote}
+                onChange={(e) => setHandoverNote(e.target.value)}
+                placeholder="Mis. periode 2026–2027"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={deactivatePrevious}
+                onChange={(e) => setDeactivatePrevious(e.target.checked)}
+              />
+              Nonaktifkan PIC lama setelah serah terima
+            </label>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setHandoverTarget(null)}
+            >
+              Batal
+            </Button>
+            <Button
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              disabled={busy || !handoverTarget}
+              onClick={() =>
+                handoverTarget &&
+                void patch(handoverTarget.id, "handover", {
+                  note: handoverNote,
+                  deactivatePrevious,
+                })
+              }
+            >
+              Serahkan PIC
             </Button>
           </DialogFooter>
         </DialogContent>

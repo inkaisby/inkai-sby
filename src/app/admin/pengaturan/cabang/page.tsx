@@ -15,6 +15,7 @@ import {
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
 import { CabangSettingsManager } from "./CabangSettingsManager";
 import { SettingsLoadWarning } from "@/components/admin/pengaturan/SettingsLoadWarning";
+import { loadPrimaryEmailsByWilayah } from "@/lib/wilayah-accounts";
 import { Building2, Home, MapPin, UserCheck } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -118,11 +119,27 @@ async function PengaturanCabangContent({
     adminsByBranch.set(a.managedBranchId, list);
   }
 
+  let primaryByBranch = new Map<string, string>();
+  try {
+    primaryByBranch = await loadPrimaryEmailsByWilayah({
+      scope: "branch",
+      wilayahIds: branchIds,
+    });
+  } catch {
+    primaryByBranch = new Map();
+  }
+
   const mapped = branches.map((b) => {
     const id = String(b.id);
     const branchAdmins = adminsByBranch.get(id) ?? [];
+    const primaryEmail = primaryByBranch.get(id);
     const primary =
-      branchAdmins.find((a) => a.isActive) ?? branchAdmins[0] ?? null;
+      (primaryEmail
+        ? branchAdmins.find((a) => a.email === primaryEmail)
+        : null) ??
+      branchAdmins.find((a) => a.isActive) ??
+      branchAdmins[0] ??
+      null;
     return {
       id,
       name: String(b.name),
@@ -137,6 +154,7 @@ async function PengaturanCabangContent({
       dojoCount: (b._count as { dojos?: number } | undefined)?.dojos ?? 0,
       adminEmail: primary?.email ?? null,
       adminCount: branchAdmins.length,
+      adminIsPrimary: Boolean(primaryEmail && primary?.email === primaryEmail),
     };
   });
 

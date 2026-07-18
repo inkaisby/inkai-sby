@@ -22,13 +22,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { showError, showSuccess } from "@/lib/client-toast";
-import {
-  Archive,
-  Pencil,
-  Sparkles,
-  Users,
-} from "lucide-react";
-import { generateSimplePassword } from "@/lib/security/password";
+import { Archive, Pencil, Star, Users } from "lucide-react";
 import { WilayahAccountsPanel } from "@/components/admin/pengaturan/WilayahAccountsPanel";
 
 export type RantingRow = {
@@ -49,14 +43,10 @@ export type RantingRow = {
   adminEmail?: string | null;
   adminIsActive?: boolean | null;
   adminCount?: number;
+  adminIsPrimary?: boolean;
 };
 
-type Mode = "create" | "edit" | "login" | "reset" | null;
-
-type RevealedCredential = {
-  loginEmail: string;
-  loginPassword: string;
-};
+type Mode = "create" | "edit" | null;
 
 const emptyForm = {
   name: "",
@@ -70,9 +60,6 @@ const emptyForm = {
   bankName: "",
   bankAccountNumber: "",
   bankAccountName: "",
-  adminEmail: "",
-  adminPassword: "",
-  adminPasswordConfirm: "",
 };
 
 export function RantingSettingsManager({
@@ -97,12 +84,6 @@ export function RantingSettingsManager({
   const [targetName, setTargetName] = useState("");
   const [form, setForm] = useState({ ...emptyForm, branchId: defaultBranchId });
   const [detailDojoId, setDetailDojoId] = useState<string | null>(null);
-  const [revealedByDojoId, setRevealedByDojoId] = useState<
-    Record<string, RevealedCredential>
-  >({});
-  const [pendingReveal, setPendingReveal] = useState<RevealedCredential | null>(
-    null,
-  );
 
   useEffect(() => {
     if (!selfManagedOnly || dojos.length !== 1 || mode) return;
@@ -120,52 +101,8 @@ export function RantingSettingsManager({
     [dojos, detailDojoId],
   );
 
-  useEffect(() => {
-    if (!pendingReveal) return;
-    const match = dojos.find(
-      (d) =>
-        d.adminEmail?.toLowerCase() === pendingReveal.loginEmail.toLowerCase(),
-    );
-    if (!match) return;
-    saveCredential(match.id, pendingReveal.loginEmail, pendingReveal.loginPassword);
-    setDetailDojoId(match.id);
-    setPendingReveal(null);
-  }, [dojos, pendingReveal]);
-
-  function saveCredential(
-    dojoId: string,
-    loginEmail: string,
-    loginPassword: string,
-  ) {
-    // Hanya di memori sesi — tidak persist ke localStorage
-    setRevealedByDojoId((prev) => ({
-      ...prev,
-      [dojoId]: { loginEmail, loginPassword },
-    }));
-  }
-
-  function revealCredential(
-    dojoId: string,
-    loginEmail: string,
-    loginPassword: string,
-  ) {
-    saveCredential(dojoId, loginEmail, loginPassword);
-    setDetailDojoId(dojoId);
-  }
-
   function setField(key: keyof typeof form, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  function fillGeneratedPassword() {
-    const seed = targetName || form.name || "Inkai";
-    const password = generateSimplePassword(seed);
-    setForm((prev) => ({
-      ...prev,
-      adminPassword: password,
-      adminPasswordConfirm: password,
-    }));
-    showSuccess(`Password diisi: ${password}`);
   }
 
   function resetPanel() {
@@ -198,35 +135,6 @@ export function RantingSettingsManager({
       bankName: d.bankName || "",
       bankAccountNumber: d.bankAccountNumber || "",
       bankAccountName: d.bankAccountName || "",
-      adminEmail: "",
-      adminPassword: "",
-      adminPasswordConfirm: "",
-    });
-  }
-
-  function openLogin(d: RantingRow) {
-    setMode("login");
-    setTargetId(d.id);
-    setTargetName(d.name);
-    setForm({
-      ...emptyForm,
-      branchId: d.branchId || defaultBranchId,
-      adminEmail: d.adminEmail || "",
-      adminPassword: "",
-      adminPasswordConfirm: "",
-    });
-  }
-
-  function openReset(d: RantingRow) {
-    setMode("reset");
-    setTargetId(d.id);
-    setTargetName(d.name);
-    setForm({
-      ...emptyForm,
-      branchId: d.branchId || defaultBranchId,
-      adminEmail: d.adminEmail || "",
-      adminPassword: "",
-      adminPasswordConfirm: "",
     });
   }
 
@@ -276,58 +184,7 @@ export function RantingSettingsManager({
     e.preventDefault();
     if (!mode || loading) return;
 
-    if (
-      (mode === "create" || mode === "login" || mode === "reset") &&
-      form.adminPassword !== form.adminPasswordConfirm
-    ) {
-      showError("Konfirmasi password tidak cocok");
-      return;
-    }
-
     setLoading(true);
-
-    if (mode === "login" || mode === "reset") {
-      if (!targetId) {
-        setLoading(false);
-        return;
-      }
-      const endpoint =
-        mode === "reset"
-          ? "/api/admin/pengaturan/ranting/reset-password"
-          : "/api/admin/pengaturan/ranting/login";
-      const body =
-        mode === "reset"
-          ? {
-              dojoId: targetId,
-              adminPassword: form.adminPassword,
-              adminPasswordConfirm: form.adminPasswordConfirm,
-            }
-          : {
-              dojoId: targetId,
-              adminEmail: form.adminEmail,
-              adminPassword: form.adminPassword,
-              adminPasswordConfirm: form.adminPasswordConfirm,
-            };
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({}));
-      setLoading(false);
-      if (res.ok) {
-        showSuccess(data.message || "Berhasil");
-        if (data.loginEmail && data.loginPassword && targetId) {
-          revealCredential(targetId, data.loginEmail, data.loginPassword);
-        }
-        resetPanel();
-        router.refresh();
-      } else {
-        showError(data.error || "Gagal menyimpan akun login");
-      }
-      return;
-    }
 
     const payload =
       mode === "edit"
@@ -359,21 +216,16 @@ export function RantingSettingsManager({
 
     if (res.ok) {
       showSuccess(data.message || "Berhasil disimpan");
-      if (data.loginEmail && data.loginPassword) {
-        const newId =
-          (typeof data.data?.id === "string" && data.data.id) ||
-          (typeof data.data?.dojoId === "string" && data.data.dojoId) ||
-          null;
-        if (newId) {
-          revealCredential(newId, data.loginEmail, data.loginPassword);
-        } else {
-          setPendingReveal({
-            loginEmail: data.loginEmail,
-            loginPassword: data.loginPassword,
-          });
-        }
-      }
+      const newId =
+        mode === "create"
+          ? (typeof data.data?.id === "string" && data.data.id) ||
+            (typeof data.data?.dojoId === "string" && data.data.dojoId) ||
+            null
+          : null;
       resetPanel();
+      if (newId) {
+        setDetailDojoId(newId);
+      }
       router.refresh();
     } else {
       showError(data.error || "Gagal menyimpan ranting");
@@ -382,14 +234,10 @@ export function RantingSettingsManager({
 
   const panelTitle =
     mode === "create"
-      ? "Tambah Ranting + Akun Login"
+      ? "Tambah Ranting"
       : mode === "edit"
         ? `Ubah Data: ${targetName || targetDojo?.name || ""}`
-        : mode === "login"
-          ? `Akun Login: ${targetName || targetDojo?.name || ""}`
-          : mode === "reset"
-            ? `Reset Password: ${targetName || targetDojo?.name || ""}`
-            : "";
+        : "";
 
   return (
     <div className="space-y-4">
@@ -397,7 +245,7 @@ export function RantingSettingsManager({
         <p className="text-sm text-muted-foreground">
           {selfManagedOnly
             ? "Klik Ubah untuk memperbarui data ranting Anda."
-            : "Kelola ranting dan beberapa akun login pengurus (PIC utama + audit)."}
+            : "Data ranting terpisah dari akun. Kelola multi-akun lewat tombol Akun (PIC, jabatan, serah terima)."}
         </p>
         {!selfManagedOnly && (
           <Button
@@ -418,186 +266,112 @@ export function RantingSettingsManager({
         >
           <div className="sm:col-span-2">
             <h3 className="font-semibold">{panelTitle}</h3>
-            {(mode === "login" || mode === "reset") && (
+            {mode === "create" ? (
               <p className="text-sm text-muted-foreground">
-                Password minimal 8 karakter, wajib huruf dan angka. Setelah
-                simpan, salin kredensial segera.
+                Setelah ranting dibuat, panel akun terbuka otomatis untuk
+                menambah pengurus.
               </p>
-            )}
+            ) : null}
           </div>
 
-          {mode !== "login" && mode !== "reset" && (
-            <>
-              {!lockedBranchId && mode === "create" && (
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Cabang</Label>
-                  <select
-                    value={form.branchId}
-                    onChange={(e) => setField("branchId", e.target.value)}
-                    className="h-8 w-full rounded-lg border px-2 text-sm"
-                    required
-                  >
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              {lockedBranchId && mode === "create" && (
-                <div className="sm:col-span-2 text-sm text-muted-foreground">
-                  Cabang:{" "}
-                  <span className="font-medium text-foreground">
-                    {branches.find((b) => b.id === lockedBranchId)?.name ||
-                      "Cabang Anda"}
-                  </span>
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <Label>Nama Ranting</Label>
-                <Input
-                  value={form.name}
-                  onChange={(e) => setField("name", e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>PIC / Ketua</Label>
-                <Input
-                  value={form.headName}
-                  onChange={(e) => setField("headName", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Alamat</Label>
-                <Input
-                  value={form.address}
-                  onChange={(e) => setField("address", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Kecamatan</Label>
-                <Input
-                  value={form.kecamatan}
-                  onChange={(e) => setField("kecamatan", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Tempat Latihan</Label>
-                <Input
-                  value={form.tempatLatihan}
-                  onChange={(e) => setField("tempatLatihan", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Telepon</Label>
-                <Input
-                  value={form.phoneNumber}
-                  onChange={(e) => setField("phoneNumber", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Jadwal</Label>
-                <Input
-                  value={form.schedule}
-                  onChange={(e) => setField("schedule", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Bank</Label>
-                <Input
-                  value={form.bankName}
-                  onChange={(e) => setField("bankName", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>No. Rekening</Label>
-                <Input
-                  value={form.bankAccountNumber}
-                  onChange={(e) => setField("bankAccountNumber", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Atas Nama Rekening</Label>
-                <Input
-                  value={form.bankAccountName}
-                  onChange={(e) => setField("bankAccountName", e.target.value)}
-                />
-              </div>
-            </>
+          {!lockedBranchId && mode === "create" && (
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Cabang</Label>
+              <select
+                value={form.branchId}
+                onChange={(e) => setField("branchId", e.target.value)}
+                className="h-8 w-full rounded-lg border px-2 text-sm"
+                required
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {lockedBranchId && mode === "create" && (
+            <div className="sm:col-span-2 text-sm text-muted-foreground">
+              Cabang:{" "}
+              <span className="font-medium text-foreground">
+                {branches.find((b) => b.id === lockedBranchId)?.name ||
+                  "Cabang Anda"}
+              </span>
+            </div>
           )}
 
-          {(mode === "create" || mode === "login" || mode === "reset") && (
-            <>
-              <div className="space-y-1.5 sm:col-span-2 border-t pt-3">
-                <p className="text-sm font-semibold">
-                  {mode === "reset"
-                    ? "Password Baru"
-                    : "Akun Login Admin Ranting"}
-                </p>
-              </div>
-              {mode !== "reset" && (
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Username (Email)</Label>
-                  <Input
-                    type="email"
-                    value={form.adminEmail}
-                    onChange={(e) => setField("adminEmail", e.target.value)}
-                    required
-                    placeholder="admin.ranting@contoh.com"
-                    autoComplete="off"
-                  />
-                </div>
-              )}
-              {mode === "reset" && (
-                <div className="sm:col-span-2 text-sm text-muted-foreground">
-                  Username tetap:{" "}
-                  <span className="font-mono text-foreground">
-                    {form.adminEmail || "—"}
-                  </span>
-                </div>
-              )}
-              <div className="space-y-1.5 sm:col-span-2">
-                <div className="flex items-center gap-2">
-                  <Label>Password</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 gap-1.5 text-xs"
-                    onClick={fillGeneratedPassword}
-                    disabled={loading}
-                  >
-                    <Sparkles className="size-3.5" />
-                    Generate Password
-                  </Button>
-                </div>
-                <Input
-                  type="text"
-                  value={form.adminPassword}
-                  onChange={(e) => setField("adminPassword", e.target.value)}
-                  required
-                  placeholder="Min. 8 karakter, huruf + angka"
-                  autoComplete="new-password"
-                />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Konfirmasi Password</Label>
-                <Input
-                  type="text"
-                  value={form.adminPasswordConfirm}
-                  onChange={(e) =>
-                    setField("adminPasswordConfirm", e.target.value)
-                  }
-                  required
-                  placeholder="Ulangi password"
-                  autoComplete="new-password"
-                />
-              </div>
-            </>
-          )}
+          <div className="space-y-1.5">
+            <Label>Nama Ranting</Label>
+            <Input
+              value={form.name}
+              onChange={(e) => setField("name", e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>PIC / Ketua (nama tampilan)</Label>
+            <Input
+              value={form.headName}
+              onChange={(e) => setField("headName", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>Alamat</Label>
+            <Input
+              value={form.address}
+              onChange={(e) => setField("address", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Kecamatan</Label>
+            <Input
+              value={form.kecamatan}
+              onChange={(e) => setField("kecamatan", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Tempat Latihan</Label>
+            <Input
+              value={form.tempatLatihan}
+              onChange={(e) => setField("tempatLatihan", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Telepon</Label>
+            <Input
+              value={form.phoneNumber}
+              onChange={(e) => setField("phoneNumber", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Jadwal</Label>
+            <Input
+              value={form.schedule}
+              onChange={(e) => setField("schedule", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Bank</Label>
+            <Input
+              value={form.bankName}
+              onChange={(e) => setField("bankName", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>No. Rekening</Label>
+            <Input
+              value={form.bankAccountNumber}
+              onChange={(e) => setField("bankAccountNumber", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>Atas Nama Rekening</Label>
+            <Input
+              value={form.bankAccountName}
+              onChange={(e) => setField("bankAccountName", e.target.value)}
+            />
+          </div>
 
           <div className="flex gap-2 sm:col-span-2">
             <Button
@@ -607,13 +381,9 @@ export function RantingSettingsManager({
             >
               {loading
                 ? "Menyimpan..."
-                : mode === "login"
-                  ? "Simpan Akun Login"
-                  : mode === "reset"
-                    ? "Reset Password"
-                    : mode === "edit"
-                      ? "Simpan Data"
-                      : "Buat Ranting & Akun"}
+                : mode === "edit"
+                  ? "Simpan Data"
+                  : "Buat Ranting"}
             </Button>
             <Button
               type="button"
@@ -635,7 +405,7 @@ export function RantingSettingsManager({
               <TableHead className="hidden sm:table-cell">Cabang</TableHead>
               <TableHead className="hidden md:table-cell">PIC</TableHead>
               <TableHead className="hidden lg:table-cell">Kecamatan</TableHead>
-              <TableHead>Username Login</TableHead>
+              <TableHead>Akun</TableHead>
               <TableHead className="hidden md:table-cell">Anggota</TableHead>
               <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
@@ -670,17 +440,20 @@ export function RantingSettingsManager({
                   <TableCell>
                     {d.adminCount && d.adminCount > 0 ? (
                       <div className="space-y-1">
-                        <Badge variant="secondary">{d.adminCount} akun</Badge>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <Badge variant="secondary">{d.adminCount} akun</Badge>
+                          {d.adminIsPrimary ? (
+                            <Badge className="gap-0.5 bg-amber-100 text-amber-900 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-200">
+                              <Star className="h-3 w-3" />
+                              PIC
+                            </Badge>
+                          ) : null}
+                        </div>
                         {d.adminEmail ? (
                           <span className="block font-mono text-[10px] text-muted-foreground truncate max-w-[9rem]">
                             {d.adminEmail}
                             {d.adminCount > 1 ? " +" : ""}
                           </span>
-                        ) : null}
-                        {d.adminIsActive === false ? (
-                          <Badge variant="outline" className="block w-fit">
-                            Ada nonaktif
-                          </Badge>
                         ) : null}
                       </div>
                     ) : (
@@ -780,11 +553,9 @@ export function RantingSettingsManager({
       ) : null}
 
       <Sheet
-        open={Boolean(detailDojo)}
+        open={Boolean(detailDojo) || Boolean(detailDojoId && !detailDojo)}
         onOpenChange={(open) => {
-          if (!open) {
-            setDetailDojoId(null);
-          }
+          if (!open) setDetailDojoId(null);
         }}
       >
         <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
@@ -793,7 +564,7 @@ export function RantingSettingsManager({
               <SheetHeader>
                 <SheetTitle>{detailDojo.name}</SheetTitle>
                 <SheetDescription>
-                  Detail ranting &amp; multi-akun pengurus
+                  Multi-akun pengurus, jabatan, PIC, dan serah terima
                 </SheetDescription>
               </SheetHeader>
 
@@ -808,11 +579,8 @@ export function RantingSettingsManager({
 
                 <div className="grid gap-3 text-sm">
                   <DetailField label="Cabang" value={detailDojo.branchName} />
-                  <DetailField label="PIC" value={detailDojo.headName} />
-                  <DetailField
-                    label="Kecamatan"
-                    value={detailDojo.kecamatan}
-                  />
+                  <DetailField label="PIC tampilan" value={detailDojo.headName} />
+                  <DetailField label="Kecamatan" value={detailDojo.kecamatan} />
                   <DetailField
                     label="Tempat Latihan"
                     value={detailDojo.tempatLatihan}
@@ -827,6 +595,22 @@ export function RantingSettingsManager({
                 </div>
               </div>
             </>
+          ) : detailDojoId ? (
+            <div className="space-y-4 px-4 pb-6">
+              <SheetHeader>
+                <SheetTitle>Akun ranting baru</SheetTitle>
+                <SheetDescription>
+                  Ranting tersimpan. Tambahkan akun pengurus di bawah.
+                </SheetDescription>
+              </SheetHeader>
+              {!selfManagedOnly ? (
+                <WilayahAccountsPanel
+                  scope="dojo"
+                  wilayahId={detailDojoId}
+                  wilayahName="Ranting baru"
+                />
+              ) : null}
+            </div>
           ) : null}
         </SheetContent>
       </Sheet>

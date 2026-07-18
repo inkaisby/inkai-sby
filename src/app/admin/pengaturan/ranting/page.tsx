@@ -17,6 +17,7 @@ import {
 import { RantingSettingsManager } from "./RantingSettingsManager";
 import { SettingsLoadWarning } from "@/components/admin/pengaturan/SettingsLoadWarning";
 import { Card, CardContent } from "@/components/ui/card";
+import { loadPrimaryEmailsByWilayah } from "@/lib/wilayah-accounts";
 import { Home, KeyRound, Users, Building2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -195,12 +196,28 @@ async function PengaturanRantingContent({
     adminsByDojo.set(a.managedDojoId, list);
   }
 
+  let primaryByDojo = new Map<string, string>();
+  try {
+    primaryByDojo = await loadPrimaryEmailsByWilayah({
+      scope: "dojo",
+      wilayahIds: dojoIds,
+    });
+  } catch {
+    primaryByDojo = new Map();
+  }
+
   const mapped = scopedDojos.map((d) => {
     const branch = d.branch as { id?: string; name?: string } | undefined;
     const id = String(d.id);
     const dojoAdmins = adminsByDojo.get(id) ?? [];
+    const primaryEmail = primaryByDojo.get(id);
     const primary =
-      dojoAdmins.find((a) => a.isActive) ?? dojoAdmins[0] ?? null;
+      (primaryEmail
+        ? dojoAdmins.find((a) => a.email === primaryEmail)
+        : null) ??
+      dojoAdmins.find((a) => a.isActive) ??
+      dojoAdmins[0] ??
+      null;
     return {
       id,
       name: String(d.name),
@@ -219,6 +236,7 @@ async function PengaturanRantingContent({
       adminEmail: primary?.email ?? null,
       adminIsActive: primary?.isActive ?? null,
       adminCount: dojoAdmins.length,
+      adminIsPrimary: Boolean(primaryEmail && primary?.email === primaryEmail),
     };
   });
 
@@ -256,7 +274,7 @@ async function PengaturanRantingContent({
         <p className="text-muted-foreground">
           {selfManagedOnly
             ? "Perbarui data ranting Anda (alamat, jadwal, rekening, dan kontak)."
-            : "Kelola ranting dan beberapa akun login pengurus ranting"}
+            : "Kelola data ranting; akun pengurus (multi-email, PIC, jabatan) lewat tombol Akun"}
         </p>
       </div>
 
