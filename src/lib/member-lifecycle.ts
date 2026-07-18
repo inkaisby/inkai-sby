@@ -127,38 +127,36 @@ export type MemberImpactSummary = {
 export async function getMemberImpact(
   memberId: string,
 ): Promise<MemberImpactSummary> {
-  const [unpaid, openRegs] = await Promise.all([
-    prisma.billing.findMany({
+  const [unpaidAgg, openCount, uktCount] = await Promise.all([
+    prisma.billing.aggregate({
       where: {
         memberId,
         isDeleted: false,
         status: { not: "PAID" },
       },
-      select: { amount: true, status: true },
+      _count: { _all: true },
+      _sum: { amount: true },
     }),
-    prisma.eventRegistration.findMany({
+    prisma.eventRegistration.count({
       where: {
         memberId,
         status: { notIn: ["CANCELLED", "REJECTED"] },
       },
-      select: {
-        status: true,
-        event: { select: { title: true } },
+    }),
+    prisma.eventRegistration.count({
+      where: {
+        memberId,
+        status: { notIn: ["CANCELLED", "REJECTED"] },
+        event: { title: { contains: "UKT", mode: "insensitive" } },
       },
     }),
   ]);
 
-  const uktOpenCount = openRegs.filter((r) =>
-    String(r.event?.title || "")
-      .toUpperCase()
-      .includes("UKT"),
-  ).length;
-
   return {
-    unpaidBillingCount: unpaid.length,
-    unpaidBillingAmount: unpaid.reduce((s, b) => s + (b.amount || 0), 0),
-    openEventRegistrationCount: openRegs.length,
-    uktOpenCount,
+    unpaidBillingCount: unpaidAgg._count._all,
+    unpaidBillingAmount: unpaidAgg._sum.amount || 0,
+    openEventRegistrationCount: openCount,
+    uktOpenCount: uktCount,
   };
 }
 

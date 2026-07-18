@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { Copy, Check, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,8 @@ import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
 import { showError, showSuccess } from "@/lib/client-toast";
 import type { AdminMemberRow } from "@/lib/inkai-api/admin-data";
 import {
+  BELT_RANK_OPTIONS,
+  canEditKyuBaru,
   formatGenderLabel,
   formatMemberName,
   formatRankLabel,
@@ -262,11 +265,14 @@ export function MembersTable({
   members: AdminMemberRow[];
   userRoles?: string[];
 }) {
+  const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<MemberDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [rankSavingId, setRankSavingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const canBulk = canToggleMemberActive(userRoles);
+  const canEditRank = canEditKyuBaru(userRoles);
 
   const activeSelectable = members.filter((m) => {
     const s = m.status.trim().toUpperCase();
@@ -296,8 +302,20 @@ export function MembersTable({
   }
 
   async function openDetail(member: AdminMemberRow) {
+    // Tampilkan data baris segera; lengkapi dari API tanpa blank skeleton penuh.
     setSelectedId(member.id);
-    setDetail(null);
+    setDetail({
+      id: member.id,
+      fullName: member.fullName,
+      nia: member.nia,
+      currentRank: member.currentRank,
+      status: member.status,
+      dojo: member.dojo,
+      birthCertificateUrl: member.birthCertificateUrl,
+      bpjsCardUrl: member.bpjsCardUrl,
+      photoUrl: member.photoUrl ?? null,
+      _partial: true,
+    });
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/members/${member.id}`);
@@ -307,15 +325,45 @@ export function MembersTable({
       };
       if (!res.ok) {
         showError(data.error || "Gagal memuat detail anggota");
-        setSelectedId(null);
         return;
       }
-      setDetail(data.member ?? null);
+      if (data.member) {
+        setDetail(data.member);
+      }
     } catch {
       showError("Gagal memuat detail anggota");
-      setSelectedId(null);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSetRank(memberId: string, currentRank: string) {
+    if (!currentRank.trim()) return;
+    setRankSavingId(memberId);
+    try {
+      const res = await fetch(`/api/admin/members/${memberId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_rank", currentRank }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        currentRank?: string;
+      };
+      if (!res.ok) {
+        showError(data.error || "Gagal memperbarui sabuk");
+        return;
+      }
+      showSuccess(data.message || `Sabuk diperbarui: ${currentRank}`);
+      if (selectedId === memberId && detail) {
+        setDetail({ ...detail, currentRank: data.currentRank || currentRank });
+      }
+      router.refresh();
+    } catch {
+      showError("Gagal memperbarui sabuk");
+    } finally {
+      setRankSavingId(null);
     }
   }
 
@@ -471,10 +519,42 @@ export function MembersTable({
                     <TableCell className="font-medium text-inkai-red">
                       {formatMemberName(m.fullName)}
                     </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {formatRankLabel(m.currentRank) || "—"}
-                      </Badge>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {canEditRank ? (
+                        <select
+                          className="h-8 max-w-40 rounded border bg-background px-1 text-xs"
+                          value={formatRankLabel(m.currentRank) || ""}
+                          disabled={rankSavingId === m.id}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            if (!next || next === formatRankLabel(m.currentRank)) return;
+                            void handleSetRank(m.id, next);
+                          }}
+                          aria-label={`Ubah sabuk ${m.fullName}`}
+                        >
+                          {!formatRankLabel(m.currentRank) ? (
+                            <option value="">— Pilih —</option>
+                          ) : null}
+                          {BELT_RANK_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                          {m.currentRank &&
+                          formatRankLabel(m.currentRank) &&
+                          !(BELT_RANK_OPTIONS as readonly string[]).includes(
+                            formatRankLabel(m.currentRank),
+                          ) ? (
+                            <option value={formatRankLabel(m.currentRank)}>
+                              {formatRankLabel(m.currentRank)}
+                            </option>
+                          ) : null}
+                        </select>
+                      ) : (
+                        <Badge variant="secondary">
+                          {formatRankLabel(m.currentRank) || "—"}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <MemberStatusBadge status={m.status} />
@@ -535,9 +615,7 @@ export function MembersTable({
                 size="lg"
               />
               <span className="leading-tight">
-                {loading
-                  ? "Memuat..."
-                  : formatMemberName(fullName) || "Detail Anggota"}
+                {formatMemberName(fullName) || "Detail Anggota"}
               </span>
             </SheetTitle>
             <SheetDescription className="flex flex-wrap items-center gap-2">
@@ -557,20 +635,14 @@ export function MembersTable({
               {detail?.status ? (
                 <MemberStatusBadge status={String(detail.status)} />
               ) : null}
+              {loading ? (
+                <span className="text-xs text-muted-foreground">Memuat detail…</span>
+              ) : null}
             </SheetDescription>
           </SheetHeader>
 
           <div className="space-y-5 p-4">
-            {loading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 8 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="h-4 animate-pulse rounded bg-muted"
-                  />
-                ))}
-              </div>
-            ) : detail ? (
+            {detail ? (
               <>
                 <section className="space-y-2.5">
                   <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -578,30 +650,75 @@ export function MembersTable({
                   </h3>
                   <dl className="space-y-2">
                     <DetailRow
-                      label="Kyu saat ini"
+                      label="Sabuk"
                       value={
-                        <Badge variant="secondary">
-                          {formatRankLabel(currentRank) || "-"}
-                        </Badge>
+                        canEditRank ? (
+                          <select
+                            className="h-8 max-w-44 rounded border bg-background px-1 text-xs"
+                            value={formatRankLabel(currentRank) || ""}
+                            disabled={rankSavingId === selectedId || loading}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              if (
+                                !next ||
+                                !selectedId ||
+                                next === formatRankLabel(currentRank)
+                              ) {
+                                return;
+                              }
+                              void handleSetRank(selectedId, next);
+                            }}
+                            aria-label="Ubah sabuk"
+                          >
+                            {!formatRankLabel(currentRank) ? (
+                              <option value="">— Pilih —</option>
+                            ) : null}
+                            {BELT_RANK_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                            {currentRank &&
+                            formatRankLabel(currentRank) &&
+                            !(BELT_RANK_OPTIONS as readonly string[]).includes(
+                              formatRankLabel(currentRank),
+                            ) ? (
+                              <option value={formatRankLabel(currentRank)}>
+                                {formatRankLabel(currentRank)}
+                              </option>
+                            ) : null}
+                          </select>
+                        ) : (
+                          <Badge variant="secondary">
+                            {formatRankLabel(currentRank) || "-"}
+                          </Badge>
+                        )
                       }
                     />
-                    <DetailRow label="NIK" value={str(detail.nik)} />
+                    <DetailRow label="NIK" value={loading && !detail.nik ? "…" : str(detail.nik)} />
                     <DetailRow
                       label="Tempat lahir"
-                      value={str(detail.birthPlace)}
+                      value={loading && !detail.birthPlace ? "…" : str(detail.birthPlace)}
                     />
                     <DetailRow
                       label="Tanggal lahir"
-                      value={formatDate(detail.birthDate)}
+                      value={loading && !detail.birthDate ? "…" : formatDate(detail.birthDate)}
                     />
                     <DetailRow
                       label="Jenis kelamin"
-                      value={formatGenderLabel(str(detail.gender, "")) || "-"}
+                      value={
+                        loading && !detail.gender
+                          ? "…"
+                          : formatGenderLabel(str(detail.gender, "")) || "-"
+                      }
                     />
-                    <DetailRow label="Alamat" value={str(detail.address)} />
+                    <DetailRow
+                      label="Alamat"
+                      value={loading && !detail.address ? "…" : str(detail.address)}
+                    />
                     <DetailRow
                       label="Terdaftar"
-                      value={formatDate(detail.createdAt)}
+                      value={loading && !detail.createdAt ? "…" : formatDate(detail.createdAt)}
                     />
                   </dl>
                 </section>

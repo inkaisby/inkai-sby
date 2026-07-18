@@ -56,12 +56,15 @@ export const memberActionSchema = z.object({
     "approve",
     "reject",
     "set_nia",
+    "set_rank",
     "deactivate",
     "activate",
     "delete",
     "restore",
   ]),
   nia: z.string().trim().max(32).optional(),
+  /** Sabuk / Kyu resmi anggota (hanya cabang). */
+  currentRank: z.string().trim().min(2).max(64).optional(),
   /** Konfirmasi hapus: ketik nama anggota (untuk anggota aktif / ber-NIA). */
   confirmName: z.string().trim().max(120).optional(),
   /** Nonaktif / ditangguhkan */

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
-import { canAssignNia } from "@/lib/belt";
+import { canAssignNia, canEditKyuBaru, formatRankLabel } from "@/lib/belt";
 import { memberActionSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
@@ -9,6 +9,7 @@ import { generateSimplePassword } from "@/lib/security/password";
 import {
   getMemberImpact,
   getMemberLifecycle,
+  type MemberImpactSummary,
 } from "@/lib/member-lifecycle";
 import {
   activateMember,
@@ -20,13 +21,39 @@ import {
   canSoftDeleteMembers,
   canToggleMemberActive,
 } from "@/lib/wilayah-rbac";
+import { buildMemberFilter, type SessionUser } from "@/lib/rbac";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+export const maxDuration = 30;
+
+const EMPTY_IMPACT: MemberImpactSummary = {
+  unpaidBillingCount: 0,
+  unpaidBillingAmount: 0,
+  openEventRegistrationCount: 0,
+  uktOpenCount: 0,
+};
 
 function asBillingList(data: Record<string, unknown>): Array<Record<string, unknown>> {
   const raw = data.data;
   if (Array.isArray(raw)) return raw as Array<Record<string, unknown>>;
   return [];
+}
+
+async function loadLocalMemberFallback(id: string, user: SessionUser) {
+  return prisma.member.findFirst({
+    where: {
+      AND: [{ id }, buildMemberFilter(user, { anyDeleted: true })],
+    },
+    include: {
+      dojo: { include: { branch: { select: { name: true } } } },
+      user: {
+        select: { email: true, phoneNumber: true, photoUrl: true },
+      },
+      ranks: { orderBy: { date: "desc" }, take: 10 },
+    },
+  });
 }
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -37,36 +64,45 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const { id } = await context.params;
-  const { res, data } = await inkaiFetch(`/v1/members/${id}`, {}, authResult.token);
+  const billingQs = new URLSearchParams({ limit: "30", memberId: id });
 
-  // Fallback: anggota arsip mungkin tidak ada di API list
-  let member = (data.data as Record<string, unknown>) ?? {};
-  if (!res.ok) {
-    const { prisma } = await import("@/lib/prisma");
-    const { buildMemberFilter } = await import("@/lib/rbac");
-    const local = await prisma.member.findFirst({
-      where: {
-        AND: [{ id }, buildMemberFilter(authResult.user, { anyDeleted: true })],
-      },
-      include: {
-        dojo: { include: { branch: { select: { name: true } } } },
-        user: {
-          select: { email: true, phoneNumber: true, photoUrl: true },
-        },
-        ranks: { orderBy: { date: "desc" }, take: 10 },
-      },
-    });
-    if (!local) {
+  // Paralel: member + billing + metadata lokal (jangan waterfall).
+  const [memberFetch, billingFetch, lifecycleResult, impactResult] =
+    await Promise.all([
+      inkaiFetch(`/v1/members/${id}`, {}, authResult.token),
+      inkaiFetch(`/v1/billing?${billingQs}`, {}, authResult.token),
+      withPrismaFallback("member-detail-lifecycle", () => getMemberLifecycle(id), null),
+      withPrismaFallback(
+        "member-detail-impact",
+        () => getMemberImpact(id),
+        EMPTY_IMPACT,
+      ),
+    ]);
+
+  let member = (memberFetch.data.data as Record<string, unknown>) ?? {};
+  if (!memberFetch.res.ok) {
+    const local = await withPrismaFallback(
+      "member-detail-local",
+      () => loadLocalMemberFallback(id, authResult.user),
+      null,
+    );
+    if (!local.data) {
       return NextResponse.json(
-        { error: inkaiErrorMessage(data, "Anggota tidak ditemukan") },
-        { status: res.status },
+        {
+          error: inkaiErrorMessage(
+            memberFetch.data,
+            "Anggota tidak ditemukan",
+          ),
+        },
+        { status: memberFetch.res.status },
       );
     }
+    const row = local.data;
     member = {
-      ...local,
-      birthDate: local.birthDate?.toISOString() ?? null,
-      createdAt: local.createdAt.toISOString(),
-      updatedAt: local.updatedAt.toISOString(),
+      ...row,
+      birthDate: row.birthDate?.toISOString() ?? null,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
     };
   }
 
@@ -74,27 +110,14 @@ export async function GET(_request: Request, context: RouteContext) {
   const nested = member.billings;
   if (Array.isArray(nested) && nested.length > 0) {
     billings = nested as Array<Record<string, unknown>>;
-  } else if (authResult.token && res.ok) {
-    const qs = new URLSearchParams({ limit: "100", memberId: id });
-    const { res: bRes, data: bData } = await inkaiFetch(
-      `/v1/billing?${qs}`,
-      {},
-      authResult.token,
-    );
-    if (bRes.ok) {
-      billings = asBillingList(bData).filter((b) => {
-        const mid =
-          (b.member as { id?: string } | undefined)?.id ??
-          (b.memberId as string | undefined);
-        return !mid || String(mid) === id;
-      });
-    }
+  } else if (billingFetch.res.ok) {
+    billings = asBillingList(billingFetch.data).filter((b) => {
+      const mid =
+        (b.member as { id?: string } | undefined)?.id ??
+        (b.memberId as string | undefined);
+      return !mid || String(mid) === id;
+    });
   }
-
-  const [lifecycle, impact] = await Promise.all([
-    getMemberLifecycle(id),
-    getMemberImpact(id),
-  ]);
 
   const fullName = String(member.fullName || "");
   const suggestedPassword = generateSimplePassword(fullName);
@@ -104,8 +127,8 @@ export async function GET(_request: Request, context: RouteContext) {
       ...member,
       billings,
       suggestedPassword,
-      lifecycle,
-      impact,
+      lifecycle: lifecycleResult.data,
+      impact: impactResult.data,
     },
   });
 }
@@ -172,6 +195,79 @@ export async function PATCH(request: Request, context: RouteContext) {
       success: true,
       member: data.data,
       message: "NIA berhasil disimpan",
+    });
+  }
+
+  if (action === "set_rank") {
+    if (!canEditKyuBaru(roles)) {
+      return NextResponse.json(
+        { error: "Hanya pengurus cabang yang dapat mengubah sabuk anggota" },
+        { status: 403 },
+      );
+    }
+    const rawRank = parsed.data.currentRank?.trim();
+    const currentRank = formatRankLabel(rawRank) || rawRank;
+    if (!currentRank) {
+      return NextResponse.json({ error: "Sabuk wajib dipilih" }, { status: 400 });
+    }
+
+    const { res: prevRes, data: prevData } = await inkaiFetch(
+      `/v1/members/${id}`,
+      {},
+      token,
+    );
+    const prevMember = prevRes.ok
+      ? ((prevData.data as { currentRank?: string } | undefined) ?? null)
+      : null;
+    const previousRank = String(prevMember?.currentRank ?? "").trim();
+
+    const { res, data } = await inkaiFetch(
+      `/v1/members/${id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ currentRank }),
+      },
+      token,
+    );
+
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: inkaiErrorMessage(data, "Gagal memperbarui sabuk") },
+        { status: res.status },
+      );
+    }
+
+    if (previousRank !== currentRank) {
+      try {
+        await prisma.memberRank.create({
+          data: {
+            memberId: id,
+            rank: currentRank,
+            date: new Date(),
+            location: "Koreksi cabang",
+            isVerified: true,
+          },
+        });
+      } catch (err) {
+        console.error("[set_rank] memberRank create failed:", err);
+      }
+    }
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "MEMBER_SET_RANK",
+      details: `Set sabuk ${previousRank || "—"} → ${currentRank} for member ${id}`,
+      ip,
+      userAgent,
+      token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      member: data.data,
+      currentRank,
+      message: `Sabuk diperbarui: ${currentRank}`,
     });
   }
 

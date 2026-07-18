@@ -189,7 +189,7 @@ Pusat / Nasional
 2. `POST /api/auth/register` dan `POST /api/admin/members` meneruskan semua field anggota (termasuk NIA jika diisi) ke Inkai API.
 3. Status menunggu verifikasi (publik) atau aktif langsung (admin/ranting).
 4. Admin memverifikasi di `/admin/verifikasi` atau kelola anggota.
-5. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran.
+5. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran, dan **mengedit sabuk** anggota (kolom Sabuk di `/admin/anggota`).
 6. Anggota melengkapi profil & dokumen.
 7. **Nonaktifkan** (status `INACTIVE` / `SUSPENDED`) — ranting/cabang; wajib alasan + catatan; notifikasi ke anggota; login diblokir; NIA & riwayat tetap; dapat **aktifkan kembali**. Bulk nonaktif tersedia.
 8. **Hapus** = soft-delete (`isDeleted`) — cek dampak iuran/UKT; anggota aktif/ber-NIA hanya cabang (+ ketik nama). Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang.
@@ -260,7 +260,7 @@ Pusat / Nasional
 |------|--------|----------------------------------|
 | Portal publik | Lengkap | Konten organisasi & kegiatan |
 | Dashboard anggota inti | Lengkap | Beranda asisten: checklist, jadwal dojo, absen hari ini, PIC, aksi kontekstual, agenda |
-| Admin anggota / iuran / UKT | Lengkap | Iuran: edit/lunas/verifikasi (ranting+cabang); anggota: nonaktif/aktif/hapus arsip; UKT pakai gate iuran+dokumen+absensi, hasil ujian, rekap ranting, nota tanpa kode unik |
+| Admin anggota / iuran / UKT | Lengkap | Iuran: edit/lunas/verifikasi (ranting+cabang); anggota: nonaktif/aktif/hapus arsip + **edit sabuk (cabang)**; UKT pakai gate iuran+dokumen+absensi, hasil ujian, rekap ranting, nota tanpa kode unik |
 | Verifikasi kartu (publik) | Aktif | `/v/[id]` — scan QR kartu anggota |
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
 | Materi / Store / Pesan / Pindah / Piagam | Aktif | Pesan: unread + cari + broadcast notifikasi; store/materi upload |
@@ -304,7 +304,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 
 ```
 /api/auth/*                 Login, register (+ identitas/sabuk lengkap), forgot/reset password
-/api/admin/members/*        Kelola anggota (approve/NIA/nonaktif/aktif/hapus/restore)
+/api/admin/members/*        Kelola anggota (approve/NIA/set_rank/nonaktif/aktif/hapus/restore)
 /api/admin/members/bulk     Bulk nonaktifkan + approve pending
 /api/admin/members/archived Daftar arsip soft-delete
 /api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
@@ -391,6 +391,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | Fix admin UKT: `redirect()` URL kanonik tidak lagi tertangkap sebagai gagal API; periode dari query digabung ke daftar event; resolusi periode longgar + limit events 200 agar kartu batas pendaftaran (tanggal/jam) tidak hilang |
 | 18 Juli 2026 | UKT: kolom Aksi menampilkan **Hasil Ujian Lulus** otomatis jika status Selesai + Kyu Baru sudah terisi (`resolveEffectiveUktExamResult`) |
 | 18 Juli 2026 | UKT admin: label kolom **Sabuk saat ini → Kyu Lama**, **Sabuk target → Kyu Baru** |
+| 18 Juli 2026 | Admin anggota: cabang dapat **edit kolom Sabuk** inline (`PATCH set_rank` + riwayat MemberRank) |
+| 18 Juli 2026 | Percepat detail anggota: fetch member/billing/lifecycle/impact paralel + soft-fail Prisma; sheet tampil data baris segera |
 
 ---
 
