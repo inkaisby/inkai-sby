@@ -97,6 +97,7 @@ import {
   triggerCsvDownload,
   toDateInput,
   toTimeInput,
+  buildUktEventDates,
   uktDisplayStatusLabel,
   UKT_DISPLAY_FILTER_OPTIONS,
   UKT_MIN_ATTENDANCE_PCT,
@@ -207,6 +208,8 @@ export function UktDashboard(props: Props) {
   const [compactView, setCompactView] = useState(false);
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
+  const [wizardDeadlineDate, setWizardDeadlineDate] = useState("");
+  const [wizardDeadlineTime, setWizardDeadlineTime] = useState("23:59");
   const [waiverTarget, setWaiverTarget] = useState<UktMemberRow | null>(null);
   const [waiverBlockers, setWaiverBlockers] = useState<UktRegistrationBlocker[]>([]);
   const [waiverNote, setWaiverNote] = useState("");
@@ -357,6 +360,15 @@ export function UktDashboard(props: Props) {
   );
 
   const handleCreatePeriod = async () => {
+    if (!wizardDeadlineDate || !wizardDeadlineTime) {
+      toast.error("Isi tanggal dan jam batas pendaftaran");
+      return;
+    }
+    const closeAt = combineDateAndTimeLocal(wizardDeadlineDate, wizardDeadlineTime);
+    if (Number.isNaN(closeAt.getTime())) {
+      toast.error("Batas pendaftaran tidak valid");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/admin/ukt/period", {
@@ -366,6 +378,7 @@ export function UktDashboard(props: Props) {
           semester: props.semester,
           year: props.year,
           title: periodTitle,
+          registrationCloseAt: closeAt.toISOString(),
         }),
       });
       const data = await parseApiJson<{ error?: string; event?: { id: string }; created?: boolean }>(res);
@@ -470,6 +483,16 @@ export function UktDashboard(props: Props) {
   };
 
   const registrationTimeParts = splitTimeInput(registrationDeadlineTime || "00:00");
+  const wizardTimeParts = splitTimeInput(wizardDeadlineTime || "23:59");
+
+  const openCreateWizard = () => {
+    const { registrationCloseAt } = buildUktEventDates(props.semester, props.year);
+    const iso = registrationCloseAt.toISOString();
+    setWizardDeadlineDate(toDateInput(iso));
+    setWizardDeadlineTime(toTimeInput(iso));
+    setWizardStep(0);
+    setShowCreateWizard(true);
+  };
 
   const openRegistrationDeadlineDialog = () => {
     if (!registrationDeadlineIso) return;
@@ -790,17 +813,30 @@ export function UktDashboard(props: Props) {
               value={props.semester}
               onValueChange={(v) => syncNavigateTerm({ semester: v as UktSemester })}
             >
-              <SelectTrigger className="w-28">
-                <SelectValue />
+              <SelectTrigger
+                className="h-9 w-[9.5rem] border-inkai-red/30 bg-background font-semibold text-foreground shadow-sm"
+                aria-label="Pilih semester UKT"
+              >
+                <SelectValue placeholder="Pilih semester" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="I">Semester I</SelectItem>
-                <SelectItem value="II">Semester II</SelectItem>
+              <SelectContent className="min-w-[9.5rem]">
+                <SelectItem
+                  value="I"
+                  className="font-medium focus:bg-inkai-red/10 focus:text-foreground data-[highlighted]:bg-inkai-red/10 data-[highlighted]:text-foreground"
+                >
+                  Semester I
+                </SelectItem>
+                <SelectItem
+                  value="II"
+                  className="font-medium focus:bg-inkai-red/10 focus:text-foreground data-[highlighted]:bg-inkai-red/10 data-[highlighted]:text-foreground"
+                >
+                  Semester II
+                </SelectItem>
               </SelectContent>
             </Select>
             <Input
               type="number"
-              className="w-24"
+              className="h-9 w-24 font-semibold"
               value={yearInput}
               onChange={(e) => setYearInput(e.target.value)}
               onBlur={() => {
@@ -813,6 +849,7 @@ export function UktDashboard(props: Props) {
               }}
               min={2020}
               max={2100}
+              aria-label="Tahun UKT"
             />
             {editingTitle && isCabang ? (
               <div className="flex items-center gap-1">
@@ -864,10 +901,7 @@ export function UktDashboard(props: Props) {
             )}
             {!props.selectedPeriodId && props.canCreatePeriod && (
               <Button
-                onClick={() => {
-                  setWizardStep(0);
-                  setShowCreateWizard(true);
-                }}
+                onClick={openCreateWizard}
                 disabled={loading}
                 className="bg-inkai-red hover:bg-inkai-red/90"
               >
@@ -1841,13 +1875,70 @@ export function UktDashboard(props: Props) {
             <div className="space-y-3 text-sm">
               <p>
                 Periode <b>{formatUktPeriodLabel(props.semester, props.year)}</b> akan dibuat
-                sebagai event UKT terpisah dengan batas pendaftaran default akhir semester.
+                sebagai event UKT terpisah. Atur batas pendaftaran (tanggal & jam 24 jam) di
+                bawah — default akhir semester.
               </p>
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">
                   Judul periode
                 </label>
                 <Input value={periodTitle} onChange={(e) => setPeriodTitle(e.target.value)} />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label htmlFor="ukt-wizard-deadline-date" className="text-xs font-medium text-muted-foreground">
+                    Tanggal batas pendaftaran
+                  </label>
+                  <Input
+                    id="ukt-wizard-deadline-date"
+                    type="date"
+                    lang="id-ID"
+                    value={wizardDeadlineDate}
+                    onChange={(e) => setWizardDeadlineDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Jam (24 jam)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <Select
+                      value={wizardTimeParts.hour}
+                      onValueChange={(hour) =>
+                        setWizardDeadlineTime(joinTimeInput(hour, wizardTimeParts.minute))
+                      }
+                    >
+                      <SelectTrigger className="w-[4.5rem]">
+                        <SelectValue placeholder="JJ" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-52">
+                        {HOURS_24.map((hour) => (
+                          <SelectItem key={hour} value={hour}>
+                            {hour}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm font-semibold text-muted-foreground">.</span>
+                    <Select
+                      value={wizardTimeParts.minute}
+                      onValueChange={(minute) =>
+                        setWizardDeadlineTime(joinTimeInput(wizardTimeParts.hour, minute))
+                      }
+                    >
+                      <SelectTrigger className="w-[4.5rem]">
+                        <SelectValue placeholder="MM" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-52">
+                        {MINUTES_60.map((minute) => (
+                          <SelectItem key={minute} value={minute}>
+                            {minute}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1877,6 +1968,17 @@ export function UktDashboard(props: Props) {
               <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
                 <li>Judul: {periodTitle}</li>
                 <li>Semester {props.semester} · Tahun {props.year}</li>
+                <li>
+                  Batas pendaftaran:{" "}
+                  {wizardDeadlineDate && wizardDeadlineTime
+                    ? formatUktRegistrationDeadline(
+                        combineDateAndTimeLocal(
+                          wizardDeadlineDate,
+                          wizardDeadlineTime,
+                        ).toISOString(),
+                      )
+                    : "—"}
+                </li>
                 <li>Ketua ranting dapat mendaftarkan anggota setelah periode aktif</li>
                 <li>Notifikasi otomatis dikirim saat status UKT berubah</li>
               </ul>
@@ -1894,7 +1996,26 @@ export function UktDashboard(props: Props) {
               {wizardStep === 0 ? "Batal" : "Kembali"}
             </Button>
             {wizardStep < 2 ? (
-              <Button className="bg-inkai-red" onClick={() => setWizardStep((s) => s + 1)}>
+              <Button
+                className="bg-inkai-red"
+                onClick={() => {
+                  if (wizardStep === 0) {
+                    if (!wizardDeadlineDate || !wizardDeadlineTime) {
+                      toast.error("Isi tanggal dan jam batas pendaftaran");
+                      return;
+                    }
+                    const closeAt = combineDateAndTimeLocal(
+                      wizardDeadlineDate,
+                      wizardDeadlineTime,
+                    );
+                    if (Number.isNaN(closeAt.getTime())) {
+                      toast.error("Batas pendaftaran tidak valid");
+                      return;
+                    }
+                  }
+                  setWizardStep((s) => s + 1);
+                }}
+              >
                 Lanjut
               </Button>
             ) : (

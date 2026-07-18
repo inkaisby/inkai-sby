@@ -214,7 +214,7 @@ Pusat / Nasional
 8. Status operasional UKT disederhanakan untuk UI: **Belum Daftar / Belum Bayar / Menunggu Verifikasi / Menunggu Ujian / Lulus Ujian / Tidak Lulus / Mengulang / Selesai**.
 9. Status **Selesai** bila sudah lunas + lulus + sabuk target terisi; sabuk resmi anggota diperbarui + riwayat.
 10. Cetak nota memakai tabel biaya sabuk bulat; **tanpa kode unik** (+1…999). Nomor nota memuat semester (`UKT/SBY/{RANTING}/I|II/{tahun}`).
-11. Batas pendaftaran default = akhir semester; cabang dapat **perpanjang** manual.
+11. Batas pendaftaran default = akhir semester; cabang dapat **atur saat buat periode** (wizard) atau **perpanjang** manual setelahnya.
 12. Dashboard anggota menampilkan **kartu Status UKT** di beranda & Prestasi; admin cabang dapat **export CSV**, **waiver** syarat, wizard buat periode, dan action bar terpadu (nota + verifikasi).
 
 ### 9.4 Kegiatan & absensi
@@ -393,6 +393,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | UKT admin: label kolom **Sabuk saat ini → Kyu Lama**, **Sabuk target → Kyu Baru** |
 | 18 Juli 2026 | Admin anggota: cabang dapat **edit kolom Sabuk** inline (`PATCH set_rank` + riwayat MemberRank) |
 | 18 Juli 2026 | Percepat detail anggota: fetch member/billing/lifecycle/impact paralel + soft-fail Prisma; sheet tampil data baris segera |
+| 18 Juli 2026 | Wizard periode UKT: field **tanggal + jam 24 jam** batas pendaftaran di langkah 1 (default akhir semester) |
+| 18 Juli 2026 | UKT admin: dropdown Semester I/II lebih lebar & kontras jelas (tanpa highlight kuning accent) |
 
 ---
 

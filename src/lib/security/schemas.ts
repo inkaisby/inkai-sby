@@ -105,6 +105,8 @@ export const uktPeriodSchema = z.object({
   semester: z.enum(["I", "II"]),
   year: z.coerce.number().int().min(2020).max(2100),
   title: z.string().trim().min(3).max(120).optional(),
+  /** Batas pendaftaran (ISO). Default: akhir semester. */
+  registrationCloseAt: z.string().datetime().optional(),
 });
 
 export const uktPeriodPatchSchema = z.object({

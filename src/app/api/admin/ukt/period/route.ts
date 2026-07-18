@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
   }
 
-  const { semester, year, title } = parsed.data;
+  const { semester, year, title, registrationCloseAt: closeAtInput } = parsed.data;
   const eventTitle = title || buildUktEventTitle(semester, year);
 
   const { res: listRes, data: listData } = await inkaiFetch("/v1/events", {}, authResult.token);
@@ -103,7 +103,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Cabang tidak ditemukan" }, { status: 404 });
   }
 
-  const { startDate, endDate, registrationCloseAt } = buildUktEventDates(semester, year);
+  const defaults = buildUktEventDates(semester, year);
+  let startDate = defaults.startDate;
+  let endDate = defaults.endDate;
+  let registrationCloseAt = defaults.registrationCloseAt;
+
+  if (closeAtInput) {
+    const close = new Date(closeAtInput);
+    if (Number.isNaN(close.getTime())) {
+      return NextResponse.json({ error: "Batas pendaftaran tidak valid" }, { status: 400 });
+    }
+    registrationCloseAt = close;
+    if (close.getTime() > startDate.getTime()) startDate = close;
+    if (close.getTime() > endDate.getTime()) endDate = close;
+  }
 
   const { res, data } = await inkaiFetch(
     "/v1/events",
