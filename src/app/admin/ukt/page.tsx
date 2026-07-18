@@ -32,6 +32,7 @@ type SearchParams = Promise<{
   period?: string;
   semester?: string;
   year?: string;
+  create?: string;
 }>;
 
 async function UktPageContent({ searchParams }: { searchParams: SearchParams }) {
@@ -45,6 +46,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     2100,
     Math.max(2020, parseInt(params.year || String(new Date().getFullYear()), 10) || new Date().getFullYear()),
   );
+  const createMode = params.create === "1";
 
   const primaryRole = getPrimaryAdminRole(user.roles);
   let dbError: string | null = null;
@@ -57,29 +59,40 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     registrationCloseAt?: string | null;
   }[] = [];
   let dojos: { id: string; name: string }[] = [];
-  let selectedPeriodId: string | null = params.period || null;
+  let selectedPeriodId: string | null = createMode ? null : params.period || null;
   let allRows: Awaited<ReturnType<typeof fetchUktDashboardData>>["allRows"] = [];
   let beltFees = beltFeesFromTemplates([]);
   let komisiRanting = 0;
 
   try {
     const data = await fetchUktDashboardData(token, user, {
-      periodFromUrl: params.period || null,
+      periodFromUrl: createMode ? null : params.period || null,
       semester,
       year,
+      forceNoPeriod: createMode,
     });
     periods = data.periods;
     dojos = data.dojos;
-    selectedPeriodId = data.selectedPeriodId;
+    selectedPeriodId = createMode ? null : data.selectedPeriodId;
 
-    // URL kanonik mengikuti periode yang benar-benar ter-resolve (bukan re-query terpisah).
-    const canonicalPeriod = data.selectedPeriodId;
-    const urlNeedsSync =
-      params.semester !== semester ||
-      params.year !== String(year) ||
-      (params.period ?? "") !== (canonicalPeriod ?? "");
-    if (urlNeedsSync) {
-      redirect(buildUktAdminUrl(semester, year, canonicalPeriod));
+    if (createMode) {
+      const urlNeedsSync =
+        params.semester !== semester ||
+        params.year !== String(year) ||
+        Boolean(params.period) ||
+        params.create !== "1";
+      if (urlNeedsSync) {
+        redirect(buildUktAdminUrl(semester, year, null, { create: true }));
+      }
+    } else {
+      const canonicalPeriod = data.selectedPeriodId;
+      const urlNeedsSync =
+        params.semester !== semester ||
+        params.year !== String(year) ||
+        (params.period ?? "") !== (canonicalPeriod ?? "");
+      if (urlNeedsSync) {
+        redirect(buildUktAdminUrl(semester, year, canonicalPeriod));
+      }
     }
     allRows = data.allRows;
     beltFees = data.beltFees;
@@ -116,6 +129,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         semester={semester}
         year={year}
         canCreatePeriod={canCreatePeriod}
+        createMode={createMode}
         dbError={dbError}
         defaultDojoFilter={autoDojoId}
         beltFees={beltFees}

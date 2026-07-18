@@ -25,6 +25,7 @@ import {
   Download,
   LayoutList,
   ShieldCheck,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -130,6 +131,8 @@ type Props = {
   semester: UktSemester;
   year: number;
   canCreatePeriod: boolean;
+  /** Mode buat periode (?create=1) — jangan auto-pilih event. */
+  createMode?: boolean;
   dbError?: string | null;
   defaultDojoFilter?: string;
   beltFees: Record<BeltFeeKey, number>;
@@ -333,6 +336,7 @@ export function UktDashboard(props: Props) {
         semester,
         year: String(year),
         period: match?.id ?? "",
+        create: "",
       });
     },
     [navigatePeriod, props.periods, props.semester, props.year],
@@ -346,6 +350,23 @@ export function UktDashboard(props: Props) {
       }),
     [props.periods, props.semester, props.year],
   );
+
+  /** Periode bernama untuk semester/tahun ini — tombol Buat Periode hanya hilang jika sudah ada. */
+  const hasTermPeriod = periodsForTerm.length > 0;
+  const showCreatePeriod =
+    props.canCreatePeriod && (!hasTermPeriod || Boolean(props.createMode));
+  /** Back menghapus period di URL dan membuka mode buat periode. */
+  const showBackToCreate =
+    props.canCreatePeriod && Boolean(props.selectedPeriodId) && !props.createMode;
+
+  const goBackToCreatePeriod = () => {
+    navigatePeriod({
+      semester: props.semester,
+      year: String(props.year),
+      period: "",
+      create: "1",
+    });
+  };
 
   const handleKpiClick = (filter: string) => {
     const next =
@@ -390,6 +411,7 @@ export function UktDashboard(props: Props) {
         semester: props.semester,
         year: String(props.year),
         period: data.event?.id ?? "",
+        create: "",
       });
       router.refresh();
     } catch (e) {
@@ -809,6 +831,19 @@ export function UktDashboard(props: Props) {
       <Card className="border-inkai-red/20 bg-gradient-to-r from-background to-muted/30">
         <CardContent className="flex flex-wrap items-center gap-3 p-4">
           <div className="flex flex-wrap items-center gap-2">
+            {showBackToCreate && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0 border-inkai-red/30"
+                onClick={goBackToCreatePeriod}
+                title="Kembali — tampilkan Buat Periode"
+                aria-label="Kembali ke buat periode UKT"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
             <Select
               value={props.semester}
               onValueChange={(v) => syncNavigateTerm({ semester: v as UktSemester })}
@@ -884,6 +919,7 @@ export function UktDashboard(props: Props) {
                     semester: props.semester,
                     year: String(props.year),
                     period: v,
+                    create: "",
                   })
                 }
               >
@@ -899,7 +935,7 @@ export function UktDashboard(props: Props) {
                 </SelectContent>
               </Select>
             )}
-            {!props.selectedPeriodId && props.canCreatePeriod && (
+            {showCreatePeriod && (
               <Button
                 onClick={openCreateWizard}
                 disabled={loading}
@@ -952,6 +988,40 @@ export function UktDashboard(props: Props) {
               dibuat oleh admin cabang. Pilih semester lain jika perlu melihat riwayat, atau
               hubungi cabang untuk membuka periode baru.
             </span>
+          </CardContent>
+        </Card>
+      )}
+
+      {showCreatePeriod && (
+        <Card className="border-inkai-red/40 bg-inkai-red/5">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <div className="flex items-start gap-2 text-sm">
+              <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-inkai-red" />
+              <div>
+                <p className="font-medium text-foreground">
+                  Periode UKT {formatUktPeriodLabel(props.semester, props.year)} belum dibuat
+                </p>
+                <p className="text-muted-foreground">
+                  Buat periode agar ranting dapat mendaftarkan peserta dan batas pendaftaran
+                  aktif untuk semester ini.
+                  {props.selectedPeriodId && selectedPeriod && !hasTermPeriod ? (
+                    <>
+                      {" "}
+                      Event terpilih saat ini (<b>{selectedPeriod.title}</b>) belum memakai
+                      judul semester standar.
+                    </>
+                  ) : null}
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={openCreateWizard}
+              disabled={loading}
+              className="bg-inkai-red hover:bg-inkai-red/90"
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Buat Periode
+            </Button>
           </CardContent>
         </Card>
       )}

@@ -205,7 +205,7 @@ Pusat / Nasional
 
 ### 9.3 UKT (Ujian Kenaikan Tingkat)
 1. **Cabang** membuat periode UKT per semester (Semester I = Jan–Jun, Semester II = Jul–Des); setiap semester = **event terpisah** dengan registrasi & pembayaran sendiri.
-2. URL admin `/admin/ukt?semester=I|II&year=YYYY&period=<eventId>` — dropdown semester/tahun **otomatis** memilih event yang cocok; bila periode belum ada, tampil tombol **Buat Periode**.
+2. URL admin `/admin/ukt?semester=I|II&year=YYYY&period=<eventId>` — dropdown semester/tahun **otomatis** memilih event yang cocok; bila **belum ada periode berjudul semester/tahun** (mis. `UKT Semester II-2026`), tampil tombol + banner **Buat Periode** (meski ada event UKT lain terpilih).
 3. **Ranting** mendaftarkan anggota (snapshot **Sabuk saat ini / Kyu Lama** dikunci per periode).
 4. Pendaftaran UKT kini memakai **gate operasional**: periode masih terbuka, **iuran tidak menunggak**, **dokumen Akte + BPJS lengkap**, dan **kehadiran semester minimal 75%**.
 5. **Ranting** memilih peserta (multi-select) → **Nota Terpilih** / **Siap Bayar UKT** selaras baris terpilih.
@@ -395,6 +395,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | Percepat detail anggota: fetch member/billing/lifecycle/impact paralel + soft-fail Prisma; sheet tampil data baris segera |
 | 18 Juli 2026 | Wizard periode UKT: field **tanggal + jam 24 jam** batas pendaftaran di langkah 1 (default akhir semester) |
 | 18 Juli 2026 | UKT admin: dropdown Semester I/II lebih lebar & kontras jelas (tanpa highlight kuning accent) |
+| 18 Juli 2026 | UKT: tombol/banner **Buat Periode** tampil jika belum ada periode berjudul semester+tahun (tidak lagi tersembunyi hanya karena `period` di URL) |
+| 18 Juli 2026 | UKT: ikon **Back** (←) mengarah ke `?create=1` agar tombol **Buat Periode** muncul tanpa auto-pilih event |
 
 ---
 

@@ -166,9 +166,11 @@ export function buildUktAdminUrl(
   semester: UktSemester,
   year: number,
   periodId: string | null,
+  opts?: { create?: boolean },
 ): string {
   const qs = new URLSearchParams({ semester, year: String(year) });
   if (periodId) qs.set("period", periodId);
+  if (opts?.create) qs.set("create", "1");
   return `/admin/ukt?${qs.toString()}`;
 }
 

@@ -414,9 +414,11 @@ export async function fetchUktDashboardData(
     periodFromUrl?: string | null;
     semester: UktSemester;
     year: number;
+    /** Mode buat periode: jangan auto-pilih event yang sudah ada. */
+    forceNoPeriod?: boolean;
   },
 ) {
-  const { periodFromUrl = null, semester, year } = opts;
+  const { periodFromUrl = null, semester, year, forceNoPeriod = false } = opts;
   const primaryRole = getPrimaryAdminRole(user.roles);
   const memberQuery: { limit: number; page: number; dojoId?: string } = {
     limit: 500,
@@ -477,12 +479,9 @@ export async function fetchUktDashboardData(
     );
   }
 
-  let selectedPeriodId = resolveUktSelectedPeriodId(
-    periods,
-    semester,
-    year,
-    periodFromUrl,
-  );
+  let selectedPeriodId = forceNoPeriod
+    ? null
+    : resolveUktSelectedPeriodId(periods, semester, year, periodFromUrl);
   let eventDetail = eventDetailInitial;
   let examSettings = examSettingsInitial;
   let waiverSettings = waiverSettingsInitial;
