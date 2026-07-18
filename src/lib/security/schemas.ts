@@ -351,6 +351,36 @@ export const geofencingSchema = z.object({
   geofenceRadius: z.coerce.number().int().min(10).max(5000),
 });
 
+export const wilayahAccountCreateSchema = z
+  .object({
+    scope: z.enum(["branch", "dojo"]),
+    wilayahId: z.string().uuid(),
+    email: z.string().trim().toLowerCase().email(),
+    fullName: z.string().trim().min(2).max(100),
+    phoneNumber: z.string().trim().max(20).optional().or(z.literal("")),
+    password: z.string().min(8).max(72),
+    passwordConfirm: z.string().min(8).max(72),
+    setAsPrimary: z.boolean().optional(),
+  })
+  .refine((d) => d.password === d.passwordConfirm, {
+    message: "Konfirmasi password tidak cocok",
+    path: ["passwordConfirm"],
+  });
+
+export const wilayahAccountPatchSchema = z.object({
+  scope: z.enum(["branch", "dojo"]),
+  wilayahId: z.string().uuid(),
+  userId: z.string().uuid(),
+  action: z.enum([
+    "activate",
+    "deactivate",
+    "set_primary",
+    "reset_password",
+  ]),
+  newPassword: z.string().min(8).max(72).optional(),
+  newPasswordConfirm: z.string().min(8).max(72).optional(),
+});
+
 export const memberBillingProofSchema = z.object({
   proofUrl: z.string().url("URL bukti tidak valid"),
   paymentMethod: z.string().trim().max(40).optional(),

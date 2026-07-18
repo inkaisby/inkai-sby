@@ -1,0 +1,321 @@
+import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import { requireAdmin } from "@/lib/admin-auth";
+import { writeAuditLog } from "@/lib/audit";
+import { prisma } from "@/lib/prisma";
+import {
+  assertBranchInScope,
+  assertDojoInScope,
+  canAdministerRantingAccounts,
+  canManageBranches,
+  canManageRanting,
+  canManageUsers,
+} from "@/lib/pengaturan";
+import {
+  countActiveWilayahAccounts,
+  listWilayahAccounts,
+  notifyWilayahAdmins,
+  setPrimaryAccountId,
+  type WilayahScope,
+} from "@/lib/wilayah-accounts";
+import {
+  wilayahAccountCreateSchema,
+  wilayahAccountPatchSchema,
+} from "@/lib/security/schemas";
+import { validatePassword } from "@/lib/security/password";
+import { getClientIp } from "@/lib/security/request";
+
+async function assertWilayahAccess(
+  user: Parameters<typeof canManageBranches>[0],
+  scope: WilayahScope,
+  wilayahId: string,
+) {
+  if (scope === "branch") {
+    if (!canManageBranches(user) && !canManageUsers(user)) return null;
+    return assertBranchInScope(user, wilayahId);
+  }
+  if (!canManageRanting(user) || !canAdministerRantingAccounts(user)) {
+    return null;
+  }
+  return assertDojoInScope(user, wilayahId);
+}
+
+export async function GET(request: Request) {
+  const authResult = await requireAdmin();
+  if ("error" in authResult) return authResult.error;
+
+  const { searchParams } = new URL(request.url);
+  const scope = searchParams.get("scope") as WilayahScope | null;
+  const wilayahId = searchParams.get("wilayahId")?.trim() || "";
+
+  if ((scope !== "branch" && scope !== "dojo") || !wilayahId) {
+    return NextResponse.json({ error: "Parameter tidak valid" }, { status: 400 });
+  }
+
+  const scoped = await assertWilayahAccess(authResult.user, scope, wilayahId);
+  if (!scoped) {
+    return NextResponse.json({ error: "Akses ditolak / wilayah tidak ditemukan" }, { status: 403 });
+  }
+
+  const accounts = await listWilayahAccounts({ scope, wilayahId });
+  return NextResponse.json({
+    data: accounts,
+    wilayahName: scoped.name,
+  });
+}
+
+export async function POST(request: Request) {
+  const authResult = await requireAdmin();
+  if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
+
+  const parsed = wilayahAccountCreateSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message || "Data tidak valid" },
+      { status: 400 },
+    );
+  }
+
+  const { scope, wilayahId } = parsed.data;
+  const scoped = await assertWilayahAccess(authResult.user, scope, wilayahId);
+  if (!scoped) {
+    return NextResponse.json({ error: "Akses ditolak / wilayah tidak ditemukan" }, { status: 403 });
+  }
+
+  const pwCheck = validatePassword(parsed.data.password);
+  if (!pwCheck.valid) {
+    return NextResponse.json({ error: pwCheck.error }, { status: 400 });
+  }
+
+  const roleName = scope === "branch" ? "ADMIN_BRANCH" : "ADMIN_DOJO";
+  const role = await prisma.role.findUnique({
+    where: { name: roleName },
+    select: { id: true },
+  });
+  if (!role) {
+    return NextResponse.json({ error: "Role tidak ditemukan" }, { status: 400 });
+  }
+
+  const conflict = await prisma.user.findFirst({
+    where: {
+      email: { equals: parsed.data.email, mode: "insensitive" },
+      isDeleted: false,
+    },
+    select: { id: true },
+  });
+  if (conflict) {
+    return NextResponse.json({ error: "Email sudah terpakai" }, { status: 409 });
+  }
+
+  const existingCount = await prisma.user.count({
+    where: {
+      isDeleted: false,
+      ...(scope === "branch"
+        ? { managedBranchId: wilayahId, roles: { some: { name: "ADMIN_BRANCH" } } }
+        : { managedDojoId: wilayahId, roles: { some: { name: "ADMIN_DOJO" } } }),
+    },
+  });
+
+  const passwordHash = await bcrypt.hash(parsed.data.password, 10);
+  const created = await prisma.user.create({
+    data: {
+      email: parsed.data.email,
+      fullName: parsed.data.fullName,
+      phoneNumber: parsed.data.phoneNumber || null,
+      passwordHash,
+      isActive: true,
+      managedBranchId: scope === "branch" ? wilayahId : null,
+      managedDojoId: scope === "dojo" ? wilayahId : null,
+      roles: { connect: [{ id: role.id }] },
+    },
+    select: { id: true, email: true, fullName: true },
+  });
+
+  const makePrimary = parsed.data.setAsPrimary === true || existingCount === 0;
+  if (makePrimary) {
+    await setPrimaryAccountId(scope, wilayahId, created.id);
+  }
+
+  writeAuditLog({
+    userId: authResult.user.id,
+    email: authResult.user.email,
+    action: "WILAYAH_ACCOUNT_CREATE",
+    details: JSON.stringify({
+      scope,
+      wilayahId,
+      wilayahName: scoped.name,
+      targetUserId: created.id,
+      targetEmail: created.email,
+      isPrimary: makePrimary,
+    }),
+    ip: getClientIp(request),
+    userAgent: request.headers.get("user-agent"),
+    token: authResult.token,
+  });
+
+  await notifyWilayahAdmins({
+    scope,
+    wilayahId,
+    token: authResult.token,
+    excludeUserId: created.id,
+    title: "Akun admin wilayah baru",
+    content: `Akun ${created.email} ditambahkan ke ${scope === "branch" ? "cabang" : "ranting"} ${scoped.name} oleh ${authResult.user.email}.`,
+  });
+
+  return NextResponse.json({
+    success: true,
+    message: `Akun ${created.email} ditambahkan ke ${scoped.name}`,
+    loginEmail: parsed.data.email,
+    loginPassword: parsed.data.password,
+    data: created,
+  });
+}
+
+export async function PATCH(request: Request) {
+  const authResult = await requireAdmin();
+  if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
+
+  const parsed = wilayahAccountPatchSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message || "Data tidak valid" },
+      { status: 400 },
+    );
+  }
+
+  const { scope, wilayahId, userId, action } = parsed.data;
+  const scoped = await assertWilayahAccess(authResult.user, scope, wilayahId);
+  if (!scoped) {
+    return NextResponse.json({ error: "Akses ditolak / wilayah tidak ditemukan" }, { status: 403 });
+  }
+
+  const target = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      isDeleted: false,
+      ...(scope === "branch"
+        ? {
+            managedBranchId: wilayahId,
+            roles: { some: { name: "ADMIN_BRANCH" } },
+          }
+        : {
+            managedDojoId: wilayahId,
+            roles: { some: { name: "ADMIN_DOJO" } },
+          }),
+    },
+    select: { id: true, email: true, isActive: true, fullName: true },
+  });
+  if (!target) {
+    return NextResponse.json({ error: "Akun tidak ditemukan di wilayah ini" }, { status: 404 });
+  }
+
+  if (action === "deactivate") {
+    if (target.id === authResult.user.id) {
+      return NextResponse.json(
+        { error: "Tidak dapat menonaktifkan akun sendiri dari sini" },
+        { status: 400 },
+      );
+    }
+    const remaining = await countActiveWilayahAccounts({
+      scope,
+      wilayahId,
+      excludeUserId: target.id,
+    });
+    if (target.isActive && remaining < 1) {
+      return NextResponse.json(
+        {
+          error:
+            "Tidak dapat menonaktifkan akun aktif terakhir di wilayah ini. Tambah akun lain dulu.",
+        },
+        { status: 400 },
+      );
+    }
+    await prisma.user.update({
+      where: { id: target.id },
+      data: { isActive: false },
+    });
+  } else if (action === "activate") {
+    await prisma.user.update({
+      where: { id: target.id },
+      data: { isActive: true },
+    });
+  } else if (action === "set_primary") {
+    if (!target.isActive) {
+      return NextResponse.json(
+        { error: "Hanya akun aktif yang dapat jadi PIC utama" },
+        { status: 400 },
+      );
+    }
+    await setPrimaryAccountId(scope, wilayahId, target.id);
+  } else if (action === "reset_password") {
+    if (!parsed.data.newPassword || !parsed.data.newPasswordConfirm) {
+      return NextResponse.json({ error: "Password baru wajib" }, { status: 400 });
+    }
+    if (parsed.data.newPassword !== parsed.data.newPasswordConfirm) {
+      return NextResponse.json(
+        { error: "Konfirmasi password tidak cocok" },
+        { status: 400 },
+      );
+    }
+    const pwCheck = validatePassword(parsed.data.newPassword);
+    if (!pwCheck.valid) {
+      return NextResponse.json({ error: pwCheck.error }, { status: 400 });
+    }
+    const passwordHash = await bcrypt.hash(parsed.data.newPassword, 10);
+    await prisma.user.update({
+      where: { id: target.id },
+      data: { passwordHash },
+    });
+  }
+
+  writeAuditLog({
+    userId: authResult.user.id,
+    email: authResult.user.email,
+    action: `WILAYAH_ACCOUNT_${action.toUpperCase()}`,
+    details: JSON.stringify({
+      scope,
+      wilayahId,
+      wilayahName: scoped.name,
+      targetUserId: target.id,
+      targetEmail: target.email,
+    }),
+    ip: getClientIp(request),
+    userAgent: request.headers.get("user-agent"),
+    token: authResult.token,
+  });
+
+  if (action === "deactivate" || action === "activate" || action === "set_primary") {
+    await notifyWilayahAdmins({
+      scope,
+      wilayahId,
+      token: authResult.token,
+      excludeUserId: authResult.user.id,
+      title: "Perubahan akun wilayah",
+      content: `Akun ${target.email} di ${scoped.name}: ${action.replace("_", " ")} oleh ${authResult.user.email}.`,
+    });
+  }
+
+  return NextResponse.json({
+    success: true,
+    message:
+      action === "reset_password"
+        ? "Password berhasil direset"
+        : action === "set_primary"
+          ? "PIC utama diperbarui"
+          : action === "deactivate"
+            ? "Akun dinonaktifkan"
+            : "Akun diaktifkan",
+    ...(action === "reset_password"
+      ? {
+          loginEmail: target.email,
+          loginPassword: parsed.data.newPassword,
+        }
+      : {}),
+  });
+}

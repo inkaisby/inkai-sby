@@ -245,6 +245,9 @@ export async function PATCH(request: Request) {
     select: {
       id: true,
       email: true,
+      isActive: true,
+      managedBranchId: true,
+      managedDojoId: true,
       roles: { select: { name: true } },
     },
   });
@@ -260,6 +263,42 @@ export async function PATCH(request: Request) {
       { error: "Tidak dapat menonaktifkan akun sendiri" },
       { status: 400 },
     );
+  }
+
+  if (parsed.data.isActive === false && allowed.isActive) {
+    const { countActiveWilayahAccounts } = await import("@/lib/wilayah-accounts");
+    if (allowed.managedBranchId && allowed.roles.some((r) => r.name === "ADMIN_BRANCH")) {
+      const remaining = await countActiveWilayahAccounts({
+        scope: "branch",
+        wilayahId: allowed.managedBranchId,
+        excludeUserId: allowed.id,
+      });
+      if (remaining < 1) {
+        return NextResponse.json(
+          {
+            error:
+              "Tidak dapat menonaktifkan akun aktif terakhir di cabang ini. Tambah akun lain dulu.",
+          },
+          { status: 400 },
+        );
+      }
+    }
+    if (allowed.managedDojoId && allowed.roles.some((r) => r.name === "ADMIN_DOJO")) {
+      const remaining = await countActiveWilayahAccounts({
+        scope: "dojo",
+        wilayahId: allowed.managedDojoId,
+        excludeUserId: allowed.id,
+      });
+      if (remaining < 1) {
+        return NextResponse.json(
+          {
+            error:
+              "Tidak dapat menonaktifkan akun aktif terakhir di ranting ini. Tambah akun lain dulu.",
+          },
+          { status: 400 },
+        );
+      }
+    }
   }
 
   if (parsed.data.action === "reset_password") {

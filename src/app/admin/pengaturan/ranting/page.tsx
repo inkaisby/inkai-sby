@@ -184,16 +184,23 @@ async function PengaturanRantingContent({
         ? "Data username login sementara tidak tersedia (database sibuk). Daftar ranting tetap ditampilkan."
         : null;
 
-  const adminByDojo = new Map(
-    admins
-      .filter((a) => a.managedDojoId)
-      .map((a) => [a.managedDojoId as string, a]),
-  );
+  const adminsByDojo = new Map<
+    string,
+    Array<{ email: string; isActive: boolean }>
+  >();
+  for (const a of admins) {
+    if (!a.managedDojoId) continue;
+    const list = adminsByDojo.get(a.managedDojoId) ?? [];
+    list.push({ email: a.email, isActive: a.isActive });
+    adminsByDojo.set(a.managedDojoId, list);
+  }
 
   const mapped = scopedDojos.map((d) => {
     const branch = d.branch as { id?: string; name?: string } | undefined;
     const id = String(d.id);
-    const admin = adminByDojo.get(id);
+    const dojoAdmins = adminsByDojo.get(id) ?? [];
+    const primary =
+      dojoAdmins.find((a) => a.isActive) ?? dojoAdmins[0] ?? null;
     return {
       id,
       name: String(d.name),
@@ -209,26 +216,30 @@ async function PengaturanRantingContent({
       branchId: branch?.id ? String(branch.id) : undefined,
       branchName: branch?.name ? String(branch.name) : undefined,
       memberCount: (d._count as { members?: number } | undefined)?.members ?? 0,
-      adminEmail: admin?.email ?? null,
-      adminIsActive: admin?.isActive ?? null,
+      adminEmail: primary?.email ?? null,
+      adminIsActive: primary?.isActive ?? null,
+      adminCount: dojoAdmins.length,
     };
   });
 
   const filtered = mapped.filter((d) => {
     if (branchFilter && d.branchId !== branchFilter) return false;
-    if (loginFilter === "yes" && !d.adminEmail) return false;
-    if (loginFilter === "no" && d.adminEmail) return false;
+    if (loginFilter === "yes" && !(d.adminCount > 0)) return false;
+    if (loginFilter === "no" && d.adminCount > 0) return false;
     if (!q) return true;
+    const adminEmails = (adminsByDojo.get(d.id) ?? [])
+      .map((a) => a.email.toLowerCase())
+      .join(" ");
     return (
       d.name.toLowerCase().includes(q) ||
       (d.headName || "").toLowerCase().includes(q) ||
       (d.branchName || "").toLowerCase().includes(q) ||
       (d.kecamatan || "").toLowerCase().includes(q) ||
-      (d.adminEmail || "").toLowerCase().includes(q)
+      adminEmails.includes(q)
     );
   });
 
-  const withLogin = mapped.filter((d) => d.adminEmail).length;
+  const withLogin = mapped.filter((d) => d.adminCount > 0).length;
   const totalMembers = mapped.reduce((sum, d) => sum + (d.memberCount || 0), 0);
   const branchCount = new Set(mapped.map((d) => d.branchId).filter(Boolean)).size;
 
@@ -245,7 +256,7 @@ async function PengaturanRantingContent({
         <p className="text-muted-foreground">
           {selfManagedOnly
             ? "Perbarui data ranting Anda (alamat, jadwal, rekening, dan kontak)."
-            : "Kelola ranting dan buat akun login (username + password) untuk pengurus ranting"}
+            : "Kelola ranting dan beberapa akun login pengurus ranting"}
         </p>
       </div>
 
@@ -255,7 +266,7 @@ async function PengaturanRantingContent({
         items={[
           { label: "Total Ranting", value: mapped.length, icon: Home },
           { label: "Cabang", value: branchCount, icon: Building2 },
-          { label: "Punya Login", value: withLogin, icon: KeyRound },
+          { label: "Punya Akun", value: withLogin, icon: KeyRound },
           { label: "Total Anggota", value: totalMembers, icon: Users },
         ]}
       />
@@ -317,6 +328,7 @@ async function PengaturanRantingContent({
           memberCount: 0,
           adminEmail: null,
           adminIsActive: null,
+          adminCount: 0,
         }))}
       />
 

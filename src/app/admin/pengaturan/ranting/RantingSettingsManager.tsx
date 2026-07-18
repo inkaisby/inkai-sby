@@ -24,14 +24,12 @@ import {
 import { showError, showSuccess } from "@/lib/client-toast";
 import {
   Archive,
-  Check,
-  Copy,
-  KeyRound,
   Pencil,
-  RotateCcw,
   Sparkles,
+  Users,
 } from "lucide-react";
 import { generateSimplePassword } from "@/lib/security/password";
+import { WilayahAccountsPanel } from "@/components/admin/pengaturan/WilayahAccountsPanel";
 
 export type RantingRow = {
   id: string;
@@ -50,6 +48,7 @@ export type RantingRow = {
   memberCount?: number;
   adminEmail?: string | null;
   adminIsActive?: boolean | null;
+  adminCount?: number;
 };
 
 type Mode = "create" | "edit" | "login" | "reset" | null;
@@ -104,7 +103,6 @@ export function RantingSettingsManager({
   const [pendingReveal, setPendingReveal] = useState<RevealedCredential | null>(
     null,
   );
-  const [copiedCredential, setCopiedCredential] = useState(false);
 
   useEffect(() => {
     if (!selfManagedOnly || dojos.length !== 1 || mode) return;
@@ -122,21 +120,6 @@ export function RantingSettingsManager({
     [dojos, detailDojoId],
   );
 
-  const detailCredential = useMemo(() => {
-    if (!detailDojo?.adminEmail) return null;
-    const stored = revealedByDojoId[detailDojo.id];
-    if (!stored) {
-      return {
-        loginEmail: detailDojo.adminEmail,
-        loginPassword: "",
-      };
-    }
-    return {
-      loginEmail: stored.loginEmail || detailDojo.adminEmail,
-      loginPassword: stored.loginPassword,
-    };
-  }, [detailDojo, revealedByDojoId]);
-
   useEffect(() => {
     if (!pendingReveal) return;
     const match = dojos.find(
@@ -146,7 +129,6 @@ export function RantingSettingsManager({
     if (!match) return;
     saveCredential(match.id, pendingReveal.loginEmail, pendingReveal.loginPassword);
     setDetailDojoId(match.id);
-    setCopiedCredential(false);
     setPendingReveal(null);
   }, [dojos, pendingReveal]);
 
@@ -169,20 +151,6 @@ export function RantingSettingsManager({
   ) {
     saveCredential(dojoId, loginEmail, loginPassword);
     setDetailDojoId(dojoId);
-    setCopiedCredential(false);
-  }
-
-  async function copyDetailCredential() {
-    if (!detailCredential) return;
-    const text = `Username: ${detailCredential.loginEmail}\nPassword: ${detailCredential.loginPassword}`;
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedCredential(true);
-      showSuccess("Kredensial disalin ke clipboard");
-      setTimeout(() => setCopiedCredential(false), 2000);
-    } catch {
-      showSuccess("Salin manual dari kotak di bawah");
-    }
   }
 
   function setField(key: keyof typeof form, value: string) {
@@ -429,7 +397,7 @@ export function RantingSettingsManager({
         <p className="text-sm text-muted-foreground">
           {selfManagedOnly
             ? "Klik Ubah untuk memperbarui data ranting Anda."
-            : "Buat username & password agar pengurus ranting bisa login. Klik baris untuk melihat kredensial kapan saja."}
+            : "Kelola ranting dan beberapa akun login pengurus (PIC utama + audit)."}
         </p>
         {!selfManagedOnly && (
           <Button
@@ -700,19 +668,20 @@ export function RantingSettingsManager({
                     {d.kecamatan || "—"}
                   </TableCell>
                   <TableCell>
-                    {d.adminEmail ? (
+                    {d.adminCount && d.adminCount > 0 ? (
                       <div className="space-y-1">
-                        <span className="font-mono text-xs">{d.adminEmail}</span>
-                        <Badge
-                          variant={
-                            d.adminIsActive === false ? "outline" : "secondary"
-                          }
-                          className="ml-0 block w-fit"
-                        >
-                          {d.adminIsActive === false
-                            ? "Nonaktif"
-                            : "Bisa login"}
-                        </Badge>
+                        <Badge variant="secondary">{d.adminCount} akun</Badge>
+                        {d.adminEmail ? (
+                          <span className="block font-mono text-[10px] text-muted-foreground truncate max-w-[9rem]">
+                            {d.adminEmail}
+                            {d.adminCount > 1 ? " +" : ""}
+                          </span>
+                        ) : null}
+                        {d.adminIsActive === false ? (
+                          <Badge variant="outline" className="block w-fit">
+                            Ada nonaktif
+                          </Badge>
+                        ) : null}
                       </div>
                     ) : (
                       <span className="text-sm text-amber-700 dark:text-amber-400">
@@ -729,30 +698,16 @@ export function RantingSettingsManager({
                   >
                     <div className="flex flex-wrap justify-end gap-1">
                       {!selfManagedOnly && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={loading}
-                            onClick={() => openLogin(d)}
-                            className="gap-1"
-                          >
-                            <KeyRound className="h-3.5 w-3.5" />
-                            {d.adminEmail ? "Ganti Login" : "Buat Login"}
-                          </Button>
-                          {d.adminEmail ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={loading}
-                              onClick={() => openReset(d)}
-                              className="gap-1"
-                            >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                              Reset PW
-                            </Button>
-                          ) : null}
-                        </>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={loading}
+                          onClick={() => setDetailDojoId(d.id)}
+                          className="gap-1"
+                        >
+                          <Users className="h-3.5 w-3.5" />
+                          Akun
+                        </Button>
                       )}
                       <Button
                         size="sm"
@@ -829,87 +784,26 @@ export function RantingSettingsManager({
         onOpenChange={(open) => {
           if (!open) {
             setDetailDojoId(null);
-            setCopiedCredential(false);
           }
         }}
       >
-        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
           {detailDojo ? (
             <>
               <SheetHeader>
                 <SheetTitle>{detailDojo.name}</SheetTitle>
                 <SheetDescription>
-                  Detail ranting &amp; akun login
+                  Detail ranting &amp; multi-akun pengurus
                 </SheetDescription>
               </SheetHeader>
 
-              <div className="space-y-4 px-4 pb-6">
-                {!selfManagedOnly && detailCredential ? (
-                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
-                    <div className="mb-2">
-                      <p className="font-semibold text-emerald-800 dark:text-emerald-300">
-                        Kredensial {detailDojo.name}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Username dan password akun login ranting — bisa dilihat
-                        dan disalin kapan saja.
-                      </p>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="rounded-lg border bg-background px-3 py-2">
-                        <p className="text-xs text-muted-foreground">Username</p>
-                        <p className="font-mono text-sm break-all">
-                          {detailCredential.loginEmail}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border bg-background px-3 py-2">
-                        <p className="text-xs text-muted-foreground">Password</p>
-                        <p className="font-mono text-sm">
-                          {detailCredential.loginPassword}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={copyDetailCredential}
-                        className="gap-1.5"
-                      >
-                        {copiedCredential ? (
-                          <Check className="h-3.5 w-3.5" />
-                        ) : (
-                          <Copy className="h-3.5 w-3.5" />
-                        )}
-                        {copiedCredential
-                          ? "Tersalin"
-                          : "Salin Username + Password"}
-                      </Button>
-                    </div>
-                  </div>
-                ) : !selfManagedOnly ? (
-                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
-                    <p className="font-semibold text-emerald-800 dark:text-emerald-300">
-                      Kredensial {detailDojo.name}
-                    </p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Belum ada akun login untuk ranting ini.
-                    </p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="mt-3 gap-1.5"
-                      onClick={() => {
-                        setDetailDojoId(null);
-                        openLogin(detailDojo);
-                      }}
-                    >
-                      <KeyRound className="h-3.5 w-3.5" />
-                      Buat Login
-                    </Button>
-                  </div>
+              <div className="space-y-6 px-4 pb-6">
+                {!selfManagedOnly ? (
+                  <WilayahAccountsPanel
+                    scope="dojo"
+                    wilayahId={detailDojo.id}
+                    wilayahName={detailDojo.name}
+                  />
                 ) : null}
 
                 <div className="grid gap-3 text-sm">

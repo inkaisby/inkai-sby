@@ -15,11 +15,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { showError, showSuccess } from "@/lib/client-toast";
-import { Archive } from "lucide-react";
+import { Archive, Users } from "lucide-react";
 import {
   CredentialsReveal,
   type CredentialPayload,
 } from "@/components/admin/pengaturan/CredentialsReveal";
+import { WilayahAccountsPanel } from "@/components/admin/pengaturan/WilayahAccountsPanel";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 export type BranchRow = {
   id: string;
@@ -29,6 +37,7 @@ export type BranchRow = {
   provinceName?: string;
   dojoCount?: number;
   adminEmail?: string | null;
+  adminCount?: number;
   isDeleted?: boolean;
 };
 
@@ -52,6 +61,7 @@ export function CabangSettingsManager({
   const [adminPasswordConfirm, setAdminPasswordConfirm] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [credential, setCredential] = useState<CredentialPayload | null>(null);
+  const [accountsBranch, setAccountsBranch] = useState<BranchRow | null>(null);
 
   function resetForm() {
     setOpenForm(false);
@@ -289,7 +299,7 @@ export function CabangSettingsManager({
               <TableHead className="hidden sm:table-cell">Provinsi</TableHead>
               <TableHead>Ketua</TableHead>
               <TableHead className="hidden md:table-cell">Kota</TableHead>
-              <TableHead className="hidden lg:table-cell">Admin Login</TableHead>
+              <TableHead className="hidden lg:table-cell">Admin</TableHead>
               <TableHead>Ranting</TableHead>
               <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
@@ -312,9 +322,21 @@ export function CabangSettingsManager({
                   <TableCell className="hidden md:table-cell text-muted-foreground">
                     {b.city || "—"}
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell font-mono text-xs">
-                    {b.adminEmail || (
-                      <span className="text-amber-700 dark:text-amber-400">Belum ada</span>
+                  <TableCell className="hidden lg:table-cell">
+                    {b.adminCount && b.adminCount > 0 ? (
+                      <div className="space-y-0.5">
+                        <Badge variant="secondary">{b.adminCount} akun</Badge>
+                        {b.adminEmail ? (
+                          <p className="font-mono text-[10px] text-muted-foreground truncate max-w-[10rem]">
+                            {b.adminEmail}
+                            {b.adminCount > 1 ? " +" : ""}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-amber-700 dark:text-amber-400">
+                        Belum ada
+                      </span>
                     )}
                   </TableCell>
                   <TableCell>
@@ -322,6 +344,16 @@ export function CabangSettingsManager({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex flex-wrap justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={loading}
+                        onClick={() => setAccountsBranch(b)}
+                        className="gap-1"
+                      >
+                        <Users className="h-3.5 w-3.5" />
+                        Akun
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
@@ -387,6 +419,34 @@ export function CabangSettingsManager({
           </div>
         </div>
       ) : null}
+
+      <Sheet
+        open={Boolean(accountsBranch)}
+        onOpenChange={(open) => {
+          if (!open) setAccountsBranch(null);
+        }}
+      >
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+          {accountsBranch ? (
+            <>
+              <SheetHeader>
+                <SheetTitle>Akun admin — {accountsBranch.name}</SheetTitle>
+                <SheetDescription>
+                  Beberapa email boleh mengelola cabang yang sama. PIC utama
+                  ditandai; akun aktif terakhir tidak bisa dinonaktifkan.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="px-4 pb-6">
+                <WilayahAccountsPanel
+                  scope="branch"
+                  wilayahId={accountsBranch.id}
+                  wilayahName={accountsBranch.name}
+                />
+              </div>
+            </>
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

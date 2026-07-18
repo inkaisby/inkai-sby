@@ -115,7 +115,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Absensi | Laporan absensi harian |
 | Carousel Beranda | Kelola berita visual publik |
 | Log Audit | Jejak aksi sensitif (pusat) |
-| Pengaturan | User (CRUD/role/cakupan/reset), cabang/ranting (+arsip pulihkan), **profil & kebijakan**, peran/RBAC, geofencing (lokasi perangkat), akun |
+| Pengaturan | User (CRUD/role/cakupan/reset), cabang/ranting (**multi-akun** + arsip pulihkan), **profil & kebijakan**, peran/RBAC, geofencing (lokasi perangkat), akun |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
@@ -263,7 +263,8 @@ Pusat / Nasional
 | Verifikasi kartu (publik) | Aktif | `/v/[id]` — scan QR kartu anggota |
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
 | Materi / Store / Pesan / Pindah / Piagam | Aktif | Prisma lokal + verifikasi admin |
-| RBAC wilayah | Diterapkan | Matriks tampil di Pengaturan & Role |
+| RBAC wilayah | Diterapkan | Matriks tampil di Pengaturan & Role; multi-akun per cabang/ranting + PIC |
+| Pengaturan wilayah | Lengkap | Multi-akun (`/wilayah-accounts`), arsip pulihkan, profil/kebijakan |
 | Upload bukti iuran (anggota) | Aktif | `/dashboard/iuran` + `/api/member/billing/[id]` |
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` + `/api/member/attendance/checkin` |
 | Nominal UKT | Tanpa kode unik | `uktBaseFeeAmount` — tampilan/KPI strip +1…999 agar = nota |
@@ -303,7 +304,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/members/archived Daftar arsip soft-delete
 /api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
 /api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees, Kyu
-/api/admin/pengaturan/*     User, cabang, ranting, roles, geofencing, akun, kebijakan
+/api/admin/pengaturan/*     User, cabang, ranting, wilayah-accounts (multi-akun), roles, geofencing, akun, kebijakan
 /api/admin/verifications/*  Proses klaim
 /api/admin/carousel/*       Carousel beranda
 /api/admin/upload           Upload ke Blob
@@ -372,6 +373,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | Admin anggota: nonaktifkan/aktifkan ulang + hapus soft-delete (konfirmasi nama untuk ber-NIA); KPI/filter Nonaktif; RBAC ranting vs cabang; login blokir status INACTIVE |
 | 18 Juli 2026 | Paket lengkap lifecycle anggota: alasan+jenis (INACTIVE/SUSPENDED), notifikasi, tombol Nonaktif terlihat, bulk nonaktif, arsip+pulihkan, dampak hapus, filter ≥N bulan, metadata di detail, QR nonaktif jelas |
 | 18 Juli 2026 | Paket lengkap Pengaturan: hub kartu+checklist, profil/kebijakan cabang, user create/edit/reset/export, geofence lokasi perangkat, arsip pulihkan cabang/ranting, kredensial tanpa localStorage |
+| 18 Juli 2026 | Multi-akun per wilayah: beberapa email ADMIN_BRANCH/ADMIN_DOJO per cabang/ranting, PIC utama (AppSetting), proteksi nonaktif akun terakhir, panel Akun + API `/wilayah-accounts`, audit & notifikasi rekan |
 
 ---
 

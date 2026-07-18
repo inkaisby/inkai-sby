@@ -58,7 +58,11 @@ async function PengaturanCabangContent({
   const orgLoadFailed = provinces.length === 0 && branches.length === 0;
 
   const branchIds = branches.map((b) => String(b.id));
-  let admins: Array<{ email: string; managedBranchId: string | null }> = [];
+  let admins: Array<{
+    email: string;
+    isActive: boolean;
+    managedBranchId: string | null;
+  }> = [];
   let adminLoadFailed = false;
   let archivedBranches: Array<{
     id: string;
@@ -74,7 +78,8 @@ async function PengaturanCabangContent({
           managedBranchId: { in: branchIds },
           roles: { some: { name: "ADMIN_BRANCH" } },
         },
-        select: { email: true, managedBranchId: true },
+        select: { email: true, isActive: true, managedBranchId: true },
+        orderBy: [{ isActive: "desc" }, { email: "asc" }],
       });
     } catch (error) {
       console.error("[pengaturan/cabang] prisma admins", error);
@@ -102,14 +107,22 @@ async function PengaturanCabangContent({
     : adminLoadFailed
       ? "Data username login sementara tidak tersedia (database sibuk). Daftar cabang tetap ditampilkan."
       : null;
-  const adminByBranch = new Map(
-    admins
-      .filter((a) => a.managedBranchId)
-      .map((a) => [a.managedBranchId as string, a.email]),
-  );
+  const adminsByBranch = new Map<
+    string,
+    Array<{ email: string; isActive: boolean }>
+  >();
+  for (const a of admins) {
+    if (!a.managedBranchId) continue;
+    const list = adminsByBranch.get(a.managedBranchId) ?? [];
+    list.push({ email: a.email, isActive: a.isActive });
+    adminsByBranch.set(a.managedBranchId, list);
+  }
 
   const mapped = branches.map((b) => {
     const id = String(b.id);
+    const branchAdmins = adminsByBranch.get(id) ?? [];
+    const primary =
+      branchAdmins.find((a) => a.isActive) ?? branchAdmins[0] ?? null;
     return {
       id,
       name: String(b.name),
@@ -122,23 +135,27 @@ async function PengaturanCabangContent({
         (b.province as { name?: string } | undefined)?.name || "",
       ),
       dojoCount: (b._count as { dojos?: number } | undefined)?.dojos ?? 0,
-      adminEmail: adminByBranch.get(id) ?? null,
+      adminEmail: primary?.email ?? null,
+      adminCount: branchAdmins.length,
     };
   });
 
   const filtered = mapped.filter((b) => {
     if (provinceId && b.provinceId !== provinceId) return false;
     if (!q) return true;
+    const adminEmails = (adminsByBranch.get(b.id) ?? [])
+      .map((a) => a.email.toLowerCase())
+      .join(" ");
     return (
       b.name.toLowerCase().includes(q) ||
       (b.headName || "").toLowerCase().includes(q) ||
       (b.city || "").toLowerCase().includes(q) ||
       (b.provinceName || "").toLowerCase().includes(q) ||
-      (b.adminEmail || "").toLowerCase().includes(q)
+      adminEmails.includes(q)
     );
   });
 
-  const withLogin = mapped.filter((b) => b.adminEmail).length;
+  const withLogin = mapped.filter((b) => (b.adminCount ?? 0) > 0).length;
   const totalRanting = mapped.reduce((sum, b) => sum + (b.dojoCount || 0), 0);
   const provinceCount = new Set(mapped.map((b) => b.provinceId).filter(Boolean))
     .size;
@@ -154,7 +171,7 @@ async function PengaturanCabangContent({
       <div className="mb-6">
         <h2 className="text-2xl font-bold">Pengaturan Cabang</h2>
         <p className="text-muted-foreground">
-          Tambah dan ubah cabang beserta akun admin cabang
+          Tambah dan ubah cabang; satu cabang boleh punya beberapa akun admin
         </p>
       </div>
 
@@ -165,7 +182,7 @@ async function PengaturanCabangContent({
           { label: "Total Cabang", value: mapped.length, icon: Building2 },
           { label: "Provinsi", value: provinceCount, icon: MapPin },
           { label: "Total Ranting", value: totalRanting, icon: Home },
-          { label: "Punya Admin Login", value: withLogin, icon: UserCheck },
+          { label: "Punya Akun Admin", value: withLogin, icon: UserCheck },
         ]}
       />
 
