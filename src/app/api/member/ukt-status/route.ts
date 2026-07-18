@@ -125,6 +125,7 @@ export async function GET() {
     attendanceCount: 0,
     attendancePct: null,
     examResult: examMap.get(String(reg.id)) ?? null,
+    examPresent: null,
   };
 
   const displayStatus = resolveUktDisplayStatus(row);

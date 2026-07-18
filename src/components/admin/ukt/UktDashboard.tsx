@@ -26,6 +26,10 @@ import {
   LayoutList,
   ShieldCheck,
   ArrowLeft,
+  ClipboardCheck,
+  Archive,
+  ChevronDown,
+  FolderOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,8 +61,17 @@ import {
 } from "@/components/ui/select";
 import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
 import { UktPrintModal } from "@/components/admin/ukt/UktPrintModal";
+import { UktExportDialog } from "@/components/admin/ukt/UktExportDialog";
+import { UktExamDayDialog } from "@/components/admin/ukt/UktExamDayDialog";
 import { UktSearchBar } from "@/components/admin/ukt/UktSearchBar";
 import { AddMemberDialog } from "@/components/admin/AddMemberDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   BELT_RANK_OPTIONS,
   canEditKyuBaru,
@@ -70,10 +83,12 @@ import {
   type UktMemberRow,
   type UktSemester,
   type BeltFeeKey,
+  type UktDepositRecord,
+  type UktDepositStatus,
+  type UktPeriodMeta,
   BELT_FEE_KEYS,
-  buildUktBranchRecapText,
-  buildUktDojoRecaps,
-  buildUktRecapCsv,
+  buildUktCabangWaReportText,
+  buildUktRantingWaReportText,
   canApplyUktKyuBaru,
   computeUktOperationalKpi,
   formatUktRegistrationBlockers,
@@ -86,7 +101,6 @@ import {
   filterUktRowsByView,
   filterUktRowsByDisplayStatus,
   formatUktPeriodLabel,
-  participantAmount,
   formatUktRegistrationDeadline,
   getUktRegistrationDeadline,
   isUktRegistrationOpen,
@@ -95,10 +109,10 @@ import {
   resolveEffectiveUktExamResult,
   resolveUktDisplayStatus,
   summarizeRowEligibility,
-  triggerCsvDownload,
   toDateInput,
   toTimeInput,
   buildUktEventDates,
+  uktDepositStatusLabel,
   uktDisplayStatusLabel,
   UKT_DISPLAY_FILTER_OPTIONS,
   UKT_MIN_ATTENDANCE_PCT,
@@ -137,6 +151,13 @@ type Props = {
   defaultDojoFilter?: string;
   beltFees: Record<BeltFeeKey, number>;
   komisiRanting: number;
+  depositMap?: Record<string, UktDepositRecord>;
+  periodMeta?: UktPeriodMeta;
+  orgProfile?: {
+    address?: string;
+    bidangUjianName?: string;
+    bendaharaCabangName?: string;
+  };
 };
 
 const PAGE_SIZES = [25, 50, 100, 1000] as const;
@@ -209,6 +230,8 @@ export function UktDashboard(props: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [printOnlySelected, setPrintOnlySelected] = useState(false);
   const [compactView, setCompactView] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [showExamDay, setShowExamDay] = useState(false);
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
   const [wizardDeadlineDate, setWizardDeadlineDate] = useState("");
@@ -219,6 +242,8 @@ export function UktDashboard(props: Props) {
 
   const isCabang = canEditKyuBaru(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
+  const periodLocked = Boolean(props.periodMeta?.locked || props.periodMeta?.archived);
+  const depositMap = props.depositMap ?? {};
 
   useEffect(() => {
     if (isDojoAdmin) setCompactView(true);
@@ -263,11 +288,6 @@ export function UktDashboard(props: Props) {
       localView === "registered" && localQ.trim() ? "" : localView;
     return filterUktRowsByView(scopedRows, viewFilter);
   }, [scopedRows, localView, localQ]);
-
-  const dojoRecaps = useMemo(
-    () => buildUktDojoRecaps(scopedRows, props.dojos),
-    [scopedRows, props.dojos],
-  );
 
   const totalFiltered = filteredRows.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / localPageSize));
@@ -421,20 +441,60 @@ export function UktDashboard(props: Props) {
     }
   };
 
-  const handleExportCsv = () => {
-    const title = selectedPeriod?.title || formatUktPeriodLabel(props.semester, props.year);
-    const rows =
-      selectedIds.size > 0
-        ? selectedRows.filter((r) => r.registrationId)
-        : scopedRows.filter((r) => r.registrationId);
-    if (rows.length === 0) {
+  const openExportDialog = () => {
+    if (!props.allRows.some((r) => r.registrationId)) {
       toast.error("Tidak ada peserta terdaftar untuk diekspor");
       return;
     }
-    const csv = buildUktRecapCsv(rows, title);
-    const slug = title.replace(/[^\w-]+/g, "-").slice(0, 40);
-    triggerCsvDownload(`ukt-rekap-${slug}.csv`, csv);
-    toast.success(`${rows.length} baris diekspor ke CSV`);
+    setShowExport(true);
+  };
+
+  const handlePeriodArchive = async (archived: boolean) => {
+    if (!props.selectedPeriodId) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/ukt/period-meta", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: props.selectedPeriodId,
+          archived,
+          locked: archived,
+        }),
+      });
+      const data = await parseApiJson<{ error?: string; message?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal");
+      toast.success(data.message || "Periode diperbarui");
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDepositStatus = async (dojoId: string, status: UktDepositStatus) => {
+    if (!props.selectedPeriodId) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/ukt/deposit", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: props.selectedPeriodId,
+          dojoId,
+          status,
+        }),
+      });
+      const data = await parseApiJson<{ error?: string; message?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal");
+      toast.success(data.message || "Status setoran diperbarui");
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openWaiverDialog = (row: UktMemberRow) => {
@@ -553,6 +613,10 @@ export function UktDashboard(props: Props) {
   };
 
   const handleRegister = async (memberId: string) => {
+    if (periodLocked) {
+      toast.error("Periode dikunci — pendaftaran ditutup");
+      return;
+    }
     if (!props.selectedPeriodId) {
       toast.error("Pilih atau buat periode UKT terlebih dahulu");
       return;
@@ -710,6 +774,10 @@ export function UktDashboard(props: Props) {
   };
 
   const handleBulkMarkPaid = async () => {
+    if (periodLocked) {
+      toast.error("Periode dikunci — verifikasi ditutup");
+      return;
+    }
     const targets = selectedRows.filter(
       (r) => r.registrationId && isUktBillingUnpaid(r),
     );
@@ -770,44 +838,32 @@ export function UktDashboard(props: Props) {
   };
 
   const buildWaReport = () => {
-    if (!effectiveDojo && isCabang) {
-      const text = buildUktBranchRecapText(
-        selectedPeriod?.title || periodTitle,
-        dojoRecaps.filter((r) => r.totalMembers > 0),
-      );
-      navigator.clipboard.writeText(text).then(
-        () => toast.success("Rekap cabang disalin — tempel di WhatsApp"),
-        () => toast.error("Gagal menyalin"),
-      );
-      return;
-    }
+    const title = selectedPeriod?.title || periodTitle;
     const approved = props.allRows.filter(
-      (r) => r.registrationId && isRegistrationApproved(r.status),
+      (r) =>
+        r.registrationId &&
+        isRegistrationApproved(r.status) &&
+        (!effectiveDojo || r.dojoId === effectiveDojo),
     );
     if (approved.length === 0) {
       toast.error("Belum ada peserta disetujui");
       return;
     }
+
+    // Admin cabang (semua ranting): daftar peserta dikelompokkan per ranting
+    if (!effectiveDojo && isCabang) {
+      const text = buildUktCabangWaReportText(title, approved);
+      navigator.clipboard.writeText(text).then(
+        () => toast.success("Laporan WA per ranting disalin — tempel di WhatsApp"),
+        () => toast.error("Gagal menyalin"),
+      );
+      return;
+    }
+
     const dojoName = effectiveDojo
       ? props.dojos.find((d) => d.id === effectiveDojo)?.name || "Ranting"
       : "Semua Ranting";
-    const lines = approved.map((r, i) => {
-      const rk = formatRankLabel(r.kyuBaru || r.kyuLama);
-      return `${i + 1}. ${formatMemberName(r.fullName)}${rk ? ` ${rk}` : ""}`;
-    });
-    let total = 0;
-    approved.forEach((r) => {
-      total += participantAmount(r.billingAmount, r.billingStatus, null);
-    });
-    const text = [
-      selectedPeriod?.title || periodTitle,
-      `Ranting/Dojo: ${dojoName}`,
-      "",
-      "Peserta yang terdaftar",
-      ...lines,
-      "",
-      `Total pembayaran Rp ${new Intl.NumberFormat("id-ID").format(total)}`,
-    ].join("\n");
+    const text = buildUktRantingWaReportText(title, dojoName, approved);
     navigator.clipboard.writeText(text).then(
       () => toast.success("Laporan WA disalin — tempel di WhatsApp"),
       () => toast.error("Gagal menyalin"),
@@ -935,34 +991,103 @@ export function UktDashboard(props: Props) {
                 </SelectContent>
               </Select>
             )}
-            {isCabang && props.selectedPeriodId && (
-              <Button variant="outline" onClick={handleExportCsv}>
-                <Download className="mr-1 h-4 w-4" />
-                Export CSV
+            {showCreatePeriod && isCabang && (
+              <Button
+                onClick={openCreateWizard}
+                disabled={loading}
+                className="bg-inkai-red hover:bg-inkai-red/90"
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Buat Periode
               </Button>
             )}
-            <Button variant="outline" onClick={buildWaReport}>
-              <MessageCircle className="mr-1 h-4 w-4" />
-              Laporan WA
-            </Button>
-            <Button variant="outline" onClick={() => openPrintNota(false)}>
-              <Printer className="mr-1 h-4 w-4" />
-              Cetak Nota
-            </Button>
+            {isCabang && (
+              <>
+                {props.selectedPeriodId && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowExamDay(true)}
+                    disabled={periodLocked}
+                  >
+                    <ClipboardCheck className="mr-1 h-4 w-4" />
+                    <span className="hidden sm:inline">Hari-H</span>
+                  </Button>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline">
+                      <FolderOpen className="mr-1 h-4 w-4" />
+                      Dokumen
+                      <ChevronDown className="ml-1 h-3.5 w-3.5 opacity-70" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={openExportDialog}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Export peserta
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={buildWaReport}>
+                      <MessageCircle className="mr-2 h-4 w-4" />
+                      Laporan WA
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openPrintNota(false)}>
+                      <Printer className="mr-2 h-4 w-4" />
+                      Cetak Nota
+                    </DropdownMenuItem>
+                    {props.selectedPeriodId && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setShowBeltFees(true)}
+                          disabled={periodLocked}
+                        >
+                          <Wallet className="mr-2 h-4 w-4" />
+                          Biaya Sabuk
+                        </DropdownMenuItem>
+                        {periodLocked ? (
+                          <DropdownMenuItem
+                            onClick={() => void handlePeriodArchive(false)}
+                            disabled={loading}
+                          >
+                            <Archive className="mr-2 h-4 w-4" />
+                            Buka arsip periode
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem
+                            onClick={() => void handlePeriodArchive(true)}
+                            disabled={loading}
+                          >
+                            <Archive className="mr-2 h-4 w-4" />
+                            Arsipkan & kunci
+                          </DropdownMenuItem>
+                        )}
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
+            {!isCabang && (
+              <>
+                <Button variant="outline" onClick={buildWaReport}>
+                  <MessageCircle className="mr-1 h-4 w-4" />
+                  Laporan WA
+                </Button>
+                <Button variant="outline" onClick={() => openPrintNota(false)}>
+                  <Printer className="mr-1 h-4 w-4" />
+                  Cetak Nota
+                </Button>
+              </>
+            )}
             {(isDojoAdmin || isCabang) && selectedIds.size === 0 && (
               <Button
                 variant="outline"
                 onClick={() => openPrintNota(true)}
                 disabled={selectedIds.size === 0}
+                className="hidden sm:inline-flex"
               >
                 <Printer className="mr-1 h-4 w-4" />
                 Nota Terpilih
-              </Button>
-            )}
-            {isCabang && (
-              <Button variant="outline" onClick={() => setShowBeltFees(true)}>
-                <Wallet className="mr-1 h-4 w-4" />
-                Biaya Sabuk
               </Button>
             )}
           </div>
@@ -984,7 +1109,7 @@ export function UktDashboard(props: Props) {
 
       {showCreatePeriod && (
         <Card className="border-inkai-red/40 bg-inkai-red/5">
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <CardContent className="flex flex-wrap items-center gap-3 p-4">
             <div className="flex items-start gap-2 text-sm">
               <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-inkai-red" />
               <div>
@@ -992,8 +1117,8 @@ export function UktDashboard(props: Props) {
                   Periode UKT {formatUktPeriodLabel(props.semester, props.year)} belum dibuat
                 </p>
                 <p className="text-muted-foreground">
-                  Buat periode agar ranting dapat mendaftarkan peserta dan batas pendaftaran
-                  aktif untuk semester ini.
+                  Gunakan tombol <b>Buat Periode</b> di toolbar (kiri Export/Dokumen) agar ranting
+                  dapat mendaftarkan peserta dan batas pendaftaran aktif untuk semester ini.
                   {props.selectedPeriodId && selectedPeriod && !hasTermPeriod ? (
                     <>
                       {" "}
@@ -1004,14 +1129,6 @@ export function UktDashboard(props: Props) {
                 </p>
               </div>
             </div>
-            <Button
-              onClick={openCreateWizard}
-              disabled={loading}
-              className="bg-inkai-red hover:bg-inkai-red/90"
-            >
-              <Plus className="mr-1 h-4 w-4" />
-              Buat Periode
-            </Button>
           </CardContent>
         </Card>
       )}
@@ -1105,9 +1222,9 @@ export function UktDashboard(props: Props) {
                 </Button>
               )}
               {isCabang && (
-                <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={loading}>
+                <Button variant="outline" size="sm" onClick={openExportDialog} disabled={loading}>
                   <Download className="mr-1 h-4 w-4" />
-                  CSV
+                  Export
                 </Button>
               )}
               <Button variant="outline" size="sm" onClick={() => setSelectedIds(new Set())} disabled={loading}>
@@ -1116,6 +1233,117 @@ export function UktDashboard(props: Props) {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {periodLocked && props.selectedPeriodId && (
+        <Card className="border-slate-400 bg-slate-50 dark:bg-slate-950/40">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+            <div className="flex items-start gap-2">
+              <Archive className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <p className="font-medium">
+                  Periode {props.periodMeta?.archived ? "diarsipkan" : "dikunci"}
+                </p>
+                <p className="text-muted-foreground">
+                  Pendaftaran, verifikasi, dan perubahan hasil dibatasi. Export & laporan tetap
+                  tersedia.
+                </p>
+              </div>
+            </div>
+            {isCabang && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={loading}
+                onClick={() => void handlePeriodArchive(false)}
+              >
+                Buka kembali
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {props.selectedPeriodId && (isCabang || isDojoAdmin) && (
+        <Card className="border-muted">
+          <CardContent className="space-y-3 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold">Status setoran UKT</p>
+                <p className="text-xs text-muted-foreground">
+                  Ranting menandai sudah setor; cabang konfirmasi diterima.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {(isDojoAdmin
+                ? props.dojos.filter((d) => d.id === (props.defaultDojoFilter || effectiveDojo))
+                : props.dojos.filter((d) =>
+                    props.allRows.some((r) => r.dojoId === d.id && r.registrationId),
+                  )
+              ).map((d) => {
+                const dep = depositMap[d.id];
+                const status: UktDepositStatus = dep?.status ?? "PENDING";
+                return (
+                  <div
+                    key={d.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{d.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {uktDepositStatusLabel(status)}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {isDojoAdmin && !periodLocked && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={loading || status === "RECEIVED"}
+                          onClick={() =>
+                            void handleDepositStatus(
+                              d.id,
+                              status === "SUBMITTED" ? "PENDING" : "SUBMITTED",
+                            )
+                          }
+                        >
+                          {status === "SUBMITTED" ? "Batalkan" : "Tandai setor"}
+                        </Button>
+                      )}
+                      {isCabang && !periodLocked && (
+                        <>
+                          {status !== "RECEIVED" && (
+                            <Button
+                              size="sm"
+                              className="h-7 bg-inkai-red text-xs hover:bg-inkai-red/90"
+                              disabled={loading}
+                              onClick={() => void handleDepositStatus(d.id, "RECEIVED")}
+                            >
+                              Terima
+                            </Button>
+                          )}
+                          {status === "RECEIVED" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              disabled={loading}
+                              onClick={() => void handleDepositStatus(d.id, "PENDING")}
+                            >
+                              Reset
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* KPI Cards */}
@@ -1796,8 +2024,31 @@ export function UktDashboard(props: Props) {
           beltFees={beltFees}
           komisiRanting={komisiRanting}
           isDojoAdmin={isDojoAdmin}
+          orgProfile={props.orgProfile}
         />
       )}
+
+      <UktExportDialog
+        open={showExport}
+        onOpenChange={setShowExport}
+        rows={props.allRows}
+        dojos={props.dojos}
+        semester={props.semester}
+        year={props.year}
+        initialDojoId={effectiveDojo || undefined}
+        bidangUjianName={props.orgProfile?.bidangUjianName}
+        sekretariatAddress={props.orgProfile?.address}
+      />
+
+      <UktExamDayDialog
+        open={showExamDay}
+        onOpenChange={setShowExamDay}
+        eventId={props.selectedPeriodId || ""}
+        rows={props.allRows}
+        dojos={props.dojos}
+        initialDojoId={effectiveDojo || undefined}
+        locked={periodLocked}
+      />
 
       <Dialog open={showRegistrationDeadline} onOpenChange={setShowRegistrationDeadline}>
         <DialogContent className="max-w-sm gap-4">

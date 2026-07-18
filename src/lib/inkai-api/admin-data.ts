@@ -11,9 +11,15 @@ import {
   resolveUktSelectedPeriodId,
   computeSemesterAttendance,
   buildUktExamResultMap,
+  buildUktExamAttendanceMap,
+  buildUktDepositMap,
   buildUktWaiverMap,
+  parseUktPeriodMetaValue,
+  uktPeriodMetaKey,
   type UktExamResult,
   type UktMemberRow,
+  type UktPeriodMeta,
+  type UktDepositRecord,
   type UktRegistrationWaiver,
   type UktSemester,
 } from "@/lib/ukt";
@@ -441,6 +447,9 @@ export async function fetchUktDashboardData(
     eventDetailInitial,
     examSettingsInitial,
     waiverSettingsInitial,
+    examAttendanceInitial,
+    depositSettingsInitial,
+    periodMetaInitial,
   ] = await Promise.all([
     inkaiFetch("/v1/events?limit=200", {}, token),
     fetchAdminDojos(token),
@@ -457,6 +466,21 @@ export async function fetchUktDashboardData(
     periodFromUrl
       ? fetchSettingsByPrefix(token, `ukt-registration-waiver:${periodFromUrl}:`)
       : Promise.resolve([]),
+    periodFromUrl
+      ? fetchSettingsByPrefix(token, `ukt-exam-attendance:${periodFromUrl}:`)
+      : Promise.resolve([]),
+    periodFromUrl
+      ? fetchSettingsByPrefix(token, `ukt-deposit:${periodFromUrl}:`)
+      : Promise.resolve([]),
+    periodFromUrl
+      ? inkaiFetch(
+          `/v1/settings/${encodeURIComponent(uktPeriodMetaKey(periodFromUrl))}`,
+          {},
+          token,
+        ).then(({ res, data }) =>
+          res.ok ? ((data.data as { value?: unknown })?.value ?? null) : null,
+        )
+      : Promise.resolve(null),
   ]);
 
   let periods = eventsRes.res.ok
@@ -485,13 +509,32 @@ export async function fetchUktDashboardData(
   let eventDetail = eventDetailInitial;
   let examSettings = examSettingsInitial;
   let waiverSettings = waiverSettingsInitial;
+  let examAttendanceSettings = examAttendanceInitial;
+  let depositSettings = depositSettingsInitial;
+  let periodMetaValue = periodMetaInitial;
 
   if (selectedPeriodId && selectedPeriodId !== periodFromUrl) {
-    [eventDetail, examSettings, waiverSettings] = await Promise.all([
-      fetchEventDetail(token, selectedPeriodId),
-      fetchSettingsByPrefix(token, `ukt-exam-result:${selectedPeriodId}:`),
-      fetchSettingsByPrefix(token, `ukt-registration-waiver:${selectedPeriodId}:`),
-    ]);
+    const [detail, exams, waivers, attendance, deposits, metaRes] =
+      await Promise.all([
+        fetchEventDetail(token, selectedPeriodId),
+        fetchSettingsByPrefix(token, `ukt-exam-result:${selectedPeriodId}:`),
+        fetchSettingsByPrefix(token, `ukt-registration-waiver:${selectedPeriodId}:`),
+        fetchSettingsByPrefix(token, `ukt-exam-attendance:${selectedPeriodId}:`),
+        fetchSettingsByPrefix(token, `ukt-deposit:${selectedPeriodId}:`),
+        inkaiFetch(
+          `/v1/settings/${encodeURIComponent(uktPeriodMetaKey(selectedPeriodId))}`,
+          {},
+          token,
+        ),
+      ]);
+    eventDetail = detail;
+    examSettings = exams;
+    waiverSettings = waivers;
+    examAttendanceSettings = attendance;
+    depositSettings = deposits;
+    periodMetaValue = metaRes.res.ok
+      ? ((metaRes.data.data as { value?: unknown })?.value ?? null)
+      : null;
   }
 
   // Sinkronkan tanggal/batas pendaftaran dari detail event agar kartu "Atur" akurat.
@@ -519,6 +562,13 @@ export async function fetchUktDashboardData(
   const examResultMap = selectedPeriodId
     ? buildUktExamResultMap(examSettings, selectedPeriodId)
     : new Map<string, UktExamResult>();
+  const examAttendanceMap = selectedPeriodId
+    ? buildUktExamAttendanceMap(examAttendanceSettings, selectedPeriodId)
+    : new Map<string, boolean>();
+  const depositMap = selectedPeriodId
+    ? buildUktDepositMap(depositSettings, selectedPeriodId)
+    : new Map<string, UktDepositRecord>();
+  const periodMeta: UktPeriodMeta = parseUktPeriodMetaValue(periodMetaValue);
   const waiverMap = selectedPeriodId
     ? buildUktWaiverMap(waiverSettings, selectedPeriodId)
     : new Map<string, UktRegistrationWaiver>();
@@ -599,6 +649,7 @@ export async function fetchUktDashboardData(
       attendanceCount: countByMember.get(m.id) ?? 0,
       attendancePct: pctByMember.get(m.id) ?? null,
       examResult: reg?.id ? examResultMap.get(String(reg.id)) ?? null : null,
+      examPresent: reg?.id ? examAttendanceMap.get(String(reg.id)) ?? null : null,
       registrationWaiver: waiverMap.get(m.id) ?? null,
     };
   });
@@ -610,6 +661,11 @@ export async function fetchUktDashboardData(
     allRows,
     beltFees,
     komisiRanting,
+    depositMap: Object.fromEntries(depositMap.entries()) as Record<
+      string,
+      UktDepositRecord
+    >,
+    periodMeta,
     ok: eventsRes.res.ok || membersResult.ok,
   };
 }

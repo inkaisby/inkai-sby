@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Printer, X } from "lucide-react";
+import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -40,6 +40,11 @@ type Props = {
   beltFees: Record<BeltFeeKey, number>;
   komisiRanting: number;
   isDojoAdmin: boolean;
+  orgProfile?: {
+    address?: string;
+    bidangUjianName?: string;
+    bendaharaCabangName?: string;
+  };
 };
 
 type PrintConfig = {
@@ -61,6 +66,7 @@ export function UktPrintModal({
   beltFees,
   komisiRanting,
   isDojoAdmin,
+  orgProfile,
 }: Props) {
   const dojoOptions = useMemo(() => {
     const names = new Set<string>();
@@ -148,6 +154,8 @@ export function UktPrintModal({
         month: "long",
         year: "numeric",
       }),
+      sekretariatAddress: orgProfile?.address,
+      bendaharaCabangName: orgProfile?.bendaharaCabangName,
     });
   };
 
@@ -156,18 +164,13 @@ export function UktPrintModal({
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="ukt-print-dialog max-h-[90vh] max-w-4xl overflow-y-auto sm:max-w-4xl">
-        <DialogHeader className="no-print">
-          <DialogTitle className="flex items-center justify-between">
+        <DialogHeader className="no-print pr-8">
+          <DialogTitle className="flex items-center justify-between gap-3">
             <span>Cetak Nota Pembayaran UKT</span>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={handlePrint}>
-                <Printer className="mr-1 h-4 w-4" />
-                Print
-              </Button>
-              <Button size="sm" variant="ghost" onClick={onClose}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button size="sm" onClick={handlePrint}>
+              <Printer className="mr-1 h-4 w-4" />
+              Print
+            </Button>
           </DialogTitle>
         </DialogHeader>
 
@@ -229,15 +232,15 @@ export function UktPrintModal({
           id="print-document-ukt"
           className="mt-4 rounded-lg border bg-white p-6 font-mono text-xs leading-relaxed text-black"
         >
-            <div className="relative mb-6 min-h-[72px] border-b-2 border-black pb-4">
+            <div className="mb-6 flex items-center justify-center gap-3 border-b-2 border-black pb-4">
               <img
                 src="/logo-inkai.png"
                 alt="Logo INKAI"
-                width={72}
-                height={72}
-                className="absolute left-0 top-1/2 h-16 w-16 -translate-y-1/2 object-contain"
+                width={64}
+                height={64}
+                className="h-14 w-14 shrink-0 object-contain"
               />
-              <div className="w-full text-center">
+              <div className="text-center">
                 <div className="text-lg font-bold">INKAI — INSTITUT KARATE-DO INDONESIA</div>
                 <div className="text-sm">KOTA SURABAYA</div>
                 <div className="text-xs">Sekretariat: Jl. Raya Kertajaya Indah No. 77 Surabaya</div>
@@ -315,7 +318,9 @@ export function UktPrintModal({
               </div>
               <div>
                 <div className="mb-12 ukt-signature-space">Bendahara Cabang</div>
-                <div className="border-t border-black pt-1">Habibur Rahman</div>
+                <div className="border-t border-black pt-1">
+                  {orgProfile?.bendaharaCabangName?.trim() || "Habibur Rahman"}
+                </div>
               </div>
             </div>
 

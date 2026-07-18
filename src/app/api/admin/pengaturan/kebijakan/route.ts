@@ -47,7 +47,10 @@ export async function PATCH(request: Request) {
         { status: 400 },
       );
     }
-    const profile = await setBranchOrgProfile(parsed.data);
+    const profile = await setBranchOrgProfile({
+      ...parsed.data,
+      ketuaCabangName: parsed.data.ketuaCabangName ?? "",
+    });
     writeAuditLog({
       userId: authResult.user.id,
       email: authResult.user.email,

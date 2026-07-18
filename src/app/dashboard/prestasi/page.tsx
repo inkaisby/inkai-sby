@@ -220,6 +220,7 @@ function EventList({ items }: { items: Array<Record<string, unknown>> }) {
           attendanceCount: 0,
           attendancePct: null,
           examResult: null,
+          examPresent: null,
         });
         return (
           <div

@@ -176,6 +176,52 @@ export function KebijakanManager({
             />
           </div>
         </div>
+        <div className="rounded-lg border bg-muted/30 p-3 sm:col-span-2">
+          <h4 className="mb-2 text-sm font-semibold">Pejabat dokumen UKT / nota</h4>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Nama ini muncul di cetak nota dan daftar peserta ujian.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label>Bidang Ujian</Label>
+              <Input
+                value={profile.bidangUjianName}
+                onChange={(e) =>
+                  setProfile((p) => ({
+                    ...p,
+                    bidangUjianName: e.target.value,
+                  }))
+                }
+                placeholder="SETIA BASUKI"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Bendahara Cabang</Label>
+              <Input
+                value={profile.bendaharaCabangName}
+                onChange={(e) =>
+                  setProfile((p) => ({
+                    ...p,
+                    bendaharaCabangName: e.target.value,
+                  }))
+                }
+                placeholder="Habibur Rahman"
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label>Ketua Cabang (opsional)</Label>
+              <Input
+                value={profile.ketuaCabangName}
+                onChange={(e) =>
+                  setProfile((p) => ({
+                    ...p,
+                    ketuaCabangName: e.target.value,
+                  }))
+                }
+              />
+            </div>
+          </div>
+        </div>
         <Button
           type="submit"
           disabled={savingProfile}

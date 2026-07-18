@@ -1,4 +1,4 @@
-import { getBeltGroup } from "@/lib/belt";
+import { formatMemberName, formatRankLabel, formatGenderLabel, getBeltGroup, shortRankLabel } from "@/lib/belt";
 
 export type UktSemester = "I" | "II";
 
@@ -350,6 +350,8 @@ export type UktMemberRow = {
   attendancePct: number | null;
   attendanceCount: number;
   examResult: UktExamResult | null;
+  /** Hadir di tempat ujian (hari-H); null = belum dicatat. */
+  examPresent: boolean | null;
   registrationWaiver?: UktRegistrationWaiver | null;
 };
 
@@ -378,6 +380,136 @@ export type UktDisplayStatus =
 
 export function uktExamResultKey(periodId: string, registrationId: string): string {
   return `ukt-exam-result:${periodId}:${registrationId}`;
+}
+
+export function uktExamAttendanceKey(periodId: string, registrationId: string): string {
+  return `ukt-exam-attendance:${periodId}:${registrationId}`;
+}
+
+export function uktDepositKey(periodId: string, dojoId: string): string {
+  return `ukt-deposit:${periodId}:${dojoId}`;
+}
+
+export function uktPeriodMetaKey(periodId: string): string {
+  return `ukt-period-meta:${periodId}`;
+}
+
+export type UktDepositStatus = "PENDING" | "SUBMITTED" | "RECEIVED";
+
+export type UktDepositRecord = {
+  status: UktDepositStatus;
+  note?: string;
+  at?: string;
+  by?: string;
+};
+
+export type UktPeriodMeta = {
+  archived: boolean;
+  locked: boolean;
+  archivedAt?: string;
+  lockedAt?: string;
+  by?: string;
+};
+
+export function parseUktExamAttendanceValue(value: unknown): boolean | null {
+  if (!value || typeof value !== "object") return null;
+  const present = (value as { present?: unknown }).present;
+  if (typeof present === "boolean") return present;
+  return null;
+}
+
+export function buildUktExamAttendanceMap(
+  settings: Array<{ key: string; value: unknown }>,
+  periodId: string,
+): Map<string, boolean> {
+  const prefix = `ukt-exam-attendance:${periodId}:`;
+  const map = new Map<string, boolean>();
+  for (const s of settings) {
+    if (!s.key.startsWith(prefix)) continue;
+    const registrationId = s.key.slice(prefix.length);
+    const parsed = parseUktExamAttendanceValue(s.value);
+    if (registrationId && parsed != null) map.set(registrationId, parsed);
+  }
+  return map;
+}
+
+export function parseUktDepositValue(value: unknown): UktDepositRecord | null {
+  if (!value || typeof value !== "object") return null;
+  const status = String((value as { status?: string }).status ?? "").toUpperCase();
+  if (status !== "PENDING" && status !== "SUBMITTED" && status !== "RECEIVED") {
+    return null;
+  }
+  const note = (value as { note?: string }).note;
+  const at = (value as { at?: string }).at;
+  const by = (value as { by?: string }).by;
+  return {
+    status,
+    note: typeof note === "string" ? note : undefined,
+    at: typeof at === "string" ? at : undefined,
+    by: typeof by === "string" ? by : undefined,
+  };
+}
+
+export function buildUktDepositMap(
+  settings: Array<{ key: string; value: unknown }>,
+  periodId: string,
+): Map<string, UktDepositRecord> {
+  const prefix = `ukt-deposit:${periodId}:`;
+  const map = new Map<string, UktDepositRecord>();
+  for (const s of settings) {
+    if (!s.key.startsWith(prefix)) continue;
+    const dojoId = s.key.slice(prefix.length);
+    const parsed = parseUktDepositValue(s.value);
+    if (dojoId && parsed) map.set(dojoId, parsed);
+  }
+  return map;
+}
+
+export function parseUktPeriodMetaValue(value: unknown): UktPeriodMeta {
+  if (!value || typeof value !== "object") {
+    return { archived: false, locked: false };
+  }
+  const v = value as Record<string, unknown>;
+  return {
+    archived: v.archived === true,
+    locked: v.locked === true,
+    archivedAt: typeof v.archivedAt === "string" ? v.archivedAt : undefined,
+    lockedAt: typeof v.lockedAt === "string" ? v.lockedAt : undefined,
+    by: typeof v.by === "string" ? v.by : undefined,
+  };
+}
+
+export function uktDepositStatusLabel(status: UktDepositStatus): string {
+  if (status === "RECEIVED") return "Setoran diterima";
+  if (status === "SUBMITTED") return "Menunggu konfirmasi cabang";
+  return "Belum setor";
+}
+
+export type UktExportDataIssue = {
+  memberId: string;
+  fullName: string;
+  missing: Array<"nia" | "ttl" | "alamat" | "kyu" | "jk">;
+};
+
+export function collectUktExportDataIssues(rows: UktMemberRow[]): UktExportDataIssue[] {
+  const issues: UktExportDataIssue[] = [];
+  for (const r of rows) {
+    if (!r.registrationId) continue;
+    const missing: UktExportDataIssue["missing"] = [];
+    if (!r.nia?.trim()) missing.push("nia");
+    if (!formatUktBirthPlaceDate(r.birthPlace, r.birthDate)) missing.push("ttl");
+    if (!r.address?.trim()) missing.push("alamat");
+    if (!extractUktRankNumber(r.kyuLama)) missing.push("kyu");
+    if (!formatGenderLabel(r.gender)) missing.push("jk");
+    if (missing.length > 0) {
+      issues.push({
+        memberId: r.memberId,
+        fullName: r.fullName,
+        missing,
+      });
+    }
+  }
+  return issues;
 }
 
 export function parseUktExamResultValue(value: unknown): UktExamResult | null {
@@ -552,93 +684,112 @@ export function resolveEffectiveUktExamResult(
   return null;
 }
 
-export type UktDojoRecap = {
-  dojoId: string;
-  dojoName: string;
-  totalMembers: number;
-  registered: number;
-  paid: number;
-  unpaid: number;
-  selesai: number;
-  totalTagihan: number;
-  totalTerbayar: number;
-};
-
-export function buildUktDojoRecaps(
-  rows: UktMemberRow[],
-  dojos: Array<{ id: string; name: string }>,
-): UktDojoRecap[] {
-  const byDojo = new Map<string, UktDojoRecap>();
-  for (const d of dojos) {
-    byDojo.set(d.id, {
-      dojoId: d.id,
-      dojoName: d.name,
-      totalMembers: 0,
-      registered: 0,
-      paid: 0,
-      unpaid: 0,
-      selesai: 0,
-      totalTagihan: 0,
-      totalTerbayar: 0,
-    });
-  }
-
-  for (const row of rows) {
-    const recap = byDojo.get(row.dojoId);
-    if (!recap) continue;
-    recap.totalMembers++;
-    if (!row.registrationId) continue;
-    recap.registered++;
-    const amt = participantAmount(row.billingAmount, row.billingStatus, null);
-    recap.totalTagihan += amt;
-    const paid =
-      row.billingStatus === "PAID" || row.status === "PAID" || row.status === "SUCCESS";
-    if (paid) {
-      recap.paid++;
-      recap.totalTerbayar += amt;
-    } else {
-      recap.unpaid++;
-    }
-    if (isUktSelesai(row)) recap.selesai++;
-  }
-
-  return [...byDojo.values()].sort((a, b) => a.dojoName.localeCompare(b.dojoName, "id"));
+function formatWaParticipantLine(row: UktMemberRow, index: number): string {
+  const rk = formatRankLabel(row.kyuBaru || row.kyuLama);
+  return `${index + 1}. ${formatMemberName(row.fullName)}${rk ? ` ${rk}` : ""}`;
 }
 
-export function buildUktBranchRecapText(
+function sumWaParticipantAmount(rows: UktMemberRow[]): number {
+  return rows.reduce(
+    (sum, r) => sum + participantAmount(r.billingAmount, r.billingStatus, null),
+    0,
+  );
+}
+
+function waRankBucketLabel(row: UktMemberRow): string {
+  const raw = (row.kyuBaru || row.kyuLama || "").trim();
+  const short = shortRankLabel(raw);
+  if (!short) return "Lainnya";
+  return short.toLowerCase();
+}
+
+/** Urut Kyu 10→1 lalu Dan 1→10; label lain di akhir (A–Z). */
+function compareWaRankBuckets(a: string, b: string): number {
+  const parse = (label: string) => {
+    const kyu = label.match(/^kyu\s*(\d+)$/i);
+    if (kyu) return { kind: 0 as const, n: Number(kyu[1]) };
+    const dan = label.match(/^dan\s*(\d+)$/i);
+    if (dan) return { kind: 1 as const, n: Number(dan[1]) };
+    return { kind: 2 as const, n: 0, label };
+  };
+  const pa = parse(a);
+  const pb = parse(b);
+  if (pa.kind !== pb.kind) return pa.kind - pb.kind;
+  if (pa.kind === 0) return pb.n - pa.n; // Kyu 10 → 1
+  if (pa.kind === 1) return pa.n - pb.n; // Dan 1 → 10
+  return a.localeCompare(b, "id");
+}
+
+/** Laporan WA satu ranting (peserta + total pembayaran). */
+export function buildUktRantingWaReportText(
   periodTitle: string,
-  recaps: UktDojoRecap[],
+  dojoName: string,
+  approvedRows: UktMemberRow[],
 ): string {
-  const lines = recaps.map((r) => {
-    const pct =
-      r.totalMembers > 0
-        ? Math.round((r.registered / r.totalMembers) * 100)
-        : 0;
-    return (
-      `• ${r.dojoName}: ${r.registered}/${r.totalMembers} terdaftar (${pct}%), ` +
-      `${r.paid} lunas, ${r.unpaid} belum bayar, ${r.selesai} selesai · ` +
-      `Tagihan Rp ${r.totalTagihan.toLocaleString("id-ID")} / Terbayar Rp ${r.totalTerbayar.toLocaleString("id-ID")}`
-    );
-  });
-  const totals = recaps.reduce(
-    (acc, r) => ({
-      registered: acc.registered + r.registered,
-      paid: acc.paid + r.paid,
-      unpaid: acc.unpaid + r.unpaid,
-      selesai: acc.selesai + r.selesai,
-      totalTagihan: acc.totalTagihan + r.totalTagihan,
-      totalTerbayar: acc.totalTerbayar + r.totalTerbayar,
-    }),
-    { registered: 0, paid: 0, unpaid: 0, selesai: 0, totalTagihan: 0, totalTerbayar: 0 },
+  const lines = approvedRows.map((r, i) => formatWaParticipantLine(r, i));
+  const total = sumWaParticipantAmount(approvedRows);
+  return [
+    periodTitle,
+    `Ranting/Dojo: ${dojoName}`,
+    "",
+    "Peserta yang terdaftar",
+    ...lines,
+    "",
+    `Total pembayaran Rp ${new Intl.NumberFormat("id-ID").format(total)}`,
+  ].join("\n");
+}
+
+/**
+ * Laporan WA admin cabang: ringkasan jumlah per ranting + sebaran kyu.
+ */
+export function buildUktCabangWaReportText(
+  periodTitle: string,
+  approvedRows: UktMemberRow[],
+): string {
+  const byDojo = new Map<string, { dojoName: string; count: number }>();
+  const byRank = new Map<string, number>();
+
+  for (const row of approvedRows) {
+    const key = row.dojoId || row.dojoName || "unknown";
+    const existing = byDojo.get(key);
+    if (existing) {
+      existing.count++;
+    } else {
+      byDojo.set(key, {
+        dojoName: row.dojoName?.trim() || "Ranting",
+        count: 1,
+      });
+    }
+    const rank = waRankBucketLabel(row);
+    byRank.set(rank, (byRank.get(rank) ?? 0) + 1);
+  }
+
+  const rantingList = [...byDojo.values()].sort((a, b) =>
+    a.dojoName.localeCompare(b.dojoName, "id"),
+  );
+  const rankList = [...byRank.entries()].sort(([a], [b]) =>
+    compareWaRankBuckets(a, b),
+  );
+
+  const rantingLines = rantingList.map(
+    (g, i) => `${i + 1}. ${g.dojoName} = ${g.count} peserta`,
+  );
+  const rankLines = rankList.map(
+    ([label, count]) => `${label} = ${count} peserta`,
   );
 
   return [
-    `REKAP UKT — ${periodTitle}`,
+    periodTitle,
     "",
-    ...lines,
+    `Total Ranting : ${rantingList.length}`,
     "",
-    `TOTAL: ${totals.registered} terdaftar · ${totals.paid} lunas · ${totals.unpaid} belum bayar · ${totals.selesai} selesai`,
-    `Tagihan Rp ${totals.totalTagihan.toLocaleString("id-ID")} · Terbayar Rp ${totals.totalTerbayar.toLocaleString("id-ID")}`,
+    "List Ranting",
+    ...rantingLines,
+    "",
+    "Jumlah",
+    ...rankLines,
+    "",
+    `TOTAL SEMUA: ${approvedRows.length} peserta`,
   ].join("\n");
 }
 
@@ -874,38 +1025,103 @@ function csvEscape(value: string | number | null | undefined): string {
   return text;
 }
 
-export function buildUktRecapCsv(rows: UktMemberRow[], periodTitle: string): string {
-  const header = [
-    "Periode",
-    "NIA",
-    "Nama",
-    "Ranting",
-    "Sabuk Saat Ini",
-    "Sabuk Target",
-    "Status",
-    "Kehadiran %",
-    "Hasil Ujian",
-    "Nominal",
-  ];
-  const lines = rows
+/** Angka Kyu/Dan saja untuk kolom daftar peserta (mis. "10", "5"). */
+export function extractUktRankNumber(rankRaw: string | null | undefined): string {
+  const r = (rankRaw || "").trim();
+  if (!r) return "";
+  const kyu = r.match(/kyu\s*(\d+)/i);
+  if (kyu) return kyu[1];
+  const dan = r.match(/dan\s*(\d+)/i);
+  if (dan) return dan[1];
+  if (/^\d+$/.test(r)) return r;
+  return "";
+}
+
+export function formatUktBirthPlaceDate(
+  birthPlace: string | null | undefined,
+  birthDate: string | null | undefined,
+): string {
+  const place = (birthPlace || "").trim().toUpperCase();
+  let dateStr = "";
+  if (birthDate) {
+    const d = new Date(birthDate);
+    if (!Number.isNaN(d.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      dateStr = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    } else {
+      dateStr = birthDate.trim();
+    }
+  }
+  if (place && dateStr) return `${place}, ${dateStr}`;
+  return place || dateStr;
+}
+
+export type UktPesertaExportRow = {
+  no: number;
+  nia: string;
+  nama: string;
+  tempatTanggalLahir: string;
+  jenisKelamin: string;
+  alamat: string;
+  kyu: string;
+  kyuBaru: string;
+  ranting: string;
+};
+
+export function buildUktPesertaExportRows(rows: UktMemberRow[]): UktPesertaExportRow[] {
+  const sorted = [...rows]
     .filter((r) => r.registrationId)
-    .map((r) => {
-      const display = uktDisplayStatusLabel(resolveUktDisplayStatus(r));
-      return [
-        periodTitle,
-        r.nia || "",
-        r.fullName,
-        r.dojoName,
-        r.kyuLama,
-        r.kyuBaru || "",
-        display,
-        r.attendancePct != null ? String(r.attendancePct) : "",
-        r.examResult || "",
-        r.billingAmount != null ? String(r.billingAmount) : "",
-      ]
-        .map(csvEscape)
-        .join(",");
+    .sort((a, b) => {
+      const byDojo = (a.dojoName || "").localeCompare(b.dojoName || "", "id");
+      if (byDojo !== 0) return byDojo;
+      return (a.fullName || "").localeCompare(b.fullName || "", "id");
     });
+
+  return sorted.map((r, i) => ({
+    no: i + 1,
+    nia: r.nia || "",
+    nama: formatMemberName(r.fullName),
+    tempatTanggalLahir: formatUktBirthPlaceDate(r.birthPlace, r.birthDate),
+    jenisKelamin: formatGenderLabel(r.gender),
+    alamat: (r.address || "").trim().toUpperCase(),
+    kyu: extractUktRankNumber(r.kyuLama),
+    kyuBaru: extractUktRankNumber(r.kyuBaru),
+    ranting: (r.dojoName || "").trim().toUpperCase(),
+  }));
+}
+
+export function buildUktPesertaTitle(semester: UktSemester, year: number): string {
+  return `DAFTAR PESERTA UJIAN SEMESTER ${semester} TAHUN ${year}`;
+}
+
+/** CSV format daftar peserta ujian (kolom selaras formulir cabang). */
+export function buildUktPesertaCsv(rows: UktMemberRow[]): string {
+  const header = [
+    "NO. URUT",
+    "NO. INDUK ANGGOTA",
+    "NAMA",
+    "TEMPAT TANGGAL LAHIR",
+    "JENIS KELAMIN",
+    "ALAMAT",
+    "KYU",
+    "KYU BARU",
+    "RANTING",
+  ];
+  const lines = buildUktPesertaExportRows(rows).map((r) =>
+    [
+      r.no,
+      r.nia,
+      r.nama,
+      r.tempatTanggalLahir,
+      r.jenisKelamin,
+      r.alamat,
+      r.kyu,
+      r.kyuBaru,
+      r.ranting,
+    ]
+      .map(csvEscape)
+      .join(","),
+  );
   return `\uFEFF${header.join(",")}\n${lines.join("\n")}`;
 }
 

@@ -4,6 +4,14 @@ import {
   type BeltFeeKey,
 } from "@/lib/ukt";
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 export type UktNotaPrintData = {
   notaNo: string;
   semester: string;
@@ -21,11 +29,17 @@ export type UktNotaPrintData = {
   grandTotal: number;
   origin: string;
   printedAt: string;
+  sekretariatAddress?: string;
+  bendaharaCabangName?: string;
 };
 
 export function buildUktNotaPrintHtml(data: UktNotaPrintData): string {
   const beltRows = BELT_FEE_KEYS.filter((belt) => data.counts[belt] > 0);
   const logoUrl = `${data.origin}/logo-inkai.png`;
+  const sekretariat =
+    data.sekretariatAddress?.trim() ||
+    "Sekretariat: Jl. Raya Kertajaya Indah No. 77 Surabaya";
+  const bendahara = data.bendaharaCabangName?.trim() || "Habibur Rahman";
 
   const tableRows =
     beltRows.length === 0
@@ -65,20 +79,19 @@ export function buildUktNotaPrintHtml(data: UktNotaPrintData): string {
       margin: 0 auto;
     }
     .kop {
-      position: relative;
-      min-height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
       border-bottom: 2px solid #000;
       padding-bottom: 14px;
       margin-bottom: 20px;
     }
     .kop img {
-      position: absolute;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      width: 64px;
-      height: 64px;
+      width: 56px;
+      height: 56px;
       object-fit: contain;
+      flex-shrink: 0;
     }
     .kop-text { text-align: center; }
     .kop-title { font-size: 16px; font-weight: 700; }
@@ -151,7 +164,7 @@ export function buildUktNotaPrintHtml(data: UktNotaPrintData): string {
       <div class="kop-text">
         <div class="kop-title">INKAI — INSTITUT KARATE-DO INDONESIA</div>
         <div class="kop-city">KOTA SURABAYA</div>
-        <div class="kop-address">Sekretariat: Jl. Raya Kertajaya Indah No. 77 Surabaya</div>
+        <div class="kop-address">${escapeHtml(sekretariat.startsWith("Sekretariat") ? sekretariat : `Sekretariat: ${sekretariat}`)}</div>
       </div>
     </div>
 
@@ -205,7 +218,7 @@ export function buildUktNotaPrintHtml(data: UktNotaPrintData): string {
       </div>
       <div>
         <div class="sign-space">Bendahara Cabang</div>
-        <div class="sign-line">Habibur Rahman</div>
+        <div class="sign-line">${escapeHtml(bendahara)}</div>
       </div>
     </div>
 
@@ -215,9 +228,7 @@ export function buildUktNotaPrintHtml(data: UktNotaPrintData): string {
 </html>`;
 }
 
-export function printUktNotaDocument(data: UktNotaPrintData): void {
-  const html = buildUktNotaPrintHtml(data);
-
+function openHtmlPrintWindow(html: string): void {
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.cssText =
@@ -253,4 +264,210 @@ export function printUktNotaDocument(data: UktNotaPrintData): void {
   } else {
     setTimeout(doPrint, 120);
   }
+}
+
+export function printUktNotaDocument(data: UktNotaPrintData): void {
+  openHtmlPrintWindow(buildUktNotaPrintHtml(data));
+}
+
+export type UktPesertaPrintData = {
+  title: string;
+  branchLabel: string;
+  rows: Array<{
+    no: number;
+    nia: string;
+    nama: string;
+    tempatTanggalLahir: string;
+    jenisKelamin: string;
+    alamat: string;
+    kyu: string;
+    kyuBaru: string;
+    ranting: string;
+  }>;
+  origin: string;
+  printedPlaceDate: string;
+  signatoryTitle: string;
+  signatoryName: string;
+  sekretariatAddress?: string;
+};
+
+export function buildUktPesertaPrintHtml(data: UktPesertaPrintData): string {
+  const logoUrl = `${data.origin}/logo-inkai.png`;
+  const sekretariatLine = data.sekretariatAddress?.trim()
+    ? data.sekretariatAddress.trim().startsWith("Sekretariat")
+      ? data.sekretariatAddress.trim()
+      : `Sekretariat: ${data.sekretariatAddress.trim()}`
+    : "";
+  const bodyRows =
+    data.rows.length === 0
+      ? `<tr><td colspan="9" style="text-align:center;padding:12px;">Belum ada peserta</td></tr>`
+      : data.rows
+          .map(
+            (r) => `
+        <tr>
+          <td class="c">${r.no}</td>
+          <td>${escapeHtml(r.nia)}</td>
+          <td class="nama">${escapeHtml(r.nama)}</td>
+          <td>${escapeHtml(r.tempatTanggalLahir)}</td>
+          <td class="c">${escapeHtml(r.jenisKelamin)}</td>
+          <td>${escapeHtml(r.alamat)}</td>
+          <td class="c">${escapeHtml(r.kyu)}</td>
+          <td class="c">${escapeHtml(r.kyuBaru)}</td>
+          <td>${escapeHtml(r.ranting)}</td>
+        </tr>`,
+          )
+          .join("");
+
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(data.title)}</title>
+  <style>
+    @page { size: A4 landscape; margin: 10mm 8mm; }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      color: #000;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10px;
+      line-height: 1.25;
+    }
+    .page { width: 100%; }
+    .kop {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      border-bottom: 2px solid #000;
+      padding-bottom: 8px;
+    }
+    .kop-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      flex: 1;
+    }
+    .kop img { width: 52px; height: 52px; object-fit: contain; }
+    .org-name {
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .cabang {
+      font-weight: 700;
+      font-size: 12px;
+      white-space: nowrap;
+      text-transform: uppercase;
+    }
+    .title {
+      text-align: center;
+      font-weight: 700;
+      font-size: 14px;
+      text-decoration: underline;
+      text-transform: uppercase;
+      margin: 10px 0 12px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    th, td {
+      border: 1px solid #000;
+      padding: 3px 4px;
+      vertical-align: top;
+      word-wrap: break-word;
+    }
+    th {
+      font-size: 9px;
+      text-transform: uppercase;
+      background: #f3f3f3;
+    }
+    td.c { text-align: center; }
+    td.nama { font-weight: 600; }
+    col.c-no { width: 4%; }
+    col.c-nia { width: 9%; }
+    col.c-nama { width: 18%; }
+    col.c-ttl { width: 14%; }
+    col.c-jk { width: 5%; }
+    col.c-alamat { width: 22%; }
+    col.c-kyu { width: 5%; }
+    col.c-kyub { width: 6%; }
+    col.c-ranting { width: 17%; }
+    .sign {
+      margin-top: 28px;
+      width: 240px;
+      margin-left: auto;
+      text-align: center;
+    }
+    .sign .place { margin-bottom: 4px; }
+    .sign .role { margin-bottom: 48px; }
+    .sign .name {
+      font-weight: 700;
+      text-decoration: underline;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="kop">
+      <div class="kop-left">
+        <img src="${logoUrl}" alt="INKAI" />
+        <div class="org-name">Institut Karate-Do Indonesia<br/>Kota Surabaya${
+          sekretariatLine
+            ? `<br/><span style="font-weight:400;font-size:10px;">${escapeHtml(sekretariatLine)}</span>`
+            : ""
+        }</div>
+      </div>
+      <div class="cabang">${escapeHtml(data.branchLabel)}</div>
+    </div>
+    <div class="title">${escapeHtml(data.title)}</div>
+    <table>
+      <colgroup>
+        <col class="c-no" />
+        <col class="c-nia" />
+        <col class="c-nama" />
+        <col class="c-ttl" />
+        <col class="c-jk" />
+        <col class="c-alamat" />
+        <col class="c-kyu" />
+        <col class="c-kyub" />
+        <col class="c-ranting" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>No. Urut</th>
+          <th>No. Induk Anggota</th>
+          <th>Nama</th>
+          <th>Tempat Tanggal Lahir</th>
+          <th>Jenis Kelamin</th>
+          <th>Alamat</th>
+          <th>Kyu</th>
+          <th>Kyu Baru</th>
+          <th>Ranting</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${bodyRows}
+      </tbody>
+    </table>
+    <div class="sign">
+      <div class="place">${escapeHtml(data.printedPlaceDate)}</div>
+      <div class="role">${escapeHtml(data.signatoryTitle)}</div>
+      <div class="name">${escapeHtml(data.signatoryName)}</div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+export function printUktPesertaDocument(data: UktPesertaPrintData): void {
+  openHtmlPrintWindow(buildUktPesertaPrintHtml(data));
 }

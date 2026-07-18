@@ -105,7 +105,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi |
 | Kelola Anggota | Cari/filter, detail, NIA, dokumen; nonaktif/bulk; **export CSV**; **bulk approve pending**; arsip |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
-| UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota |
+| UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran**, **arsip** |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
 | Verifikasi | Antrian klaim + **filter tipe/aging**; riwayat |
 | Event & Kegiatan | Buat + **ubah/tutup** event non-UKT + **roster pendaftar**; link UKT |
@@ -213,9 +213,10 @@ Pusat / Nasional
 7. **Sabuk target / Kyu Baru** hanya dapat diisi setelah peserta **lunas** dan hasil ujian ditandai **LULUS**.
 8. Status operasional UKT disederhanakan untuk UI: **Belum Daftar / Belum Bayar / Menunggu Verifikasi / Menunggu Ujian / Lulus Ujian / Tidak Lulus / Mengulang / Selesai**.
 9. Status **Selesai** bila sudah lunas + lulus + sabuk target terisi; sabuk resmi anggota diperbarui + riwayat.
-10. Cetak nota memakai tabel biaya sabuk bulat; **tanpa kode unik** (+1…999). Nomor nota memuat semester (`UKT/SBY/{RANTING}/I|II/{tahun}`).
+10. Cetak nota memakai tabel biaya sabuk bulat; **tanpa kode unik** (+1…999). Nomor nota memuat semester (`UKT/SBY/{RANTING}/I|II/{tahun}`). Pejabat (Bidang Ujian / Bendahara) dari **Pengaturan → Kebijakan**.
 11. Batas pendaftaran default = akhir semester; cabang dapat **atur saat buat periode** (wizard) atau **perpanjang** manual setelahnya.
-12. Dashboard anggota menampilkan **kartu Status UKT** di beranda & Prestasi; admin cabang dapat **export CSV**, **waiver** syarat, wizard buat periode, dan action bar terpadu (nota + verifikasi).
+12. Dashboard anggota menampilkan **kartu Status UKT** di beranda & Prestasi; admin cabang: **export daftar peserta** (Print/Save as PDF/CSV + pilih ranting + validasi data), **Laporan WA** ringkas, **hari-H** (roster hadir + hasil massal), **status setoran** ranting↔cabang, **arsip/kunci periode**, waiver, wizard, action bar.
+13. Toolbar cabang: aksi primer + menu **Dokumen** (export, WA, nota, biaya, arsip).
 
 ### 9.4 Kegiatan & absensi
 - **Cabang** dapat membuat event non-UKT di `/admin/kegiatan` (Gashuku, pertandingan, dll.).
@@ -278,7 +279,10 @@ Pusat / Nasional
 | Status UKT anggota | Aktif | `/api/member/ukt-status` + kartu status di beranda & Prestasi (CTA langkah berikutnya) |
 | Filter/KPI UKT operasional | Aktif | Status UI selaras: Belum Bayar, Menunggu Verif/Ujian, Lulus, Selesai |
 | Pengecualian UKT (waiver) | Aktif | Cabang kecualikan iuran/dokumen/absensi + catatan audit |
-| Export rekap UKT | Aktif | CSV per periode/ranting dari admin UKT |
+| Export rekap UKT | Aktif | Daftar peserta (formulir): Print/Save as PDF/CSV + pilih ranting + validasi + pratinjau |
+| UKT hari-H | Aktif | Roster kehadiran di tempat + hasil massal LULUS/GAGAL/MENGULANG |
+| Setoran UKT | Aktif | Ranting tandai setor → cabang konfirmasi diterima (`ukt-deposit`) |
+| Arsip periode UKT | Aktif | Kunci periode (blok daftar/ubah); export tetap |
 | Notifikasi UKT | Aktif | Otomatis ke anggota saat daftar, verifikasi bayar, hasil ujian, selesai |
 | Ketergantungan API | Ada | Halaman degrade jika API sibuk/timeout |
 | Email & Blob | Opsional | Perlu env production |
@@ -309,8 +313,8 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/members/archived Daftar arsip soft-delete
 /api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
 /api/admin/billing/generate Buat tagihan iuran bulanan massal
-/api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees, Kyu
-/api/admin/pengaturan/*     User, cabang, ranting, wilayah-accounts (multi-akun), roles, geofencing, akun, kebijakan
+/api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees, Kyu, exam-day, deposit, period-meta
+/api/admin/pengaturan/*     User, cabang, ranting, wilayah-accounts, roles, geofencing, akun, kebijakan (pejabat dokumen)
 /api/admin/verifications/*  Proses klaim
 /api/admin/carousel/*       Carousel beranda
 /api/admin/upload           Upload ke Blob
@@ -355,7 +359,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 
 1. (Opsional) Sinkron backend agar billing UKT tidak lagi menulis `uniqueTail` di DB  
 2. Perkaya store (multi-item cart, pembayaran terintegrasi)  
-3. UKT hari-H (roster ujian / kehadiran di tempat)  
+3. Unduh PDF file native (tanpa dialog print browser)  
 4. Notifikasi push / email untuk pesan & verifikasi  
 
 ---
@@ -397,7 +401,11 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | UKT admin: dropdown Semester I/II lebih lebar & kontras jelas (tanpa highlight kuning accent) |
 | 18 Juli 2026 | UKT: tombol/banner **Buat Periode** tampil jika belum ada periode berjudul semester+tahun (tidak lagi tersembunyi hanya karena `period` di URL) |
 | 18 Juli 2026 | UKT: ikon **Back** (←) mengarah ke `?create=1` agar tombol **Buat Periode** muncul tanpa auto-pilih event |
-| 18 Juli 2026 | UKT: hilangkan duplikat tombol Buat Periode — hanya di banner |
+| 18 Juli 2026 | UKT Laporan WA cabang: ringkas — Total Ranting, List Ranting (= N peserta), Jumlah per kyu, TOTAL peserta; filter ranting tetap format daftar nama |
+| 18 Juli 2026 | UKT Export: dialog pilih ranting + Print / CSV / PDF; format daftar peserta ujian (NIA, TTL, JK, alamat, Kyu, Kyu Baru, Ranting) |
+| 18 Juli 2026 | Cetak Nota UKT: hilangkan tombol X ganda; logo INKAI lebih dekat ke teks kop |
+| 18 Juli 2026 | Paket UKT komplit: pejabat dinamis (kebijakan), hari-H roster+hasil massal, setoran ranting↔cabang, arsip/kunci periode, export validasi+pratinjau, toolbar Dokumen |
+| 18 Juli 2026 | UKT: tombol **Buat Periode** dipindah ke toolbar kiri Export/Dokumen (banner info saja) |
 
 ---
 

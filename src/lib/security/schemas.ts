@@ -242,6 +242,37 @@ export const branchOrgProfileSchema = z.object({
   bankAccountName: z.string().trim().max(120),
   paymentInstructions: z.string().trim().max(1000),
   mapsUrl: z.string().trim().max(300),
+  bidangUjianName: z.string().trim().max(120),
+  bendaharaCabangName: z.string().trim().max(120),
+  ketuaCabangName: z.string().trim().max(120).optional().or(z.literal("")),
+});
+
+export const uktExamDaySchema = z.object({
+  eventId: z.string().uuid(),
+  presentRegistrationIds: z.array(z.string().uuid()).max(500).optional(),
+  absentRegistrationIds: z.array(z.string().uuid()).max(500).optional(),
+  examResults: z
+    .array(
+      z.object({
+        registrationId: z.string().uuid(),
+        result: z.enum(["LULUS", "GAGAL", "MENGULANG"]),
+      }),
+    )
+    .max(500)
+    .optional(),
+});
+
+export const uktDepositSchema = z.object({
+  eventId: z.string().uuid(),
+  dojoId: z.string().min(1).max(80),
+  status: z.enum(["PENDING", "SUBMITTED", "RECEIVED"]),
+  note: z.string().trim().max(500).optional().or(z.literal("")),
+});
+
+export const uktPeriodMetaSchema = z.object({
+  eventId: z.string().uuid(),
+  archived: z.boolean().optional(),
+  locked: z.boolean().optional(),
 });
 
 export const operationalDefaultsSchema = z.object({

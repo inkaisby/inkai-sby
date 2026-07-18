@@ -10,9 +10,12 @@ import {
   beltFeesFromTemplates,
   buildUktAdminUrl,
   currentSemester,
+  type UktDepositRecord,
+  type UktPeriodMeta,
   type UktSemester,
 } from "@/lib/ukt";
 import { fetchUktDashboardData } from "@/lib/inkai-api/admin-data";
+import { getBranchOrgProfile } from "@/lib/org-settings";
 import { requireAdminSession } from "@/lib/admin-session";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
@@ -63,6 +66,10 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   let allRows: Awaited<ReturnType<typeof fetchUktDashboardData>>["allRows"] = [];
   let beltFees = beltFeesFromTemplates([]);
   let komisiRanting = 0;
+  let depositMap: Record<string, UktDepositRecord> = {};
+  let periodMeta: UktPeriodMeta = { archived: false, locked: false };
+
+  const orgProfile = await getBranchOrgProfile();
 
   try {
     const data = await fetchUktDashboardData(token, user, {
@@ -97,9 +104,10 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     allRows = data.allRows;
     beltFees = data.beltFees;
     komisiRanting = data.komisiRanting;
+    depositMap = data.depositMap ?? {};
+    periodMeta = data.periodMeta ?? { archived: false, locked: false };
     if (!data.ok) dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
   } catch (error) {
-    // redirect() melempar NEXT_REDIRECT — jangan tampilkan sebagai gagal API.
     if (isNextRedirectError(error)) throw error;
     console.error("[AdminUkt] API error:", error);
     dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
@@ -134,6 +142,13 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         defaultDojoFilter={autoDojoId}
         beltFees={beltFees}
         komisiRanting={komisiRanting}
+        depositMap={depositMap}
+        periodMeta={periodMeta}
+        orgProfile={{
+          address: orgProfile.address,
+          bidangUjianName: orgProfile.bidangUjianName,
+          bendaharaCabangName: orgProfile.bendaharaCabangName,
+        }}
       />
     </>
   );

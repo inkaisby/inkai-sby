@@ -15,6 +15,10 @@ export type BranchOrgProfile = {
   bankAccountName: string;
   paymentInstructions: string;
   mapsUrl: string;
+  /** Nama pejabat untuk dokumen UKT / nota */
+  bidangUjianName: string;
+  bendaharaCabangName: string;
+  ketuaCabangName: string;
   updatedAt?: string;
 };
 
@@ -36,6 +40,9 @@ export const DEFAULT_BRANCH_PROFILE: BranchOrgProfile = {
   bankAccountName: "",
   paymentInstructions: "",
   mapsUrl: SITE_CONTACT.mapsUrl,
+  bidangUjianName: "SETIA BASUKI",
+  bendaharaCabangName: "Habibur Rahman",
+  ketuaCabangName: "",
 };
 
 export const DEFAULT_OPERATIONAL: OperationalDefaults = {
@@ -58,6 +65,13 @@ function asProfile(value: unknown): BranchOrgProfile {
     bankAccountName: String(v.bankAccountName ?? ""),
     paymentInstructions: String(v.paymentInstructions ?? ""),
     mapsUrl: String(v.mapsUrl ?? DEFAULT_BRANCH_PROFILE.mapsUrl),
+    bidangUjianName: String(
+      v.bidangUjianName ?? DEFAULT_BRANCH_PROFILE.bidangUjianName,
+    ),
+    bendaharaCabangName: String(
+      v.bendaharaCabangName ?? DEFAULT_BRANCH_PROFILE.bendaharaCabangName,
+    ),
+    ketuaCabangName: String(v.ketuaCabangName ?? ""),
     updatedAt: typeof v.updatedAt === "string" ? v.updatedAt : undefined,
   };
 }
@@ -167,6 +181,14 @@ export async function buildCabangSetupChecklist(opts: {
       id: "payment",
       label: "Instruksi pembayaran iuran",
       done: hasPayment,
+      href: "/admin/pengaturan/kebijakan",
+    },
+    {
+      id: "pejabat",
+      label: "Pejabat dokumen (Bidang Ujian & Bendahara)",
+      done: Boolean(
+        profile.bidangUjianName.trim() && profile.bendaharaCabangName.trim(),
+      ),
       href: "/admin/pengaturan/kebijakan",
     },
     {
