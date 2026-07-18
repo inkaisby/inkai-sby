@@ -17,11 +17,23 @@ import {
   fetchMyNotifications,
   fetchPublicUpcomingEvents,
 } from "@/lib/inkai-api/member-data";
+import { getDojoDetail } from "@/lib/public-data";
 import { DashboardHomeHeader } from "@/components/member/DashboardHomeHeader";
 import { MemberCard } from "@/components/member/MemberCard";
 import { QuickActions } from "@/components/member/QuickActions";
 import { UktStatusCard } from "@/components/member/UktStatusCard";
+import {
+  MembershipChecklist,
+  buildMembershipChecklist,
+} from "@/components/member/MembershipChecklist";
+import { DojoTodayCard } from "@/components/member/DojoTodayCard";
 import { formatMemberName, formatRankLabel, resolveMemberDisplayRank } from "@/lib/belt";
+import {
+  isDocumentComplete,
+  isProfileComplete,
+} from "@/lib/memberCompleteness";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
+import { SITE_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +57,18 @@ function semesterAttendancePct(attendances: Array<{ checkInAt: string }>) {
       : 0;
 
   return { count, totalSessions, pct, isFirstSemester };
+}
+
+function isCheckedInToday(attendances: Array<{ checkInAt: string }>) {
+  const now = new Date();
+  return attendances.some((a) => {
+    const d = new Date(a.checkInAt);
+    return (
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate()
+    );
+  });
 }
 
 function registrationBadge(status: string | undefined) {
@@ -100,28 +124,66 @@ export default async function MemberDashboard() {
   const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
   const member = await fetchMyMemberProfile(token);
+  const userId = String(
+    (member?.userId as string | undefined) || session.user.id,
+  );
 
-  const [notifications, attendances, billings, registrations, upcomingEvents] =
+  const [notifications, attendances, billings, registrations, upcomingEvents, unreadPesanResult] =
     await Promise.all([
       fetchMyNotifications(token, 50),
       fetchMyAttendance(token, 100),
       fetchMyBillings(token, 12),
       member ? fetchMyEventRegistrations(token) : Promise.resolve([]),
-      fetchPublicUpcomingEvents(3),
+      fetchPublicUpcomingEvents(5),
+      withPrismaFallback(
+        "member-pesan-unread",
+        () =>
+          prisma.message.count({
+            where: {
+              isRead: false,
+              senderId: { not: userId },
+              conversation: {
+                participants: { some: { id: userId } },
+              },
+            },
+          }),
+        0,
+      ),
     ]);
 
   const attendanceStats = semesterAttendancePct(
     attendances.map((a) => ({ checkInAt: String(a.checkInAt) })),
   );
+  const attendanceRows = attendances.map((a) => ({
+    checkInAt: String(a.checkInAt),
+  }));
+  const checkedInToday = isCheckedInToday(attendanceRows);
   const unpaidMonthly = billings.filter(
     (b) => b.type === "MONTHLY_IURAN" && b.status !== "PAID",
   ).length;
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const unreadPesan = unreadPesanResult.data || 0;
 
   const dojo = member?.dojo as
-    | { name?: string; branch?: { name?: string } }
+    | {
+        id?: string;
+        name?: string;
+        branch?: { name?: string };
+        schedule?: string | null;
+        tempatLatihan?: string | null;
+        phoneNumber?: string | null;
+        headName?: string | null;
+        contactPerson?: string | null;
+      }
     | undefined;
-  const dojoLine = [dojo?.name, dojo?.branch?.name].filter(Boolean).join(" - ");
+  const dojoId = String(member?.dojoId || dojo?.id || "");
+  const dojoDetail = dojoId ? await getDojoDetail(dojoId) : null;
+  const dojoLine = [
+    dojoDetail?.name || dojo?.name,
+    dojoDetail?.branch?.name || dojo?.branch?.name,
+  ]
+    .filter(Boolean)
+    .join(" - ");
 
   const displayName = formatMemberName(
     String(member?.fullName || session.user.name || "Anggota"),
@@ -145,13 +207,50 @@ export default async function MemberDashboard() {
   const photoUrl = (member?.photoUrl as string | null | undefined) ?? null;
   const memberId = String(member?.id || session.user.memberId || "");
   const qrValue = memberId
-    ? `https://inkai-sby.vercel.app/v/${member?.nia || memberId}`
+    ? `${SITE_URL}/v/${member?.nia || memberId}`
     : undefined;
 
   const semesterLabel = attendanceStats.isFirstSemester
     ? "I (Jan - Jun)"
     : "II (Jul - Des)";
   const eligible = attendanceStats.pct >= 75;
+  const isActive =
+    member?.status === "Active" || member?.status === "ACTIVE";
+  const isPending = member?.status === "PENDING";
+
+  const profileOk = isProfileComplete({
+    fullName: member?.fullName as string | undefined,
+    phoneNumber: member?.phoneNumber as string | undefined,
+    photoUrl: member?.photoUrl as string | undefined,
+    gender: member?.gender as string | undefined,
+    birthDate: member?.birthDate as string | Date | undefined,
+    birthPlace: member?.birthPlace as string | undefined,
+    address: member?.address as string | undefined,
+    dojoId: (member?.dojoId as string | undefined) || dojoId || undefined,
+  });
+  const documentsOk = isDocumentComplete({
+    birthCertificateUrl: member?.birthCertificateUrl as string | undefined,
+    bpjsCardUrl: member?.bpjsCardUrl as string | undefined,
+  });
+  const iuranOk = unpaidMonthly === 0;
+
+  const checklistItems = buildMembershipChecklist({
+    profileOk,
+    documentsOk,
+    iuranOk,
+    attendancePct: attendanceStats.pct,
+    attendanceEligible: eligible,
+    unpaidCount: unpaidMonthly,
+  });
+
+  const myEventIds = new Set(
+    registrations
+      .map((r) => {
+        const event = r.event as { id?: string } | undefined;
+        return event?.id ? String(event.id) : null;
+      })
+      .filter(Boolean) as string[],
+  );
 
   const visibleMyEvents = registrations
     .filter((r) => {
@@ -160,14 +259,30 @@ export default async function MemberDashboard() {
         | undefined;
       return event ? isMyEventStillVisible(event) : true;
     })
-    .slice(0, 5);
+    .slice(0, 4);
 
-  const roleLabel =
-    member?.status === "PENDING"
-      ? "Menunggu Verifikasi"
-      : member?.status === "Active" || member?.status === "ACTIVE"
-        ? "Anggota Aktif"
-        : "Anggota";
+  const upcomingOther = upcomingEvents
+    .filter((e) => !myEventIds.has(String(e.id)))
+    .slice(0, 3);
+
+  const roleLabel = isPending
+    ? "Menunggu Verifikasi"
+    : isActive
+      ? "Anggota Aktif"
+      : "Anggota";
+
+  const schedule =
+    dojoDetail?.schedule || dojo?.schedule || null;
+  const tempat =
+    dojoDetail?.tempatLatihan || dojo?.tempatLatihan || null;
+  const picName =
+    dojoDetail?.headName ||
+    dojoDetail?.contactPerson ||
+    dojo?.headName ||
+    dojo?.contactPerson ||
+    null;
+  const phone =
+    dojoDetail?.phoneNumber || dojo?.phoneNumber || null;
 
   return (
     <div className="flex flex-col gap-7 py-1">
@@ -176,42 +291,47 @@ export default async function MemberDashboard() {
         roleLabel={roleLabel}
         photoUrl={photoUrl}
         unreadCount={unreadCount}
+        unreadPesan={unreadPesan}
       />
 
-      {member?.status === "PENDING" && (
+      {isPending && (
         <div className="flex items-start gap-3 rounded-2xl border border-inkai-yellow/40 bg-inkai-yellow/10 p-4">
           <Bell className="mt-0.5 h-5 w-5 shrink-0 text-inkai-yellow" />
           <div>
             <p className="font-semibold">Akun sedang diverifikasi</p>
             <p className="text-sm text-muted-foreground">
-              Pendaftaran menunggu persetujuan admin. Anda akan menerima
-              notifikasi setelah NIA aktif.
+              Pendaftaran menunggu persetujuan admin. Lengkapi profil & dokumen
+              agar proses lebih cepat.
             </p>
           </div>
         </div>
       )}
 
-      {(member?.status === "Active" || member?.status === "ACTIVE") && (
-        <UktStatusCard compact />
+      {isActive && <UktStatusCard compact />}
+
+      {unpaidMonthly > 0 && isActive && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <div className="flex items-center gap-3">
+            <Wallet className="h-5 w-5 text-amber-600" />
+            <p className="text-sm">
+              Anda memiliki <b>{unpaidMonthly}</b> tagihan iuran belum lunas.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/iuran"
+            className="text-sm font-semibold text-inkai-red"
+          >
+            Bayar iuran →
+          </Link>
+        </div>
       )}
 
-      {unpaidMonthly > 0 &&
-        (member?.status === "Active" || member?.status === "ACTIVE") && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
-            <div className="flex items-center gap-3">
-              <Wallet className="h-5 w-5 text-amber-600" />
-              <p className="text-sm">
-                Anda memiliki <b>{unpaidMonthly}</b> tagihan iuran belum lunas.
-              </p>
-            </div>
-            <Link
-              href="/dashboard/iuran"
-              className="text-sm font-semibold text-inkai-red"
-            >
-              Bayar iuran →
-            </Link>
-          </div>
-        )}
+      {member ? (
+        <MembershipChecklist
+          items={checklistItems}
+          readyLabel="Siap ikut ujian & kegiatan — pantau UKT dan event di bawah."
+        />
+      ) : null}
 
       {member ? (
         <MemberCard
@@ -227,13 +347,33 @@ export default async function MemberDashboard() {
         </div>
       )}
 
+      {member && dojoLine ? (
+        <DojoTodayCard
+          dojoName={dojoLine}
+          schedule={schedule}
+          tempatLatihan={tempat}
+          picName={picName}
+          phoneNumber={phone}
+          checkedInToday={checkedInToday}
+          isActive={isActive}
+        />
+      ) : null}
+
       {member ? (
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-extrabold">
-            Kehadiran Latihan Semester {semesterLabel}
-          </h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-lg font-extrabold">
+              Kehadiran Semester {semesterLabel}
+            </h2>
+            <Link
+              href="/dashboard/absensi"
+              className="text-xs font-semibold text-inkai-red"
+            >
+              Detail
+            </Link>
+          </div>
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/80 bg-card p-4">
-            <div>
+            <div className="min-w-0 flex-1">
               <p
                 className={cn(
                   "text-[26px] font-black leading-none",
@@ -244,8 +384,19 @@ export default async function MemberDashboard() {
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {attendanceStats.count} dari {attendanceStats.totalSessions}{" "}
-                Latihan Semester Ini
+                latihan semester ini
               </p>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    eligible ? "bg-emerald-500" : "bg-inkai-red",
+                  )}
+                  style={{
+                    width: `${Math.min(100, Math.max(4, attendanceStats.pct))}%`,
+                  }}
+                />
+              </div>
             </div>
             <div className="text-right">
               <span
@@ -259,7 +410,7 @@ export default async function MemberDashboard() {
                 {eligible ? "LAYAK UJIAN" : "TETAP SEMANGAT"}
               </span>
               <p className="mt-1 text-[10px] text-muted-foreground">
-                Min. Kehadiran 75%
+                Min. 75%
               </p>
             </div>
           </div>
@@ -267,21 +418,36 @@ export default async function MemberDashboard() {
       ) : null}
 
       <section className="flex flex-col gap-4">
-        <QuickActions />
+        <QuickActions
+          checkedInToday={checkedInToday}
+          unpaidIuran={unpaidMonthly}
+          documentsIncomplete={!documentsOk}
+          unreadPesan={unreadPesan}
+        />
       </section>
 
-      {visibleMyEvents.length > 0 && (
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-extrabold">Kegiatan Saya</h2>
-            <Link
-              href="/dashboard/kegiatan"
-              className="text-xs font-semibold text-inkai-red"
-            >
-              Lihat Semua
-            </Link>
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-extrabold">Agenda</h2>
+          <Link
+            href="/dashboard/kegiatan"
+            className="text-xs font-semibold text-inkai-red"
+          >
+            Lihat Semua
+          </Link>
+        </div>
+
+        {visibleMyEvents.length === 0 && upcomingOther.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Belum ada agenda terdekat
           </div>
+        ) : (
           <div className="flex flex-col gap-3">
+            {visibleMyEvents.length > 0 ? (
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Kegiatan saya
+              </p>
+            ) : null}
             {visibleMyEvents.map((r) => {
               const event = r.event as
                 | {
@@ -357,27 +523,13 @@ export default async function MemberDashboard() {
                 </Link>
               );
             })}
-          </div>
-        </section>
-      )}
 
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-extrabold">Event Terdekat</h2>
-          <Link
-            href="/dashboard/kegiatan"
-            className="text-xs font-semibold text-inkai-red"
-          >
-            Lihat Semua
-          </Link>
-        </div>
-        {upcomingEvents.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            Belum ada event terdekat
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {upcomingEvents.map((e) => {
+            {upcomingOther.length > 0 ? (
+              <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Event terbuka
+              </p>
+            ) : null}
+            {upcomingOther.map((e) => {
               const title = String(e.title ?? "");
               const isUKT =
                 title.toUpperCase().includes("UKT") ||

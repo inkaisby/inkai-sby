@@ -29,6 +29,7 @@ export type PublicDojoDetail = {
   id: string;
   name: string;
   headName: string | null;
+  contactPerson: string | null;
   address: string | null;
   kecamatan: string | null;
   phoneNumber: string | null;
@@ -105,6 +106,7 @@ function mapDojoDetail(raw: Record<string, unknown>): PublicDojoDetail {
     id: String(raw.id),
     name: String(raw.name ?? ""),
     headName: (raw.headName as string | null) ?? null,
+    contactPerson: (raw.contactPerson as string | null) ?? null,
     address: (raw.address as string | null) ?? null,
     kecamatan: (raw.kecamatan as string | null) ?? null,
     phoneNumber: (raw.phoneNumber as string | null) ?? null,

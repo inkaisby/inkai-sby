@@ -11,11 +11,13 @@ export function DashboardHomeHeader({
   roleLabel = "Anggota Aktif",
   photoUrl,
   unreadCount = 0,
+  unreadPesan = 0,
 }: {
   name: string;
   roleLabel?: string;
   photoUrl?: string | null;
   unreadCount?: number;
+  unreadPesan?: number;
 }) {
   const initials = name
     .split(" ")
@@ -25,8 +27,10 @@ export function DashboardHomeHeader({
     .toUpperCase();
 
   const firstName = name.split(" ")[0] || name;
-  const badge =
+  const notifBadge =
     unreadCount > 9 ? "9+" : unreadCount > 0 ? String(unreadCount) : null;
+  const pesanBadge =
+    unreadPesan > 9 ? "9+" : unreadPesan > 0 ? String(unreadPesan) : null;
 
   return (
     <header className="flex items-center justify-between gap-3 pt-4 pb-1">
@@ -55,10 +59,15 @@ export function DashboardHomeHeader({
         </Link>
         <Link
           href="/dashboard/pesan"
-          className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/80 text-foreground transition-colors hover:bg-muted"
+          className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-muted/80 text-foreground transition-colors hover:bg-muted"
           aria-label="Pesan"
         >
           <MessageCircle size={18} />
+          {pesanBadge ? (
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-inkai-red px-1 text-[10px] font-bold text-white ring-2 ring-background">
+              {pesanBadge}
+            </span>
+          ) : null}
         </Link>
         <ThemeIconButton />
         <Link
@@ -67,9 +76,9 @@ export function DashboardHomeHeader({
           aria-label="Notifikasi"
         >
           <Bell size={18} />
-          {badge ? (
+          {notifBadge ? (
             <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-inkai-red px-1 text-[10px] font-bold text-white ring-2 ring-background">
-              {badge}
+              {notifBadge}
             </span>
           ) : null}
         </Link>

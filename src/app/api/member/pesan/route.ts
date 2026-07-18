@@ -42,7 +42,25 @@ export async function GET() {
   }
 
   const conversation = await getOrCreateMemberConversation(userId, sekretariatId);
-  return NextResponse.json({ conversation, meId: userId });
+
+  const unreadCount = await prisma.message.count({
+    where: {
+      conversationId: conversation.id,
+      isRead: false,
+      senderId: { not: userId },
+    },
+  });
+
+  await prisma.message.updateMany({
+    where: {
+      conversationId: conversation.id,
+      senderId: { not: userId },
+      isRead: false,
+    },
+    data: { isRead: true },
+  });
+
+  return NextResponse.json({ conversation, meId: userId, unreadCount });
 }
 
 export async function POST(request: Request) {

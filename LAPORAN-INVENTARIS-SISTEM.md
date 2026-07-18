@@ -81,7 +81,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Modul | Status | Fungsi |
 |-------|--------|--------|
-| Beranda | Aktif | Kartu anggota (QR → `/v/[id]`, sabuk live refresh), KPI absensi, tagihan, kegiatan, notifikasi |
+| Beranda | Aktif | Kartu anggota, **checklist keanggotaan + CTA**, dojo/jadwal/**absen hari ini**/PIC, aksi cepat kontekstual, UKT, agenda gabungan, badge pesan+notif |
 | Profil | Aktif | Edit data pribadi (bukan Kyu/DAN) |
 | Absensi | Aktif | Riwayat + check-in GPS (kode QR opsional) |
 | Iuran | Aktif | Daftar tagihan + unggah bukti pembayaran |
@@ -259,7 +259,7 @@ Pusat / Nasional
 | Area | Status | Catatan untuk laporan / rencana |
 |------|--------|----------------------------------|
 | Portal publik | Lengkap | Konten organisasi & kegiatan |
-| Dashboard anggota inti | Lengkap | Profil, iuran, absensi, kegiatan, sabuk, materi, store, pesan, pindah |
+| Dashboard anggota inti | Lengkap | Beranda asisten: checklist, jadwal dojo, absen hari ini, PIC, aksi kontekstual, agenda |
 | Admin anggota / iuran / UKT | Lengkap | Iuran: edit/lunas/verifikasi (ranting+cabang); anggota: nonaktif/aktif/hapus arsip; UKT pakai gate iuran+dokumen+absensi, hasil ujian, rekap ranting, nota tanpa kode unik |
 | Verifikasi kartu (publik) | Aktif | `/v/[id]` — scan QR kartu anggota |
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
@@ -324,7 +324,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/broadcast        Broadcast notifikasi ke anggota (scope)
 /api/member/materi          Daftar materi
 /api/member/store           Katalog & pesan produk
-/api/member/pesan           Chat pengurus
+/api/member/pesan           Chat pengurus (tandai dibaca + unread)
 /api/member/pindah          Ajuan pindah dojo
 /api/member/piagam          Unggah piagam
 /api/member/billing/[id]    Unggah bukti pembayaran iuran
@@ -386,6 +386,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | Paket lanjutan multi-akun: satu jalur akun (form create tanpa login), jabatan, handover PIC + riwayat, PIC notifikasi prioritas & kontak resmi, konfirmasi nonaktif/reset, empty CTA, checklist kirim kredensial |
 | 18 Juli 2026 | Paket ops admin lengkap: nav dikelompokkan + notifikasi, beranda role-aware, absensi rekap/belum hadir/export, iuran generate bulan + label ID + export, kegiatan edit/roster, verifikasi triage, anggota CSV+bulk approve, store/materi/carousel upload & lifecycle |
 | 18 Juli 2026 | Paket lengkap celah ops: pesan unread+cari+broadcast, organisasi→pengaturan deep-link, geofence pratinjau peta, audit filter/export, beranda KPI pesan, preset peran |
+| 18 Juli 2026 | Beranda anggota: checklist keanggotaan+CTA, dojo/jadwal/absen hari ini/PIC WA, aksi cepat kontekstual+sheet lainnya, badge pesan unread, agenda gabungan |
 
 ---
 
