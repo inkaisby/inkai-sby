@@ -28,8 +28,6 @@ import {
   ArrowLeft,
   ClipboardCheck,
   Archive,
-  ChevronDown,
-  FolderOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -65,13 +63,6 @@ import { UktExportDialog } from "@/components/admin/ukt/UktExportDialog";
 import { UktExamDayDialog } from "@/components/admin/ukt/UktExamDayDialog";
 import { UktSearchBar } from "@/components/admin/ukt/UktSearchBar";
 import { AddMemberDialog } from "@/components/admin/AddMemberDialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   BELT_RANK_OPTIONS,
   canEditKyuBaru,
@@ -1013,58 +1004,49 @@ export function UktDashboard(props: Props) {
                     <span className="hidden sm:inline">Hari-H</span>
                   </Button>
                 )}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline">
-                      <FolderOpen className="mr-1 h-4 w-4" />
-                      Dokumen
-                      <ChevronDown className="ml-1 h-3.5 w-3.5 opacity-70" />
+                <Button variant="outline" onClick={openExportDialog}>
+                  <Download className="mr-1 h-4 w-4" />
+                  Export
+                </Button>
+                <Button variant="outline" onClick={buildWaReport}>
+                  <MessageCircle className="mr-1 h-4 w-4" />
+                  Laporan WA
+                </Button>
+                <Button variant="outline" onClick={() => openPrintNota(false)}>
+                  <Printer className="mr-1 h-4 w-4" />
+                  Cetak Nota
+                </Button>
+                {props.selectedPeriodId && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowBeltFees(true)}
+                      disabled={periodLocked}
+                    >
+                      <Wallet className="mr-1 h-4 w-4" />
+                      <span className="hidden md:inline">Biaya Sabuk</span>
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuItem onClick={openExportDialog}>
-                      <Download className="mr-2 h-4 w-4" />
-                      Export peserta
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={buildWaReport}>
-                      <MessageCircle className="mr-2 h-4 w-4" />
-                      Laporan WA
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openPrintNota(false)}>
-                      <Printer className="mr-2 h-4 w-4" />
-                      Cetak Nota
-                    </DropdownMenuItem>
-                    {props.selectedPeriodId && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => setShowBeltFees(true)}
-                          disabled={periodLocked}
-                        >
-                          <Wallet className="mr-2 h-4 w-4" />
-                          Biaya Sabuk
-                        </DropdownMenuItem>
-                        {periodLocked ? (
-                          <DropdownMenuItem
-                            onClick={() => void handlePeriodArchive(false)}
-                            disabled={loading}
-                          >
-                            <Archive className="mr-2 h-4 w-4" />
-                            Buka arsip periode
-                          </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem
-                            onClick={() => void handlePeriodArchive(true)}
-                            disabled={loading}
-                          >
-                            <Archive className="mr-2 h-4 w-4" />
-                            Arsipkan & kunci
-                          </DropdownMenuItem>
-                        )}
-                      </>
+                    {periodLocked ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => void handlePeriodArchive(false)}
+                        disabled={loading}
+                      >
+                        <Archive className="mr-1 h-4 w-4" />
+                        <span className="hidden lg:inline">Buka arsip</span>
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        onClick={() => void handlePeriodArchive(true)}
+                        disabled={loading}
+                      >
+                        <Archive className="mr-1 h-4 w-4" />
+                        <span className="hidden lg:inline">Arsipkan</span>
+                      </Button>
                     )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                  </>
+                )}
               </>
             )}
             {!isCabang && (
@@ -1103,32 +1085,6 @@ export function UktDashboard(props: Props) {
               dibuat oleh admin cabang. Pilih semester lain jika perlu melihat riwayat, atau
               hubungi cabang untuk membuka periode baru.
             </span>
-          </CardContent>
-        </Card>
-      )}
-
-      {showCreatePeriod && (
-        <Card className="border-inkai-red/40 bg-inkai-red/5">
-          <CardContent className="flex flex-wrap items-center gap-3 p-4">
-            <div className="flex items-start gap-2 text-sm">
-              <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-inkai-red" />
-              <div>
-                <p className="font-medium text-foreground">
-                  Periode UKT {formatUktPeriodLabel(props.semester, props.year)} belum dibuat
-                </p>
-                <p className="text-muted-foreground">
-                  Gunakan tombol <b>Buat Periode</b> di toolbar (kiri Export/Dokumen) agar ranting
-                  dapat mendaftarkan peserta dan batas pendaftaran aktif untuk semester ini.
-                  {props.selectedPeriodId && selectedPeriod && !hasTermPeriod ? (
-                    <>
-                      {" "}
-                      Event terpilih saat ini (<b>{selectedPeriod.title}</b>) belum memakai
-                      judul semester standar.
-                    </>
-                  ) : null}
-                </p>
-              </div>
-            </div>
           </CardContent>
         </Card>
       )}
