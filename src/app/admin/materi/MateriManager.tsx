@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { showError, showSuccess } from "@/lib/client-toast";
+import { FileUploadField } from "@/components/admin/FileUploadField";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 
 type Material = {
@@ -50,6 +52,25 @@ export function MateriManager({ initialItems }: { initialItems: Material[] }) {
     }
   }
 
+  async function togglePublish(m: Material) {
+    const res = await fetch(`/api/admin/materi/${m.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isPublished: !m.isPublished }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showError(data.error || "Gagal memperbarui");
+      return;
+    }
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === m.id ? { ...i, isPublished: !m.isPublished } : i,
+      ),
+    );
+    showSuccess(m.isPublished ? "Materi disembunyikan" : "Materi dipublikasikan");
+  }
+
   async function remove(id: string) {
     if (!confirm("Hapus materi ini?")) return;
     const res = await fetch(`/api/admin/materi/${id}`, { method: "DELETE" });
@@ -68,12 +89,15 @@ export function MateriManager({ initialItems }: { initialItems: Material[] }) {
       <div className="grid gap-2 rounded-xl border p-4 md:grid-cols-2">
         <Input placeholder="Judul" value={title} onChange={(e) => setTitle(e.target.value)} />
         <Input placeholder="Kategori (opsional)" value={category} onChange={(e) => setCategory(e.target.value)} />
-        <Input
-          className="md:col-span-2"
-          placeholder="URL file (PDF/gambar)"
-          value={fileUrl}
-          onChange={(e) => setFileUrl(e.target.value)}
-        />
+        <div className="md:col-span-2">
+          <FileUploadField
+            label="File materi (PDF/gambar)"
+            value={fileUrl}
+            onChange={setFileUrl}
+            folder="materi"
+            accept="image/*,application/pdf"
+          />
+        </div>
         <Input
           className="md:col-span-2"
           placeholder="Deskripsi (opsional)"
@@ -93,14 +117,27 @@ export function MateriManager({ initialItems }: { initialItems: Material[] }) {
         {items.map((m) => (
           <div key={m.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border p-3">
             <div>
-              <p className="font-medium">{m.title}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-medium">{m.title}</p>
+                <Badge variant={m.isPublished ? "default" : "outline"}>
+                  {m.isPublished ? "Publik" : "Draft"}
+                </Badge>
+                {m.category ? (
+                  <Badge variant="secondary">{m.category}</Badge>
+                ) : null}
+              </div>
               <a href={m.fileUrl} target="_blank" rel="noreferrer" className="text-xs text-inkai-red hover:underline">
                 Buka file
               </a>
             </div>
-            <Button size="sm" variant="destructive" onClick={() => void remove(m.id)}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" onClick={() => void togglePublish(m)}>
+                {m.isPublished ? "Sembunyikan" : "Publikasikan"}
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => void remove(m.id)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         ))}
       </div>

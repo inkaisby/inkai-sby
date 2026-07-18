@@ -22,9 +22,11 @@ import { showError, showSuccess } from "@/lib/client-toast";
 
 export function BulkDeactivateBar({
   selectedIds,
+  pendingIds = [],
   onClear,
 }: {
   selectedIds: string[];
+  pendingIds?: string[];
   onClear: () => void;
 }) {
   const router = useRouter();
@@ -36,6 +38,31 @@ export function BulkDeactivateBar({
   const [reasonNote, setReasonNote] = useState("");
 
   if (selectedIds.length === 0) return null;
+
+  async function approvePending() {
+    if (pendingIds.length === 0) {
+      showError("Pilih anggota berstatus PENDING untuk disetujui");
+      return;
+    }
+    setLoading(true);
+    const res = await fetch("/api/admin/members/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "approve",
+        memberIds: pendingIds,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setLoading(false);
+    if (!res.ok) {
+      showError(data.error || "Gagal approve");
+      return;
+    }
+    showSuccess(data.message || "Berhasil");
+    onClear();
+    router.refresh();
+  }
 
   async function submit() {
     setLoading(true);
@@ -73,6 +100,17 @@ export function BulkDeactivateBar({
           <Button type="button" size="sm" variant="outline" onClick={onClear}>
             Batal
           </Button>
+          {pendingIds.length > 0 ? (
+            <Button
+              type="button"
+              size="sm"
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              disabled={loading}
+              onClick={() => void approvePending()}
+            >
+              Setujui {pendingIds.length} pending
+            </Button>
+          ) : null}
           <Button
             type="button"
             size="sm"

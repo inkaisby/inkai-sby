@@ -10,10 +10,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { BillingActions } from "./BillingActions";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { IuranOpsBar } from "./IuranOpsBar";
+import { getOperationalDefaults } from "@/lib/org-settings";
+import { billingStatusLabel } from "@/lib/admin-labels";
 
 export const dynamic = "force-dynamic";
 
-type SearchParams = Promise<{ status?: string; q?: string }>;
+type SearchParams = Promise<{ status?: string; q?: string; month?: string }>;
 
 export default function AdminIuranPage({
   searchParams,
@@ -40,13 +43,15 @@ async function AdminIuranContent({
   const params = await searchParams;
   const status = params.status?.trim() || "";
   const q = params.q?.trim() || "";
+  const monthFilter = params.month?.trim() || "";
   const canEdit = canManageIuranByWilayah(session.user.roles ?? []);
   const role = getPrimaryAdminRole(session.user.roles ?? []);
   const managedDojoId = session.user.managedDojoId ?? null;
+  const defaults = await getOperationalDefaults();
 
   let billings = await fetchBillings(token, {
     status: status || undefined,
-    limit: 100,
+    limit: 250,
   });
 
   // Scope ketua ranting ke anggota dojo-nya (jika dojoId tersedia di payload)
@@ -58,6 +63,14 @@ async function AdminIuranContent({
       const dojoId = member?.dojo?.id ?? member?.dojoId;
       if (!dojoId) return true;
       return dojoId === managedDojoId;
+    });
+  }
+
+  if (monthFilter) {
+    billings = billings.filter((b) => {
+      const due = String(b.dueDate ?? "");
+      const desc = String(b.description ?? "");
+      return due.startsWith(monthFilter) || desc.includes(monthFilter);
     });
   }
 
@@ -83,13 +96,32 @@ async function AdminIuranContent({
     { paid: 0, waiting: 0, pending: 0 },
   );
 
+  const exportRows = billings.map((b) => {
+    const member = b.member as {
+      fullName?: string;
+      nia?: string;
+      dojo?: { name?: string };
+    } | undefined;
+    return {
+      id: String(b.id),
+      fullName: member?.fullName ?? "",
+      nia: member?.nia ?? "",
+      dojo: member?.dojo?.name ?? "",
+      type: String(b.type ?? ""),
+      amount: Number(b.amount ?? 0),
+      status: String(b.status ?? ""),
+      dueDate: new Date(String(b.dueDate)).toLocaleDateString("id-ID"),
+      description: b.description != null ? String(b.description) : "",
+    };
+  });
+
   return (
     <>
       <div className="mb-6">
         <h2 className="text-2xl font-bold">Iuran & Tagihan Anggota</h2>
         <p className="text-muted-foreground">
           Total lunas: Rp {stats.paid.toLocaleString("id-ID")} · Menunggu
-          verifikasi: {stats.waiting} · Pending: {stats.pending}
+          verifikasi: {stats.waiting} · Belum bayar: {stats.pending}
         </p>
         {canEdit ? (
           <p className="mt-1 text-sm text-muted-foreground">
@@ -104,6 +136,12 @@ async function AdminIuranContent({
         )}
       </div>
 
+      <IuranOpsBar
+        canEdit={canEdit}
+        defaultAmount={defaults.monthlyDuesAmount}
+        billings={exportRows}
+      />
+
       <form className="mb-4 flex flex-wrap gap-2">
         <Input
           name="q"
@@ -111,16 +149,23 @@ async function AdminIuranContent({
           defaultValue={q}
           className="max-w-xs"
         />
+        <Input
+          name="month"
+          type="month"
+          defaultValue={monthFilter}
+          className="max-w-[160px]"
+          title="Filter bulan (jatuh tempo / keterangan)"
+        />
         <select
           name="status"
           defaultValue={status}
           className="h-8 rounded-lg border px-2 text-sm"
         >
           <option value="">Semua status</option>
-          <option value="PENDING">PENDING</option>
-          <option value="WAITING_VERIFICATION">WAITING_VERIFICATION</option>
-          <option value="PAID">PAID</option>
-          <option value="REJECTED">REJECTED</option>
+          <option value="PENDING">Belum bayar</option>
+          <option value="WAITING_VERIFICATION">Menunggu verifikasi</option>
+          <option value="PAID">Lunas</option>
+          <option value="REJECTED">Ditolak</option>
         </select>
         <button
           type="submit"
@@ -181,7 +226,7 @@ async function AdminIuranContent({
                     <Badge
                       variant={b.status === "PAID" ? "default" : "secondary"}
                     >
-                      {String(b.status)}
+                      {billingStatusLabel(String(b.status))}
                     </Badge>
                     <BillingActions
                       billingId={String(b.id)}

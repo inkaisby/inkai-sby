@@ -80,17 +80,19 @@ export const memberActionSchema = z.object({
 });
 
 export const memberBulkActionSchema = z.object({
-  action: z.enum(["deactivate"]),
+  action: z.enum(["deactivate", "approve"]),
   memberIds: z.array(z.string().uuid()).min(1).max(50),
-  statusKind: z.enum(["INACTIVE", "SUSPENDED"]).default("INACTIVE"),
-  reasonCode: z.enum([
-    "BERHENTI_LATIHAN",
-    "PINDAH_DOJO",
-    "PINDAH_KOTA",
-    "TUNGGAKAN",
-    "DISIPLIN",
-    "LAINNYA",
-  ]),
+  statusKind: z.enum(["INACTIVE", "SUSPENDED"]).default("INACTIVE").optional(),
+  reasonCode: z
+    .enum([
+      "BERHENTI_LATIHAN",
+      "PINDAH_DOJO",
+      "PINDAH_KOTA",
+      "TUNGGAKAN",
+      "DISIPLIN",
+      "LAINNYA",
+    ])
+    .optional(),
   reasonNote: z.string().trim().max(500).optional(),
 });
 

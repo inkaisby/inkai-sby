@@ -31,6 +31,7 @@ type SearchParams = Promise<{
   q?: string;
   status?: string;
   type?: string;
+  pendingType?: string;
   page?: string;
 }>;
 
@@ -75,9 +76,10 @@ async function AdminVerifikasiContent({
   const q = params.q?.trim() || "";
   const status = params.status?.trim() || "";
   const type = params.type?.trim() || "";
+  const pendingType = params.pendingType?.trim() || "";
   const page = Math.max(1, parseInt(params.page || "1", 10) || 1);
 
-  const [claims, history] = await Promise.all([
+  const [claimsRaw, history] = await Promise.all([
     fetchPendingVerificationClaims(token),
     fetchVerificationHistory(session.user, {
       q,
@@ -87,6 +89,20 @@ async function AdminVerifikasiContent({
       limit: 20,
     }),
   ]);
+
+  const claims = pendingType
+    ? claimsRaw.filter((c) => String(c.type) === pendingType)
+    : claimsRaw;
+
+  const agingDays = (createdAt: unknown) => {
+    const t = new Date(String(createdAt || "")).getTime();
+    if (Number.isNaN(t)) return null;
+    return Math.floor((Date.now() - t) / (24 * 60 * 60 * 1000));
+  };
+
+  const pendingTypes = Array.from(
+    new Set(claimsRaw.map((c) => String(c.type))),
+  ).sort();
 
   const pageWindow = 5;
   const startPage = Math.max(1, history.page - Math.floor(pageWindow / 2));
@@ -99,11 +115,37 @@ async function AdminVerifikasiContent({
   return (
     <>
       <div className="mb-6">
-        <h2 className="text-2xl font-bold">Antrean Verifikasi</h2>
+        <h2 className="text-2xl font-bold">Antrian Verifikasi</h2>
         <p className="text-muted-foreground">
-          {claims.length} pengajuan menunggu persetujuan (termasuk reset
-          password anggota)
+          {claims.length} pengajuan menunggu
+          {pendingType
+            ? ` (filter ${VERIFICATION_TYPE_LABELS[pendingType] || pendingType})`
+            : ""}{" "}
+          dari {claimsRaw.length} total
         </p>
+        {pendingTypes.length > 0 ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              href="/admin/verifikasi"
+              className={`rounded-lg px-3 py-1 text-xs ${
+                !pendingType ? "bg-inkai-red text-white" : "border"
+              }`}
+            >
+              Semua
+            </Link>
+            {pendingTypes.map((t) => (
+              <Link
+                key={t}
+                href={`/admin/verifikasi?pendingType=${encodeURIComponent(t)}`}
+                className={`rounded-lg px-3 py-1 text-xs ${
+                  pendingType === t ? "bg-inkai-red text-white" : "border"
+                }`}
+              >
+                {VERIFICATION_TYPE_LABELS[t] || t}
+              </Link>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {claims.length === 0 ? (
@@ -119,6 +161,7 @@ async function AdminVerifikasiContent({
             const dojo = member?.dojo as { name?: string } | undefined;
             const event = c.event as { title?: string } | undefined;
             const claimType = String(c.type);
+            const age = agingDays(c.createdAt);
             const resetEmail =
               claimType === "PASSWORD_RESET"
                 ? parseResetEmail(
@@ -135,6 +178,7 @@ async function AdminVerifikasiContent({
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {String(member?.nia ?? "—")} · {dojo?.name ?? "—"}
+                        {age != null ? ` · ${age} hari di antrian` : ""}
                       </p>
                       {resetEmail ? (
                         <p className="text-sm font-medium text-inkai-red">

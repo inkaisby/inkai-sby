@@ -37,6 +37,7 @@ import {
 import { canToggleMemberActive } from "@/lib/wilayah-rbac";
 import { MemberActions } from "./MemberActions";
 import { BulkDeactivateBar } from "./BulkDeactivateBar";
+import { ExportCsvButton } from "@/components/admin/ExportCsvButton";
 
 type MemberDetail = Record<string, unknown>;
 
@@ -267,8 +268,14 @@ export function MembersTable({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const canBulk = canToggleMemberActive(userRoles);
 
-  const activeSelectable = members.filter(
-    (m) => m.status.trim().toUpperCase() === "ACTIVE",
+  const activeSelectable = members.filter((m) => {
+    const s = m.status.trim().toUpperCase();
+    return s === "ACTIVE" || s === "PENDING";
+  });
+  const pendingSelected = [...selectedIds].filter((id) =>
+    members.some(
+      (m) => m.id === id && m.status.trim().toUpperCase() === "PENDING",
+    ),
   );
 
   function toggleSelect(id: string) {
@@ -356,6 +363,31 @@ export function MembersTable({
 
   return (
     <>
+      <div className="mb-3 flex flex-wrap justify-end gap-2">
+        <ExportCsvButton
+          filename="anggota-export.csv"
+          headers={[
+            "NIA",
+            "Nama",
+            "Status",
+            "Sabuk",
+            "Dojo",
+            "Cabang",
+            "Dokumen Akte",
+            "Dokumen BPJS",
+          ]}
+          rows={members.map((m) => [
+            m.nia ?? "",
+            m.fullName,
+            m.status,
+            m.currentRank,
+            m.dojo?.name ?? "",
+            m.dojo?.branch?.name ?? "",
+            m.birthCertificateUrl ? "Ada" : "Belum",
+            m.bpjsCardUrl ? "Ada" : "Belum",
+          ])}
+        />
+      </div>
       <div className="overflow-x-auto rounded-xl border">
         <Table>
           <TableHeader>
@@ -476,6 +508,7 @@ export function MembersTable({
       {canBulk ? (
         <BulkDeactivateBar
           selectedIds={[...selectedIds]}
+          pendingIds={pendingSelected}
           onClear={() => setSelectedIds(new Set())}
         />
       ) : null}

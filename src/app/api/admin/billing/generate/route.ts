@@ -1,0 +1,175 @@
+import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-auth";
+import { writeAuditLog } from "@/lib/audit";
+import { fetchAdminMembers, fetchBillings } from "@/lib/inkai-api/admin-data";
+import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { getOperationalDefaults } from "@/lib/org-settings";
+import { prisma } from "@/lib/prisma";
+import { getPrimaryAdminRole } from "@/lib/rbac";
+import { getClientIp } from "@/lib/security/request";
+import { canManageIuranByWilayah } from "@/lib/wilayah-rbac";
+import { z } from "zod";
+
+const schema = z.object({
+  year: z.coerce.number().int().min(2020).max(2100),
+  month: z.coerce.number().int().min(1).max(12),
+  amount: z.coerce.number().min(0).max(10_000_000).optional(),
+  dryRun: z.boolean().optional(),
+});
+
+function periodKey(year: number, month: number) {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function dueDateFor(year: number, month: number) {
+  // Jatuh tempo akhir bulan
+  return new Date(year, month, 0, 23, 59, 59);
+}
+
+export async function POST(request: Request) {
+  const authResult = await requireAdmin();
+  if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
+  if (!canManageIuranByWilayah(authResult.user.roles)) {
+    return NextResponse.json(
+      { error: "Anda tidak berwenang membuat tagihan iuran" },
+      { status: 403 },
+    );
+  }
+
+  const parsed = schema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
+  }
+
+  const { year, month, dryRun } = parsed.data;
+  const defaults = await getOperationalDefaults();
+  const amount = parsed.data.amount ?? defaults.monthlyDuesAmount;
+  const key = periodKey(year, month);
+  const description = `Iuran bulanan ${key}`;
+  const dueDate = dueDateFor(year, month);
+
+  const role = getPrimaryAdminRole(authResult.user.roles);
+  const dojoId =
+    role === "ADMIN_DOJO" ? authResult.user.managedDojoId ?? undefined : undefined;
+
+  const membersResult = await fetchAdminMembers(authResult.token, {
+    status: "ACTIVE",
+    limit: 500,
+    dojoId,
+  });
+  const members =
+    membersResult.ok && "members" in membersResult
+      ? membersResult.members
+      : [];
+
+  const existing = await fetchBillings(authResult.token, { limit: 500 });
+  const existingKeys = new Set(
+    existing
+      .filter((b) => {
+        const desc = String(b.description ?? "");
+        const type = String(b.type ?? "");
+        return (
+          (type === "MONTHLY" || type === "IURAN" || type === "DUES") &&
+          (desc.includes(key) || desc.includes(`Iuran bulanan ${key}`))
+        );
+      })
+      .map((b) => String((b as { memberId?: string }).memberId ?? (b.member as { id?: string } | undefined)?.id ?? "")),
+  );
+
+  const targets = members.filter((m) => {
+    if (m.status && m.status !== "ACTIVE") return false;
+    return !existingKeys.has(m.id);
+  });
+
+  if (dryRun) {
+    return NextResponse.json({
+      success: true,
+      dryRun: true,
+      amount,
+      period: key,
+      wouldCreate: targets.length,
+      skipped: members.length - targets.length,
+      message: `Dry-run: ${targets.length} tagihan baru untuk ${key}`,
+    });
+  }
+
+  let created = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  for (const m of targets.slice(0, 200)) {
+    const body = {
+      memberId: m.id,
+      type: "MONTHLY",
+      amount,
+      dueDate: dueDate.toISOString(),
+      description,
+    };
+
+    const { res, data } = await inkaiFetch(
+      "/v1/billing",
+      { method: "POST", body: JSON.stringify(body) },
+      authResult.token,
+    );
+
+    if (res.ok) {
+      created += 1;
+      continue;
+    }
+
+    // Fallback lokal bila Inkai menolak/tidak mendukung create
+    try {
+      await prisma.billing.create({
+        data: {
+          memberId: m.id,
+          type: "MONTHLY",
+          amount,
+          description,
+          dueDate,
+          status: "PENDING",
+        },
+      });
+      created += 1;
+    } catch (e) {
+      failed += 1;
+      if (errors.length < 5) {
+        errors.push(
+          `${m.fullName}: ${inkaiErrorMessage(data, e instanceof Error ? e.message : "gagal")}`,
+        );
+      }
+    }
+  }
+
+  writeAuditLog({
+    userId: authResult.user.id,
+    email: authResult.user.email,
+    action: "BILLING_GENERATE_MONTHLY",
+    details: JSON.stringify({
+      period: key,
+      amount,
+      created,
+      failed,
+      candidate: targets.length,
+    }),
+    ip: getClientIp(request),
+    userAgent: request.headers.get("user-agent"),
+    token: authResult.token,
+  });
+
+  return NextResponse.json({
+    success: failed === 0,
+    period: key,
+    amount,
+    created,
+    failed,
+    skipped: members.length - targets.length,
+    errors,
+    message:
+      failed === 0
+        ? `Berhasil membuat ${created} tagihan iuran ${key}`
+        : `Dibuat ${created}, gagal ${failed}`,
+  });
+}

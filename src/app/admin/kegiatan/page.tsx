@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { CreateEventForm } from "@/components/admin/CreateEventForm";
+import { EventAdminActions } from "@/components/admin/EventAdminActions";
 import { buildUktAdminUrlFromEvent } from "@/lib/ukt";
 
 export const dynamic = "force-dynamic";
@@ -83,21 +84,32 @@ async function AdminKegiatanContent() {
                       {count} pendaftar
                     </p>
                   </div>
-                  <div className="flex gap-3">
-                    {isUkt ? (
+                  <div className="flex flex-col items-end gap-2">
+                    <EventAdminActions
+                      eventId={String(e.id)}
+                      title={String(e.title)}
+                      location={e.location != null ? String(e.location) : null}
+                      startDate={String(e.startDate)}
+                      endDate={String(e.endDate)}
+                      canEdit={canCreate}
+                      isUkt={isUkt}
+                    />
+                    <div className="flex gap-3">
+                      {isUkt ? (
+                        <Link
+                          href={buildUktAdminUrlFromEvent(String(e.title), String(e.id))}
+                          className="text-sm text-inkai-red hover:underline"
+                        >
+                          Kelola UKT →
+                        </Link>
+                      ) : null}
                       <Link
-                        href={buildUktAdminUrlFromEvent(String(e.title), String(e.id))}
+                        href={`/kegiatan/${e.id}`}
                         className="text-sm text-inkai-red hover:underline"
                       >
-                        Kelola UKT →
+                        Detail publik →
                       </Link>
-                    ) : null}
-                    <Link
-                      href={`/kegiatan/${e.id}`}
-                      className="text-sm text-inkai-red hover:underline"
-                    >
-                      Detail publik →
-                    </Link>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

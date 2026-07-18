@@ -6,7 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { showError, showSuccess } from "@/lib/client-toast";
-import { Loader2, Plus } from "lucide-react";
+import { FileUploadField } from "@/components/admin/FileUploadField";
+import {
+  STORE_ORDER_STATUS_ACTIONS,
+  storeOrderStatusLabel,
+} from "@/lib/admin-labels";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
 type Product = {
   id: string;
@@ -43,6 +48,7 @@ export function StoreManager({
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<Product | null>(null);
 
   async function addProduct() {
     setBusy(true);
@@ -74,6 +80,67 @@ export function StoreManager({
     }
   }
 
+  async function saveEdit() {
+    if (!editing) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/store/${editing.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editing.name,
+          price: editing.price,
+          stock: editing.stock,
+          description: editing.description,
+          imageUrl: editing.imageUrl,
+          isActive: editing.isActive,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError(data.error || "Gagal menyimpan");
+        return;
+      }
+      setProducts((prev) =>
+        prev.map((p) => (p.id === editing.id ? { ...p, ...data } : p)),
+      );
+      setEditing(null);
+      showSuccess("Produk diperbarui");
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleActive(p: Product) {
+    const res = await fetch(`/api/admin/store/${p.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: !p.isActive }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showError(data.error || "Gagal update");
+      return;
+    }
+    setProducts((prev) =>
+      prev.map((x) => (x.id === p.id ? { ...x, isActive: !p.isActive } : x)),
+    );
+    showSuccess(p.isActive ? "Produk dinonaktifkan" : "Produk diaktifkan");
+  }
+
+  async function removeProduct(id: string) {
+    if (!confirm("Hapus produk ini?")) return;
+    const res = await fetch(`/api/admin/store/${id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showError(data.error || "Gagal hapus");
+      return;
+    }
+    setProducts((prev) => prev.filter((p) => p.id !== id));
+    showSuccess("Produk dihapus");
+  }
+
   async function setOrderStatus(id: string, status: string) {
     const res = await fetch(`/api/admin/store/${id}`, {
       method: "PATCH",
@@ -100,7 +167,15 @@ export function StoreManager({
           <Input placeholder="Nama produk" value={name} onChange={(e) => setName(e.target.value)} />
           <Input placeholder="Harga" type="number" value={price} onChange={(e) => setPrice(e.target.value)} />
           <Input placeholder="Stok" type="number" value={stock} onChange={(e) => setStock(e.target.value)} />
-          <Input placeholder="URL gambar (opsional)" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
+          <div className="md:col-span-2">
+            <FileUploadField
+              label="Gambar produk"
+              value={imageUrl}
+              onChange={setImageUrl}
+              folder="store"
+              accept="image/*"
+            />
+          </div>
           <Input
             className="md:col-span-2"
             placeholder="Deskripsi"
@@ -118,16 +193,84 @@ export function StoreManager({
 
         <div className="mt-4 space-y-2">
           {products.map((p) => (
-            <div key={p.id} className="flex justify-between gap-2 rounded-xl border p-3">
-              <div>
-                <p className="font-medium">{p.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  Rp {Math.round(p.price).toLocaleString("id-ID")} · stok {p.stock}
-                </p>
-              </div>
-              <Badge variant={p.isActive ? "default" : "secondary"}>
-                {p.isActive ? "Aktif" : "Nonaktif"}
-              </Badge>
+            <div key={p.id} className="rounded-xl border p-3">
+              {editing?.id === p.id ? (
+                <div className="grid gap-2 md:grid-cols-2">
+                  <Input
+                    value={editing.name}
+                    onChange={(e) =>
+                      setEditing({ ...editing, name: e.target.value })
+                    }
+                  />
+                  <Input
+                    type="number"
+                    value={editing.price}
+                    onChange={(e) =>
+                      setEditing({ ...editing, price: Number(e.target.value) })
+                    }
+                  />
+                  <Input
+                    type="number"
+                    value={editing.stock}
+                    onChange={(e) =>
+                      setEditing({ ...editing, stock: Number(e.target.value) })
+                    }
+                  />
+                  <FileUploadField
+                    label="Gambar"
+                    value={editing.imageUrl ?? ""}
+                    onChange={(url) =>
+                      setEditing({ ...editing, imageUrl: url })
+                    }
+                    folder="store"
+                    accept="image/*"
+                  />
+                  <div className="flex gap-2 md:col-span-2">
+                    <Button size="sm" onClick={() => void saveEdit()} disabled={busy}>
+                      Simpan
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditing(null)}>
+                      Batal
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{p.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Rp {Math.round(p.price).toLocaleString("id-ID")} · stok{" "}
+                      {p.stock}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1">
+                    <Badge variant={p.isActive ? "default" : "secondary"}>
+                      {p.isActive ? "Aktif" : "Nonaktif"}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditing(p)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void toggleActive(p)}
+                    >
+                      {p.isActive ? "Nonaktifkan" : "Aktifkan"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => void removeProduct(p.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -151,18 +294,20 @@ export function StoreManager({
                       Rp {Math.round(o.total).toLocaleString("id-ID")}
                     </p>
                   </div>
-                  <Badge variant="secondary">{o.status}</Badge>
+                  <Badge variant="secondary">
+                    {storeOrderStatusLabel(o.status)}
+                  </Badge>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1">
-                  {["CONFIRMED", "DONE", "CANCELLED"].map((s) => (
+                  {STORE_ORDER_STATUS_ACTIONS.map((s) => (
                     <Button
-                      key={s}
+                      key={s.value}
                       size="sm"
                       variant="outline"
                       className="h-7 text-xs"
-                      onClick={() => void setOrderStatus(o.id, s)}
+                      onClick={() => void setOrderStatus(o.id, s.value)}
                     >
-                      {s}
+                      {s.label}
                     </Button>
                   ))}
                 </div>

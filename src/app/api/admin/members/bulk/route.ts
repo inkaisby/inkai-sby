@@ -4,6 +4,7 @@ import { memberBulkActionSchema } from "@/lib/security/schemas";
 import { getClientIp } from "@/lib/security/request";
 import { canToggleMemberActive } from "@/lib/wilayah-rbac";
 import { deactivateMember } from "@/lib/member-lifecycle-actions";
+import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
   }
   if (!canToggleMemberActive(authResult.user.roles)) {
     return NextResponse.json(
-      { error: "Anda tidak berwenang menonaktifkan anggota" },
+      { error: "Anda tidak berwenang mengubah status anggota" },
       { status: 403 },
     );
   }
@@ -27,26 +28,56 @@ export async function POST(request: Request) {
   const userAgent = request.headers.get("user-agent");
   const results: Array<{ id: string; ok: boolean; error?: string }> = [];
 
-  for (const memberId of parsed.data.memberIds) {
-    const result = await deactivateMember({
-      user: authResult.user,
-      token: authResult.token,
-      memberId,
-      statusKind: parsed.data.statusKind,
-      reasonCode: parsed.data.reasonCode,
-      reasonNote: parsed.data.reasonNote,
-      ip,
-      userAgent,
-    });
-    results.push(
-      result.ok
-        ? { id: memberId, ok: true }
-        : { id: memberId, ok: false, error: result.error },
-    );
+  if (parsed.data.action === "approve") {
+    for (const memberId of parsed.data.memberIds) {
+      const { res, data } = await inkaiFetch(
+        `/v1/members/${memberId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ action: "approve" }),
+        },
+        authResult.token,
+      );
+      results.push(
+        res.ok
+          ? { id: memberId, ok: true }
+          : {
+              id: memberId,
+              ok: false,
+              error: inkaiErrorMessage(data, "Gagal approve"),
+            },
+      );
+    }
+  } else {
+    if (!parsed.data.reasonCode) {
+      return NextResponse.json(
+        { error: "Alasan nonaktif wajib" },
+        { status: 400 },
+      );
+    }
+    for (const memberId of parsed.data.memberIds) {
+      const result = await deactivateMember({
+        user: authResult.user,
+        token: authResult.token,
+        memberId,
+        statusKind: parsed.data.statusKind || "INACTIVE",
+        reasonCode: parsed.data.reasonCode,
+        reasonNote: parsed.data.reasonNote,
+        ip,
+        userAgent,
+      });
+      results.push(
+        result.ok
+          ? { id: memberId, ok: true }
+          : { id: memberId, ok: false, error: result.error },
+      );
+    }
   }
 
   const okCount = results.filter((r) => r.ok).length;
   const failCount = results.length - okCount;
+  const verb =
+    parsed.data.action === "approve" ? "disetujui" : "dinonaktifkan";
 
   return NextResponse.json({
     success: failCount === 0,
@@ -55,7 +86,7 @@ export async function POST(request: Request) {
     results,
     message:
       failCount === 0
-        ? `${okCount} anggota berhasil dinonaktifkan`
+        ? `${okCount} anggota berhasil ${verb}`
         : `${okCount} berhasil, ${failCount} gagal`,
   });
 }

@@ -102,20 +102,21 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Modul | Fungsi |
 |-------|--------|
-| Beranda Admin | KPI anggota, iuran pending, event, verifikasi |
-| Kelola Anggota | Cari/filter, detail (kyu, iuran, akun), NIA, dokumen; nonaktif/tangguhkan (alasan), aktifkan, bulk; hapus arsip + pulihkan; filter nonaktif ≥N bulan |
-| Iuran Anggota | Verifikasi bukti + **edit tagihan** (nominal/jatuh tempo) + tandai lunas (ranting/cabang) |
-| UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota (tanpa kode unik) |
+| Beranda Admin | KPI anggota, iuran pending, event, verifikasi; aksi cepat role-aware + notifikasi |
+| Kelola Anggota | Cari/filter, detail, NIA, dokumen; nonaktif/bulk; **export CSV**; **bulk approve pending**; arsip |
+| Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
+| UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota |
 | Organisasi | Wilayah & susunan pengurus |
-| Verifikasi | Antrian klaim (anggota, dokumen, reset password, dll.) |
-| Event & Kegiatan | Daftar + **buat event** (Cabang), link UKT / detail publik |
-| Materi Digital | CRUD materi untuk anggota |
-| Store | CRUD produk + kelola status pesanan |
+| Verifikasi | Antrian klaim + **filter tipe/aging**; riwayat |
+| Event & Kegiatan | Buat + **ubah/tutup** event non-UKT + **roster pendaftar**; link UKT |
+| Materi Digital | CRUD + **upload Blob** + **publish/draft** |
+| Store | CRUD produk (**edit/stok/aktif**) + status pesanan berlabel ID |
 | Pesan | Balas chat anggota |
-| Absensi | Laporan absensi harian |
-| Carousel Beranda | Kelola berita visual publik |
+| Absensi | Harian + **belum hadir** + **rekap semester %** + export |
+| Carousel Beranda | Upload gambar + aktif + **urutkan** |
 | Log Audit | Jejak aksi sensitif (pusat) |
-| Pengaturan | User (CRUD/role/cakupan/reset), cabang/ranting (**multi-akun** + jabatan/PIC/handover + arsip), **profil & kebijakan**, peran/RBAC, geofencing, akun |
+| Notifikasi | Inbox admin (ada di nav) |
+| Pengaturan | User, cabang/ranting multi-akun, kebijakan, peran, geofencing, akun |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
@@ -267,6 +268,9 @@ Pusat / Nasional
 | Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC (notifikasi prioritas + kontak resmi), serah terima, konfirmasi nonaktif/reset |
 | Upload bukti iuran (anggota) | Aktif | `/dashboard/iuran` + `/api/member/billing/[id]` |
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` + `/api/member/attendance/checkin` |
+| Absensi admin | Aktif | Harian, belum hadir, rekap semester %, export CSV |
+| Iuran generate bulan | Aktif | `POST /api/admin/billing/generate` + UI Iuran |
+| Nav admin | Dikelompokkan | Keanggotaan / Keuangan / Kegiatan / Konten / Sistem + Notifikasi |
 | Nominal UKT | Tanpa kode unik | `uktBaseFeeAmount` — tampilan/KPI strip +1…999 agar = nota |
 | Eligibility UKT | Diterapkan | Gate periode tutup, iuran, dokumen, absensi semester minimum 75% |
 | Hasil ujian UKT | Aktif | Cabang tetapkan `LULUS` / `GAGAL` / `MENGULANG`; Kyu Baru **wajib** setelah LULUS |
@@ -300,17 +304,19 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 ```
 /api/auth/*                 Login, register (+ identitas/sabuk lengkap), forgot/reset password
 /api/admin/members/*        Kelola anggota (approve/NIA/nonaktif/aktif/hapus/restore)
-/api/admin/members/bulk     Bulk nonaktifkan
+/api/admin/members/bulk     Bulk nonaktifkan + approve pending
 /api/admin/members/archived Daftar arsip soft-delete
 /api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
+/api/admin/billing/generate Buat tagihan iuran bulanan massal
 /api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees, Kyu
 /api/admin/pengaturan/*     User, cabang, ranting, wilayah-accounts (multi-akun), roles, geofencing, akun, kebijakan
 /api/admin/verifications/*  Proses klaim
 /api/admin/carousel/*       Carousel beranda
 /api/admin/upload           Upload ke Blob
+/api/admin/events           Buat event non-UKT (Cabang)
+/api/admin/events/[id]      Detail/roster + ubah/tutup event
 /api/member/profile          GET sabuk kartu (no-store) + PATCH profil
 /api/member/ukt-status       Kartu status UKT periode aktif untuk anggota
-/api/admin/events           Buat event non-UKT (Cabang)
 /api/admin/materi/*         CRUD materi digital
 /api/admin/store/*          Produk & status pesanan
 /api/admin/pesan/*          Inbox & balas pesan
@@ -375,6 +381,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | Paket lengkap Pengaturan: hub kartu+checklist, profil/kebijakan cabang, user create/edit/reset/export, geofence lokasi perangkat, arsip pulihkan cabang/ranting, kredensial tanpa localStorage |
 | 18 Juli 2026 | Multi-akun per wilayah: beberapa email ADMIN_BRANCH/ADMIN_DOJO per cabang/ranting, PIC utama (AppSetting), proteksi nonaktif akun terakhir, panel Akun + API `/wilayah-accounts`, audit & notifikasi rekan |
 | 18 Juli 2026 | Paket lanjutan multi-akun: satu jalur akun (form create tanpa login), jabatan, handover PIC + riwayat, PIC notifikasi prioritas & kontak resmi, konfirmasi nonaktif/reset, empty CTA, checklist kirim kredensial |
+| 18 Juli 2026 | Paket ops admin lengkap: nav dikelompokkan + notifikasi, beranda role-aware, absensi rekap/belum hadir/export, iuran generate bulan + label ID + export, kegiatan edit/roster, verifikasi triage, anggota CSV+bulk approve, store/materi/carousel upload & lifecycle |
 
 ---
 

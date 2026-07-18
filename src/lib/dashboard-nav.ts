@@ -23,29 +23,58 @@ export function flattenNavLinks(items: NavItem[]): NavLink[] {
 
 function withFreshUktHref(items: NavItem[]): NavItem[] {
   const uktHref = buildDefaultUktAdminUrl();
-  return items.map((item) =>
-    !isNavGroup(item) && item.label === "UKT" ? { ...item, href: uktHref } : item,
-  );
+  return items.map((item) => {
+    if (isNavGroup(item)) {
+      return {
+        ...item,
+        children: item.children.map((c) =>
+          c.label === "UKT" ? { ...c, href: uktHref } : c,
+        ),
+      };
+    }
+    return item.label === "UKT" ? { ...item, href: uktHref } : item;
+  });
 }
 
 export const ADMIN_LINKS: NavItem[] = [
   { href: "/admin", label: "Beranda Admin" },
-  { href: "/admin/anggota", label: "Kelola Anggota" },
-  { href: "/admin/iuran", label: "Iuran Anggota" },
-  { href: "/admin/ukt", label: "UKT" },
-  { href: "/admin/organisasi", label: "Organisasi" },
-  { href: "/admin/verifikasi", label: "Verifikasi" },
-  { href: "/admin/kegiatan", label: "Event & Kegiatan" },
-  { href: "/admin/materi", label: "Materi Digital" },
-  { href: "/admin/store", label: "Store" },
-  { href: "/admin/pesan", label: "Pesan" },
-  { href: "/admin/absensi", label: "Absensi" },
-  { href: "/admin/carousel", label: "Carousel Beranda" },
-  { href: "/admin/audit", label: "Log Audit" },
   {
-    label: "Pengaturan",
+    label: "Keanggotaan",
     children: [
-      { href: "/admin/pengaturan", label: "Ringkasan" },
+      { href: "/admin/anggota", label: "Kelola Anggota" },
+      { href: "/admin/verifikasi", label: "Verifikasi" },
+      { href: "/admin/organisasi", label: "Organisasi" },
+    ],
+  },
+  {
+    label: "Keuangan & UKT",
+    children: [
+      { href: "/admin/iuran", label: "Iuran Anggota" },
+      { href: "/admin/ukt", label: "UKT" },
+    ],
+  },
+  {
+    label: "Kegiatan & Absensi",
+    children: [
+      { href: "/admin/kegiatan", label: "Event & Kegiatan" },
+      { href: "/admin/absensi", label: "Absensi" },
+    ],
+  },
+  {
+    label: "Konten & Layanan",
+    children: [
+      { href: "/admin/materi", label: "Materi Digital" },
+      { href: "/admin/store", label: "Store" },
+      { href: "/admin/pesan", label: "Pesan" },
+      { href: "/admin/carousel", label: "Carousel Beranda" },
+      { href: "/admin/notifikasi", label: "Notifikasi" },
+    ],
+  },
+  {
+    label: "Sistem",
+    children: [
+      { href: "/admin/audit", label: "Log Audit" },
+      { href: "/admin/pengaturan", label: "Ringkasan Pengaturan" },
       { href: "/admin/pengaturan/user", label: "Pengaturan User" },
       { href: "/admin/pengaturan/cabang", label: "Pengaturan Cabang" },
       { href: "/admin/pengaturan/ranting", label: "Pengaturan Ranting" },
@@ -63,18 +92,39 @@ export function getAdminNavLinks(roles: string[]): NavItem[] {
 
   if (role !== "ADMIN_DOJO") return withFreshUktHref(ADMIN_LINKS);
 
-  // Ranting: satu menu Pengaturan (data ranting + akun digabung)
+  // Ranting: tanpa organisasi/carousel/audit/sistem cabang
   return withFreshUktHref([
     { href: "/admin", label: "Beranda Admin" },
-    { href: "/admin/anggota", label: "Kelola Anggota" },
-    { href: "/admin/iuran", label: "Iuran Anggota" },
-    { href: "/admin/ukt", label: "UKT" },
-    { href: "/admin/verifikasi", label: "Verifikasi" },
-    { href: "/admin/kegiatan", label: "Event & Kegiatan" },
-    { href: "/admin/materi", label: "Materi Digital" },
-    { href: "/admin/store", label: "Store" },
-    { href: "/admin/pesan", label: "Pesan" },
-    { href: "/admin/absensi", label: "Absensi" },
+    {
+      label: "Keanggotaan",
+      children: [
+        { href: "/admin/anggota", label: "Kelola Anggota" },
+        { href: "/admin/verifikasi", label: "Verifikasi" },
+      ],
+    },
+    {
+      label: "Keuangan & UKT",
+      children: [
+        { href: "/admin/iuran", label: "Iuran Anggota" },
+        { href: "/admin/ukt", label: "UKT" },
+      ],
+    },
+    {
+      label: "Kegiatan & Absensi",
+      children: [
+        { href: "/admin/kegiatan", label: "Event & Kegiatan" },
+        { href: "/admin/absensi", label: "Absensi" },
+      ],
+    },
+    {
+      label: "Konten & Layanan",
+      children: [
+        { href: "/admin/materi", label: "Materi Digital" },
+        { href: "/admin/store", label: "Store" },
+        { href: "/admin/pesan", label: "Pesan" },
+        { href: "/admin/notifikasi", label: "Notifikasi" },
+      ],
+    },
     { href: "/admin/pengaturan", label: "Pengaturan" },
   ]);
 }

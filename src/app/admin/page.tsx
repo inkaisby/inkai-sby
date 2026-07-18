@@ -22,10 +22,12 @@ import {
   ClipboardCheck,
   ChevronRight,
   Map,
+  Bell,
 } from "lucide-react";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import { buildDefaultUktAdminUrl } from "@/lib/ukt";
+import { canAccessAdminPath } from "@/lib/admin-page-access";
 
 export const dynamic = "force-dynamic";
 
@@ -130,14 +132,14 @@ async function AdminDashboardContent() {
     },
     {
       label: "Laporan Absensi",
-      desc: "Pantau kehadiran latihan",
+      desc: "Pantau kehadiran & yang belum absen",
       href: "/admin/absensi",
       icon: ClipboardCheck,
     },
     {
       label: "Verifikasi Iuran",
       desc: "Setujui bukti transfer anggota",
-      href: "/admin/iuran",
+      href: "/admin/iuran?status=WAITING_VERIFICATION",
       icon: Wallet,
     },
     {
@@ -152,7 +154,16 @@ async function AdminDashboardContent() {
       href: "/admin/organisasi",
       icon: Map,
     },
-  ];
+    {
+      label: "Notifikasi",
+      desc:
+        unreadNotifications > 0
+          ? `${unreadNotifications} belum dibaca`
+          : "Pesan sistem & pengumuman",
+      href: "/admin/notifikasi",
+      icon: Bell,
+    },
+  ].filter((a) => canAccessAdminPath(user.roles, a.href.split("?")[0]));
 
   return (
     <>
@@ -163,9 +174,14 @@ async function AdminDashboardContent() {
             {ROLE_LABELS[primaryRole] || primaryRole}
           </Badge>
           {unreadNotifications > 0 && (
-            <Badge variant="outline" className="border-inkai-red text-inkai-red">
-              {unreadNotifications} notifikasi baru
-            </Badge>
+            <Link href="/admin/notifikasi">
+              <Badge
+                variant="outline"
+                className="border-inkai-red text-inkai-red hover:bg-inkai-red/5"
+              >
+                {unreadNotifications} notifikasi baru
+              </Badge>
+            </Link>
           )}
         </div>
         <p className="flex items-center gap-1 text-muted-foreground">
