@@ -91,6 +91,7 @@ import {
   isUktRegistrationOpen,
   findUktPeriodForTerm,
   parseUktEventTitle,
+  resolveEffectiveUktExamResult,
   resolveUktDisplayStatus,
   summarizeRowEligibility,
   triggerCsvDownload,
@@ -556,7 +557,7 @@ export function UktDashboard(props: Props) {
         row.status === "SUCCESS";
       toast.success(
         paid
-          ? `Sabuk target diisi — status Selesai: ${formatRankLabel(newRank)}`
+          ? `Kyu Baru diisi — status Selesai: ${formatRankLabel(newRank)}`
           : data.message || `Sabuk diperbarui: ${formatRankLabel(newRank)}`,
       );
       router.refresh();
@@ -1157,7 +1158,7 @@ export function UktDashboard(props: Props) {
           <CardContent className="p-3 text-sm text-muted-foreground">
             Centang peserta yang akan dibayar, lalu pakai <b>Nota Terpilih</b> /{" "}
             <b>Siap Bayar UKT</b> agar daftar selaras dengan nota. Cabang akan
-            memverifikasi pembayaran dan mengisi sabuk target hingga status{" "}
+            memverifikasi pembayaran dan mengisi Kyu Baru hingga status{" "}
             <b>Selesai</b>.
           </CardContent>
         </Card>
@@ -1167,8 +1168,8 @@ export function UktDashboard(props: Props) {
         <Card className="border-muted">
           <CardContent className="p-3 text-sm text-muted-foreground">
             Verifikasi pembayaran (per baris atau massal), lalu isi{" "}
-            <b>Sabuk target</b>. Status menjadi <b>Selesai</b> setelah lunas +
-            sabuk target terisi.
+            <b>Kyu Baru</b>. Status menjadi <b>Selesai</b> setelah lunas +
+            Kyu Baru terisi.
           </CardContent>
         </Card>
       )}
@@ -1200,8 +1201,8 @@ export function UktDashboard(props: Props) {
                   <TableHead className="hidden xl:table-cell">Alamat</TableHead>
                 </>
               )}
-              <TableHead>Sabuk saat ini</TableHead>
-              <TableHead>Sabuk target</TableHead>
+              <TableHead>Kyu Lama</TableHead>
+              <TableHead>Kyu Baru</TableHead>
               {(compactView || isDojoAdmin) && (
                 <>
                   <TableHead className="min-w-20">Kehadiran</TableHead>
@@ -1224,7 +1225,9 @@ export function UktDashboard(props: Props) {
                 </TableCell>
               </TableRow>
             ) : (
-              displayRows.map((row, idx) => (
+              displayRows.map((row, idx) => {
+                const effectiveExam = resolveEffectiveUktExamResult(row);
+                return (
                 <TableRow
                   key={row.memberId}
                   className="group transition-colors hover:bg-muted/30"
@@ -1384,9 +1387,9 @@ export function UktDashboard(props: Props) {
                                 : ""}
                         </p>
                       )}
-                      {row.examResult && (
+                      {effectiveExam && (
                         <p className="text-xs text-muted-foreground">
-                          Hasil ujian: {row.examResult}
+                          Hasil ujian: {effectiveExam === "LULUS" ? "Lulus" : effectiveExam}
                         </p>
                       )}
                     </div>
@@ -1449,7 +1452,7 @@ export function UktDashboard(props: Props) {
                           {isCabang &&
                             (row.billingStatus === "PAID" || row.status === "PAID" || row.status === "SUCCESS") && (
                               <Select
-                                value={row.examResult || "PENDING"}
+                                value={effectiveExam || "PENDING"}
                                 onValueChange={(v) => {
                                   if (v === "PENDING") return;
                                   void handleExamResult(
@@ -1458,12 +1461,12 @@ export function UktDashboard(props: Props) {
                                   );
                                 }}
                               >
-                                <SelectTrigger className="h-7 w-[124px] text-xs">
+                                <SelectTrigger className="h-7 w-[148px] text-xs">
                                   <SelectValue placeholder="Hasil ujian" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="PENDING">Hasil Ujian</SelectItem>
-                                  <SelectItem value="LULUS">Lulus</SelectItem>
+                                  <SelectItem value="LULUS">Hasil Ujian Lulus</SelectItem>
                                   <SelectItem value="GAGAL">Tidak Lulus</SelectItem>
                                   <SelectItem value="MENGULANG">Mengulang</SelectItem>
                                 </SelectContent>
@@ -1492,7 +1495,8 @@ export function UktDashboard(props: Props) {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -1564,8 +1568,8 @@ export function UktDashboard(props: Props) {
                   <div><span className="text-muted-foreground">Tempat Lahir:</span> {selectedMember.birthPlace || "-"}</div>
                   <div><span className="text-muted-foreground">Tgl Lahir:</span> {formatDate(selectedMember.birthDate)}</div>
                   <div><span className="text-muted-foreground">Jenis Kelamin:</span> {formatGenderLabel(selectedMember.gender) || "-"}</div>
-                  <div><span className="text-muted-foreground">Sabuk saat ini:</span> {formatRankLabel(selectedMember.kyuLama) || "—"}</div>
-                  <div><span className="text-muted-foreground">Sabuk target:</span> {selectedMember.kyuBaru ? formatRankLabel(selectedMember.kyuBaru) : "—"}</div>
+                  <div><span className="text-muted-foreground">Kyu Lama:</span> {formatRankLabel(selectedMember.kyuLama) || "—"}</div>
+                  <div><span className="text-muted-foreground">Kyu Baru:</span> {selectedMember.kyuBaru ? formatRankLabel(selectedMember.kyuBaru) : "—"}</div>
                 </div>
                 {selectedMember.outstandingDues > 0 && (
                   <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:bg-amber-950/20">

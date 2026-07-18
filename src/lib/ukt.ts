@@ -532,6 +532,24 @@ export function canApplyUktKyuBaru(
   return paid && examResult === "LULUS";
 }
 
+/**
+ * Hasil ujian efektif untuk UI: jika sudah Selesai (lunas + Kyu Baru),
+ * tampilkan LULUS meski setting hasil ujian belum ter-load / kosong.
+ */
+export function resolveEffectiveUktExamResult(
+  row: UktMemberRow,
+): UktExamResult | null {
+  if (
+    row.examResult === "LULUS" ||
+    row.examResult === "GAGAL" ||
+    row.examResult === "MENGULANG"
+  ) {
+    return row.examResult;
+  }
+  if (isUktSelesai(row)) return "LULUS";
+  return null;
+}
+
 export type UktDojoRecap = {
   dojoId: string;
   dojoName: string;
