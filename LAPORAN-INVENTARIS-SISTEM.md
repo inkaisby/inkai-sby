@@ -4,6 +4,7 @@
 **Repository:** `inkai-sby`  
 **Platform:** Next.js (App Router) + Inkai API + PostgreSQL (Supabase/Prisma)  
 **Tanggal dokumen:** 17 Juli 2026  
+**Peran:** living context untuk pengurus & agent — baca sebelum develop; update bersamaan dengan perubahan kode. Nama file ini **tetap**.
 
 ---
 
@@ -362,7 +363,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 17 Juli 2026 | UKT lengkap: gate pendaftaran (periode, iuran, dokumen, absensi), hasil ujian `LULUS/GAGAL/MENGULANG`, Kyu Baru hanya setelah lulus+lunas, rekap ranting untuk WA, dan kartu status UKT anggota |
 | 17 Juli 2026 | UKT: hapus alur invoice (buat/konfirmasi); pembayaran ranting–cabang cukup lewat **nota** (Cetak Nota / Nota Terpilih / Siap Bayar UKT) |
 | 17 Juli 2026 | UKT operasional lengkap: filter/KPI status operasional, kolom kehadiran+syarat, action bar terpadu, hard block Kyu Baru, waiver cabang, export CSV, wizard periode, notifikasi anggota, kartu UKT di beranda |
+| 18 Juli 2026 | Nama file dikunci sebagai living context agentic; rule Cursor + `AGENTS.md` wajib baca inventaris sebelum develop, update di turn yang sama |
 
 ---
 
-*Dokumen ini disusun untuk keperluan laporan organisasi dan dapat dilampirkan pada presentasi pengurus Cabang / Pengprov.*
+*Dokumen ini living inventaris organisasi (bukan laporan sekali-jadi) dan dapat dilampirkan pada presentasi pengurus Cabang / Pengprov.*

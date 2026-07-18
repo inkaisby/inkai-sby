@@ -1,22 +1,31 @@
 ---
-description: Selalu update LAPORAN-INVENTARIS-SISTEM.md saat fitur/alur berubah
+description: Baca & update LAPORAN-INVENTARIS-SISTEM.md sebagai living context sistem
 alwaysApply: true
 ---
 
-# Laporan Inventaris Sistem
+# Laporan Inventaris Sistem (living context)
 
-Setiap kali mengubah fitur, alur bisnis, RBAC, API, atau status kelengkapan modul di `inkai-sby`, **wajib** memperbarui `LAPORAN-INVENTARIS-SISTEM.md` di root repo pada turn yang sama.
+`LAPORAN-INVENTARIS-SISTEM.md` di root repo adalah **sumber kebenaran** untuk modul, alur bisnis, RBAC, API, dan status kelengkapan `inkai-sby`. Nama file ini **tetap** — jangan rename atau buat dokumen inventaris paralel.
 
-## Apa yang harus di-update
+## Sebelum develop / refactor / debug fitur
+
+1. **Baca** bagian relevan di inventaris dulu (modul publik / dashboard / admin, §9 alur, RBAC, §11 celah, §13 API).
+2. Selaraskan rencana dengan status & alur yang terdokumentasi; jangan mengasumsi dari training data saja.
+3. Jika inventaris dan kode bertentangan, **percayai kode** lalu perbaiki inventaris di turn yang sama.
+
+## Setelah mengubah fitur / alur / RBAC / API
+
+Perbarui inventaris **pada turn yang sama** dengan perubahan kode:
 
 - Tabel modul (publik / dashboard / admin) jika status atau fungsi berubah
 - Alur bisnis (§9) jika workflow berubah
 - Matriks RBAC / hierarki jika hak akses berubah
 - Status kelengkapan & celah (§11) dan prioritas kesimpulan (§14)
 - Peta API (§13) jika endpoint baru/berubah
-- **Riwayat penyusunan (§15)** — tambah baris tanggal + ringkasan singkat perubahan
+- **Riwayat penyusunan (§15)** — tambah baris tanggal + ringkasan singkat
 
 ## Jangan
 
 - Jangan membuat dokumen inventaris baru; edit file yang sudah ada
 - Jangan menunda update “nanti”; lakukan bersamaan dengan perubahan kode
+- Jangan rename `LAPORAN-INVENTARIS-SISTEM.md`
