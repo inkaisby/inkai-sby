@@ -387,6 +387,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | Paket ops admin lengkap: nav dikelompokkan + notifikasi, beranda role-aware, absensi rekap/belum hadir/export, iuran generate bulan + label ID + export, kegiatan edit/roster, verifikasi triage, anggota CSV+bulk approve, store/materi/carousel upload & lifecycle |
 | 18 Juli 2026 | Paket lengkap celah ops: pesan unread+cari+broadcast, organisasi→pengaturan deep-link, geofence pratinjau peta, audit filter/export, beranda KPI pesan, preset peran |
 | 18 Juli 2026 | Beranda anggota: checklist keanggotaan+CTA, dojo/jadwal/absen hari ini/PIC WA, aksi cepat kontekstual+sheet lainnya, badge pesan unread, agenda gabungan |
+| 18 Juli 2026 | Seed akun Pengprov Jatim (`ADMIN_PROVINCE`): `pengprovjatim@gmail.com` via `scripts/seed-pengprov-jatim.ts` |
 
 ---
 
