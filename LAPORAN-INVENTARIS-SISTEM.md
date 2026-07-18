@@ -397,6 +397,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | UKT admin: dropdown Semester I/II lebih lebar & kontras jelas (tanpa highlight kuning accent) |
 | 18 Juli 2026 | UKT: tombol/banner **Buat Periode** tampil jika belum ada periode berjudul semester+tahun (tidak lagi tersembunyi hanya karena `period` di URL) |
 | 18 Juli 2026 | UKT: ikon **Back** (←) mengarah ke `?create=1` agar tombol **Buat Periode** muncul tanpa auto-pilih event |
+| 18 Juli 2026 | UKT: hilangkan duplikat tombol Buat Periode — hanya di banner |
 
 ---
 

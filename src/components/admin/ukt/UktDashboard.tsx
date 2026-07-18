@@ -935,16 +935,6 @@ export function UktDashboard(props: Props) {
                 </SelectContent>
               </Select>
             )}
-            {showCreatePeriod && (
-              <Button
-                onClick={openCreateWizard}
-                disabled={loading}
-                className="bg-inkai-red hover:bg-inkai-red/90"
-              >
-                <Plus className="mr-1 h-4 w-4" />
-                Buat Periode
-              </Button>
-            )}
             {isCabang && props.selectedPeriodId && (
               <Button variant="outline" onClick={handleExportCsv}>
                 <Download className="mr-1 h-4 w-4" />
