@@ -37,5 +37,14 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
   }
 
+  await prisma.message.updateMany({
+    where: {
+      conversationId: id,
+      senderId: { not: authResult.user.id },
+      isRead: false,
+    },
+    data: { isRead: true },
+  });
+
   return NextResponse.json({ conversation: result.data, meId: authResult.user.id });
 }

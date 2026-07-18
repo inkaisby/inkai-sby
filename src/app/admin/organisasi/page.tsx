@@ -121,10 +121,11 @@ async function AdminOrganisasiContent() {
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {branches.map((b) => {
                   const province = b.province as { name?: string } | undefined;
+                  const name = String(b.name);
                   return (
                     <Card key={String(b.id)}>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">{String(b.name)}</CardTitle>
+                        <CardTitle className="text-base">{name}</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <p className="text-sm text-muted-foreground">
@@ -134,9 +135,17 @@ async function AdminOrganisasiContent() {
                         <p className="text-sm text-muted-foreground">
                           Ketua: {String(b.headName || "—")}
                         </p>
-                        <Badge variant="secondary" className="mt-2">
-                          {(b._count as { dojos?: number })?.dojos ?? 0} dojo/ranting
-                        </Badge>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary">
+                            {(b._count as { dojos?: number })?.dojos ?? 0} dojo/ranting
+                          </Badge>
+                          <Link
+                            href={`/admin/pengaturan/cabang?q=${encodeURIComponent(name)}`}
+                            className="text-xs text-inkai-red hover:underline"
+                          >
+                            Kelola di Pengaturan →
+                          </Link>
+                        </div>
                       </CardContent>
                     </Card>
                   );
@@ -159,11 +168,20 @@ async function AdminOrganisasiContent() {
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {dojos.map((d) => {
-                  const branch = d.branch as { name?: string; province?: { name?: string } } | undefined;
+                  const branch = d.branch as {
+                    id?: string;
+                    name?: string;
+                    province?: { name?: string };
+                  } | undefined;
+                  const name = String(d.name);
+                  const branchId = branch?.id ? String(branch.id) : "";
+                  const rantingHref = branchId
+                    ? `/admin/pengaturan/ranting?q=${encodeURIComponent(name)}&branchId=${encodeURIComponent(branchId)}`
+                    : `/admin/pengaturan/ranting?q=${encodeURIComponent(name)}`;
                   return (
                     <Card key={String(d.id)}>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">{String(d.name)}</CardTitle>
+                        <CardTitle className="text-base">{name}</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <p className="text-sm text-muted-foreground">
@@ -183,8 +201,14 @@ async function AdminOrganisasiContent() {
                             {(d._count as { members?: number })?.members ?? 0} anggota
                           </Badge>
                           <Link
-                            href={`/dojo/${d.id}`}
+                            href={rantingHref}
                             className="text-xs text-inkai-red hover:underline"
+                          >
+                            Kelola di Pengaturan →
+                          </Link>
+                          <Link
+                            href={`/dojo/${d.id}`}
+                            className="text-xs text-muted-foreground hover:underline"
                           >
                             Lihat publik →
                           </Link>

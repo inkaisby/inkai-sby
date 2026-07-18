@@ -54,6 +54,7 @@ export function MobileDashboardNav({
                 href={item.href}
                 label={item.label}
                 isActive={isActive}
+                badge={item.badge}
               />
             );
           })}

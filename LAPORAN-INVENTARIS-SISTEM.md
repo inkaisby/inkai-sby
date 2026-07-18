@@ -102,21 +102,21 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Modul | Fungsi |
 |-------|--------|
-| Beranda Admin | KPI anggota, iuran pending, event, verifikasi; aksi cepat role-aware + notifikasi |
+| Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi |
 | Kelola Anggota | Cari/filter, detail, NIA, dokumen; nonaktif/bulk; **export CSV**; **bulk approve pending**; arsip |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota |
-| Organisasi | Wilayah & susunan pengurus |
+| Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
 | Verifikasi | Antrian klaim + **filter tipe/aging**; riwayat |
 | Event & Kegiatan | Buat + **ubah/tutup** event non-UKT + **roster pendaftar**; link UKT |
 | Materi Digital | CRUD + **upload Blob** + **publish/draft** |
 | Store | CRUD produk (**edit/stok/aktif**) + status pesanan berlabel ID |
-| Pesan | Balas chat anggota |
+| Pesan | Inbox + unread badge, cari, balas, **broadcast notifikasi** |
 | Absensi | Harian + **belum hadir** + **rekap semester %** + export |
 | Carousel Beranda | Upload gambar + aktif + **urutkan** |
-| Log Audit | Jejak aksi sensitif (pusat) |
+| Log Audit | Filter aksi/cari + **export CSV** (pusat) |
 | Notifikasi | Inbox admin (ada di nav) |
-| Pengaturan | User, cabang/ranting multi-akun, kebijakan, peran, geofencing, akun |
+| Pengaturan | User, cabang/ranting multi-akun, kebijakan, peran (**preset**), geofencing (**pratinjau peta**), akun |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
@@ -263,14 +263,15 @@ Pusat / Nasional
 | Admin anggota / iuran / UKT | Lengkap | Iuran: edit/lunas/verifikasi (ranting+cabang); anggota: nonaktif/aktif/hapus arsip; UKT pakai gate iuran+dokumen+absensi, hasil ujian, rekap ranting, nota tanpa kode unik |
 | Verifikasi kartu (publik) | Aktif | `/v/[id]` — scan QR kartu anggota |
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
-| Materi / Store / Pesan / Pindah / Piagam | Aktif | Prisma lokal + verifikasi admin |
-| RBAC wilayah | Diterapkan | Matriks tampil di Pengaturan & Role; multi-akun per cabang/ranting + PIC |
-| Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC (notifikasi prioritas + kontak resmi), serah terima, konfirmasi nonaktif/reset |
+| Materi / Store / Pesan / Pindah / Piagam | Aktif | Pesan: unread + cari + broadcast notifikasi; store/materi upload |
+| RBAC wilayah | Diterapkan | Matriks tampil di Pengaturan & Role; multi-akun per cabang/ranting + PIC; **preset permission** |
+| Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC, serah terima; geofence + **pratinjau peta OSM** |
 | Upload bukti iuran (anggota) | Aktif | `/dashboard/iuran` + `/api/member/billing/[id]` |
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` + `/api/member/attendance/checkin` |
 | Absensi admin | Aktif | Harian, belum hadir, rekap semester %, export CSV |
 | Iuran generate bulan | Aktif | `POST /api/admin/billing/generate` + UI Iuran |
-| Nav admin | Dikelompokkan | Keanggotaan / Keuangan / Kegiatan / Konten / Sistem + Notifikasi |
+| Nav admin | Dikelompokkan | Keanggotaan / Keuangan / Kegiatan / Konten / Sistem + badge unread pesan |
+| Audit admin | Aktif | Filter + export CSV di `/admin/audit` |
 | Nominal UKT | Tanpa kode unik | `uktBaseFeeAmount` — tampilan/KPI strip +1…999 agar = nota |
 | Eligibility UKT | Diterapkan | Gate periode tutup, iuran, dokumen, absensi semester minimum 75% |
 | Hasil ujian UKT | Aktif | Cabang tetapkan `LULUS` / `GAGAL` / `MENGULANG`; Kyu Baru **wajib** setelah LULUS |
@@ -319,7 +320,8 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/member/ukt-status       Kartu status UKT periode aktif untuk anggota
 /api/admin/materi/*         CRUD materi digital
 /api/admin/store/*          Produk & status pesanan
-/api/admin/pesan/*          Inbox & balas pesan
+/api/admin/pesan/*          Inbox, unread, tandai dibaca, balas
+/api/admin/broadcast        Broadcast notifikasi ke anggota (scope)
 /api/member/materi          Daftar materi
 /api/member/store           Katalog & pesan produk
 /api/member/pesan           Chat pengurus
@@ -353,7 +355,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 
 1. (Opsional) Sinkron backend agar billing UKT tidak lagi menulis `uniqueTail` di DB  
 2. Perkaya store (multi-item cart, pembayaran terintegrasi)  
-3. Notifikasi push / email untuk pesan & verifikasi  
+3. UKT hari-H (roster ujian / kehadiran di tempat)  
+4. Notifikasi push / email untuk pesan & verifikasi  
 
 ---
 
@@ -382,6 +385,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | Multi-akun per wilayah: beberapa email ADMIN_BRANCH/ADMIN_DOJO per cabang/ranting, PIC utama (AppSetting), proteksi nonaktif akun terakhir, panel Akun + API `/wilayah-accounts`, audit & notifikasi rekan |
 | 18 Juli 2026 | Paket lanjutan multi-akun: satu jalur akun (form create tanpa login), jabatan, handover PIC + riwayat, PIC notifikasi prioritas & kontak resmi, konfirmasi nonaktif/reset, empty CTA, checklist kirim kredensial |
 | 18 Juli 2026 | Paket ops admin lengkap: nav dikelompokkan + notifikasi, beranda role-aware, absensi rekap/belum hadir/export, iuran generate bulan + label ID + export, kegiatan edit/roster, verifikasi triage, anggota CSV+bulk approve, store/materi/carousel upload & lifecycle |
+| 18 Juli 2026 | Paket lengkap celah ops: pesan unread+cari+broadcast, organisasi→pengaturan deep-link, geofence pratinjau peta, audit filter/export, beranda KPI pesan, preset peran |
 
 ---
 

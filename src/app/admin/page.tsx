@@ -23,11 +23,13 @@ import {
   ChevronRight,
   Map,
   Bell,
+  MessageSquare,
 } from "lucide-react";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import { buildDefaultUktAdminUrl } from "@/lib/ukt";
 import { canAccessAdminPath } from "@/lib/admin-page-access";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +42,7 @@ export default function AdminDashboard() {
 }
 
 async function AdminDashboardContent() {
-  const { user, token } = await requireAdminSession();
+  const { user, token, session } = await requireAdminSession();
 
   const primaryRole = getPrimaryAdminRole(user.roles);
   const includeBranches = [
@@ -60,9 +62,26 @@ async function AdminDashboardContent() {
   let upcomingEvents: Array<Record<string, unknown>> = [];
   let recentNotifications: Array<Record<string, unknown>> = [];
   let unreadNotifications = 0;
+  let unreadPesan = 0;
 
   try {
-    const bundle = await fetchAdminDashboardBundle(token);
+    const [bundle, pesanUnread] = await Promise.all([
+      fetchAdminDashboardBundle(token),
+      withPrismaFallback(
+        "admin-beranda-pesan-unread",
+        () =>
+          prisma.message.count({
+            where: {
+              isRead: false,
+              senderId: { not: session.user.id },
+              conversation: {
+                participants: { some: { id: session.user.id } },
+              },
+            },
+          }),
+        0,
+      ),
+    ]);
 
     totalMembers = Number(bundle.stats?.totalMembers ?? 0);
     totalDojos = Number(bundle.stats?.totalDojos ?? 0);
@@ -74,6 +93,7 @@ async function AdminDashboardContent() {
     upcomingEvents = bundle.upcomingEvents;
     recentNotifications = bundle.notifications.items;
     unreadNotifications = bundle.notifications.unread;
+    unreadPesan = pesanUnread.data || 0;
   } catch (error) {
     console.error("[AdminDashboard] API error:", error);
   }
@@ -105,6 +125,13 @@ async function AdminDashboardContent() {
       value: pendingBillings,
       icon: Wallet,
       href: "/admin/iuran?status=WAITING_VERIFICATION",
+      show: true,
+    },
+    {
+      label: "Pesan Belum Dibaca",
+      value: unreadPesan,
+      icon: MessageSquare,
+      href: "/admin/pesan",
       show: true,
     },
     {
@@ -147,6 +174,15 @@ async function AdminDashboardContent() {
       desc: "Pendaftaran ujian kenaikan tingkat",
       href: buildDefaultUktAdminUrl(),
       icon: ShieldCheck,
+    },
+    {
+      label: "Pesan Anggota",
+      desc:
+        unreadPesan > 0
+          ? `${unreadPesan} belum dibaca`
+          : "Balas chat & broadcast",
+      href: "/admin/pesan",
+      icon: MessageSquare,
     },
     {
       label: "Kelola Organisasi",
@@ -209,7 +245,10 @@ async function AdminDashboardContent() {
         ))}
       </div>
 
-      {(pendingCount > 0 || pendingVerifications > 0 || pendingBillings > 0) && (
+      {(pendingCount > 0 ||
+        pendingVerifications > 0 ||
+        pendingBillings > 0 ||
+        unreadPesan > 0) && (
         <Card className="mb-6 border-inkai-yellow/40 bg-inkai-yellow/10">
           <CardContent className="space-y-1 p-4 text-sm">
             {pendingCount > 0 && (
@@ -233,6 +272,14 @@ async function AdminDashboardContent() {
                 <b>{pendingBillings}</b> bukti iuran menunggu verifikasi.{" "}
                 <Link href="/admin/iuran?status=WAITING_VERIFICATION" className="text-inkai-red hover:underline">
                   Tinjau →
+                </Link>
+              </p>
+            )}
+            {unreadPesan > 0 && (
+              <p>
+                <b>{unreadPesan}</b> pesan anggota belum dibaca.{" "}
+                <Link href="/admin/pesan" className="text-inkai-red hover:underline">
+                  Buka inbox →
                 </Link>
               </p>
             )}

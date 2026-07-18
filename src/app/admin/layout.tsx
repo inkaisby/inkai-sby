@@ -1,6 +1,7 @@
 import { requireAdminSession } from "@/lib/admin-session";
 import { DashboardShell } from "@/components/layout/DashboardShell";
-import { getAdminNavLinks } from "@/lib/dashboard-nav";
+import { applyNavBadges, getAdminNavLinks } from "@/lib/dashboard-nav";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
 
 export default async function AdminLayout({
   children,
@@ -9,7 +10,26 @@ export default async function AdminLayout({
 }) {
   try {
     const { session } = await requireAdminSession();
-    const links = getAdminNavLinks(session.user.roles ?? []);
+    const baseLinks = getAdminNavLinks(session.user.roles ?? []);
+
+    const unreadPesan = await withPrismaFallback(
+      "admin-pesan-unread-nav",
+      () =>
+        prisma.message.count({
+          where: {
+            isRead: false,
+            senderId: { not: session.user.id },
+            conversation: {
+              participants: { some: { id: session.user.id } },
+            },
+          },
+        }),
+      0,
+    );
+
+    const links = applyNavBadges(baseLinks, {
+      "/admin/pesan": unreadPesan.data || 0,
+    });
 
     return (
       <DashboardShell

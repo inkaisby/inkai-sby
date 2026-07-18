@@ -53,6 +53,7 @@ export function SidebarNavGroup({
                 href={link.href}
                 label={link.label}
                 isActive={isActive}
+                badge={link.badge}
               />
             );
           })}

@@ -137,14 +137,15 @@ export function AppSidebar({
             (item.href !== "/dashboard" &&
               item.href !== "/admin" &&
               pathname.startsWith(item.href));
-          return (
-            <SidebarNavLink
-              key={item.href}
-              href={item.href}
-              label={item.label}
-              isActive={isActive}
-            />
-          );
+            return (
+              <SidebarNavLink
+                key={item.href}
+                href={item.href}
+                label={item.label}
+                isActive={isActive}
+                badge={item.badge}
+              />
+            );
         })}
       </nav>
     </aside>

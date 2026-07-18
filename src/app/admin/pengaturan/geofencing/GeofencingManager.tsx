@@ -116,6 +116,44 @@ export function GeofencingManager({ dojos }: { dojos: GeofenceDojo[] }) {
               required
             />
           </div>
+          {(() => {
+            const lat = Number(latitude);
+            const lon = Number(longitude);
+            const r = Number(radius) || 50;
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+            const dLat = (r * 2.8) / 111_320;
+            const cos = Math.cos((lat * Math.PI) / 180);
+            const dLon = cos === 0 ? dLat : (r * 2.8) / (111_320 * Math.abs(cos));
+            const bbox = `${lon - dLon},${lat - dLat},${lon + dLon},${lat + dLat}`;
+            const embed = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lon}`)}`;
+            return (
+              <div className="sm:col-span-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Pratinjau peta (OpenStreetMap) — lingkaran merah memperkirakan radius{" "}
+                  {r} m.
+                </p>
+                <div className="relative aspect-[16/9] overflow-hidden rounded-lg border bg-muted">
+                  <iframe
+                    title="Pratinjau geofence"
+                    src={embed}
+                    className="h-full w-full border-0"
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div
+                      className="rounded-full border-2 border-inkai-red/80 bg-inkai-red/15"
+                      style={{
+                        width: "min(42%, 180px)",
+                        height: "min(42%, 180px)",
+                      }}
+                      aria-hidden
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           <div className="flex flex-wrap gap-2 sm:col-span-3">
             <Button
               type="button"

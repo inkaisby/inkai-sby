@@ -8,20 +8,34 @@ const sendSchema = z.object({
   content: z.string().trim().min(1).max(2000),
 });
 
+type ConvRow = {
+  id: string;
+  lastMessageAt: Date | null;
+  participants: unknown[];
+  messages: unknown[];
+};
+
 export async function GET() {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+
+  const meId = authResult.user.id;
 
   const result = await withPrismaFallback(
     "admin-conversations",
     () =>
       prisma.conversation.findMany({
         where: {
-          participants: { some: { id: authResult.user.id } },
+          participants: { some: { id: meId } },
         },
         include: {
           participants: {
-            select: { id: true, fullName: true, email: true, member: { select: { fullName: true, nia: true } } },
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              member: { select: { fullName: true, nia: true } },
+            },
           },
           messages: {
             orderBy: { createdAt: "desc" },
@@ -35,7 +49,6 @@ export async function GET() {
     [],
   );
 
-  // Juga tampilkan percakapan yang melibatkan admin cabang lain jika user pusat
   const all = await withPrismaFallback(
     "admin-conversations-all",
     () =>
@@ -61,10 +74,35 @@ export async function GET() {
     [],
   );
 
-  const mine = result.data as unknown[];
-  const list = mine.length > 0 ? mine : all.data;
+  const mine = result.data as ConvRow[];
+  const list = (mine.length > 0 ? mine : (all.data as ConvRow[])) ?? [];
+  const ids = list.map((c) => c.id);
 
-  return NextResponse.json({ data: list, meId: authResult.user.id });
+  const unreadGroups =
+    ids.length === 0
+      ? []
+      : await prisma.message.groupBy({
+          by: ["conversationId"],
+          where: {
+            conversationId: { in: ids },
+            isRead: false,
+            senderId: { not: meId },
+          },
+          _count: { _all: true },
+        });
+
+  const unreadMap = new Map(
+    unreadGroups.map((g) => [g.conversationId, g._count._all]),
+  );
+
+  const data = list.map((c) => ({
+    ...c,
+    unreadCount: unreadMap.get(c.id) ?? 0,
+  }));
+
+  const totalUnread = data.reduce((sum, c) => sum + c.unreadCount, 0);
+
+  return NextResponse.json({ data, meId, totalUnread });
 }
 
 export async function POST(request: Request) {
@@ -76,7 +114,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Pesan tidak valid" }, { status: 400 });
   }
 
-  // Pastikan admin masuk sebagai participant
   const conv = await prisma.conversation.findUnique({
     where: { id: parsed.data.conversationId },
     include: { participants: { select: { id: true } } },
@@ -97,6 +134,7 @@ export async function POST(request: Request) {
       conversationId: parsed.data.conversationId,
       senderId: authResult.user.id,
       content: parsed.data.content,
+      isRead: true,
     },
     include: { sender: { select: { id: true, fullName: true } } },
   });

@@ -8,10 +8,12 @@ export function SidebarNavLink({
   href,
   label,
   isActive,
+  badge,
 }: {
   href: string;
   label: string;
   isActive: boolean;
+  badge?: number;
 }) {
   const { pendingHref, startNavigation } = useNavigation();
   const isPending = pendingHref === href;
@@ -31,7 +33,18 @@ export function SidebarNavLink({
       {isPending ? (
         <InkaiLogoLoader size="sm" showDots={false} className="shrink-0" />
       ) : null}
-      <span className="truncate">{label}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {badge && badge > 0 ? (
+        <span
+          className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
+            isActive
+              ? "bg-white/20 text-white"
+              : "bg-inkai-red text-white"
+          }`}
+        >
+          {badge > 9 ? "9+" : badge}
+        </span>
+      ) : null}
     </Link>
   );
 }

@@ -105,7 +105,7 @@ export function RolePermissionsManager({
       </div>
 
       <div className="rounded-xl border p-4">
-        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="font-semibold">
               {selected
@@ -113,7 +113,7 @@ export function RolePermissionsManager({
                 : "Pilih role"}
             </h3>
             <p className="text-sm text-muted-foreground">
-              Centang permission yang diizinkan untuk role ini
+              Centang permission atau pakai preset cepat
             </p>
           </div>
           <Button
@@ -123,6 +123,66 @@ export function RolePermissionsManager({
           >
             {saving ? "Menyimpan..." : "Simpan"}
           </Button>
+        </div>
+
+        <div className="mb-4 flex flex-wrap gap-2">
+          {(
+            [
+              {
+                id: "read",
+                label: "Baca saja",
+                match: (s: string) =>
+                  /read|view|list|get|lihat|baca/.test(s.toLowerCase()),
+              },
+              {
+                id: "ops",
+                label: "Operasional",
+                match: (s: string) =>
+                  /member|anggota|billing|iuran|attendance|absensi|event|kegiatan|verif|message|pesan|ukt|store|materi/.test(
+                    s.toLowerCase(),
+                  ),
+              },
+              {
+                id: "full",
+                label: "Semua",
+                match: () => true,
+              },
+              {
+                id: "clear",
+                label: "Kosongkan",
+                match: () => false,
+              },
+            ] as const
+          ).map((preset) => (
+            <Button
+              key={preset.id}
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!selected}
+              onClick={() => {
+                if (!selected) return;
+                const nextIds = new Set(
+                  permissions
+                    .filter((p) => preset.match(p.slug) || preset.match(p.name))
+                    .map((p) => p.id),
+                );
+                const updated: RoleRow = {
+                  ...selected,
+                  permissions: [...nextIds]
+                    .map((id) => ({
+                      permission: permissions.find((p) => p.id === id)!,
+                    }))
+                    .filter((p) => p.permission),
+                };
+                setRoles((prev) =>
+                  prev.map((r) => (r.id === updated.id ? updated : r)),
+                );
+              }}
+            >
+              {preset.label}
+            </Button>
+          ))}
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2">

@@ -4,6 +4,7 @@ import { buildDefaultUktAdminUrl } from "@/lib/ukt";
 export type NavLink = {
   href: string;
   label: string;
+  badge?: number;
 };
 
 export type NavGroup = {
@@ -19,6 +20,25 @@ export function isNavGroup(item: NavItem): item is NavGroup {
 
 export function flattenNavLinks(items: NavItem[]): NavLink[] {
   return items.flatMap((item) => (isNavGroup(item) ? item.children : [item]));
+}
+
+/** Tempel badge angka ke href tertentu (mis. unread pesan). */
+export function applyNavBadges(
+  items: NavItem[],
+  badges: Record<string, number>,
+): NavItem[] {
+  return items.map((item) => {
+    if (isNavGroup(item)) {
+      return {
+        ...item,
+        children: item.children.map((c) => ({
+          ...c,
+          badge: badges[c.href] || undefined,
+        })),
+      };
+    }
+    return { ...item, badge: badges[item.href] || undefined };
+  });
 }
 
 function withFreshUktHref(items: NavItem[]): NavItem[] {
