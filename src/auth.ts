@@ -7,6 +7,7 @@ import {
   getInkaiTokenCookieOptions,
   INKAI_TOKEN_COOKIE,
 } from "@/lib/inkai-api/cookies";
+import { isMemberLoginBlocked } from "@/lib/security/member-status";
 
 declare module "next-auth" {
   interface User {
@@ -101,6 +102,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const roles = Array.isArray(user.roles) ? user.roles : [];
         const memberId = user.memberId ?? user.member?.id ?? null;
+        const memberStatus = user.member?.status;
+        if (isMemberLoginBlocked(memberStatus)) {
+          return null;
+        }
 
         const cookieStore = await cookies();
         cookieStore.set(INKAI_TOKEN_COOKIE, token, getInkaiTokenCookieOptions());

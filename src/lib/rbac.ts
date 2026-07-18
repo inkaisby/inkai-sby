@@ -77,31 +77,39 @@ export function getAdminScopeLabel(user: SessionUser) {
   }
 }
 
-export function buildMemberFilter(user: SessionUser) {
+export function buildMemberFilter(
+  user: SessionUser,
+  opts?: { includeDeleted?: boolean; anyDeleted?: boolean },
+) {
   const role = getPrimaryAdminRole(user.roles);
+  const deletedClause = opts?.anyDeleted
+    ? {}
+    : opts?.includeDeleted
+      ? { isDeleted: true as const }
+      : { isDeleted: false as const };
 
   if (role === "ADMINISTRATOR" || role === "ADMIN_PUSAT" || role === "ADMIN") {
-    return { isDeleted: false };
+    return { ...deletedClause };
   }
   if (role === "ADMIN_PROVINCE" && user.managedProvinceId) {
     return {
-      isDeleted: false,
+      ...deletedClause,
       dojo: { branch: { provinceId: user.managedProvinceId, isDeleted: false } },
     };
   }
   if (role === "ADMIN_BRANCH" && user.managedBranchId) {
     return {
-      isDeleted: false,
+      ...deletedClause,
       dojo: { branchId: user.managedBranchId, isDeleted: false },
     };
   }
   if (role === "ADMIN_DOJO" && user.managedDojoId) {
-    return { isDeleted: false, dojoId: user.managedDojoId };
+    return { ...deletedClause, dojoId: user.managedDojoId };
   }
   if (user.memberId) {
-    return { id: user.memberId, isDeleted: false };
+    return { id: user.memberId, ...deletedClause };
   }
-  return { id: "none", isDeleted: false };
+  return { id: "none", ...deletedClause };
 }
 
 export function buildDojoFilter(user: SessionUser) {

@@ -28,7 +28,15 @@ import {
   formatRankLabel,
 } from "@/lib/belt";
 import { generateSimplePassword } from "@/lib/security/password";
+import {
+  reasonLabel,
+  statusKindLabel,
+  type MemberImpactSummary,
+  type MemberLifecycleMeta,
+} from "@/lib/member-lifecycle";
+import { canToggleMemberActive } from "@/lib/wilayah-rbac";
 import { MemberActions } from "./MemberActions";
+import { BulkDeactivateBar } from "./BulkDeactivateBar";
 
 type MemberDetail = Record<string, unknown>;
 
@@ -164,6 +172,7 @@ function DocumentsCell({
 }
 
 function MemberStatusBadge({ status }: { status: string }) {
+  const key = status.trim();
   const map: Record<string, { label: string; className: string }> = {
     PENDING: {
       label: "Menunggu",
@@ -175,13 +184,28 @@ function MemberStatusBadge({ status }: { status: string }) {
       className:
         "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200",
     },
+    ACTIVE: {
+      label: "Aktif",
+      className:
+        "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200",
+    },
+    INACTIVE: {
+      label: "Nonaktif",
+      className:
+        "border-slate-300 bg-slate-50 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300",
+    },
+    SUSPENDED: {
+      label: "Ditangguhkan",
+      className:
+        "border-orange-300 bg-orange-50 text-orange-800 dark:bg-orange-950/30 dark:text-orange-200",
+    },
     REJECTED: {
       label: "Ditolak",
       className:
         "border-destructive/40 bg-destructive/10 text-destructive",
     },
   };
-  const s = map[status] || { label: status, className: "" };
+  const s = map[key] || { label: status, className: "" };
   return (
     <Badge variant="outline" className={s.className}>
       {s.label}
@@ -240,6 +264,29 @@ export function MembersTable({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<MemberDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const canBulk = canToggleMemberActive(userRoles);
+
+  const activeSelectable = members.filter(
+    (m) => m.status.trim().toUpperCase() === "ACTIVE",
+  );
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === activeSelectable.length) {
+      setSelectedIds(new Set());
+      return;
+    }
+    setSelectedIds(new Set(activeSelectable.map((m) => m.id)));
+  }
 
   async function openDetail(member: AdminMemberRow) {
     setSelectedId(member.id);
@@ -303,6 +350,9 @@ export function MembersTable({
 
   const unpaid = billings.filter((b) => b.status && b.status !== "PAID");
   const paidCount = billings.filter((b) => b.status === "PAID").length;
+  const lifecycle = detail?.lifecycle as MemberLifecycleMeta | null | undefined;
+  const impact = detail?.impact as MemberImpactSummary | null | undefined;
+  const colCount = canBulk ? 9 : 8;
 
   return (
     <>
@@ -310,6 +360,20 @@ export function MembersTable({
         <Table>
           <TableHeader>
             <TableRow>
+              {canBulk ? (
+                <TableHead className="w-10">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-inkai-red"
+                    checked={
+                      activeSelectable.length > 0 &&
+                      selectedIds.size === activeSelectable.length
+                    }
+                    onChange={toggleSelectAll}
+                    aria-label="Pilih semua aktif"
+                  />
+                </TableHead>
+              ) : null}
               <TableHead className="w-12">Foto</TableHead>
               <TableHead>NIA</TableHead>
               <TableHead>Nama</TableHead>
@@ -324,73 +388,97 @@ export function MembersTable({
             {members.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={colCount}
                   className="h-24 text-center text-muted-foreground"
                 >
                   Tidak ada anggota ditemukan.
                 </TableCell>
               </TableRow>
             ) : (
-              members.map((m) => (
-                <TableRow
-                  key={m.id}
-                  className="cursor-pointer transition-colors hover:bg-muted/40"
-                  onClick={() => openDetail(m)}
-                >
-                  <TableCell>
-                    <MemberAvatarRing
-                      fullName={m.fullName}
-                      currentRank={m.currentRank}
-                      photoUrl={memberPhotoUrl(m)}
-                      size="sm"
-                    />
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">
-                    {m.nia ? (
-                      m.nia
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="text-xs text-amber-700 border-amber-300 bg-amber-50"
-                      >
-                        Belum ada NIA
+              members.map((m) => {
+                const isActiveRow = m.status.trim().toUpperCase() === "ACTIVE";
+                return (
+                  <TableRow
+                    key={m.id}
+                    className="cursor-pointer transition-colors hover:bg-muted/40"
+                    onClick={() => openDetail(m)}
+                  >
+                    {canBulk ? (
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {isActiveRow ? (
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 accent-inkai-red"
+                            checked={selectedIds.has(m.id)}
+                            onChange={() => toggleSelect(m.id)}
+                            aria-label={`Pilih ${m.fullName}`}
+                          />
+                        ) : null}
+                      </TableCell>
+                    ) : null}
+                    <TableCell>
+                      <MemberAvatarRing
+                        fullName={m.fullName}
+                        currentRank={m.currentRank}
+                        photoUrl={memberPhotoUrl(m)}
+                        size="sm"
+                      />
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {m.nia ? (
+                        m.nia
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-xs text-amber-700 border-amber-300 bg-amber-50"
+                        >
+                          Belum ada NIA
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium text-inkai-red">
+                      {formatMemberName(m.fullName)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">
+                        {formatRankLabel(m.currentRank) || "—"}
                       </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="font-medium text-inkai-red">
-                    {formatMemberName(m.fullName)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">
-                      {formatRankLabel(m.currentRank) || "—"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <MemberStatusBadge status={m.status} />
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <DocumentsCell
-                      birthCertificateUrl={m.birthCertificateUrl}
-                      bpjsCardUrl={m.bpjsCardUrl}
-                    />
-                  </TableCell>
-                  <TableCell className="hidden sm:table-cell">
-                    {m.dojo?.name ?? "-"}
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <MemberActions
-                      memberId={m.id}
-                      status={m.status}
-                      nia={m.nia}
-                      userRoles={userRoles}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                    <TableCell>
+                      <MemberStatusBadge status={m.status} />
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <DocumentsCell
+                        birthCertificateUrl={m.birthCertificateUrl}
+                        bpjsCardUrl={m.bpjsCardUrl}
+                      />
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      {m.dojo?.name ?? "-"}
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <MemberActions
+                        memberId={m.id}
+                        status={m.status}
+                        nia={m.nia}
+                        fullName={m.fullName}
+                        userRoles={userRoles}
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
       </div>
+
+      {canBulk ? (
+        <BulkDeactivateBar
+          selectedIds={[...selectedIds]}
+          onClear={() => setSelectedIds(new Set())}
+        />
+      ) : null}
 
       <Sheet
         open={!!selectedId}
@@ -702,40 +790,68 @@ export function MembersTable({
                   </section>
                 ) : null}
 
-                {detail.status === "PENDING" ||
-                detail.status === "REJECTED" ||
-                (detail.status === "Active" && !detail.nia) ? (
-                  <section className="border-t pt-4">
-                    <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                      {detail.status === "Active" ? "NIA" : "Aksi registrasi"}
+                {lifecycle ? (
+                  <section className="space-y-2.5">
+                    <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                      Riwayat status
                     </h3>
-                    <MemberActions
-                      memberId={String(detail.id)}
-                      status={String(detail.status)}
-                      nia={
-                        typeof detail.nia === "string" ? detail.nia : null
-                      }
-                      userRoles={userRoles}
-                      compact
-                      onSuccess={() => {
-                        const row = members.find(
-                          (m) => m.id === String(detail.id),
-                        );
-                        if (row) void openDetail(row);
-                        else if (selectedId) {
-                          void openDetail({
-                            id: selectedId,
-                            fullName: String(detail.fullName || ""),
-                            nia: null,
-                            currentRank: String(detail.currentRank || ""),
-                            status: String(detail.status || ""),
-                            dojo: { name: "" },
-                          });
+                    <dl className="space-y-2 rounded-lg border p-3">
+                      <DetailRow
+                        label="Jenis"
+                        value={statusKindLabel(lifecycle.statusKind)}
+                      />
+                      <DetailRow
+                        label="Alasan"
+                        value={reasonLabel(lifecycle.reasonCode)}
+                      />
+                      {lifecycle.reasonNote ? (
+                        <DetailRow label="Catatan" value={lifecycle.reasonNote} />
+                      ) : null}
+                      <DetailRow
+                        label="Sejak"
+                        value={formatDate(lifecycle.changedAt)}
+                      />
+                      <DetailRow
+                        label="Oleh"
+                        value={
+                          lifecycle.changedByName ||
+                          lifecycle.changedByEmail ||
+                          "—"
                         }
-                      }}
-                    />
+                      />
+                    </dl>
                   </section>
                 ) : null}
+
+                <section className="border-t pt-4">
+                  <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    {detail.status === "PENDING" || detail.status === "REJECTED"
+                      ? "Aksi registrasi"
+                      : detail.status === "Active" && !detail.nia
+                        ? "NIA & status"
+                        : "Kelola status"}
+                  </h3>
+                  <MemberActions
+                    memberId={String(detail.id)}
+                    status={String(detail.status)}
+                    nia={typeof detail.nia === "string" ? detail.nia : null}
+                    fullName={fullName}
+                    userRoles={userRoles}
+                    compact
+                    impact={impact ?? null}
+                    isArchived={detail.isDeleted === true}
+                    onSuccess={() => {
+                      const row = members.find(
+                        (m) => m.id === String(detail.id),
+                      );
+                      if (row) void openDetail(row);
+                      else {
+                        setSelectedId(null);
+                        setDetail(null);
+                      }
+                    }}
+                  />
+                </section>
               </>
             ) : (
               <p className="text-sm text-muted-foreground">

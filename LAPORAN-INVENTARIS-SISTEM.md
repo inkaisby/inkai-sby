@@ -103,7 +103,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi |
-| Kelola Anggota | Cari/filter, detail (kyu, iuran, akun), NIA, dokumen |
+| Kelola Anggota | Cari/filter, detail (kyu, iuran, akun), NIA, dokumen; nonaktif/tangguhkan (alasan), aktifkan, bulk; hapus arsip + pulihkan; filter nonaktif ≥N bulan |
 | Iuran Anggota | Verifikasi bukti + **edit tagihan** (nominal/jatuh tempo) + tandai lunas (ranting/cabang) |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota (tanpa kode unik) |
 | Organisasi | Wilayah & susunan pengurus |
@@ -153,6 +153,7 @@ Pusat / Nasional
 | Event (UKT, Gashuku, pertandingan) | Lihat & daftar sendiri | Daftarkan anggota ranting | **Buat event** + lihat pendaftar | Lihat event & pendaftar |
 | NIA | Lihat sendiri | Tidak assign | **Assign NIA** | Lihat saja |
 | Iuran | Lihat & bayar sendiri | **Edit tagihan + verifikasi bukti + tandai lunas** (scope dojo) | **Kelola iuran** cabang (edit/verifikasi/lunas) | Lihat saja (tanpa edit) |
+| Status keanggotaan | Lihat sendiri | **Nonaktifkan / aktifkan**; hapus koreksi (tanpa NIA resmi) | **Nonaktif / aktif / hapus (arsip)** anggota cabang | Lihat saja |
 
 ---
 
@@ -189,6 +190,8 @@ Pusat / Nasional
 4. Admin memverifikasi di `/admin/verifikasi` atau kelola anggota.
 5. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran.
 6. Anggota melengkapi profil & dokumen.
+7. **Nonaktifkan** (status `INACTIVE` / `SUSPENDED`) — ranting/cabang; wajib alasan + catatan; notifikasi ke anggota; login diblokir; NIA & riwayat tetap; dapat **aktifkan kembali**. Bulk nonaktif tersedia.
+8. **Hapus** = soft-delete (`isDeleted`) — cek dampak iuran/UKT; anggota aktif/ber-NIA hanya cabang (+ ketik nama). Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang.
 
 ### 9.2 Iuran
 1. Tagihan iuran bulanan muncul di sistem.
@@ -256,7 +259,7 @@ Pusat / Nasional
 |------|--------|----------------------------------|
 | Portal publik | Lengkap | Konten organisasi & kegiatan |
 | Dashboard anggota inti | Lengkap | Profil, iuran, absensi, kegiatan, sabuk, materi, store, pesan, pindah |
-| Admin anggota / iuran / UKT | Lengkap | Iuran: edit/lunas/verifikasi (ranting+cabang); UKT pakai gate iuran+dokumen+absensi, hasil ujian, rekap ranting, nota tanpa kode unik |
+| Admin anggota / iuran / UKT | Lengkap | Iuran: edit/lunas/verifikasi (ranting+cabang); anggota: nonaktif/aktif/hapus arsip; UKT pakai gate iuran+dokumen+absensi, hasil ujian, rekap ranting, nota tanpa kode unik |
 | Verifikasi kartu (publik) | Aktif | `/v/[id]` — scan QR kartu anggota |
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
 | Materi / Store / Pesan / Pindah / Piagam | Aktif | Prisma lokal + verifikasi admin |
@@ -295,7 +298,9 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 
 ```
 /api/auth/*                 Login, register (+ identitas/sabuk lengkap), forgot/reset password
-/api/admin/members/*        Kelola anggota
+/api/admin/members/*        Kelola anggota (approve/NIA/nonaktif/aktif/hapus/restore)
+/api/admin/members/bulk     Bulk nonaktifkan
+/api/admin/members/archived Daftar arsip soft-delete
 /api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
 /api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees, Kyu
 /api/admin/pengaturan/*     User, cabang, ranting, roles, geofencing, akun
@@ -328,7 +333,7 @@ Sistem INKAI Surabaya sudah mencakup **siklus inti organisasi karate**: keanggot
 
 Yang paling matang untuk operasional cabang saat ini:
 
-- Kelola anggota & NIA  
+- Kelola anggota & NIA (nonaktifkan / aktifkan / hapus arsip)  
 - Iuran: upload bukti anggota + **edit/lunas/verifikasi** oleh ketua ranting & cabang  
 - UKT end-to-end (daftar → bayar → verifikasi → sabuk target → nota tanpa kode unik)  
 - Verifikasi kartu anggota publik (`/v/[id]`)  
@@ -364,6 +369,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 17 Juli 2026 | UKT: hapus alur invoice (buat/konfirmasi); pembayaran ranting–cabang cukup lewat **nota** (Cetak Nota / Nota Terpilih / Siap Bayar UKT) |
 | 17 Juli 2026 | UKT operasional lengkap: filter/KPI status operasional, kolom kehadiran+syarat, action bar terpadu, hard block Kyu Baru, waiver cabang, export CSV, wizard periode, notifikasi anggota, kartu UKT di beranda |
 | 18 Juli 2026 | Nama file dikunci sebagai living context agentic; rule Cursor + `AGENTS.md` wajib baca inventaris sebelum develop, update di turn yang sama |
+| 18 Juli 2026 | Admin anggota: nonaktifkan/aktifkan ulang + hapus soft-delete (konfirmasi nama untuk ber-NIA); KPI/filter Nonaktif; RBAC ranting vs cabang; login blokir status INACTIVE |
+| 18 Juli 2026 | Paket lengkap lifecycle anggota: alasan+jenis (INACTIVE/SUSPENDED), notifikasi, tombol Nonaktif terlihat, bulk nonaktif, arsip+pulihkan, dampak hapus, filter ≥N bulan, metadata di detail, QR nonaktif jelas |
 
 ---
 

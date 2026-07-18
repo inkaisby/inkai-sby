@@ -17,6 +17,7 @@ function statusMeta(status: string) {
       label: "Anggota Aktif",
       className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
       icon: CheckCircle2,
+      banner: null as string | null,
     };
   }
   if (normalized === "pending") {
@@ -24,12 +25,33 @@ function statusMeta(status: string) {
       label: "Menunggu Verifikasi",
       className: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
       icon: AlertCircle,
+      banner: null as string | null,
+    };
+  }
+  if (normalized === "suspended") {
+    return {
+      label: "Ditangguhkan",
+      className: "bg-orange-500/10 text-orange-800 dark:text-orange-300",
+      icon: AlertCircle,
+      banner:
+        "Keanggotaan sedang ditangguhkan. Kartu ini tidak berlaku sebagai bukti anggota aktif.",
+    };
+  }
+  if (normalized === "inactive" || normalized === "rejected") {
+    return {
+      label: normalized === "rejected" ? "Ditolak" : "Tidak Aktif",
+      className: "bg-slate-500/10 text-slate-700 dark:text-slate-300",
+      icon: AlertCircle,
+      banner:
+        "Keanggotaan tidak aktif. Kartu ini tidak berlaku sebagai bukti anggota aktif.",
     };
   }
   return {
     label: status || "Tidak Aktif",
     className: "bg-muted text-muted-foreground",
     icon: AlertCircle,
+    banner:
+      "Status keanggotaan tidak aktif. Hubungi sekretariat cabang untuk konfirmasi.",
   };
 }
 
@@ -83,6 +105,12 @@ export default async function MemberVerifyPage({ params }: Props) {
           />
 
           <div className="relative z-[1] space-y-6 p-6">
+            {status.banner ? (
+              <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                {status.banner}
+              </div>
+            ) : null}
+
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-2.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}

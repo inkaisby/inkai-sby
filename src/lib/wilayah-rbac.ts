@@ -65,6 +65,16 @@ export const WILAYAH_MATRIX: WilayahMatrixRow[] = [
       PENGPROV: "Lihat iuran wilayah provinsi (tanpa edit)",
     },
   },
+  {
+    id: "status_anggota",
+    label: "Status keanggotaan",
+    cells: {
+      USER: "Lihat status sendiri",
+      RANTING: "Nonaktifkan / aktifkan ulang; hapus koreksi (tanpa NIA resmi)",
+      CABANG: "Nonaktifkan / aktifkan / hapus (arsip) anggota cabang",
+      PENGPROV: "Lihat saja",
+    },
+  },
 ];
 
 export const WILAYAH_COLUMN_LABELS: Record<WilayahColumn, string> = {
@@ -142,4 +152,21 @@ export function canManageIuranByWilayah(roles: string[]) {
 /** Edit akun anggota lain — bukan ranting, bukan anggota biasa. */
 export function canEditMemberAccounts(roles: string[]) {
   return isCabangAdmin(roles) || isPengprovAdmin(roles);
+}
+
+/**
+ * Nonaktifkan / aktifkan ulang anggota di cakupan wilayah.
+ * Ranting & Cabang (+ nasional) — operasi operasional sehari-hari.
+ */
+export function canToggleMemberActive(roles: string[]) {
+  return isCabangAdmin(roles) || isRantingAdmin(roles);
+}
+
+/**
+ * Soft-delete (arsip) anggota.
+ * Ranting boleh untuk koreksi data; Cabang untuk semua status di cakupannya.
+ * Aturan bisnis tambahan (NIA resmi) ditegakkan di API.
+ */
+export function canSoftDeleteMembers(roles: string[]) {
+  return isCabangAdmin(roles) || isRantingAdmin(roles);
 }

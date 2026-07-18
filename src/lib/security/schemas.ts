@@ -52,8 +52,46 @@ export const resetPasswordSchema = z.object({
 });
 
 export const memberActionSchema = z.object({
-  action: z.enum(["approve", "reject", "set_nia"]),
+  action: z.enum([
+    "approve",
+    "reject",
+    "set_nia",
+    "deactivate",
+    "activate",
+    "delete",
+    "restore",
+  ]),
   nia: z.string().trim().max(32).optional(),
+  /** Konfirmasi hapus: ketik nama anggota (untuk anggota aktif / ber-NIA). */
+  confirmName: z.string().trim().max(120).optional(),
+  /** Nonaktif / ditangguhkan */
+  statusKind: z.enum(["INACTIVE", "SUSPENDED"]).optional(),
+  reasonCode: z
+    .enum([
+      "BERHENTI_LATIHAN",
+      "PINDAH_DOJO",
+      "PINDAH_KOTA",
+      "TUNGGAKAN",
+      "DISIPLIN",
+      "LAINNYA",
+    ])
+    .optional(),
+  reasonNote: z.string().trim().max(500).optional(),
+});
+
+export const memberBulkActionSchema = z.object({
+  action: z.enum(["deactivate"]),
+  memberIds: z.array(z.string().uuid()).min(1).max(50),
+  statusKind: z.enum(["INACTIVE", "SUSPENDED"]).default("INACTIVE"),
+  reasonCode: z.enum([
+    "BERHENTI_LATIHAN",
+    "PINDAH_DOJO",
+    "PINDAH_KOTA",
+    "TUNGGAKAN",
+    "DISIPLIN",
+    "LAINNYA",
+  ]),
+  reasonNote: z.string().trim().max(500).optional(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

@@ -1,6 +1,15 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Users, Clock, UserCheck, UserX, FileWarning, IdCard } from "lucide-react";
+import {
+  Users,
+  Clock,
+  UserCheck,
+  UserX,
+  FileWarning,
+  IdCard,
+  UserMinus,
+  Archive,
+} from "lucide-react";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
@@ -14,6 +23,10 @@ import {
   fetchAdminMembers,
 } from "@/lib/inkai-api/admin-data";
 import { isDocumentComplete } from "@/lib/memberCompleteness";
+import {
+  getMemberLifecycles,
+  monthsSince,
+} from "@/lib/member-lifecycle";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -24,8 +37,10 @@ import {
 import { MembersTable } from "./MembersTable";
 import { AnggotaAddButton } from "./AnggotaAddButton";
 import { NormalizeMembersButton } from "./NormalizeMembersButton";
+import { ArchivedMembersPanel } from "./ArchivedMembersPanel";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { canEditKyuBaru } from "@/lib/belt";
+import { canSoftDeleteMembers } from "@/lib/wilayah-rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +50,8 @@ const STATUS_OPTIONS = [
   { value: "", label: "Semua status" },
   { value: "PENDING", label: "Menunggu" },
   { value: "Active", label: "Aktif" },
+  { value: "INACTIVE", label: "Nonaktif" },
+  { value: "SUSPENDED", label: "Ditangguhkan" },
   { value: "REJECTED", label: "Ditolak" },
 ] as const;
 
@@ -44,6 +61,8 @@ type SearchParams = Promise<{
   dojoId?: string;
   docs?: string;
   nia?: string;
+  inactiveMonths?: string;
+  view?: string;
   page?: string;
   pageSize?: string;
 }>;
@@ -84,6 +103,14 @@ async function AdminAnggotaContent({
   const status = params.status?.trim() || "";
   const docs = params.docs === "incomplete" ? "incomplete" : "";
   const niaFilter = params.nia === "missing" ? "missing" : "";
+  const view = params.view === "archive" ? "archive" : "";
+  const inactiveMonthsRaw = Number(params.inactiveMonths || 0);
+  const inactiveMonths =
+    inactiveMonthsRaw === 3 ||
+    inactiveMonthsRaw === 6 ||
+    inactiveMonthsRaw === 12
+      ? inactiveMonthsRaw
+      : 0;
   const page = parsePage(params.page);
   const pageSize = parsePageSize(params.pageSize, PAGE_SIZE_OPTIONS, 25);
 
@@ -93,8 +120,34 @@ async function AdminAnggotaContent({
       ? session.user.managedDojoId
       : "";
   const dojoId = lockedDojoId || params.dojoId?.trim() || "";
+  const canArchive = canSoftDeleteMembers(session.user.roles ?? []);
 
-  const [result, dojos, pendingCount, activeCount, rejectedCount, allCount] =
+  if (view === "archive") {
+    return (
+      <>
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Arsip Anggota</h2>
+            <p className="text-muted-foreground">
+              Soft-delete — pulihkan ke status Nonaktif bila perlu.
+            </p>
+          </div>
+          <Link
+            href="/admin/anggota"
+            className="inline-flex h-8 items-center rounded-lg border px-3 text-sm hover:bg-muted"
+          >
+            Kembali ke daftar
+          </Link>
+        </div>
+        <ArchivedMembersPanel
+          userRoles={session.user.roles}
+          defaultDojoId={lockedDojoId}
+        />
+      </>
+    );
+  }
+
+  const [result, dojos, pendingCount, activeCount, inactiveCount, rejectedCount, allCount] =
     await Promise.all([
       fetchAdminMembers(token, {
         page,
@@ -119,6 +172,12 @@ async function AdminAnggotaContent({
       fetchAdminMembers(token, {
         page: 1,
         limit: 1,
+        status: "INACTIVE",
+        dojoId: dojoId || undefined,
+      }),
+      fetchAdminMembers(token, {
+        page: 1,
+        limit: 1,
         status: "REJECTED",
         dojoId: dojoId || undefined,
       }),
@@ -136,6 +195,16 @@ async function AdminAnggotaContent({
   if (niaFilter === "missing") {
     members = members.filter((m) => !m.nia?.trim());
   }
+  if (inactiveMonths > 0) {
+    const lifecycles = await getMemberLifecycles(members.map((m) => m.id));
+    members = members.filter((m) => {
+      const st = m.status.trim().toUpperCase();
+      if (st !== "INACTIVE" && st !== "SUSPENDED") return false;
+      const meta = lifecycles.get(m.id);
+      const months = monthsSince(meta?.changedAt);
+      return months != null && months >= inactiveMonths;
+    });
+  }
 
   const total = result.ok ? result.total : 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -150,7 +219,12 @@ async function AdminAnggotaContent({
   };
 
   const hasFilters = Boolean(
-    q || status || (!lockedDojoId && dojoId) || docs || niaFilter,
+    q ||
+      status ||
+      (!lockedDojoId && dojoId) ||
+      docs ||
+      niaFilter ||
+      inactiveMonths,
   );
 
   const kpis = [
@@ -179,6 +253,15 @@ async function AdminAnggotaContent({
       href: buildHref({ ...kpiBase, status: "Active", docs: "", nia: "" }),
       active: status === "Active" && !niaFilter,
       accent: "text-emerald-600",
+    },
+    {
+      key: "inactive",
+      label: "Nonaktif",
+      value: inactiveCount.ok ? inactiveCount.total : 0,
+      icon: UserMinus,
+      href: buildHref({ ...kpiBase, status: "INACTIVE", docs: "", nia: "" }),
+      active: status === "INACTIVE",
+      accent: "text-slate-600",
     },
     {
       key: "rejected",
@@ -237,7 +320,7 @@ async function AdminAnggotaContent({
         )}
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {kpis.map((kpi) => {
           const Icon = kpi.icon;
           return (
@@ -277,6 +360,15 @@ async function AdminAnggotaContent({
         />
         {canEditKyuBaru(session.user.roles ?? []) ? (
           <NormalizeMembersButton />
+        ) : null}
+        {canArchive ? (
+          <Link
+            href="/admin/anggota?view=archive"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-sm hover:bg-muted"
+          >
+            <Archive className="h-3.5 w-3.5" />
+            Lihat arsip
+          </Link>
         ) : null}
       </div>
 
@@ -352,6 +444,22 @@ async function AdminAnggotaContent({
           </select>
         </div>
 
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">
+            Nonaktif ≥
+          </label>
+          <select
+            name="inactiveMonths"
+            defaultValue={inactiveMonths ? String(inactiveMonths) : ""}
+            className="h-8 min-w-[120px] rounded-lg border px-2 text-sm"
+          >
+            <option value="">Semua</option>
+            <option value="3">3 bulan</option>
+            <option value="6">6 bulan</option>
+            <option value="12">12 bulan</option>
+          </select>
+        </div>
+
         <button
           type="submit"
           className="h-8 rounded-lg bg-inkai-red px-4 text-sm text-white"
@@ -369,10 +477,15 @@ async function AdminAnggotaContent({
         ) : null}
       </form>
 
-      {docs === "incomplete" || niaFilter === "missing" ? (
+      {docs === "incomplete" ||
+      niaFilter === "missing" ||
+      inactiveMonths > 0 ? (
         <p className="mb-3 text-xs text-muted-foreground">
           Filter tambahan diterapkan pada data halaman ini ({members.length}{" "}
           ditampilkan).
+          {inactiveMonths > 0
+            ? ` Nonaktif/ditangguhkan ≥ ${inactiveMonths} bulan.`
+            : ""}
         </p>
       ) : null}
 
@@ -390,6 +503,7 @@ async function AdminAnggotaContent({
           dojoId: lockedDojoId ? "" : dojoId,
           docs,
           nia: niaFilter,
+          inactiveMonths: inactiveMonths ? String(inactiveMonths) : "",
         }}
       />
     </>
