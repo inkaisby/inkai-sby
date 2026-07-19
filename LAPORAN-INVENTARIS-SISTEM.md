@@ -447,6 +447,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Tambah Anggota (ranting/cabang): **NIK opsional** — kosong tetap tersimpan (null, bukan `""`) |
 | 19 Juli 2026 | Daftar mandiri publik: identitas **wajib lengkap** (NIK, JK, TTL, alamat, telepon); NIA tetap opsional |
 | 19 Juli 2026 | Arsip anggota: multi-select + pilih semua + floating **Hapus permanen** (ketik HAPUS) + pulihkan massal (cabang) |
+| 19 Juli 2026 | Fix bulk arsip: batas `memberIds` 500 + chunk client 100 — hindari "Data tidak valid" saat pilih >100 |
+| 19 Juli 2026 | Bulk anggota: `memberIds` **tanpa batas max** (client tetap chunk 100) |
 
 ---
 

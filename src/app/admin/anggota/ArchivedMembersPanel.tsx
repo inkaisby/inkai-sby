@@ -28,6 +28,7 @@ import {
 } from "@/lib/member-lifecycle";
 import { canSoftDeleteMembers, isCabangAdmin } from "@/lib/wilayah-rbac";
 import { showError, showSuccess } from "@/lib/client-toast";
+import { postMemberBulkChunked } from "@/lib/member-bulk-client";
 import { MemberActions } from "./MemberActions";
 
 type ArchivedRow = {
@@ -120,22 +121,17 @@ export function ArchivedMembersPanel({
       return;
     }
     setActing(true);
-    const res = await fetch("/api/admin/members/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "purge",
-        memberIds: [...selectedIds],
-        confirmPhrase: confirmPhrase.trim(),
-      }),
+    const result = await postMemberBulkChunked({
+      action: "purge",
+      memberIds: [...selectedIds],
+      confirmPhrase: confirmPhrase.trim(),
     });
-    const data = await res.json().catch(() => ({}));
     setActing(false);
-    if (!res.ok) {
-      showError(data.error || "Gagal hapus permanen");
+    if (!result.ok && result.okCount === 0) {
+      showError(result.error || "Gagal hapus permanen");
       return;
     }
-    showSuccess(data.message || "Berhasil dihapus");
+    showSuccess(result.message || "Berhasil dihapus");
     closeDialog();
     setSelectedIds(new Set());
     void load();
@@ -144,21 +140,16 @@ export function ArchivedMembersPanel({
 
   async function submitRestore() {
     setActing(true);
-    const res = await fetch("/api/admin/members/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "restore",
-        memberIds: [...selectedIds],
-      }),
+    const result = await postMemberBulkChunked({
+      action: "restore",
+      memberIds: [...selectedIds],
     });
-    const data = await res.json().catch(() => ({}));
     setActing(false);
-    if (!res.ok) {
-      showError(data.error || "Gagal memulihkan");
+    if (!result.ok && result.okCount === 0) {
+      showError(result.error || "Gagal memulihkan");
       return;
     }
-    showSuccess(data.message || "Berhasil dipulihkan");
+    showSuccess(result.message || "Berhasil dipulihkan");
     closeDialog();
     setSelectedIds(new Set());
     void load();

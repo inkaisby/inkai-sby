@@ -98,7 +98,7 @@ export const memberActionSchema = z.object({
 
 export const memberBulkActionSchema = z.object({
   action: z.enum(["deactivate", "approve", "delete", "purge", "restore"]),
-  memberIds: z.array(z.string().uuid()).min(1).max(100),
+  memberIds: z.array(z.string().uuid()).min(1),
   statusKind: z.enum(["INACTIVE", "SUSPENDED"]).default("INACTIVE").optional(),
   reasonCode: z
     .enum([

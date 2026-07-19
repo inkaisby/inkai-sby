@@ -19,6 +19,7 @@ import {
   type MemberStatusKind,
 } from "@/lib/member-lifecycle";
 import { showError, showSuccess } from "@/lib/client-toast";
+import { postMemberBulkChunked } from "@/lib/member-bulk-client";
 
 type DialogKind = "deactivate" | "delete" | null;
 
@@ -56,48 +57,38 @@ export function BulkDeactivateBar({
       return;
     }
     setLoading(true);
-    const res = await fetch("/api/admin/members/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "approve",
-        memberIds: pendingIds,
-      }),
+    const result = await postMemberBulkChunked({
+      action: "approve",
+      memberIds: pendingIds,
     });
-    const data = await res.json().catch(() => ({}));
     setLoading(false);
-    if (!res.ok) {
-      showError(data.error || "Gagal approve");
+    if (!result.ok && result.okCount === 0) {
+      showError(result.error || "Gagal approve");
       return;
     }
-    showSuccess(data.message || "Berhasil");
+    showSuccess(result.message || "Berhasil");
     onClear();
     router.refresh();
   }
 
   async function submitDeactivate() {
     setLoading(true);
-    const res = await fetch("/api/admin/members/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "deactivate",
-        memberIds: selectedIds,
-        statusKind,
-        reasonCode,
-        reasonNote: reasonNote.trim() || undefined,
-      }),
+    const result = await postMemberBulkChunked({
+      action: "deactivate",
+      memberIds: selectedIds,
+      statusKind,
+      reasonCode,
+      reasonNote: reasonNote.trim() || undefined,
     });
-    const data = await res.json().catch(() => ({}));
     setLoading(false);
-    if (res.ok) {
-      showSuccess(data.message || "Bulk nonaktif selesai");
-      closeDialog();
-      onClear();
-      router.refresh();
-    } else {
-      showError(data.error || "Gagal nonaktif massal");
+    if (!result.ok && result.okCount === 0) {
+      showError(result.error || "Gagal nonaktif massal");
+      return;
     }
+    showSuccess(result.message || "Bulk nonaktif selesai");
+    closeDialog();
+    onClear();
+    router.refresh();
   }
 
   async function submitDelete() {
@@ -106,25 +97,20 @@ export function BulkDeactivateBar({
       return;
     }
     setLoading(true);
-    const res = await fetch("/api/admin/members/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "delete",
-        memberIds: selectedIds,
-        confirmPhrase: confirmPhrase.trim(),
-      }),
+    const result = await postMemberBulkChunked({
+      action: "delete",
+      memberIds: selectedIds,
+      confirmPhrase: confirmPhrase.trim(),
     });
-    const data = await res.json().catch(() => ({}));
     setLoading(false);
-    if (res.ok) {
-      showSuccess(data.message || "Bulk arsip selesai");
-      closeDialog();
-      onClear();
-      router.refresh();
-    } else {
-      showError(data.error || "Gagal arsip massal");
+    if (!result.ok && result.okCount === 0) {
+      showError(result.error || "Gagal arsip massal");
+      return;
     }
+    showSuccess(result.message || "Bulk arsip selesai");
+    closeDialog();
+    onClear();
+    router.refresh();
   }
 
   return (
