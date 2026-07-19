@@ -103,7 +103,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
-| Kelola Anggota | Cari/filter, detail, NIA, dokumen; kolom **Terdaftar**; **edit Iuran/bln** (ranting/cabang); nonaktif/bulk; **export CSV**; **bulk approve pending**; arsip |
+| Kelola Anggota | Cari **autocomplete** (tanpa tombol Filter); detail, NIA, dokumen; kolom **Terdaftar**; **edit Iuran/bln** (ranting/cabang); nonaktif/bulk; **export CSV**; **bulk approve pending**; **arsip (cabang saja)** |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran**, **arsip** |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
@@ -141,7 +141,7 @@ Pusat / Nasional
 | `ADMINISTRATOR` / `ADMIN_PUSAT` / `ADMIN` | Pusat | Nasional |
 | `ADMIN_PROVINCE` | Pengprov | `managedProvinceId` |
 | `ADMIN_BRANCH` | Cabang | `managedBranchId` |
-| `ADMIN_DOJO` | Ranting | `managedDojoId` |
+| `ADMIN_DOJO` | Ranting | `managedDojoId` (utama) + `managedDojoIds` (multi, AppSetting) |
 | `MEMBER` | Anggota | `memberId` |
 | `PARENT` | Orang tua | Anak anggota |
 
@@ -154,7 +154,7 @@ Pusat / Nasional
 | Event (UKT, Gashuku, pertandingan) | Lihat & daftar sendiri | Daftarkan anggota ranting | **Buat event** + lihat pendaftar | Lihat event & pendaftar |
 | NIA | Lihat sendiri | Tidak assign | **Assign NIA** | Lihat saja |
 | Iuran | Lihat & bayar sendiri | **Edit tagihan + verifikasi + lunas**; **edit Iuran/bln per anggota** (scope dojo) | **Kelola iuran** cabang (edit/verifikasi/lunas + Iuran/bln) | Lihat saja (tanpa edit) |
-| Status keanggotaan | Lihat sendiri | **Nonaktifkan / aktifkan**; hapus koreksi; **gabungkan duplikat** | **Nonaktif / aktif / hapus (arsip)**; gabungkan duplikat | Lihat saja |
+| Status keanggotaan | Lihat sendiri | **Nonaktifkan / aktifkan**; **gabungkan duplikat** (tanpa hapus/arsip) | **Nonaktif / aktif / hapus (arsip)**; gabungkan duplikat | Lihat saja |
 
 ---
 
@@ -194,7 +194,7 @@ Pusat / Nasional
 7. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran, dan **mengedit sabuk** anggota (kolom Sabuk di `/admin/anggota`).
 8. Anggota melengkapi profil & dokumen.
 9. **Nonaktifkan** (status `INACTIVE` / `SUSPENDED`) — ranting/cabang; wajib alasan + catatan; notifikasi ke anggota; login diblokir; NIA & riwayat tetap; dapat **aktifkan kembali**. Bulk nonaktif tersedia.
-10. **Hapus** = soft-delete (`isDeleted`) — cek dampak iuran/UKT; anggota aktif/ber-NIA hanya cabang (+ ketik nama). Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang.
+10. **Hapus** = soft-delete (`isDeleted`) — **hanya cabang** (+ nasional); cek dampak iuran/UKT; anggota aktif/ber-NIA wajib ketik nama. Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang. Ranting tidak boleh hapus/arsip.
 
 ### 9.2 Iuran
 1. Tagihan iuran bulanan muncul di sistem.
@@ -269,7 +269,7 @@ Pusat / Nasional
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
 | Materi / Store / Pesan / Pindah / Piagam | Aktif | Pesan: unread + cari + broadcast notifikasi; store/materi upload |
 | RBAC wilayah | Diterapkan | Matriks tampil di Pengaturan & Role; multi-akun per cabang/ranting + PIC; **preset permission** |
-| Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC, serah terima; **email/password PIC** di form Ubah Data ranting (cabang); geofence + **pratinjau peta OSM**; degradasi username login: klasifikasi pool vs error lain, KPI/filter aman saat DB gagal |
+| Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC, serah terima; **email/password PIC** di form Ubah Data ranting (cabang); geofence + **pratinjau peta OSM**; degradasi username login: klasifikasi pool vs error lain, KPI/filter aman saat DB gagal; **multi-ranting per akun** (`AppSetting` + context switcher) |
 | Upload bukti iuran (anggota) | Aktif | `/dashboard/iuran` + `/api/member/billing/[id]` |
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` + `/api/member/attendance/checkin` |
 | Absensi admin | Aktif | Harian, belum hadir, rekap semester %, export CSV |
@@ -426,7 +426,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Admin topbar: ikon **Back** di halaman konten (kecuali beranda; nested → parent path) |
 | 19 Juli 2026 | Logout: dialog konfirmasi elegan sebelum `signOut` (menu admin/anggota + header beranda anggota) |
 | 19 Juli 2026 | Beranda mobile: logo INKAI di atas sendiri; badge hero **Kota Surabaya** (bukan Cabang Surabaya) |
-| 19 Juli 2026 | Beranda hero: lockup ikonik **Kota Surabaya** (logo Suro–Boyo resmi di lingkaran emas + Kota Pahlawan) |
+| 19 Juli 2026 | Beranda hero: lockup **Kota Surabaya** memakai emblem resmi Suro–Boyo (tanpa lingkaran emas) + Kota Pahlawan |
+| 19 Juli 2026 | Kelola Anggota: pencarian autocomplete (debounce, tanpa tombol Filter); ranting hanya nonaktif/aktif — **hapus/arsip** hanya cabang |
 
 ---
 
