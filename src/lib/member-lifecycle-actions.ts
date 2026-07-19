@@ -227,7 +227,6 @@ export async function softDeleteMember(opts: {
   ip?: string | null;
   userAgent?: string | null;
 }) {
-  const roles = opts.user.roles;
   const member = await findScopedMember(opts.user, opts.memberId);
   if (!member) return { ok: false as const, error: "Anggota tidak ditemukan", status: 404 };
 
@@ -235,15 +234,7 @@ export async function softDeleteMember(opts: {
   const isOfficialRecord =
     hasOfficialNia || normalizeStatus(member.status) === "ACTIVE";
 
-  if (isOfficialRecord && !isCabangAdmin(roles)) {
-    return {
-      ok: false as const,
-      error:
-        "Anggota aktif atau ber-NIA hanya dapat dihapus oleh pengurus cabang. Gunakan Nonaktifkan jika anggota berhenti latihan.",
-      status: 403,
-    };
-  }
-
+  // Ranting & cabang boleh arsip dalam scope; aktif/ber-NIA wajib ketik nama.
   if (isOfficialRecord) {
     const confirm = opts.confirmName?.trim() || "";
     if (!confirm || !namesMatch(confirm, member.fullName)) {

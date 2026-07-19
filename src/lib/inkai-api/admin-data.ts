@@ -172,8 +172,9 @@ export async function fetchAdminMemberStatusCounts(opts: {
 }
 
 /**
- * Ambil anggota untuk satu atau banyak dojo.
- * Multi-dojo memakai Prisma (DB bersama) agar tidak bergantung scope token Inkai tunggal.
+ * Ambil anggota untuk satu atau banyak dojo via Prisma (DB bersama).
+ * Selalu Prisma — token Inkai sering scoped ke ranting utama saja, sehingga
+ * filter dojoId ke API bisa mengabaikan pilihan "Kelola ranting".
  */
 export async function fetchAdminMembersForDojoIds(
   token: string,
@@ -189,9 +190,6 @@ export async function fetchAdminMembersForDojoIds(
   if (ids.length === 0) {
     return { ok: true as const, members: [] as AdminMemberRow[], total: 0, page: 1 };
   }
-  if (ids.length === 1) {
-    return fetchAdminMembers(token, { ...opts, dojoId: ids[0] });
-  }
 
   const page = opts.page ?? 1;
   const limit = opts.limit ?? 20;
@@ -201,7 +199,9 @@ export async function fetchAdminMembersForDojoIds(
   const where = {
     isDeleted: false,
     dojoId: { in: ids },
-    ...(status ? { status } : {}),
+    ...(status
+      ? { status: { equals: status, mode: "insensitive" as const } }
+      : {}),
     ...(search
       ? {
           OR: [
@@ -244,6 +244,7 @@ export async function fetchAdminMembersForDojoIds(
       birthCertificateUrl: m.birthCertificateUrl,
       bpjsCardUrl: m.bpjsCardUrl,
       bpjsCardNumber: m.bpjsCardNumber,
+      photoUrl: m.photoUrl,
       createdAt: m.createdAt.toISOString(),
       monthlyDuesAmount: m.monthlyDuesAmount,
     }));
@@ -251,7 +252,7 @@ export async function fetchAdminMembersForDojoIds(
     return { ok: true as const, members, total, page };
   } catch (error) {
     console.error("[fetchAdminMembersForDojoIds]", error);
-    // Fallback: gabungkan fetch API per dojo
+    // Fallback: gabungkan fetch API per dojo (token mungkin mengabaikan dojoId non-primer)
     const chunks = await Promise.all(
       ids.map((id) =>
         fetchAdminMembers(token, { ...opts, dojoId: id, page: 1, limit: 500 }),

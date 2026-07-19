@@ -91,9 +91,8 @@ export function MemberActions({
   const isRejected = statusKey === "REJECTED";
   const hasOfficialNia = Boolean(nia?.trim());
   const deleteNeedsNameConfirm = isActive || hasOfficialNia;
-  /** Ranting: hanya koreksi (bukan aktif/ber-NIA). Cabang: semua. */
-  const canDeleteThis =
-    canDelete && !isArchived && (isCabang || (!isActive && !hasOfficialNia));
+  /** Ranting & cabang: hapus/arsip dalam scope (aktif/ber-NIA wajib ketik nama). */
+  const canDeleteThis = canDelete && !isArchived;
   const canRestore = isArchived && isCabang;
 
   useEffect(() => {
