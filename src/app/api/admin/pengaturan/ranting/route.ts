@@ -286,6 +286,14 @@ export async function PATCH(request: Request) {
     success: true,
     data: data.data,
     message: "Ranting berhasil diperbarui",
+    ...(canAdministerRantingAccounts(authResult.user) &&
+    d.adminEmail &&
+    d.adminPassword
+      ? {
+          loginEmail: d.adminEmail,
+          loginPassword: d.adminPassword,
+        }
+      : {}),
   });
 }
 

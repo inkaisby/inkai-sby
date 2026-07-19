@@ -292,7 +292,7 @@ async function PengaturanRantingContent({
         <p className="text-muted-foreground">
           {selfManagedOnly
             ? "Perbarui data ranting Anda (alamat, jadwal, rekening, dan kontak)."
-            : "Kelola data ranting & akun login admin (email/password, PIC). Ubah email lewat tombol Akun → ikon surat."}
+            : "Kelola data ranting & akun login (email/password PIC). Multi-akun lewat tombol Akun."}
         </p>
       </div>
 

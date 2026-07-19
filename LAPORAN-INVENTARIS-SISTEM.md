@@ -116,7 +116,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Carousel Beranda | Upload gambar + aktif + **urutkan** |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
 | Notifikasi | Inbox admin (ada di nav) |
-| Pengaturan | User digabung ke **Ranting & User**; cabang/ranting multi-akun, **ubah email** ranting, kebijakan, peran (**preset**), geofencing (**pratinjau peta**), akun |
+| Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; multi-akun (Akun), kebijakan, peran (**preset**), geofencing (**pratinjau peta**), akun |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
@@ -269,7 +269,7 @@ Pusat / Nasional
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
 | Materi / Store / Pesan / Pindah / Piagam | Aktif | Pesan: unread + cari + broadcast notifikasi; store/materi upload |
 | RBAC wilayah | Diterapkan | Matriks tampil di Pengaturan & Role; multi-akun per cabang/ranting + PIC; **preset permission** |
-| Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC, serah terima; geofence + **pratinjau peta OSM**; degradasi username login: klasifikasi pool vs error lain, KPI/filter aman saat DB gagal |
+| Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC, serah terima; **email/password PIC** di form Ubah Data ranting (cabang); geofence + **pratinjau peta OSM**; degradasi username login: klasifikasi pool vs error lain, KPI/filter aman saat DB gagal |
 | Upload bukti iuran (anggota) | Aktif | `/dashboard/iuran` + `/api/member/billing/[id]` |
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` + `/api/member/attendance/checkin` |
 | Absensi admin | Aktif | Harian, belum hadir, rekap semester %, export CSV |
@@ -422,6 +422,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Nav: Pengaturan User digabung ke Pengaturan Ranting & User; cabang dapat ubah email login ranting (change_email) |
 | 19 Juli 2026 | Pengaturan cabang/ranting: klasifikasi error Prisma (sibuk vs gagal), KPI/filter login tidak menyesatkan saat username gagal dimuat |
 | 19 Juli 2026 | Teknis: Unduh PDF UKT native (jspdf+html2canvas); email Resend di notifyUser (pesan/verifikasi/UKT); hapus helper uniqueTail; email reset-password ke ranting |
+| 19 Juli 2026 | Pengaturan ranting: form Ubah Data/Tambah menampilkan email + password (cabang); PATCH mengembalikan kredensial bila password di-set |
 
 ---
 

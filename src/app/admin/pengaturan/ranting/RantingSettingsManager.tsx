@@ -22,7 +22,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { showError, showSuccess } from "@/lib/client-toast";
-import { Archive, Pencil, Star, Users } from "lucide-react";
+import { generateSimplePassword } from "@/lib/security/password";
+import {
+  CredentialsReveal,
+  type CredentialPayload,
+} from "@/components/admin/pengaturan/CredentialsReveal";
+import { Archive, KeyRound, Pencil, Star, Users } from "lucide-react";
 import { WilayahAccountsPanel } from "@/components/admin/pengaturan/WilayahAccountsPanel";
 
 export type RantingRow = {
@@ -60,6 +65,9 @@ const emptyForm = {
   bankName: "",
   bankAccountNumber: "",
   bankAccountName: "",
+  adminEmail: "",
+  adminPassword: "",
+  adminPasswordConfirm: "",
 };
 
 export function RantingSettingsManager({
@@ -87,6 +95,9 @@ export function RantingSettingsManager({
   const [targetName, setTargetName] = useState("");
   const [form, setForm] = useState({ ...emptyForm, branchId: defaultBranchId });
   const [detailDojoId, setDetailDojoId] = useState<string | null>(null);
+  const [credential, setCredential] = useState<CredentialPayload | null>(null);
+  /** Cabang/pengprov: boleh ubah email & password login ranting di form data. */
+  const canEditCredentials = !selfManagedOnly;
 
   useEffect(() => {
     if (!selfManagedOnly || dojos.length !== 1 || mode) return;
@@ -138,7 +149,19 @@ export function RantingSettingsManager({
       bankName: d.bankName || "",
       bankAccountNumber: d.bankAccountNumber || "",
       bankAccountName: d.bankAccountName || "",
+      adminEmail: d.adminEmail || "",
+      adminPassword: "",
+      adminPasswordConfirm: "",
     });
+  }
+
+  function fillGeneratedPassword() {
+    const pw = generateSimplePassword(form.name || form.adminEmail || "Ranting");
+    setForm((prev) => ({
+      ...prev,
+      adminPassword: pw,
+      adminPasswordConfirm: pw,
+    }));
   }
 
   async function archiveDojo(d: RantingRow) {
@@ -187,7 +210,36 @@ export function RantingSettingsManager({
     e.preventDefault();
     if (!mode || loading) return;
 
+    const email = form.adminEmail.trim().toLowerCase();
+    const password = form.adminPassword;
+    const passwordConfirm = form.adminPasswordConfirm;
+
+    if (canEditCredentials) {
+      if (password || passwordConfirm) {
+        if (password.length < 8) {
+          showError("Password minimal 8 karakter");
+          return;
+        }
+        if (password !== passwordConfirm) {
+          showError("Konfirmasi password tidak cocok");
+          return;
+        }
+        if (!email) {
+          showError("Isi email login jika mengatur password");
+          return;
+        }
+      }
+    }
+
     setLoading(true);
+
+    const credentials =
+      canEditCredentials && email
+        ? {
+            adminEmail: email,
+            ...(password ? { adminPassword: password } : {}),
+          }
+        : {};
 
     const payload =
       mode === "edit"
@@ -203,10 +255,24 @@ export function RantingSettingsManager({
             bankName: form.bankName,
             bankAccountNumber: form.bankAccountNumber,
             bankAccountName: form.bankAccountName,
+            ...credentials,
           }
         : {
-            ...form,
+            name: form.name,
             branchId: lockedBranchId || form.branchId,
+            headName: form.headName,
+            address: form.address,
+            kecamatan: form.kecamatan,
+            tempatLatihan: form.tempatLatihan,
+            phoneNumber: form.phoneNumber,
+            schedule: form.schedule,
+            bankName: form.bankName,
+            bankAccountNumber: form.bankAccountNumber,
+            bankAccountName: form.bankAccountName,
+            ...credentials,
+            ...(canEditCredentials && password
+              ? { adminPasswordConfirm: passwordConfirm }
+              : {}),
           };
 
     const res = await fetch("/api/admin/pengaturan/ranting", {
@@ -219,6 +285,24 @@ export function RantingSettingsManager({
 
     if (res.ok) {
       showSuccess(data.message || "Berhasil disimpan");
+      if (
+        typeof data.loginEmail === "string" &&
+        typeof data.loginPassword === "string"
+      ) {
+        setCredential({
+          title: `Login ranting — ${form.name || targetName}`,
+          loginEmail: data.loginEmail,
+          loginPassword: data.loginPassword,
+          hint: "Salin dan kirim ke pengurus ranting. Password tidak ditampilkan lagi setelah ditutup.",
+        });
+      } else if (canEditCredentials && email && password) {
+        setCredential({
+          title: `Login ranting — ${form.name || targetName}`,
+          loginEmail: email,
+          loginPassword: password,
+          hint: "Salin dan kirim ke pengurus ranting. Password tidak ditampilkan lagi setelah ditutup.",
+        });
+      }
       const newId =
         mode === "create"
           ? (typeof data.data?.id === "string" && data.data.id) ||
@@ -226,7 +310,7 @@ export function RantingSettingsManager({
             null
           : null;
       resetPanel();
-      if (newId) {
+      if (newId && !email) {
         setDetailDojoId(newId);
       }
       router.refresh();
@@ -244,11 +328,16 @@ export function RantingSettingsManager({
 
   return (
     <div className="space-y-4">
+      <CredentialsReveal
+        credential={credential}
+        onDismiss={() => setCredential(null)}
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           {selfManagedOnly
             ? "Klik Ubah untuk memperbarui data ranting Anda."
-            : "Data ranting terpisah dari akun. Kelola multi-akun lewat tombol Akun (PIC, jabatan, serah terima)."}
+            : "Data ranting + email/password login PIC. Multi-akun lewat tombol Akun (jabatan, serah terima)."}
         </p>
         {!selfManagedOnly && (
           <Button
@@ -375,6 +464,75 @@ export function RantingSettingsManager({
               onChange={(e) => setField("bankAccountName", e.target.value)}
             />
           </div>
+
+          {canEditCredentials ? (
+            <>
+              <div className="sm:col-span-2 border-t border-inkai-red/15 pt-3">
+                <h4 className="flex items-center gap-1.5 text-sm font-semibold">
+                  <KeyRound className="h-4 w-4" />
+                  Login admin ranting (PIC)
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  {mode === "edit"
+                    ? "Ubah email atau set password baru untuk akun PIC. Kosongkan password jika hanya mengubah data/email."
+                    : "Opsional: buat akun login sekaligus. Bisa juga ditambah nanti lewat tombol Akun."}
+                </p>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="ranting-admin-email">Email (username login)</Label>
+                <Input
+                  id="ranting-admin-email"
+                  type="email"
+                  autoComplete="off"
+                  placeholder="contoh@email.com"
+                  value={form.adminEmail}
+                  onChange={(e) => setField("adminEmail", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="ranting-admin-password">
+                    {mode === "edit" ? "Password baru" : "Password"}
+                  </Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={fillGeneratedPassword}
+                    disabled={loading}
+                  >
+                    Generate
+                  </Button>
+                </div>
+                <Input
+                  id="ranting-admin-password"
+                  type="text"
+                  autoComplete="new-password"
+                  placeholder={
+                    mode === "edit" ? "Kosongkan jika tidak diganti" : "Min. 8 karakter"
+                  }
+                  value={form.adminPassword}
+                  onChange={(e) => setField("adminPassword", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ranting-admin-password-confirm">
+                  Konfirmasi password
+                </Label>
+                <Input
+                  id="ranting-admin-password-confirm"
+                  type="text"
+                  autoComplete="new-password"
+                  placeholder="Ulangi password"
+                  value={form.adminPasswordConfirm}
+                  onChange={(e) =>
+                    setField("adminPasswordConfirm", e.target.value)
+                  }
+                />
+              </div>
+            </>
+          ) : null}
 
           <div className="flex gap-2 sm:col-span-2">
             <Button
