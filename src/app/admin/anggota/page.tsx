@@ -17,8 +17,7 @@ import {
 } from "@/lib/rbac";
 import {
   fetchAdminDojos,
-  fetchAdminMembers,
-  fetchAdminMembersForDojoIds,
+  fetchAdminMembersScoped,
   fetchAdminMemberStatusCounts,
 } from "@/lib/inkai-api/admin-data";
 import {
@@ -198,36 +197,32 @@ async function AdminAnggotaContent({
     status: status || undefined,
   };
 
-  const scopedDojoIds = isDojoAdmin
-    ? dojoId
-      ? [dojoId]
-      : allowlist
-    : dojoId
-      ? [dojoId]
-      : [];
-
   const [result, dojos, statusCounts] = await Promise.all([
-      isDojoAdmin
-        ? fetchAdminMembersForDojoIds(token, scopedDojoIds, memberFetchOpts)
-        : fetchAdminMembers(token, {
-            ...memberFetchOpts,
-            dojoId: dojoId || undefined,
-          }),
-      isDojoAdmin
-        ? Promise.resolve(
-            managedDojoOptions.map((d) => ({
-              id: d.id,
-              name: d.name,
-              branchId: "",
-            })),
-          )
-        : fetchAdminDojos(token),
-      fetchAdminMemberStatusCounts(
-        isDojoAdmin
-          ? { dojoIds: scopedDojoIds }
-          : { dojoId: dojoId || undefined },
-      ),
-    ]);
+    fetchAdminMembersScoped(user, {
+      ...memberFetchOpts,
+      dojoId: dojoId || undefined,
+      dojoIds:
+        isDojoAdmin && !dojoId && allowlist.length > 0
+          ? allowlist
+          : undefined,
+    }),
+    isDojoAdmin
+      ? Promise.resolve(
+          managedDojoOptions.map((d) => ({
+            id: d.id,
+            name: d.name,
+            branchId: "",
+          })),
+        )
+      : fetchAdminDojos(token),
+    fetchAdminMemberStatusCounts(user, {
+      dojoId: dojoId || undefined,
+      dojoIds:
+        isDojoAdmin && !dojoId && allowlist.length > 0
+          ? allowlist
+          : undefined,
+    }),
+  ]);
 
   const pendingCount = { ok: true as const, total: statusCounts.pending };
   const activeCount = { ok: true as const, total: statusCounts.active };
@@ -256,6 +251,11 @@ async function AdminAnggotaContent({
   const total = result.ok ? result.total : 0;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, totalPages);
+  /** Subtitle: total cakupan (KPI) bila tanpa filter list; else total hasil filter. */
+  const subtitleTotal =
+    !q && !status && !docs && !niaFilter && !inactiveMonths
+      ? statusCounts.all
+      : total;
 
   const kpiBase = {
     q,
@@ -347,7 +347,7 @@ async function AdminAnggotaContent({
         <div>
           <h2 className="text-2xl font-bold">Kelola Anggota</h2>
           <p className="text-muted-foreground">
-            {ROLE_LABELS[primaryRole] || primaryRole} — {total} anggota
+            {ROLE_LABELS[primaryRole] || primaryRole} — {subtitleTotal} anggota
             {allowlist.length > 1 && !dojoId
               ? ` · ${allowlist.length} ranting`
               : dojoId
@@ -360,7 +360,7 @@ async function AdminAnggotaContent({
           </p>
           {!result.ok && (
             <p className="mt-2 text-sm text-destructive">
-              Gagal memuat data anggota dari API.
+              Gagal memuat data anggota.
             </p>
           )}
         </div>
@@ -472,7 +472,12 @@ async function AdminAnggotaContent({
         </p>
       ) : null}
 
-      <MembersTable members={members} userRoles={user.roles} />
+      <MembersTable
+        members={members}
+        userRoles={user.roles}
+        page={safePage}
+        pageSize={pageSize}
+      />
 
       <SettingsPagination
         page={safePage}

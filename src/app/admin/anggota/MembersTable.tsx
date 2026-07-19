@@ -283,9 +283,14 @@ function CopyableValue({ value }: { value: string }) {
 export function MembersTable({
   members,
   userRoles = [],
+  page = 1,
+  pageSize = 25,
 }: {
   members: AdminMemberRow[];
   userRoles?: string[];
+  /** Halaman saat ini (1-based) — untuk nomor urut global. */
+  page?: number;
+  pageSize?: number;
 }) {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -496,7 +501,7 @@ export function MembersTable({
   const paidCount = billings.filter((b) => b.status === "PAID").length;
   const lifecycle = detail?.lifecycle as MemberLifecycleMeta | null | undefined;
   const impact = detail?.impact as MemberImpactSummary | null | undefined;
-  const colCount = canBulk ? 10 : 9;
+  const colCount = canBulk ? 11 : 10;
 
   return (
     <>
@@ -515,6 +520,7 @@ export function MembersTable({
                   />
                 </TableHead>
               ) : null}
+              <TableHead className="w-12 text-center">No</TableHead>
               <TableHead className="w-12">Foto</TableHead>
               <TableHead>NIA</TableHead>
               <TableHead>Nama</TableHead>
@@ -536,10 +542,11 @@ export function MembersTable({
                 </TableCell>
               </TableRow>
             ) : (
-              members.map((m) => {
+              members.map((m, index) => {
                 const statusKey = m.status.trim().toUpperCase();
                 const isSelectableRow =
                   statusKey === "ACTIVE" || statusKey === "PENDING";
+                const rowNo = (page - 1) * pageSize + index + 1;
                 return (
                   <TableRow
                     key={m.id}
@@ -559,6 +566,9 @@ export function MembersTable({
                         ) : null}
                       </TableCell>
                     ) : null}
+                    <TableCell className="text-center tabular-nums text-muted-foreground text-sm">
+                      {rowNo}
+                    </TableCell>
                     <TableCell>
                       <MemberAvatarRing
                         fullName={m.fullName}

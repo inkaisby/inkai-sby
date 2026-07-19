@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { inkaiFetch } from "./server";
-import { getPrimaryAdminRole, type SessionUser } from "@/lib/rbac";
+import { getPrimaryAdminRole, buildMemberFilter, type SessionUser } from "@/lib/rbac";
 import { resolveUktRankColumns } from "@/lib/belt";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import {
@@ -127,24 +127,36 @@ export type MemberStatusCounts = {
   rejected: number;
 };
 
-/** Satu query Prisma groupBy menggantikan 5× list Inkai untuk KPI. */
-export async function fetchAdminMemberStatusCounts(opts: {
-  dojoIds?: string[];
-  dojoId?: string;
-}): Promise<MemberStatusCounts> {
-  const dojoFilter =
-    opts.dojoIds && opts.dojoIds.length > 0
-      ? { dojoId: { in: opts.dojoIds } }
-      : opts.dojoId
+function memberScopeWhere(
+  user: SessionUser,
+  opts?: { dojoId?: string; dojoIds?: string[] },
+) {
+  const scope = buildMemberFilter(user);
+  const refine =
+    opts?.dojoIds && opts.dojoIds.length > 0
+      ? { dojoId: { in: [...new Set(opts.dojoIds.filter(Boolean))] } }
+      : opts?.dojoId
         ? { dojoId: opts.dojoId }
-        : {};
+        : null;
+  return refine ? { AND: [scope, refine] } : scope;
+}
+
+/** Satu query Prisma groupBy menggantikan 5× list Inkai untuk KPI — selalu scoped RBAC. */
+export async function fetchAdminMemberStatusCounts(
+  user: SessionUser,
+  opts: {
+    dojoIds?: string[];
+    dojoId?: string;
+  } = {},
+): Promise<MemberStatusCounts> {
+  const where = memberScopeWhere(user, opts);
 
   const result = await withPrismaFallback(
     "admin-member-status-counts",
     () =>
       prisma.member.groupBy({
         by: ["status"],
-        where: { isDeleted: false, ...dojoFilter },
+        where,
         _count: { _all: true },
       }),
     [] as Array<{ status: string; _count: { _all: number } }>,
@@ -169,6 +181,98 @@ export async function fetchAdminMemberStatusCounts(opts: {
   }
 
   return counts;
+}
+
+/**
+ * Daftar anggota scoped RBAC via Prisma (cabang/ranting/pengprov).
+ * Satu sumber kebenaran dengan KPI — menghindari total Inkai yang beda cakupan.
+ */
+export async function fetchAdminMembersScoped(
+  user: SessionUser,
+  opts: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    dojoId?: string;
+    dojoIds?: string[];
+  } = {},
+) {
+  const page = opts.page ?? 1;
+  const limit = opts.limit ?? 20;
+  const search = opts.search?.trim();
+  const status = opts.status?.trim();
+
+  const where = {
+    AND: [
+      memberScopeWhere(user, {
+        dojoId: opts.dojoId,
+        dojoIds: opts.dojoIds,
+      }),
+      ...(status
+        ? [{ status: { equals: status, mode: "insensitive" as const } }]
+        : []),
+      ...(search
+        ? [
+            {
+              OR: [
+                {
+                  fullName: {
+                    contains: search,
+                    mode: "insensitive" as const,
+                  },
+                },
+                { nia: { contains: search, mode: "insensitive" as const } },
+              ],
+            },
+          ]
+        : []),
+    ],
+  };
+
+  try {
+    const [total, rows] = await Promise.all([
+      prisma.member.count({ where }),
+      prisma.member.findMany({
+        where,
+        include: {
+          dojo: {
+            select: {
+              name: true,
+              branch: { select: { name: true } },
+            },
+          },
+          user: { select: { photoUrl: true } },
+        },
+        orderBy: { fullName: "asc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    const members: AdminMemberRow[] = rows.map((m) => ({
+      id: m.id,
+      fullName: m.fullName,
+      nia: m.nia,
+      currentRank: m.currentRank,
+      status: m.status,
+      dojo: {
+        name: m.dojo.name,
+        branch: m.dojo.branch ? { name: m.dojo.branch.name } : undefined,
+      },
+      birthCertificateUrl: m.birthCertificateUrl,
+      bpjsCardUrl: m.bpjsCardUrl,
+      bpjsCardNumber: m.bpjsCardNumber,
+      photoUrl: m.user?.photoUrl ?? null,
+      createdAt: m.createdAt.toISOString(),
+      monthlyDuesAmount: m.monthlyDuesAmount,
+    }));
+
+    return { ok: true as const, members, total, page };
+  } catch (error) {
+    console.error("[fetchAdminMembersScoped]", error);
+    return { ok: false as const, error: "Gagal memuat anggota" };
+  }
 }
 
 /**
