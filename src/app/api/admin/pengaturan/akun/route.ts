@@ -10,6 +10,7 @@ import {
   akunProfileSchema,
 } from "@/lib/security/schemas";
 import { validatePassword } from "@/lib/security/password";
+import { findEmailConflict } from "@/lib/pengaturan";
 
 export async function GET() {
   const authResult = await requireAdmin();
@@ -110,7 +111,43 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const { res, data } = await inkaiFetch(
+  const nextEmail = parsed.data.email?.trim().toLowerCase() || "";
+  const emailChanged =
+    Boolean(nextEmail) &&
+    nextEmail !== authResult.user.email.trim().toLowerCase();
+
+  if (emailChanged) {
+    const conflict = await findEmailConflict(nextEmail, authResult.user.id);
+    if (conflict) {
+      return NextResponse.json(
+        { error: `Email ${nextEmail} sudah dipakai akun lain` },
+        { status: 409 },
+      );
+    }
+
+    await prisma.user.update({
+      where: { id: authResult.user.id },
+      data: { email: nextEmail },
+    });
+
+    // Sinkron username PIC ranting bila akun ini admin dojo
+    if (authResult.user.managedDojoId && authResult.token) {
+      try {
+        await inkaiFetch(
+          `/v1/org/dojos/${authResult.user.managedDojoId}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({ adminEmail: nextEmail }),
+          },
+          authResult.token,
+        );
+      } catch {
+        // email lokal sudah diubah
+      }
+    }
+  }
+
+  const { res } = await inkaiFetch(
     "/v1/auth/profile",
     {
       method: "PUT",
@@ -135,11 +172,12 @@ export async function PATCH(request: Request) {
 
   writeAuditLog({
     userId: authResult.user.id,
-    email: authResult.user.email,
+    email: emailChanged ? nextEmail : authResult.user.email,
     action: "SETTINGS_AKUN_PROFILE_UPDATE",
     details: JSON.stringify({
       fullName: parsed.data.fullName,
       phoneNumber: parsed.data.phoneNumber || null,
+      emailChanged,
       viaApi: res.ok,
     }),
     ip: getClientIp(request),
@@ -149,6 +187,8 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json({
     success: true,
-    message: "Profil berhasil diperbarui",
+    message: emailChanged
+      ? "Profil dan email login berhasil diperbarui"
+      : "Profil berhasil diperbarui",
   });
 }

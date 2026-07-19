@@ -393,6 +393,13 @@ export const softDeleteSchema = z.object({
 export const akunProfileSchema = z.object({
   fullName: z.string().trim().min(2).max(100),
   phoneNumber: z.string().trim().min(10).max(20).optional().or(z.literal("")),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Email tidak valid")
+    .optional()
+    .or(z.literal("")),
 });
 
 export const akunPasswordSchema = z

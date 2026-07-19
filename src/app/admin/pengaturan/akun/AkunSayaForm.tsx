@@ -18,6 +18,7 @@ export type AkunSayaData = {
 
 export function AkunSayaForm({ initial }: { initial: AkunSayaData }) {
   const router = useRouter();
+  const [email, setEmail] = useState(initial.email);
   const [fullName, setFullName] = useState(initial.fullName || "");
   const [phoneNumber, setPhoneNumber] = useState(initial.phoneNumber || "");
   const [oldPassword, setOldPassword] = useState("");
@@ -35,6 +36,7 @@ export function AkunSayaForm({ initial }: { initial: AkunSayaData }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "profile",
+        email: email.trim().toLowerCase(),
         fullName,
         phoneNumber,
       }),
@@ -89,8 +91,15 @@ export function AkunSayaForm({ initial }: { initial: AkunSayaData }) {
           </p>
         </div>
         <div className="space-y-1.5">
-          <Label>Email (username login)</Label>
-          <Input value={initial.email} disabled />
+          <Label htmlFor="akun-email">Email (username login)</Label>
+          <Input
+            id="akun-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="username"
+          />
         </div>
         <div className="space-y-1.5">
           <Label>Nama Lengkap</Label>

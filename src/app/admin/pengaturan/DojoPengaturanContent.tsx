@@ -116,8 +116,7 @@ export async function DojoPengaturanContent() {
       branchId: branch?.id ? String(branch.id) : undefined,
       branchName: branch?.name ? String(branch.name) : undefined,
       memberCount: (d._count as { members?: number } | undefined)?.members ?? 0,
-      // Prefer email sesi (akun yang login) agar form Ubah Data menampilkan kredensial sendiri
-      adminEmail: user.email || admin?.email || null,
+      adminEmail: admin?.email ?? null,
       adminIsActive: admin?.isActive ?? null,
     };
   });
