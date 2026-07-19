@@ -125,6 +125,10 @@ export type MemberStatusCounts = {
   active: number;
   inactive: number;
   rejected: number;
+  /** Akte atau BPJS belum ada. */
+  docsIncomplete: number;
+  /** NIA kosong / null. */
+  missingNia: number;
 };
 
 function memberScopeWhere(
@@ -141,7 +145,25 @@ function memberScopeWhere(
   return refine ? { AND: [scope, refine] } : scope;
 }
 
-/** Satu query Prisma groupBy menggantikan 5× list Inkai untuk KPI — selalu scoped RBAC. */
+/** Dokumen kurang: akte atau BPJS kosong (selaras isDocumentComplete). */
+function docsIncompleteClause() {
+  return {
+    OR: [
+      { birthCertificateUrl: null },
+      { birthCertificateUrl: "" },
+      { bpjsCardUrl: null },
+      { bpjsCardUrl: "" },
+    ],
+  };
+}
+
+function missingNiaClause() {
+  return {
+    OR: [{ nia: null }, { nia: "" }],
+  };
+}
+
+/** Satu query Prisma groupBy + count dokumen/NIA untuk KPI — selalu scoped RBAC. */
 export async function fetchAdminMemberStatusCounts(
   user: SessionUser,
   opts: {
@@ -151,16 +173,34 @@ export async function fetchAdminMemberStatusCounts(
 ): Promise<MemberStatusCounts> {
   const where = memberScopeWhere(user, opts);
 
-  const result = await withPrismaFallback(
-    "admin-member-status-counts",
-    () =>
-      prisma.member.groupBy({
-        by: ["status"],
-        where,
-        _count: { _all: true },
-      }),
-    [] as Array<{ status: string; _count: { _all: number } }>,
-  );
+  const [statusResult, docsResult, niaResult] = await Promise.all([
+    withPrismaFallback(
+      "admin-member-status-counts",
+      () =>
+        prisma.member.groupBy({
+          by: ["status"],
+          where,
+          _count: { _all: true },
+        }),
+      [] as Array<{ status: string; _count: { _all: number } }>,
+    ),
+    withPrismaFallback(
+      "admin-member-docs-incomplete",
+      () =>
+        prisma.member.count({
+          where: { AND: [where, docsIncompleteClause()] },
+        }),
+      0,
+    ),
+    withPrismaFallback(
+      "admin-member-missing-nia",
+      () =>
+        prisma.member.count({
+          where: { AND: [where, missingNiaClause()] },
+        }),
+      0,
+    ),
+  ]);
 
   const counts: MemberStatusCounts = {
     all: 0,
@@ -168,9 +208,11 @@ export async function fetchAdminMemberStatusCounts(
     active: 0,
     inactive: 0,
     rejected: 0,
+    docsIncomplete: docsResult.data,
+    missingNia: niaResult.data,
   };
 
-  for (const row of result.data) {
+  for (const row of statusResult.data) {
     const n = row._count._all;
     counts.all += n;
     const st = row.status.trim().toUpperCase();
@@ -196,6 +238,10 @@ export async function fetchAdminMembersScoped(
     status?: string;
     dojoId?: string;
     dojoIds?: string[];
+    /** Filter KPI: dokumen akte/BPJS kurang. */
+    docsIncomplete?: boolean;
+    /** Filter KPI: tanpa NIA. */
+    missingNia?: boolean;
   } = {},
 ) {
   const page = opts.page ?? 1;
@@ -212,6 +258,8 @@ export async function fetchAdminMembersScoped(
       ...(status
         ? [{ status: { equals: status, mode: "insensitive" as const } }]
         : []),
+      ...(opts.docsIncomplete ? [docsIncompleteClause()] : []),
+      ...(opts.missingNia ? [missingNiaClause()] : []),
       ...(search
         ? [
             {

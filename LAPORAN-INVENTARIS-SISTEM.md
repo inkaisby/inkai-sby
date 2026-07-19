@@ -103,7 +103,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
-| Kelola Anggota | Cari **autocomplete** (tanpa tombol Filter); kolom **No**; detail, NIA, dokumen; kolom **Terdaftar**; **edit Iuran/bln** (ranting/cabang); nonaktif/bulk; **export CSV**; **bulk approve pending**; **hapus/arsip** (ranting+cabang; aktif/ber-NIA: ketik nama; **bulk: ketik ARSIPKAN**); arsip: **pilih semua + hapus permanen** (ketik HAPUS) / pulihkan cabang; **KPI+daftar Prisma scoped** (`buildMemberFilter`) |
+| Kelola Anggota | Cari **autocomplete**; kolom **No**; KPI status + **Dok. kurang** + **Tanpa NIA** (angka nyata); detail, NIA, dokumen; **Terdaftar**; **edit Iuran/bln**; nonaktif/bulk; **export CSV**; **bulk approve**; **hapus/arsip**; arsip purge/pulihkan; **KPI+daftar Prisma scoped**; KPI navigasi cepat (`startTransition`) |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran**, **arsip** |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
@@ -456,6 +456,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Fix bulk nonaktif: sama pool sibuk; `deactivateMember` catch 503; Prisma auto-alihkan Supabase pooler `:5432`→`:6543`+pgbouncer |
 | 19 Juli 2026 | Fix KPI Kelola Anggota cabang: daftar+KPI satu sumber Prisma + `buildMemberFilter` (bukan Inkai vs Prisma unscoped) |
 | 19 Juli 2026 | Kelola Anggota: kolom **No** (nomor urut lintas halaman) di tabel |
+| 19 Juli 2026 | Kelola Anggota: KPI card navigasi `startTransition` + prefetch (tanpa flash AdminLoading) |
+| 19 Juli 2026 | KPI **Dok. kurang** & **Tanpa NIA**: angka nyata (Prisma scoped) + filter daftar server-side |
 
 ---
 

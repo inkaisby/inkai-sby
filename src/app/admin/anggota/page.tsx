@@ -25,12 +25,11 @@ import {
   resolveActiveDojoId,
 } from "@/lib/managed-dojos";
 import { prisma } from "@/lib/prisma";
-import { isDocumentComplete } from "@/lib/memberCompleteness";
 import {
   getMemberLifecycles,
   monthsSince,
 } from "@/lib/member-lifecycle";
-import { Card, CardContent } from "@/components/ui/card";
+import { AnggotaKpiCards } from "./AnggotaKpiCards";
 import {
   SettingsPagination,
   parsePage,
@@ -205,6 +204,8 @@ async function AdminAnggotaContent({
         isDojoAdmin && !dojoId && allowlist.length > 0
           ? allowlist
           : undefined,
+      docsIncomplete: docs === "incomplete",
+      missingNia: niaFilter === "missing",
     }),
     isDojoAdmin
       ? Promise.resolve(
@@ -231,12 +232,6 @@ async function AdminAnggotaContent({
   const allCount = { ok: true as const, total: statusCounts.all };
 
   let members = result.ok ? result.members : [];
-  if (docs === "incomplete") {
-    members = members.filter((m) => !isDocumentComplete(m));
-  }
-  if (niaFilter === "missing") {
-    members = members.filter((m) => !m.nia?.trim());
-  }
   if (inactiveMonths > 0) {
     const lifecycles = await getMemberLifecycles(members.map((m) => m.id));
     members = members.filter((m) => {
@@ -313,31 +308,30 @@ async function AdminAnggotaContent({
     {
       key: "docs",
       label: "Dok. kurang",
-      value: "—",
+      value: statusCounts.docsIncomplete,
       icon: FileWarning,
       href: buildHref({
         ...kpiBase,
-        status,
+        status: "",
         nia: "",
         docs: docs === "incomplete" ? "" : "incomplete",
       }),
       active: docs === "incomplete",
       accent: "text-orange-600",
-      hint: "Filter halaman",
     },
     {
       key: "nia",
       label: "Tanpa NIA",
-      value: "—",
+      value: statusCounts.missingNia,
       icon: IdCard,
       href: buildHref({
         ...kpiBase,
+        status: "",
         docs: "",
         nia: niaFilter === "missing" ? "" : "missing",
       }),
       active: niaFilter === "missing",
       accent: "text-amber-700",
-      hint: "Filter halaman",
     },
   ] as const;
 
@@ -373,38 +367,7 @@ async function AdminAnggotaContent({
         ) : null}
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-        {kpis.map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <Link key={kpi.key} href={kpi.href} className="block">
-              <Card
-                className={`transition-all hover:shadow-md hover:ring-1 hover:ring-inkai-red/30 ${
-                  kpi.active ? "ring-2 ring-inkai-red" : ""
-                }`}
-              >
-                <CardContent className="p-3">
-                  <div className="flex items-center justify-between">
-                    <Icon
-                      className={`h-4 w-4 ${"accent" in kpi && kpi.accent ? kpi.accent : "text-inkai-red"}`}
-                    />
-                    <span className="text-lg font-bold tabular-nums">
-                      {kpi.value}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {kpi.label}
-                    {"hint" in kpi && kpi.hint ? (
-                      <span className="block opacity-70">{kpi.hint}</span>
-                    ) : null}
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
-          );
-        })}
-      </div>
-
+      <AnggotaKpiCards items={[...kpis]}>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <AnggotaAddButton
           dojos={
@@ -464,11 +427,11 @@ async function AdminAnggotaContent({
       niaFilter === "missing" ||
       inactiveMonths > 0 ? (
         <p className="mb-3 text-xs text-muted-foreground">
-          Filter tambahan diterapkan pada data halaman ini ({members.length}{" "}
-          ditampilkan).
+          {docs === "incomplete" ? "Filter: dokumen kurang. " : ""}
+          {niaFilter === "missing" ? "Filter: tanpa NIA. " : ""}
           {inactiveMonths > 0
-            ? ` Nonaktif/ditangguhkan ≥ ${inactiveMonths} bulan.`
-            : ""}
+            ? `Nonaktif/ditangguhkan ≥ ${inactiveMonths} bulan (filter halaman).`
+            : null}
         </p>
       ) : null}
 
@@ -494,6 +457,7 @@ async function AdminAnggotaContent({
           inactiveMonths: inactiveMonths ? String(inactiveMonths) : "",
         }}
       />
+      </AnggotaKpiCards>
     </>
   );
 }
