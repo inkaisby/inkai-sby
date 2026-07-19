@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Printer } from "lucide-react";
+import { Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,7 +26,11 @@ import {
   type UktMemberRow,
   type UktSemester,
 } from "@/lib/ukt";
-import { printUktNotaDocument } from "@/lib/ukt-print-html";
+import {
+  downloadUktNotaPdf,
+  printUktNotaDocument,
+} from "@/lib/ukt-print-html";
+import { showError, showSuccess } from "@/lib/client-toast";
 
 type Props = {
   open: boolean;
@@ -83,6 +87,7 @@ export function UktPrintModal({
   const defaultDojoId = dojoFilter || dojoOptions[0]?.id || "";
 
   const [selectedDojoId, setSelectedDojoId] = useState(defaultDojoId);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [config, setConfig] = useState<PrintConfig>(() => {
     const dojoName = dojos.find((d) => d.id === defaultDojoId)?.name || dojoOptions[0]?.name || "";
     return {
@@ -132,31 +137,48 @@ export function UktPrintModal({
     setConfig((prev) => ({ ...prev, [field]: value }));
   };
 
+  const notaPayload = () => ({
+    notaNo: config.notaNo,
+    semester: config.semester,
+    dojoName: selectedDojoName,
+    periodTitle,
+    registeredCount,
+    counts,
+    beltFees,
+    komisiRanting,
+    rusak: config.rusak,
+    hilang: config.hilang,
+    subtotalA,
+    subtotalB,
+    totalC,
+    grandTotal,
+    origin: window.location.origin,
+    printedAt: new Date().toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }),
+    sekretariatAddress: orgProfile?.address,
+    bendaharaCabangName: orgProfile?.bendaharaCabangName,
+  });
+
   const handlePrint = () => {
-    printUktNotaDocument({
-      notaNo: config.notaNo,
-      semester: config.semester,
-      dojoName: selectedDojoName,
-      periodTitle,
-      registeredCount,
-      counts,
-      beltFees,
-      komisiRanting,
-      rusak: config.rusak,
-      hilang: config.hilang,
-      subtotalA,
-      subtotalB,
-      totalC,
-      grandTotal,
-      origin: window.location.origin,
-      printedAt: new Date().toLocaleDateString("id-ID", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      }),
-      sekretariatAddress: orgProfile?.address,
-      bendaharaCabangName: orgProfile?.bendaharaCabangName,
-    });
+    printUktNotaDocument(notaPayload());
+  };
+
+  const handleDownloadPdf = async () => {
+    setPdfLoading(true);
+    try {
+      await downloadUktNotaPdf(
+        notaPayload(),
+        `nota-ukt-${selectedDojoName.replace(/\s+/g, "-").toLowerCase()}.pdf`,
+      );
+      showSuccess("PDF nota diunduh");
+    } catch {
+      showError("Gagal membuat PDF. Coba Print / Save as PDF.");
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   const beltRows = BELT_FEE_KEYS.filter((belt) => counts[belt] > 0);
@@ -167,10 +189,21 @@ export function UktPrintModal({
         <DialogHeader className="no-print pr-8">
           <DialogTitle className="flex items-center justify-between gap-3">
             <span>Cetak Nota Pembayaran UKT</span>
-            <Button size="sm" onClick={handlePrint}>
-              <Printer className="mr-1 h-4 w-4" />
-              Print
-            </Button>
+            <span className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void handleDownloadPdf()}
+                disabled={pdfLoading}
+              >
+                <Download className="mr-1 h-4 w-4" />
+                {pdfLoading ? "PDF…" : "Unduh PDF"}
+              </Button>
+              <Button size="sm" onClick={handlePrint}>
+                <Printer className="mr-1 h-4 w-4" />
+                Print
+              </Button>
+            </span>
           </DialogTitle>
         </DialogHeader>
 

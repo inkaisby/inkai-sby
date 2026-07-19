@@ -220,8 +220,8 @@ export function formatRupiahNota(amount: number): string {
 }
 
 /**
- * UKT tidak memakai kode unik (+1..999). Billing dari API bisa masih
- * menyimpan amount = baseFee + uniqueTail; tampilan/nota pakai base saja.
+ * UKT tidak memakai kode unik (+1..999) di frontend.
+ * Prefer `baseFeeAmount`; fallback strip sisa tail lama dari API/historis.
  */
 export function uktBaseFeeAmount(
   amount: number | null | undefined,
@@ -232,6 +232,7 @@ export function uktBaseFeeAmount(
   }
   if (amount == null || Number.isNaN(Number(amount))) return null;
   const n = Math.round(Number(amount));
+  // Kompatibilitas data lama yang mungkin masih punya uniqueTail di amount
   return n - (n % 1000);
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, FileSpreadsheet, Printer } from "lucide-react";
+import { AlertTriangle, Download, FileSpreadsheet, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +22,10 @@ import {
   type UktMemberRow,
   type UktSemester,
 } from "@/lib/ukt";
-import { printUktPesertaDocument } from "@/lib/ukt-print-html";
+import {
+  downloadUktPesertaPdf,
+  printUktPesertaDocument,
+} from "@/lib/ukt-print-html";
 
 type DojoOption = { id: string; name: string };
 
@@ -76,6 +79,8 @@ export function UktExportDialog({
   bidangUjianName = "SETIA BASUKI",
   sekretariatAddress,
 }: Props) {
+  const [pdfLoading, setPdfLoading] = useState(false);
+
   const registered = useMemo(
     () => rows.filter((r) => r.registrationId),
     [rows],
@@ -181,6 +186,35 @@ export function UktExportDialog({
     toast.success(
       `${data.length} peserta siap — di dialog cetak pilih printer atau Save as PDF`,
     );
+  };
+
+  const handleDownloadPdf = async () => {
+    const data = ensureRows();
+    if (!data) return;
+    if (issues.length > 0) {
+      toast.message(`${issues.length} peserta punya data kurang — tetap diunduh`);
+    }
+    setPdfLoading(true);
+    try {
+      await downloadUktPesertaPdf(
+        {
+          title,
+          branchLabel: `CABANG : ${SITE_BRANCH_NAME}`,
+          rows: buildUktPesertaExportRows(data),
+          origin: window.location.origin,
+          printedPlaceDate: formatPrintedPlaceDate(),
+          signatoryTitle: "Bidang Ujian",
+          signatoryName: bidangUjianName || "SETIA BASUKI",
+          sekretariatAddress,
+        },
+        `ukt-peserta-S${semester}-${year}.pdf`,
+      );
+      toast.success(`${data.length} peserta diunduh sebagai PDF`);
+    } catch {
+      toast.error("Gagal membuat PDF. Coba Print / Save as PDF.");
+    } finally {
+      setPdfLoading(false);
+    }
   };
 
   return (
@@ -306,12 +340,21 @@ export function UktExportDialog({
           </Button>
           <Button
             type="button"
+            variant="outline"
+            onClick={() => void handleDownloadPdf()}
+            disabled={filteredRows.length === 0 || pdfLoading}
+          >
+            <Download className="mr-1 h-4 w-4" />
+            {pdfLoading ? "PDF…" : "Unduh PDF"}
+          </Button>
+          <Button
+            type="button"
             className="bg-inkai-red hover:bg-inkai-red/90"
             onClick={handlePrint}
             disabled={filteredRows.length === 0}
           >
             <Printer className="mr-1 h-4 w-4" />
-            Print / Save as PDF
+            Print
           </Button>
         </DialogFooter>
       </DialogContent>

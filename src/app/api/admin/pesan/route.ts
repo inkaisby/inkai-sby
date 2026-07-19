@@ -144,5 +144,26 @@ export async function POST(request: Request) {
     data: { lastMessageAt: new Date() },
   });
 
+  // Notifikasi + email (jika RESEND_API_KEY) ke peserta lain
+  if (authResult.token) {
+    const { notifyUser } = await import("@/lib/notifications");
+    const recipients = conv.participants.filter((p) => p.id !== authResult.user.id);
+    const preview =
+      parsed.data.content.length > 120
+        ? `${parsed.data.content.slice(0, 117)}…`
+        : parsed.data.content;
+    await Promise.allSettled(
+      recipients.map((p) =>
+        notifyUser({
+          userId: p.id,
+          title: "Pesan baru dari pengurus",
+          content: preview,
+          type: "INFO",
+          token: authResult.token!,
+        }),
+      ),
+    );
+  }
+
   return NextResponse.json({ message });
 }

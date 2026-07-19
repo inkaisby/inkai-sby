@@ -471,3 +471,102 @@ export function buildUktPesertaPrintHtml(data: UktPesertaPrintData): string {
 export function printUktPesertaDocument(data: UktPesertaPrintData): void {
   openHtmlPrintWindow(buildUktPesertaPrintHtml(data));
 }
+
+async function waitForImages(doc: Document): Promise<void> {
+  const images = Array.from(doc.images);
+  if (images.length === 0) return;
+  await Promise.all(
+    images.map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          if (img.complete) {
+            resolve();
+            return;
+          }
+          img.addEventListener("load", () => resolve(), { once: true });
+          img.addEventListener("error", () => resolve(), { once: true });
+          setTimeout(() => resolve(), 1500);
+        }),
+    ),
+  );
+}
+
+/**
+ * Unduh PDF langsung (tanpa dialog print browser) dari HTML UKT.
+ */
+export async function downloadPdfFromHtml(
+  html: string,
+  filename: string,
+): Promise<void> {
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText =
+    "position:fixed;left:-12000px;top:0;width:210mm;height:297mm;border:0;opacity:0;pointer-events:none;";
+  document.body.appendChild(iframe);
+
+  const win = iframe.contentWindow;
+  const doc = win?.document;
+  if (!win || !doc) {
+    iframe.remove();
+    throw new Error("Gagal menyiapkan dokumen PDF");
+  }
+
+  doc.open();
+  doc.write(html);
+  doc.close();
+  await waitForImages(doc);
+  await new Promise((r) => setTimeout(r, 80));
+
+  try {
+    const html2canvas = (await import("html2canvas")).default;
+    const { jsPDF } = await import("jspdf");
+
+    const target = (doc.querySelector(".page") as HTMLElement | null) || doc.body;
+    const canvas = await html2canvas(target, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+      windowWidth: target.scrollWidth,
+      windowHeight: target.scrollHeight,
+    } as never);
+
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * pageWidth) / canvas.width;
+
+    let heightLeft = imgHeight;
+    let position = 0;
+    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 0) {
+      position -= pageHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    const safeName = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
+    pdf.save(safeName);
+  } finally {
+    iframe.remove();
+  }
+}
+
+export async function downloadUktNotaPdf(
+  data: UktNotaPrintData,
+  filename = "nota-ukt.pdf",
+): Promise<void> {
+  await downloadPdfFromHtml(buildUktNotaPrintHtml(data), filename);
+}
+
+export async function downloadUktPesertaPdf(
+  data: UktPesertaPrintData,
+  filename = "daftar-peserta-ukt.pdf",
+): Promise<void> {
+  await downloadPdfFromHtml(buildUktPesertaPrintHtml(data), filename);
+}

@@ -278,7 +278,9 @@ Pusat / Nasional
 | Deteksi duplikat anggota | Aktif | Keras: NIK / NIA / nama+TTL; lunak: nama; blok create admin & daftar publik; UI peringatan |
 | Gabungkan duplikat | Aktif | Ranting/cabang: pindahkan akun login + riwayat ke data operasional; arsipkan duplikat |
 | Audit admin | Aktif | Filter + export CSV di `/admin/audit` |
-| Nominal UKT | Tanpa kode unik | `uktBaseFeeAmount` — tampilan/KPI strip +1…999 agar = nota |
+| Nominal UKT | Tanpa kode unik | Frontend tidak menulis `uniqueTail`; tampilan pakai `uktBaseFeeAmount` (+ strip data lama). Sinkron backend Inkai (opsional) |
+| Unduh PDF UKT | Aktif | Tombol **Unduh PDF** di nota & export peserta (jspdf+html2canvas); Print tetap ada |
+| Email notifikasi | Opsional (Resend) | `notifyUser` kirim email bila `RESEND_API_KEY`; dipakai pesan admin, verifikasi, UKT, lifecycle; reset-password email ke ranting |
 | Eligibility UKT | Diterapkan | Gate periode tutup, iuran, dokumen, absensi semester minimum 75% |
 | Hasil ujian UKT | Aktif | Cabang tetapkan `LULUS` / `GAGAL` / `MENGULANG`; Kyu Baru **wajib** setelah LULUS |
 | Status UKT anggota | Aktif | `/api/member/ukt-status` + kartu status di beranda & Prestasi (CTA langkah berikutnya) |
@@ -362,10 +364,9 @@ Yang paling matang untuk operasional cabang saat ini:
 
 Prioritas pengembangan lanjutan yang disarankan:
 
-1. (Opsional) Sinkron backend agar billing UKT tidak lagi menulis `uniqueTail` di DB  
+1. (Opsional) Sinkron **Inkai backend** agar billing UKT baru tidak menulis `uniqueTail` (frontend sudah bersih)  
 2. Perkaya store (multi-item cart, pembayaran terintegrasi)  
-3. Unduh PDF file native (tanpa dialog print browser)  
-4. Notifikasi push / email untuk pesan & verifikasi  
+3. Notifikasi push browser (di luar email Resend yang sudah opsional)  
 
 ---
 
@@ -420,6 +421,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Ranting/cabang dapat edit Iuran/bln per anggota (detail anggota); generate tagihan pakai nominal per anggota |
 | 19 Juli 2026 | Nav: Pengaturan User digabung ke Pengaturan Ranting & User; cabang dapat ubah email login ranting (change_email) |
 | 19 Juli 2026 | Pengaturan cabang/ranting: klasifikasi error Prisma (sibuk vs gagal), KPI/filter login tidak menyesatkan saat username gagal dimuat |
+| 19 Juli 2026 | Teknis: Unduh PDF UKT native (jspdf+html2canvas); email Resend di notifyUser (pesan/verifikasi/UKT); hapus helper uniqueTail; email reset-password ke ranting |
 
 ---
 

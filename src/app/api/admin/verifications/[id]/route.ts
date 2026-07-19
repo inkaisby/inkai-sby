@@ -29,6 +29,34 @@ async function applyDojoTransfer(claim: {
   }
 }
 
+async function notifyVerificationResult(opts: {
+  memberId: string;
+  type: string;
+  approved: boolean;
+  adminNotes?: string;
+  token: string;
+}) {
+  try {
+    const member = await prisma.member.findFirst({
+      where: { id: opts.memberId },
+      select: { userId: true },
+    });
+    if (!member?.userId) return;
+    const { notifyUser } = await import("@/lib/notifications");
+    await notifyUser({
+      userId: member.userId,
+      title: opts.approved ? "Verifikasi disetujui" : "Verifikasi ditolak",
+      content: opts.approved
+        ? `Pengajuan Anda (${opts.type || "verifikasi"}) telah disetujui pengurus.`
+        : `Pengajuan Anda (${opts.type || "verifikasi"}) ditolak.${opts.adminNotes ? ` Catatan: ${opts.adminNotes}` : ""}`,
+      type: opts.approved ? "SUCCESS" : "WARNING",
+      token: opts.token,
+    });
+  } catch {
+    // non-blocking
+  }
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
@@ -70,6 +98,13 @@ export async function PATCH(request: Request, context: RouteContext) {
           adminNotes: parsed.data.adminNotes ?? local.adminNotes,
         },
       });
+      await notifyVerificationResult({
+        memberId: local.memberId,
+        type: local.type,
+        approved: parsed.data.action === "approve",
+        adminNotes: parsed.data.adminNotes,
+        token: authResult.token,
+      });
       return NextResponse.json({
         success: true,
         status,
@@ -107,6 +142,17 @@ export async function PATCH(request: Request, context: RouteContext) {
         },
       })
       .catch(() => null);
+  }
+
+  // Notifikasi in-app + email (opsional Resend) ke anggota terkait
+  if (local?.memberId) {
+    await notifyVerificationResult({
+      memberId: local.memberId,
+      type: local.type,
+      approved: parsed.data.action === "approve",
+      adminNotes: parsed.data.adminNotes,
+      token: authResult.token,
+    });
   }
 
   return NextResponse.json({

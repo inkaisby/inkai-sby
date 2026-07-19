@@ -81,6 +81,32 @@ export async function POST(request: Request) {
       },
     });
 
+    // Email opsional ke pengurus ranting (jika RESEND_API_KEY ada)
+    const dojoId = user.member.dojoId;
+    if (dojoId) {
+      const admins = await prisma.user.findMany({
+        where: {
+          managedDojoId: dojoId,
+          isDeleted: false,
+          isActive: true,
+          roles: { some: { name: "ADMIN_DOJO" } },
+        },
+        select: { email: true },
+        take: 5,
+      });
+      const { sendAppEmail } = await import("@/lib/email");
+      const memberName = user.fullName || user.member.fullName || user.email;
+      await Promise.allSettled(
+        admins.map((a) =>
+          sendAppEmail({
+            to: a.email,
+            subject: "Pengajuan reset password anggota — INKAI Surabaya",
+            html: `<p>Anggota <strong>${memberName}</strong> (${user.email}) mengajukan reset password.</p><p>Verifikasi di menu Verifikasi admin ranting.</p>`,
+          }),
+        ),
+      );
+    }
+
     return NextResponse.json({
       success: true,
       message:
