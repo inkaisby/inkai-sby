@@ -316,6 +316,17 @@ export function WilayahAccountsPanel({
   const activeCount = accounts.filter((a) => a.isActive).length;
   const showMultiDojo = scope === "dojo" && siblingDojos.length > 1;
 
+  const dojoNameById = new Map(siblingDojos.map((d) => [d.id, d.name]));
+
+  function managedDojoLabels(a: AccountRow) {
+    const ids = a.managedDojoIds ?? [];
+    return ids.map((id) => ({
+      id,
+      name: dojoNameById.get(id) || id.slice(0, 8),
+      isCurrent: id === wilayahId,
+    }));
+  }
+
   return (
     <div className={compact ? "space-y-2" : "space-y-3 rounded-xl border p-3"}>
       <CredentialsReveal
@@ -423,8 +434,14 @@ export function WilayahAccountsPanel({
                     </Badge>
                   ) : null}
                   {(a.managedDojoCount ?? 0) > 1 ? (
-                    <Badge variant="outline" className="border-inkai-red/40 text-inkai-red">
-                      +{(a.managedDojoCount ?? 1) - 1} ranting
+                    <Badge
+                      variant="outline"
+                      className="border-inkai-red/40 text-inkai-red"
+                      title={managedDojoLabels(a)
+                        .map((d) => d.name)
+                        .join(", ")}
+                    >
+                      Multi · {a.managedDojoCount} ranting
                     </Badge>
                   ) : null}
                   {a.isHomeDojo === false ? (
@@ -440,6 +457,28 @@ export function WilayahAccountsPanel({
                 <p className="font-mono text-xs text-muted-foreground truncate">
                   {a.email}
                 </p>
+                {(a.managedDojoCount ?? 0) > 1 ? (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      Gabungan ranting:
+                    </span>{" "}
+                    {managedDojoLabels(a).map((d, i) => (
+                      <span key={d.id}>
+                        {i > 0 ? ", " : ""}
+                        <span
+                          className={
+                            d.isCurrent
+                              ? "font-medium text-foreground"
+                              : undefined
+                          }
+                        >
+                          {d.name}
+                        </span>
+                        {d.isCurrent ? " (ini)" : ""}
+                      </span>
+                    ))}
+                  </p>
+                ) : null}
                 <select
                   className="h-7 max-w-[11rem] rounded border bg-background px-1.5 text-xs"
                   value={a.jabatan || ""}
