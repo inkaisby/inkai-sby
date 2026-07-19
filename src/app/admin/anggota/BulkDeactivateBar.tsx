@@ -20,6 +20,8 @@ import {
 } from "@/lib/member-lifecycle";
 import { showError, showSuccess } from "@/lib/client-toast";
 
+type DialogKind = "deactivate" | "delete" | null;
+
 export function BulkDeactivateBar({
   selectedIds,
   pendingIds = [],
@@ -30,14 +32,23 @@ export function BulkDeactivateBar({
   onClear: () => void;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [dialogKind, setDialogKind] = useState<DialogKind>(null);
   const [loading, setLoading] = useState(false);
   const [statusKind, setStatusKind] = useState<MemberStatusKind>("INACTIVE");
   const [reasonCode, setReasonCode] =
     useState<DeactivateReasonCode>("BERHENTI_LATIHAN");
   const [reasonNote, setReasonNote] = useState("");
+  const [confirmPhrase, setConfirmPhrase] = useState("");
 
   if (selectedIds.length === 0) return null;
+
+  function closeDialog() {
+    setDialogKind(null);
+    setConfirmPhrase("");
+    setReasonNote("");
+    setStatusKind("INACTIVE");
+    setReasonCode("BERHENTI_LATIHAN");
+  }
 
   async function approvePending() {
     if (pendingIds.length === 0) {
@@ -64,7 +75,7 @@ export function BulkDeactivateBar({
     router.refresh();
   }
 
-  async function submit() {
+  async function submitDeactivate() {
     setLoading(true);
     const res = await fetch("/api/admin/members/bulk", {
       method: "POST",
@@ -81,7 +92,7 @@ export function BulkDeactivateBar({
     setLoading(false);
     if (res.ok) {
       showSuccess(data.message || "Bulk nonaktif selesai");
-      setOpen(false);
+      closeDialog();
       onClear();
       router.refresh();
     } else {
@@ -89,14 +100,41 @@ export function BulkDeactivateBar({
     }
   }
 
+  async function submitDelete() {
+    if (confirmPhrase.trim().toUpperCase() !== "ARSIPKAN") {
+      showError('Ketik "ARSIPKAN" untuk mengonfirmasi');
+      return;
+    }
+    setLoading(true);
+    const res = await fetch("/api/admin/members/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "delete",
+        memberIds: selectedIds,
+        confirmPhrase: confirmPhrase.trim(),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setLoading(false);
+    if (res.ok) {
+      showSuccess(data.message || "Bulk arsip selesai");
+      closeDialog();
+      onClear();
+      router.refresh();
+    } else {
+      showError(data.error || "Gagal arsip massal");
+    }
+  }
+
   return (
     <>
-      <div className="fixed bottom-4 left-1/2 z-40 flex w-[min(100%-1.5rem,32rem)] -translate-x-1/2 items-center justify-between gap-3 rounded-xl border bg-background/95 px-4 py-3 shadow-lg backdrop-blur">
+      <div className="fixed bottom-4 left-1/2 z-40 flex w-[min(100%-1.5rem,40rem)] -translate-x-1/2 flex-wrap items-center justify-between gap-3 rounded-xl border bg-background/95 px-4 py-3 shadow-lg backdrop-blur">
         <p className="text-sm">
           <span className="font-semibold tabular-nums">{selectedIds.length}</span>{" "}
           dipilih
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" variant="outline" onClick={onClear}>
             Batal
           </Button>
@@ -114,15 +152,29 @@ export function BulkDeactivateBar({
           <Button
             type="button"
             size="sm"
+            variant="outline"
+            className="border-destructive/40 text-destructive hover:bg-destructive/10"
+            onClick={() => setDialogKind("delete")}
+          >
+            Hapus / arsipkan
+          </Button>
+          <Button
+            type="button"
+            size="sm"
             variant="destructive"
-            onClick={() => setOpen(true)}
+            onClick={() => setDialogKind("deactivate")}
           >
             Nonaktifkan terpilih
           </Button>
         </div>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={dialogKind === "deactivate"}
+        onOpenChange={(open) => {
+          if (!open) closeDialog();
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -177,7 +229,7 @@ export function BulkDeactivateBar({
               type="button"
               variant="outline"
               disabled={loading}
-              onClick={() => setOpen(false)}
+              onClick={closeDialog}
             >
               Batal
             </Button>
@@ -185,9 +237,68 @@ export function BulkDeactivateBar({
               type="button"
               variant="destructive"
               disabled={loading}
-              onClick={() => void submit()}
+              onClick={() => void submitDeactivate()}
             >
               {loading ? "Memproses…" : "Nonaktifkan semua"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={dialogKind === "delete"}
+        onOpenChange={(open) => {
+          if (!open) closeDialog();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Hapus / arsipkan {selectedIds.length} anggota?
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Soft-delete: hilang dari daftar operasional. Jejak audit &
+                  riwayat tetap ada; cabang dapat memulihkan dari panel Arsip.
+                </p>
+                <p className="text-amber-700 dark:text-amber-400">
+                  Pertimbangkan Nonaktifkan jika anggota mungkin kembali.
+                  Ketik <strong>ARSIPKAN</strong> untuk mengonfirmasi.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">
+              Ketik <span className="font-medium text-foreground">ARSIPKAN</span>
+            </label>
+            <Input
+              value={confirmPhrase}
+              onChange={(e) => setConfirmPhrase(e.target.value)}
+              placeholder="ARSIPKAN"
+              autoComplete="off"
+              disabled={loading}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loading}
+              onClick={closeDialog}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={
+                loading || confirmPhrase.trim().toUpperCase() !== "ARSIPKAN"
+              }
+              onClick={() => void submitDelete()}
+            >
+              {loading ? "Memproses…" : "Arsipkan semua"}
             </Button>
           </DialogFooter>
         </DialogContent>

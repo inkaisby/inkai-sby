@@ -103,7 +103,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
-| Kelola Anggota | Cari **autocomplete** (tanpa tombol Filter); detail, NIA, dokumen; kolom **Terdaftar**; **edit Iuran/bln** (ranting/cabang); nonaktif/bulk; **export CSV**; **bulk approve pending**; **hapus/arsip** (ranting+cabang; aktif/ber-NIA: ketik nama); arsip dipulihkan cabang |
+| Kelola Anggota | Cari **autocomplete** (tanpa tombol Filter); detail, NIA, dokumen; kolom **Terdaftar**; **edit Iuran/bln** (ranting/cabang); nonaktif/bulk; **export CSV**; **bulk approve pending**; **hapus/arsip** (ranting+cabang; aktif/ber-NIA: ketik nama; **bulk: ketik ARSIPKAN**); arsip dipulihkan cabang |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran**, **arsip** |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
@@ -154,7 +154,7 @@ Pusat / Nasional
 | Event (UKT, Gashuku, pertandingan) | Lihat & daftar sendiri | Daftarkan anggota ranting | **Buat event** + lihat pendaftar | Lihat event & pendaftar |
 | NIA | Lihat sendiri | Tidak assign | **Assign NIA** | Lihat saja |
 | Iuran | Lihat & bayar sendiri | **Edit tagihan + verifikasi + lunas**; **edit Iuran/bln per anggota** (scope dojo) | **Kelola iuran** cabang (edit/verifikasi/lunas + Iuran/bln) | Lihat saja (tanpa edit) |
-| Status keanggotaan | Lihat sendiri | **Nonaktifkan / aktifkan**; **hapus/arsip** (aktif/ber-NIA: ketik nama); **gabungkan duplikat** | **Nonaktif / aktif / hapus (arsip)**; gabungkan duplikat | Lihat saja |
+| Status keanggotaan | Lihat sendiri | **Nonaktifkan / aktifkan**; **hapus/arsip** (aktif/ber-NIA: ketik nama; bulk: ketik ARSIPKAN); **gabungkan duplikat** | **Nonaktif / aktif / hapus (arsip)** + bulk; gabungkan duplikat | Lihat saja |
 
 ---
 
@@ -194,7 +194,7 @@ Pusat / Nasional
 7. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran, dan **mengedit sabuk** anggota (kolom Sabuk di `/admin/anggota`).
 8. Anggota melengkapi profil & dokumen.
 9. **Nonaktifkan** (status `INACTIVE` / `SUSPENDED`) — ranting/cabang; wajib alasan + catatan; notifikasi ke anggota; login diblokir; NIA & riwayat tetap; dapat **aktifkan kembali**. Bulk nonaktif tersedia.
-10. **Hapus** = soft-delete (`isDeleted`) — cek dampak iuran/UKT; ranting & cabang dalam scope; aktif/ber-NIA wajib ketik nama. Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang.
+10. **Hapus** = soft-delete (`isDeleted`) — cek dampak iuran/UKT; ranting & cabang dalam scope; aktif/ber-NIA wajib ketik nama. **Bulk hapus/arsip** dari floating bar (konfirmasi ketik `ARSIPKAN`). Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang.
 
 ### 9.2 Iuran
 1. Tagihan iuran bulanan muncul di sistem.
@@ -320,7 +320,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 ```
 /api/auth/*                 Login, register (+ identitas/sabuk lengkap), check-duplicate, forgot/reset password
 /api/admin/members/*        Kelola anggota (approve/NIA/set_rank/set_dues/nonaktif/aktif/hapus/restore/check-duplicate/merge)
-/api/admin/members/bulk     Bulk nonaktifkan + approve pending
+/api/admin/members/bulk     Bulk nonaktifkan + approve pending + hapus/arsip (confirmPhrase ARSIPKAN)
 /api/admin/members/archived Daftar arsip soft-delete
 /api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
 /api/admin/billing/generate Buat tagihan iuran bulanan massal
@@ -440,6 +440,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Multi-ranting per akun: AppSetting `user.managedDojos.*`, panel Akun (Multi/Tautkan), matriks cabang, context switcher anggota, RBAC `managedDojoIds` |
 | 19 Juli 2026 | Pengaturan admin ranting: hapus duplikat email/password di Ubah Data; ganti email+password hanya di Akun Saya |
 | 19 Juli 2026 | Paket keamanan+performa P0–P2: pesan IDOR ditutup; verifikasi fail-closed+scope; rate limit async/Upstash; CSRF admin; password register; audit upload/broadcast/verifikasi; cache badge pesan; KPI anggota groupBy; attendance scoped; chunk broadcast/generate; index Prisma; polling diperlambat |
+| 19 Juli 2026 | Kelola Anggota: floating bar multi-select + **Hapus / arsipkan** massal (ketik ARSIPKAN); API bulk `delete` |
 
 ---
 

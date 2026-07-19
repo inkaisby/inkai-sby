@@ -219,11 +219,15 @@ export async function activateMember(opts: {
   };
 }
 
+const BULK_ARCHIVE_PHRASE = "ARSIPKAN";
+
 export async function softDeleteMember(opts: {
   user: SessionUser;
   token: string;
   memberId: string;
   confirmName?: string;
+  /** Bulk: ketik ARSIPKAN menggantikan konfirmasi nama per anggota. */
+  confirmPhrase?: string;
   ip?: string | null;
   userAgent?: string | null;
 }) {
@@ -234,10 +238,13 @@ export async function softDeleteMember(opts: {
   const isOfficialRecord =
     hasOfficialNia || normalizeStatus(member.status) === "ACTIVE";
 
-  // Ranting & cabang boleh arsip dalam scope; aktif/ber-NIA wajib ketik nama.
+  // Ranting & cabang boleh arsip dalam scope; aktif/ber-NIA wajib ketik nama
+  // (atau frasa ARSIPKAN untuk aksi bulk).
   if (isOfficialRecord) {
+    const bulkOk =
+      opts.confirmPhrase?.trim().toUpperCase() === BULK_ARCHIVE_PHRASE;
     const confirm = opts.confirmName?.trim() || "";
-    if (!confirm || !namesMatch(confirm, member.fullName)) {
+    if (!bulkOk && (!confirm || !namesMatch(confirm, member.fullName))) {
       return {
         ok: false as const,
         error: `Ketik nama lengkap "${member.fullName}" untuk mengonfirmasi penghapusan`,

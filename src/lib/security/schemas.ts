@@ -89,8 +89,8 @@ export const memberActionSchema = z.object({
 });
 
 export const memberBulkActionSchema = z.object({
-  action: z.enum(["deactivate", "approve"]),
-  memberIds: z.array(z.string().uuid()).min(1).max(50),
+  action: z.enum(["deactivate", "approve", "delete"]),
+  memberIds: z.array(z.string().uuid()).min(1).max(100),
   statusKind: z.enum(["INACTIVE", "SUSPENDED"]).default("INACTIVE").optional(),
   reasonCode: z
     .enum([
@@ -103,6 +103,8 @@ export const memberBulkActionSchema = z.object({
     ])
     .optional(),
   reasonNote: z.string().trim().max(500).optional(),
+  /** Bulk arsip: ketik ARSIPKAN (mengganti konfirmasi nama per anggota). */
+  confirmPhrase: z.string().trim().max(40).optional(),
 });
 
 export const memberMergeSchema = z.object({
