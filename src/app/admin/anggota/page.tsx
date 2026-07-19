@@ -1,15 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import {
-  Users,
-  Clock,
-  UserCheck,
-  UserX,
-  FileWarning,
-  IdCard,
-  UserMinus,
-  Archive,
-} from "lucide-react";
+import { Archive } from "lucide-react";
 import { requireAdminSession } from "@/lib/admin-session";
 import {
   getPrimaryAdminRole,
@@ -265,7 +256,7 @@ async function AdminAnggotaContent({
       key: "all",
       label: "Total",
       value: allCount.ok ? allCount.total : total,
-      icon: Users,
+      icon: "users" as const,
       href: buildHref({ ...kpiBase, status: "", docs: "", nia: "" }),
       active: !status && !docs && !niaFilter,
     },
@@ -273,7 +264,7 @@ async function AdminAnggotaContent({
       key: "pending",
       label: "Menunggu",
       value: pendingCount.ok ? pendingCount.total : 0,
-      icon: Clock,
+      icon: "clock" as const,
       href: buildHref({ ...kpiBase, status: "PENDING", docs: "", nia: "" }),
       active: status === "PENDING",
       accent: "text-amber-600",
@@ -282,7 +273,7 @@ async function AdminAnggotaContent({
       key: "active",
       label: "Aktif",
       value: activeCount.ok ? activeCount.total : 0,
-      icon: UserCheck,
+      icon: "userCheck" as const,
       href: buildHref({ ...kpiBase, status: "Active", docs: "", nia: "" }),
       active: status === "Active" && !niaFilter,
       accent: "text-emerald-600",
@@ -291,7 +282,7 @@ async function AdminAnggotaContent({
       key: "inactive",
       label: "Nonaktif",
       value: inactiveCount.ok ? inactiveCount.total : 0,
-      icon: UserMinus,
+      icon: "userMinus" as const,
       href: buildHref({ ...kpiBase, status: "INACTIVE", docs: "", nia: "" }),
       active: status === "INACTIVE",
       accent: "text-slate-600",
@@ -300,7 +291,7 @@ async function AdminAnggotaContent({
       key: "rejected",
       label: "Ditolak",
       value: rejectedCount.ok ? rejectedCount.total : 0,
-      icon: UserX,
+      icon: "userX" as const,
       href: buildHref({ ...kpiBase, status: "REJECTED", docs: "", nia: "" }),
       active: status === "REJECTED",
       accent: "text-destructive",
@@ -309,7 +300,7 @@ async function AdminAnggotaContent({
       key: "docs",
       label: "Dok. kurang",
       value: statusCounts.docsIncomplete,
-      icon: FileWarning,
+      icon: "fileWarning" as const,
       href: buildHref({
         ...kpiBase,
         status: "",
@@ -323,7 +314,7 @@ async function AdminAnggotaContent({
       key: "nia",
       label: "Tanpa NIA",
       value: statusCounts.missingNia,
-      icon: IdCard,
+      icon: "idCard" as const,
       href: buildHref({
         ...kpiBase,
         status: "",
@@ -333,7 +324,7 @@ async function AdminAnggotaContent({
       active: niaFilter === "missing",
       accent: "text-amber-700",
     },
-  ] as const;
+  ];
 
   return (
     <>

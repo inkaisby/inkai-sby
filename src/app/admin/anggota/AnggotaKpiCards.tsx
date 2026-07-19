@@ -1,14 +1,27 @@
 "use client";
 
-import {
-  useEffect,
-  useState,
-  useTransition,
-  type ComponentType,
-  type ReactNode,
-} from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import {
+  Users,
+  Clock,
+  UserCheck,
+  UserX,
+  FileWarning,
+  IdCard,
+  UserMinus,
+  type LucideIcon,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+
+export type AnggotaKpiIconName =
+  | "users"
+  | "clock"
+  | "userCheck"
+  | "userMinus"
+  | "userX"
+  | "fileWarning"
+  | "idCard";
 
 export type AnggotaKpiItem = {
   key: string;
@@ -18,7 +31,18 @@ export type AnggotaKpiItem = {
   active: boolean;
   accent?: string;
   hint?: string;
-  icon: ComponentType<{ className?: string }>;
+  /** Nama ikon serializable (jangan kirim komponen Lucide dari Server Component). */
+  icon: AnggotaKpiIconName;
+};
+
+const KPI_ICONS: Record<AnggotaKpiIconName, LucideIcon> = {
+  users: Users,
+  clock: Clock,
+  userCheck: UserCheck,
+  userMinus: UserMinus,
+  userX: UserX,
+  fileWarning: FileWarning,
+  idCard: IdCard,
 };
 
 /**
@@ -60,7 +84,7 @@ export function AnggotaKpiCards({
     <>
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {items.map((kpi) => {
-          const Icon = kpi.icon;
+          const Icon = KPI_ICONS[kpi.icon] ?? Users;
           const active =
             optimisticKey != null ? optimisticKey === kpi.key : kpi.active;
           return (
