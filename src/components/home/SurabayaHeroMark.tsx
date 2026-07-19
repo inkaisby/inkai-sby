@@ -3,7 +3,11 @@ import Image from "next/image";
 /** Ikonik Kota Surabaya: emblem resmi Suro & Boyo + tipografi lockup. */
 export default function SurabayaHeroMark() {
   return (
-    <div className="mb-6 inline-flex flex-col items-center gap-2.5 lg:items-start">
+    <div className="mb-8 inline-flex flex-col items-center gap-2.5 lg:items-start">
+      <span
+        className="h-px w-36 bg-gradient-to-r from-transparent via-inkai-yellow/70 to-transparent lg:from-inkai-yellow/80 lg:via-inkai-yellow/35 lg:to-transparent"
+        aria-hidden
+      />
       <div className="flex items-center gap-3.5 sm:gap-4">
         <Image
           src="/logo-suro-boyo.png"
@@ -22,10 +26,6 @@ export default function SurabayaHeroMark() {
           </p>
         </div>
       </div>
-      <span
-        className="h-px w-36 bg-gradient-to-r from-transparent via-inkai-yellow/70 to-transparent lg:from-inkai-yellow/80 lg:via-inkai-yellow/35 lg:to-transparent"
-        aria-hidden
-      />
     </div>
   );
 }

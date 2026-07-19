@@ -68,13 +68,13 @@ export default function HomePage() {
           </div>
 
           <div className="flex-1 text-center lg:text-left">
-            <SurabayaHeroMark />
             <h1 className="mb-5 text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
               Institut Karate-Do
               <span className="mt-1 block bg-gradient-to-r from-inkai-yellow via-amber-300 to-inkai-yellow bg-clip-text text-transparent">
                 Indonesia
               </span>
             </h1>
+            <SurabayaHeroMark />
             <p className="mb-10 max-w-xl text-lg leading-relaxed text-white/80 sm:text-xl">
               Membentuk karateka berintegritas, tangguh, dan rendah hati melalui
               disiplin, dedikasi, dan nilai-nilai budo karate.
