@@ -44,10 +44,15 @@ type AccountRow = {
   phoneNumber: string | null;
   isActive: boolean;
   isPrimary: boolean;
+  isHomeDojo?: boolean;
+  managedDojoIds?: string[];
+  managedDojoCount?: number;
   jabatan: string | null;
   jabatanLabel: string | null;
   createdAt: string;
 };
+
+type SiblingDojo = { id: string; name: string };
 
 type PrimaryContact = {
   userId: string;
@@ -78,11 +83,17 @@ export function WilayahAccountsPanel({
   compact?: boolean;
 }) {
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
+  const [siblingDojos, setSiblingDojos] = useState<SiblingDojo[]>([]);
   const [primaryContact, setPrimaryContact] = useState<PrimaryContact>(null);
   const [handovers, setHandovers] = useState<HandoverRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkEmail, setLinkEmail] = useState("");
+  const [manageTarget, setManageTarget] = useState<AccountRow | null>(null);
+  const [manageIds, setManageIds] = useState<string[]>([]);
+  const [managePrimary, setManagePrimary] = useState("");
   const [resetTarget, setResetTarget] = useState<AccountRow | null>(null);
   const [emailTarget, setEmailTarget] = useState<AccountRow | null>(null);
   const [newEmail, setNewEmail] = useState("");
@@ -120,6 +131,7 @@ export function WilayahAccountsPanel({
         setAccounts((data.data as AccountRow[]) ?? []);
         setPrimaryContact((data.primaryContact as PrimaryContact) ?? null);
         setHandovers((data.handovers as HandoverRow[]) ?? []);
+        setSiblingDojos((data.siblingDojos as SiblingDojo[]) ?? []);
       }
     } catch {
       showError("Gagal memuat akun");
@@ -197,8 +209,10 @@ export function WilayahAccountsPanel({
       | "reset_password"
       | "set_jabatan"
       | "handover"
-      | "change_email",
-    extra?: Record<string, string | boolean | null>,
+      | "change_email"
+      | "set_managed_dojos"
+      | "unlink_dojo",
+    extra?: Record<string, string | boolean | null | string[]>,
   ) {
     setBusy(true);
     const res = await fetch("/api/admin/pengaturan/wilayah-accounts", {
@@ -238,14 +252,69 @@ export function WilayahAccountsPanel({
         setHandoverNote("");
         setDeactivatePrevious(false);
       }
+      if (action === "set_managed_dojos" || action === "unlink_dojo") {
+        setManageTarget(null);
+      }
       void load();
     } else {
       showError(data.error || "Gagal memproses");
     }
   }
 
+  async function linkExistingAccount() {
+    if (!linkEmail.trim()) {
+      showError("Email wajib diisi");
+      return;
+    }
+    setBusy(true);
+    const res = await fetch("/api/admin/pengaturan/wilayah-accounts", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        scope,
+        wilayahId,
+        action: "link_existing",
+        linkEmail: linkEmail.trim().toLowerCase(),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (res.ok) {
+      showSuccess(data.message || "Akun ditautkan");
+      setLinkOpen(false);
+      setLinkEmail("");
+      void load();
+    } else {
+      showError(data.error || "Gagal menautkan akun");
+    }
+  }
+
+  function openManageDojos(a: AccountRow) {
+    const ids =
+      a.managedDojoIds && a.managedDojoIds.length > 0
+        ? [...a.managedDojoIds]
+        : [wilayahId];
+    if (!ids.includes(wilayahId)) ids.push(wilayahId);
+    setManageIds(ids);
+    setManagePrimary(ids.includes(wilayahId) ? wilayahId : ids[0]);
+    setManageTarget(a);
+  }
+
+  function toggleManageDojo(id: string) {
+    setManageIds((prev) => {
+      if (id === wilayahId) return prev; // ranting sheet wajib
+      if (prev.includes(id)) {
+        const next = prev.filter((x) => x !== id);
+        if (managePrimary === id) setManagePrimary(wilayahId);
+        return next.length ? next : [wilayahId];
+      }
+      return [...prev, id];
+    });
+  }
+
   const label = scope === "branch" ? "cabang" : "ranting";
   const activeCount = accounts.filter((a) => a.isActive).length;
+  const showMultiDojo = scope === "dojo" && siblingDojos.length > 1;
 
   return (
     <div className={compact ? "space-y-2" : "space-y-3 rounded-xl border p-3"}>
@@ -288,16 +357,32 @@ export function WilayahAccountsPanel({
             </p>
           </div>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          className="bg-inkai-red hover:bg-inkai-red/90"
-          disabled={busy || loading}
-          onClick={openAdd}
-        >
-          <Plus className="mr-1 h-3.5 w-3.5" />
-          Tambah akun
-        </Button>
+        <div className="flex flex-wrap gap-1">
+          {showMultiDojo ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy || loading}
+              onClick={() => {
+                setLinkOpen(true);
+                setLinkEmail("");
+              }}
+            >
+              Tautkan akun
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            className="bg-inkai-red hover:bg-inkai-red/90"
+            disabled={busy || loading}
+            onClick={openAdd}
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            Tambah akun
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -337,6 +422,14 @@ export function WilayahAccountsPanel({
                       PIC
                     </Badge>
                   ) : null}
+                  {(a.managedDojoCount ?? 0) > 1 ? (
+                    <Badge variant="outline" className="border-inkai-red/40 text-inkai-red">
+                      +{(a.managedDojoCount ?? 1) - 1} ranting
+                    </Badge>
+                  ) : null}
+                  {a.isHomeDojo === false ? (
+                    <Badge variant="secondary">Pengelola</Badge>
+                  ) : null}
                   {a.jabatanLabel ? (
                     <Badge variant="secondary">{a.jabatanLabel}</Badge>
                   ) : null}
@@ -366,6 +459,18 @@ export function WilayahAccountsPanel({
                 </select>
               </div>
               <div className="flex flex-wrap gap-1">
+                {showMultiDojo ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => openManageDojos(a)}
+                    title="Ranting yang dikelola"
+                  >
+                    Multi
+                  </Button>
+                ) : null}
                 {!a.isPrimary && a.isActive ? (
                   <Button
                     type="button"
@@ -747,6 +852,129 @@ export function WilayahAccountsPanel({
               }
             >
               Serahkan PIC
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={linkOpen}
+        onOpenChange={(o) => {
+          if (!o) {
+            setLinkOpen(false);
+            setLinkEmail("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tautkan akun existing</DialogTitle>
+            <DialogDescription>
+              Tambahkan akses ke ranting <strong>{wilayahName}</strong> untuk
+              akun ADMIN_DOJO yang sudah ada (mis. ketua yang membawahi
+              beberapa ranting).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Email akun</Label>
+            <Input
+              type="email"
+              value={linkEmail}
+              onChange={(e) => setLinkEmail(e.target.value)}
+              placeholder="gading@gmail.com"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinkOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              disabled={busy || !linkEmail.trim()}
+              onClick={() => void linkExistingAccount()}
+            >
+              Tautkan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!manageTarget}
+        onOpenChange={(o) => {
+          if (!o) setManageTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ranting yang dikelola</DialogTitle>
+            <DialogDescription>
+              {manageTarget?.email} — pilih ranting se-cabang. Ranting{" "}
+              <strong>{wilayahName}</strong> wajib tetap tercentang dari sheet
+              ini (cabut lewat tombol Cabut).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 space-y-2 overflow-y-auto rounded-lg border p-2">
+            {siblingDojos.map((d) => {
+              const checked = manageIds.includes(d.id);
+              const isSheet = d.id === wilayahId;
+              return (
+                <label
+                  key={d.id}
+                  className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={isSheet}
+                    onChange={() => toggleManageDojo(d.id)}
+                  />
+                  <span className="flex-1">{d.name}</span>
+                  {checked ? (
+                    <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <input
+                        type="radio"
+                        name="primary-dojo"
+                        checked={managePrimary === d.id}
+                        onChange={() => setManagePrimary(d.id)}
+                      />
+                      Utama
+                    </label>
+                  ) : null}
+                </label>
+              );
+            })}
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            {manageTarget && manageTarget.isHomeDojo === false ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="text-destructive"
+                disabled={busy}
+                onClick={() =>
+                  manageTarget &&
+                  void patch(manageTarget.id, "unlink_dojo")
+                }
+              >
+                Cabut dari ranting ini
+              </Button>
+            ) : null}
+            <Button variant="outline" onClick={() => setManageTarget(null)}>
+              Batal
+            </Button>
+            <Button
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              disabled={busy || !manageTarget || manageIds.length === 0}
+              onClick={() =>
+                manageTarget &&
+                void patch(manageTarget.id, "set_managed_dojos", {
+                  managedDojoIds: manageIds,
+                  primaryDojoId: managePrimary || wilayahId,
+                })
+              }
+            >
+              Simpan cakupan
             </Button>
           </DialogFooter>
         </DialogContent>

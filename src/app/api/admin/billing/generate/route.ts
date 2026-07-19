@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
-import { fetchAdminMembers, fetchBillings } from "@/lib/inkai-api/admin-data";
+import { fetchAdminMembers, fetchAdminMembersForDojoIds, fetchBillings } from "@/lib/inkai-api/admin-data";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { getOperationalDefaults } from "@/lib/org-settings";
 import { prisma } from "@/lib/prisma";
@@ -52,14 +52,26 @@ export async function POST(request: Request) {
   const dueDate = dueDateFor(year, month);
 
   const role = getPrimaryAdminRole(authResult.user.roles);
-  const dojoId =
-    role === "ADMIN_DOJO" ? authResult.user.managedDojoId ?? undefined : undefined;
+  const allowlist =
+    role === "ADMIN_DOJO"
+      ? authResult.user.managedDojoIds && authResult.user.managedDojoIds.length > 0
+        ? authResult.user.managedDojoIds
+        : authResult.user.managedDojoId
+          ? [authResult.user.managedDojoId]
+          : []
+      : [];
 
-  const membersResult = await fetchAdminMembers(authResult.token, {
-    status: "ACTIVE",
-    limit: 500,
-    dojoId,
-  });
+  const membersResult =
+    allowlist.length > 1
+      ? await fetchAdminMembersForDojoIds(authResult.token, allowlist, {
+          status: "ACTIVE",
+          limit: 500,
+        })
+      : await fetchAdminMembers(authResult.token, {
+          status: "ACTIVE",
+          limit: 500,
+          dojoId: allowlist[0],
+        });
   const members =
     membersResult.ok && "members" in membersResult
       ? membersResult.members

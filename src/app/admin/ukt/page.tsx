@@ -114,7 +114,13 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   }
 
   const autoDojoId =
-    primaryRole === "ADMIN_DOJO" && user.managedDojoId ? user.managedDojoId : "";
+    primaryRole === "ADMIN_DOJO" && user.managedDojoIds?.length === 1
+      ? user.managedDojoIds[0]
+      : primaryRole === "ADMIN_DOJO" &&
+          (!user.managedDojoIds || user.managedDojoIds.length <= 1) &&
+          user.managedDojoId
+        ? user.managedDojoId
+        : "";
 
   const canCreatePeriod = canCreateEventsByWilayah(user.roles);
 

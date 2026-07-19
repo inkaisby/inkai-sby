@@ -1,5 +1,6 @@
 import { requireAdminSession } from "@/lib/admin-session";
 import { fetchOrgStructure } from "@/lib/inkai-api/admin-data";
+import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { settingsUsernameLoadWarning, isPrismaBusyError } from "@/lib/prisma-errors";
 import { ROLE_LABELS } from "@/lib/rbac";
@@ -31,7 +32,8 @@ type RantingRow = {
 /** Satu halaman Pengaturan untuk admin ranting: data ranting + akun. */
 export async function DojoPengaturanContent() {
   const { user, token } = await requireAdminSession();
-  const lockedDojoId = user.managedDojoId ?? null;
+  const allowlist = getManagedDojoIdsFromUser(user);
+  const lockedDojoId = allowlist.length === 1 ? allowlist[0] : null;
 
   const { branches, dojos } = await fetchOrgStructure(token);
 
@@ -41,15 +43,17 @@ export async function DojoPengaturanContent() {
   }));
   let scopedDojos = dojos;
 
-  if (lockedDojoId) {
-    scopedDojos = dojos.filter((d) => String(d.id) === lockedDojoId);
-    const own = scopedDojos[0];
-    const branch = own?.branch as { id?: string; name?: string } | undefined;
-    if (branch?.id) {
-      scopedBranches = [
-        { id: String(branch.id), name: String(branch.name || "Cabang") },
-      ];
-    }
+  if (allowlist.length > 0) {
+    scopedDojos = dojos.filter((d) => allowlist.includes(String(d.id)));
+    const branchIds = new Set(
+      scopedDojos.map((d) => {
+        const branch = d.branch as { id?: string } | undefined;
+        return String(branch?.id || "");
+      }),
+    );
+    scopedBranches = branches
+      .filter((b) => branchIds.has(String(b.id)))
+      .map((b) => ({ id: String(b.id), name: String(b.name) }));
   } else {
     scopedDojos = [];
   }

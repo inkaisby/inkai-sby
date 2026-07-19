@@ -10,32 +10,36 @@ import {
   UserMinus,
   Archive,
 } from "lucide-react";
-import { auth } from "@/auth";
-import { getInkaiAccessToken } from "@/lib/inkai-api/session";
-import { redirect } from "next/navigation";
+import { requireAdminSession } from "@/lib/admin-session";
 import {
-  canAccessAdmin,
   getPrimaryAdminRole,
   ROLE_LABELS,
 } from "@/lib/rbac";
 import {
   fetchAdminDojos,
   fetchAdminMembers,
+  fetchAdminMembersForDojoIds,
 } from "@/lib/inkai-api/admin-data";
+import {
+  getManagedDojoIdsFromUser,
+  resolveActiveDojoId,
+} from "@/lib/managed-dojos";
+import { prisma } from "@/lib/prisma";
 import { isDocumentComplete } from "@/lib/memberCompleteness";
 import {
   getMemberLifecycles,
   monthsSince,
 } from "@/lib/member-lifecycle";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   SettingsPagination,
   parsePage,
   parsePageSize,
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
+import { DojoContextSwitcher } from "@/components/admin/DojoContextSwitcher";
 import { MembersTable } from "./MembersTable";
 import { AnggotaAddButton } from "./AnggotaAddButton";
+import { AnggotaFiltersForm } from "./AnggotaFiltersForm";
 import { NormalizeMembersButton } from "./NormalizeMembersButton";
 import { ArchivedMembersPanel } from "./ArchivedMembersPanel";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
@@ -45,15 +49,6 @@ import { canSoftDeleteMembers } from "@/lib/wilayah-rbac";
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 1000];
-
-const STATUS_OPTIONS = [
-  { value: "", label: "Semua status" },
-  { value: "PENDING", label: "Menunggu" },
-  { value: "Active", label: "Aktif" },
-  { value: "INACTIVE", label: "Nonaktif" },
-  { value: "SUSPENDED", label: "Ditangguhkan" },
-  { value: "REJECTED", label: "Ditolak" },
-] as const;
 
 type SearchParams = Promise<{
   q?: string;
@@ -93,10 +88,7 @@ async function AdminAnggotaContent({
 }: {
   searchParams: SearchParams;
 }) {
-  const session = await auth();
-  if (!session || !canAccessAdmin(session.user)) redirect("/login");
-  const token = await getInkaiAccessToken();
-  if (!token) redirect("/login");
+  const { session, token, user } = await requireAdminSession();
 
   const params = await searchParams;
   const q = params.q?.trim() || "";
@@ -114,13 +106,30 @@ async function AdminAnggotaContent({
   const page = parsePage(params.page);
   const pageSize = parsePageSize(params.pageSize, PAGE_SIZE_OPTIONS, 25);
 
-  const primaryRole = getPrimaryAdminRole(session.user.roles);
-  const lockedDojoId =
-    primaryRole === "ADMIN_DOJO" && session.user.managedDojoId
-      ? session.user.managedDojoId
-      : "";
-  const dojoId = lockedDojoId || params.dojoId?.trim() || "";
-  const canArchive = canSoftDeleteMembers(session.user.roles ?? []);
+  const primaryRole = getPrimaryAdminRole(user.roles);
+  const isDojoAdmin = primaryRole === "ADMIN_DOJO";
+  const allowlist = getManagedDojoIdsFromUser(user);
+  const resolved = resolveActiveDojoId(user, params.dojoId);
+  const activeDojoId =
+    resolved.ok && isDojoAdmin
+      ? resolved.activeDojoId
+      : params.dojoId?.trim() || "";
+  /** Filter query ke API/Prisma (kosong = semua dalam allowlist untuk multi-dojo). */
+  const dojoId = isDojoAdmin
+    ? activeDojoId || ""
+    : params.dojoId?.trim() || "";
+  const singleLockedDojo =
+    isDojoAdmin && allowlist.length === 1 ? allowlist[0] : "";
+  const canArchive = canSoftDeleteMembers(user.roles ?? []);
+
+  const managedDojoOptions =
+    isDojoAdmin && allowlist.length > 0
+      ? await prisma.dojo.findMany({
+          where: { id: { in: allowlist }, isDeleted: false },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        })
+      : [];
 
   if (view === "archive") {
     return (
@@ -140,52 +149,103 @@ async function AdminAnggotaContent({
           </Link>
         </div>
         <ArchivedMembersPanel
-          userRoles={session.user.roles}
-          defaultDojoId={lockedDojoId}
+          userRoles={user.roles}
+          defaultDojoId={singleLockedDojo || dojoId}
         />
       </>
     );
   }
 
+  const memberFetchOpts = {
+    page,
+    limit: pageSize,
+    search: q || undefined,
+    status: status || undefined,
+  };
+
+  const scopedDojoIds = isDojoAdmin
+    ? dojoId
+      ? [dojoId]
+      : allowlist
+    : dojoId
+      ? [dojoId]
+      : [];
+
   const [result, dojos, pendingCount, activeCount, inactiveCount, rejectedCount, allCount] =
     await Promise.all([
-      fetchAdminMembers(token, {
-        page,
-        limit: pageSize,
-        search: q || undefined,
-        status: status || undefined,
-        dojoId: dojoId || undefined,
-      }),
-      lockedDojoId ? Promise.resolve([]) : fetchAdminDojos(token),
-      fetchAdminMembers(token, {
-        page: 1,
-        limit: 1,
-        status: "PENDING",
-        dojoId: dojoId || undefined,
-      }),
-      fetchAdminMembers(token, {
-        page: 1,
-        limit: 1,
-        status: "Active",
-        dojoId: dojoId || undefined,
-      }),
-      fetchAdminMembers(token, {
-        page: 1,
-        limit: 1,
-        status: "INACTIVE",
-        dojoId: dojoId || undefined,
-      }),
-      fetchAdminMembers(token, {
-        page: 1,
-        limit: 1,
-        status: "REJECTED",
-        dojoId: dojoId || undefined,
-      }),
-      fetchAdminMembers(token, {
-        page: 1,
-        limit: 1,
-        dojoId: dojoId || undefined,
-      }),
+      isDojoAdmin
+        ? fetchAdminMembersForDojoIds(token, scopedDojoIds, memberFetchOpts)
+        : fetchAdminMembers(token, {
+            ...memberFetchOpts,
+            dojoId: dojoId || undefined,
+          }),
+      isDojoAdmin
+        ? Promise.resolve(
+            managedDojoOptions.map((d) => ({
+              id: d.id,
+              name: d.name,
+              branchId: "",
+            })),
+          )
+        : fetchAdminDojos(token),
+      isDojoAdmin
+        ? fetchAdminMembersForDojoIds(token, scopedDojoIds, {
+            page: 1,
+            limit: 1,
+            status: "PENDING",
+          })
+        : fetchAdminMembers(token, {
+            page: 1,
+            limit: 1,
+            status: "PENDING",
+            dojoId: dojoId || undefined,
+          }),
+      isDojoAdmin
+        ? fetchAdminMembersForDojoIds(token, scopedDojoIds, {
+            page: 1,
+            limit: 1,
+            status: "Active",
+          })
+        : fetchAdminMembers(token, {
+            page: 1,
+            limit: 1,
+            status: "Active",
+            dojoId: dojoId || undefined,
+          }),
+      isDojoAdmin
+        ? fetchAdminMembersForDojoIds(token, scopedDojoIds, {
+            page: 1,
+            limit: 1,
+            status: "INACTIVE",
+          })
+        : fetchAdminMembers(token, {
+            page: 1,
+            limit: 1,
+            status: "INACTIVE",
+            dojoId: dojoId || undefined,
+          }),
+      isDojoAdmin
+        ? fetchAdminMembersForDojoIds(token, scopedDojoIds, {
+            page: 1,
+            limit: 1,
+            status: "REJECTED",
+          })
+        : fetchAdminMembers(token, {
+            page: 1,
+            limit: 1,
+            status: "REJECTED",
+            dojoId: dojoId || undefined,
+          }),
+      isDojoAdmin
+        ? fetchAdminMembersForDojoIds(token, scopedDojoIds, {
+            page: 1,
+            limit: 1,
+          })
+        : fetchAdminMembers(token, {
+            page: 1,
+            limit: 1,
+            dojoId: dojoId || undefined,
+          }),
     ]);
 
   let members = result.ok ? result.members : [];
@@ -212,20 +272,11 @@ async function AdminAnggotaContent({
 
   const kpiBase = {
     q,
-    dojoId: lockedDojoId ? "" : dojoId,
+    dojoId: singleLockedDojo ? "" : dojoId,
     docs,
     nia: niaFilter,
     pageSize: String(pageSize),
   };
-
-  const hasFilters = Boolean(
-    q ||
-      status ||
-      (!lockedDojoId && dojoId) ||
-      docs ||
-      niaFilter ||
-      inactiveMonths,
-  );
 
   const kpis = [
     {
@@ -305,19 +356,34 @@ async function AdminAnggotaContent({
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Kelola Anggota</h2>
-        <p className="text-muted-foreground">
-          {ROLE_LABELS[primaryRole] || primaryRole} — {total} anggota
-          {dojoId && dojos.length
-            ? ` · ${dojos.find((d) => d.id === dojoId)?.name || "Dojo"}`
-            : ""}
-        </p>
-        {!result.ok && (
-          <p className="mt-2 text-sm text-destructive">
-            Gagal memuat data anggota dari API.
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold">Kelola Anggota</h2>
+          <p className="text-muted-foreground">
+            {ROLE_LABELS[primaryRole] || primaryRole} — {total} anggota
+            {allowlist.length > 1 && !dojoId
+              ? ` · ${allowlist.length} ranting`
+              : dojoId
+                ? ` · ${
+                    managedDojoOptions.find((d) => d.id === dojoId)?.name ||
+                    dojos.find((d) => d.id === dojoId)?.name ||
+                    "Dojo"
+                  }`
+                : ""}
           </p>
-        )}
+          {!result.ok && (
+            <p className="mt-2 text-sm text-destructive">
+              Gagal memuat data anggota dari API.
+            </p>
+          )}
+        </div>
+        {isDojoAdmin && managedDojoOptions.length > 1 ? (
+          <DojoContextSwitcher
+            dojos={managedDojoOptions}
+            value={dojoId}
+            label="Kelola ranting"
+          />
+        ) : null}
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
@@ -354,11 +420,15 @@ async function AdminAnggotaContent({
 
       <div className="mb-4 flex flex-wrap gap-2">
         <AnggotaAddButton
-          dojos={dojos.map((d) => ({ id: d.id, name: d.name }))}
-          defaultDojoId={lockedDojoId || dojoId || ""}
-          lockDojo={Boolean(lockedDojoId)}
+          dojos={
+            isDojoAdmin
+              ? managedDojoOptions
+              : dojos.map((d) => ({ id: d.id, name: d.name }))
+          }
+          defaultDojoId={singleLockedDojo || dojoId || ""}
+          lockDojo={Boolean(singleLockedDojo)}
         />
-        {canEditKyuBaru(session.user.roles ?? []) ? (
+        {canEditKyuBaru(user.roles ?? []) ? (
           <NormalizeMembersButton />
         ) : null}
         {canArchive ? (
@@ -372,110 +442,21 @@ async function AdminAnggotaContent({
         ) : null}
       </div>
 
-      <form className="mb-4 flex flex-wrap items-end gap-2">
-        <input type="hidden" name="pageSize" value={String(pageSize)} />
-        {lockedDojoId ? (
-          <input type="hidden" name="dojoId" value={lockedDojoId} />
-        ) : null}
-
-        <div className="min-w-[180px] flex-1 space-y-1">
-          <label className="text-xs text-muted-foreground">Pencarian</label>
-          <Input
-            name="q"
-            placeholder="Cari nama / NIA..."
-            defaultValue={q}
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Status</label>
-          <select
-            name="status"
-            defaultValue={status}
-            className="h-8 min-w-[140px] rounded-lg border px-2 text-sm"
-          >
-            {STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value || "all"} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {!lockedDojoId ? (
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Dojo / Ranting</label>
-            <select
-              name="dojoId"
-              defaultValue={dojoId}
-              className="h-8 min-w-[160px] rounded-lg border px-2 text-sm"
-            >
-              <option value="">Semua dojo</option>
-              {dojos.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Dokumen</label>
-          <select
-            name="docs"
-            defaultValue={docs}
-            className="h-8 min-w-[160px] rounded-lg border px-2 text-sm"
-          >
-            <option value="">Semua dokumen</option>
-            <option value="incomplete">Belum lengkap</option>
-          </select>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">NIA</label>
-          <select
-            name="nia"
-            defaultValue={niaFilter}
-            className="h-8 min-w-[140px] rounded-lg border px-2 text-sm"
-          >
-            <option value="">Semua NIA</option>
-            <option value="missing">Belum ada NIA</option>
-          </select>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">
-            Nonaktif ≥
-          </label>
-          <select
-            name="inactiveMonths"
-            defaultValue={inactiveMonths ? String(inactiveMonths) : ""}
-            className="h-8 min-w-[120px] rounded-lg border px-2 text-sm"
-          >
-            <option value="">Semua</option>
-            <option value="3">3 bulan</option>
-            <option value="6">6 bulan</option>
-            <option value="12">12 bulan</option>
-          </select>
-        </div>
-
-        <button
-          type="submit"
-          className="h-8 rounded-lg bg-inkai-red px-4 text-sm text-white"
-        >
-          Filter
-        </button>
-
-        {hasFilters ? (
-          <Link
-            href={buildHref({ pageSize: String(pageSize) })}
-            className="inline-flex h-8 items-center rounded-lg border px-3 text-sm hover:bg-muted"
-          >
-            Reset
-          </Link>
-        ) : null}
-      </form>
+      <AnggotaFiltersForm
+        q={q}
+        status={status}
+        dojoId={singleLockedDojo ? "" : dojoId}
+        docs={docs}
+        nia={niaFilter}
+        inactiveMonths={inactiveMonths ? String(inactiveMonths) : ""}
+        pageSize={String(pageSize)}
+        dojos={dojos.map((d) => ({ id: d.id, name: d.name }))}
+        showDojoFilter={!singleLockedDojo && !isDojoAdmin}
+        lockDojoId={
+          singleLockedDojo ||
+          (isDojoAdmin && allowlist.length > 1 ? dojoId : "")
+        }
+      />
 
       {docs === "incomplete" ||
       niaFilter === "missing" ||
@@ -489,7 +470,7 @@ async function AdminAnggotaContent({
         </p>
       ) : null}
 
-      <MembersTable members={members} userRoles={session.user.roles} />
+      <MembersTable members={members} userRoles={user.roles} />
 
       <SettingsPagination
         page={safePage}
@@ -500,7 +481,7 @@ async function AdminAnggotaContent({
         baseParams={{
           q,
           status,
-          dojoId: lockedDojoId ? "" : dojoId,
+          dojoId: singleLockedDojo ? "" : dojoId,
           docs,
           nia: niaFilter,
           inactiveMonths: inactiveMonths ? String(inactiveMonths) : "",

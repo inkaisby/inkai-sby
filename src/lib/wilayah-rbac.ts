@@ -70,7 +70,7 @@ export const WILAYAH_MATRIX: WilayahMatrixRow[] = [
     label: "Status keanggotaan",
     cells: {
       USER: "Lihat status sendiri",
-      RANTING: "Nonaktifkan / aktifkan; hapus koreksi (tanpa NIA); **gabungkan duplikat** (akun mandiri ↔ data ranting)",
+      RANTING: "Nonaktifkan / aktifkan; hapus/arsip koreksi (tanpa NIA aktif resmi); **gabungkan duplikat** (akun mandiri ↔ data ranting)",
       CABANG: "Nonaktif / aktif / hapus arsip; gabungkan duplikat (termasuk dua akun)",
       PENGPROV: "Lihat saja",
     },
@@ -164,8 +164,9 @@ export function canToggleMemberActive(roles: string[]) {
 
 /**
  * Soft-delete (arsip) anggota.
- * Ranting boleh untuk koreksi data; Cabang untuk semua status di cakupannya.
- * Aturan bisnis tambahan (NIA resmi) ditegakkan di API.
+ * Ranting boleh untuk koreksi data (bukan aktif/ber-NIA resmi);
+ * Cabang untuk semua status di cakupannya.
+ * Aturan bisnis tambahan (NIA resmi, konfirmasi nama) ditegakkan di API.
  */
 export function canSoftDeleteMembers(roles: string[]) {
   return isCabangAdmin(roles) || isRantingAdmin(roles);

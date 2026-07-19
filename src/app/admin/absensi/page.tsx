@@ -1,10 +1,10 @@
 import { Suspense } from "react";
-import { auth } from "@/auth";
-import { getInkaiAccessToken } from "@/lib/inkai-api/session";
-import { redirect } from "next/navigation";
-import { canAccessAdmin, getPrimaryAdminRole } from "@/lib/rbac";
+import { requireAdminSession } from "@/lib/admin-session";
+import { getPrimaryAdminRole } from "@/lib/rbac";
+import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import {
   fetchAdminMembers,
+  fetchAdminMembersForDojoIds,
   fetchAttendanceLogs,
 } from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
@@ -47,10 +47,7 @@ async function AdminAbsensiContent({
 }: {
   searchParams: SearchParams;
 }) {
-  const session = await auth();
-  if (!session || !canAccessAdmin(session.user)) redirect("/login");
-  const token = await getInkaiAccessToken();
-  if (!token) redirect("/login");
+  const { token, user } = await requireAdminSession();
 
   const params = await searchParams;
   const q = params.q?.trim() || "";
@@ -62,9 +59,9 @@ async function AdminAbsensiContent({
     params.semester === "II" ? "II" : params.semester === "I" ? "I" : currentSemester()
   ) as UktSemester;
 
-  const role = getPrimaryAdminRole(session.user.roles ?? []);
-  const managedDojoId =
-    role === "ADMIN_DOJO" ? session.user.managedDojoId ?? undefined : undefined;
+  const role = getPrimaryAdminRole(user.roles ?? []);
+  const managedDojoIds =
+    role === "ADMIN_DOJO" ? getManagedDojoIdsFromUser(user) : [];
 
   const [dayLogs, semesterLogs, membersResult] = await Promise.all([
     fetchAttendanceLogs(token, { date: dateStr, limit: 300 }),
@@ -72,11 +69,15 @@ async function AdminAbsensiContent({
       ? fetchAttendanceLogs(token, { limit: 3000 })
       : Promise.resolve([] as Array<Record<string, unknown>>),
     view === "belum" || view === "rekap"
-      ? fetchAdminMembers(token, {
-          status: "ACTIVE",
-          limit: 500,
-          dojoId: managedDojoId,
-        })
+      ? role === "ADMIN_DOJO"
+        ? fetchAdminMembersForDojoIds(token, managedDojoIds, {
+            status: "ACTIVE",
+            limit: 500,
+          })
+        : fetchAdminMembers(token, {
+            status: "ACTIVE",
+            limit: 500,
+          })
       : Promise.resolve({ ok: true as const, members: [], total: 0, page: 1 }),
   ]);
 

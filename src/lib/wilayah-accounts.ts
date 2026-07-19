@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notifications";
+import {
+  findUserIdsManagingDojo,
+  loadManagedDojoIds,
+} from "@/lib/managed-dojos";
 
 export type WilayahScope = "branch" | "dojo";
 
@@ -198,11 +202,12 @@ export async function listWilayahAccounts(opts: {
           roles: { some: { name: "ADMIN_BRANCH" } },
         }
       : {
+          // Primary home — ekstra digabung di bawah
           managedDojoId: opts.wilayahId,
           roles: { some: { name: "ADMIN_DOJO" } },
         };
 
-  const [users, primaryId, meta] = await Promise.all([
+  const [homeUsers, primaryId, meta, extraUserIds] = await Promise.all([
     prisma.user.findMany({
       where: { isDeleted: false, ...where },
       select: {
@@ -213,19 +218,64 @@ export async function listWilayahAccounts(opts: {
         isActive: true,
         createdAt: true,
         updatedAt: true,
+        managedDojoId: true,
       },
       orderBy: [{ isActive: "desc" }, { email: "asc" }],
     }),
     getPrimaryAccountId(opts.scope, opts.wilayahId),
     getWilayahMeta(opts.scope, opts.wilayahId),
+    opts.scope === "dojo"
+      ? findUserIdsManagingDojo(opts.wilayahId)
+      : Promise.resolve([] as string[]),
   ]);
+
+  let users = homeUsers;
+  if (opts.scope === "dojo" && extraUserIds.length > 0) {
+    const missing = extraUserIds.filter((id) => !users.some((u) => u.id === id));
+    if (missing.length > 0) {
+      const extras = await prisma.user.findMany({
+        where: {
+          id: { in: missing },
+          isDeleted: false,
+          roles: { some: { name: "ADMIN_DOJO" } },
+        },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          phoneNumber: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          managedDojoId: true,
+        },
+      });
+      users = [...users, ...extras].sort((a, b) => {
+        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+        return a.email.localeCompare(b.email);
+      });
+    }
+  }
+
+  const managedMap = new Map<string, string[]>();
+  if (opts.scope === "dojo") {
+    await Promise.all(
+      users.map(async (u) => {
+        const ids = await loadManagedDojoIds(u.id, u.managedDojoId);
+        managedMap.set(u.id, ids);
+      }),
+    );
+  }
 
   let effectivePrimary = primaryId;
   if (effectivePrimary && !users.some((u) => u.id === effectivePrimary)) {
     effectivePrimary = null;
   }
   if (!effectivePrimary) {
-    const firstActive = users.find((u) => u.isActive) ?? users[0];
+    const homeActive = users.find(
+      (u) => u.isActive && u.managedDojoId === opts.wilayahId,
+    );
+    const firstActive = homeActive ?? users.find((u) => u.isActive) ?? users[0];
     effectivePrimary = firstActive?.id ?? null;
     if (effectivePrimary) {
       await setPrimaryAccountId(opts.scope, opts.wilayahId, effectivePrimary);
@@ -233,14 +283,20 @@ export async function listWilayahAccounts(opts: {
   }
 
   return {
-    accounts: users.map((u) => ({
-      ...u,
-      createdAt: u.createdAt.toISOString(),
-      updatedAt: u.updatedAt.toISOString(),
-      isPrimary: u.id === effectivePrimary,
-      jabatan: meta.jabatanByUserId[u.id] ?? null,
-      jabatanLabel: jabatanLabel(meta.jabatanByUserId[u.id] ?? null),
-    })),
+    accounts: users.map((u) => {
+      const managedDojoIds = managedMap.get(u.id) ?? [];
+      return {
+        ...u,
+        createdAt: u.createdAt.toISOString(),
+        updatedAt: u.updatedAt.toISOString(),
+        isPrimary: u.id === effectivePrimary,
+        isHomeDojo: u.managedDojoId === opts.wilayahId,
+        managedDojoIds,
+        managedDojoCount: managedDojoIds.length,
+        jabatan: meta.jabatanByUserId[u.id] ?? null,
+        jabatanLabel: jabatanLabel(meta.jabatanByUserId[u.id] ?? null),
+      };
+    }),
     handovers: meta.handovers,
     primaryContact: (() => {
       const p = users.find((u) => u.id === effectivePrimary);

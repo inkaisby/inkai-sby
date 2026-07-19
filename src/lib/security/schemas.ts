@@ -437,35 +437,81 @@ export const wilayahAccountCreateSchema = z
     path: ["passwordConfirm"],
   });
 
-export const wilayahAccountPatchSchema = z.object({
-  scope: z.enum(["branch", "dojo"]),
-  wilayahId: z.string().uuid(),
-  userId: z.string().uuid(),
-  action: z.enum([
-    "activate",
-    "deactivate",
-    "set_primary",
-    "reset_password",
-    "set_jabatan",
-    "handover",
-    "change_email",
-  ]),
-  newPassword: z.string().min(8).max(72).optional(),
-  newPasswordConfirm: z.string().min(8).max(72).optional(),
-  /** Email baru untuk action change_email */
-  newEmail: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .email("Format email tidak valid")
-    .optional(),
-  jabatan: z
-    .enum(["KETUA", "SEKRETARIS", "BENDAHARA", "PENGURUS"])
-    .optional()
-    .nullable(),
-  note: z.string().trim().max(500).optional().or(z.literal("")),
-  deactivatePrevious: z.boolean().optional(),
-});
+export const wilayahAccountPatchSchema = z
+  .object({
+    scope: z.enum(["branch", "dojo"]),
+    wilayahId: z.string().uuid(),
+    userId: z.string().uuid().optional(),
+    action: z.enum([
+      "activate",
+      "deactivate",
+      "set_primary",
+      "reset_password",
+      "set_jabatan",
+      "handover",
+      "change_email",
+      "set_managed_dojos",
+      "link_existing",
+      "unlink_dojo",
+    ]),
+    newPassword: z.string().min(8).max(72).optional(),
+    newPasswordConfirm: z.string().min(8).max(72).optional(),
+    newEmail: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .email("Format email tidak valid")
+      .optional(),
+    jabatan: z
+      .enum(["KETUA", "SEKRETARIS", "BENDAHARA", "PENGURUS"])
+      .optional()
+      .nullable(),
+    note: z.string().trim().max(500).optional().or(z.literal("")),
+    deactivatePrevious: z.boolean().optional(),
+    managedDojoIds: z.array(z.string().uuid()).max(50).optional(),
+    primaryDojoId: z.string().uuid().optional(),
+    linkEmail: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .email("Format email tidak valid")
+      .optional(),
+  })
+  .superRefine((d, ctx) => {
+    if (d.action === "link_existing") {
+      if (!d.linkEmail) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Email akun wajib diisi",
+          path: ["linkEmail"],
+        });
+      }
+      return;
+    }
+    if (!d.userId) {
+      ctx.addIssue({
+        code: "custom",
+        message: "userId wajib",
+        path: ["userId"],
+      });
+    }
+    if (d.action === "set_managed_dojos") {
+      if (!d.managedDojoIds?.length) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Pilih minimal satu ranting",
+          path: ["managedDojoIds"],
+        });
+      }
+      if (!d.primaryDojoId) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Ranting utama wajib",
+          path: ["primaryDojoId"],
+        });
+      }
+    }
+  });
 
 export const memberBillingProofSchema = z.object({
   proofUrl: z.string().url("URL bukti tidak valid"),

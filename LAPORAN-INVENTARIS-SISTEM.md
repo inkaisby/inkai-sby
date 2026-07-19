@@ -103,7 +103,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
-| Kelola Anggota | Cari **autocomplete** (tanpa tombol Filter); detail, NIA, dokumen; kolom **Terdaftar**; **edit Iuran/bln** (ranting/cabang); nonaktif/bulk; **export CSV**; **bulk approve pending**; **arsip (cabang saja)** |
+| Kelola Anggota | Cari **autocomplete** (tanpa tombol Filter); detail, NIA, dokumen; kolom **Terdaftar**; **edit Iuran/bln** (ranting/cabang); nonaktif/bulk; **export CSV**; **bulk approve pending**; arsip (ranting: koreksi tanpa NIA aktif; cabang: penuh) |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran**, **arsip** |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
@@ -154,7 +154,7 @@ Pusat / Nasional
 | Event (UKT, Gashuku, pertandingan) | Lihat & daftar sendiri | Daftarkan anggota ranting | **Buat event** + lihat pendaftar | Lihat event & pendaftar |
 | NIA | Lihat sendiri | Tidak assign | **Assign NIA** | Lihat saja |
 | Iuran | Lihat & bayar sendiri | **Edit tagihan + verifikasi + lunas**; **edit Iuran/bln per anggota** (scope dojo) | **Kelola iuran** cabang (edit/verifikasi/lunas + Iuran/bln) | Lihat saja (tanpa edit) |
-| Status keanggotaan | Lihat sendiri | **Nonaktifkan / aktifkan**; **gabungkan duplikat** (tanpa hapus/arsip) | **Nonaktif / aktif / hapus (arsip)**; gabungkan duplikat | Lihat saja |
+| Status keanggotaan | Lihat sendiri | **Nonaktifkan / aktifkan**; **hapus/arsip koreksi**; **gabungkan duplikat** | **Nonaktif / aktif / hapus (arsip)**; gabungkan duplikat | Lihat saja |
 
 ---
 
@@ -194,7 +194,7 @@ Pusat / Nasional
 7. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran, dan **mengedit sabuk** anggota (kolom Sabuk di `/admin/anggota`).
 8. Anggota melengkapi profil & dokumen.
 9. **Nonaktifkan** (status `INACTIVE` / `SUSPENDED`) — ranting/cabang; wajib alasan + catatan; notifikasi ke anggota; login diblokir; NIA & riwayat tetap; dapat **aktifkan kembali**. Bulk nonaktif tersedia.
-10. **Hapus** = soft-delete (`isDeleted`) — **hanya cabang** (+ nasional); cek dampak iuran/UKT; anggota aktif/ber-NIA wajib ketik nama. Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang. Ranting tidak boleh hapus/arsip.
+10. **Hapus** = soft-delete (`isDeleted`) — cek dampak iuran/UKT; anggota aktif/ber-NIA hanya cabang (+ ketik nama). Ranting boleh hapus/arsip koreksi (bukan aktif/ber-NIA). Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang.
 
 ### 9.2 Iuran
 1. Tagihan iuran bulanan muncul di sistem.
@@ -427,7 +427,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Logout: dialog konfirmasi elegan sebelum `signOut` (menu admin/anggota + header beranda anggota) |
 | 19 Juli 2026 | Beranda mobile: logo INKAI di atas sendiri; badge hero **Kota Surabaya** (bukan Cabang Surabaya) |
 | 19 Juli 2026 | Beranda hero: lockup **Kota Surabaya** memakai emblem resmi Suro–Boyo (tanpa lingkaran emas) + Kota Pahlawan |
-| 19 Juli 2026 | Kelola Anggota: pencarian autocomplete (debounce, tanpa tombol Filter); ranting hanya nonaktif/aktif — **hapus/arsip** hanya cabang |
+| 19 Juli 2026 | Kelola Anggota: pencarian autocomplete (debounce, tanpa tombol Filter); ranting: nonaktif/aktif + hapus/arsip koreksi; cabang: hapus/arsip penuh |
+| 19 Juli 2026 | Multi-ranting per akun: AppSetting `user.managedDojos.*`, panel Akun (Multi/Tautkan), matriks cabang, context switcher anggota, RBAC `managedDojoIds` |
 
 ---
 

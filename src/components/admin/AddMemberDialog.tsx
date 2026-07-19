@@ -124,6 +124,11 @@ export function AddMemberDialog({
       );
       return;
     }
+    const resolvedDojo = form.dojoId || defaultDojoId || "";
+    if (!lockDojo && dojos.length > 1 && !resolvedDojo) {
+      showError("Pilih ranting tujuan anggota.");
+      return;
+    }
 
     setLoading(true);
     try {

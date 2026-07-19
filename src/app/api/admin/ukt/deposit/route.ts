@@ -30,9 +30,15 @@ export async function PATCH(request: Request) {
   }
 
   if (isDojo) {
-    if (authResult.user.managedDojoId !== dojoId) {
+    const allowlist =
+      authResult.user.managedDojoIds && authResult.user.managedDojoIds.length > 0
+        ? authResult.user.managedDojoIds
+        : authResult.user.managedDojoId
+          ? [authResult.user.managedDojoId]
+          : [];
+    if (!allowlist.includes(dojoId)) {
       return NextResponse.json(
-        { error: "Hanya ranting sendiri yang boleh diubah" },
+        { error: "Hanya ranting yang Anda kelola yang boleh diubah" },
         { status: 403 },
       );
     }

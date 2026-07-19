@@ -25,6 +25,12 @@ import {
   type WilayahScope,
 } from "@/lib/wilayah-accounts";
 import {
+  addManagedDojo,
+  findUserIdsManagingDojo,
+  removeManagedDojo,
+  setManagedDojoIds,
+} from "@/lib/managed-dojos";
+import {
   wilayahAccountCreateSchema,
   wilayahAccountPatchSchema,
 } from "@/lib/security/schemas";
@@ -67,12 +73,23 @@ export async function GET(request: Request) {
   }
 
   const result = await listWilayahAccounts({ scope, wilayahId });
+
+  let siblingDojos: Array<{ id: string; name: string }> = [];
+  if (scope === "dojo" && "branchId" in scoped && scoped.branchId) {
+    siblingDojos = await prisma.dojo.findMany({
+      where: { branchId: scoped.branchId, isDeleted: false },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+  }
+
   return NextResponse.json({
     data: result.accounts,
     handovers: result.handovers,
     primaryContact: result.primaryContact,
     jabatanOptions: WILAYAH_JABATAN,
     wilayahName: scoped.name,
+    siblingDojos,
   });
 }
 
@@ -227,7 +244,7 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const { scope, wilayahId, userId, action } = parsed.data;
+  const { scope, wilayahId, action } = parsed.data;
   const scoped = await assertWilayahAccess(authResult.user, scope, wilayahId);
   if (!scoped) {
     return NextResponse.json(
@@ -235,6 +252,94 @@ export async function PATCH(request: Request) {
       { status: 403 },
     );
   }
+
+  // --- Multi-ranting: tautkan akun existing ke ranting ini ---
+  if (action === "link_existing") {
+    if (scope !== "dojo") {
+      return NextResponse.json(
+        { error: "Tautkan multi-ranting hanya untuk ranting" },
+        { status: 400 },
+      );
+    }
+    const linkEmail = parsed.data.linkEmail?.trim().toLowerCase();
+    if (!linkEmail) {
+      return NextResponse.json({ error: "Email wajib" }, { status: 400 });
+    }
+    const branchId =
+      "branchId" in scoped && typeof scoped.branchId === "string"
+        ? scoped.branchId
+        : null;
+    if (!branchId) {
+      return NextResponse.json(
+        { error: "Cabang ranting tidak ditemukan" },
+        { status: 400 },
+      );
+    }
+
+    const existing = await prisma.user.findFirst({
+      where: {
+        email: { equals: linkEmail, mode: "insensitive" },
+        isDeleted: false,
+        roles: { some: { name: "ADMIN_DOJO" } },
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        managedDojoId: true,
+        isActive: true,
+      },
+    });
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Akun ADMIN_DOJO dengan email itu tidak ditemukan" },
+        { status: 404 },
+      );
+    }
+
+    try {
+      const result = await addManagedDojo({
+        userId: existing.id,
+        dojoId: wilayahId,
+        branchId,
+        makePrimary: false,
+      });
+      writeAuditLog({
+        userId: authResult.user.id,
+        email: authResult.user.email,
+        action: "WILAYAH_ACCOUNT_LINK_EXISTING",
+        details: JSON.stringify({
+          scope,
+          wilayahId,
+          wilayahName: scoped.name,
+          targetUserId: existing.id,
+          targetEmail: existing.email,
+          managedDojoIds: result.dojoIds,
+        }),
+        ip: getClientIp(request),
+        userAgent: request.headers.get("user-agent"),
+        token: authResult.token,
+      });
+      return NextResponse.json({
+        success: true,
+        message: `${existing.email} sekarang juga mengelola ${scoped.name}`,
+        data: result,
+      });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Gagal menautkan akun" },
+        { status: 400 },
+      );
+    }
+  }
+
+  const userId = parsed.data.userId;
+  if (!userId) {
+    return NextResponse.json({ error: "userId wajib" }, { status: 400 });
+  }
+
+  const managingIds =
+    scope === "dojo" ? await findUserIdsManagingDojo(wilayahId) : [];
 
   const target = await prisma.user.findFirst({
     where: {
@@ -246,11 +351,20 @@ export async function PATCH(request: Request) {
             roles: { some: { name: "ADMIN_BRANCH" } },
           }
         : {
-            managedDojoId: wilayahId,
             roles: { some: { name: "ADMIN_DOJO" } },
+            OR: [
+              { managedDojoId: wilayahId },
+              ...(managingIds.includes(userId) ? [{ id: userId }] : []),
+            ],
           }),
     },
-    select: { id: true, email: true, isActive: true, fullName: true },
+    select: {
+      id: true,
+      email: true,
+      isActive: true,
+      fullName: true,
+      managedDojoId: true,
+    },
   });
   if (!target) {
     return NextResponse.json(
@@ -261,6 +375,106 @@ export async function PATCH(request: Request) {
 
   let message = "Berhasil";
   let loginPassword: string | undefined;
+
+  if (action === "set_managed_dojos") {
+    if (scope !== "dojo") {
+      return NextResponse.json(
+        { error: "Multi-ranting hanya untuk akun ranting" },
+        { status: 400 },
+      );
+    }
+    const branchId =
+      "branchId" in scoped && typeof scoped.branchId === "string"
+        ? scoped.branchId
+        : null;
+    if (!branchId) {
+      return NextResponse.json(
+        { error: "Cabang ranting tidak ditemukan" },
+        { status: 400 },
+      );
+    }
+    const managedDojoIds = parsed.data.managedDojoIds ?? [];
+    const primaryDojoId = parsed.data.primaryDojoId;
+    if (!primaryDojoId || !managedDojoIds.includes(primaryDojoId)) {
+      return NextResponse.json(
+        { error: "Ranting utama harus ada dalam daftar" },
+        { status: 400 },
+      );
+    }
+    // Pastikan ranting sheet saat ini selalu termasuk
+    const withCurrent = managedDojoIds.includes(wilayahId)
+      ? managedDojoIds
+      : [...managedDojoIds, wilayahId];
+    try {
+      const result = await setManagedDojoIds({
+        userId: target.id,
+        dojoIds: withCurrent,
+        primaryDojoId: withCurrent.includes(primaryDojoId)
+          ? primaryDojoId
+          : wilayahId,
+        branchId,
+      });
+      message = `Cakupan ranting diperbarui (${result.dojoIds.length} ranting)`;
+      writeAuditLog({
+        userId: authResult.user.id,
+        email: authResult.user.email,
+        action: "WILAYAH_ACCOUNT_SET_MANAGED_DOJOS",
+        details: JSON.stringify({
+          scope,
+          wilayahId,
+          targetUserId: target.id,
+          targetEmail: target.email,
+          ...result,
+        }),
+        ip: getClientIp(request),
+        userAgent: request.headers.get("user-agent"),
+        token: authResult.token,
+      });
+      return NextResponse.json({ success: true, message, data: result });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Gagal menyimpan" },
+        { status: 400 },
+      );
+    }
+  }
+
+  if (action === "unlink_dojo") {
+    if (scope !== "dojo") {
+      return NextResponse.json(
+        { error: "Cabut ranting hanya untuk scope dojo" },
+        { status: 400 },
+      );
+    }
+    try {
+      const result = await removeManagedDojo({
+        userId: target.id,
+        dojoId: wilayahId,
+      });
+      message = `Akses ke ${scoped.name} dicabut`;
+      writeAuditLog({
+        userId: authResult.user.id,
+        email: authResult.user.email,
+        action: "WILAYAH_ACCOUNT_UNLINK_DOJO",
+        details: JSON.stringify({
+          scope,
+          wilayahId,
+          targetUserId: target.id,
+          targetEmail: target.email,
+          remaining: result?.dojoIds,
+        }),
+        ip: getClientIp(request),
+        userAgent: request.headers.get("user-agent"),
+        token: authResult.token,
+      });
+      return NextResponse.json({ success: true, message, data: result });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : "Gagal mencabut" },
+        { status: 400 },
+      );
+    }
+  }
 
   if (action === "deactivate") {
     if (target.id === authResult.user.id) {

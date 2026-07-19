@@ -171,8 +171,15 @@ export function buildScopedDojoWhere(user: SessionUser): Prisma.DojoWhereInput {
   if (role === "ADMIN_BRANCH" && user.managedBranchId) {
     return { ...base, branchId: user.managedBranchId };
   }
-  if (role === "ADMIN_DOJO" && user.managedDojoId) {
-    return { ...base, id: user.managedDojoId };
+  if (role === "ADMIN_DOJO") {
+    const ids =
+      user.managedDojoIds && user.managedDojoIds.length > 0
+        ? user.managedDojoIds
+        : user.managedDojoId
+          ? [user.managedDojoId]
+          : [];
+    if (ids.length === 1) return { ...base, id: ids[0] };
+    if (ids.length > 1) return { ...base, id: { in: ids } };
   }
   return { ...base, id: "__none__" };
 }

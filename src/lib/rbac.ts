@@ -26,8 +26,17 @@ export type SessionUser = {
   managedProvinceId?: string | null;
   managedBranchId?: string | null;
   managedDojoId?: string | null;
+  /** Ranting yang dikelola (primary + ekstra). Diisi lewat enrichSessionUser. */
+  managedDojoIds?: string[];
   memberId?: string | null;
 };
+
+function dojoAllowlist(user: SessionUser): string[] {
+  if (user.managedDojoIds && user.managedDojoIds.length > 0) {
+    return user.managedDojoIds;
+  }
+  return user.managedDojoId ? [user.managedDojoId] : [];
+}
 
 export function isAdmin(roles: string[]) {
   return roles.some((r) => ADMIN_ROLES.includes(r as (typeof ADMIN_ROLES)[number]));
@@ -70,8 +79,10 @@ export function getAdminScopeLabel(user: SessionUser) {
       return "Provinsi";
     case "ADMIN_BRANCH":
       return "Cabang";
-    case "ADMIN_DOJO":
-      return "Dojo/Ranting";
+    case "ADMIN_DOJO": {
+      const n = dojoAllowlist(user).length;
+      return n > 1 ? `Dojo/Ranting (${n})` : "Dojo/Ranting";
+    }
     default:
       return "Anggota";
   }
@@ -103,8 +114,10 @@ export function buildMemberFilter(
       dojo: { branchId: user.managedBranchId, isDeleted: false },
     };
   }
-  if (role === "ADMIN_DOJO" && user.managedDojoId) {
-    return { ...deletedClause, dojoId: user.managedDojoId };
+  if (role === "ADMIN_DOJO") {
+    const ids = dojoAllowlist(user);
+    if (ids.length === 1) return { ...deletedClause, dojoId: ids[0] };
+    if (ids.length > 1) return { ...deletedClause, dojoId: { in: ids } };
   }
   if (user.memberId) {
     return { id: user.memberId, ...deletedClause };
@@ -127,8 +140,10 @@ export function buildDojoFilter(user: SessionUser) {
   if (role === "ADMIN_BRANCH" && user.managedBranchId) {
     return { isDeleted: false, branchId: user.managedBranchId };
   }
-  if (role === "ADMIN_DOJO" && user.managedDojoId) {
-    return { id: user.managedDojoId, isDeleted: false };
+  if (role === "ADMIN_DOJO") {
+    const ids = dojoAllowlist(user);
+    if (ids.length === 1) return { id: ids[0], isDeleted: false };
+    if (ids.length > 1) return { id: { in: ids }, isDeleted: false };
   }
   return { id: "none", isDeleted: false };
 }
@@ -175,12 +190,14 @@ export function buildEventFilter(user: SessionUser) {
   if (role === "ADMIN_BRANCH" && user.managedBranchId) {
     return { isDeleted: false, branchId: user.managedBranchId };
   }
-  if (role === "ADMIN_DOJO" && user.managedDojoId) {
+  if (role === "ADMIN_DOJO") {
+    const ids = dojoAllowlist(user);
+    if (ids.length === 0) return { id: "none", isDeleted: false };
     return {
       isDeleted: false,
       branch: {
         isDeleted: false,
-        dojos: { some: { id: user.managedDojoId, isDeleted: false } },
+        dojos: { some: { id: { in: ids }, isDeleted: false } },
       },
     };
   }

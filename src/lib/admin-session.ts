@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import { canAccessAdmin } from "@/lib/rbac";
+import { enrichSessionUser } from "@/lib/managed-dojos";
 
 /** Dedupe auth + token lookup within the same server request. */
 export const requireAdminSession = cache(async () => {
@@ -11,5 +12,6 @@ export const requireAdminSession = cache(async () => {
   if (!canAccessAdmin(session.user)) redirect("/dashboard");
   const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
-  return { session, token, user: session.user };
+  const user = await enrichSessionUser(session.user);
+  return { session: { ...session, user }, token, user };
 });

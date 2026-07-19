@@ -1,9 +1,8 @@
 import { Suspense } from "react";
-import { auth } from "@/auth";
-import { getInkaiAccessToken } from "@/lib/inkai-api/session";
-import { redirect } from "next/navigation";
-import { canAccessAdmin, getPrimaryAdminRole } from "@/lib/rbac";
+import { requireAdminSession } from "@/lib/admin-session";
+import { getPrimaryAdminRole } from "@/lib/rbac";
 import { canManageIuranByWilayah } from "@/lib/wilayah-rbac";
+import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { fetchBillings } from "@/lib/inkai-api/admin-data";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,18 +34,15 @@ async function AdminIuranContent({
 }: {
   searchParams: SearchParams;
 }) {
-  const session = await auth();
-  if (!session || !canAccessAdmin(session.user)) redirect("/login");
-  const token = await getInkaiAccessToken();
-  if (!token) redirect("/login");
-
+  const { token, user } = await requireAdminSession();
   const params = await searchParams;
   const status = params.status?.trim() || "";
   const q = params.q?.trim() || "";
   const monthFilter = params.month?.trim() || "";
-  const canEdit = canManageIuranByWilayah(session.user.roles ?? []);
-  const role = getPrimaryAdminRole(session.user.roles ?? []);
-  const managedDojoId = session.user.managedDojoId ?? null;
+  const canEdit = canManageIuranByWilayah(user.roles ?? []);
+  const role = getPrimaryAdminRole(user.roles ?? []);
+  const managedDojoIds =
+    role === "ADMIN_DOJO" ? getManagedDojoIdsFromUser(user) : [];
   const defaults = await getOperationalDefaults();
 
   let billings = await fetchBillings(token, {
@@ -54,15 +50,15 @@ async function AdminIuranContent({
     limit: 250,
   });
 
-  // Scope ketua ranting ke anggota dojo-nya (jika dojoId tersedia di payload)
-  if (role === "ADMIN_DOJO" && managedDojoId) {
+  // Scope ketua ranting ke anggota dojo yang dikelola
+  if (role === "ADMIN_DOJO" && managedDojoIds.length > 0) {
     billings = billings.filter((b) => {
       const member = b.member as
         | { dojo?: { id?: string }; dojoId?: string }
         | undefined;
       const dojoId = member?.dojo?.id ?? member?.dojoId;
       if (!dojoId) return true;
-      return dojoId === managedDojoId;
+      return managedDojoIds.includes(dojoId);
     });
   }
 

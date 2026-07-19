@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { canAccessAdmin, type SessionUser } from "@/lib/rbac";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
+import { enrichSessionUser } from "@/lib/managed-dojos";
 import { NextResponse } from "next/server";
 
 export async function requireAdmin() {
@@ -12,5 +13,6 @@ export async function requireAdmin() {
   if (!token) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-  return { user: session.user as SessionUser, token };
+  const user = await enrichSessionUser(session.user as SessionUser);
+  return { user, token };
 }

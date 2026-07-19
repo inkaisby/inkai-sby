@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
-import { buildDojoFilter, getPrimaryAdminRole, type SessionUser } from "@/lib/rbac";
+import {
+  buildDojoFilter,
+  getPrimaryAdminRole,
+  type SessionUser,
+} from "@/lib/rbac";
+import {
+  assertDojoAllowed,
+  getManagedDojoIdsFromUser,
+} from "@/lib/managed-dojos";
 import { DEFAULT_MEMBER_RANK } from "@/lib/belt";
 import type { z } from "zod";
 import type { uktMemberCreateSchema } from "@/lib/security/schemas";
@@ -26,10 +34,32 @@ export async function createAdminMember(opts: {
   let dojoId = input.dojoId;
 
   if (role === "ADMIN_DOJO") {
-    if (!user.managedDojoId) {
-      return NextResponse.json({ error: "Dojo tidak terkonfigurasi" }, { status: 403 });
+    const allowlist = getManagedDojoIdsFromUser(user);
+    if (allowlist.length === 0) {
+      return NextResponse.json(
+        { error: "Dojo tidak terkonfigurasi" },
+        { status: 403 },
+      );
     }
-    dojoId = user.managedDojoId;
+    if (dojoId) {
+      if (!assertDojoAllowed(user, dojoId)) {
+        return NextResponse.json(
+          { error: "Ranting di luar cakupan akun Anda" },
+          { status: 403 },
+        );
+      }
+    } else if (allowlist.length === 1) {
+      dojoId = allowlist[0];
+    } else {
+      return NextResponse.json(
+        {
+          error:
+            "Pilih ranting tujuan. Akun Anda mengelola lebih dari satu ranting.",
+          code: "DOJO_REQUIRED",
+        },
+        { status: 400 },
+      );
+    }
   } else if (!dojoId) {
     const { res, data } = await inkaiFetch("/v1/org/dojos/all", {}, token);
     if (!res.ok) {
@@ -38,7 +68,10 @@ export async function createAdminMember(opts: {
     const dojos = (data.data as Array<{ id: string; name: string }>) ?? [];
     const filter = buildDojoFilter(user);
     const scoped = dojos.filter((d) => {
-      if (filter.id) return d.id === filter.id;
+      if (filter.id && typeof filter.id === "string") return d.id === filter.id;
+      if (filter.id && typeof filter.id === "object" && "in" in filter.id) {
+        return (filter.id.in as string[]).includes(d.id);
+      }
       return true;
     });
     if (!scoped[0]) {

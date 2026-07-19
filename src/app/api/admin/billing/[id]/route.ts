@@ -22,8 +22,17 @@ async function assertBillingInScope(user: SessionUser, billingId: string) {
   // Jika tidak ada di DB lokal, biarkan API Inkai yang memutuskan scope
   if (!billing) return { ok: true as const, billing: null };
 
-  if (role === "ADMIN_DOJO" && user.managedDojoId) {
-    if (billing.member.dojoId !== user.managedDojoId) {
+  if (role === "ADMIN_DOJO") {
+    const allowlist =
+      user.managedDojoIds && user.managedDojoIds.length > 0
+        ? user.managedDojoIds
+        : user.managedDojoId
+          ? [user.managedDojoId]
+          : [];
+    if (
+      allowlist.length > 0 &&
+      !allowlist.includes(billing.member.dojoId)
+    ) {
       return { ok: false as const, error: "Tagihan di luar ranting Anda" };
     }
   }

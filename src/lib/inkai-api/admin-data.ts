@@ -118,6 +118,106 @@ export async function fetchAdminMembers(
   }
 }
 
+/**
+ * Ambil anggota untuk satu atau banyak dojo.
+ * Multi-dojo memakai Prisma (DB bersama) agar tidak bergantung scope token Inkai tunggal.
+ */
+export async function fetchAdminMembersForDojoIds(
+  token: string,
+  dojoIds: string[],
+  opts: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+  } = {},
+) {
+  const ids = [...new Set(dojoIds.filter(Boolean))];
+  if (ids.length === 0) {
+    return { ok: true as const, members: [] as AdminMemberRow[], total: 0, page: 1 };
+  }
+  if (ids.length === 1) {
+    return fetchAdminMembers(token, { ...opts, dojoId: ids[0] });
+  }
+
+  const page = opts.page ?? 1;
+  const limit = opts.limit ?? 20;
+  const search = opts.search?.trim();
+  const status = opts.status?.trim();
+
+  const where = {
+    isDeleted: false,
+    dojoId: { in: ids },
+    ...(status ? { status } : {}),
+    ...(search
+      ? {
+          OR: [
+            { fullName: { contains: search, mode: "insensitive" as const } },
+            { nia: { contains: search, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
+
+  try {
+    const [total, rows] = await Promise.all([
+      prisma.member.count({ where }),
+      prisma.member.findMany({
+        where,
+        include: {
+          dojo: {
+            select: {
+              name: true,
+              branch: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { fullName: "asc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    const members: AdminMemberRow[] = rows.map((m) => ({
+      id: m.id,
+      fullName: m.fullName,
+      nia: m.nia,
+      currentRank: m.currentRank,
+      status: m.status,
+      dojo: {
+        name: m.dojo.name,
+        branch: m.dojo.branch ? { name: m.dojo.branch.name } : undefined,
+      },
+      birthCertificateUrl: m.birthCertificateUrl,
+      bpjsCardUrl: m.bpjsCardUrl,
+      bpjsCardNumber: m.bpjsCardNumber,
+      createdAt: m.createdAt.toISOString(),
+      monthlyDuesAmount: m.monthlyDuesAmount,
+    }));
+
+    return { ok: true as const, members, total, page };
+  } catch (error) {
+    console.error("[fetchAdminMembersForDojoIds]", error);
+    // Fallback: gabungkan fetch API per dojo
+    const chunks = await Promise.all(
+      ids.map((id) =>
+        fetchAdminMembers(token, { ...opts, dojoId: id, page: 1, limit: 500 }),
+      ),
+    );
+    const merged: AdminMemberRow[] = [];
+    for (const chunk of chunks) {
+      if (chunk.ok) merged.push(...chunk.members);
+    }
+    const start = (page - 1) * limit;
+    return {
+      ok: true as const,
+      members: merged.slice(start, start + limit),
+      total: merged.length,
+      page,
+    };
+  }
+}
+
 export async function fetchDashboardStats(token: string) {
   const { res, data } = await inkaiFetch("/v1/dashboard/stats", {}, token);
   if (!res.ok) return null;
@@ -462,18 +562,30 @@ export async function fetchUktDashboardData(
 ) {
   const { periodFromUrl = null, semester, year, forceNoPeriod = false } = opts;
   const primaryRole = getPrimaryAdminRole(user.roles);
-  const memberQuery: { limit: number; page: number; dojoId?: string } = {
-    limit: 500,
-    page: 1,
-  };
-  if (primaryRole === "ADMIN_DOJO" && user.managedDojoId) {
-    memberQuery.dojoId = user.managedDojoId;
-    memberQuery.limit = 250;
-  }
+  const dojoAllowlist =
+    primaryRole === "ADMIN_DOJO"
+      ? user.managedDojoIds && user.managedDojoIds.length > 0
+        ? user.managedDojoIds
+        : user.managedDojoId
+          ? [user.managedDojoId]
+          : []
+      : [];
+
+  const membersPromise =
+    dojoAllowlist.length > 1
+      ? fetchAdminMembersForDojoIds(token, dojoAllowlist, {
+          limit: 500,
+          page: 1,
+        })
+      : fetchAdminMembers(token, {
+          limit: dojoAllowlist.length === 1 ? 250 : 500,
+          page: 1,
+          dojoId: dojoAllowlist[0],
+        });
 
   const [
     eventsRes,
-    dojos,
+    dojosRaw,
     membersResult,
     feesRes,
     komisiRanting,
@@ -489,7 +601,7 @@ export async function fetchUktDashboardData(
   ] = await Promise.all([
     inkaiFetch("/v1/events?limit=200", {}, token),
     fetchAdminDojos(token),
-    fetchAdminMembers(token, memberQuery),
+    membersPromise,
     inkaiFetch("/v1/events/rank-fee-templates", {}, token),
     fetchUktKomisiRanting(token, UKT_KOMISI_SETTING_KEY, DEFAULT_KOMISI_RANTING),
     inkaiFetch("/v1/billing?limit=250", {}, token),
@@ -518,6 +630,11 @@ export async function fetchUktDashboardData(
         )
       : Promise.resolve(null),
   ]);
+
+  const dojos =
+    dojoAllowlist.length > 0
+      ? dojosRaw.filter((d) => dojoAllowlist.includes(d.id))
+      : dojosRaw;
 
   let periods = eventsRes.res.ok
     ? filterUktEvents((eventsRes.data.data as Array<Record<string, unknown>>) ?? []).map((p) =>

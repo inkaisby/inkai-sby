@@ -28,6 +28,7 @@ import {
   type CredentialPayload,
 } from "@/components/admin/pengaturan/CredentialsReveal";
 import { Archive, KeyRound, Pencil, Star, Users } from "lucide-react";
+import { ManagedDojoMatrix } from "@/components/admin/pengaturan/ManagedDojoMatrix";
 import { WilayahAccountsPanel } from "@/components/admin/pengaturan/WilayahAccountsPanel";
 
 export type RantingRow = {
@@ -350,6 +351,14 @@ export function RantingSettingsManager({
           </Button>
         )}
       </div>
+
+      {!selfManagedOnly &&
+      (lockedBranchId || branches.length === 1) &&
+      (lockedBranchId || branches[0]?.id) ? (
+        <ManagedDojoMatrix
+          branchId={lockedBranchId || branches[0]!.id}
+        />
+      ) : null}
 
       {mode && (
         <form
