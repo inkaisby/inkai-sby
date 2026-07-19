@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import ArticleCarousel from "@/components/home/ArticleCarousel";
 import ArticleCarouselSkeleton from "@/components/home/ArticleCarouselSkeleton";
 import HomeHeroCTA from "@/components/home/HomeHeroCTA";
+import SurabayaHeroMark from "@/components/home/SurabayaHeroMark";
 
 export const revalidate = 60;
 
@@ -67,9 +68,7 @@ export default function HomePage() {
           </div>
 
           <div className="flex-1 text-center lg:text-left">
-            <Badge className="mb-5 border border-inkai-yellow/30 bg-inkai-yellow/15 px-3 py-1 text-inkai-yellow shadow-sm backdrop-blur-sm hover:bg-inkai-yellow/15">
-              Kota Surabaya
-            </Badge>
+            <SurabayaHeroMark />
             <h1 className="mb-5 text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl lg:text-6xl">
               Institut Karate-Do
               <span className="mt-1 block bg-gradient-to-r from-inkai-yellow via-amber-300 to-inkai-yellow bg-clip-text text-transparent">
