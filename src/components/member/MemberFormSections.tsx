@@ -38,6 +38,11 @@ type MemberFormSectionProps = {
   ) => void;
   suggestions?: MemberFormSuggestion[];
   fullNameRequired?: boolean;
+  /**
+   * Daftar mandiri: identitas lengkap wajib (kecuali NIA).
+   * Admin ranting/cabang: biarkan false (NIK dkk opsional).
+   */
+  requireCompleteIdentity?: boolean;
   /** Jika true, ada duplikat keras — UI merah + petunjuk blok. */
   duplicateBlocked?: boolean;
 };
@@ -63,13 +68,44 @@ function reasonLabel(reasons?: string[]) {
 
 export function validateMemberFormFields(
   form: MemberFormFields,
-  opts?: { requireFullName?: boolean },
+  opts?: {
+    requireFullName?: boolean;
+    /** Daftar mandiri: semua identitas wajib kecuali NIA. */
+    requireCompleteIdentity?: boolean;
+  },
 ): string | null {
   if (opts?.requireFullName !== false && !form.fullName.trim()) {
     return "Nama lengkap wajib diisi";
   }
+
+  if (opts?.requireCompleteIdentity) {
+    if (!form.gender || (form.gender !== "L" && form.gender !== "P")) {
+      return "Jenis kelamin wajib dipilih";
+    }
+    if (!form.birthPlace.trim()) {
+      return "Tempat lahir wajib diisi";
+    }
+    if (!form.birthDate.trim()) {
+      return "Tanggal lahir wajib diisi";
+    }
+    if (!form.address.trim() || form.address.trim().length < 5) {
+      return "Alamat wajib diisi";
+    }
+    if (!/^\d{16}$/.test(form.nik.trim())) {
+      return "NIK wajib 16 digit";
+    }
+    if (!form.phoneNumber.trim() || form.phoneNumber.trim().length < 10) {
+      return "Nomor telepon wajib diisi";
+    }
+    const nia = form.nia.trim();
+    if (nia && (nia.length < 2 || nia.length > 32)) {
+      return "NIA harus 2–32 karakter jika diisi";
+    }
+    return null;
+  }
+
   if (form.nik && !/^\d{16}$/.test(form.nik.trim())) {
-    return "NIK harus 16 digit";
+    return "NIK opsional — kosongkan atau isi tepat 16 digit";
   }
   const nia = form.nia.trim();
   if (nia && (nia.length < 2 || nia.length > 32)) {
@@ -87,12 +123,14 @@ export function MemberIdentitySection({
   onChange,
   suggestions = [],
   fullNameRequired = true,
+  requireCompleteIdentity = false,
   duplicateBlocked = false,
 }: MemberFormSectionProps) {
   const hasHard = duplicateBlocked || suggestions.some((s) => s.severity === "hard");
   const boxClass = hasHard
     ? "rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-900 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-100"
     : "rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100";
+  const req = requireCompleteIdentity;
 
   return (
     <section className="space-y-3">
@@ -102,7 +140,7 @@ export function MemberIdentitySection({
 
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-name`}>
-          Nama Lengkap{fullNameRequired ? " *" : ""}
+          Nama Lengkap{fullNameRequired || req ? " *" : ""}
         </Label>
         <Input
           id={`${idPrefix}-name`}
@@ -111,7 +149,7 @@ export function MemberIdentitySection({
           onChange={(e) => onChange("fullName", upperText(e.target.value))}
           placeholder="NAMA SESUAI IDENTITAS"
           autoCapitalize="characters"
-          required={fullNameRequired}
+          required={fullNameRequired || req}
         />
         {suggestions.length > 0 ? (
           <div className={boxClass}>
@@ -146,12 +184,15 @@ export function MemberIdentitySection({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-gender`}>Jenis Kelamin</Label>
+        <Label htmlFor={`${idPrefix}-gender`}>
+          Jenis Kelamin{req ? " *" : ""}
+        </Label>
         <select
           id={`${idPrefix}-gender`}
           className={selectClassName}
           value={form.gender}
           onChange={(e) => onChange("gender", e.target.value)}
+          required={req}
         >
           <option value="">Pilih</option>
           <option value="L">Laki-laki</option>
@@ -161,7 +202,9 @@ export function MemberIdentitySection({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor={`${idPrefix}-birth-place`}>Tempat Lahir</Label>
+          <Label htmlFor={`${idPrefix}-birth-place`}>
+            Tempat Lahir{req ? " *" : ""}
+          </Label>
           <Input
             id={`${idPrefix}-birth-place`}
             className={upperInputClassName}
@@ -169,10 +212,13 @@ export function MemberIdentitySection({
             onChange={(e) => onChange("birthPlace", upperText(e.target.value))}
             placeholder="KOTA / KABUPATEN"
             autoCapitalize="characters"
+            required={req}
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor={`${idPrefix}-birth-date`}>Tanggal Lahir</Label>
+          <Label htmlFor={`${idPrefix}-birth-date`}>
+            Tanggal Lahir{req ? " *" : ""}
+          </Label>
           <Input
             id={`${idPrefix}-birth-date`}
             type="date"
@@ -186,6 +232,7 @@ export function MemberIdentitySection({
                 onChange("birthDate", parsed);
               }
             }}
+            required={req}
           />
           <p className="text-[11px] text-muted-foreground">
             Bisa paste, mis. 28 Februari 2011
@@ -194,7 +241,9 @@ export function MemberIdentitySection({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-address`}>Alamat</Label>
+        <Label htmlFor={`${idPrefix}-address`}>
+          Alamat{req ? " *" : ""}
+        </Label>
         <Input
           id={`${idPrefix}-address`}
           className={upperInputClassName}
@@ -202,25 +251,34 @@ export function MemberIdentitySection({
           onChange={(e) => onChange("address", upperText(e.target.value))}
           placeholder="ALAMAT LENGKAP"
           autoCapitalize="characters"
+          required={req}
         />
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-nik`}>NIK</Label>
+        <Label htmlFor={`${idPrefix}-nik`}>
+          {req ? "NIK *" : "NIK (opsional)"}
+        </Label>
         <Input
           id={`${idPrefix}-nik`}
           inputMode="numeric"
           maxLength={16}
-          placeholder="16 digit (opsional)"
+          placeholder={req ? "16 digit wajib" : "16 digit — boleh dikosongkan"}
           value={form.nik}
           onChange={(e) =>
             onChange("nik", e.target.value.replace(/\D/g, "").slice(0, 16))
           }
+          required={req}
         />
+        <p className="text-xs text-muted-foreground">
+          {req
+            ? "Wajib diisi sesuai KTP/identitas."
+            : "Ranting/cabang boleh menyimpan tanpa NIK; lengkapi nanti bila sudah ada."}
+        </p>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-nia`}>NIA (Nomor Induk Anggota)</Label>
+        <Label htmlFor={`${idPrefix}-nia`}>NIA (opsional)</Label>
         <Input
           id={`${idPrefix}-nia`}
           className={upperInputClassName}
@@ -237,15 +295,18 @@ export function MemberIdentitySection({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-phone`}>Telepon</Label>
+        <Label htmlFor={`${idPrefix}-phone`}>
+          Telepon{req ? " *" : ""}
+        </Label>
         <Input
           id={`${idPrefix}-phone`}
           className={upperInputClassName}
           inputMode="tel"
-          placeholder="OPSIONAL"
+          placeholder={req ? "WAJIB — NOMOR AKTIF" : "OPSIONAL"}
           value={form.phoneNumber}
           onChange={(e) => onChange("phoneNumber", upperText(e.target.value))}
           autoCapitalize="characters"
+          required={req}
         />
       </div>
     </section>

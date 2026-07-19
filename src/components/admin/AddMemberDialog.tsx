@@ -145,7 +145,8 @@ export function AddMemberDialog({
           address: form.address.trim()
             ? form.address.trim().toUpperCase()
             : undefined,
-          nik: form.nik.trim() || undefined,
+          nik:
+            form.nik.trim().length === 16 ? form.nik.trim() : undefined,
           nia: form.nia.trim() ? form.nia.trim().toUpperCase() : undefined,
           phoneNumber: form.phoneNumber.trim() || undefined,
           currentRank: form.currentRank || DEFAULT_MEMBER_RANK,
@@ -173,9 +174,9 @@ export function AddMemberDialog({
         <DialogHeader>
           <DialogTitle>Tambah Anggota Baru</DialogTitle>
           <DialogDescription>
-            Ranting dapat menambahkan anggota baru. Status aktif langsung. NIA
-            opsional jika sudah diketahui; bila kosong dapat diisi pengurus
-            cabang. Jika anggota sudah daftar mandiri, gunakan{" "}
+            Ranting/cabang dapat menambahkan anggota baru (status aktif
+            langsung). <strong>NIK dan NIA opsional</strong> — boleh dikosongkan
+            dan dilengkapi nanti. Jika anggota sudah daftar mandiri, gunakan{" "}
             <strong>Gabungkan</strong> di detail Kelola Anggota.
           </DialogDescription>
         </DialogHeader>

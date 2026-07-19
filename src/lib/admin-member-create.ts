@@ -81,7 +81,9 @@ export async function createAdminMember(opts: {
   }
 
   const currentRank = input.currentRank?.trim() || DEFAULT_MEMBER_RANK;
-  const nik = input.nik?.trim() || undefined;
+  // NIK opsional: hanya kirim jika tepat 16 digit (jangan "" — bentrok unique).
+  const nikRaw = input.nik?.trim() || "";
+  const nik = /^\d{16}$/.test(nikRaw) ? nikRaw : undefined;
   const nia = input.nia?.trim() || undefined;
   const phoneNumber = input.phoneNumber?.trim() || undefined;
 
@@ -135,6 +137,37 @@ export async function createAdminMember(opts: {
   }
 
   const member = data.data as Record<string, unknown>;
+  const memberId = typeof member?.id === "string" ? member.id : null;
+
+  // Selaraskan field identitas di DB lokal (NIK kosong = null, bukan "").
+  if (memberId) {
+    try {
+      const { prisma } = await import("@/lib/prisma");
+      await prisma.member.update({
+        where: { id: memberId },
+        data: {
+          nik: nik ?? null,
+          birthPlace: input.birthPlace?.trim()
+            ? input.birthPlace.trim().toUpperCase()
+            : null,
+          address: input.address?.trim()
+            ? input.address.trim().toUpperCase()
+            : null,
+          gender: input.gender || null,
+          birthDate: input.birthDate ? new Date(input.birthDate) : null,
+        },
+      });
+      if (phoneNumber && typeof member.userId === "string") {
+        await prisma.user.update({
+          where: { id: member.userId },
+          data: { phoneNumber },
+        });
+      }
+    } catch (err) {
+      console.error("[createAdminMember:sync]", err);
+    }
+  }
+
   writeAuditLog({
     userId: user.id,
     email: user.email,

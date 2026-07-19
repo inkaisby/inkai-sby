@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+/** String opsional: "" / null → undefined; jika ada isi harus lolos schema dalam. */
+function optionalBlankString<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess((v) => {
+    if (v === null || v === undefined) return undefined;
+    if (typeof v === "string" && v.trim() === "") return undefined;
+    return v;
+  }, schema.optional());
+}
+
 export const registerSchema = z.object({
   name: z
     .string()
@@ -18,31 +27,30 @@ export const registerSchema = z.object({
     .min(8, "Password minimal 8 karakter")
     .max(128, "Password terlalu panjang"),
   dojoId: z.string().uuid("Dojo tidak valid"),
-  nik: z
-    .string()
-    .trim()
-    .regex(/^\d{16}$/, "NIK harus 16 digit")
-    .optional()
-    .or(z.literal("")),
+  /** Daftar mandiri: NIK wajib 16 digit. */
+  nik: z.string().trim().regex(/^\d{16}$/, "NIK harus 16 digit"),
   phoneNumber: z
     .string()
     .trim()
     .min(10, "Nomor telepon tidak valid")
-    .max(20)
-    .optional()
-    .or(z.literal("")),
-  gender: z.enum(["L", "P"]).optional().or(z.literal("")),
-  birthPlace: z.string().trim().max(100).optional().or(z.literal("")),
-  birthDate: z.string().optional().or(z.literal("")),
-  address: z.string().trim().max(300).optional().or(z.literal("")),
-  currentRank: z.string().trim().min(2).max(64).optional(),
-  nia: z
+    .max(20),
+  gender: z.enum(["L", "P"], { message: "Jenis kelamin wajib dipilih" }),
+  birthPlace: z
     .string()
     .trim()
-    .min(2, "NIA minimal 2 karakter")
-    .max(32, "NIA maksimal 32 karakter")
-    .optional()
-    .or(z.literal("")),
+    .min(2, "Tempat lahir wajib diisi")
+    .max(100),
+  birthDate: z.string().trim().min(8, "Tanggal lahir wajib diisi"),
+  address: z.string().trim().min(5, "Alamat wajib diisi").max(300),
+  currentRank: z.string().trim().min(2).max(64).optional(),
+  /** NIA tetap opsional — calon sering belum punya. */
+  nia: optionalBlankString(
+    z
+      .string()
+      .trim()
+      .min(2, "NIA minimal 2 karakter")
+      .max(32, "NIA maksimal 32 karakter"),
+  ),
 });
 
 export const forgotPasswordSchema = z.object({
@@ -158,32 +166,26 @@ export const uktRegistrationUpdateSchema = z.object({
 
 export const uktMemberCreateSchema = z.object({
   fullName: z.string().trim().min(2).max(100),
-  gender: z.enum(["L", "P"]).optional(),
-  birthPlace: z.string().trim().max(100).optional(),
-  birthDate: z.string().optional(),
-  address: z.string().trim().max(300).optional(),
+  gender: optionalBlankString(z.enum(["L", "P"])),
+  birthPlace: optionalBlankString(z.string().trim().max(100)),
+  birthDate: optionalBlankString(z.string()),
+  address: optionalBlankString(z.string().trim().max(300)),
   dojoId: z.string().uuid().optional(),
-  nik: z
-    .string()
-    .trim()
-    .regex(/^\d{16}$/, "NIK harus 16 digit")
-    .optional()
-    .or(z.literal("")),
-  phoneNumber: z
-    .string()
-    .trim()
-    .min(10, "Nomor telepon tidak valid")
-    .max(20)
-    .optional()
-    .or(z.literal("")),
+  /** Opsional untuk ranting/cabang — kosong boleh. */
+  nik: optionalBlankString(
+    z.string().trim().regex(/^\d{16}$/, "NIK harus 16 digit"),
+  ),
+  phoneNumber: optionalBlankString(
+    z.string().trim().min(10, "Nomor telepon tidak valid").max(20),
+  ),
   currentRank: z.string().trim().min(2).max(64).optional(),
-  nia: z
-    .string()
-    .trim()
-    .min(2, "NIA minimal 2 karakter")
-    .max(32, "NIA maksimal 32 karakter")
-    .optional()
-    .or(z.literal("")),
+  nia: optionalBlankString(
+    z
+      .string()
+      .trim()
+      .min(2, "NIA minimal 2 karakter")
+      .max(32, "NIA maksimal 32 karakter"),
+  ),
 });
 
 /** Alias semantik untuk create anggota dari Kelola Anggota / UKT */

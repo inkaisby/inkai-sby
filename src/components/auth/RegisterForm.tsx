@@ -122,7 +122,9 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
     setError("");
     setSuccess("");
 
-    const validationError = validateMemberFormFields(memberFields);
+    const validationError = validateMemberFormFields(memberFields, {
+      requireCompleteIdentity: true,
+    });
     if (validationError) {
       setError(validationError);
       showError(validationError);
@@ -154,20 +156,20 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: memberFields.fullName.trim(),
-        email,
-        password,
-        dojoId,
-        nik: memberFields.nik.trim() || undefined,
-        nia: memberFields.nia.trim() || undefined,
-        phoneNumber: memberFields.phoneNumber.trim() || undefined,
-        gender: memberFields.gender || undefined,
-        birthPlace: memberFields.birthPlace.trim() || undefined,
-        birthDate: memberFields.birthDate || undefined,
-        address: memberFields.address.trim() || undefined,
-        currentRank: memberFields.currentRank || DEFAULT_MEMBER_RANK,
-      }),
+        body: JSON.stringify({
+          name: memberFields.fullName.trim(),
+          email,
+          password,
+          dojoId,
+          nik: memberFields.nik.trim(),
+          nia: memberFields.nia.trim() || undefined,
+          phoneNumber: memberFields.phoneNumber.trim(),
+          gender: memberFields.gender,
+          birthPlace: memberFields.birthPlace.trim(),
+          birthDate: memberFields.birthDate,
+          address: memberFields.address.trim(),
+          currentRank: memberFields.currentRank || DEFAULT_MEMBER_RANK,
+        }),
     });
 
     const data = await res.json();
@@ -195,6 +197,7 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
         onChange={setMemberField}
         suggestions={suggestions}
         duplicateBlocked={duplicateBlocked}
+        requireCompleteIdentity
       />
 
       <MemberBeltSection
