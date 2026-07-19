@@ -52,9 +52,9 @@ function resolveTitle(pathname: string, showAdmin: boolean) {
   return match ? map[match] : showAdmin ? "Admin Panel" : "Dashboard Anggota";
 }
 
-/** Parent path for admin back: `/admin` → `/`; `/admin/pengaturan/ranting` → `/admin/pengaturan`. */
-function resolveAdminBackHref(pathname: string): string {
-  if (!pathname.startsWith("/admin") || pathname === "/admin") return "/";
+/** Parent path for admin back (hidden on beranda). Nested e.g. `/admin/pengaturan/ranting` → `/admin/pengaturan`. */
+function resolveAdminBackHref(pathname: string): string | null {
+  if (!pathname.startsWith("/admin") || pathname === "/admin") return null;
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length <= 1) return "/admin";
   segments.pop();
@@ -87,10 +87,8 @@ export function DashboardTopbar({
         {backHref ? (
           <Link
             href={backHref}
-            prefetch={backHref.startsWith("/admin")}
-            onClick={() => {
-              if (backHref.startsWith("/admin")) startNavigation(backHref);
-            }}
+            prefetch
+            onClick={() => startNavigation(backHref)}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted/80 text-foreground transition-colors hover:bg-muted"
             aria-label="Kembali"
           >
