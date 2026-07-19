@@ -116,7 +116,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Carousel Beranda | Upload gambar + aktif + **urutkan** |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
 | Notifikasi | Inbox admin (ada di nav) |
-| Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; multi-akun (Akun), kebijakan, peran (**preset**), geofencing (**pratinjau peta**), akun |
+| Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; **admin ranting** juga ubah **email/password** sendiri di form Ubah Data; multi-akun (Akun), kebijakan, peran (**preset**), geofencing (**pratinjau peta**), akun |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
@@ -269,7 +269,7 @@ Pusat / Nasional
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
 | Materi / Store / Pesan / Pindah / Piagam | Aktif | Pesan: unread + cari + broadcast notifikasi; store/materi upload |
 | RBAC wilayah | Diterapkan | Matriks tampil di Pengaturan & Role; multi-akun per cabang/ranting + PIC; **preset permission** |
-| Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC, serah terima; **email/password PIC** di form Ubah Data ranting (cabang); geofence + **pratinjau peta OSM**; degradasi username login: klasifikasi pool vs error lain, KPI/filter aman saat DB gagal; **multi-ranting per akun** (`AppSetting` + context switcher) |
+| Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC, serah terima; **email/password PIC** di form Ubah Data ranting (cabang); **admin ranting** ubah email/password sendiri di form Ubah Data; geofence + **pratinjau peta OSM**; degradasi username login: klasifikasi pool vs error lain, KPI/filter aman saat DB gagal; **multi-ranting per akun** (`AppSetting` + context switcher) |
 | Upload bukti iuran (anggota) | Aktif | `/dashboard/iuran` + `/api/member/billing/[id]` |
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` + `/api/member/attendance/checkin` |
 | Absensi admin | Aktif | Harian, belum hadir, rekap semester %, export CSV |
@@ -429,6 +429,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Beranda hero: lockup **Kota Surabaya** memakai emblem resmi Suro–Boyo (tanpa lingkaran emas) + Kota Pahlawan |
 | 19 Juli 2026 | Kelola Anggota: pencarian autocomplete (debounce, tanpa tombol Filter); ranting: nonaktif/aktif + hapus/arsip koreksi; cabang: hapus/arsip penuh |
 | 19 Juli 2026 | Multi-ranting per akun: AppSetting `user.managedDojos.*`, panel Akun (Multi/Tautkan), matriks cabang, context switcher anggota, RBAC `managedDojoIds` |
+| 19 Juli 2026 | Pengaturan admin ranting: form Ubah Data bisa ganti email & password login sendiri (PATCH self-service) |
 
 ---
 

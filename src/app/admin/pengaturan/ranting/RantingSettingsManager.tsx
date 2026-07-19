@@ -97,8 +97,10 @@ export function RantingSettingsManager({
   const [form, setForm] = useState({ ...emptyForm, branchId: defaultBranchId });
   const [detailDojoId, setDetailDojoId] = useState<string | null>(null);
   const [credential, setCredential] = useState<CredentialPayload | null>(null);
-  /** Cabang/pengprov: boleh ubah email & password login ranting di form data. */
-  const canEditCredentials = !selfManagedOnly;
+  /** Cabang/pengprov: kelola PIC ranting. Admin ranting: ubah email/password akun sendiri. */
+  const canEditCredentials = true;
+  /** Hanya cabang/pengprov yang boleh generate password & buat akun PIC baru. */
+  const canAdministerAccounts = !selfManagedOnly;
 
   useEffect(() => {
     if (!selfManagedOnly || dojos.length !== 1 || mode) return;
@@ -215,32 +217,29 @@ export function RantingSettingsManager({
     const password = form.adminPassword;
     const passwordConfirm = form.adminPasswordConfirm;
 
-    if (canEditCredentials) {
-      if (password || passwordConfirm) {
-        if (password.length < 8) {
-          showError("Password minimal 8 karakter");
-          return;
-        }
-        if (password !== passwordConfirm) {
-          showError("Konfirmasi password tidak cocok");
-          return;
-        }
-        if (!email) {
-          showError("Isi email login jika mengatur password");
-          return;
-        }
+    if (password || passwordConfirm) {
+      if (password.length < 8) {
+        showError("Password minimal 8 karakter");
+        return;
+      }
+      if (password !== passwordConfirm) {
+        showError("Konfirmasi password tidak cocok");
+        return;
+      }
+      if (!email) {
+        showError("Isi email login jika mengatur password");
+        return;
       }
     }
 
     setLoading(true);
 
-    const credentials =
-      canEditCredentials && email
-        ? {
-            adminEmail: email,
-            ...(password ? { adminPassword: password } : {}),
-          }
-        : {};
+    const credentials = email
+      ? {
+          adminEmail: email,
+          ...(password ? { adminPassword: password } : {}),
+        }
+      : {};
 
     const payload =
       mode === "edit"
@@ -271,9 +270,7 @@ export function RantingSettingsManager({
             bankAccountNumber: form.bankAccountNumber,
             bankAccountName: form.bankAccountName,
             ...credentials,
-            ...(canEditCredentials && password
-              ? { adminPasswordConfirm: passwordConfirm }
-              : {}),
+            ...(password ? { adminPasswordConfirm: passwordConfirm } : {}),
           };
 
     const res = await fetch("/api/admin/pengaturan/ranting", {
@@ -296,12 +293,16 @@ export function RantingSettingsManager({
           loginPassword: data.loginPassword,
           hint: "Salin dan kirim ke pengurus ranting. Password tidak ditampilkan lagi setelah ditutup.",
         });
-      } else if (canEditCredentials && email && password) {
+      } else if (email && password) {
         setCredential({
-          title: `Login ranting — ${form.name || targetName}`,
+          title: selfManagedOnly
+            ? `Login Anda — ${form.name || targetName}`
+            : `Login ranting — ${form.name || targetName}`,
           loginEmail: email,
           loginPassword: password,
-          hint: "Salin dan kirim ke pengurus ranting. Password tidak ditampilkan lagi setelah ditutup.",
+          hint: selfManagedOnly
+            ? "Simpan email/password baru Anda. Password tidak ditampilkan lagi setelah ditutup."
+            : "Salin dan kirim ke pengurus ranting. Password tidak ditampilkan lagi setelah ditutup.",
         });
       }
       const newId =
@@ -310,7 +311,16 @@ export function RantingSettingsManager({
             (typeof data.data?.dojoId === "string" && data.data.dojoId) ||
             null
           : null;
-      resetPanel();
+      if (selfManagedOnly && mode === "edit") {
+        setForm((prev) => ({
+          ...prev,
+          adminPassword: "",
+          adminPasswordConfirm: "",
+          adminEmail: email || prev.adminEmail,
+        }));
+      } else {
+        resetPanel();
+      }
       if (newId && !email) {
         setDetailDojoId(newId);
       }
@@ -337,10 +347,10 @@ export function RantingSettingsManager({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           {selfManagedOnly
-            ? "Klik Ubah untuk memperbarui data ranting Anda."
+            ? "Perbarui data ranting serta email dan password login Anda."
             : "Data ranting + email/password login PIC. Multi-akun lewat tombol Akun (jabatan, serah terima)."}
         </p>
-        {!selfManagedOnly && (
+        {canAdministerAccounts && (
           <Button
             type="button"
             onClick={openCreate}
@@ -352,7 +362,7 @@ export function RantingSettingsManager({
         )}
       </div>
 
-      {!selfManagedOnly &&
+      {canAdministerAccounts &&
       (lockedBranchId || branches.length === 1) &&
       (lockedBranchId || branches[0]?.id) ? (
         <ManagedDojoMatrix
@@ -479,12 +489,16 @@ export function RantingSettingsManager({
               <div className="sm:col-span-2 border-t border-inkai-red/15 pt-3">
                 <h4 className="flex items-center gap-1.5 text-sm font-semibold">
                   <KeyRound className="h-4 w-4" />
-                  Login admin ranting (PIC)
+                  {selfManagedOnly
+                    ? "Email & password login"
+                    : "Login admin ranting (PIC)"}
                 </h4>
                 <p className="text-xs text-muted-foreground">
-                  {mode === "edit"
-                    ? "Ubah email atau set password baru untuk akun PIC. Kosongkan password jika hanya mengubah data/email."
-                    : "Opsional: buat akun login sekaligus. Bisa juga ditambah nanti lewat tombol Akun."}
+                  {selfManagedOnly
+                    ? "Ubah email atau set password baru untuk akun Anda. Kosongkan password jika hanya mengubah data/email."
+                    : mode === "edit"
+                      ? "Ubah email atau set password baru untuk akun PIC. Kosongkan password jika hanya mengubah data/email."
+                      : "Opsional: buat akun login sekaligus. Bisa juga ditambah nanti lewat tombol Akun."}
                 </p>
               </div>
               <div className="space-y-1.5 sm:col-span-2">
@@ -503,20 +517,22 @@ export function RantingSettingsManager({
                   <Label htmlFor="ranting-admin-password">
                     {mode === "edit" ? "Password baru" : "Password"}
                   </Label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs"
-                    onClick={fillGeneratedPassword}
-                    disabled={loading}
-                  >
-                    Generate
-                  </Button>
+                  {canAdministerAccounts ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={fillGeneratedPassword}
+                      disabled={loading}
+                    >
+                      Generate
+                    </Button>
+                  ) : null}
                 </div>
                 <Input
                   id="ranting-admin-password"
-                  type="text"
+                  type={selfManagedOnly ? "password" : "text"}
                   autoComplete="new-password"
                   placeholder={
                     mode === "edit" ? "Kosongkan jika tidak diganti" : "Min. 8 karakter"
@@ -531,7 +547,7 @@ export function RantingSettingsManager({
                 </Label>
                 <Input
                   id="ranting-admin-password-confirm"
-                  type="text"
+                  type={selfManagedOnly ? "password" : "text"}
                   autoComplete="new-password"
                   placeholder="Ulangi password"
                   value={form.adminPasswordConfirm}

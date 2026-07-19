@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
@@ -200,31 +201,33 @@ export async function PATCH(request: Request) {
     }
   }
 
-  if (parsed.data.adminEmail) {
+  const d = parsed.data;
+  const canSetPicCredentials = canAdministerRantingAccounts(authResult.user);
+  const isSelfDojoAdmin =
+    getPrimaryAdminRole(authResult.user.roles) === "ADMIN_DOJO";
+
+  if ((d.adminEmail || d.adminPassword) && !canSetPicCredentials && !isSelfDojoAdmin) {
+    return NextResponse.json(
+      { error: "Tidak diizinkan mengubah kredensial login ranting" },
+      { status: 403 },
+    );
+  }
+
+  if (d.adminEmail) {
     const existing = await prisma.user.findFirst({
       where: {
-        email: { equals: parsed.data.adminEmail, mode: "insensitive" },
+        email: { equals: d.adminEmail, mode: "insensitive" },
         isDeleted: false,
-        NOT: { managedDojoId: id },
+        NOT: canSetPicCredentials
+          ? { managedDojoId: id }
+          : { id: authResult.user.id },
       },
       select: { id: true },
     });
     if (existing) {
       return NextResponse.json(
-        { error: `Email ${parsed.data.adminEmail} sudah dipakai akun lain` },
+        { error: `Email ${d.adminEmail} sudah dipakai akun lain` },
         { status: 409 },
-      );
-    }
-  }
-
-  const d = parsed.data;
-
-  // Admin ranting hanya boleh ubah data profil ranting, bukan kredensial login
-  if (!canAdministerRantingAccounts(authResult.user)) {
-    if (d.adminEmail || d.adminPassword) {
-      return NextResponse.json(
-        { error: "Gunakan menu Akun Saya untuk mengubah kredensial login" },
-        { status: 403 },
       );
     }
   }
@@ -251,10 +254,8 @@ export async function PATCH(request: Request) {
     ...(d.bankAccountName !== undefined
       ? { bankAccountName: cleanOptional(d.bankAccountName) }
       : {}),
-    ...(canAdministerRantingAccounts(authResult.user) && d.adminEmail
-      ? { adminEmail: d.adminEmail }
-      : {}),
-    ...(canAdministerRantingAccounts(authResult.user) && d.adminPassword
+    ...(canSetPicCredentials && d.adminEmail ? { adminEmail: d.adminEmail } : {}),
+    ...(canSetPicCredentials && d.adminPassword
       ? { adminPassword: d.adminPassword }
       : {}),
   };
@@ -272,23 +273,86 @@ export async function PATCH(request: Request) {
     );
   }
 
+  // Admin ranting: ubah email/password akun sendiri (pola sama wilayah-accounts)
+  if (isSelfDojoAdmin && (d.adminEmail || d.adminPassword)) {
+    const nextEmail = d.adminEmail?.trim().toLowerCase();
+    const emailChanged =
+      Boolean(nextEmail) &&
+      nextEmail !== authResult.user.email.trim().toLowerCase();
+    const selfUpdates: { email?: string; passwordHash?: string } = {};
+    if (emailChanged && nextEmail) {
+      selfUpdates.email = nextEmail;
+    }
+    if (d.adminPassword) {
+      selfUpdates.passwordHash = await bcrypt.hash(d.adminPassword, 10);
+    }
+    if (Object.keys(selfUpdates).length > 0) {
+      await prisma.user.update({
+        where: { id: authResult.user.id },
+        data: selfUpdates,
+      });
+    }
+
+    if (emailChanged && nextEmail && authResult.token) {
+      try {
+        await inkaiFetch(
+          `/v1/org/dojos/${id}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({ adminEmail: nextEmail }),
+          },
+          authResult.token,
+        );
+      } catch {
+        // email lokal sudah diubah
+      }
+    }
+
+    if (d.adminPassword && authResult.token) {
+      try {
+        await inkaiFetch(
+          `/v1/org/dojos/${id}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              adminEmail: nextEmail || authResult.user.email,
+              adminPassword: d.adminPassword,
+            }),
+          },
+          authResult.token,
+        );
+      } catch {
+        // passwordHash lokal sudah diubah
+      }
+    }
+  }
+
   writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
     action: "SETTINGS_RANTING_UPDATE",
-    details: JSON.stringify({ dojoId: id, name: d.name }),
+    details: JSON.stringify({
+      dojoId: id,
+      name: d.name,
+      emailChanged: Boolean(d.adminEmail),
+      passwordChanged: Boolean(d.adminPassword),
+      selfService: isSelfDojoAdmin && !canSetPicCredentials,
+    }),
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token: authResult.token,
   });
 
+  const exposeCredentials =
+    (canSetPicCredentials || isSelfDojoAdmin) && d.adminEmail && d.adminPassword;
+
   return NextResponse.json({
     success: true,
     data: data.data,
-    message: "Ranting berhasil diperbarui",
-    ...(canAdministerRantingAccounts(authResult.user) &&
-    d.adminEmail &&
-    d.adminPassword
+    message: isSelfDojoAdmin && (d.adminEmail || d.adminPassword)
+      ? "Data ranting dan login berhasil diperbarui"
+      : "Ranting berhasil diperbarui",
+    ...(exposeCredentials
       ? {
           loginEmail: d.adminEmail,
           loginPassword: d.adminPassword,
