@@ -119,17 +119,18 @@ export default function KeamananSiberPage() {
             </h2>
           </div>
           <ul className="space-y-2 text-muted-foreground">
-            <li>• Rate limiting login, daftar, dan API — mencegah brute force.</li>
-            <li>• Validasi input ketat (Zod) dan kebijakan password kuat.</li>
+            <li>• Rate limiting login/daftar/API (Upstash bila dikonfigurasi; fallback memori per instance).</li>
+            <li>• Validasi input (Zod) dan kebijakan password kuat pada registrasi & reset.</li>
             <li>• Blokir akun PENDING sampai admin menyetujui pendaftaran.</li>
             <li>• Pendaftaran hanya untuk dojo Cabang Surabaya.</li>
             <li>• Security headers (CSP, HSTS, X-Frame-Options) di setiap halaman.</li>
-            <li>• Proteksi CVE middleware bypass dan CSRF same-origin pada API.</li>
+            <li>• CSRF same-origin ketat pada mutasi `/api/admin/*`; auth memakai pemeriksaan Origin/Referer longgar.</li>
+            <li>• RBAC wilayah + cek partisipan pesan; verifikasi gagal API tidak di-approve lokal.</li>
             <li>• Data anggota di Supabase PostgreSQL dengan enkripsi koneksi SSL.</li>
           </ul>
           <p className="mt-4 text-sm text-muted-foreground">
-            Laporkan aktivitas mencurigakan terkait akun INKAI Anda melalui
-            pengurus cabang atau admin dojo.
+            Proteksi terus diperkuat. Laporkan aktivitas mencurigakan melalui pengurus
+            cabang atau admin dojo. White hat dengan izin resmi tetap dihormati.
           </p>
         </CardContent>
       </Card>

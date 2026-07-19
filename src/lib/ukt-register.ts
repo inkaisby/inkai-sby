@@ -1,5 +1,6 @@
 import { inkaiFetch } from "@/lib/inkai-api/server";
 import {
+  buildUktSemesterWindow,
   buildUktWaiverMap,
   computeSemesterAttendance,
   formatUktRegistrationBlockers,
@@ -23,7 +24,12 @@ async function fetchMemberAttendancePct(
   });
   let { res, data } = await inkaiFetch(`/v1/attendance?${qs}`, {}, token);
   if (!res.ok) {
-    ({ res, data } = await inkaiFetch("/v1/attendance?limit=3000", {}, token));
+    const { semesterStart, semesterEnd } = buildUktSemesterWindow(semester, year);
+    ({ res, data } = await inkaiFetch(
+      `/v1/attendance?limit=800&from=${encodeURIComponent(semesterStart.toISOString())}&to=${encodeURIComponent(semesterEnd.toISOString())}`,
+      {},
+      token,
+    ));
   }
   if (!res.ok) return null;
 

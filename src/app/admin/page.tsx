@@ -7,6 +7,7 @@ import {
 } from "@/lib/rbac";
 import { fetchAdminDashboardBundle } from "@/lib/inkai-api/admin-data";
 import { requireAdminSession } from "@/lib/admin-session";
+import { getCachedAdminUnreadPesan } from "@/lib/admin-pesan-unread";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,6 @@ import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import { buildDefaultUktAdminUrl } from "@/lib/ukt";
 import { canAccessAdminPath } from "@/lib/admin-page-access";
-import { prisma, withPrismaFallback } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
@@ -65,22 +65,9 @@ async function AdminDashboardContent() {
   let unreadPesan = 0;
 
   try {
-    const [bundle, pesanUnread] = await Promise.all([
+    const [bundle, unreadPesanCount] = await Promise.all([
       fetchAdminDashboardBundle(token),
-      withPrismaFallback(
-        "admin-beranda-pesan-unread",
-        () =>
-          prisma.message.count({
-            where: {
-              isRead: false,
-              senderId: { not: session.user.id },
-              conversation: {
-                participants: { some: { id: session.user.id } },
-              },
-            },
-          }),
-        0,
-      ),
+      getCachedAdminUnreadPesan(session.user.id),
     ]);
 
     totalMembers = Number(bundle.stats?.totalMembers ?? 0);
@@ -93,7 +80,7 @@ async function AdminDashboardContent() {
     upcomingEvents = bundle.upcomingEvents;
     recentNotifications = bundle.notifications.items;
     unreadNotifications = bundle.notifications.unread;
-    unreadPesan = pesanUnread.data || 0;
+    unreadPesan = unreadPesanCount;
   } catch (error) {
     console.error("[AdminDashboard] API error:", error);
   }

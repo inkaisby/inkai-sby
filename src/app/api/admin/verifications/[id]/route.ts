@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { writeAuditLog } from "@/lib/audit";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { assertDojoInScope } from "@/lib/pengaturan";
 import { prisma } from "@/lib/prisma";
+import { getClientIp } from "@/lib/security/request";
 import { z } from "zod";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -71,7 +74,22 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const status = parsed.data.action === "approve" ? "APPROVED" : "REJECTED";
-  const local = await prisma.verification.findUnique({ where: { id } });
+  const local = await prisma.verification.findUnique({
+    where: { id },
+    include: {
+      member: { select: { id: true, dojoId: true, fullName: true } },
+    },
+  });
+
+  if (local?.member?.dojoId) {
+    const scoped = await assertDojoInScope(authResult.user, local.member.dojoId);
+    if (!scoped) {
+      return NextResponse.json(
+        { error: "Anggota di luar cakupan wilayah Anda" },
+        { status: 403 },
+      );
+    }
+  }
 
   const { res, data } = await inkaiFetch(
     `/v1/verifications/${id}/process`,
@@ -86,38 +104,16 @@ export async function PATCH(request: Request, context: RouteContext) {
   );
 
   if (!res.ok) {
-    // Fallback: proses klaim lokal (pindah dojo / piagam) bila API gagal
-    if (local && local.status === "PENDING") {
-      if (parsed.data.action === "approve") {
-        await applyDojoTransfer(local);
-      }
-      await prisma.verification.update({
-        where: { id },
-        data: {
-          status,
-          adminNotes: parsed.data.adminNotes ?? local.adminNotes,
-        },
-      });
-      await notifyVerificationResult({
-        memberId: local.memberId,
-        type: local.type,
-        approved: parsed.data.action === "approve",
-        adminNotes: parsed.data.adminNotes,
-        token: authResult.token,
-      });
-      return NextResponse.json({
-        success: true,
-        status,
-        message:
-          parsed.data.action === "approve"
-            ? "Verifikasi berhasil disetujui"
-            : "Verifikasi berhasil ditolak",
-      });
-    }
-
+    // Fail closed — jangan approve/reject lokal saat API sibuk/gagal (authz bypass risk)
+    const statusCode = res.status === 404 ? 404 : res.status >= 500 ? 503 : res.status;
     return NextResponse.json(
-      { error: inkaiErrorMessage(data, "Gagal memproses verifikasi") },
-      { status: res.status },
+      {
+        error: inkaiErrorMessage(
+          data,
+          "Gagal memproses verifikasi. Coba lagi saat API tersedia.",
+        ),
+      },
+      { status: statusCode },
     );
   }
 
@@ -144,7 +140,6 @@ export async function PATCH(request: Request, context: RouteContext) {
       .catch(() => null);
   }
 
-  // Notifikasi in-app + email (opsional Resend) ke anggota terkait
   if (local?.memberId) {
     await notifyVerificationResult({
       memberId: local.memberId,
@@ -154,6 +149,17 @@ export async function PATCH(request: Request, context: RouteContext) {
       token: authResult.token,
     });
   }
+
+  writeAuditLog({
+    token: authResult.token,
+    action:
+      parsed.data.action === "approve"
+        ? "ADMIN_VERIFICATION_APPROVE"
+        : "ADMIN_VERIFICATION_REJECT",
+    details: `verification=${id}; member=${local?.memberId ?? "?"}; type=${local?.type ?? "?"}`,
+    ip: getClientIp(request),
+    userAgent: request.headers.get("user-agent"),
+  });
 
   return NextResponse.json({
     success: true,

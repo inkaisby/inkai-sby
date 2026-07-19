@@ -13,7 +13,10 @@ export const registerSchema = z.object({
     .toLowerCase()
     .email("Format email tidak valid")
     .max(254),
-  password: z.string().min(1, "Password wajib diisi"),
+  password: z
+    .string()
+    .min(8, "Password minimal 8 karakter")
+    .max(128, "Password terlalu panjang"),
   dojoId: z.string().uuid("Dojo tidak valid"),
   nik: z
     .string()

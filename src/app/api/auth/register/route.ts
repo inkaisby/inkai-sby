@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import {
   assertJsonRequest,
-  assertSameOrigin,
+  assertSameOriginLoose,
   getClientIp,
 } from "@/lib/security/request";
 import { registerSchema } from "@/lib/security/schemas";
-import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
+import { validatePassword } from "@/lib/security/password";
 import { DEFAULT_MEMBER_RANK } from "@/lib/belt";
 import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
 import {
@@ -20,12 +21,15 @@ export async function POST(request: Request) {
     if (!assertJsonRequest(request)) {
       return NextResponse.json({ error: "Invalid request" }, { status: 415 });
     }
-    if (!assertSameOrigin(request)) {
+    if (!assertSameOriginLoose(request)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const ip = getClientIp(request);
-    const limit = rateLimit(`register:${ip}`, { max: 5, windowMs: 60 * 60 * 1000 });
+    const limit = await rateLimitAsync(`register:${ip}`, {
+      max: 5,
+      windowMs: 60 * 60 * 1000,
+    });
     if (!limit.success) return rateLimitResponse(limit.retryAfterSec ?? 300);
 
     const body = await request.json();
@@ -33,6 +37,14 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.issues[0]?.message || "Data tidak valid" },
+        { status: 400 },
+      );
+    }
+
+    const pwCheck = validatePassword(parsed.data.password);
+    if (!pwCheck.valid) {
+      return NextResponse.json(
+        { error: pwCheck.error || "Password tidak valid" },
         { status: 400 },
       );
     }

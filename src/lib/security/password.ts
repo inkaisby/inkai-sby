@@ -1,3 +1,5 @@
+import { randomInt } from "crypto";
+
 const BLOCKED_PASSWORDS = new Set([
   "password",
   "123456",
@@ -37,8 +39,21 @@ export function validatePassword(password: string): PasswordValidation {
 }
 
 /**
- * Simple memorable password from a name seed, e.g. "AIRLANGGA" → "Airlangga123".
- * Includes uppercase + lowercase + digits (backend-compatible).
+ * Deterministic UI hint only (e.g. "Pola: Name####"). Not for actual credentials.
+ */
+export function passwordPatternHint(seed?: string | null): string {
+  const raw = (seed || "Inkai").trim();
+  const firstToken =
+    raw.split(/[\s/|\\,_.-]+/).find((part) => /[a-zA-Z]/.test(part)) || "Inkai";
+  const lettersOnly = firstToken.replace(/[^a-zA-Z]/g, "") || "Inkai";
+  const base =
+    lettersOnly.charAt(0).toUpperCase() + lettersOnly.slice(1).toLowerCase();
+  return `${base}####`;
+}
+
+/**
+ * Memorable-ish temp password: Name + 4 random digits (not Name123).
+ * Callers should tell the user to change it after first login.
  */
 export function generateSimplePassword(seed?: string | null): string {
   const raw = (seed || "Inkai").trim();
@@ -47,11 +62,11 @@ export function generateSimplePassword(seed?: string | null): string {
   const lettersOnly = firstToken.replace(/[^a-zA-Z]/g, "") || "Inkai";
   const base =
     lettersOnly.charAt(0).toUpperCase() + lettersOnly.slice(1).toLowerCase();
-  let password = `${base}123`;
-  if (password.length < 8) {
-    password = `${base}${"12345678".slice(0, Math.max(0, 8 - base.length))}`;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const password = `${base}${randomInt(1000, 10000)}`;
+    if (validatePassword(password).valid) return password;
   }
-  return validatePassword(password).valid ? password : "InkaiSby123";
+  return `Inkai${randomInt(1000, 10000)}Sby`;
 }
 
 /** @deprecated Prefer generateSimplePassword for admin UX */

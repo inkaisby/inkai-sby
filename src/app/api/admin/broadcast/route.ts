@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { writeAuditLog } from "@/lib/audit";
 import { buildMemberFilter } from "@/lib/rbac";
 import { notifyUser } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
+import { getClientIp } from "@/lib/security/request";
 import { z } from "zod";
 
 const broadcastSchema = z.object({
@@ -11,6 +13,8 @@ const broadcastSchema = z.object({
   scope: z.enum(["all", "dojo"]).default("all"),
   dojoId: z.string().uuid().optional(),
 });
+
+const CHUNK = 25;
 
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
@@ -56,20 +60,32 @@ export async function POST(request: Request) {
 
   let sent = 0;
   let failed = 0;
-  for (const userId of userIds) {
-    try {
-      await notifyUser({
-        userId,
-        title,
-        content,
-        type: "INFO",
-        token: authResult.token,
-      });
-      sent += 1;
-    } catch {
-      failed += 1;
+  for (let i = 0; i < userIds.length; i += CHUNK) {
+    const chunk = userIds.slice(i, i + CHUNK);
+    const results = await Promise.allSettled(
+      chunk.map((userId) =>
+        notifyUser({
+          userId,
+          title,
+          content,
+          type: "INFO",
+          token: authResult.token,
+        }),
+      ),
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled") sent += 1;
+      else failed += 1;
     }
   }
+
+  writeAuditLog({
+    token: authResult.token,
+    action: "ADMIN_BROADCAST",
+    details: `scope=${scope}; dojo=${dojoId ?? "-"}; sent=${sent}; failed=${failed}`,
+    ip: getClientIp(request),
+    userAgent: request.headers.get("user-agent"),
+  });
 
   return NextResponse.json({
     message: `Broadcast terkirim ke ${sent} anggota${failed ? ` (${failed} gagal)` : ""}`,

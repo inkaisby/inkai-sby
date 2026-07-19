@@ -10,6 +10,7 @@ import {
   uktBaseFeeAmount,
   resolveUktSelectedPeriodId,
   computeSemesterAttendance,
+  buildUktSemesterWindow,
   buildUktExamResultMap,
   buildUktExamAttendanceMap,
   buildUktDepositMap,
@@ -116,6 +117,58 @@ export async function fetchAdminMembers(
     console.error("[fetchAdminMembers]", error);
     return { ok: false as const, error: "Gagal memuat anggota" };
   }
+}
+
+export type MemberStatusCounts = {
+  all: number;
+  pending: number;
+  active: number;
+  inactive: number;
+  rejected: number;
+};
+
+/** Satu query Prisma groupBy menggantikan 5× list Inkai untuk KPI. */
+export async function fetchAdminMemberStatusCounts(opts: {
+  dojoIds?: string[];
+  dojoId?: string;
+}): Promise<MemberStatusCounts> {
+  const dojoFilter =
+    opts.dojoIds && opts.dojoIds.length > 0
+      ? { dojoId: { in: opts.dojoIds } }
+      : opts.dojoId
+        ? { dojoId: opts.dojoId }
+        : {};
+
+  const result = await withPrismaFallback(
+    "admin-member-status-counts",
+    () =>
+      prisma.member.groupBy({
+        by: ["status"],
+        where: { isDeleted: false, ...dojoFilter },
+        _count: { _all: true },
+      }),
+    [] as Array<{ status: string; _count: { _all: number } }>,
+  );
+
+  const counts: MemberStatusCounts = {
+    all: 0,
+    pending: 0,
+    active: 0,
+    inactive: 0,
+    rejected: 0,
+  };
+
+  for (const row of result.data) {
+    const n = row._count._all;
+    counts.all += n;
+    const st = row.status.trim().toUpperCase();
+    if (st === "PENDING") counts.pending += n;
+    else if (st === "ACTIVE" || st === "AKTIF") counts.active += n;
+    else if (st === "INACTIVE" || st === "SUSPENDED") counts.inactive += n;
+    else if (st === "REJECTED") counts.rejected += n;
+  }
+
+  return counts;
 }
 
 /**
@@ -357,14 +410,33 @@ export async function fetchBillings(
 
 export async function fetchAttendanceLogs(
   token: string,
-  opts: { date?: string; limit?: number } = {},
+  opts: {
+    date?: string;
+    from?: string;
+    to?: string;
+    limit?: number;
+  } = {},
 ) {
   const qs = new URLSearchParams();
   qs.set("limit", String(opts.limit ?? 200));
   if (opts.date) qs.set("date", opts.date);
+  if (opts.from) qs.set("from", opts.from);
+  if (opts.to) qs.set("to", opts.to);
   const { res, data } = await inkaiFetch(`/v1/attendance?${qs}`, {}, token);
   if (!res.ok) return [];
-  return (data.data as Array<Record<string, unknown>>) ?? [];
+  let rows = (data.data as Array<Record<string, unknown>>) ?? [];
+
+  // Client-side window if API ignores from/to
+  if (opts.from || opts.to) {
+    const fromMs = opts.from ? new Date(opts.from).getTime() : Number.NEGATIVE_INFINITY;
+    const toMs = opts.to ? new Date(opts.to).getTime() : Number.POSITIVE_INFINITY;
+    rows = rows.filter((row) => {
+      const t = new Date(String(row.checkInAt ?? "")).getTime();
+      return Number.isFinite(t) && t >= fromMs && t <= toMs;
+    });
+  }
+
+  return rows;
 }
 
 export const fetchAdminEvents = cache(async (token: string, limit = 50) => {
@@ -561,6 +633,9 @@ export async function fetchUktDashboardData(
   },
 ) {
   const { periodFromUrl = null, semester, year, forceNoPeriod = false } = opts;
+  const { semesterStart, semesterEnd } = buildUktSemesterWindow(semester, year);
+  const attendanceFrom = semesterStart.toISOString();
+  const attendanceTo = semesterEnd.toISOString();
   const primaryRole = getPrimaryAdminRole(user.roles);
   const dojoAllowlist =
     primaryRole === "ADMIN_DOJO"
@@ -606,7 +681,11 @@ export async function fetchUktDashboardData(
     fetchUktKomisiRanting(token, UKT_KOMISI_SETTING_KEY, DEFAULT_KOMISI_RANTING),
     inkaiFetch("/v1/billing?limit=250", {}, token),
     inkaiFetch("/v1/verifications/pending", {}, token),
-    inkaiFetch("/v1/attendance?limit=3000", {}, token),
+    fetchAttendanceLogs(token, {
+      from: attendanceFrom,
+      to: attendanceTo,
+      limit: 800,
+    }),
     periodFromUrl ? fetchEventDetail(token, periodFromUrl) : Promise.resolve(null),
     periodFromUrl
       ? fetchSettingsByPrefix(token, `ukt-exam-result:${periodFromUrl}:`)
@@ -698,15 +777,13 @@ export async function fetchUktDashboardData(
     );
   }
 
-  const attendanceLogs = attendanceRes.res.ok
-    ? ((attendanceRes.data.data as Array<Record<string, unknown>>) ?? []).map((log) => {
-        const member = log.member as { id?: string } | undefined;
-        return {
-          checkInAt: String(log.checkInAt ?? log.createdAt ?? ""),
-          memberId: String(member?.id ?? log.memberId ?? ""),
-        };
-      })
-    : [];
+  const attendanceLogs = attendanceRes.map((log) => {
+    const member = log.member as { id?: string } | undefined;
+    return {
+      checkInAt: String(log.checkInAt ?? log.createdAt ?? ""),
+      memberId: String(member?.id ?? log.memberId ?? ""),
+    };
+  });
   const { countByMember, pctByMember } = computeSemesterAttendance(
     attendanceLogs,
     semester,

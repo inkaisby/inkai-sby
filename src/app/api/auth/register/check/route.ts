@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import {
   assertJsonRequest,
-  assertSameOrigin,
+  assertSameOriginLoose,
   getClientIp,
 } from "@/lib/security/request";
-import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import {
   findMemberDuplicates,
   hardDuplicates,
@@ -28,12 +28,12 @@ export async function POST(request: Request) {
     if (!assertJsonRequest(request)) {
       return NextResponse.json({ error: "Invalid request" }, { status: 415 });
     }
-    if (!assertSameOrigin(request)) {
+    if (!assertSameOriginLoose(request)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const ip = getClientIp(request);
-    const limit = rateLimit(`register-check:${ip}`, {
+    const limit = await rateLimitAsync(`register-check:${ip}`, {
       max: 30,
       windowMs: 15 * 60 * 1000,
     });

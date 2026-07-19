@@ -19,6 +19,7 @@ import {
   fetchAdminDojos,
   fetchAdminMembers,
   fetchAdminMembersForDojoIds,
+  fetchAdminMemberStatusCounts,
 } from "@/lib/inkai-api/admin-data";
 import {
   getManagedDojoIdsFromUser,
@@ -171,8 +172,7 @@ async function AdminAnggotaContent({
       ? [dojoId]
       : [];
 
-  const [result, dojos, pendingCount, activeCount, inactiveCount, rejectedCount, allCount] =
-    await Promise.all([
+  const [result, dojos, statusCounts] = await Promise.all([
       isDojoAdmin
         ? fetchAdminMembersForDojoIds(token, scopedDojoIds, memberFetchOpts)
         : fetchAdminMembers(token, {
@@ -188,65 +188,18 @@ async function AdminAnggotaContent({
             })),
           )
         : fetchAdminDojos(token),
-      isDojoAdmin
-        ? fetchAdminMembersForDojoIds(token, scopedDojoIds, {
-            page: 1,
-            limit: 1,
-            status: "PENDING",
-          })
-        : fetchAdminMembers(token, {
-            page: 1,
-            limit: 1,
-            status: "PENDING",
-            dojoId: dojoId || undefined,
-          }),
-      isDojoAdmin
-        ? fetchAdminMembersForDojoIds(token, scopedDojoIds, {
-            page: 1,
-            limit: 1,
-            status: "Active",
-          })
-        : fetchAdminMembers(token, {
-            page: 1,
-            limit: 1,
-            status: "Active",
-            dojoId: dojoId || undefined,
-          }),
-      isDojoAdmin
-        ? fetchAdminMembersForDojoIds(token, scopedDojoIds, {
-            page: 1,
-            limit: 1,
-            status: "INACTIVE",
-          })
-        : fetchAdminMembers(token, {
-            page: 1,
-            limit: 1,
-            status: "INACTIVE",
-            dojoId: dojoId || undefined,
-          }),
-      isDojoAdmin
-        ? fetchAdminMembersForDojoIds(token, scopedDojoIds, {
-            page: 1,
-            limit: 1,
-            status: "REJECTED",
-          })
-        : fetchAdminMembers(token, {
-            page: 1,
-            limit: 1,
-            status: "REJECTED",
-            dojoId: dojoId || undefined,
-          }),
-      isDojoAdmin
-        ? fetchAdminMembersForDojoIds(token, scopedDojoIds, {
-            page: 1,
-            limit: 1,
-          })
-        : fetchAdminMembers(token, {
-            page: 1,
-            limit: 1,
-            dojoId: dojoId || undefined,
-          }),
+      fetchAdminMemberStatusCounts(
+        isDojoAdmin
+          ? { dojoIds: scopedDojoIds }
+          : { dojoId: dojoId || undefined },
+      ),
     ]);
+
+  const pendingCount = { ok: true as const, total: statusCounts.pending };
+  const activeCount = { ok: true as const, total: statusCounts.active };
+  const inactiveCount = { ok: true as const, total: statusCounts.inactive };
+  const rejectedCount = { ok: true as const, total: statusCounts.rejected };
+  const allCount = { ok: true as const, total: statusCounts.all };
 
   let members = result.ok ? result.members : [];
   if (docs === "incomplete") {

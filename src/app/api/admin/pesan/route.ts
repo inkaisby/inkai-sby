@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { writeAuditLog } from "@/lib/audit";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
+import { getClientIp } from "@/lib/security/request";
 import { z } from "zod";
 
 const sendSchema = z.object({
@@ -49,33 +51,7 @@ export async function GET() {
     [],
   );
 
-  const all = await withPrismaFallback(
-    "admin-conversations-all",
-    () =>
-      prisma.conversation.findMany({
-        include: {
-          participants: {
-            select: {
-              id: true,
-              fullName: true,
-              email: true,
-              member: { select: { fullName: true, nia: true } },
-            },
-          },
-          messages: {
-            orderBy: { createdAt: "desc" },
-            take: 1,
-            include: { sender: { select: { id: true, fullName: true } } },
-          },
-        },
-        orderBy: { lastMessageAt: "desc" },
-        take: 50,
-      }),
-    [],
-  );
-
-  const mine = result.data as ConvRow[];
-  const list = (mine.length > 0 ? mine : (all.data as ConvRow[])) ?? [];
+  const list = (result.data as ConvRow[]) ?? [];
   const ids = list.map((c) => c.id);
 
   const unreadGroups =
@@ -123,10 +99,10 @@ export async function POST(request: Request) {
   }
 
   if (!conv.participants.some((p) => p.id === authResult.user.id)) {
-    await prisma.conversation.update({
-      where: { id: conv.id },
-      data: { participants: { connect: { id: authResult.user.id } } },
-    });
+    return NextResponse.json(
+      { error: "Anda bukan peserta percakapan ini" },
+      { status: 403 },
+    );
   }
 
   const message = await prisma.message.create({
@@ -144,7 +120,14 @@ export async function POST(request: Request) {
     data: { lastMessageAt: new Date() },
   });
 
-  // Notifikasi + email (jika RESEND_API_KEY) ke peserta lain
+  writeAuditLog({
+    token: authResult.token,
+    action: "ADMIN_PESAN_REPLY",
+    details: `conversation=${parsed.data.conversationId}`,
+    ip: getClientIp(request),
+    userAgent: request.headers.get("user-agent"),
+  });
+
   if (authResult.token) {
     const { notifyUser } = await import("@/lib/notifications");
     const recipients = conv.participants.filter((p) => p.id !== authResult.user.id);

@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
-import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import { getClientIp } from "@/lib/security/request";
 import { validatePassword } from "@/lib/security/password";
 
 export async function POST(request: Request) {
   try {
     const ip = getClientIp(request);
-    const limit = rateLimit(`reset:${ip}`, { max: 10, windowMs: 60 * 60 * 1000 });
+    const limit = await rateLimitAsync(`reset:${ip}`, { max: 10, windowMs: 60 * 60 * 1000 });
     if (!limit.success) return rateLimitResponse(limit.retryAfterSec ?? 300);
 
     const { token, password } = (await request.json()) as {

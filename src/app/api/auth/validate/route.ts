@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { inkaiFetch } from "@/lib/inkai-api/server";
-import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import {
   assertJsonRequest,
-  assertSameOrigin,
+  assertSameOriginLoose,
   getClientIp,
 } from "@/lib/security/request";
 
 export async function POST(request: Request) {
   try {
-    if (!assertSameOrigin(request)) {
+    if (!assertSameOriginLoose(request)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (!assertJsonRequest(request)) {
@@ -20,8 +20,8 @@ export async function POST(request: Request) {
     }
 
     const ip = getClientIp(request);
-    const ipLimit = rateLimit(`validate-login:${ip}`, {
-      max: 20,
+    const ipLimit = await rateLimitAsync(`validate-login:${ip}`, {
+      max: 10,
       windowMs: 15 * 60 * 1000,
     });
     if (!ipLimit.success) return rateLimitResponse(ipLimit.retryAfterSec ?? 60);
@@ -40,8 +40,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const loginLimit = rateLimit(`login:${identifier}`, {
-      max: 10,
+    const loginLimit = await rateLimitAsync(`login:${identifier.toLowerCase()}`, {
+      max: 8,
       windowMs: 15 * 60 * 1000,
     });
     if (!loginLimit.success) {

@@ -34,7 +34,7 @@ import {
   formatMemberName,
   formatRankLabel,
 } from "@/lib/belt";
-import { generateSimplePassword } from "@/lib/security/password";
+import { passwordPatternHint } from "@/lib/security/password";
 import {
   reasonLabel,
   statusKindLabel,
@@ -493,7 +493,7 @@ export function MembersTable({
     : typeof detail?.suggestedPassword === "string"
       ? detail.suggestedPassword
       : "";
-  const passwordAdminStyle = fullName ? generateSimplePassword(fullName) : "";
+  const passwordAdminStyle = fullName ? passwordPatternHint(fullName) : "";
 
   const unpaid = billings.filter((b) => b.status && b.status !== "PAID");
   const paidCount = billings.filter((b) => b.status === "PAID").length;

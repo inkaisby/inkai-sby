@@ -3,6 +3,15 @@ import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { inkaiFetch } from "@/lib/inkai-api/server";
 
+type NotifRow = {
+  id: string;
+  title?: string;
+  content?: string;
+  type?: string;
+  isRead?: boolean;
+  createdAt?: string;
+};
+
 export async function GET() {
   const session = await auth();
   const token = await getInkaiAccessToken();
@@ -15,8 +24,14 @@ export async function GET() {
     return NextResponse.json({ error: "Gagal memuat notifikasi" }, { status: res.status });
   }
 
-  const list = (data.data as unknown[]) ?? [];
-  return NextResponse.json({ data: list.slice(0, 50) });
+  const list = ((data.data as NotifRow[]) ?? []).slice(0, 50);
+  const unreadCount = list.filter((n) => !n.isRead).length;
+
+  return NextResponse.json({
+    data: list,
+    notifications: list,
+    unreadCount,
+  });
 }
 
 export async function PATCH(request: Request) {

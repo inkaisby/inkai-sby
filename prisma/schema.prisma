@@ -149,6 +149,9 @@ model Member {
   ranks                 MemberRank[]
   verifications         Verification[]
   storeOrders           StoreOrder[]
+
+  @@index([dojoId, status, isDeleted])
+  @@index([fullName])
 }
 
 model MemberRank {
@@ -179,6 +182,8 @@ model Attendance {
   event     Event?   @relation(fields: [eventId], references: [id])
 
   @@index([memberId, eventId])
+  @@index([checkInAt])
+  @@index([dojoId, checkInAt])
 }
 
 model Billing {
@@ -197,6 +202,9 @@ model Billing {
   isDeleted      Boolean  @default(false)
   member         Member   @relation(fields: [memberId], references: [id])
   payment        Payment?
+
+  @@index([memberId, status, isDeleted])
+  @@index([status, dueDate])
 }
 
 model Payment {
@@ -326,6 +334,9 @@ model Verification {
   updatedAt  DateTime @updatedAt
   event      Event?   @relation(fields: [eventId], references: [id])
   member     Member   @relation(fields: [memberId], references: [id])
+
+  @@index([status, createdAt])
+  @@index([memberId, type])
 }
 
 model Conversation {
@@ -346,6 +357,9 @@ model Message {
   createdAt      DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   sender         User         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, isRead, senderId])
+  @@index([isRead, senderId])
 }
 
 model AppSetting {

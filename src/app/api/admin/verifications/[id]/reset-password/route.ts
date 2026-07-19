@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { writeAuditLog } from "@/lib/audit";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { assertDojoInScope } from "@/lib/pengaturan";
 import { prisma } from "@/lib/prisma";
 import { validatePassword } from "@/lib/security/password";
+import { getClientIp } from "@/lib/security/request";
 import { z } from "zod";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -61,6 +64,16 @@ export async function POST(request: Request, context: RouteContext) {
     );
   }
 
+  if (claim.member.dojoId) {
+    const scoped = await assertDojoInScope(authResult.user, claim.member.dojoId);
+    if (!scoped) {
+      return NextResponse.json(
+        { error: "Anggota di luar cakupan wilayah Anda" },
+        { status: 403 },
+      );
+    }
+  }
+
   const { res: updateRes, data: updateData } = await inkaiFetch(
     `/v1/members/${claim.memberId}`,
     {
@@ -96,8 +109,15 @@ export async function POST(request: Request, context: RouteContext) {
     authResult.token,
   );
 
+  writeAuditLog({
+    token: authResult.token,
+    action: "ADMIN_PASSWORD_RESET_CLAIM",
+    details: `verification=${id}; member=${claim.memberId}`,
+    ip: getClientIp(request),
+    userAgent: request.headers.get("user-agent"),
+  });
+
   if (!processRes.ok) {
-    // Password already changed — still report partial success
     return NextResponse.json({
       success: true,
       warning: inkaiErrorMessage(

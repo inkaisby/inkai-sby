@@ -9,11 +9,16 @@ export async function GET(_request: Request, context: RouteContext) {
   if ("error" in authResult) return authResult.error;
 
   const { id } = await context.params;
+  const meId = authResult.user.id;
+
   const result = await withPrismaFallback(
     "admin-conversation-detail",
     () =>
-      prisma.conversation.findUnique({
-        where: { id },
+      prisma.conversation.findFirst({
+        where: {
+          id,
+          participants: { some: { id: meId } },
+        },
         include: {
           participants: {
             select: {
@@ -40,11 +45,11 @@ export async function GET(_request: Request, context: RouteContext) {
   await prisma.message.updateMany({
     where: {
       conversationId: id,
-      senderId: { not: authResult.user.id },
+      senderId: { not: meId },
       isRead: false,
     },
     data: { isRead: true },
   });
 
-  return NextResponse.json({ conversation: result.data, meId: authResult.user.id });
+  return NextResponse.json({ conversation: result.data, meId });
 }

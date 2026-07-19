@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import { getClientIp } from "@/lib/security/request";
 import { SITE_BRANCH_NAME } from "@/lib/site";
 
 export async function POST(request: Request) {
   try {
     const ip = getClientIp(request);
-    const limit = rateLimit(`forgot:${ip}`, { max: 5, windowMs: 60 * 60 * 1000 });
+    const limit = await rateLimitAsync(`forgot:${ip}`, { max: 5, windowMs: 60 * 60 * 1000 });
     if (!limit.success) return rateLimitResponse(limit.retryAfterSec ?? 300);
 
     const { email } = (await request.json()) as { email?: string };

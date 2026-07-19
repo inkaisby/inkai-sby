@@ -22,6 +22,19 @@ export function isBlobUploadConfigured() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
 }
 
+/** Only allow safe folder segments under inkai-sby/. */
+export function sanitizeUploadFolder(folder: string | undefined | null): string {
+  const raw = (folder || "pengurus").trim().toLowerCase();
+  const cleaned = raw
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((seg) => seg.replace(/[^a-z0-9_-]/g, "").slice(0, 32))
+    .filter((seg) => seg.length > 0 && seg !== "." && seg !== "..")
+    .slice(0, 4)
+    .join("/");
+  return cleaned || "pengurus";
+}
+
 export async function uploadAdminFile(
   file: File,
   folder = "pengurus",
@@ -34,9 +47,11 @@ export async function uploadAdminFile(
     );
   }
 
+  const safeFolder = sanitizeUploadFolder(folder);
   const safeName = file.name.replace(/[^\w.\-]+/g, "_").slice(0, 80);
-  const key = `inkai-sby/${folder}/${Date.now()}-${safeName}`;
+  const key = `inkai-sby/${safeFolder}/${Date.now()}-${safeName}`;
 
+  // Public Blob for QR/carousel compatibility; folder is sanitized against path traversal.
   const blob = await put(key, file, {
     access: "public",
     token: process.env.BLOB_READ_WRITE_TOKEN,

@@ -64,7 +64,7 @@ export function MemberCard({
 
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") refreshCard();
-    }, 15_000);
+    }, 60_000);
 
     return () => {
       document.removeEventListener("visibilitychange", onVisible);

@@ -111,50 +111,71 @@ export async function POST(request: Request) {
   let created = 0;
   let failed = 0;
   const errors: string[] = [];
+  const CHUNK = 15;
+  const queue = targets.slice(0, 200);
 
-  for (const m of targets.slice(0, 200)) {
-    const memberAmount =
-      typeof m.monthlyDuesAmount === "number" && Number.isFinite(m.monthlyDuesAmount)
-        ? m.monthlyDuesAmount
-        : amount;
-    const body = {
-      memberId: m.id,
-      type: "MONTHLY",
-      amount: memberAmount,
-      dueDate: dueDate.toISOString(),
-      description,
-    };
-
-    const { res, data } = await inkaiFetch(
-      "/v1/billing",
-      { method: "POST", body: JSON.stringify(body) },
-      authResult.token,
-    );
-
-    if (res.ok) {
-      created += 1;
-      continue;
-    }
-
-    // Fallback lokal bila Inkai menolak/tidak mendukung create
-    try {
-      await prisma.billing.create({
-        data: {
+  for (let i = 0; i < queue.length; i += CHUNK) {
+    const chunk = queue.slice(i, i + CHUNK);
+    const settled = await Promise.allSettled(
+      chunk.map(async (m) => {
+        const memberAmount =
+          typeof m.monthlyDuesAmount === "number" &&
+          Number.isFinite(m.monthlyDuesAmount)
+            ? m.monthlyDuesAmount
+            : amount;
+        const body = {
           memberId: m.id,
           type: "MONTHLY",
           amount: memberAmount,
+          dueDate: dueDate.toISOString(),
           description,
-          dueDate,
-          status: "PENDING",
-        },
-      });
-      created += 1;
-    } catch (e) {
-      failed += 1;
-      if (errors.length < 5) {
-        errors.push(
-          `${m.fullName}: ${inkaiErrorMessage(data, e instanceof Error ? e.message : "gagal")}`,
+        };
+
+        const { res, data } = await inkaiFetch(
+          "/v1/billing",
+          { method: "POST", body: JSON.stringify(body) },
+          authResult.token,
         );
+
+        if (res.ok) return { ok: true as const, name: m.fullName };
+
+        try {
+          await prisma.billing.create({
+            data: {
+              memberId: m.id,
+              type: "MONTHLY",
+              amount: memberAmount,
+              description,
+              dueDate,
+              status: "PENDING",
+            },
+          });
+          return { ok: true as const, name: m.fullName };
+        } catch (e) {
+          return {
+            ok: false as const,
+            name: m.fullName,
+            error: inkaiErrorMessage(
+              data,
+              e instanceof Error ? e.message : "gagal",
+            ),
+          };
+        }
+      }),
+    );
+
+    for (const r of settled) {
+      if (r.status === "fulfilled" && r.value.ok) {
+        created += 1;
+      } else {
+        failed += 1;
+        if (errors.length < 5) {
+          const msg =
+            r.status === "fulfilled"
+              ? `${r.value.name}: ${"error" in r.value ? r.value.error : "gagal"}`
+              : String(r.reason);
+          errors.push(msg);
+        }
       }
     }
   }

@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
-import { getClientIp } from "@/lib/security/request";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
+import {
+  assertSameOrigin,
+  getClientIp,
+  isMutatingMethod,
+} from "@/lib/security/request";
 
 const BLOCKED_HEADERS = ["x-middleware-subrequest"];
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   for (const header of BLOCKED_HEADERS) {
     if (request.headers.get(header)) {
       return new NextResponse("Forbidden", { status: 403 });
@@ -13,13 +17,22 @@ export function proxy(request: NextRequest) {
   }
 
   const { pathname } = request.nextUrl;
+  const ip = getClientIp(request);
+
+  if (
+    isMutatingMethod(request.method) &&
+    pathname.startsWith("/api/admin")
+  ) {
+    if (!assertSameOrigin(request)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
 
   if (
     request.method === "POST" &&
     (pathname.startsWith("/api/auth") || pathname === "/api/auth/register")
   ) {
-    const ip = getClientIp(request);
-    const limit = rateLimit(`auth-post:${ip}`, {
+    const limit = await rateLimitAsync(`auth-post:${ip}`, {
       max: 20,
       windowMs: 15 * 60 * 1000,
     });
@@ -30,8 +43,7 @@ export function proxy(request: NextRequest) {
   }
 
   if (request.method === "POST" && pathname === "/api/auth/register") {
-    const ip = getClientIp(request);
-    const limit = rateLimit(`register:${ip}`, {
+    const limit = await rateLimitAsync(`register:${ip}`, {
       max: 5,
       windowMs: 60 * 60 * 1000,
     });
@@ -41,11 +53,41 @@ export function proxy(request: NextRequest) {
     }
   }
 
+  if (request.method === "POST" && pathname === "/api/auth/validate") {
+    const limit = await rateLimitAsync(`auth-validate:${ip}`, {
+      max: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfterSec ?? 60);
+    }
+  }
+
+  if (pathname.startsWith("/api/auth/register/check")) {
+    const limit = await rateLimitAsync(`register-check:${ip}`, {
+      max: 30,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfterSec ?? 60);
+    }
+  }
+
+  if (pathname.startsWith("/v/")) {
+    const limit = await rateLimitAsync(`verify-card:${ip}`, {
+      max: 40,
+      windowMs: 60_000,
+    });
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfterSec ?? 60);
+    }
+  }
+
   const response = NextResponse.next();
   response.headers.set("X-Request-Id", crypto.randomUUID());
   return response;
 }
 
 export const config = {
-  matcher: ["/api/:path*", "/admin/:path*", "/dashboard/:path*"],
+  matcher: ["/api/:path*", "/admin/:path*", "/dashboard/:path*", "/v/:path*"],
 };

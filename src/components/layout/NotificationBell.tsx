@@ -40,7 +40,12 @@ export function NotificationBell({
 
   useEffect(() => {
     void fetchNotifications();
-    const interval = setInterval(() => void fetchNotifications(), 60_000);
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+      void fetchNotifications();
+    }, 120_000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 

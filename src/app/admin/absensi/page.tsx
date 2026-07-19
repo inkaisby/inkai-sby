@@ -66,7 +66,11 @@ async function AdminAbsensiContent({
   const [dayLogs, semesterLogs, membersResult] = await Promise.all([
     fetchAttendanceLogs(token, { date: dateStr, limit: 300 }),
     view === "rekap" || view === "belum"
-      ? fetchAttendanceLogs(token, { limit: 3000 })
+      ? fetchAttendanceLogs(token, {
+          from: new Date(year, semester === "II" ? 6 : 0, 1).toISOString(),
+          to: new Date(year, semester === "II" ? 12 : 6, 0, 23, 59, 59, 999).toISOString(),
+          limit: 800,
+        })
       : Promise.resolve([] as Array<Record<string, unknown>>),
     view === "belum" || view === "rekap"
       ? role === "ADMIN_DOJO"

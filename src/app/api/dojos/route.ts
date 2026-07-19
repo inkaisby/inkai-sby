@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { inkaiFetch } from "@/lib/inkai-api/server";
 import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
-import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import { getClientIp } from "@/lib/security/request";
 
 export async function GET(request: Request) {
   const ip = getClientIp(request);
-  const limit = rateLimit(`dojos:${ip}`, { max: 60, windowMs: 60_000 });
+  const limit = await rateLimitAsync(`dojos:${ip}`, { max: 60, windowMs: 60_000 });
   if (!limit.success) return rateLimitResponse(limit.retryAfterSec ?? 60);
 
   const provinces = await inkaiFetch("/v1/org/provinces", {}, null);

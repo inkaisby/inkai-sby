@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { writeAuditLog } from "@/lib/audit";
 import { canEditPengurus, getPrimaryAdminRole } from "@/lib/rbac";
+import { getClientIp } from "@/lib/security/request";
 import { isBlobUploadConfigured, uploadAdminFile } from "@/lib/upload";
 
 export async function GET() {
@@ -35,6 +37,13 @@ export async function POST(request: Request) {
 
   try {
     const result = await uploadAdminFile(file, folder);
+    writeAuditLog({
+      token: authResult.token,
+      action: "ADMIN_UPLOAD",
+      details: `folder=${folder}; pathname=${result.pathname}; type=${file.type}; size=${file.size}`,
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+    });
     return NextResponse.json({
       success: true,
       url: result.url,
