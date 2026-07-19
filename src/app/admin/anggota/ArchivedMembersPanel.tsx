@@ -29,6 +29,7 @@ import {
 import { canSoftDeleteMembers, isCabangAdmin } from "@/lib/wilayah-rbac";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { postMemberBulkChunked } from "@/lib/member-bulk-client";
+import { BulkProgressBar } from "@/components/admin/BulkProgressBar";
 import { MemberActions } from "./MemberActions";
 
 type ArchivedRow = {
@@ -59,6 +60,11 @@ export function ArchivedMembersPanel({
   const [dialogKind, setDialogKind] = useState<DialogKind>(null);
   const [confirmPhrase, setConfirmPhrase] = useState("");
   const [acting, setActing] = useState(false);
+  const [progress, setProgress] = useState({
+    percent: 0,
+    done: 0,
+    total: 0,
+  });
 
   const canRestore = isCabangAdmin(userRoles);
   const canPurge = canSoftDeleteMembers(userRoles);
@@ -89,10 +95,6 @@ export function ArchivedMembersPanel({
     void load();
   }, [load]);
 
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [rows]);
-
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -111,8 +113,10 @@ export function ArchivedMembersPanel({
   }
 
   function closeDialog() {
+    if (acting) return;
     setDialogKind(null);
     setConfirmPhrase("");
+    setProgress({ percent: 0, done: 0, total: 0 });
   }
 
   async function submitPurge() {
@@ -121,18 +125,31 @@ export function ArchivedMembersPanel({
       return;
     }
     setActing(true);
-    const result = await postMemberBulkChunked({
-      action: "purge",
-      memberIds: [...selectedIds],
-      confirmPhrase: confirmPhrase.trim(),
-    });
+    setProgress({ percent: 0, done: 0, total: selectedIds.size });
+    const result = await postMemberBulkChunked(
+      {
+        action: "purge",
+        memberIds: [...selectedIds],
+        confirmPhrase: confirmPhrase.trim(),
+      },
+      {
+        onProgress: (p) =>
+          setProgress({
+            percent: p.percent,
+            done: p.done,
+            total: p.total,
+          }),
+      },
+    );
     setActing(false);
     if (!result.ok && result.okCount === 0) {
       showError(result.error || "Gagal hapus permanen");
       return;
     }
     showSuccess(result.message || "Berhasil dihapus");
-    closeDialog();
+    setDialogKind(null);
+    setConfirmPhrase("");
+    setProgress({ percent: 0, done: 0, total: 0 });
     setSelectedIds(new Set());
     void load();
     router.refresh();
@@ -140,17 +157,29 @@ export function ArchivedMembersPanel({
 
   async function submitRestore() {
     setActing(true);
-    const result = await postMemberBulkChunked({
-      action: "restore",
-      memberIds: [...selectedIds],
-    });
+    setProgress({ percent: 0, done: 0, total: selectedIds.size });
+    const result = await postMemberBulkChunked(
+      {
+        action: "restore",
+        memberIds: [...selectedIds],
+      },
+      {
+        onProgress: (p) =>
+          setProgress({
+            percent: p.percent,
+            done: p.done,
+            total: p.total,
+          }),
+      },
+    );
     setActing(false);
     if (!result.ok && result.okCount === 0) {
       showError(result.error || "Gagal memulihkan");
       return;
     }
     showSuccess(result.message || "Berhasil dipulihkan");
-    closeDialog();
+    setDialogKind(null);
+    setProgress({ percent: 0, done: 0, total: 0 });
     setSelectedIds(new Set());
     void load();
     router.refresh();
@@ -327,7 +356,7 @@ export function ArchivedMembersPanel({
           if (!open) closeDialog();
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" showCloseButton={!acting}>
           <DialogHeader>
             <DialogTitle>
               Hapus permanen {selectedIds.size} anggota arsip?
@@ -344,18 +373,27 @@ export function ArchivedMembersPanel({
               </div>
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground">
-              Ketik <span className="font-medium text-foreground">HAPUS</span>
-            </label>
-            <Input
-              value={confirmPhrase}
-              onChange={(e) => setConfirmPhrase(e.target.value)}
-              placeholder="HAPUS"
-              autoComplete="off"
-              disabled={acting}
+          {acting ? (
+            <BulkProgressBar
+              percent={progress.percent}
+              done={progress.done}
+              total={progress.total}
+              label="Menghapus permanen…"
             />
-          </div>
+          ) : (
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">
+                Ketik <span className="font-medium text-foreground">HAPUS</span>
+              </label>
+              <Input
+                value={confirmPhrase}
+                onChange={(e) => setConfirmPhrase(e.target.value)}
+                placeholder="HAPUS"
+                autoComplete="off"
+                disabled={acting}
+              />
+            </div>
+          )}
           <DialogFooter>
             <Button
               type="button"
@@ -373,7 +411,7 @@ export function ArchivedMembersPanel({
               }
               onClick={() => void submitPurge()}
             >
-              {acting ? "Menghapus…" : "Hapus permanen"}
+              {acting ? `${progress.percent}%` : "Hapus permanen"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -385,7 +423,7 @@ export function ArchivedMembersPanel({
           if (!open) closeDialog();
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md" showCloseButton={!acting}>
           <DialogHeader>
             <DialogTitle>
               Pulihkan {selectedIds.size} anggota dari arsip?
@@ -395,6 +433,14 @@ export function ArchivedMembersPanel({
               kembali setelah dicek.
             </DialogDescription>
           </DialogHeader>
+          {acting ? (
+            <BulkProgressBar
+              percent={progress.percent}
+              done={progress.done}
+              total={progress.total}
+              label="Memulihkan anggota…"
+            />
+          ) : null}
           <DialogFooter>
             <Button
               type="button"
@@ -410,7 +456,7 @@ export function ArchivedMembersPanel({
               disabled={acting}
               onClick={() => void submitRestore()}
             >
-              {acting ? "Memulihkan…" : "Pulihkan semua"}
+              {acting ? `${progress.percent}%` : "Pulihkan semua"}
             </Button>
           </DialogFooter>
         </DialogContent>

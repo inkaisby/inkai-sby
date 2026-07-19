@@ -20,6 +20,7 @@ import {
 } from "@/lib/member-lifecycle";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { postMemberBulkChunked } from "@/lib/member-bulk-client";
+import { BulkProgressBar } from "@/components/admin/BulkProgressBar";
 
 type DialogKind = "deactivate" | "delete" | null;
 
@@ -35,6 +36,11 @@ export function BulkDeactivateBar({
   const router = useRouter();
   const [dialogKind, setDialogKind] = useState<DialogKind>(null);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState({
+    percent: 0,
+    done: 0,
+    total: 0,
+  });
   const [statusKind, setStatusKind] = useState<MemberStatusKind>("INACTIVE");
   const [reasonCode, setReasonCode] =
     useState<DeactivateReasonCode>("BERHENTI_LATIHAN");
@@ -44,11 +50,13 @@ export function BulkDeactivateBar({
   if (selectedIds.length === 0) return null;
 
   function closeDialog() {
+    if (loading) return;
     setDialogKind(null);
     setConfirmPhrase("");
     setReasonNote("");
     setStatusKind("INACTIVE");
     setReasonCode("BERHENTI_LATIHAN");
+    setProgress({ percent: 0, done: 0, total: 0 });
   }
 
   async function approvePending() {
@@ -57,10 +65,21 @@ export function BulkDeactivateBar({
       return;
     }
     setLoading(true);
-    const result = await postMemberBulkChunked({
-      action: "approve",
-      memberIds: pendingIds,
-    });
+    setProgress({ percent: 0, done: 0, total: pendingIds.length });
+    const result = await postMemberBulkChunked(
+      {
+        action: "approve",
+        memberIds: pendingIds,
+      },
+      {
+        onProgress: (p) =>
+          setProgress({
+            percent: p.percent,
+            done: p.done,
+            total: p.total,
+          }),
+      },
+    );
     setLoading(false);
     if (!result.ok && result.okCount === 0) {
       showError(result.error || "Gagal approve");
@@ -73,13 +92,24 @@ export function BulkDeactivateBar({
 
   async function submitDeactivate() {
     setLoading(true);
-    const result = await postMemberBulkChunked({
-      action: "deactivate",
-      memberIds: selectedIds,
-      statusKind,
-      reasonCode,
-      reasonNote: reasonNote.trim() || undefined,
-    });
+    setProgress({ percent: 0, done: 0, total: selectedIds.length });
+    const result = await postMemberBulkChunked(
+      {
+        action: "deactivate",
+        memberIds: selectedIds,
+        statusKind,
+        reasonCode,
+        reasonNote: reasonNote.trim() || undefined,
+      },
+      {
+        onProgress: (p) =>
+          setProgress({
+            percent: p.percent,
+            done: p.done,
+            total: p.total,
+          }),
+      },
+    );
     setLoading(false);
     if (!result.ok && result.okCount === 0) {
       showError(result.error || "Gagal nonaktif massal");
@@ -97,18 +127,31 @@ export function BulkDeactivateBar({
       return;
     }
     setLoading(true);
-    const result = await postMemberBulkChunked({
-      action: "delete",
-      memberIds: selectedIds,
-      confirmPhrase: confirmPhrase.trim(),
-    });
+    setProgress({ percent: 0, done: 0, total: selectedIds.length });
+    const result = await postMemberBulkChunked(
+      {
+        action: "delete",
+        memberIds: selectedIds,
+        confirmPhrase: confirmPhrase.trim(),
+      },
+      {
+        onProgress: (p) =>
+          setProgress({
+            percent: p.percent,
+            done: p.done,
+            total: p.total,
+          }),
+      },
+    );
     setLoading(false);
     if (!result.ok && result.okCount === 0) {
       showError(result.error || "Gagal arsip massal");
       return;
     }
     showSuccess(result.message || "Bulk arsip selesai");
-    closeDialog();
+    setDialogKind(null);
+    setConfirmPhrase("");
+    setProgress({ percent: 0, done: 0, total: 0 });
     onClear();
     router.refresh();
   }
@@ -121,7 +164,13 @@ export function BulkDeactivateBar({
           dipilih
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={onClear}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={loading}
+            onClick={onClear}
+          >
             Batal
           </Button>
           {pendingIds.length > 0 ? (
@@ -140,6 +189,7 @@ export function BulkDeactivateBar({
             size="sm"
             variant="outline"
             className="border-destructive/40 text-destructive hover:bg-destructive/10"
+            disabled={loading}
             onClick={() => setDialogKind("delete")}
           >
             Hapus / arsipkan
@@ -148,6 +198,7 @@ export function BulkDeactivateBar({
             type="button"
             size="sm"
             variant="destructive"
+            disabled={loading}
             onClick={() => setDialogKind("deactivate")}
           >
             Nonaktifkan terpilih
@@ -161,7 +212,10 @@ export function BulkDeactivateBar({
           if (!open) closeDialog();
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          className="sm:max-w-md"
+          showCloseButton={!loading}
+        >
           <DialogHeader>
             <DialogTitle>
               Nonaktifkan {selectedIds.length} anggota?
@@ -172,6 +226,14 @@ export function BulkDeactivateBar({
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            {loading ? (
+              <BulkProgressBar
+                percent={progress.percent}
+                done={progress.done}
+                total={progress.total}
+                label="Menonaktifkan anggota…"
+              />
+            ) : null}
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Jenis</label>
               <select
@@ -180,6 +242,7 @@ export function BulkDeactivateBar({
                   setStatusKind(e.target.value as MemberStatusKind)
                 }
                 className="h-9 w-full rounded-lg border px-2 text-sm"
+                disabled={loading}
               >
                 <option value="INACTIVE">Nonaktif</option>
                 <option value="SUSPENDED">Ditangguhkan</option>
@@ -193,6 +256,7 @@ export function BulkDeactivateBar({
                   setReasonCode(e.target.value as DeactivateReasonCode)
                 }
                 className="h-9 w-full rounded-lg border px-2 text-sm"
+                disabled={loading}
               >
                 {DEACTIVATE_REASON_CODES.map((code) => (
                   <option key={code} value={code}>
@@ -207,6 +271,7 @@ export function BulkDeactivateBar({
                 value={reasonNote}
                 onChange={(e) => setReasonNote(e.target.value)}
                 placeholder="Opsional"
+                disabled={loading}
               />
             </div>
           </div>
@@ -237,7 +302,10 @@ export function BulkDeactivateBar({
           if (!open) closeDialog();
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          className="sm:max-w-md"
+          showCloseButton={!loading}
+        >
           <DialogHeader>
             <DialogTitle>
               Hapus / arsipkan {selectedIds.length} anggota?
@@ -255,18 +323,28 @@ export function BulkDeactivateBar({
               </div>
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-1.5">
-            <label className="text-xs text-muted-foreground">
-              Ketik <span className="font-medium text-foreground">ARSIPKAN</span>
-            </label>
-            <Input
-              value={confirmPhrase}
-              onChange={(e) => setConfirmPhrase(e.target.value)}
-              placeholder="ARSIPKAN"
-              autoComplete="off"
-              disabled={loading}
+          {loading ? (
+            <BulkProgressBar
+              percent={progress.percent}
+              done={progress.done}
+              total={progress.total}
+              label="Mengarsipkan anggota…"
             />
-          </div>
+          ) : (
+            <div className="space-y-1.5">
+              <label className="text-xs text-muted-foreground">
+                Ketik{" "}
+                <span className="font-medium text-foreground">ARSIPKAN</span>
+              </label>
+              <Input
+                value={confirmPhrase}
+                onChange={(e) => setConfirmPhrase(e.target.value)}
+                placeholder="ARSIPKAN"
+                autoComplete="off"
+                disabled={loading}
+              />
+            </div>
+          )}
           <DialogFooter>
             <Button
               type="button"
@@ -284,7 +362,7 @@ export function BulkDeactivateBar({
               }
               onClick={() => void submitDelete()}
             >
-              {loading ? "Memproses…" : "Arsipkan semua"}
+              {loading ? `${progress.percent}%` : "Arsipkan semua"}
             </Button>
           </DialogFooter>
         </DialogContent>

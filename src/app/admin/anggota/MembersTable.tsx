@@ -44,6 +44,7 @@ import {
 import { canManageIuranByWilayah, canToggleMemberActive } from "@/lib/wilayah-rbac";
 import { MemberActions } from "./MemberActions";
 import { BulkDeactivateBar } from "./BulkDeactivateBar";
+import { usePersistedBulkSelection } from "./usePersistedBulkSelection";
 
 type MemberDetail = Record<string, unknown>;
 
@@ -293,7 +294,13 @@ export function MembersTable({
   const [rankSavingId, setRankSavingId] = useState<string | null>(null);
   const [duesSaving, setDuesSaving] = useState(false);
   const [duesDraft, setDuesDraft] = useState("");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const {
+    selectedIds,
+    pendingSelectedIds,
+    toggleSelect,
+    toggleSelectPage,
+    clearSelection,
+  } = usePersistedBulkSelection();
   const [dupCandidates, setDupCandidates] = useState<MergeCandidate[]>([]);
   const [mergeTarget, setMergeTarget] = useState<MergeCandidate | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
@@ -305,27 +312,18 @@ export function MembersTable({
     const s = m.status.trim().toUpperCase();
     return s === "ACTIVE" || s === "PENDING";
   });
-  const pendingSelected = [...selectedIds].filter((id) =>
-    members.some(
-      (m) => m.id === id && m.status.trim().toUpperCase() === "PENDING",
-    ),
-  );
+  const allPageSelected =
+    activeSelectable.length > 0 &&
+    activeSelectable.every((m) => selectedIds.has(m.id));
 
-  function toggleSelect(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  function onToggleSelect(id: string, status: string) {
+    toggleSelect(id, status);
   }
 
-  function toggleSelectAll() {
-    if (selectedIds.size === activeSelectable.length) {
-      setSelectedIds(new Set());
-      return;
-    }
-    setSelectedIds(new Set(activeSelectable.map((m) => m.id)));
+  function onToggleSelectAll() {
+    toggleSelectPage(
+      activeSelectable.map((m) => ({ id: m.id, status: m.status })),
+    );
   }
 
   async function openDetail(member: AdminMemberRow) {
@@ -511,12 +509,9 @@ export function MembersTable({
                   <input
                     type="checkbox"
                     className="h-4 w-4 accent-inkai-red"
-                    checked={
-                      activeSelectable.length > 0 &&
-                      selectedIds.size === activeSelectable.length
-                    }
-                    onChange={toggleSelectAll}
-                    aria-label="Pilih semua aktif"
+                    checked={allPageSelected}
+                    onChange={onToggleSelectAll}
+                    aria-label="Pilih semua di halaman ini"
                   />
                 </TableHead>
               ) : null}
@@ -542,7 +537,9 @@ export function MembersTable({
               </TableRow>
             ) : (
               members.map((m) => {
-                const isActiveRow = m.status.trim().toUpperCase() === "ACTIVE";
+                const statusKey = m.status.trim().toUpperCase();
+                const isSelectableRow =
+                  statusKey === "ACTIVE" || statusKey === "PENDING";
                 return (
                   <TableRow
                     key={m.id}
@@ -551,12 +548,12 @@ export function MembersTable({
                   >
                     {canBulk ? (
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        {isActiveRow ? (
+                        {isSelectableRow ? (
                           <input
                             type="checkbox"
                             className="h-4 w-4 accent-inkai-red"
                             checked={selectedIds.has(m.id)}
-                            onChange={() => toggleSelect(m.id)}
+                            onChange={() => onToggleSelect(m.id, m.status)}
                             aria-label={`Pilih ${m.fullName}`}
                           />
                         ) : null}
@@ -657,8 +654,8 @@ export function MembersTable({
       {canBulk ? (
         <BulkDeactivateBar
           selectedIds={[...selectedIds]}
-          pendingIds={pendingSelected}
-          onClear={() => setSelectedIds(new Set())}
+          pendingIds={pendingSelectedIds}
+          onClear={clearSelection}
         />
       ) : null}
 

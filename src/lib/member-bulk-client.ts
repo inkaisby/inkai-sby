@@ -1,5 +1,5 @@
-/** Pecah aksi bulk agar tidak kena batas validasi / timeout. */
-export const BULK_MEMBER_CHUNK_SIZE = 100;
+/** Pecah aksi bulk agar tidak timeout; chunk kecil = progress lebih halus. */
+export const BULK_MEMBER_CHUNK_SIZE = 25;
 
 export function chunkIds(ids: string[], size = BULK_MEMBER_CHUNK_SIZE): string[][] {
   if (ids.length === 0) return [];
@@ -9,6 +9,14 @@ export function chunkIds(ids: string[], size = BULK_MEMBER_CHUNK_SIZE): string[]
   }
   return chunks;
 }
+
+export type BulkProgress = {
+  done: number;
+  total: number;
+  percent: number;
+  okCount: number;
+  failCount: number;
+};
 
 type BulkResult = {
   ok: boolean;
@@ -22,7 +30,9 @@ type BulkResult = {
 /** Kirim POST /api/admin/members/bulk per chunk, gabungkan hasil. */
 export async function postMemberBulkChunked(
   payload: Record<string, unknown> & { memberIds: string[] },
+  opts?: { onProgress?: (p: BulkProgress) => void },
 ): Promise<BulkResult> {
+  const total = payload.memberIds.length;
   const chunks = chunkIds(payload.memberIds);
   let okCount = 0;
   let failCount = 0;
@@ -30,6 +40,14 @@ export async function postMemberBulkChunked(
   let lastError = "";
   let anyOk = false;
   let lastStatus = 400;
+
+  opts?.onProgress?.({
+    done: 0,
+    total,
+    percent: 0,
+    okCount: 0,
+    failCount: 0,
+  });
 
   for (const memberIds of chunks) {
     const res = await fetch("/api/admin/members/bulk", {
@@ -47,12 +65,23 @@ export async function postMemberBulkChunked(
     if (!res.ok) {
       lastError = data.error || "Gagal memproses bulk";
       failCount += memberIds.length;
-      continue;
+    } else {
+      anyOk = true;
+      okCount += Number(data.okCount ?? memberIds.length);
+      failCount += Number(data.failCount ?? 0);
+      lastMessage = data.message || lastMessage;
     }
-    anyOk = true;
-    okCount += Number(data.okCount ?? memberIds.length);
-    failCount += Number(data.failCount ?? 0);
-    lastMessage = data.message || lastMessage;
+
+    const done = Math.min(okCount + failCount, total);
+    const percent =
+      total === 0 ? 100 : Math.min(100, Math.round((done / total) * 100));
+    opts?.onProgress?.({
+      done,
+      total,
+      percent,
+      okCount,
+      failCount,
+    });
   }
 
   if (!anyOk) {
