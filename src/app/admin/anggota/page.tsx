@@ -44,8 +44,42 @@ import { AnggotaFiltersForm } from "./AnggotaFiltersForm";
 import { NormalizeMembersButton } from "./NormalizeMembersButton";
 import { ArchivedMembersPanel } from "./ArchivedMembersPanel";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { ExportCsvButton } from "@/components/admin/ExportCsvButton";
 import { canEditKyuBaru } from "@/lib/belt";
 import { canSoftDeleteMembers } from "@/lib/wilayah-rbac";
+import type { AdminMemberRow } from "@/lib/inkai-api/admin-data";
+
+/** Contoh: 19 Juli 2026 14:10 — untuk kolom Terdaftar di export CSV. */
+function formatExportDateTime(value: string | null | undefined) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  const date = d.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const time = d.toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return `${date} ${time}`;
+}
+
+function anggotaExportRows(members: AdminMemberRow[]) {
+  return members.map((m) => [
+    m.nia ?? "",
+    m.fullName,
+    m.status,
+    m.currentRank,
+    m.dojo?.name ?? "",
+    m.dojo?.branch?.name ?? "",
+    formatExportDateTime(m.createdAt),
+    m.birthCertificateUrl ? "Ada" : "Belum",
+    m.bpjsCardUrl ? "Ada" : "Belum",
+  ]);
+}
 
 export const dynamic = "force-dynamic";
 
@@ -371,7 +405,7 @@ async function AdminAnggotaContent({
         })}
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <AnggotaAddButton
           dojos={
             isDojoAdmin
@@ -393,6 +427,21 @@ async function AdminAnggotaContent({
             Lihat arsip
           </Link>
         ) : null}
+        <ExportCsvButton
+          filename="anggota-export.csv"
+          headers={[
+            "NIA",
+            "Nama",
+            "Status",
+            "Sabuk",
+            "Dojo",
+            "Cabang",
+            "Terdaftar",
+            "Dokumen Akte",
+            "Dokumen BPJS",
+          ]}
+          rows={anggotaExportRows(members)}
+        />
       </div>
 
       <AnggotaFiltersForm

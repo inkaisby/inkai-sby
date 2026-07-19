@@ -224,6 +224,7 @@ export async function fetchAdminMembersForDojoIds(
               branch: { select: { name: true } },
             },
           },
+          user: { select: { photoUrl: true } },
         },
         orderBy: { fullName: "asc" },
         skip: (page - 1) * limit,
@@ -244,7 +245,7 @@ export async function fetchAdminMembersForDojoIds(
       birthCertificateUrl: m.birthCertificateUrl,
       bpjsCardUrl: m.bpjsCardUrl,
       bpjsCardNumber: m.bpjsCardNumber,
-      photoUrl: m.photoUrl,
+      photoUrl: m.user?.photoUrl ?? null,
       createdAt: m.createdAt.toISOString(),
       monthlyDuesAmount: m.monthlyDuesAmount,
     }));

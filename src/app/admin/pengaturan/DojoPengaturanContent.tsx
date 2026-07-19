@@ -1,6 +1,8 @@
 import { requireAdminSession } from "@/lib/admin-session";
-import { fetchOrgStructure } from "@/lib/inkai-api/admin-data";
-import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
+import {
+  getManagedDojoIdsFromUser,
+  loadManagedDojoIds,
+} from "@/lib/managed-dojos";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { settingsUsernameLoadWarning, isPrismaBusyError } from "@/lib/prisma-errors";
 import { ROLE_LABELS } from "@/lib/rbac";
@@ -31,113 +33,160 @@ type RantingRow = {
 
 /** Satu halaman Pengaturan untuk admin ranting: data ranting + akun. */
 export async function DojoPengaturanContent() {
-  const { user, token } = await requireAdminSession();
-  const allowlist = getManagedDojoIdsFromUser(user);
-  const lockedDojoId = allowlist.length === 1 ? allowlist[0] : null;
+  const { user } = await requireAdminSession();
 
-  const { branches, dojos } = await fetchOrgStructure(token);
+  // Session + AppSetting; fallback DB jika JWT belum punya managedDojoId
+  let allowlist = getManagedDojoIdsFromUser(user);
 
-  let scopedBranches = branches.map((b) => ({
-    id: String(b.id),
-    name: String(b.name),
-  }));
-  let scopedDojos = dojos;
-
-  if (allowlist.length > 0) {
-    scopedDojos = dojos.filter((d) => allowlist.includes(String(d.id)));
-    const branchIds = new Set(
-      scopedDojos.map((d) => {
-        const branch = d.branch as { id?: string } | undefined;
-        return String(branch?.id || "");
-      }),
+  if (allowlist.length === 0) {
+    const dbIds = await withPrismaFallback(
+      "dojo-pengaturan-allowlist",
+      async () => {
+        const row = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { managedDojoId: true },
+        });
+        return loadManagedDojoIds(user.id, row?.managedDojoId ?? null);
+      },
+      [] as string[],
     );
-    scopedBranches = branches
-      .filter((b) => branchIds.has(String(b.id)))
-      .map((b) => ({ id: String(b.id), name: String(b.name) }));
-  } else {
-    scopedDojos = [];
+    allowlist = dbIds.data;
   }
 
-  const dojoIds = scopedDojos.map((d) => String(d.id));
   type AdminRow = {
     email: string;
     isActive: boolean;
     managedDojoId: string | null;
   };
-  let admins: AdminRow[] = [];
-  let adminLoadFailed = false;
-  let adminLoadError: unknown;
 
-  if (dojoIds.length) {
-    const adminsResult = await withPrismaFallback(
-      "dojo-pengaturan-admins",
+  const [dojosResult, adminsResult, dbUserResult] = await Promise.all([
+    allowlist.length === 0
+      ? Promise.resolve({
+          data: [] as Array<{
+            id: string;
+            name: string;
+            headName: string | null;
+            address: string | null;
+            phoneNumber: string | null;
+            schedule: string | null;
+            kecamatan: string | null;
+            tempatLatihan: string | null;
+            bankName: string | null;
+            bankAccountNumber: string | null;
+            bankAccountName: string | null;
+            branchId: string;
+            branch: { id: string; name: string } | null;
+            _count: { members: number };
+          }>,
+          failed: false,
+          error: undefined as unknown,
+        })
+      : withPrismaFallback(
+          "dojo-pengaturan-dojos",
+          () =>
+            prisma.dojo.findMany({
+              where: { id: { in: allowlist }, isDeleted: false },
+              select: {
+                id: true,
+                name: true,
+                headName: true,
+                address: true,
+                phoneNumber: true,
+                schedule: true,
+                kecamatan: true,
+                tempatLatihan: true,
+                bankName: true,
+                bankAccountNumber: true,
+                bankAccountName: true,
+                branchId: true,
+                branch: { select: { id: true, name: true } },
+                _count: { select: { members: true } },
+              },
+              orderBy: { name: "asc" },
+            }),
+          [],
+        ),
+    allowlist.length === 0
+      ? Promise.resolve({
+          data: [] as AdminRow[],
+          failed: false,
+          error: undefined as unknown,
+        })
+      : withPrismaFallback(
+          "dojo-pengaturan-admins",
+          () =>
+            prisma.user.findMany({
+              where: {
+                isDeleted: false,
+                managedDojoId: { in: allowlist },
+                roles: { some: { name: "ADMIN_DOJO" } },
+              },
+              select: {
+                email: true,
+                isActive: true,
+                managedDojoId: true,
+              },
+            }),
+          [] as AdminRow[],
+        ),
+    withPrismaFallback(
+      "dojo-pengaturan-akun",
       () =>
-        prisma.user.findMany({
-          where: {
-            isDeleted: false,
-            managedDojoId: { in: dojoIds },
-            roles: { some: { name: "ADMIN_DOJO" } },
-          },
+        prisma.user.findUnique({
+          where: { id: user.id },
           select: {
             email: true,
+            fullName: true,
+            phoneNumber: true,
             isActive: true,
-            managedDojoId: true,
+            roles: { select: { name: true } },
+            managedDojo: { select: { name: true } },
+            managedBranch: { select: { name: true } },
+            managedProvince: { select: { name: true } },
           },
         }),
-      [] as AdminRow[],
-    );
-    admins = adminsResult.data;
-    adminLoadFailed = adminsResult.failed;
-    adminLoadError = adminsResult.error;
-  }
+      null,
+    ),
+  ]);
 
+  const adminLoadFailed = adminsResult.failed;
   const adminByDojo = new Map(
-    admins
+    (adminsResult.data ?? [])
       .filter((a) => a.managedDojoId)
       .map((a) => [a.managedDojoId as string, a]),
   );
 
-  const rantingRows: RantingRow[] = scopedDojos.map((d) => {
-    const branch = d.branch as { id?: string; name?: string } | undefined;
-    const id = String(d.id);
-    const admin = adminByDojo.get(id);
+  const rantingRows: RantingRow[] = (dojosResult.data ?? []).map((d) => {
+    const admin = adminByDojo.get(d.id);
     return {
-      id,
-      name: String(d.name),
-      headName: (d.headName as string | null) ?? null,
-      address: (d.address as string | null) ?? null,
-      phoneNumber: (d.phoneNumber as string | null) ?? null,
-      schedule: (d.schedule as string | null) ?? null,
-      kecamatan: (d.kecamatan as string | null) ?? null,
-      tempatLatihan: (d.tempatLatihan as string | null) ?? null,
-      bankName: (d.bankName as string | null) ?? null,
-      bankAccountNumber: (d.bankAccountNumber as string | null) ?? null,
-      bankAccountName: (d.bankAccountName as string | null) ?? null,
-      branchId: branch?.id ? String(branch.id) : undefined,
-      branchName: branch?.name ? String(branch.name) : undefined,
-      memberCount: (d._count as { members?: number } | undefined)?.members ?? 0,
+      id: d.id,
+      name: d.name,
+      headName: d.headName,
+      address: d.address,
+      phoneNumber: d.phoneNumber,
+      schedule: d.schedule,
+      kecamatan: d.kecamatan,
+      tempatLatihan: d.tempatLatihan,
+      bankName: d.bankName,
+      bankAccountNumber: d.bankAccountNumber,
+      bankAccountName: d.bankAccountName,
+      branchId: d.branch?.id ?? d.branchId,
+      branchName: d.branch?.name,
+      memberCount: d._count.members,
       adminEmail: admin?.email ?? null,
       adminIsActive: admin?.isActive ?? null,
     };
   });
 
-  const dbUserResult = await withPrismaFallback(
-    "dojo-pengaturan-akun",
-    () =>
-      prisma.user.findUnique({
-        where: { id: user.id },
-        select: {
-          email: true,
-          fullName: true,
-          phoneNumber: true,
-          isActive: true,
-          roles: { select: { name: true } },
-          managedDojo: { select: { name: true } },
-          managedBranch: { select: { name: true } },
-          managedProvince: { select: { name: true } },
-        },
-      }),
-    null,
+  const scopedBranches = Array.from(
+    new Map(
+      rantingRows
+        .filter((r) => r.branchId)
+        .map((r) => [
+          r.branchId as string,
+          { id: r.branchId as string, name: r.branchName || "Cabang" },
+        ]),
+    ).values(),
   );
 
   const dbUser = dbUserResult.data;
@@ -145,6 +194,9 @@ export async function DojoPengaturanContent() {
     dbUser?.roles.map((r) => ROLE_LABELS[r.name] || r.name) ?? [];
   const scopeLabel =
     dbUser?.managedDojo?.name ||
+    (rantingRows.length > 1
+      ? `${rantingRows.length} ranting`
+      : rantingRows[0]?.name) ||
     dbUser?.managedBranch?.name ||
     dbUser?.managedProvince?.name ||
     "—";
@@ -164,7 +216,7 @@ export async function DojoPengaturanContent() {
           <h3 className="text-lg font-semibold">Data Ranting</h3>
         </div>
 
-        {!lockedDojoId ? (
+        {allowlist.length === 0 ? (
           <Card>
             <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
               <p>
@@ -177,13 +229,24 @@ export async function DojoPengaturanContent() {
               </p>
             </CardContent>
           </Card>
+        ) : dojosResult.failed ? (
+          <SettingsLoadWarning
+            message={
+              isPrismaBusyError(dojosResult.error)
+                ? "Data ranting sementara tidak bisa dimuat (database sibuk). Coba lagi sebentar."
+                : "Data ranting belum berhasil dimuat. Coba refresh sebentar lagi."
+            }
+          />
         ) : rantingRows.length === 0 ? (
-          <SettingsLoadWarning message="Data ranting belum berhasil dimuat. Coba refresh sebentar lagi." />
+          <SettingsLoadWarning message="Ranting terhubung tidak ditemukan atau sudah diarsipkan. Hubungi admin cabang." />
         ) : (
           <>
             {adminLoadFailed ? (
               <SettingsLoadWarning
-                message={settingsUsernameLoadWarning("ranting", adminLoadError)}
+                message={settingsUsernameLoadWarning(
+                  "ranting",
+                  adminsResult.error,
+                )}
               />
             ) : null}
             <RantingSettingsManager

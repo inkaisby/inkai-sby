@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -99,11 +99,14 @@ export function RantingSettingsManager({
   const [credential, setCredential] = useState<CredentialPayload | null>(null);
   /** Cabang/pengprov: boleh ubah email & password login ranting di form data. */
   const canEditCredentials = !selfManagedOnly;
+  const autoOpenedRef = useRef(false);
 
+  // Admin ranting: buka form Ubah Data otomatis (satu atau multi ranting).
   useEffect(() => {
-    if (!selfManagedOnly || dojos.length !== 1 || mode) return;
+    if (!selfManagedOnly || dojos.length === 0 || autoOpenedRef.current) return;
+    autoOpenedRef.current = true;
     openEdit(dojos[0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only auto-open once when single own dojo loads
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- auto-open once on mount
   }, [selfManagedOnly, dojos]);
 
   const targetDojo = useMemo(
@@ -310,9 +313,18 @@ export function RantingSettingsManager({
             (typeof data.data?.dojoId === "string" && data.data.dojoId) ||
             null
           : null;
-      resetPanel();
-      if (newId && !email) {
-        setDetailDojoId(newId);
+      if (selfManagedOnly && mode === "edit" && targetId) {
+        setTargetName(form.name);
+        setForm((prev) => ({
+          ...prev,
+          adminPassword: "",
+          adminPasswordConfirm: "",
+        }));
+      } else {
+        resetPanel();
+        if (newId && !email) {
+          setDetailDojoId(newId);
+        }
       }
       router.refresh();
     } else {
@@ -561,7 +573,7 @@ export function RantingSettingsManager({
               onClick={resetPanel}
               disabled={loading}
             >
-              Batal
+              {selfManagedOnly ? "Tutup" : "Batal"}
             </Button>
           </div>
         </form>

@@ -116,7 +116,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Carousel Beranda | Upload gambar + aktif + **urutkan** |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
 | Notifikasi | Inbox admin (ada di nav) |
-| Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; admin ranting ubah **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, peran (**preset**), geofencing (**pratinjau peta**), akun |
+| Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, peran (**preset**), geofencing (**pratinjau peta**), akun |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
@@ -435,6 +435,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Kelola Anggota: pencarian autocomplete (debounce, tanpa tombol Filter); ranting: nonaktif/aktif + hapus/arsip koreksi; cabang: hapus/arsip penuh |
 | 19 Juli 2026 | Ranting: kolom Aksi boleh **Hapus / arsipkan** untuk semua status (aktif/ber-NIA wajib ketik nama); API soft-delete selaras |
 | 19 Juli 2026 | Fix multi-ranting Kelola Anggota: tabel anggota selalu via Prisma (bukan Inkai API single-dojo) agar selaras KPI & pilihan ranting |
+| 19 Juli 2026 | Kelola Anggota: Export CSV digabung ke baris aksi (Tambah / Arsip), bukan baris terpisah di atas tabel |
+| 19 Juli 2026 | Pengaturan ranting: form Ubah Data lengkap (multi-dojo) via Prisma; tidak lagi salah tampil "managedDojoId kosong" saat >1 ranting |
 | 19 Juli 2026 | Multi-ranting per akun: AppSetting `user.managedDojos.*`, panel Akun (Multi/Tautkan), matriks cabang, context switcher anggota, RBAC `managedDojoIds` |
 | 19 Juli 2026 | Pengaturan admin ranting: hapus duplikat email/password di Ubah Data; ganti email+password hanya di Akun Saya |
 | 19 Juli 2026 | Paket keamanan+performa P0–P2: pesan IDOR ditutup; verifikasi fail-closed+scope; rate limit async/Upstash; CSRF admin; password register; audit upload/broadcast/verifikasi; cache badge pesan; KPI anggota groupBy; attendance scoped; chunk broadcast/generate; index Prisma; polling diperlambat |

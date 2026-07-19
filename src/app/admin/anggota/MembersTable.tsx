@@ -44,7 +44,6 @@ import {
 import { canManageIuranByWilayah, canToggleMemberActive } from "@/lib/wilayah-rbac";
 import { MemberActions } from "./MemberActions";
 import { BulkDeactivateBar } from "./BulkDeactivateBar";
-import { ExportCsvButton } from "@/components/admin/ExportCsvButton";
 
 type MemberDetail = Record<string, unknown>;
 
@@ -503,33 +502,6 @@ export function MembersTable({
 
   return (
     <>
-      <div className="mb-3 flex flex-wrap justify-end gap-2">
-        <ExportCsvButton
-          filename="anggota-export.csv"
-          headers={[
-            "NIA",
-            "Nama",
-            "Status",
-            "Sabuk",
-            "Dojo",
-            "Cabang",
-            "Terdaftar",
-            "Dokumen Akte",
-            "Dokumen BPJS",
-          ]}
-          rows={members.map((m) => [
-            m.nia ?? "",
-            m.fullName,
-            m.status,
-            m.currentRank,
-            m.dojo?.name ?? "",
-            m.dojo?.branch?.name ?? "",
-            formatDateTime(m.createdAt),
-            m.birthCertificateUrl ? "Ada" : "Belum",
-            m.bpjsCardUrl ? "Ada" : "Belum",
-          ])}
-        />
-      </div>
       <div className="overflow-x-auto rounded-xl border">
         <Table>
           <TableHeader>
