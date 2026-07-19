@@ -103,7 +103,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
-| Kelola Anggota | Cari **autocomplete**; kolom **No**; KPI status + **Dok. kurang** + **Tanpa NIA** (angka nyata); detail, NIA, dokumen; **Terdaftar**; **edit Iuran/bln**; nonaktif/bulk; **export CSV**; **bulk approve**; **hapus/arsip**; arsip purge/pulihkan; **KPI+daftar Prisma scoped**; KPI navigasi cepat (`startTransition`) |
+| Kelola Anggota | Cari **autocomplete**; kolom **No**; KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; nonaktif/bulk; CSV; arsip; Prisma scoped; KPI cepat |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran**, **arsip** |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
@@ -320,7 +320,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 
 ```
 /api/auth/*                 Login, register (+ identitas/sabuk lengkap), check-duplicate, forgot/reset password
-/api/admin/members/*        Kelola anggota (approve/NIA/set_rank/set_dues/nonaktif/aktif/hapus/restore/check-duplicate/merge)
+/api/admin/members/*        Kelola anggota (approve/NIA/set_rank/set_dues/set_documents/nonaktif/aktif/hapus/restore/check-duplicate/merge)
 /api/admin/members/bulk     Bulk nonaktif / approve / hapus-arsip (ARSIPKAN) / purge arsip (HAPUS) / restore
 /api/admin/members/archived Daftar arsip soft-delete
 /api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
@@ -330,6 +330,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/verifications/*  Proses klaim
 /api/admin/carousel/*       Carousel beranda
 /api/admin/upload           Upload ke Blob
+/api/admin/document-file    Proxy pratinjau dokumen anggota (modal + print)
 /api/admin/events           Buat event non-UKT (Cabang)
 /api/admin/events/[id]      Detail/roster + ubah/tutup event
 /api/member/profile          GET sabuk kartu (no-store) + PATCH profil
@@ -458,6 +459,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Kelola Anggota: kolom **No** (nomor urut lintas halaman) di tabel |
 | 19 Juli 2026 | Kelola Anggota: KPI card navigasi `startTransition` + prefetch (tanpa flash AdminLoading) |
 | 19 Juli 2026 | KPI **Dok. kurang** & **Tanpa NIA**: angka nyata (Prisma scoped) + filter daftar server-side |
+| 19 Juli 2026 | Kolom Dokumen anggota: modal pratinjau (ukuran + Print), bukan tab baru; proxy `/api/admin/document-file` |
+| 19 Juli 2026 | Admin upload Akte/BPJS di detail anggota (`set_documents` + Blob); sinkron Prisma + Inkai PATCH |
 
 ---
 

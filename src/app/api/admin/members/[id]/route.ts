@@ -141,6 +141,29 @@ export async function GET(_request: Request, context: RouteContext) {
     monthlyDuesAmount = localDues.data?.monthlyDuesAmount ?? 50_000;
   }
 
+  // Overlay dokumen dari Prisma lokal (sumber admin upload)
+  const localDocs = await withPrismaFallback(
+    "member-detail-docs",
+    () =>
+      prisma.member.findFirst({
+        where: { id },
+        select: {
+          birthCertificateUrl: true,
+          bpjsCardUrl: true,
+          bpjsCardNumber: true,
+        },
+      }),
+    null,
+  );
+  if (localDocs.data) {
+    member = {
+      ...member,
+      birthCertificateUrl: localDocs.data.birthCertificateUrl,
+      bpjsCardUrl: localDocs.data.bpjsCardUrl,
+      bpjsCardNumber: localDocs.data.bpjsCardNumber,
+    };
+  }
+
   return NextResponse.json({
     member: {
       ...member,
@@ -358,6 +381,119 @@ export async function PATCH(request: Request, context: RouteContext) {
       success: true,
       monthlyDuesAmount: amount,
       message: `Iuran/bln diperbarui: Rp ${amount.toLocaleString("id-ID")}`,
+    });
+  }
+
+  if (action === "set_documents") {
+    const hasAkte = Object.prototype.hasOwnProperty.call(
+      parsed.data,
+      "birthCertificateUrl",
+    );
+    const hasBpjs = Object.prototype.hasOwnProperty.call(
+      parsed.data,
+      "bpjsCardUrl",
+    );
+    const hasBpjsNo = Object.prototype.hasOwnProperty.call(
+      parsed.data,
+      "bpjsCardNumber",
+    );
+    if (!hasAkte && !hasBpjs && !hasBpjsNo) {
+      return NextResponse.json(
+        { error: "Tidak ada field dokumen yang diubah" },
+        { status: 400 },
+      );
+    }
+
+    const scoped = await prisma.member.findFirst({
+      where: {
+        AND: [{ id }, buildMemberFilter(authResult.user, { anyDeleted: true })],
+      },
+      select: {
+        id: true,
+        fullName: true,
+        birthCertificateUrl: true,
+        bpjsCardUrl: true,
+        bpjsCardNumber: true,
+      },
+    });
+    if (!scoped) {
+      return NextResponse.json(
+        { error: "Anggota tidak ditemukan di cakupan Anda" },
+        { status: 404 },
+      );
+    }
+
+    const normalizeUrl = (v: string | null | undefined) => {
+      if (v == null) return null;
+      const t = String(v).trim();
+      return t ? t : null;
+    };
+    const normalizeBpjsNo = (v: string | null | undefined) => {
+      if (v == null) return null;
+      const t = String(v).replace(/\s+/g, "").trim();
+      return t ? t : null;
+    };
+
+    const nextAkte = hasAkte
+      ? normalizeUrl(parsed.data.birthCertificateUrl)
+      : scoped.birthCertificateUrl;
+    const nextBpjs = hasBpjs
+      ? normalizeUrl(parsed.data.bpjsCardUrl)
+      : scoped.bpjsCardUrl;
+    const nextBpjsNo = hasBpjsNo
+      ? normalizeBpjsNo(parsed.data.bpjsCardNumber)
+      : scoped.bpjsCardNumber;
+
+    try {
+      await prisma.member.update({
+        where: { id },
+        data: {
+          birthCertificateUrl: nextAkte,
+          bpjsCardUrl: nextBpjs,
+          bpjsCardNumber: nextBpjsNo,
+        },
+      });
+    } catch (err) {
+      console.error("[set_documents] prisma update failed:", err);
+      return NextResponse.json(
+        { error: "Gagal menyimpan dokumen di database" },
+        { status: 500 },
+      );
+    }
+
+    const patchBody: Record<string, string | null> = {};
+    if (hasAkte) patchBody.birthCertificateUrl = nextAkte;
+    if (hasBpjs) patchBody.bpjsCardUrl = nextBpjs;
+    if (hasBpjsNo) patchBody.bpjsCardNumber = nextBpjsNo;
+
+    await inkaiFetch(
+      `/v1/members/${id}`,
+      { method: "PATCH", body: JSON.stringify(patchBody) },
+      token,
+    );
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "MEMBER_SET_DOCUMENTS",
+      details: JSON.stringify({
+        memberId: id,
+        fullName: scoped.fullName,
+        birthCertificateUrl: hasAkte ? nextAkte : undefined,
+        bpjsCardUrl: hasBpjs ? nextBpjs : undefined,
+        bpjsCardNumber: hasBpjsNo ? nextBpjsNo : undefined,
+      }),
+      ip,
+      userAgent,
+      token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      birthCertificateUrl: nextAkte,
+      bpjsCardUrl: nextBpjs,
+      bpjsCardNumber: nextBpjsNo,
+      message: "Dokumen anggota disimpan",
     });
   }
 

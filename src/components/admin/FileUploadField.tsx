@@ -11,6 +11,7 @@ export function FileUploadField({
   label,
   value,
   onChange,
+  onUploaded,
   folder = "pengurus",
   accept = "image/*,application/pdf",
   hint,
@@ -18,6 +19,8 @@ export function FileUploadField({
   label: string;
   value?: string;
   onChange: (url: string) => void;
+  /** Dipanggil hanya setelah unggah file berhasil (bukan saat ketik URL). */
+  onUploaded?: (url: string) => void;
   folder?: string;
   accept?: string;
   hint?: string;
@@ -38,7 +41,9 @@ export function FileUploadField({
         showError(data.error || "Gagal upload");
         return;
       }
-      onChange(String(data.url));
+      const url = String(data.url);
+      onChange(url);
+      onUploaded?.(url);
       showSuccess("File berhasil diunggah");
     } finally {
       setUploading(false);

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { Copy, Check, ExternalLink } from "lucide-react";
+import { Copy, Check, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +21,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
+import { DocumentPreviewDialog } from "@/components/admin/DocumentPreviewDialog";
+import { MemberDocumentsEditor } from "@/components/admin/MemberDocumentsEditor";
 import {
   MergeMemberDialog,
   type MergeCandidate,
@@ -151,27 +153,30 @@ function DetailRow({ label, value }: { label: string; value: ReactNode }) {
 function DocBadge({
   label,
   url,
+  onOpen,
 }: {
   label: string;
   url?: string | null;
+  onOpen?: (label: string, url: string) => void;
 }) {
-  if (url) {
+  if (url && onOpen) {
     return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onOpen(label, url);
+        }}
         className="inline-flex"
       >
         <Badge
           variant="outline"
-          className="gap-1 text-xs text-inkai-red hover:bg-inkai-red/5"
+          className="gap-1 text-xs text-inkai-red hover:bg-inkai-red/5 cursor-pointer"
         >
           {label}
-          <ExternalLink className="h-3 w-3" />
+          <Eye className="h-3 w-3" />
         </Badge>
-      </a>
+      </button>
     );
   }
 
@@ -185,14 +190,23 @@ function DocBadge({
 function DocumentsCell({
   birthCertificateUrl,
   bpjsCardUrl,
+  onOpen,
 }: {
   birthCertificateUrl?: string | null;
   bpjsCardUrl?: string | null;
+  onOpen: (label: string, url: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1">
-      <DocBadge label="Akte" url={birthCertificateUrl} />
-      <DocBadge label="BPJS" url={bpjsCardUrl} />
+    <div
+      className="flex flex-wrap gap-1"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <DocBadge
+        label="Akte"
+        url={birthCertificateUrl}
+        onOpen={onOpen}
+      />
+      <DocBadge label="BPJS" url={bpjsCardUrl} onOpen={onOpen} />
     </div>
   );
 }
@@ -309,6 +323,10 @@ export function MembersTable({
   const [dupCandidates, setDupCandidates] = useState<MergeCandidate[]>([]);
   const [mergeTarget, setMergeTarget] = useState<MergeCandidate | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [docPreview, setDocPreview] = useState<{
+    title: string;
+    url: string;
+  } | null>(null);
   const canBulk = canToggleMemberActive(userRoles);
   const canEditRank = canEditKyuBaru(userRoles);
   const canEditDues = canManageIuranByWilayah(userRoles);
@@ -632,12 +650,15 @@ export function MembersTable({
                     <TableCell>
                       <MemberStatusBadge status={m.status} />
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <DocumentsCell
-                        birthCertificateUrl={m.birthCertificateUrl}
-                        bpjsCardUrl={m.bpjsCardUrl}
-                      />
-                    </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <DocumentsCell
+                          birthCertificateUrl={m.birthCertificateUrl}
+                          bpjsCardUrl={m.bpjsCardUrl}
+                          onOpen={(label, url) =>
+                            setDocPreview({ title: label, url })
+                          }
+                        />
+                      </TableCell>
                     <TableCell className="hidden sm:table-cell">
                       {m.dojo?.name ?? "-"}
                     </TableCell>
@@ -993,51 +1014,28 @@ export function MembersTable({
                   <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                     Dokumen
                   </h3>
-                  <dl className="space-y-2">
-                    <DetailRow
-                      label="Akte"
-                      value={
-                        birthCertificateUrl ? (
-                          <a
-                            href={birthCertificateUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-inkai-red hover:underline"
-                          >
-                            Lihat dokumen
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground">
-                            Belum diunggah
-                          </span>
-                        )
-                      }
-                    />
-                    <DetailRow
-                      label="BPJS"
-                      value={
-                        bpjsCardUrl ? (
-                          <a
-                            href={bpjsCardUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-inkai-red hover:underline"
-                          >
-                            Lihat dokumen
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : (
-                          <span className="text-muted-foreground">
-                            Belum diunggah
-                          </span>
-                        )
-                      }
-                    />
-                    {bpjsCardNumber ? (
-                      <DetailRow label="No. BPJS" value={bpjsCardNumber} />
-                    ) : null}
-                  </dl>
+                  <MemberDocumentsEditor
+                    memberId={String(detail.id)}
+                    birthCertificateUrl={birthCertificateUrl}
+                    bpjsCardUrl={bpjsCardUrl}
+                    bpjsCardNumber={bpjsCardNumber}
+                    onPreview={(title, url) =>
+                      setDocPreview({ title, url })
+                    }
+                    onSaved={(next) => {
+                      setDetail((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              birthCertificateUrl: next.birthCertificateUrl,
+                              bpjsCardUrl: next.bpjsCardUrl,
+                              bpjsCardNumber: next.bpjsCardNumber,
+                            }
+                          : prev,
+                      );
+                      router.refresh();
+                    }}
+                  />
                 </section>
 
                 <section className="space-y-2.5">
@@ -1181,6 +1179,15 @@ export function MembersTable({
             setDetail(null);
           }
         }}
+      />
+
+      <DocumentPreviewDialog
+        open={Boolean(docPreview)}
+        onOpenChange={(next) => {
+          if (!next) setDocPreview(null);
+        }}
+        title={docPreview?.title || "Dokumen"}
+        url={docPreview?.url ?? null}
       />
     </>
   );

@@ -69,6 +69,7 @@ export const memberActionSchema = z.object({
     "set_nia",
     "set_rank",
     "set_dues",
+    "set_documents",
     "deactivate",
     "activate",
     "delete",
@@ -79,6 +80,10 @@ export const memberActionSchema = z.object({
   currentRank: z.string().trim().min(2).max(64).optional(),
   /** Nominal iuran bulanan per anggota (ranting/cabang). */
   monthlyDuesAmount: z.coerce.number().min(0).max(10_000_000).optional(),
+  /** URL dokumen (setelah upload Blob) — kosong = hapus. */
+  birthCertificateUrl: z.string().trim().max(2048).optional().nullable(),
+  bpjsCardUrl: z.string().trim().max(2048).optional().nullable(),
+  bpjsCardNumber: z.string().trim().max(32).optional().nullable(),
   /** Konfirmasi hapus: ketik nama anggota (untuk anggota aktif / ber-NIA). */
   confirmName: z.string().trim().max(120).optional(),
   /** Nonaktif / ditangguhkan */
