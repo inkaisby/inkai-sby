@@ -14,6 +14,11 @@ import {
   softDeleteMember,
 } from "@/lib/member-lifecycle-actions";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { PRISMA_BUSY_USER_MESSAGE } from "@/lib/prisma-errors";
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
@@ -31,6 +36,13 @@ export async function POST(request: Request) {
   const userAgent = request.headers.get("user-agent");
   const results: Array<{ id: string; ok: boolean; error?: string }> = [];
   const action = parsed.data.action;
+  const memberIds = parsed.data.memberIds;
+
+  function markRestBusy(fromIndex: number, error: string) {
+    for (let j = fromIndex; j < memberIds.length; j++) {
+      results.push({ id: memberIds[j], ok: false, error });
+    }
+  }
 
   if (action === "purge") {
     if (!canSoftDeleteMembers(authResult.user.roles)) {
@@ -46,7 +58,8 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    for (const memberId of parsed.data.memberIds) {
+    for (let i = 0; i < memberIds.length; i++) {
+      const memberId = memberIds[i];
       const result = await purgeArchivedMember({
         user: authResult.user,
         token: authResult.token,
@@ -55,11 +68,17 @@ export async function POST(request: Request) {
         ip,
         userAgent,
       });
+      if (!result.ok && result.status === 503) {
+        results.push({ id: memberId, ok: false, error: result.error });
+        markRestBusy(i + 1, result.error);
+        break;
+      }
       results.push(
         result.ok
           ? { id: memberId, ok: true }
           : { id: memberId, ok: false, error: result.error },
       );
+      if (i < memberIds.length - 1) await sleep(60);
     }
   } else if (action === "restore") {
     if (!isCabangAdmin(authResult.user.roles)) {
@@ -68,7 +87,7 @@ export async function POST(request: Request) {
         { status: 403 },
       );
     }
-    for (const memberId of parsed.data.memberIds) {
+    for (const memberId of memberIds) {
       const result = await restoreMember({
         user: authResult.user,
         token: authResult.token,
@@ -96,7 +115,8 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    for (const memberId of parsed.data.memberIds) {
+    for (let i = 0; i < memberIds.length; i++) {
+      const memberId = memberIds[i];
       const result = await softDeleteMember({
         user: authResult.user,
         token: authResult.token,
@@ -105,11 +125,17 @@ export async function POST(request: Request) {
         ip,
         userAgent,
       });
+      if (!result.ok && result.status === 503) {
+        results.push({ id: memberId, ok: false, error: result.error });
+        markRestBusy(i + 1, result.error);
+        break;
+      }
       results.push(
         result.ok
           ? { id: memberId, ok: true }
           : { id: memberId, ok: false, error: result.error },
       );
+      if (i < memberIds.length - 1) await sleep(60);
     }
   } else if (!canToggleMemberActive(authResult.user.roles)) {
     return NextResponse.json(
@@ -117,7 +143,7 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   } else if (action === "approve") {
-    for (const memberId of parsed.data.memberIds) {
+    for (const memberId of memberIds) {
       const { res, data } = await inkaiFetch(
         `/v1/members/${memberId}`,
         {
@@ -143,7 +169,8 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    for (const memberId of parsed.data.memberIds) {
+    for (let i = 0; i < memberIds.length; i++) {
+      const memberId = memberIds[i];
       const result = await deactivateMember({
         user: authResult.user,
         token: authResult.token,
@@ -154,11 +181,17 @@ export async function POST(request: Request) {
         ip,
         userAgent,
       });
+      if (!result.ok && result.status === 503) {
+        results.push({ id: memberId, ok: false, error: result.error });
+        markRestBusy(i + 1, result.error);
+        break;
+      }
       results.push(
         result.ok
           ? { id: memberId, ok: true }
           : { id: memberId, ok: false, error: result.error },
       );
+      if (i < memberIds.length - 1) await sleep(60);
     }
   }
 
@@ -174,6 +207,23 @@ export async function POST(request: Request) {
           : action === "restore"
             ? "dipulihkan"
             : "dinonaktifkan";
+
+  const busyFail = results.some(
+    (r) => !r.ok && r.error === PRISMA_BUSY_USER_MESSAGE,
+  );
+
+  if (okCount === 0 && busyFail) {
+    return NextResponse.json(
+      {
+        error: PRISMA_BUSY_USER_MESSAGE,
+        okCount,
+        failCount,
+        results,
+        message: PRISMA_BUSY_USER_MESSAGE,
+      },
+      { status: 503 },
+    );
+  }
 
   return NextResponse.json({
     success: failCount === 0,

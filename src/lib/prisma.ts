@@ -9,8 +9,19 @@ function withServerlessPoolLimit(url: string | undefined) {
   if (!url) return undefined;
   try {
     const parsed = new URL(url);
-    // Transaction pooler (6543) needs pgbouncer=true for Prisma.
-    if (parsed.port === "6543" && !parsed.searchParams.has("pgbouncer")) {
+    const host = parsed.hostname.toLowerCase();
+    const isSupabasePooler = host.includes("pooler.supabase.com");
+
+    // Session pooler (:5432) cepat habis di Vercel — pakai Transaction (:6543).
+    if (isSupabasePooler && (!parsed.port || parsed.port === "5432")) {
+      parsed.port = "6543";
+    }
+
+    // Transaction pooler needs pgbouncer=true for Prisma prepared statements.
+    if (
+      (parsed.port === "6543" || isSupabasePooler) &&
+      !parsed.searchParams.has("pgbouncer")
+    ) {
       parsed.searchParams.set("pgbouncer", "true");
     }
     if (!parsed.searchParams.has("connection_limit")) {

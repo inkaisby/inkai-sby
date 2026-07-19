@@ -1,5 +1,10 @@
-/** Pecah aksi bulk agar tidak timeout; chunk kecil = progress lebih halus. */
-export const BULK_MEMBER_CHUNK_SIZE = 25;
+import { PRISMA_BUSY_USER_MESSAGE } from "@/lib/prisma-errors";
+
+/** Pecah aksi bulk agar tidak timeout; chunk kecil = tekanan pool lebih rendah. */
+export const BULK_MEMBER_CHUNK_SIZE = 10;
+
+/** Jeda antar chunk agar koneksi session-mode sempat lepas. */
+const CHUNK_PAUSE_MS = 500;
 
 export function chunkIds(ids: string[], size = BULK_MEMBER_CHUNK_SIZE): string[][] {
   if (ids.length === 0) return [];
@@ -27,6 +32,20 @@ type BulkResult = {
   error?: string;
 };
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function looksBusy(error: string | undefined, status: number) {
+  if (status === 503) return true;
+  const lower = (error || "").toLowerCase();
+  return (
+    lower.includes("sibuk") ||
+    lower.includes("max clients") ||
+    lower.includes("connection")
+  );
+}
+
 /** Kirim POST /api/admin/members/bulk per chunk, gabungkan hasil. */
 export async function postMemberBulkChunked(
   payload: Record<string, unknown> & { memberIds: string[] },
@@ -49,22 +68,46 @@ export async function postMemberBulkChunked(
     failCount: 0,
   });
 
-  for (const memberIds of chunks) {
-    const res = await fetch("/api/admin/members/bulk", {
+  for (let i = 0; i < chunks.length; i++) {
+    const memberIds = chunks[i];
+    let res = await fetch("/api/admin/members/bulk", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...payload, memberIds }),
     });
-    const data = (await res.json().catch(() => ({}))) as {
+    let data = (await res.json().catch(() => ({}))) as {
       okCount?: number;
       failCount?: number;
       message?: string;
       error?: string;
     };
+
+    // Satu retry singkat jika pool sibuk.
+    if (!res.ok && looksBusy(data.error, res.status)) {
+      await sleep(1200);
+      res = await fetch("/api/admin/members/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, memberIds }),
+      });
+      data = (await res.json().catch(() => ({}))) as typeof data;
+    }
+
     lastStatus = res.status;
     if (!res.ok) {
-      lastError = data.error || "Gagal memproses bulk";
+      lastError =
+        data.error ||
+        data.message ||
+        (res.status === 503 || res.status >= 500
+          ? PRISMA_BUSY_USER_MESSAGE
+          : "Gagal memproses bulk");
       failCount += memberIds.length;
+      // Hentikan sisa chunk agar tidak memperburuk pool.
+      if (looksBusy(lastError, res.status)) {
+        const remaining = chunks.slice(i + 1).reduce((n, c) => n + c.length, 0);
+        failCount += remaining;
+        break;
+      }
     } else {
       anyOk = true;
       okCount += Number(data.okCount ?? memberIds.length);
@@ -82,6 +125,10 @@ export async function postMemberBulkChunked(
       okCount,
       failCount,
     });
+
+    if (i < chunks.length - 1) {
+      await sleep(CHUNK_PAUSE_MS);
+    }
   }
 
   if (!anyOk) {

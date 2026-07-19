@@ -34,6 +34,7 @@ import {
   isCabangAdmin,
 } from "@/lib/wilayah-rbac";
 import { showError, showSuccess } from "@/lib/client-toast";
+import { PRISMA_BUSY_USER_MESSAGE } from "@/lib/prisma-errors";
 
 type ConfirmKind = "deactivate" | "activate" | "delete" | "restore" | null;
 
@@ -152,7 +153,13 @@ export function MemberActions({
       onSuccess?.();
       router.refresh();
     } else {
-      showError(data.error || "Gagal memproses aksi");
+      const msg =
+        (typeof data.error === "string" && data.error) ||
+        (typeof data.message === "string" && data.message) ||
+        (res.status === 503 || res.status >= 500
+          ? PRISMA_BUSY_USER_MESSAGE
+          : "Gagal memproses aksi");
+      showError(msg);
     }
   }
 

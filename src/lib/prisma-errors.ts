@@ -5,11 +5,16 @@ export function errorMessageOf(error: unknown): string {
   return String(error ?? "");
 }
 
+/** Pesan UI saat pool Supabase/Neon habis (EMAXCONNSESSION, dll). */
+export const PRISMA_BUSY_USER_MESSAGE =
+  "Database sibuk (batas koneksi). Tunggu beberapa detik lalu coba lagi.";
+
 /** Pool exhaustion / unreachable DB — safe to tell users "database sibuk". */
 export function isPrismaBusyError(error: unknown): boolean {
   const lower = errorMessageOf(error).toLowerCase();
   return (
     lower.includes("max clients") ||
+    lower.includes("emaxconnsession") ||
     lower.includes("connection pool") ||
     lower.includes("timed out fetching a new connection") ||
     lower.includes("too many connections") ||

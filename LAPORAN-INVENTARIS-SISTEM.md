@@ -297,6 +297,7 @@ Pusat / Nasional
 | Keamanan P0–P2 | Diperkuat | Pesan IDOR ditutup; verifikasi fail-closed; rate limit Upstash opsional; CSRF admin ketat; password register; audit upload/broadcast/verifikasi |
 | Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI anggota 1× groupBy; absensi/UKT scoped (bukan limit 3000); broadcast/generate chunked; polling diperlambat |
 | Index Prisma | Ditambah | Member/Billing/Attendance/Verification/Message — jalankan migrate/db push di production |
+| Pool DB Supabase | Perlu pantau | Session mode ~15 client → `EMAXCONNSESSION` saat bulk; app auto-pakai Transaction `:6543`+`pgbouncer`+`connection_limit=1`; soft-delete/nonaktif/purge tanpa interactive tx; toast sibuk |
 
 ---
 
@@ -451,6 +452,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Bulk anggota: `memberIds` **tanpa batas max** (client tetap chunk 100) |
 | 19 Juli 2026 | Kelola Anggota: seleksi checkbox **tetap** saat ganti page/pageSize (sessionStorage); pilih semua = halaman ini |
 | 19 Juli 2026 | Bulk hapus/arsip: **progress bar %** + chunk 25; tombol tampil persen saat memproses |
+| 19 Juli 2026 | Fix arsip anggota: error "Gagal memproses aksi" = pool Supabase **EMAXCONNSESSION**; soft-delete tanpa interactive tx; toast sibuk; bulk chunk 10 + jeda/retry |
+| 19 Juli 2026 | Fix bulk nonaktif: sama pool sibuk; `deactivateMember` catch 503; Prisma auto-alihkan Supabase pooler `:5432`→`:6543`+pgbouncer |
 
 ---
 

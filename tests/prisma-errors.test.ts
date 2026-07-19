@@ -10,6 +10,11 @@ describe("isPrismaBusyError", () => {
       isPrismaBusyError(new Error("Timed out fetching a new connection from the connection pool")),
     ).toBe(true);
     expect(isPrismaBusyError("max clients reached")).toBe(true);
+    expect(
+      isPrismaBusyError(
+        new Error("FATAL: (EMAXCONNSESSION) max clients reached in session mode"),
+      ),
+    ).toBe(true);
     expect(isPrismaBusyError("P2024: Timed out")).toBe(true);
     expect(isPrismaBusyError("Can't reach database server")).toBe(true);
   });
