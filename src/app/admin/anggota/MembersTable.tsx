@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Copy, Check, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
+import {
+  MergeMemberDialog,
+  type MergeCandidate,
+} from "@/components/admin/MergeMemberDialog";
 import { showError, showSuccess } from "@/lib/client-toast";
 import type { AdminMemberRow } from "@/lib/inkai-api/admin-data";
 import {
@@ -37,7 +41,7 @@ import {
   type MemberImpactSummary,
   type MemberLifecycleMeta,
 } from "@/lib/member-lifecycle";
-import { canToggleMemberActive } from "@/lib/wilayah-rbac";
+import { canManageIuranByWilayah, canToggleMemberActive } from "@/lib/wilayah-rbac";
 import { MemberActions } from "./MemberActions";
 import { BulkDeactivateBar } from "./BulkDeactivateBar";
 import { ExportCsvButton } from "@/components/admin/ExportCsvButton";
@@ -62,6 +66,24 @@ function formatDate(value: unknown) {
     month: "long",
     year: "numeric",
   });
+}
+
+/** Contoh: 19 Juli 2026 14:10 */
+function formatDateTime(value: unknown) {
+  if (!value) return "-";
+  const d = new Date(String(value));
+  if (Number.isNaN(d.getTime())) return String(value);
+  const date = d.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const time = d.toLocaleTimeString("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return `${date} ${time}`;
 }
 
 function formatRp(amount: unknown) {
@@ -270,9 +292,15 @@ export function MembersTable({
   const [detail, setDetail] = useState<MemberDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [rankSavingId, setRankSavingId] = useState<string | null>(null);
+  const [duesSaving, setDuesSaving] = useState(false);
+  const [duesDraft, setDuesDraft] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [dupCandidates, setDupCandidates] = useState<MergeCandidate[]>([]);
+  const [mergeTarget, setMergeTarget] = useState<MergeCandidate | null>(null);
+  const [mergeOpen, setMergeOpen] = useState(false);
   const canBulk = canToggleMemberActive(userRoles);
   const canEditRank = canEditKyuBaru(userRoles);
+  const canEditDues = canManageIuranByWilayah(userRoles);
 
   const activeSelectable = members.filter((m) => {
     const s = m.status.trim().toUpperCase();
@@ -304,6 +332,8 @@ export function MembersTable({
   async function openDetail(member: AdminMemberRow) {
     // Tampilkan data baris segera; lengkapi dari API tanpa blank skeleton penuh.
     setSelectedId(member.id);
+    setDupCandidates([]);
+    setMergeTarget(null);
     setDetail({
       id: member.id,
       fullName: member.fullName,
@@ -329,6 +359,12 @@ export function MembersTable({
       }
       if (data.member) {
         setDetail(data.member);
+        const dues = data.member.monthlyDuesAmount;
+        setDuesDraft(
+          dues != null && Number.isFinite(Number(dues))
+            ? String(Math.round(Number(dues)))
+            : "50000",
+        );
       }
     } catch {
       showError("Gagal memuat detail anggota");
@@ -336,6 +372,25 @@ export function MembersTable({
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!selectedId) {
+      setDupCandidates([]);
+      return;
+    }
+    let cancelled = false;
+    void fetch(`/api/admin/members/${selectedId}/duplicates`)
+      .then((r) => r.json())
+      .then((data: { candidates?: MergeCandidate[] }) => {
+        if (!cancelled) setDupCandidates(data.candidates ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setDupCandidates([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
 
   async function handleSetRank(memberId: string, currentRank: string) {
     if (!currentRank.trim()) return;
@@ -364,6 +419,43 @@ export function MembersTable({
       showError("Gagal memperbarui sabuk");
     } finally {
       setRankSavingId(null);
+    }
+  }
+
+  async function handleSetDues() {
+    if (!selectedId || !canEditDues) return;
+    const amount = Math.round(Number(duesDraft.replace(/\D/g, "")));
+    if (!Number.isFinite(amount) || amount < 0) {
+      showError("Nominal iuran tidak valid");
+      return;
+    }
+    setDuesSaving(true);
+    try {
+      const res = await fetch(`/api/admin/members/${selectedId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_dues", monthlyDuesAmount: amount }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        monthlyDuesAmount?: number;
+      };
+      if (!res.ok) {
+        showError(data.error || "Gagal menyimpan iuran/bln");
+        return;
+      }
+      const saved = data.monthlyDuesAmount ?? amount;
+      setDetail((prev) =>
+        prev ? { ...prev, monthlyDuesAmount: saved } : prev,
+      );
+      setDuesDraft(String(saved));
+      showSuccess(data.message || "Iuran/bln disimpan");
+      router.refresh();
+    } catch {
+      showError("Gagal menyimpan iuran/bln");
+    } finally {
+      setDuesSaving(false);
     }
   }
 
@@ -407,7 +499,7 @@ export function MembersTable({
   const paidCount = billings.filter((b) => b.status === "PAID").length;
   const lifecycle = detail?.lifecycle as MemberLifecycleMeta | null | undefined;
   const impact = detail?.impact as MemberImpactSummary | null | undefined;
-  const colCount = canBulk ? 9 : 8;
+  const colCount = canBulk ? 10 : 9;
 
   return (
     <>
@@ -421,6 +513,7 @@ export function MembersTable({
             "Sabuk",
             "Dojo",
             "Cabang",
+            "Terdaftar",
             "Dokumen Akte",
             "Dokumen BPJS",
           ]}
@@ -431,6 +524,7 @@ export function MembersTable({
             m.currentRank,
             m.dojo?.name ?? "",
             m.dojo?.branch?.name ?? "",
+            formatDateTime(m.createdAt),
             m.birthCertificateUrl ? "Ada" : "Belum",
             m.bpjsCardUrl ? "Ada" : "Belum",
           ])}
@@ -461,10 +555,10 @@ export function MembersTable({
               <TableHead>Status</TableHead>
               <TableHead className="hidden md:table-cell">Dokumen</TableHead>
               <TableHead className="hidden sm:table-cell">Dojo</TableHead>
+              <TableHead className="whitespace-nowrap">Terdaftar</TableHead>
               <TableHead>Aksi</TableHead>
             </TableRow>
-          </TableHeader>
-          <TableBody>
+          </TableHeader>          <TableBody>
             {members.length === 0 ? (
               <TableRow>
                 <TableCell
@@ -568,6 +662,9 @@ export function MembersTable({
                     <TableCell className="hidden sm:table-cell">
                       {m.dojo?.name ?? "-"}
                     </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+                      {formatDateTime(m.createdAt)}
+                    </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <MemberActions
                         memberId={m.id}
@@ -644,6 +741,44 @@ export function MembersTable({
           <div className="space-y-5 p-4">
             {detail ? (
               <>
+                {dupCandidates.length > 0 ? (
+                  <section className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
+                    <p className="font-medium text-amber-950 dark:text-amber-100">
+                      Duplikat terdeteksi — ranting dapat menggabungkan data
+                    </p>
+                    <ul className="mt-2 space-y-2">
+                      {dupCandidates.map((c) => (
+                        <li
+                          key={c.id}
+                          className="flex flex-wrap items-center justify-between gap-2 text-xs"
+                        >
+                          <span>
+                            {c.fullName}
+                            {c.nia ? ` · ${c.nia}` : ""}
+                            {` · ${c.status}`}
+                            {c.hasAccount
+                              ? ` · akun ${c.email || "ada"}`
+                              : " · tanpa akun"}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7"
+                            disabled={!c.mergeEligible}
+                            title={c.mergeBlockReason || undefined}
+                            onClick={() => {
+                              setMergeTarget(c);
+                              setMergeOpen(true);
+                            }}
+                          >
+                            Gabungkan
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+
                 <section className="space-y-2.5">
                   <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                     Identitas
@@ -738,9 +873,40 @@ export function MembersTable({
                     <DetailRow
                       label="Iuran/bln"
                       value={
-                        detail.monthlyDuesAmount != null
-                          ? formatRp(detail.monthlyDuesAmount)
-                          : "-"
+                        canEditDues ? (
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-xs text-muted-foreground">Rp</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              className="h-8 w-28 rounded border bg-background px-2 text-sm tabular-nums"
+                              value={duesDraft}
+                              disabled={duesSaving || loading}
+                              onChange={(e) =>
+                                setDuesDraft(e.target.value.replace(/\D/g, ""))
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  void handleSetDues();
+                                }
+                              }}
+                              aria-label="Nominal iuran bulanan"
+                            />
+                            <Button
+                              size="sm"
+                              className="h-8 bg-inkai-red px-2 text-xs"
+                              disabled={duesSaving || loading}
+                              onClick={() => void handleSetDues()}
+                            >
+                              {duesSaving ? "…" : "Simpan"}
+                            </Button>
+                          </span>
+                        ) : detail.monthlyDuesAmount != null ? (
+                          formatRp(detail.monthlyDuesAmount)
+                        ) : (
+                          "-"
+                        )
                       }
                     />
                   </dl>
@@ -1011,6 +1177,32 @@ export function MembersTable({
           </div>
         </SheetContent>
       </Sheet>
+
+      <MergeMemberDialog
+        open={mergeOpen}
+        onOpenChange={setMergeOpen}
+        currentMemberId={selectedId || ""}
+        currentLabel={detail ? formatMemberName(String(detail.fullName || "")) : ""}
+        currentHasAccount={Boolean(
+          (detail?.user as { email?: string } | undefined)?.email ||
+            (detail as { userId?: string } | null)?.userId,
+        )}
+        currentEmail={
+          ((detail?.user as { email?: string } | undefined)?.email as
+            | string
+            | undefined) ?? null
+        }
+        candidate={mergeTarget}
+        onMerged={(keepId) => {
+          setDupCandidates([]);
+          const row = members.find((m) => m.id === keepId);
+          if (row) void openDetail(row);
+          else {
+            setSelectedId(null);
+            setDetail(null);
+          }
+        }}
+      />
     </>
   );
 }

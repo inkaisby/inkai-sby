@@ -163,7 +163,7 @@ export async function buildCabangSetupChecklist(opts: {
       id: "admin",
       label: "Minimal 1 akun admin cabang aktif",
       done: opts.adminCount > 0,
-      href: "/admin/pengaturan/user",
+      href: "/admin/pengaturan/cabang",
     },
     {
       id: "contact",

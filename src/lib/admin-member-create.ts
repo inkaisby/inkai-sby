@@ -6,6 +6,11 @@ import type { z } from "zod";
 import type { uktMemberCreateSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
+import {
+  findMemberDuplicates,
+  formatDuplicateError,
+  hardDuplicates,
+} from "@/lib/member-duplicate";
 
 type CreateInput = z.infer<typeof uktMemberCreateSchema>;
 
@@ -46,6 +51,24 @@ export async function createAdminMember(opts: {
   const nik = input.nik?.trim() || undefined;
   const nia = input.nia?.trim() || undefined;
   const phoneNumber = input.phoneNumber?.trim() || undefined;
+
+  const duplicates = await findMemberDuplicates({
+    fullName: input.fullName,
+    birthDate: input.birthDate,
+    nik,
+    nia,
+  });
+  const hard = hardDuplicates(duplicates);
+  if (hard.length > 0) {
+    return NextResponse.json(
+      {
+        error: formatDuplicateError(hard, "admin"),
+        duplicates: hard,
+        code: "DUPLICATE_MEMBER",
+      },
+      { status: 409 },
+    );
+  }
 
   const payload: Record<string, unknown> = {
     fullName: input.fullName.toUpperCase(),

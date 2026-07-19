@@ -35,6 +35,10 @@ export type AdminMemberRow = {
   bpjsCardUrl?: string | null;
   bpjsCardNumber?: string | null;
   photoUrl?: string | null;
+  /** Waktu terdaftar di sistem (ISO dari API). */
+  createdAt?: string | null;
+  /** Nominal iuran bulanan per anggota. */
+  monthlyDuesAmount?: number | null;
 };
 
 function listMetaTotal(data: Record<string, unknown>, fallback: number) {
@@ -67,9 +71,41 @@ export async function fetchAdminMembers(
     const { res, data } = await inkaiFetch(`/v1/members?${qs}`, {}, token);
     if (!res.ok) return { ok: false as const, error: "Gagal memuat anggota" };
 
-    const members = (data.data as AdminMemberRow[]) ?? [];
+    const raw = (data.data as Array<AdminMemberRow & { createdAt?: string | null }>) ?? [];
     const meta =
       (data.meta as { total?: number; page?: number; limit?: number }) ?? {};
+
+    const missingIds = raw
+      .filter((m) => !m.createdAt || m.monthlyDuesAmount == null)
+      .map((m) => m.id)
+      .filter(Boolean);
+    let createdAtById = new Map<string, string>();
+    let duesById = new Map<string, number>();
+    if (missingIds.length > 0) {
+      const local = await withPrismaFallback(
+        "admin-members-createdAt",
+        () =>
+          prisma.member.findMany({
+            where: { id: { in: missingIds } },
+            select: { id: true, createdAt: true, monthlyDuesAmount: true },
+          }),
+        [] as Array<{ id: string; createdAt: Date; monthlyDuesAmount: number }>,
+      );
+      createdAtById = new Map(
+        (local.data ?? []).map((r) => [r.id, r.createdAt.toISOString()]),
+      );
+      duesById = new Map(
+        (local.data ?? []).map((r) => [r.id, r.monthlyDuesAmount]),
+      );
+    }
+
+    const members: AdminMemberRow[] = raw.map((m) => ({
+      ...m,
+      createdAt: m.createdAt ?? createdAtById.get(m.id) ?? null,
+      monthlyDuesAmount:
+        m.monthlyDuesAmount ?? duesById.get(m.id) ?? null,
+    }));
+
     return {
       ok: true as const,
       members,

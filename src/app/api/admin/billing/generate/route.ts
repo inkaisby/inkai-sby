@@ -101,10 +101,14 @@ export async function POST(request: Request) {
   const errors: string[] = [];
 
   for (const m of targets.slice(0, 200)) {
+    const memberAmount =
+      typeof m.monthlyDuesAmount === "number" && Number.isFinite(m.monthlyDuesAmount)
+        ? m.monthlyDuesAmount
+        : amount;
     const body = {
       memberId: m.id,
       type: "MONTHLY",
-      amount,
+      amount: memberAmount,
       dueDate: dueDate.toISOString(),
       description,
     };
@@ -126,7 +130,7 @@ export async function POST(request: Request) {
         data: {
           memberId: m.id,
           type: "MONTHLY",
-          amount,
+          amount: memberAmount,
           description,
           dueDate,
           status: "PENDING",

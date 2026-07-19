@@ -22,6 +22,7 @@ import { generateSimplePassword } from "@/lib/security/password";
 import {
   ArrowRightLeft,
   KeyRound,
+  Mail,
   Plus,
   Star,
   UserCheck,
@@ -83,6 +84,8 @@ export function WilayahAccountsPanel({
   const [busy, setBusy] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [resetTarget, setResetTarget] = useState<AccountRow | null>(null);
+  const [emailTarget, setEmailTarget] = useState<AccountRow | null>(null);
+  const [newEmail, setNewEmail] = useState("");
   const [deactivateTarget, setDeactivateTarget] = useState<AccountRow | null>(
     null,
   );
@@ -193,7 +196,8 @@ export function WilayahAccountsPanel({
       | "set_primary"
       | "reset_password"
       | "set_jabatan"
-      | "handover",
+      | "handover"
+      | "change_email",
     extra?: Record<string, string | boolean | null>,
   ) {
     setBusy(true);
@@ -220,6 +224,10 @@ export function WilayahAccountsPanel({
           loginPassword: data.loginPassword,
           hint: "Password lama hangus. Salin & kirim ke pemilik akun.",
         });
+      }
+      if (action === "change_email") {
+        setEmailTarget(null);
+        setNewEmail("");
       }
       if (action === "deactivate") {
         setDeactivateTarget(null);
@@ -379,6 +387,19 @@ export function WilayahAccountsPanel({
                   size="sm"
                   variant="outline"
                   disabled={busy}
+                  onClick={() => {
+                    setEmailTarget(a);
+                    setNewEmail(a.email);
+                  }}
+                  title="Ubah email"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
                   onClick={() => openReset(a)}
                   title="Reset password"
                 >
@@ -508,6 +529,61 @@ export function WilayahAccountsPanel({
               onClick={() => void createAccount()}
             >
               Buat akun
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!emailTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setEmailTarget(null);
+            setNewEmail("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ubah email login</DialogTitle>
+            <DialogDescription>
+              Email saat ini:{" "}
+              <span className="font-mono">{emailTarget?.email}</span>
+              {scope === "dojo"
+                ? ". Cabang dapat mengganti username login ranting."
+                : "."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1">
+            <Label>Email baru</Label>
+            <Input
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEmailTarget(null);
+                setNewEmail("");
+              }}
+            >
+              Batal
+            </Button>
+            <Button
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              disabled={busy || !emailTarget || !newEmail.trim()}
+              onClick={() =>
+                emailTarget &&
+                void patch(emailTarget.id, "change_email", {
+                  newEmail: newEmail.trim().toLowerCase(),
+                })
+              }
+            >
+              Simpan email
             </Button>
           </DialogFooter>
         </DialogContent>

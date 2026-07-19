@@ -9,6 +9,11 @@ import { registerSchema } from "@/lib/security/schemas";
 import { rateLimit, rateLimitResponse } from "@/lib/security/rate-limit";
 import { DEFAULT_MEMBER_RANK } from "@/lib/belt";
 import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
+import {
+  findMemberDuplicates,
+  formatDuplicateError,
+  hardDuplicates,
+} from "@/lib/member-duplicate";
 
 export async function POST(request: Request) {
   try {
@@ -63,6 +68,23 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Dojo tidak valid untuk Cabang Surabaya" },
         { status: 400 },
+      );
+    }
+
+    const duplicates = await findMemberDuplicates({
+      fullName: name,
+      birthDate: birthDate || undefined,
+      nik: nik || undefined,
+      nia: nia || undefined,
+    });
+    const hard = hardDuplicates(duplicates);
+    if (hard.length > 0) {
+      return NextResponse.json(
+        {
+          error: formatDuplicateError(hard, "public"),
+          code: "DUPLICATE_MEMBER",
+        },
+        { status: 409 },
       );
     }
 

@@ -102,7 +102,7 @@ async function PengaturanRantingContent({
     return (
       <>
         <div className="mb-6">
-          <h2 className="text-2xl font-bold">Pengaturan Ranting</h2>
+          <h2 className="text-2xl font-bold">Pengaturan Ranting & User</h2>
           <p className="text-muted-foreground">
             Akun Anda belum terhubung ke ranting.
           </p>
@@ -270,11 +270,11 @@ async function PengaturanRantingContent({
   return (
     <>
       <div className="mb-6">
-        <h2 className="text-2xl font-bold">Pengaturan Ranting</h2>
+        <h2 className="text-2xl font-bold">Pengaturan Ranting & User</h2>
         <p className="text-muted-foreground">
           {selfManagedOnly
             ? "Perbarui data ranting Anda (alamat, jadwal, rekening, dan kontak)."
-            : "Kelola data ranting; akun pengurus (multi-email, PIC, jabatan) lewat tombol Akun"}
+            : "Kelola data ranting & akun login admin (email/password, PIC). Ubah email lewat tombol Akun → ikon surat."}
         </p>
       </div>
 

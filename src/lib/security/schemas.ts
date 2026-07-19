@@ -57,6 +57,7 @@ export const memberActionSchema = z.object({
     "reject",
     "set_nia",
     "set_rank",
+    "set_dues",
     "deactivate",
     "activate",
     "delete",
@@ -65,6 +66,8 @@ export const memberActionSchema = z.object({
   nia: z.string().trim().max(32).optional(),
   /** Sabuk / Kyu resmi anggota (hanya cabang). */
   currentRank: z.string().trim().min(2).max(64).optional(),
+  /** Nominal iuran bulanan per anggota (ranting/cabang). */
+  monthlyDuesAmount: z.coerce.number().min(0).max(10_000_000).optional(),
   /** Konfirmasi hapus: ketik nama anggota (untuk anggota aktif / ber-NIA). */
   confirmName: z.string().trim().max(120).optional(),
   /** Nonaktif / ditangguhkan */
@@ -97,6 +100,13 @@ export const memberBulkActionSchema = z.object({
     ])
     .optional(),
   reasonNote: z.string().trim().max(500).optional(),
+});
+
+export const memberMergeSchema = z.object({
+  keepMemberId: z.string().uuid(),
+  mergeMemberId: z.string().uuid(),
+  /** Jika keduanya punya akun: pilih sumber email yang dipertahankan. */
+  preferUserFrom: z.enum(["keep", "merge"]).optional(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
@@ -438,9 +448,17 @@ export const wilayahAccountPatchSchema = z.object({
     "reset_password",
     "set_jabatan",
     "handover",
+    "change_email",
   ]),
   newPassword: z.string().min(8).max(72).optional(),
   newPasswordConfirm: z.string().min(8).max(72).optional(),
+  /** Email baru untuk action change_email */
+  newEmail: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Format email tidak valid")
+    .optional(),
   jabatan: z
     .enum(["KETUA", "SEKRETARIS", "BENDAHARA", "PENGURUS"])
     .optional()

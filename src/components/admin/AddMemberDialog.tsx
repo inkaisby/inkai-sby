@@ -59,38 +59,54 @@ export function AddMemberDialog({
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(() => emptyForm(defaultDojoId));
   const [suggestions, setSuggestions] = useState<MemberFormSuggestion[]>([]);
+  const [duplicateBlocked, setDuplicateBlocked] = useState(false);
 
   useEffect(() => {
     if (open) {
       setForm(emptyForm(defaultDojoId));
       setSuggestions([]);
+      setDuplicateBlocked(false);
     }
   }, [open, defaultDojoId]);
 
   useEffect(() => {
     if (!open) return;
     const q = form.fullName.trim();
-    if (q.length < 3) {
+    const nik = form.nik.trim();
+    const nia = form.nia.trim();
+    const birthDate = form.birthDate.trim();
+    if (q.length < 3 && nik.length < 16 && nia.length < 2) {
       setSuggestions([]);
+      setDuplicateBlocked(false);
       return;
     }
     const timer = setTimeout(async () => {
       try {
-        const qs = new URLSearchParams({ q });
-        if (form.dojoId || defaultDojoId) {
-          qs.set("dojo", form.dojoId || defaultDojoId);
-        }
-        const res = await fetch(`/api/admin/ukt/suggest?${qs}`);
+        const qs = new URLSearchParams();
+        if (q) qs.set("fullName", q);
+        if (birthDate) qs.set("birthDate", birthDate);
+        if (nik) qs.set("nik", nik);
+        if (nia) qs.set("nia", nia);
+        const res = await fetch(`/api/admin/members/check-duplicate?${qs}`);
         const data = (await res.json().catch(() => ({}))) as {
           suggestions?: MemberFormSuggestion[];
+          blocked?: boolean;
         };
         setSuggestions(data.suggestions ?? []);
+        setDuplicateBlocked(Boolean(data.blocked));
       } catch {
         setSuggestions([]);
+        setDuplicateBlocked(false);
       }
     }, 350);
     return () => clearTimeout(timer);
-  }, [form.fullName, form.dojoId, defaultDojoId, open]);
+  }, [
+    form.fullName,
+    form.birthDate,
+    form.nik,
+    form.nia,
+    open,
+  ]);
 
   function setField<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -100,6 +116,12 @@ export function AddMemberDialog({
     const validationError = validateMemberFormFields(form);
     if (validationError) {
       showError(validationError);
+      return;
+    }
+    if (duplicateBlocked) {
+      showError(
+        "Anggota terindikasi duplikat. Periksa data yang sudah ada atau hubungi cabang.",
+      );
       return;
     }
 
@@ -144,7 +166,8 @@ export function AddMemberDialog({
           <DialogDescription>
             Ranting dapat menambahkan anggota baru. Status aktif langsung. NIA
             opsional jika sudah diketahui; bila kosong dapat diisi pengurus
-            cabang.
+            cabang. Jika anggota sudah daftar mandiri, gunakan{" "}
+            <strong>Gabungkan</strong> di detail Kelola Anggota.
           </DialogDescription>
         </DialogHeader>
 
@@ -154,6 +177,7 @@ export function AddMemberDialog({
             form={form}
             onChange={setField}
             suggestions={suggestions}
+            duplicateBlocked={duplicateBlocked}
           />
 
           <MemberBeltSection idPrefix="add-member" form={form} onChange={setField} />
@@ -182,7 +206,11 @@ export function AddMemberDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Batal
           </Button>
-          <Button className="bg-inkai-red" onClick={handleSave} disabled={loading}>
+          <Button
+            className="bg-inkai-red"
+            onClick={handleSave}
+            disabled={loading || duplicateBlocked}
+          >
             {loading ? "Menyimpan..." : "Simpan"}
           </Button>
         </DialogFooter>

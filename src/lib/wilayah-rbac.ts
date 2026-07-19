@@ -60,8 +60,8 @@ export const WILAYAH_MATRIX: WilayahMatrixRow[] = [
     label: "Iuran",
     cells: {
       USER: "Lihat & bayar iuran sendiri",
-      RANTING: "Lihat + verifikasi bukti + edit tagihan & tandai lunas (ranting)",
-      CABANG: "Lihat & kelola iuran wilayah cabang (edit/verifikasi)",
+      RANTING: "Lihat + verifikasi bukti + edit tagihan & tandai lunas; **edit Iuran/bln per anggota** (ranting)",
+      CABANG: "Lihat & kelola iuran wilayah cabang (edit/verifikasi) + Iuran/bln per anggota",
       PENGPROV: "Lihat iuran wilayah provinsi (tanpa edit)",
     },
   },
@@ -70,8 +70,8 @@ export const WILAYAH_MATRIX: WilayahMatrixRow[] = [
     label: "Status keanggotaan",
     cells: {
       USER: "Lihat status sendiri",
-      RANTING: "Nonaktifkan / aktifkan ulang; hapus koreksi (tanpa NIA resmi)",
-      CABANG: "Nonaktifkan / aktifkan / hapus (arsip) anggota cabang",
+      RANTING: "Nonaktifkan / aktifkan; hapus koreksi (tanpa NIA); **gabungkan duplikat** (akun mandiri ↔ data ranting)",
+      CABANG: "Nonaktif / aktif / hapus arsip; gabungkan duplikat (termasuk dua akun)",
       PENGPROV: "Lihat saja",
     },
   },

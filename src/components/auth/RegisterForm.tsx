@@ -17,6 +17,7 @@ import {
   MemberBeltSection,
   MemberIdentitySection,
   type MemberFormFields,
+  type MemberFormSuggestion,
   validateMemberFormFields,
 } from "@/components/member/MemberFormSections";
 import { DEFAULT_MEMBER_RANK } from "@/lib/belt";
@@ -53,6 +54,8 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<MemberFormSuggestion[]>([]);
+  const [duplicateBlocked, setDuplicateBlocked] = useState(false);
 
   useEffect(() => {
     fetch("/api/dojos")
@@ -65,6 +68,47 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
   useEffect(() => {
     if (preselectedDojo) setDojoId(preselectedDojo);
   }, [preselectedDojo]);
+
+  useEffect(() => {
+    const q = memberFields.fullName.trim();
+    const nik = memberFields.nik.trim();
+    const nia = memberFields.nia.trim();
+    const birthDate = memberFields.birthDate.trim();
+    if (q.length < 3 && nik.length < 16 && nia.length < 2) {
+      setSuggestions([]);
+      setDuplicateBlocked(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/auth/register/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fullName: q || undefined,
+            birthDate: birthDate || undefined,
+            nik: nik || undefined,
+            nia: nia || undefined,
+          }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          suggestions?: MemberFormSuggestion[];
+          blocked?: boolean;
+        };
+        setSuggestions(data.suggestions ?? []);
+        setDuplicateBlocked(Boolean(data.blocked));
+      } catch {
+        setSuggestions([]);
+        setDuplicateBlocked(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [
+    memberFields.fullName,
+    memberFields.birthDate,
+    memberFields.nik,
+    memberFields.nia,
+  ]);
 
   function setMemberField<K extends keyof MemberFormFields>(
     key: K,
@@ -82,6 +126,14 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
     if (validationError) {
       setError(validationError);
       showError(validationError);
+      return;
+    }
+
+    if (duplicateBlocked) {
+      const msg =
+        "Data terindikasi duplikat. Jika sudah didaftarkan ranting, hubungi pengurus — jangan daftar ulang.";
+      setError(msg);
+      showError(msg);
       return;
     }
 
@@ -141,6 +193,8 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
         idPrefix="register"
         form={memberFields}
         onChange={setMemberField}
+        suggestions={suggestions}
+        duplicateBlocked={duplicateBlocked}
       />
 
       <MemberBeltSection
@@ -255,7 +309,7 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
       <Button
         type="submit"
         className="h-11 w-full rounded-xl bg-inkai-red text-base font-semibold hover:bg-inkai-red/90"
-        disabled={loading || dojosLoading || !dojoId}
+        disabled={loading || dojosLoading || !dojoId || duplicateBlocked}
       >
         {loading ? (
           <>

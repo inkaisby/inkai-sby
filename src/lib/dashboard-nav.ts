@@ -66,20 +66,10 @@ export const ADMIN_LINKS: NavItem[] = [
       { href: "/admin/organisasi", label: "Organisasi" },
     ],
   },
-  {
-    label: "Keuangan & UKT",
-    children: [
-      { href: "/admin/iuran", label: "Iuran Anggota" },
-      { href: "/admin/ukt", label: "UKT" },
-    ],
-  },
-  {
-    label: "Kegiatan & Absensi",
-    children: [
-      { href: "/admin/kegiatan", label: "Event & Kegiatan" },
-      { href: "/admin/absensi", label: "Absensi" },
-    ],
-  },
+  { href: "/admin/iuran", label: "Iuran Anggota" },
+  { href: "/admin/ukt", label: "UKT" },
+  { href: "/admin/kegiatan", label: "Event & Kegiatan" },
+  { href: "/admin/absensi", label: "Absensi" },
   {
     label: "Konten & Layanan",
     children: [
@@ -95,9 +85,8 @@ export const ADMIN_LINKS: NavItem[] = [
     children: [
       { href: "/admin/audit", label: "Log Audit" },
       { href: "/admin/pengaturan", label: "Ringkasan Pengaturan" },
-      { href: "/admin/pengaturan/user", label: "Pengaturan User" },
       { href: "/admin/pengaturan/cabang", label: "Pengaturan Cabang" },
-      { href: "/admin/pengaturan/ranting", label: "Pengaturan Ranting" },
+      { href: "/admin/pengaturan/ranting", label: "Pengaturan Ranting & User" },
       { href: "/admin/pengaturan/kebijakan", label: "Profil & Kebijakan" },
       { href: "/admin/pengaturan/peran", label: "Role & Hak Akses" },
       { href: "/admin/pengaturan/geofencing", label: "Geofencing Absensi" },
@@ -122,20 +111,10 @@ export function getAdminNavLinks(roles: string[]): NavItem[] {
         { href: "/admin/verifikasi", label: "Verifikasi" },
       ],
     },
-    {
-      label: "Keuangan & UKT",
-      children: [
-        { href: "/admin/iuran", label: "Iuran Anggota" },
-        { href: "/admin/ukt", label: "UKT" },
-      ],
-    },
-    {
-      label: "Kegiatan & Absensi",
-      children: [
-        { href: "/admin/kegiatan", label: "Event & Kegiatan" },
-        { href: "/admin/absensi", label: "Absensi" },
-      ],
-    },
+    { href: "/admin/iuran", label: "Iuran Anggota" },
+    { href: "/admin/ukt", label: "UKT" },
+    { href: "/admin/kegiatan", label: "Event & Kegiatan" },
+    { href: "/admin/absensi", label: "Absensi" },
     {
       label: "Konten & Layanan",
       children: [

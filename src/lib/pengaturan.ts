@@ -5,12 +5,6 @@ import { buildDefaultUktAdminUrl } from "@/lib/ukt";
 
 export const SETTINGS_HUB = [
   {
-    href: "/admin/pengaturan/user",
-    title: "Pengaturan User",
-    description: "Kelola akun admin, role, cakupan, reset password, dan status aktif.",
-    group: "akun" as const,
-  },
-  {
     href: "/admin/pengaturan/cabang",
     title: "Pengaturan Cabang",
     description: "Tambah, ubah, arsipkan, atau pulihkan data cabang beserta admin.",
@@ -18,8 +12,9 @@ export const SETTINGS_HUB = [
   },
   {
     href: "/admin/pengaturan/ranting",
-    title: "Pengaturan Ranting",
-    description: "Kelola ranting, login admin, rekening, dan arsip/pulihkan.",
+    title: "Pengaturan Ranting & User",
+    description:
+      "Kelola ranting, akun login admin ranting (email/password), rekening, dan arsip.",
     group: "wilayah" as const,
   },
   {

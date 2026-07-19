@@ -51,7 +51,6 @@ async function PengaturanHubContent() {
   const role = getPrimaryAdminRole(user.roles);
 
   const access: Record<string, boolean> = {
-    "/admin/pengaturan/user": canManageUsers(user),
     "/admin/pengaturan/cabang": canManageBranches(user),
     "/admin/pengaturan/ranting": canManageRanting(user),
     "/admin/pengaturan/kebijakan": canManageKebijakan(user),
@@ -140,9 +139,13 @@ async function PengaturanHubContent() {
     string,
     { icon: typeof Users; value: string | number }
   > = {
-    "/admin/pengaturan/user": { icon: Users, value: userCount },
     "/admin/pengaturan/cabang": { icon: Building2, value: branchCount },
-    "/admin/pengaturan/ranting": { icon: Home, value: rantingCount },
+    "/admin/pengaturan/ranting": {
+      icon: Users,
+      value: rantingCount
+        ? `${rantingCount} ranting`
+        : userCount || "Akun",
+    },
     "/admin/pengaturan/kebijakan": { icon: Scale, value: "Profil" },
     "/admin/pengaturan/peran": { icon: Shield, value: "RBAC" },
     "/admin/pengaturan/geofencing": {
@@ -169,7 +172,7 @@ async function PengaturanHubContent() {
       <SettingsKpiGrid
         items={[
           ...(canManageUsers(user)
-            ? [{ label: "User Admin", value: userCount, icon: Users }]
+            ? [{ label: "Akun Admin", value: userCount, icon: Users }]
             : []),
           ...(canManageBranches(user)
             ? [{ label: "Cabang", value: branchCount, icon: Building2 }]

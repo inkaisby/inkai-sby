@@ -103,7 +103,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi |
-| Kelola Anggota | Cari/filter, detail, NIA, dokumen; nonaktif/bulk; **export CSV**; **bulk approve pending**; arsip |
+| Kelola Anggota | Cari/filter, detail, NIA, dokumen; kolom **Terdaftar**; **edit Iuran/bln** (ranting/cabang); nonaktif/bulk; **export CSV**; **bulk approve pending**; arsip |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran**, **arsip** |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
@@ -116,7 +116,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Carousel Beranda | Upload gambar + aktif + **urutkan** |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
 | Notifikasi | Inbox admin (ada di nav) |
-| Pengaturan | User, cabang/ranting multi-akun, kebijakan, peran (**preset**), geofencing (**pratinjau peta**), akun |
+| Pengaturan | User digabung ke **Ranting & User**; cabang/ranting multi-akun, **ubah email** ranting, kebijakan, peran (**preset**), geofencing (**pratinjau peta**), akun |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
@@ -153,8 +153,8 @@ Pusat / Nasional
 | Kyu / DAN | Tidak edit sendiri | Tidak edit | **Edit Kyu (UKT & anggota)** | Tidak edit (hanya lihat) |
 | Event (UKT, Gashuku, pertandingan) | Lihat & daftar sendiri | Daftarkan anggota ranting | **Buat event** + lihat pendaftar | Lihat event & pendaftar |
 | NIA | Lihat sendiri | Tidak assign | **Assign NIA** | Lihat saja |
-| Iuran | Lihat & bayar sendiri | **Edit tagihan + verifikasi bukti + tandai lunas** (scope dojo) | **Kelola iuran** cabang (edit/verifikasi/lunas) | Lihat saja (tanpa edit) |
-| Status keanggotaan | Lihat sendiri | **Nonaktifkan / aktifkan**; hapus koreksi (tanpa NIA resmi) | **Nonaktif / aktif / hapus (arsip)** anggota cabang | Lihat saja |
+| Iuran | Lihat & bayar sendiri | **Edit tagihan + verifikasi + lunas**; **edit Iuran/bln per anggota** (scope dojo) | **Kelola iuran** cabang (edit/verifikasi/lunas + Iuran/bln) | Lihat saja (tanpa edit) |
+| Status keanggotaan | Lihat sendiri | **Nonaktifkan / aktifkan**; hapus koreksi; **gabungkan duplikat** | **Nonaktif / aktif / hapus (arsip)**; gabungkan duplikat | Lihat saja |
 
 ---
 
@@ -188,11 +188,13 @@ Pusat / Nasional
 1. Calon anggota daftar via `/login?tab=daftar` — form **Identitas** (nama, JK, tempat/tgl lahir, alamat, NIK, **NIA opsional**, telepon), **Sabuk** (Kyu saat ini), **Akun** (email/password), **Dojo**; selaras dengan **Tambah Anggota Baru** di `/admin/anggota` dan `/admin/ukt`.
 2. `POST /api/auth/register` dan `POST /api/admin/members` meneruskan semua field anggota (termasuk NIA jika diisi) ke Inkai API.
 3. Status menunggu verifikasi (publik) atau aktif langsung (admin/ranting).
-4. Admin memverifikasi di `/admin/verifikasi` atau kelola anggota.
-5. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran, dan **mengedit sabuk** anggota (kolom Sabuk di `/admin/anggota`).
-6. Anggota melengkapi profil & dokumen.
-7. **Nonaktifkan** (status `INACTIVE` / `SUSPENDED`) — ranting/cabang; wajib alasan + catatan; notifikasi ke anggota; login diblokir; NIA & riwayat tetap; dapat **aktifkan kembali**. Bulk nonaktif tersedia.
-8. **Hapus** = soft-delete (`isDeleted`) — cek dampak iuran/UKT; anggota aktif/ber-NIA hanya cabang (+ ketik nama). Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang.
+4. **Deteksi duplikat** sebelum simpan: **keras** jika NIK, NIA, atau nama tepat + tanggal lahir sama (cakupan Cabang Surabaya); **lunak** jika nama mirip. Blok `POST /api/admin/members` & `POST /api/auth/register` (409); UI peringatan di form tambah anggota & daftar publik.
+5. **Gabungkan (merge)** oleh ranting/cabang di detail `/admin/anggota`: data operasional dipertahankan, akun login dari daftar mandiri dipindahkan, duplikat diarsipkan (`POST /api/admin/members/merge`). Cocok untuk kasus ranting daftar dulu (tanpa akun) lalu anggota daftar mandiri (PENDING + akun), atau sebaliknya.
+6. Admin memverifikasi di `/admin/verifikasi` atau kelola anggota.
+7. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran, dan **mengedit sabuk** anggota (kolom Sabuk di `/admin/anggota`).
+8. Anggota melengkapi profil & dokumen.
+9. **Nonaktifkan** (status `INACTIVE` / `SUSPENDED`) — ranting/cabang; wajib alasan + catatan; notifikasi ke anggota; login diblokir; NIA & riwayat tetap; dapat **aktifkan kembali**. Bulk nonaktif tersedia.
+10. **Hapus** = soft-delete (`isDeleted`) — cek dampak iuran/UKT; anggota aktif/ber-NIA hanya cabang (+ ketik nama). Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang.
 
 ### 9.2 Iuran
 1. Tagihan iuran bulanan muncul di sistem.
@@ -201,7 +203,8 @@ Pusat / Nasional
    - mengedit nominal, jatuh tempo, deskripsi (tagihan belum lunas);
    - menandai lunas (tunai/setoran ranting) tanpa menunggu unggah bukti;
    - menyetujui / menolak bukti transfer (+ catatan).
-4. Status: `PENDING` → `WAITING_VERIFICATION` → `PAID` / ditolak.
+4. **Iuran/bln per anggota** dapat diubah ranting/cabang di detail `/admin/anggota` (`PATCH set_dues`); generate tagihan bulanan memakai nominal per anggota bila ada, else default kebijakan.
+5. Status: `PENDING` → `WAITING_VERIFICATION` → `PAID` / ditolak.
 
 ### 9.3 UKT (Ujian Kenaikan Tingkat)
 1. **Cabang** membuat periode UKT per semester (Semester I = Jan–Jun, Semester II = Jul–Des); setiap semester = **event terpisah** dengan registrasi & pembayaran sendiri.
@@ -271,7 +274,9 @@ Pusat / Nasional
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` + `/api/member/attendance/checkin` |
 | Absensi admin | Aktif | Harian, belum hadir, rekap semester %, export CSV |
 | Iuran generate bulan | Aktif | `POST /api/admin/billing/generate` + UI Iuran |
-| Nav admin | Dikelompokkan | Keanggotaan / Keuangan / Kegiatan / Konten / Sistem + badge unread pesan |
+| Nav admin | Campuran | Top-level: Iuran, UKT, Event, Absensi; grup: Keanggotaan / Konten / Sistem + badge unread pesan |
+| Deteksi duplikat anggota | Aktif | Keras: NIK / NIA / nama+TTL; lunak: nama; blok create admin & daftar publik; UI peringatan |
+| Gabungkan duplikat | Aktif | Ranting/cabang: pindahkan akun login + riwayat ke data operasional; arsipkan duplikat |
 | Audit admin | Aktif | Filter + export CSV di `/admin/audit` |
 | Nominal UKT | Tanpa kode unik | `uktBaseFeeAmount` — tampilan/KPI strip +1…999 agar = nota |
 | Eligibility UKT | Diterapkan | Gate periode tutup, iuran, dokumen, absensi semester minimum 75% |
@@ -307,8 +312,8 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 ## 13. Peta route API utama (lampiran teknis)
 
 ```
-/api/auth/*                 Login, register (+ identitas/sabuk lengkap), forgot/reset password
-/api/admin/members/*        Kelola anggota (approve/NIA/set_rank/nonaktif/aktif/hapus/restore)
+/api/auth/*                 Login, register (+ identitas/sabuk lengkap), check-duplicate, forgot/reset password
+/api/admin/members/*        Kelola anggota (approve/NIA/set_rank/set_dues/nonaktif/aktif/hapus/restore/check-duplicate/merge)
 /api/admin/members/bulk     Bulk nonaktifkan + approve pending
 /api/admin/members/archived Daftar arsip soft-delete
 /api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
@@ -408,6 +413,12 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 18 Juli 2026 | UKT: tombol **Buat Periode** dipindah ke toolbar kiri Export/Dokumen (banner info saja) |
 | 18 Juli 2026 | UKT: hapus banner info “Periode … belum dibuat” — cukup tombol toolbar |
 | 18 Juli 2026 | UKT toolbar: keluarkan semua aksi dari dropdown Dokumen jadi tombol terpisah |
+| 19 Juli 2026 | Nav admin: Iuran Anggota, UKT, Event & Kegiatan, Absensi jadi item top-level (bukan grup Keuangan/Kegiatan) |
+| 19 Juli 2026 | Deteksi duplikat anggota: NIK/NIA/nama+TTL (keras) + nama (lunak); blok admin create & daftar publik; UI peringatan |
+| 19 Juli 2026 | Merge duplikat: ranting/cabang gabungkan akun mandiri ↔ data ranting; reparent iuran/absensi; arsipkan duplikat |
+| 19 Juli 2026 | Kelola Anggota: kolom Terdaftar (tanggal + jam) di tabel + export CSV |
+| 19 Juli 2026 | Ranting/cabang dapat edit Iuran/bln per anggota (detail anggota); generate tagihan pakai nominal per anggota |
+| 19 Juli 2026 | Nav: Pengaturan User digabung ke Pengaturan Ranting & User; cabang dapat ubah email login ranting (change_email) |
 
 ---
 

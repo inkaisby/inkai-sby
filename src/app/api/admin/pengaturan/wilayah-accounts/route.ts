@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
+import { inkaiFetch } from "@/lib/inkai-api/server";
 import { prisma } from "@/lib/prisma";
 import {
   assertBranchInScope,
@@ -13,6 +14,7 @@ import {
 } from "@/lib/pengaturan";
 import {
   countActiveWilayahAccounts,
+  getPrimaryAccountId,
   listWilayahAccounts,
   notifyWilayahAdmins,
   performHandover,
@@ -360,6 +362,58 @@ export async function PATCH(request: Request) {
     });
     message = "Password berhasil direset";
     loginPassword = parsed.data.newPassword;
+  } else if (action === "change_email") {
+    const newEmail = parsed.data.newEmail?.trim().toLowerCase();
+    if (!newEmail) {
+      return NextResponse.json({ error: "Email baru wajib diisi" }, { status: 400 });
+    }
+    if (newEmail === target.email.toLowerCase()) {
+      return NextResponse.json(
+        { error: "Email baru sama dengan email saat ini" },
+        { status: 400 },
+      );
+    }
+    const conflict = await prisma.user.findFirst({
+      where: {
+        email: { equals: newEmail, mode: "insensitive" },
+        isDeleted: false,
+        NOT: { id: target.id },
+      },
+      select: { id: true },
+    });
+    if (conflict) {
+      return NextResponse.json(
+        { error: `Email ${newEmail} sudah dipakai akun lain` },
+        { status: 409 },
+      );
+    }
+
+    await prisma.user.update({
+      where: { id: target.id },
+      data: { email: newEmail },
+    });
+
+    // Sinkron ke Inkai bila PIC utama ranting (username login dojo)
+    if (scope === "dojo" && authResult.token) {
+      const primaryId = await getPrimaryAccountId(scope, wilayahId);
+      if (primaryId === target.id) {
+        try {
+          await inkaiFetch(
+            `/v1/org/dojos/${wilayahId}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({ adminEmail: newEmail }),
+            },
+            authResult.token,
+          );
+        } catch {
+          // non-blocking — email lokal sudah diubah
+        }
+      }
+    }
+
+    message = `Email diperbarui: ${newEmail}`;
+    target.email = newEmail;
   }
 
   writeAuditLog({
@@ -386,7 +440,8 @@ export async function PATCH(request: Request) {
     action === "activate" ||
     action === "set_primary" ||
     action === "handover" ||
-    action === "set_jabatan"
+    action === "set_jabatan" ||
+    action === "change_email"
   ) {
     await notifyWilayahAdmins({
       scope,
