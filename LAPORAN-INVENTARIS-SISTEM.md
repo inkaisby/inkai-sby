@@ -115,7 +115,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Absensi | Harian + **belum hadir** + **rekap semester %** + export |
 | Carousel Beranda | Upload gambar + aktif + **urutkan** |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
-| Notifikasi | Inbox admin (ada di nav) |
+| Notifikasi | Inbox admin (ada di nav); **ranting hanya lihat notif rantingnya**; cabang lihat semua + badge ranting |
 | Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, peran (**preset**), geofencing (**pratinjau peta**), akun |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, serta sebagian submenu pengaturan tingkat cabang/pusat.
@@ -185,7 +185,7 @@ Pusat / Nasional
 ## 9. Alur bisnis yang sudah berjalan
 
 ### 9.1 Keanggotaan
-1. Calon anggota daftar via `/login?tab=daftar` — form **Identitas** (nama, JK, tempat/tgl lahir, alamat, NIK, **NIA opsional**, telepon), **Sabuk** (Kyu saat ini), **Akun** (email/password), **Dojo**; selaras dengan **Tambah Anggota Baru** di `/admin/anggota` dan `/admin/ukt`.
+1. Calon anggota daftar via `/login?tab=daftar` — form **Identitas** (nama, JK, tempat/tgl lahir, alamat, NIK, **NIA opsional**, telepon), **Sabuk** (Kyu saat ini), **Akun** (email/password), **Dojo**; selaras dengan **Tambah Anggota Baru** di `/admin/anggota` dan `/admin/ukt`. Field teks identitas **huruf besar**; **tanggal lahir** bisa paste (mis. `28 Februari 2011`).
 2. `POST /api/auth/register` dan `POST /api/admin/members` meneruskan semua field anggota (termasuk NIA jika diisi) ke Inkai API.
 3. Status menunggu verifikasi (publik) atau aktif langsung (admin/ranting).
 4. **Deteksi duplikat** sebelum simpan: **keras** jika NIK, NIA, atau nama tepat + tanggal lahir sama (cakupan Cabang Surabaya); **lunak** jika nama mirip. Blok `POST /api/admin/members` & `POST /api/auth/register` (409); UI peringatan di form tambah anggota & daftar publik.
@@ -344,7 +344,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/member/piagam          Unggah piagam
 /api/member/billing/[id]    Unggah bukti pembayaran iuran
 /api/member/attendance/checkin  Check-in absensi GPS
-/api/notifications/*        Notifikasi
+/api/notifications/*        Notifikasi (admin ranting: filter scope dojo)
 /api/dojos                  Daftar dojo publik
 Inkai API `/v1/members/verify/[id]`  Verifikasi kartu anggota (publik, via halaman `/v/[id]`)
 ```
@@ -441,6 +441,9 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Pengaturan admin ranting: hapus duplikat email/password di Ubah Data; ganti email+password hanya di Akun Saya |
 | 19 Juli 2026 | Paket keamanan+performa P0–P2: pesan IDOR ditutup; verifikasi fail-closed+scope; rate limit async/Upstash; CSRF admin; password register; audit upload/broadcast/verifikasi; cache badge pesan; KPI anggota groupBy; attendance scoped; chunk broadcast/generate; index Prisma; polling diperlambat |
 | 19 Juli 2026 | Kelola Anggota: floating bar multi-select + **Hapus / arsipkan** massal (ketik ARSIPKAN); API bulk `delete` |
+| 19 Juli 2026 | Notifikasi admin: scope per ranting (filter inbox ADMIN_DOJO); daftar mandiri kegiatan → notif ranting+cabang saja; badge ranting di bell |
+| 19 Juli 2026 | Form Tambah Anggota / identitas: field teks otomatis **HURUF BESAR** (UI + API create/register) |
+| 19 Juli 2026 | Tanggal lahir form identitas: paste fleksibel (`28 Februari 2011`, `28/02/2011`, ISO) |
 
 ---
 

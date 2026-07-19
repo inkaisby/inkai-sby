@@ -106,15 +106,19 @@ export async function createAdminMember(opts: {
   const payload: Record<string, unknown> = {
     fullName: input.fullName.toUpperCase(),
     gender: input.gender || null,
-    birthPlace: input.birthPlace || null,
+    birthPlace: input.birthPlace?.trim()
+      ? input.birthPlace.trim().toUpperCase()
+      : null,
     birthDate: input.birthDate || null,
-    address: input.address || null,
+    address: input.address?.trim()
+      ? input.address.trim().toUpperCase()
+      : null,
     dojoId,
     currentRank,
     status: "Active",
   };
   if (nik) payload.nik = nik;
-  if (nia) payload.nia = nia;
+  if (nia) payload.nia = nia.toUpperCase();
   if (phoneNumber) payload.phoneNumber = phoneNumber;
 
   const { res, data } = await inkaiFetch(

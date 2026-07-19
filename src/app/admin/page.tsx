@@ -66,7 +66,7 @@ async function AdminDashboardContent() {
 
   try {
     const [bundle, unreadPesanCount] = await Promise.all([
-      fetchAdminDashboardBundle(token),
+      fetchAdminDashboardBundle(token, user),
       getCachedAdminUnreadPesan(session.user.id),
     ]);
 

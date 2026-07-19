@@ -1,9 +1,8 @@
 import { Suspense } from "react";
-import { auth } from "@/auth";
-import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
-import { canAccessAdmin } from "@/lib/rbac";
 import { fetchAllNotifications } from "@/lib/inkai-api/admin-data";
+import { requireAdminSession } from "@/lib/admin-session";
+import { extractDojoLabelFromNotificationText } from "@/lib/notification-display";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
@@ -19,12 +18,10 @@ export default function AdminNotifikasiPage() {
 }
 
 async function AdminNotifikasiContent() {
-  const session = await auth();
-  if (!session || !canAccessAdmin(session.user)) redirect("/login");
-  const token = await getInkaiAccessToken();
+  const { user, token } = await requireAdminSession();
   if (!token) redirect("/login");
 
-  const notifications = await fetchAllNotifications(token, 100);
+  const notifications = await fetchAllNotifications(token, 100, user);
 
   return (
     <>
@@ -37,25 +34,39 @@ async function AdminNotifikasiContent() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {notifications.map((n) => (
-            <Card key={String(n.id)} className={n.isRead ? "" : "border-inkai-red/30"}>
-              <CardContent className="p-4">
-                <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-medium">{String(n.title)}</p>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">{String(n.type)}</Badge>
-                    {!n.isRead && (
-                      <Badge className="bg-inkai-red text-white">Baru</Badge>
-                    )}
+          {notifications.map((n) => {
+            const content = String(n.content ?? "");
+            const ranting = extractDojoLabelFromNotificationText(
+              `${String(n.title ?? "")} ${content}`,
+            );
+            return (
+              <Card
+                key={String(n.id)}
+                className={n.isRead ? "" : "border-inkai-red/30"}
+              >
+                <CardContent className="p-4">
+                  <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium">{String(n.title)}</p>
+                    <div className="flex items-center gap-2">
+                      {ranting ? (
+                        <Badge variant="outline" className="font-normal">
+                          {ranting}
+                        </Badge>
+                      ) : null}
+                      <Badge variant="outline">{String(n.type)}</Badge>
+                      {!n.isRead && (
+                        <Badge className="bg-inkai-red text-white">Baru</Badge>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <p className="text-sm text-muted-foreground">{String(n.content)}</p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {new Date(String(n.createdAt)).toLocaleString("id-ID")}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+                  <p className="text-sm text-muted-foreground">{content}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {new Date(String(n.createdAt)).toLocaleString("id-ID")}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </>

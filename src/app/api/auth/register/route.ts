@@ -112,11 +112,15 @@ export async function POST(request: Request) {
           dojoId,
           nik: nik || undefined,
           gender: gender || undefined,
-          birthPlace: birthPlace || undefined,
+          birthPlace: birthPlace?.trim()
+            ? birthPlace.trim().toUpperCase()
+            : undefined,
           birthDate: birthDate || undefined,
-          address: address || undefined,
+          address: address?.trim()
+            ? address.trim().toUpperCase()
+            : undefined,
           currentRank: currentRank?.trim() || DEFAULT_MEMBER_RANK,
-          nia: nia || undefined,
+          nia: nia?.trim() ? nia.trim().toUpperCase() : undefined,
         }),
       },
       null,

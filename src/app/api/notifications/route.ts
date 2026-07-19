@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { inkaiFetch } from "@/lib/inkai-api/server";
+import { enrichSessionUser } from "@/lib/managed-dojos";
+import { canAccessAdmin, type SessionUser } from "@/lib/rbac";
+import { filterNotificationsForAdminScope } from "@/lib/admin-notify-scope";
 
 type NotifRow = {
   id: string;
@@ -24,7 +27,15 @@ export async function GET() {
     return NextResponse.json({ error: "Gagal memuat notifikasi" }, { status: res.status });
   }
 
-  const list = ((data.data as NotifRow[]) ?? []).slice(0, 50);
+  let list = ((data.data as NotifRow[]) ?? []).slice(0, 80);
+
+  // Admin ranting: sembunyikan notifikasi ranting lain (fan-out Inkai).
+  if (canAccessAdmin(session.user as SessionUser)) {
+    const user = await enrichSessionUser(session.user as SessionUser);
+    list = await filterNotificationsForAdminScope(user, list);
+  }
+
+  list = list.slice(0, 50);
   const unreadCount = list.filter((n) => !n.isRead).length;
 
   return NextResponse.json({

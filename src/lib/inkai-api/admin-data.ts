@@ -333,18 +333,37 @@ export async function fetchUpcomingEvents(token: string, limit = 10) {
     .slice(0, limit);
 }
 
-export async function fetchMyNotifications(token: string) {
+export async function fetchMyNotifications(
+  token: string,
+  user?: SessionUser,
+) {
   const { res, data } = await inkaiFetch("/v1/notifications/my", {}, token);
   if (!res.ok) return { items: [], unread: 0 };
-  const items = (data.data as Array<Record<string, unknown>>) ?? [];
+  let items = (data.data as Array<Record<string, unknown>>) ?? [];
+  if (user) {
+    const { filterNotificationsForAdminScope } = await import(
+      "@/lib/admin-notify-scope"
+    );
+    items = await filterNotificationsForAdminScope(user, items);
+  }
   const unread = items.filter((n) => !n.isRead).length;
   return { items: items.slice(0, 5), unread };
 }
 
-export async function fetchAllNotifications(token: string, limit = 100) {
+export async function fetchAllNotifications(
+  token: string,
+  limit = 100,
+  user?: SessionUser,
+) {
   const { res, data } = await inkaiFetch("/v1/notifications/my", {}, token);
   if (!res.ok) return [];
-  const items = (data.data as Array<Record<string, unknown>>) ?? [];
+  let items = (data.data as Array<Record<string, unknown>>) ?? [];
+  if (user) {
+    const { filterNotificationsForAdminScope } = await import(
+      "@/lib/admin-notify-scope"
+    );
+    items = await filterNotificationsForAdminScope(user, items);
+  }
   return items.slice(0, limit);
 }
 
@@ -579,7 +598,10 @@ export async function fetchSettingsByPrefix(token: string, prefix: string) {
   return (data.data as Array<{ key: string; value: unknown }>) ?? [];
 }
 
-export async function fetchAdminDashboardBundle(token: string) {
+export async function fetchAdminDashboardBundle(
+  token: string,
+  user?: SessionUser,
+) {
   const [stats, recent, pendingCount, pendingVerifications, pendingBillings, events, notifications] =
     await Promise.all([
       fetchDashboardStats(token),
@@ -588,7 +610,7 @@ export async function fetchAdminDashboardBundle(token: string) {
       fetchPendingVerificationsCount(token),
       fetchPendingBillingsCount(token),
       fetchUpcomingEvents(token, 10),
-      fetchMyNotifications(token),
+      fetchMyNotifications(token, user),
     ]);
 
   return {

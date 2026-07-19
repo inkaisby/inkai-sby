@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bell, Check, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { extractDojoLabelFromNotificationText } from "@/lib/notification-display";
 
 type NotificationItem = {
   id: string;
@@ -131,33 +132,48 @@ export function NotificationBell({
                 Belum ada notifikasi.
               </p>
             ) : (
-              items.slice(0, 8).map((n) => (
-                <button
-                  key={n.id}
-                  type="button"
-                  className={`w-full border-b px-4 py-3 text-left transition-colors hover:bg-muted/50 ${
-                    !n.isRead ? "bg-inkai-red/5" : ""
-                  }`}
-                  onClick={() => {
-                    if (!n.isRead) void markRead(n.id);
-                  }}
-                >
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium leading-tight">{n.title}</p>
-                    {!n.isRead && (
-                      <Badge className="h-5 shrink-0 bg-inkai-red text-[10px] text-white">
-                        Baru
+              items.slice(0, 8).map((n) => {
+                const ranting = extractDojoLabelFromNotificationText(
+                  `${n.title} ${n.content}`,
+                );
+                return (
+                  <button
+                    key={n.id}
+                    type="button"
+                    className={`w-full border-b px-4 py-3 text-left transition-colors hover:bg-muted/50 ${
+                      !n.isRead ? "bg-inkai-red/5" : ""
+                    }`}
+                    onClick={() => {
+                      if (!n.isRead) void markRead(n.id);
+                    }}
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium leading-tight">
+                        {n.title}
+                      </p>
+                      {!n.isRead && (
+                        <Badge className="h-5 shrink-0 bg-inkai-red text-[10px] text-white">
+                          Baru
+                        </Badge>
+                      )}
+                    </div>
+                    {ranting ? (
+                      <Badge
+                        variant="outline"
+                        className="mb-1 h-5 max-w-full truncate text-[10px] font-normal"
+                      >
+                        {ranting}
                       </Badge>
-                    )}
-                  </div>
-                  <p className="line-clamp-2 text-xs text-muted-foreground">
-                    {n.content}
-                  </p>
-                  <p className="mt-1 text-[10px] text-muted-foreground">
-                    {new Date(n.createdAt).toLocaleString("id-ID")}
-                  </p>
-                </button>
-              ))
+                    ) : null}
+                    <p className="line-clamp-2 text-xs text-muted-foreground">
+                      {n.content}
+                    </p>
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      {new Date(n.createdAt).toLocaleString("id-ID")}
+                    </p>
+                  </button>
+                );
+              })
             )}
           </div>
 

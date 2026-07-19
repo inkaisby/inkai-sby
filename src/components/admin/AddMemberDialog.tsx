@@ -136,13 +136,17 @@ export function AddMemberDialog({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fullName: form.fullName.trim(),
+          fullName: form.fullName.trim().toUpperCase(),
           gender: form.gender || undefined,
-          birthPlace: form.birthPlace.trim() || undefined,
+          birthPlace: form.birthPlace.trim()
+            ? form.birthPlace.trim().toUpperCase()
+            : undefined,
           birthDate: form.birthDate || undefined,
-          address: form.address.trim() || undefined,
+          address: form.address.trim()
+            ? form.address.trim().toUpperCase()
+            : undefined,
           nik: form.nik.trim() || undefined,
-          nia: form.nia.trim() || undefined,
+          nia: form.nia.trim() ? form.nia.trim().toUpperCase() : undefined,
           phoneNumber: form.phoneNumber.trim() || undefined,
           currentRank: form.currentRank || DEFAULT_MEMBER_RANK,
           dojoId: form.dojoId || defaultDojoId || undefined,

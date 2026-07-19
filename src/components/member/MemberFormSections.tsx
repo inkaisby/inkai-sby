@@ -3,6 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BELT_RANK_OPTIONS } from "@/lib/belt";
+import { parseFlexibleBirthDate } from "@/lib/parse-birth-date";
 
 export type MemberFormFields = {
   fullName: string;
@@ -42,6 +43,12 @@ type MemberFormSectionProps = {
 };
 
 const selectClassName = "h-9 w-full rounded-lg border px-2 text-sm";
+const upperInputClassName = "uppercase";
+
+/** Field teks identitas disimpan huruf besar. */
+function upperText(value: string) {
+  return value.toUpperCase();
+}
 
 function reasonLabel(reasons?: string[]) {
   if (!reasons?.length) return null;
@@ -99,9 +106,11 @@ export function MemberIdentitySection({
         </Label>
         <Input
           id={`${idPrefix}-name`}
+          className={upperInputClassName}
           value={form.fullName}
-          onChange={(e) => onChange("fullName", e.target.value)}
-          placeholder="Nama sesuai identitas"
+          onChange={(e) => onChange("fullName", upperText(e.target.value))}
+          placeholder="NAMA SESUAI IDENTITAS"
+          autoCapitalize="characters"
           required={fullNameRequired}
         />
         {suggestions.length > 0 ? (
@@ -155,8 +164,11 @@ export function MemberIdentitySection({
           <Label htmlFor={`${idPrefix}-birth-place`}>Tempat Lahir</Label>
           <Input
             id={`${idPrefix}-birth-place`}
+            className={upperInputClassName}
             value={form.birthPlace}
-            onChange={(e) => onChange("birthPlace", e.target.value)}
+            onChange={(e) => onChange("birthPlace", upperText(e.target.value))}
+            placeholder="KOTA / KABUPATEN"
+            autoCapitalize="characters"
           />
         </div>
         <div className="space-y-1.5">
@@ -166,7 +178,18 @@ export function MemberIdentitySection({
             type="date"
             value={form.birthDate}
             onChange={(e) => onChange("birthDate", e.target.value)}
+            onPaste={(e) => {
+              const text = e.clipboardData.getData("text");
+              const parsed = parseFlexibleBirthDate(text);
+              if (parsed) {
+                e.preventDefault();
+                onChange("birthDate", parsed);
+              }
+            }}
           />
+          <p className="text-[11px] text-muted-foreground">
+            Bisa paste, mis. 28 Februari 2011
+          </p>
         </div>
       </div>
 
@@ -174,8 +197,11 @@ export function MemberIdentitySection({
         <Label htmlFor={`${idPrefix}-address`}>Alamat</Label>
         <Input
           id={`${idPrefix}-address`}
+          className={upperInputClassName}
           value={form.address}
-          onChange={(e) => onChange("address", e.target.value)}
+          onChange={(e) => onChange("address", upperText(e.target.value))}
+          placeholder="ALAMAT LENGKAP"
+          autoCapitalize="characters"
         />
       </div>
 
@@ -197,10 +223,12 @@ export function MemberIdentitySection({
         <Label htmlFor={`${idPrefix}-nia`}>NIA (Nomor Induk Anggota)</Label>
         <Input
           id={`${idPrefix}-nia`}
-          placeholder="Opsional — isi jika sudah punya NIA"
+          className={upperInputClassName}
+          placeholder="OPSIONAL — ISI JIKA SUDAH PUNYA NIA"
           maxLength={32}
           value={form.nia}
-          onChange={(e) => onChange("nia", e.target.value.toUpperCase())}
+          onChange={(e) => onChange("nia", upperText(e.target.value))}
+          autoCapitalize="characters"
         />
         <p className="text-xs text-muted-foreground">
           Kosongkan bila belum memiliki NIA; pengurus cabang dapat mengisinya
@@ -212,10 +240,12 @@ export function MemberIdentitySection({
         <Label htmlFor={`${idPrefix}-phone`}>Telepon</Label>
         <Input
           id={`${idPrefix}-phone`}
+          className={upperInputClassName}
           inputMode="tel"
-          placeholder="Opsional"
+          placeholder="OPSIONAL"
           value={form.phoneNumber}
-          onChange={(e) => onChange("phoneNumber", e.target.value)}
+          onChange={(e) => onChange("phoneNumber", upperText(e.target.value))}
+          autoCapitalize="characters"
         />
       </div>
     </section>
