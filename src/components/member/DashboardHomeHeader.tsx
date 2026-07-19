@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
 import { Bell, LogOut, MessageCircle, ScrollText } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { LogoutConfirmDialog } from "@/components/auth/LogoutConfirmDialog";
 import { ThemeIconButton } from "@/components/member/ThemeIconButton";
 
 export function DashboardHomeHeader({
@@ -19,6 +20,8 @@ export function DashboardHomeHeader({
   unreadCount?: number;
   unreadPesan?: number;
 }) {
+  const [logoutOpen, setLogoutOpen] = useState(false);
+
   const initials = name
     .split(" ")
     .map((n) => n[0])
@@ -33,6 +36,7 @@ export function DashboardHomeHeader({
     unreadPesan > 9 ? "9+" : unreadPesan > 0 ? String(unreadPesan) : null;
 
   return (
+    <>
     <header className="flex items-center justify-between gap-3 pt-4 pb-1">
       <div className="flex min-w-0 items-center gap-3">
         <Avatar className="h-10 w-10 ring-2 ring-inkai-red ring-offset-2 ring-offset-background">
@@ -84,7 +88,7 @@ export function DashboardHomeHeader({
         </Link>
         <button
           type="button"
-          onClick={() => signOut({ callbackUrl: "/" })}
+          onClick={() => setLogoutOpen(true)}
           className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10 text-red-500 transition-colors hover:bg-red-500/15"
           aria-label="Keluar"
         >
@@ -92,5 +96,7 @@ export function DashboardHomeHeader({
         </button>
       </div>
     </header>
+    <LogoutConfirmDialog open={logoutOpen} onOpenChange={setLogoutOpen} />
+    </>
   );
 }

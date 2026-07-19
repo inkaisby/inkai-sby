@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { MobileDashboardNav } from "@/components/layout/MobileDashboardNav";
 import { UserMenu } from "@/components/layout/AppShell";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { useNavigation } from "@/components/layout/NavigationProvider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import type { NavItem } from "@/lib/dashboard-nav";
 
@@ -49,6 +52,15 @@ function resolveTitle(pathname: string, showAdmin: boolean) {
   return match ? map[match] : showAdmin ? "Admin Panel" : "Dashboard Anggota";
 }
 
+/** Parent path for admin back: `/admin` → `/`; `/admin/pengaturan/ranting` → `/admin/pengaturan`. */
+function resolveAdminBackHref(pathname: string): string {
+  if (!pathname.startsWith("/admin") || pathname === "/admin") return "/";
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length <= 1) return "/admin";
+  segments.pop();
+  return `/${segments.join("/")}`;
+}
+
 export function DashboardTopbar({
   title,
   links,
@@ -63,13 +75,28 @@ export function DashboardTopbar({
   showAdmin?: boolean;
 }) {
   const pathname = usePathname();
+  const { startNavigation } = useNavigation();
   const pageTitle = resolveTitle(pathname, showAdmin);
   const notificationsHref = showAdmin ? "/admin/notifikasi" : "/dashboard/notifikasi";
+  const backHref = showAdmin ? resolveAdminBackHref(pathname) : null;
 
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6">
       <div className="flex min-w-0 items-center gap-2">
         <MobileDashboardNav title={title} links={links} />
+        {backHref ? (
+          <Link
+            href={backHref}
+            prefetch={backHref.startsWith("/admin")}
+            onClick={() => {
+              if (backHref.startsWith("/admin")) startNavigation(backHref);
+            }}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted/80 text-foreground transition-colors hover:bg-muted"
+            aria-label="Kembali"
+          >
+            <ArrowLeft size={18} />
+          </Link>
+        ) : null}
         <h1 className="truncate text-base font-bold sm:text-lg">{pageTitle}</h1>
       </div>
 

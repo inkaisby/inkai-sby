@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { SidebarNavLink } from "@/components/layout/SidebarNavLink";
 import Image from "next/image";
@@ -15,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { LogoutConfirmDialog } from "@/components/auth/LogoutConfirmDialog";
 import { SwitchAccountModal } from "@/components/auth/SwitchAccountModal";
 import { SidebarNavGroup } from "@/components/layout/SidebarNavGroup";
 import { isNavGroup, type NavItem } from "@/lib/dashboard-nav";
@@ -30,6 +30,7 @@ export function UserMenu({
   showAdmin?: boolean;
 }) {
   const [switchOpen, setSwitchOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
 
   const initials = name
     .split(" ")
@@ -82,7 +83,7 @@ export function UserMenu({
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => signOut({ callbackUrl: "/" })}
+          onSelect={() => setLogoutOpen(true)}
           className="text-destructive"
         >
           <LogOut className="mr-2 h-4 w-4" />
@@ -96,6 +97,7 @@ export function UserMenu({
       onOpenChange={setSwitchOpen}
       currentEmail={email}
     />
+    <LogoutConfirmDialog open={logoutOpen} onOpenChange={setLogoutOpen} />
     </>
   );
 }
