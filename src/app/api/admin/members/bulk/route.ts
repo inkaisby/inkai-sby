@@ -5,9 +5,12 @@ import { getClientIp } from "@/lib/security/request";
 import {
   canSoftDeleteMembers,
   canToggleMemberActive,
+  isCabangAdmin,
 } from "@/lib/wilayah-rbac";
 import {
   deactivateMember,
+  purgeArchivedMember,
+  restoreMember,
   softDeleteMember,
 } from "@/lib/member-lifecycle-actions";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
@@ -27,8 +30,59 @@ export async function POST(request: Request) {
   const ip = getClientIp(request);
   const userAgent = request.headers.get("user-agent");
   const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+  const action = parsed.data.action;
 
-  if (parsed.data.action === "delete") {
+  if (action === "purge") {
+    if (!canSoftDeleteMembers(authResult.user.roles)) {
+      return NextResponse.json(
+        { error: "Anda tidak berwenang menghapus anggota" },
+        { status: 403 },
+      );
+    }
+    const phrase = parsed.data.confirmPhrase?.trim().toUpperCase() || "";
+    if (phrase !== "HAPUS") {
+      return NextResponse.json(
+        { error: 'Ketik "HAPUS" untuk mengonfirmasi hapus permanen' },
+        { status: 400 },
+      );
+    }
+    for (const memberId of parsed.data.memberIds) {
+      const result = await purgeArchivedMember({
+        user: authResult.user,
+        token: authResult.token,
+        memberId,
+        confirmPhrase: phrase,
+        ip,
+        userAgent,
+      });
+      results.push(
+        result.ok
+          ? { id: memberId, ok: true }
+          : { id: memberId, ok: false, error: result.error },
+      );
+    }
+  } else if (action === "restore") {
+    if (!isCabangAdmin(authResult.user.roles)) {
+      return NextResponse.json(
+        { error: "Hanya pengurus cabang yang dapat memulihkan arsip" },
+        { status: 403 },
+      );
+    }
+    for (const memberId of parsed.data.memberIds) {
+      const result = await restoreMember({
+        user: authResult.user,
+        token: authResult.token,
+        memberId,
+        ip,
+        userAgent,
+      });
+      results.push(
+        result.ok
+          ? { id: memberId, ok: true }
+          : { id: memberId, ok: false, error: result.error },
+      );
+    }
+  } else if (action === "delete") {
     if (!canSoftDeleteMembers(authResult.user.roles)) {
       return NextResponse.json(
         { error: "Anda tidak berwenang menghapus anggota" },
@@ -62,7 +116,7 @@ export async function POST(request: Request) {
       { error: "Anda tidak berwenang mengubah status anggota" },
       { status: 403 },
     );
-  } else if (parsed.data.action === "approve") {
+  } else if (action === "approve") {
     for (const memberId of parsed.data.memberIds) {
       const { res, data } = await inkaiFetch(
         `/v1/members/${memberId}`,
@@ -111,11 +165,15 @@ export async function POST(request: Request) {
   const okCount = results.filter((r) => r.ok).length;
   const failCount = results.length - okCount;
   const verb =
-    parsed.data.action === "approve"
+    action === "approve"
       ? "disetujui"
-      : parsed.data.action === "delete"
+      : action === "delete"
         ? "diarsipkan"
-        : "dinonaktifkan";
+        : action === "purge"
+          ? "dihapus permanen"
+          : action === "restore"
+            ? "dipulihkan"
+            : "dinonaktifkan";
 
   return NextResponse.json({
     success: failCount === 0,

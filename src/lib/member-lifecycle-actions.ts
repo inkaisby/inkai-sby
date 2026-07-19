@@ -382,3 +382,109 @@ export async function restoreMember(opts: {
       "Anggota dipulihkan dari arsip sebagai Nonaktif. Aktifkan kembali jika sudah siap.",
   };
 }
+
+const BULK_PURGE_PHRASE = "HAPUS";
+
+/**
+ * Hapus permanen anggota yang sudah di arsip (isDeleted).
+ * Menghapus riwayat terkait di DB lokal; tidak bisa dipulihkan.
+ */
+export async function purgeArchivedMember(opts: {
+  user: SessionUser;
+  token: string;
+  memberId: string;
+  confirmPhrase?: string;
+  ip?: string | null;
+  userAgent?: string | null;
+}) {
+  const phrase = opts.confirmPhrase?.trim().toUpperCase() || "";
+  if (phrase !== BULK_PURGE_PHRASE) {
+    return {
+      ok: false as const,
+      error: 'Ketik "HAPUS" untuk mengonfirmasi penghapusan permanen',
+      status: 400,
+    };
+  }
+
+  const member = await findScopedMember(opts.user, opts.memberId, {
+    includeDeleted: true,
+  });
+  if (!member || !member.isDeleted) {
+    return {
+      ok: false as const,
+      error: "Hanya anggota di arsip yang dapat dihapus permanen",
+      status: 404,
+    };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const billings = await tx.billing.findMany({
+        where: { memberId: opts.memberId },
+        select: { id: true },
+      });
+      const billingIds = billings.map((b) => b.id);
+      if (billingIds.length > 0) {
+        await tx.payment.deleteMany({ where: { billingId: { in: billingIds } } });
+        await tx.billing.deleteMany({ where: { id: { in: billingIds } } });
+      }
+
+      const orders = await tx.storeOrder.findMany({
+        where: { memberId: opts.memberId },
+        select: { id: true },
+      });
+      const orderIds = orders.map((o) => o.id);
+      if (orderIds.length > 0) {
+        await tx.storeOrderItem.deleteMany({
+          where: { orderId: { in: orderIds } },
+        });
+        await tx.storeOrder.deleteMany({ where: { id: { in: orderIds } } });
+      }
+
+      await tx.attendance.deleteMany({ where: { memberId: opts.memberId } });
+      await tx.memberRank.deleteMany({ where: { memberId: opts.memberId } });
+      await tx.eventRegistration.deleteMany({
+        where: { memberId: opts.memberId },
+      });
+      await tx.verification.deleteMany({ where: { memberId: opts.memberId } });
+
+      await tx.member.delete({ where: { id: opts.memberId } });
+
+      if (member.userId) {
+        await tx.user.update({
+          where: { id: member.userId },
+          data: { isActive: false },
+        });
+      }
+    });
+  } catch (err) {
+    console.error("[purgeArchivedMember]", err);
+    return {
+      ok: false as const,
+      error: "Gagal menghapus permanen (ada data terkait)",
+      status: 500,
+    };
+  }
+
+  // Best-effort di Inkai (sudah soft-delete sebelumnya)
+  await inkaiFetch(`/v1/members/${opts.memberId}`, { method: "DELETE" }, opts.token);
+
+  writeAuditLog({
+    userId: opts.user.id,
+    email: opts.user.email,
+    action: "MEMBER_PURGE",
+    details: JSON.stringify({
+      memberId: opts.memberId,
+      fullName: member.fullName,
+      nia: member.nia,
+    }),
+    ip: opts.ip,
+    userAgent: opts.userAgent,
+    token: opts.token,
+  });
+
+  return {
+    ok: true as const,
+    message: "Anggota dihapus permanen dari arsip",
+  };
+}
