@@ -68,6 +68,7 @@ export function RantingSettingsManager({
   lockedBranchId,
   selfManagedOnly = false,
   archived = [],
+  adminsUnavailable = false,
 }: {
   branches: { id: string; name: string }[];
   dojos: RantingRow[];
@@ -75,6 +76,8 @@ export function RantingSettingsManager({
   /** Admin ranting: hanya ubah data sendiri, tanpa tambah/arsip/login. */
   selfManagedOnly?: boolean;
   archived?: RantingRow[];
+  /** Username/admin emails gagal dimuat — jangan tampilkan "Belum ada akun". */
+  adminsUnavailable?: boolean;
 }) {
   const router = useRouter();
   const defaultBranchId = lockedBranchId || branches[0]?.id || "";
@@ -438,7 +441,11 @@ export function RantingSettingsManager({
                     {d.kecamatan || "—"}
                   </TableCell>
                   <TableCell>
-                    {d.adminCount && d.adminCount > 0 ? (
+                    {adminsUnavailable ? (
+                      <span className="text-sm text-muted-foreground">
+                        Tidak tersedia
+                      </span>
+                    ) : d.adminCount && d.adminCount > 0 ? (
                       <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-1">
                           <Badge variant="secondary">{d.adminCount} akun</Badge>

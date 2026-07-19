@@ -1,6 +1,7 @@
 import { requireAdminSession } from "@/lib/admin-session";
 import { fetchOrgStructure } from "@/lib/inkai-api/admin-data";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
+import { settingsUsernameLoadWarning, isPrismaBusyError } from "@/lib/prisma-errors";
 import { ROLE_LABELS } from "@/lib/rbac";
 import { RantingSettingsManager } from "@/app/admin/pengaturan/ranting/RantingSettingsManager";
 import { AkunSayaForm } from "@/app/admin/pengaturan/akun/AkunSayaForm";
@@ -54,29 +55,36 @@ export async function DojoPengaturanContent() {
   }
 
   const dojoIds = scopedDojos.map((d) => String(d.id));
-  let admins: Array<{
+  type AdminRow = {
     email: string;
     isActive: boolean;
     managedDojoId: string | null;
-  }> = [];
+  };
+  let admins: AdminRow[] = [];
+  let adminLoadFailed = false;
+  let adminLoadError: unknown;
 
   if (dojoIds.length) {
-    try {
-      admins = await prisma.user.findMany({
-        where: {
-          isDeleted: false,
-          managedDojoId: { in: dojoIds },
-          roles: { some: { name: "ADMIN_DOJO" } },
-        },
-        select: {
-          email: true,
-          isActive: true,
-          managedDojoId: true,
-        },
-      });
-    } catch (error) {
-      console.error("[DojoPengaturan] prisma admins", error);
-    }
+    const adminsResult = await withPrismaFallback(
+      "dojo-pengaturan-admins",
+      () =>
+        prisma.user.findMany({
+          where: {
+            isDeleted: false,
+            managedDojoId: { in: dojoIds },
+            roles: { some: { name: "ADMIN_DOJO" } },
+          },
+          select: {
+            email: true,
+            isActive: true,
+            managedDojoId: true,
+          },
+        }),
+      [] as AdminRow[],
+    );
+    admins = adminsResult.data;
+    adminLoadFailed = adminsResult.failed;
+    adminLoadError = adminsResult.error;
   }
 
   const adminByDojo = new Map(
@@ -168,12 +176,20 @@ export async function DojoPengaturanContent() {
         ) : rantingRows.length === 0 ? (
           <SettingsLoadWarning message="Data ranting belum berhasil dimuat. Coba refresh sebentar lagi." />
         ) : (
-          <RantingSettingsManager
-            lockedBranchId={scopedBranches[0]?.id ?? null}
-            selfManagedOnly
-            branches={scopedBranches}
-            dojos={rantingRows}
-          />
+          <>
+            {adminLoadFailed ? (
+              <SettingsLoadWarning
+                message={settingsUsernameLoadWarning("ranting", adminLoadError)}
+              />
+            ) : null}
+            <RantingSettingsManager
+              lockedBranchId={scopedBranches[0]?.id ?? null}
+              selfManagedOnly
+              adminsUnavailable={adminLoadFailed}
+              branches={scopedBranches}
+              dojos={rantingRows}
+            />
+          </>
         )}
       </section>
 
@@ -184,7 +200,13 @@ export async function DojoPengaturanContent() {
         </div>
 
         {dbUserResult.failed || !dbUser ? (
-          <SettingsLoadWarning message="Profil akun sementara tidak bisa dimuat. Coba lagi sebentar." />
+          <SettingsLoadWarning
+            message={
+              dbUserResult.error && isPrismaBusyError(dbUserResult.error)
+                ? "Profil akun sementara tidak bisa dimuat (database sibuk). Coba lagi sebentar."
+                : "Profil akun sementara tidak bisa dimuat. Coba lagi sebentar."
+            }
+          />
         ) : (
           <Card>
             <CardHeader className="pb-2">

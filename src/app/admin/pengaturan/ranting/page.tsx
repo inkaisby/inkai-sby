@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/admin-session";
 import { canManageRanting } from "@/lib/pengaturan";
 import { fetchOrgStructure } from "@/lib/inkai-api/admin-data";
-import { prisma } from "@/lib/prisma";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
+import { settingsUsernameLoadWarning } from "@/lib/prisma-errors";
 import { getPrimaryAdminRole } from "@/lib/rbac";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { SettingsKpiGrid } from "@/components/admin/pengaturan/SettingsKpiGrid";
@@ -126,12 +127,14 @@ async function PengaturanRantingContent({
   }
 
   const dojoIds = scopedDojos.map((d) => String(d.id));
-  let admins: Array<{
+  type AdminRow = {
     email: string;
     isActive: boolean;
     managedDojoId: string | null;
-  }> = [];
+  };
+  let admins: AdminRow[] = [];
   let adminLoadFailed = false;
+  let adminLoadError: unknown;
   let archivedDojos: Array<{
     id: string;
     name: string;
@@ -139,50 +142,59 @@ async function PengaturanRantingContent({
   }> = [];
 
   if (dojoIds.length) {
-    try {
-      admins = await prisma.user.findMany({
-        where: {
-          isDeleted: false,
-          managedDojoId: { in: dojoIds },
-          roles: { some: { name: "ADMIN_DOJO" } },
-        },
-        select: {
-          email: true,
-          isActive: true,
-          managedDojoId: true,
-        },
-      });
-    } catch (error) {
-      console.error("[pengaturan/ranting] prisma admins", error);
-      adminLoadFailed = true;
-    }
+    const adminsResult = await withPrismaFallback(
+      "pengaturan-ranting-admins",
+      () =>
+        prisma.user.findMany({
+          where: {
+            isDeleted: false,
+            managedDojoId: { in: dojoIds },
+            roles: { some: { name: "ADMIN_DOJO" } },
+          },
+          select: {
+            email: true,
+            isActive: true,
+            managedDojoId: true,
+          },
+        }),
+      [] as AdminRow[],
+    );
+    admins = adminsResult.data;
+    adminLoadFailed = adminsResult.failed;
+    adminLoadError = adminsResult.error;
   }
 
   if (!selfManagedOnly) {
-    try {
-      archivedDojos = await prisma.dojo.findMany({
-        where: {
-          isDeleted: true,
-          ...(lockedBranchId ? { branchId: lockedBranchId } : {}),
-        },
-        select: {
-          id: true,
-          name: true,
-          branch: { select: { name: true } },
-        },
-        orderBy: { name: "asc" },
-        take: 50,
-      });
-    } catch {
-      archivedDojos = [];
-    }
+    const archivedResult = await withPrismaFallback(
+      "pengaturan-ranting-archived",
+      () =>
+        prisma.dojo.findMany({
+          where: {
+            isDeleted: true,
+            ...(lockedBranchId ? { branchId: lockedBranchId } : {}),
+          },
+          select: {
+            id: true,
+            name: true,
+            branch: { select: { name: true } },
+          },
+          orderBy: { name: "asc" },
+          take: 50,
+        }),
+      [] as Array<{
+        id: string;
+        name: string;
+        branch: { name: string } | null;
+      }>,
+    );
+    archivedDojos = archivedResult.data;
   }
 
   const warning =
     loadPartial === "org"
       ? "Data organisasi belum berhasil dimuat (API sibuk/timeout). Tekan refresh sebentar lagi."
       : adminLoadFailed
-        ? "Data username login sementara tidak tersedia (database sibuk). Daftar ranting tetap ditampilkan."
+        ? settingsUsernameLoadWarning("ranting", adminLoadError)
         : null;
 
   const adminsByDojo = new Map<
@@ -196,15 +208,16 @@ async function PengaturanRantingContent({
     adminsByDojo.set(a.managedDojoId, list);
   }
 
-  let primaryByDojo = new Map<string, string>();
-  try {
-    primaryByDojo = await loadPrimaryEmailsByWilayah({
-      scope: "dojo",
-      wilayahIds: dojoIds,
-    });
-  } catch {
-    primaryByDojo = new Map();
-  }
+  const primaryResult = await withPrismaFallback(
+    "pengaturan-ranting-primary",
+    () =>
+      loadPrimaryEmailsByWilayah({
+        scope: "dojo",
+        wilayahIds: dojoIds,
+      }),
+    new Map<string, string>(),
+  );
+  const primaryByDojo = primaryResult.data;
 
   const mapped = scopedDojos.map((d) => {
     const branch = d.branch as { id?: string; name?: string } | undefined;
@@ -242,8 +255,11 @@ async function PengaturanRantingContent({
 
   const filtered = mapped.filter((d) => {
     if (branchFilter && d.branchId !== branchFilter) return false;
-    if (loginFilter === "yes" && !(d.adminCount > 0)) return false;
-    if (loginFilter === "no" && d.adminCount > 0) return false;
+    // Jangan filter status login jika data akun gagal dimuat (semua akan terlihat "belum").
+    if (!adminLoadFailed) {
+      if (loginFilter === "yes" && !(d.adminCount > 0)) return false;
+      if (loginFilter === "no" && d.adminCount > 0) return false;
+    }
     if (!q) return true;
     const adminEmails = (adminsByDojo.get(d.id) ?? [])
       .map((a) => a.email.toLowerCase())
@@ -257,7 +273,9 @@ async function PengaturanRantingContent({
     );
   });
 
-  const withLogin = mapped.filter((d) => d.adminCount > 0).length;
+  const withLogin = adminLoadFailed
+    ? null
+    : mapped.filter((d) => d.adminCount > 0).length;
   const totalMembers = mapped.reduce((sum, d) => sum + (d.memberCount || 0), 0);
   const branchCount = new Set(mapped.map((d) => d.branchId).filter(Boolean)).size;
 
@@ -284,7 +302,12 @@ async function PengaturanRantingContent({
         items={[
           { label: "Total Ranting", value: mapped.length, icon: Home },
           { label: "Cabang", value: branchCount, icon: Building2 },
-          { label: "Punya Akun", value: withLogin, icon: KeyRound },
+          {
+            label: "Punya Akun",
+            value: withLogin === null ? "—" : withLogin,
+            hint: withLogin === null ? "Data akun tidak tersedia" : undefined,
+            icon: KeyRound,
+          },
           { label: "Total Anggota", value: totalMembers, icon: Users },
         ]}
       />
@@ -292,14 +315,18 @@ async function PengaturanRantingContent({
       <SettingsSearchForm
         q={q}
         qPlaceholder="Cari nama, PIC, cabang, username..."
-        filterName="login"
-        filterValue={loginFilter}
-        filterLabel="Status Login"
-        filterOptions={[
-          { value: "", label: "Semua" },
-          { value: "yes", label: "Sudah punya login" },
-          { value: "no", label: "Belum punya login" },
-        ]}
+        {...(adminLoadFailed
+          ? {}
+          : {
+              filterName: "login" as const,
+              filterValue: loginFilter,
+              filterLabel: "Status Login",
+              filterOptions: [
+                { value: "", label: "Semua" },
+                { value: "yes", label: "Sudah punya login" },
+                { value: "no", label: "Belum punya login" },
+              ],
+            })}
         extraHidden={{
           pageSize: String(pageSize),
           ...(!lockedBranchId && branchFilter ? { branchId: branchFilter } : {}),
@@ -337,6 +364,7 @@ async function PengaturanRantingContent({
       <RantingSettingsManager
         lockedBranchId={lockedBranchId}
         selfManagedOnly={selfManagedOnly}
+        adminsUnavailable={adminLoadFailed}
         branches={scopedBranches}
         dojos={rows}
         archived={archivedDojos.map((d) => ({

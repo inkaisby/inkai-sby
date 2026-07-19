@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/admin-session";
 import { canManageBranches } from "@/lib/pengaturan";
 import { fetchOrgStructure } from "@/lib/inkai-api/admin-data";
-import { prisma } from "@/lib/prisma";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
+import { settingsUsernameLoadWarning } from "@/lib/prisma-errors";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { SettingsKpiGrid } from "@/components/admin/pengaturan/SettingsKpiGrid";
 import {
@@ -59,12 +60,14 @@ async function PengaturanCabangContent({
   const orgLoadFailed = provinces.length === 0 && branches.length === 0;
 
   const branchIds = branches.map((b) => String(b.id));
-  let admins: Array<{
+  type AdminRow = {
     email: string;
     isActive: boolean;
     managedBranchId: string | null;
-  }> = [];
+  };
+  let admins: AdminRow[] = [];
   let adminLoadFailed = false;
+  let adminLoadError: unknown;
   let archivedBranches: Array<{
     id: string;
     name: string;
@@ -72,41 +75,50 @@ async function PengaturanCabangContent({
   }> = [];
 
   if (branchIds.length) {
-    try {
-      admins = await prisma.user.findMany({
-        where: {
-          isDeleted: false,
-          managedBranchId: { in: branchIds },
-          roles: { some: { name: "ADMIN_BRANCH" } },
-        },
-        select: { email: true, isActive: true, managedBranchId: true },
-        orderBy: [{ isActive: "desc" }, { email: "asc" }],
-      });
-    } catch (error) {
-      console.error("[pengaturan/cabang] prisma admins", error);
-      adminLoadFailed = true;
-    }
+    const adminsResult = await withPrismaFallback(
+      "pengaturan-cabang-admins",
+      () =>
+        prisma.user.findMany({
+          where: {
+            isDeleted: false,
+            managedBranchId: { in: branchIds },
+            roles: { some: { name: "ADMIN_BRANCH" } },
+          },
+          select: { email: true, isActive: true, managedBranchId: true },
+          orderBy: [{ isActive: "desc" }, { email: "asc" }],
+        }),
+      [] as AdminRow[],
+    );
+    admins = adminsResult.data;
+    adminLoadFailed = adminsResult.failed;
+    adminLoadError = adminsResult.error;
   }
 
-  try {
-    archivedBranches = await prisma.branch.findMany({
-      where: { isDeleted: true },
-      select: {
-        id: true,
-        name: true,
-        province: { select: { name: true } },
-      },
-      orderBy: { name: "asc" },
-      take: 50,
-    });
-  } catch {
-    archivedBranches = [];
-  }
+  const archivedResult = await withPrismaFallback(
+    "pengaturan-cabang-archived",
+    () =>
+      prisma.branch.findMany({
+        where: { isDeleted: true },
+        select: {
+          id: true,
+          name: true,
+          province: { select: { name: true } },
+        },
+        orderBy: { name: "asc" },
+        take: 50,
+      }),
+    [] as Array<{
+      id: string;
+      name: string;
+      province: { name: string } | null;
+    }>,
+  );
+  archivedBranches = archivedResult.data;
 
   const warning = orgLoadFailed
     ? "Data organisasi belum berhasil dimuat (API sibuk/timeout). Tekan refresh sebentar lagi."
     : adminLoadFailed
-      ? "Data username login sementara tidak tersedia (database sibuk). Daftar cabang tetap ditampilkan."
+      ? settingsUsernameLoadWarning("cabang", adminLoadError)
       : null;
   const adminsByBranch = new Map<
     string,
@@ -119,15 +131,16 @@ async function PengaturanCabangContent({
     adminsByBranch.set(a.managedBranchId, list);
   }
 
-  let primaryByBranch = new Map<string, string>();
-  try {
-    primaryByBranch = await loadPrimaryEmailsByWilayah({
-      scope: "branch",
-      wilayahIds: branchIds,
-    });
-  } catch {
-    primaryByBranch = new Map();
-  }
+  const primaryResult = await withPrismaFallback(
+    "pengaturan-cabang-primary",
+    () =>
+      loadPrimaryEmailsByWilayah({
+        scope: "branch",
+        wilayahIds: branchIds,
+      }),
+    new Map<string, string>(),
+  );
+  const primaryByBranch = primaryResult.data;
 
   const mapped = branches.map((b) => {
     const id = String(b.id);
@@ -173,7 +186,9 @@ async function PengaturanCabangContent({
     );
   });
 
-  const withLogin = mapped.filter((b) => (b.adminCount ?? 0) > 0).length;
+  const withLogin = adminLoadFailed
+    ? null
+    : mapped.filter((b) => (b.adminCount ?? 0) > 0).length;
   const totalRanting = mapped.reduce((sum, b) => sum + (b.dojoCount || 0), 0);
   const provinceCount = new Set(mapped.map((b) => b.provinceId).filter(Boolean))
     .size;
@@ -200,7 +215,12 @@ async function PengaturanCabangContent({
           { label: "Total Cabang", value: mapped.length, icon: Building2 },
           { label: "Provinsi", value: provinceCount, icon: MapPin },
           { label: "Total Ranting", value: totalRanting, icon: Home },
-          { label: "Punya Akun Admin", value: withLogin, icon: UserCheck },
+          {
+            label: "Punya Akun Admin",
+            value: withLogin === null ? "—" : withLogin,
+            hint: withLogin === null ? "Data akun tidak tersedia" : undefined,
+            icon: UserCheck,
+          },
         ]}
       />
 
@@ -220,6 +240,7 @@ async function PengaturanCabangContent({
       />
 
       <CabangSettingsManager
+        adminsUnavailable={adminLoadFailed}
         provinces={provinces.map((p) => ({
           id: String(p.id),
           name: String(p.name),

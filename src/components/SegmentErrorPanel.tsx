@@ -3,15 +3,11 @@
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { isPrismaBusyError } from "@/lib/prisma-errors";
 
 function classifyError(message: string) {
   const lower = message.toLowerCase();
-  if (
-    lower.includes("max clients") ||
-    lower.includes("connection pool") ||
-    lower.includes("pool") ||
-    lower.includes("timed out fetching a new connection")
-  ) {
+  if (isPrismaBusyError(message)) {
     return "Koneksi database sibuk. Tunggu beberapa detik lalu coba lagi.";
   }
   if (

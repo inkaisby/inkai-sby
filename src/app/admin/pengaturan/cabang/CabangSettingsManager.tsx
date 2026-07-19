@@ -42,10 +42,13 @@ export function CabangSettingsManager({
   provinces,
   branches,
   archived = [],
+  adminsUnavailable = false,
 }: {
   provinces: { id: string; name: string }[];
   branches: BranchRow[];
   archived?: BranchRow[];
+  /** Username/admin emails gagal dimuat — jangan tampilkan "Belum ada". */
+  adminsUnavailable?: boolean;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -263,7 +266,11 @@ export function CabangSettingsManager({
                     {b.city || "—"}
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
-                    {b.adminCount && b.adminCount > 0 ? (
+                    {adminsUnavailable ? (
+                      <span className="text-xs text-muted-foreground">
+                        Tidak tersedia
+                      </span>
+                    ) : b.adminCount && b.adminCount > 0 ? (
                       <div className="space-y-0.5">
                         <div className="flex flex-wrap items-center gap-1">
                           <Badge variant="secondary">{b.adminCount} akun</Badge>

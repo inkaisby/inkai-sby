@@ -40,16 +40,22 @@ export const prisma =
 // Reuse client across hot reloads (dev) and warm serverless invocations (prod)
 globalForPrisma.prisma = prisma;
 
+export {
+  errorMessageOf,
+  isPrismaBusyError,
+  settingsUsernameLoadWarning,
+} from "@/lib/prisma-errors";
+
 /** Run a Prisma query; on pool/timeout errors return fallback instead of crashing SSR. */
 export async function withPrismaFallback<T>(
   label: string,
   fn: () => Promise<T>,
   fallback: T,
-): Promise<{ data: T; failed: boolean }> {
+): Promise<{ data: T; failed: boolean; error?: unknown }> {
   try {
     return { data: await fn(), failed: false };
   } catch (error) {
     console.error(`[prisma:${label}]`, error);
-    return { data: fallback, failed: true };
+    return { data: fallback, failed: true, error };
   }
 }
