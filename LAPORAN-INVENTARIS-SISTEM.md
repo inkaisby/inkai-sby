@@ -425,6 +425,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Pengaturan ranting: form Ubah Data/Tambah menampilkan email + password (cabang); PATCH mengembalikan kredensial bila password di-set |
 | 19 Juli 2026 | Admin topbar: ikon **Back** di setiap halaman konten (beranda → `/`; nested → parent path) |
 | 19 Juli 2026 | Logout: dialog konfirmasi elegan sebelum `signOut` (menu admin/anggota + header beranda anggota) |
+| 19 Juli 2026 | Beranda mobile: logo INKAI di atas sendiri; badge hero **Kota Surabaya** (bukan Cabang Surabaya) |
 
 ---
 
