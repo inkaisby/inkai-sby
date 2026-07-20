@@ -55,6 +55,7 @@ export function AnggotaFiltersForm({
   dojos = [],
   showDojoFilter = false,
   lockDojoId = "",
+  onNavigate,
 }: {
   q: string;
   status: string;
@@ -67,6 +68,8 @@ export function AnggotaFiltersForm({
   showDojoFilter?: boolean;
   /** Dojo terkunci (single ranting) — tetap dikirim di query. */
   lockDojoId?: string;
+  /** Client-side navigate (tanpa RSC full reload). */
+  onNavigate?: (href: string) => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -107,6 +110,10 @@ export function AnggotaFiltersForm({
       inactiveMonths: nextFilters.inactiveMonths,
       pageSize,
     });
+    if (onNavigate) {
+      onNavigate(href === "?" ? "" : href);
+      return;
+    }
     startTransition(() => {
       router.replace(`${pathname}${href === "?" ? "" : href}`, {
         scroll: false,
@@ -167,7 +174,6 @@ export function AnggotaFiltersForm({
           value={filters.status}
           onChange={(e) => handleFilterChange("status", e.target.value)}
           className={selectClassName}
-          disabled={isPending}
         >
           {STATUS_OPTIONS.map((opt) => (
             <option key={opt.value || "all"} value={opt.value}>
@@ -184,7 +190,6 @@ export function AnggotaFiltersForm({
             value={filters.dojoId}
             onChange={(e) => handleFilterChange("dojoId", e.target.value)}
             className={`${selectClassName} min-w-[160px]`}
-            disabled={isPending}
           >
             <option value="">Semua dojo</option>
             {dojos.map((d) => (
@@ -202,7 +207,6 @@ export function AnggotaFiltersForm({
           value={filters.docs}
           onChange={(e) => handleFilterChange("docs", e.target.value)}
           className={`${selectClassName} min-w-[160px]`}
-          disabled={isPending}
         >
           <option value="">Semua dokumen</option>
           <option value="incomplete">Belum lengkap</option>
@@ -215,7 +219,6 @@ export function AnggotaFiltersForm({
           value={filters.nia}
           onChange={(e) => handleFilterChange("nia", e.target.value)}
           className={selectClassName}
-          disabled={isPending}
         >
           <option value="">Semua NIA</option>
           <option value="missing">Belum ada NIA</option>
@@ -230,7 +233,6 @@ export function AnggotaFiltersForm({
             handleFilterChange("inactiveMonths", e.target.value)
           }
           className={`${selectClassName} min-w-[120px]`}
-          disabled={isPending}
         >
           <option value="">Semua</option>
           <option value="3">3 bulan</option>
@@ -240,12 +242,22 @@ export function AnggotaFiltersForm({
       </div>
 
       {hasFilters ? (
-        <Link
-          href={resetHref}
-          className="inline-flex h-8 items-center rounded-lg border px-3 text-sm hover:bg-muted"
-        >
-          Reset
-        </Link>
+        onNavigate ? (
+          <button
+            type="button"
+            onClick={() => onNavigate(pageSize && pageSize !== "25" ? `?pageSize=${pageSize}` : "")}
+            className="inline-flex h-8 items-center rounded-lg border px-3 text-sm hover:bg-muted"
+          >
+            Reset
+          </button>
+        ) : (
+          <Link
+            href={resetHref}
+            className="inline-flex h-8 items-center rounded-lg border px-3 text-sm hover:bg-muted"
+          >
+            Reset
+          </Link>
+        )
       ) : null}
     </div>
   );

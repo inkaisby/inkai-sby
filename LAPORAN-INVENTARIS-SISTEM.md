@@ -103,7 +103,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
-| Kelola Anggota | Cari **autocomplete**; kolom **No**; KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; nonaktif/bulk; CSV; arsip; Prisma scoped (anggota+dojo filter); KPI cepat; dark-mode select |
+| Kelola Anggota | Cari **autocomplete**; kolom **No**; KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; nonaktif/bulk; CSV; arsip; Prisma scoped; **filter client-side** (`GET /api/admin/members`, tanpa RSC reload); KPI/dojo cache |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran**, **arsip** |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
@@ -320,7 +320,8 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 
 ```
 /api/auth/*                 Login, register (+ identitas/sabuk lengkap), check-duplicate, forgot/reset password
-/api/admin/members/*        Kelola anggota (approve/NIA/set_rank/set_dues/set_documents/nonaktif/aktif/hapus/restore/check-duplicate/merge)
+/api/admin/members          POST create; GET list+KPI counts (filter cepat client-side)
+/api/admin/members/[id]     Detail + aksi (approve/NIA/set_rank/set_dues/dokumen/nonaktif/hapus/restore/merge)
 /api/admin/members/bulk     Bulk nonaktif / approve / hapus-arsip (ARSIPKAN) / purge arsip (HAPUS) / restore
 /api/admin/members/archived Daftar arsip soft-delete
 /api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
@@ -466,6 +467,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Kelola Anggota: filter Dojo via Prisma (`fetchAdminDojosScoped`) bukan Inkai API; dark mode native `<select>` (`color-scheme` + bg/text) |
 | 20 Juli 2026 | Fix NIA “sudah digunakan”: bentrok dengan arsip (mis. `25.34533` milik ABDUL AZIZ AL-AMIN); deteksi arsip + lepas NIA/NIK arsip saat tambah anggota |
 | 20 Juli 2026 | Fix pratinjau PDF Akte/BPJS: CSP izinkan `frame-src`/`object-src` `blob:` (Chrome “This content is blocked”) + tombol Tab baru |
+| 20 Juli 2026 | Percepat filter Kelola Anggota: client fetch `GET /api/admin/members` (bukan full RSC); cache KPI/dojo; query docs/NIA dirampingkan |
 
 ---
 

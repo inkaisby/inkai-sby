@@ -52,9 +52,12 @@ const KPI_ICONS: Record<AnggotaKpiIconName, LucideIcon> = {
 export function AnggotaKpiCards({
   items,
   children,
+  onNavigate,
 }: {
   items: AnggotaKpiItem[];
   children?: ReactNode;
+  /** Client-side navigate — hindari full RSC reload. */
+  onNavigate?: (href: string, key: string) => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -66,14 +69,19 @@ export function AnggotaKpiCards({
   }, [items]);
 
   useEffect(() => {
+    if (onNavigate) return;
     for (const item of items) {
       const qs = item.href.startsWith("?") ? item.href : `?${item.href}`;
       router.prefetch(`${pathname}${qs}`);
     }
-  }, [items, pathname, router]);
+  }, [items, pathname, router, onNavigate]);
 
   function go(href: string, key: string) {
     setOptimisticKey(key);
+    if (onNavigate) {
+      onNavigate(href, key);
+      return;
+    }
     const qs = href.startsWith("?") ? href : `?${href}`;
     startTransition(() => {
       router.replace(`${pathname}${qs}`, { scroll: false });

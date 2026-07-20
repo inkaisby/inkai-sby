@@ -7,6 +7,8 @@ type SettingsPaginationProps = {
   pageSize: number;
   baseParams: Record<string, string>;
   pageSizeOptions?: number[];
+  /** Client navigate — tanpa full page reload. */
+  onNavigate?: (href: string) => void;
 };
 
 export function SettingsPagination({
@@ -16,6 +18,7 @@ export function SettingsPagination({
   pageSize,
   baseParams,
   pageSizeOptions = [10, 50, 100, 1000],
+  onNavigate,
 }: SettingsPaginationProps) {
   if (total === 0) return null;
 
@@ -32,6 +35,14 @@ export function SettingsPagination({
     return `?${qs.toString()}`;
   }
 
+  function go(target: string) {
+    if (onNavigate) {
+      onNavigate(target);
+      return;
+    }
+    window.location.href = target;
+  }
+
   return (
     <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex flex-wrap items-center gap-3">
@@ -44,7 +55,7 @@ export function SettingsPagination({
             className="h-8 rounded-lg border bg-background px-2 text-sm text-foreground"
             value={pageSize}
             onChange={(e) => {
-              window.location.href = href(1, Number(e.target.value));
+              go(href(1, Number(e.target.value)));
             }}
           >
             {pageSizeOptions.map((size) => (
@@ -58,12 +69,13 @@ export function SettingsPagination({
       {totalPages > 1 ? (
         <div className="flex flex-wrap gap-1.5 text-sm">
           {page > 1 ? (
-            <a
-              href={href(page - 1)}
+            <button
+              type="button"
+              onClick={() => go(href(page - 1))}
               className="rounded-lg border px-2.5 py-1 hover:bg-muted"
             >
               Prev
-            </a>
+            </button>
           ) : null}
           {Array.from({ length: totalPages }, (_, i) => i + 1)
             .filter((p) => {
@@ -81,9 +93,10 @@ export function SettingsPagination({
                   …
                 </span>
               ) : (
-                <a
+                <button
+                  type="button"
                   key={p}
-                  href={href(p)}
+                  onClick={() => go(href(p))}
                   className={`rounded-lg px-2.5 py-1 ${
                     p === page
                       ? "bg-inkai-red text-white"
@@ -91,16 +104,17 @@ export function SettingsPagination({
                   }`}
                 >
                   {p}
-                </a>
+                </button>
               ),
             )}
           {page < totalPages ? (
-            <a
-              href={href(page + 1)}
+            <button
+              type="button"
+              onClick={() => go(href(page + 1))}
               className="rounded-lg border px-2.5 py-1 hover:bg-muted"
             >
               Next
-            </a>
+            </button>
           ) : null}
         </div>
       ) : null}

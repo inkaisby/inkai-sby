@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { inkaiFetch } from "./server";
 import {
   getPrimaryAdminRole,
@@ -152,20 +153,14 @@ function memberScopeWhere(
 
 /** Dokumen kurang: akte atau BPJS kosong (selaras isDocumentComplete). */
 function docsIncompleteClause() {
+  // Cukup null — create/sync menyimpan null (bukan ""). OR dengan "" memaksa seq-scan.
   return {
-    OR: [
-      { birthCertificateUrl: null },
-      { birthCertificateUrl: "" },
-      { bpjsCardUrl: null },
-      { bpjsCardUrl: "" },
-    ],
+    OR: [{ birthCertificateUrl: null }, { bpjsCardUrl: null }],
   };
 }
 
 function missingNiaClause() {
-  return {
-    OR: [{ nia: null }, { nia: "" }],
-  };
+  return { nia: null };
 }
 
 /** Satu query Prisma groupBy + count dokumen/NIA untuk KPI — selalu scoped RBAC. */
@@ -288,7 +283,17 @@ export async function fetchAdminMembersScoped(
       prisma.member.count({ where }),
       prisma.member.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          fullName: true,
+          nia: true,
+          currentRank: true,
+          status: true,
+          birthCertificateUrl: true,
+          bpjsCardUrl: true,
+          bpjsCardNumber: true,
+          createdAt: true,
+          monthlyDuesAmount: true,
           dojo: {
             select: {
               name: true,
@@ -687,6 +692,44 @@ export async function fetchAdminDojosScoped(user: SessionUser) {
     console.error("[fetchAdminDojosScoped]", error);
     return [] as Array<{ id: string; name: string }>;
   }
+}
+
+/** Cache dojo list 60s — jarang berubah, dipanggil tiap filter. */
+export function fetchAdminDojosScopedCached(user: SessionUser) {
+  const role = getPrimaryAdminRole(user.roles);
+  const key = [
+    "admin-dojos-scoped",
+    user.id,
+    role,
+    user.managedBranchId ?? "",
+    user.managedProvinceId ?? "",
+    user.managedDojoId ?? "",
+  ];
+  return unstable_cache(
+    () => fetchAdminDojosScoped(user),
+    key,
+    { revalidate: 60 },
+  )();
+}
+
+/** Cache KPI counts 30s per cakupan dojo — ganti status/q tidak hitung ulang. */
+export function fetchAdminMemberStatusCountsCached(
+  user: SessionUser,
+  opts: { dojoIds?: string[]; dojoId?: string } = {},
+) {
+  const role = getPrimaryAdminRole(user.roles);
+  const key = [
+    "admin-member-status-counts",
+    user.id,
+    role,
+    opts.dojoId ?? "",
+    (opts.dojoIds ?? []).slice().sort().join(","),
+  ];
+  return unstable_cache(
+    () => fetchAdminMemberStatusCounts(user, opts),
+    key,
+    { revalidate: 30 },
+  )();
 }
 
 export async function fetchCarouselItems(): Promise<
