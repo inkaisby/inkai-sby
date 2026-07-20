@@ -25,6 +25,7 @@ import { AnggotaBrowser } from "./AnggotaBrowser";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { canEditKyuBaru } from "@/lib/belt";
 import { canSoftDeleteMembers } from "@/lib/wilayah-rbac";
+import { parseMemberSortKey, parseSortDir } from "@/lib/table-sort";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,8 @@ type SearchParams = Promise<{
   view?: string;
   page?: string;
   pageSize?: string;
+  sort?: string;
+  sortDir?: string;
 }>;
 
 export default function AdminAnggotaPage({
@@ -76,6 +79,8 @@ async function AdminAnggotaContent({
       : 0;
   const page = parsePage(params.page);
   const pageSize = parsePageSize(params.pageSize, PAGE_SIZE_OPTIONS, 25);
+  const sort = parseMemberSortKey(params.sort);
+  const sortDir = parseSortDir(params.sortDir);
 
   const primaryRole = getPrimaryAdminRole(user.roles);
   const isDojoAdmin = primaryRole === "ADMIN_DOJO";
@@ -132,6 +137,8 @@ async function AdminAnggotaContent({
       ...scopeOpts,
       docsIncomplete: docs === "incomplete",
       missingNia: niaFilter === "missing",
+      sort,
+      sortDir,
     }),
     fetchAdminDojosScopedCached(user),
     fetchAdminMemberStatusCountsCached(user, scopeOpts),
@@ -211,6 +218,8 @@ async function AdminAnggotaContent({
           inactiveMonths: inactiveMonths ? String(inactiveMonths) : "",
           page,
           pageSize,
+          sort,
+          sortDir,
         }}
         dojos={dojos.map((d) => ({ id: d.id, name: d.name }))}
         userRoles={user.roles}

@@ -48,6 +48,8 @@ import { canManageIuranByWilayah, canToggleMemberActive } from "@/lib/wilayah-rb
 import { MemberActions } from "./MemberActions";
 import { BulkDeactivateBar } from "./BulkDeactivateBar";
 import { usePersistedBulkSelection } from "./usePersistedBulkSelection";
+import { SortableTableHead } from "@/components/ui/SortableTableHead";
+import type { SortDir } from "@/lib/table-sort";
 
 type MemberDetail = Record<string, unknown>;
 
@@ -302,6 +304,9 @@ export function MembersTable({
   onMembersChanged,
   page = 1,
   pageSize = 25,
+  sortKey = "fullName",
+  sortDir = "asc",
+  onSort,
 }: {
   members: AdminMemberRow[];
   userRoles?: string[];
@@ -311,6 +316,9 @@ export function MembersTable({
   /** Halaman saat ini (1-based) — untuk nomor urut global. */
   page?: number;
   pageSize?: number;
+  sortKey?: string;
+  sortDir?: SortDir;
+  onSort?: (key: string) => void;
 }) {
   const router = useRouter();
   const [members, setMembers] = useState(membersProp);
@@ -612,13 +620,71 @@ export function MembersTable({
               ) : null}
               <TableHead className="w-12 text-center">No</TableHead>
               <TableHead className="w-12">Foto</TableHead>
-              <TableHead>NIA</TableHead>
-              <TableHead>Nama</TableHead>
-              <TableHead>Sabuk</TableHead>
-              <TableHead>Status</TableHead>
+              {onSort ? (
+                <>
+                  <SortableTableHead
+                    label="NIA"
+                    sortKey="nia"
+                    activeKey={sortKey}
+                    activeDir={sortDir}
+                    onSort={onSort}
+                  />
+                  <SortableTableHead
+                    label="Nama"
+                    sortKey="fullName"
+                    activeKey={sortKey}
+                    activeDir={sortDir}
+                    onSort={onSort}
+                  />
+                  <SortableTableHead
+                    label="Sabuk"
+                    sortKey="currentRank"
+                    activeKey={sortKey}
+                    activeDir={sortDir}
+                    onSort={onSort}
+                  />
+                  <SortableTableHead
+                    label="Status"
+                    sortKey="status"
+                    activeKey={sortKey}
+                    activeDir={sortDir}
+                    onSort={onSort}
+                  />
+                </>
+              ) : (
+                <>
+                  <TableHead>NIA</TableHead>
+                  <TableHead>Nama</TableHead>
+                  <TableHead>Sabuk</TableHead>
+                  <TableHead>Status</TableHead>
+                </>
+              )}
               <TableHead className="hidden md:table-cell">Dokumen</TableHead>
-              <TableHead className="hidden sm:table-cell">Dojo</TableHead>
-              <TableHead className="whitespace-nowrap">Terdaftar</TableHead>
+              {onSort ? (
+                <>
+                  <SortableTableHead
+                    label="Dojo"
+                    sortKey="dojo"
+                    activeKey={sortKey}
+                    activeDir={sortDir}
+                    onSort={onSort}
+                    className="hidden sm:table-cell"
+                  />
+                  <SortableTableHead
+                    label="Terdaftar"
+                    sortKey="createdAt"
+                    activeKey={sortKey}
+                    activeDir={sortDir}
+                    onSort={onSort}
+                    className="whitespace-nowrap"
+                  />
+                </>
+              ) : (
+                <>
+                  <TableHead className="hidden sm:table-cell">Dojo</TableHead>
+                  <TableHead className="whitespace-nowrap">Terdaftar</TableHead>
+                </>
+              )}
               <TableHead>Aksi</TableHead>
             </TableRow>
           </TableHeader>          <TableBody>

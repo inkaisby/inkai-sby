@@ -11,6 +11,11 @@ import { SITE_BRANCH_NAME } from "@/lib/site";
 import { resolveUktRankColumns } from "@/lib/belt";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import {
+  memberOrderBy,
+  parseMemberSortKey,
+  parseSortDir,
+} from "@/lib/table-sort";
+import {
   beltFeesFromTemplates,
   DEFAULT_KOMISI_RANTING,
   UKT_KOMISI_SETTING_KEY,
@@ -256,12 +261,17 @@ export async function fetchAdminMembersScoped(
     docsIncomplete?: boolean;
     /** Filter KPI: tanpa NIA. */
     missingNia?: boolean;
+    sort?: string;
+    sortDir?: string;
   } = {},
 ) {
   const page = opts.page ?? 1;
   const limit = opts.limit ?? 20;
   const search = opts.search?.trim();
   const status = opts.status?.trim();
+  const sortKey = parseMemberSortKey(opts.sort);
+  const sortDir = parseSortDir(opts.sortDir);
+  const orderBy = memberOrderBy(sortKey, sortDir);
 
   const where = {
     AND: [
@@ -318,7 +328,7 @@ export async function fetchAdminMembersScoped(
           },
           user: { select: { photoUrl: true } },
         },
-        orderBy: { fullName: "asc" },
+        orderBy,
         skip: (page - 1) * limit,
         take: limit,
       }),

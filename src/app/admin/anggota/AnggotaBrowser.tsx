@@ -18,6 +18,8 @@ import {
 } from "./AnggotaKpiCards";
 import { MembersTable } from "./MembersTable";
 import { NormalizeMembersButton } from "./NormalizeMembersButton";
+import type { MemberSortKey, SortDir } from "@/lib/table-sort";
+import { parseMemberSortKey, parseSortDir, toggleSortKey } from "@/lib/table-sort";
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 1000];
 
@@ -32,6 +34,8 @@ type FilterState = {
   inactiveMonths: string;
   page: number;
   pageSize: number;
+  sort: MemberSortKey;
+  sortDir: SortDir;
 };
 
 function buildHref(params: Record<string, string>) {
@@ -53,6 +57,8 @@ function filtersToParams(f: FilterState): Record<string, string> {
     inactiveMonths: f.inactiveMonths,
     page: f.page > 1 ? String(f.page) : "",
     pageSize: f.pageSize !== 25 ? String(f.pageSize) : "",
+    sort: f.sort !== "fullName" ? f.sort : "",
+    sortDir: f.sortDir === "desc" ? "desc" : "",
   };
 }
 
@@ -105,6 +111,8 @@ function parseHrefToFilters(
       : "",
     page: Math.max(1, Number(qs.get("page") || 1) || 1),
     pageSize: PAGE_SIZE_OPTIONS.includes(pageSizeRaw) ? pageSizeRaw : 25,
+    sort: parseMemberSortKey(qs.get("sort")),
+    sortDir: parseSortDir(qs.get("sortDir")),
   };
 }
 
@@ -225,6 +233,18 @@ export function AnggotaBrowser({
       });
     },
     [load, syncUrl],
+  );
+
+  const handleSort = useCallback(
+    (key: string) => {
+      const next = toggleSortKey(filters.sort, filters.sortDir, key);
+      applyFilters({
+        sort: next.key as MemberSortKey,
+        sortDir: next.dir,
+        page: 1,
+      });
+    },
+    [applyFilters, filters.sort, filters.sortDir],
   );
 
   // Popstate (back/forward)
@@ -435,6 +455,9 @@ export function AnggotaBrowser({
           onMembersChanged={() => applyFilters({}, { resetPage: false })}
           page={safePage}
           pageSize={filters.pageSize}
+          sortKey={filters.sort}
+          sortDir={filters.sortDir}
+          onSort={handleSort}
         />
       </div>
 
@@ -451,6 +474,8 @@ export function AnggotaBrowser({
           docs: filters.docs,
           nia: filters.nia,
           inactiveMonths: filters.inactiveMonths,
+          sort: filters.sort !== "fullName" ? filters.sort : "",
+          sortDir: filters.sortDir === "desc" ? "desc" : "",
         }}
         onNavigate={(href) => {
           const patch = parseHrefToFilters(href, filters.pageSize);

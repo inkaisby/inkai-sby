@@ -13,6 +13,7 @@ import {
   resolveActiveDojoId,
 } from "@/lib/managed-dojos";
 import { getMemberLifecycles, monthsSince } from "@/lib/member-lifecycle";
+import { parseSortDir } from "@/lib/table-sort";
 
 export async function GET(request: Request) {
   const authResult = await requireAdmin();
@@ -34,6 +35,8 @@ export async function GET(request: Request) {
   const page = Math.max(1, Number(sp.get("page") || 1) || 1);
   const pageSizeRaw = Number(sp.get("pageSize") || 25);
   const pageSize = [25, 50, 100, 1000].includes(pageSizeRaw) ? pageSizeRaw : 25;
+  const sort = sp.get("sort")?.trim() || "";
+  const sortDir = parseSortDir(sp.get("sortDir"));
   const includeCounts = sp.get("counts") !== "0";
 
   const primaryRole = getPrimaryAdminRole(user.roles);
@@ -63,6 +66,8 @@ export async function GET(request: Request) {
       ...scopeOpts,
       docsIncomplete: docs === "incomplete",
       missingNia: niaFilter === "missing",
+      sort: sort || undefined,
+      sortDir,
     }),
     includeCounts
       ? fetchAdminMemberStatusCountsCached(user, scopeOpts)

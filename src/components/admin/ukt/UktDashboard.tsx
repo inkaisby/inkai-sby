@@ -115,6 +115,60 @@ import {
   joinTimeInput,
 } from "@/lib/ukt";
 import { parseApiJson } from "@/lib/api-client";
+import { SortableTableHead } from "@/components/ui/SortableTableHead";
+import {
+  compareDates,
+  compareNumbers,
+  compareStrings,
+  toggleSortKey,
+  type SortDir,
+} from "@/lib/table-sort";
+
+function compareUktRows(
+  a: UktMemberRow,
+  b: UktMemberRow,
+  key: string,
+  dir: SortDir,
+) {
+  switch (key) {
+    case "nia":
+      return compareStrings(a.nia, b.nia, dir);
+    case "fullName":
+      return compareStrings(a.fullName, b.fullName, dir);
+    case "birthPlace":
+      return compareStrings(a.birthPlace, b.birthPlace, dir);
+    case "birthDate":
+      return compareDates(a.birthDate, b.birthDate, dir);
+    case "gender":
+      return compareStrings(a.gender, b.gender, dir);
+    case "address":
+      return compareStrings(a.address, b.address, dir);
+    case "kyuLama":
+      return compareStrings(
+        formatRankLabel(a.kyuLama),
+        formatRankLabel(b.kyuLama),
+        dir,
+      );
+    case "kyuBaru":
+      return compareStrings(
+        formatRankLabel(a.kyuBaru ?? ""),
+        formatRankLabel(b.kyuBaru ?? ""),
+        dir,
+      );
+    case "attendancePct":
+      return compareNumbers(a.attendancePct, b.attendancePct, dir);
+    case "dojoName":
+      return compareStrings(a.dojoName, b.dojoName, dir);
+    case "status":
+      return compareStrings(
+        uktDisplayStatusLabel(resolveUktDisplayStatus(a)),
+        uktDisplayStatusLabel(resolveUktDisplayStatus(b)),
+        dir,
+      );
+    default:
+      return compareStrings(a.fullName, b.fullName, dir);
+  }
+}
 
 export type UktPeriod = {
   id: string;
@@ -200,6 +254,10 @@ export function UktDashboard(props: Props) {
   const [localView, setLocalView] = useState("");
   const [localPage, setLocalPage] = useState(1);
   const [localPageSize, setLocalPageSize] = useState(25);
+  const [sort, setSort] = useState<{ key: string; dir: SortDir }>({
+    key: "fullName",
+    dir: "asc",
+  });
   const [yearInput, setYearInput] = useState(String(props.year));
   const [editingTitle, setEditingTitle] = useState(false);
   const [periodTitle, setPeriodTitle] = useState(
@@ -280,13 +338,24 @@ export function UktDashboard(props: Props) {
     return filterUktRowsByView(scopedRows, viewFilter);
   }, [scopedRows, localView, localQ]);
 
-  const totalFiltered = filteredRows.length;
+  const sortedRows = useMemo(() => {
+    const rows = [...filteredRows];
+    rows.sort((a, b) => compareUktRows(a, b, sort.key, sort.dir));
+    return rows;
+  }, [filteredRows, sort]);
+
+  const handleSort = useCallback((key: string) => {
+    setSort((prev) => toggleSortKey(prev.key, prev.dir, key));
+    setLocalPage(1);
+  }, []);
+
+  const totalFiltered = sortedRows.length;
   const totalPages = Math.max(1, Math.ceil(totalFiltered / localPageSize));
   const safePage = Math.min(localPage, totalPages);
   const displayRows = useMemo(() => {
     const start = (safePage - 1) * localPageSize;
-    return filteredRows.slice(start, start + localPageSize);
-  }, [filteredRows, safePage, localPageSize]);
+    return sortedRows.slice(start, start + localPageSize);
+  }, [sortedRows, safePage, localPageSize]);
 
   const selectableRows = useMemo(
     () =>
@@ -1469,27 +1538,103 @@ export function UktDashboard(props: Props) {
               </TableHead>
               <TableHead className="w-10">No</TableHead>
               <TableHead className="w-14">Foto</TableHead>
-              <TableHead>NIA</TableHead>
-              <TableHead>Nama Lengkap</TableHead>
+              <SortableTableHead
+                label="NIA"
+                sortKey="nia"
+                activeKey={sort.key}
+                activeDir={sort.dir}
+                onSort={handleSort}
+              />
+              <SortableTableHead
+                label="Nama Lengkap"
+                sortKey="fullName"
+                activeKey={sort.key}
+                activeDir={sort.dir}
+                onSort={handleSort}
+              />
               {!compactView && !isDojoAdmin && (
                 <>
-                  <TableHead className="hidden md:table-cell">Tempat</TableHead>
-                  <TableHead className="hidden lg:table-cell">Tgl Lahir</TableHead>
-                  <TableHead className="hidden sm:table-cell">JK</TableHead>
-                  <TableHead className="hidden xl:table-cell">Alamat</TableHead>
+                  <SortableTableHead
+                    label="Tempat"
+                    sortKey="birthPlace"
+                    activeKey={sort.key}
+                    activeDir={sort.dir}
+                    onSort={handleSort}
+                    className="hidden md:table-cell"
+                  />
+                  <SortableTableHead
+                    label="Tgl Lahir"
+                    sortKey="birthDate"
+                    activeKey={sort.key}
+                    activeDir={sort.dir}
+                    onSort={handleSort}
+                    className="hidden lg:table-cell"
+                  />
+                  <SortableTableHead
+                    label="JK"
+                    sortKey="gender"
+                    activeKey={sort.key}
+                    activeDir={sort.dir}
+                    onSort={handleSort}
+                    className="hidden sm:table-cell"
+                  />
+                  <SortableTableHead
+                    label="Alamat"
+                    sortKey="address"
+                    activeKey={sort.key}
+                    activeDir={sort.dir}
+                    onSort={handleSort}
+                    className="hidden xl:table-cell"
+                  />
                 </>
               )}
-              <TableHead>Kyu Lama</TableHead>
-              <TableHead>Kyu Baru</TableHead>
+              <SortableTableHead
+                label="Kyu Lama"
+                sortKey="kyuLama"
+                activeKey={sort.key}
+                activeDir={sort.dir}
+                onSort={handleSort}
+              />
+              <SortableTableHead
+                label="Kyu Baru"
+                sortKey="kyuBaru"
+                activeKey={sort.key}
+                activeDir={sort.dir}
+                onSort={handleSort}
+              />
               {(compactView || isDojoAdmin) && (
                 <>
-                  <TableHead className="min-w-20">Kehadiran</TableHead>
+                  <SortableTableHead
+                    label="Kehadiran"
+                    sortKey="attendancePct"
+                    activeKey={sort.key}
+                    activeDir={sort.dir}
+                    onSort={handleSort}
+                    className="min-w-20"
+                  />
                   <TableHead className="min-w-28">Syarat</TableHead>
                 </>
               )}
-              {!isDojoAdmin && !compactView && <TableHead className="hidden md:table-cell">Dokumen</TableHead>}
-              {!isDojoAdmin && !compactView && <TableHead className="hidden sm:table-cell">Ranting</TableHead>}
-              <TableHead>Status</TableHead>
+              {!isDojoAdmin && !compactView && (
+                <TableHead className="hidden md:table-cell">Dokumen</TableHead>
+              )}
+              {!isDojoAdmin && !compactView && (
+                <SortableTableHead
+                  label="Ranting"
+                  sortKey="dojoName"
+                  activeKey={sort.key}
+                  activeDir={sort.dir}
+                  onSort={handleSort}
+                  className="hidden sm:table-cell"
+                />
+              )}
+              <SortableTableHead
+                label="Status"
+                sortKey="status"
+                activeKey={sort.key}
+                activeDir={sort.dir}
+                onSort={handleSort}
+              />
               <TableHead className="min-w-28">Aksi</TableHead>
             </TableRow>
           </TableHeader>
