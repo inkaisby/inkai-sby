@@ -112,3 +112,47 @@ export function parseFlexibleBirthDate(raw: string): string | null {
 
   return null;
 }
+
+/**
+ * Parse "Surabaya, 28 Maret 2015" / "SURABAYA 28/03/2015" → tempat + tanggal ISO.
+ */
+export function parseBirthPlaceAndDate(raw: string): {
+  birthPlace: string;
+  birthDate: string | null;
+} {
+  const text = raw.trim().replace(/\s+/g, " ");
+  if (!text) return { birthPlace: "", birthDate: null };
+
+  // Seluruh string adalah tanggal saja
+  const onlyDate = parseFlexibleBirthDate(text);
+  if (onlyDate) return { birthPlace: "", birthDate: onlyDate };
+
+  // Pisah di koma terakhir yang diikuti pola tanggal
+  const commaParts = text.split(",").map((p) => p.trim()).filter(Boolean);
+  if (commaParts.length >= 2) {
+    const maybeDate = commaParts[commaParts.length - 1]!;
+    const parsed = parseFlexibleBirthDate(maybeDate);
+    if (parsed) {
+      return {
+        birthPlace: commaParts.slice(0, -1).join(", ").toUpperCase(),
+        birthDate: parsed,
+      };
+    }
+  }
+
+  // Coba potong dari akhir: cari substring tanggal
+  const dateTail = text.match(
+    /^(.*?)[,\s]+(\d{1,2}[\s./-]+[A-Za-z.]+[\s./,]+\d{2,4}|\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}|\d{4}[/.-]\d{1,2}[/.-]\d{1,2})$/,
+  );
+  if (dateTail) {
+    const parsed = parseFlexibleBirthDate(dateTail[2]!);
+    if (parsed) {
+      return {
+        birthPlace: dateTail[1]!.trim().toUpperCase(),
+        birthDate: parsed,
+      };
+    }
+  }
+
+  return { birthPlace: text.toUpperCase(), birthDate: null };
+}

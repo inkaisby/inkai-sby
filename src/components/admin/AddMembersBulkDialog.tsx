@@ -18,7 +18,10 @@ import {
   formatRankLabel,
   normalizeGenderStorage,
 } from "@/lib/belt";
-import { parseFlexibleBirthDate } from "@/lib/parse-birth-date";
+import {
+  parseBirthPlaceAndDate,
+  parseFlexibleBirthDate,
+} from "@/lib/parse-birth-date";
 import { showError, showSuccess } from "@/lib/client-toast";
 import type { AddMemberDojoOption } from "@/components/admin/AddMemberDialog";
 import { triggerCsvDownload } from "@/lib/ukt";
@@ -27,9 +30,10 @@ type BulkRow = {
   key: string;
   nia: string;
   fullName: string;
+  /** Teks bebas — dinormalisasi ke L/P saat simpan. */
   gender: string;
-  birthPlace: string;
-  birthDate: string;
+  /** Gabungan tempat + tanggal, mis. "SURABAYA, 28 MARET 2015". */
+  birthPlaceDate: string;
   address: string;
   nik: string;
   phoneNumber: string;
@@ -43,8 +47,7 @@ const COLUMNS = [
   "NIA",
   "Nama Lengkap",
   "Jenis Kelamin",
-  "Tempat Lahir",
-  "Tanggal Lahir",
+  "Tempat & Tanggal Lahir",
   "Alamat",
   "NIK",
   "Telepon",
@@ -62,8 +65,7 @@ function emptyRow(dojoId = "", currentRank = DEFAULT_MEMBER_RANK): BulkRow {
     nia: "",
     fullName: "",
     gender: "",
-    birthPlace: "",
-    birthDate: "",
+    birthPlaceDate: "",
     address: "",
     nik: "",
     phoneNumber: "",
@@ -90,6 +92,18 @@ function resolveDojoId(
   return byName?.id || fallback;
 }
 
+function formatBirthCombined(place: string, dateRaw: string): string {
+  const placePart = place.trim();
+  const datePart = dateRaw.trim();
+  if (placePart && datePart) return `${upper(placePart)}, ${datePart}`;
+  return upper(placePart) || datePart;
+}
+
+/**
+ * Parse baris paste.
+ * Format baru (9 kolom): NIA, Nama, JK, Tempat&Tgl, Alamat, NIK, Telp, Kyu, Ranting
+ * Format lama (10 kolom): NIA, Nama, JK, Tempat, Tgl, Alamat, NIK, Telp, Kyu, Ranting
+ */
 function parsePasteLines(
   text: string,
   dojos: AddMemberDojoOption[],
@@ -112,34 +126,74 @@ function parsePasteLines(
   const rows: BulkRow[] = [];
   for (const line of lines) {
     const cells = line.split(sep).map((c) => c.trim().replace(/^"|"$/g, ""));
-    // Skip header row
-    if (
-      cells[0]?.toLowerCase() === "nia" ||
-      cells[1]?.toLowerCase().includes("nama")
-    ) {
-      continue;
+    const head0 = cells[0]?.toLowerCase() || "";
+    const head1 = cells[1]?.toLowerCase() || "";
+    if (head0 === "nia" || head1.includes("nama")) continue;
+
+    if (!cells.some((c) => c.trim())) continue;
+
+    let nia = "";
+    let fullName = "";
+    let genderRaw = "";
+    let birthPlaceDate = "";
+    let address = "";
+    let nik = "";
+    let phoneNumber = "";
+    let rankRaw = "";
+    let rantingRaw = "";
+
+    if (cells.length >= 10) {
+      // Format lama: tempat + tanggal terpisah
+      const [
+        c0 = "",
+        c1 = "",
+        c2 = "",
+        place = "",
+        dateRaw = "",
+        c5 = "",
+        c6 = "",
+        c7 = "",
+        c8 = "",
+        c9 = "",
+      ] = cells;
+      nia = c0;
+      fullName = c1;
+      genderRaw = c2;
+      birthPlaceDate = formatBirthCombined(place, dateRaw);
+      address = c5;
+      nik = c6;
+      phoneNumber = c7;
+      rankRaw = c8;
+      rantingRaw = c9;
+    } else {
+      const [
+        c0 = "",
+        c1 = "",
+        c2 = "",
+        c3 = "",
+        c4 = "",
+        c5 = "",
+        c6 = "",
+        c7 = "",
+        c8 = "",
+      ] = cells;
+      nia = c0;
+      fullName = c1;
+      genderRaw = c2;
+      birthPlaceDate = c3;
+      address = c4;
+      nik = c5;
+      phoneNumber = c6;
+      rankRaw = c7;
+      rantingRaw = c8;
     }
-    const [
-      nia = "",
-      fullName = "",
-      genderRaw = "",
-      birthPlace = "",
-      birthDateRaw = "",
-      address = "",
-      nik = "",
-      phoneNumber = "",
-      rankRaw = "",
-      rantingRaw = "",
-    ] = cells;
 
     if (!fullName.trim() && !nia.trim() && !nik.trim()) continue;
 
-    const gender = normalizeGenderStorage(genderRaw) || "";
-    const birthDate =
-      parseFlexibleBirthDate(birthDateRaw) ||
-      (/^\d{4}-\d{2}-\d{2}$/.test(birthDateRaw.trim())
-        ? birthDateRaw.trim()
-        : birthDateRaw.trim());
+    const gender =
+      normalizeGenderStorage(genderRaw) ||
+      genderRaw.trim().toUpperCase() ||
+      "";
     const currentRank =
       formatRankLabel(rankRaw) || rankRaw.trim() || DEFAULT_MEMBER_RANK;
 
@@ -148,8 +202,7 @@ function parsePasteLines(
       nia: upper(nia),
       fullName: upper(fullName),
       gender,
-      birthPlace: upper(birthPlace),
-      birthDate,
+      birthPlaceDate: birthPlaceDate.trim(),
       address: upper(address),
       nik: nik.replace(/\D/g, "").slice(0, 16),
       phoneNumber: phoneNumber.trim(),
@@ -179,6 +232,7 @@ export function AddMembersBulkDialog({
   onSuccess?: () => void;
 }) {
   const router = useRouter();
+  const [bulkDojoId, setBulkDojoId] = useState(defaultDojoId);
   const [rows, setRows] = useState<BulkRow[]>(() =>
     Array.from({ length: 5 }, () => emptyRow(defaultDojoId)),
   );
@@ -187,6 +241,7 @@ export function AddMembersBulkDialog({
 
   useEffect(() => {
     if (open) {
+      setBulkDojoId(defaultDojoId);
       setRows(Array.from({ length: 5 }, () => emptyRow(defaultDojoId)));
       setProgress(null);
       setLoading(false);
@@ -198,19 +253,26 @@ export function AddMembersBulkDialog({
     [rows],
   );
 
-  const updateRow = useCallback(
-    (key: string, patch: Partial<BulkRow>) => {
-      setRows((prev) =>
-        prev.map((r) => (r.key === key ? { ...r, ...patch, error: undefined, ok: undefined } : r)),
-      );
-    },
-    [],
-  );
+  const updateRow = useCallback((key: string, patch: Partial<BulkRow>) => {
+    setRows((prev) =>
+      prev.map((r) =>
+        r.key === key
+          ? { ...r, ...patch, error: undefined, ok: undefined }
+          : r,
+      ),
+    );
+  }, []);
+
+  function applyDojoToAll(dojoId: string) {
+    setBulkDojoId(dojoId);
+    setRows((prev) => prev.map((r) => ({ ...r, dojoId })));
+  }
 
   function addRows(n = 5) {
+    const dojo = bulkDojoId || defaultDojoId;
     setRows((prev) => [
       ...prev,
-      ...Array.from({ length: n }, () => emptyRow(defaultDojoId)),
+      ...Array.from({ length: n }, () => emptyRow(dojo)),
     ]);
   }
 
@@ -223,26 +285,28 @@ export function AddMembersBulkDialog({
   function handlePaste(e: React.ClipboardEvent) {
     const text = e.clipboardData.getData("text");
     if (!text || (!text.includes("\t") && !text.includes("\n"))) return;
-    const parsed = parsePasteLines(text, dojos, defaultDojoId);
+    const fallbackDojo = bulkDojoId || defaultDojoId;
+    const parsed = parsePasteLines(text, dojos, fallbackDojo);
     if (parsed.length === 0) return;
     e.preventDefault();
     setRows((prev) => {
-      const blank = prev.filter((r) => !r.fullName.trim());
       const kept = prev.filter((r) => r.fullName.trim());
-      return [...kept, ...parsed, ...(blank.length ? [] : [])].slice(0, 50);
+      return [...kept, ...parsed].slice(0, 50);
     });
     showSuccess(`${parsed.length} baris ditempel dari clipboard`);
   }
 
   function downloadTemplate() {
-    const sampleDojo = dojos[0]?.name || "AIRLANGGA";
+    const sampleDojo =
+      dojos.find((d) => d.id === (bulkDojoId || defaultDojoId))?.name ||
+      dojos[0]?.name ||
+      "AIRLANGGA";
     const header = COLUMNS.join(",");
     const sample = [
       "25.00001",
       "BUDI SANTOSO",
       "L",
-      "SURABAYA",
-      "28 Februari 2011",
+      "SURABAYA, 28 Februari 2011",
       "JL CONTOH 1",
       "",
       "081234567890",
@@ -267,7 +331,8 @@ export function AddMembersBulkDialog({
     }
 
     for (const r of payloadRows) {
-      if (!lockDojo && dojos.length > 1 && !r.dojoId) {
+      const dojoId = r.dojoId || bulkDojoId || defaultDojoId;
+      if (!lockDojo && dojos.length > 1 && !dojoId) {
         showError(`Pilih ranting untuk ${r.fullName}`);
         return;
       }
@@ -280,28 +345,33 @@ export function AddMembersBulkDialog({
     setLoading(true);
     setProgress(`Menyimpan 0/${payloadRows.length}…`);
     try {
-      const members = payloadRows.map((r) => ({
-        fullName: r.fullName.trim().toUpperCase(),
-        gender: (normalizeGenderStorage(r.gender) || undefined) as
-          | "L"
-          | "P"
-          | undefined,
-        birthPlace: r.birthPlace.trim()
-          ? r.birthPlace.trim().toUpperCase()
-          : undefined,
-        birthDate: r.birthDate.trim()
-          ? parseFlexibleBirthDate(r.birthDate) || r.birthDate.trim()
-          : undefined,
-        address: r.address.trim() ? r.address.trim().toUpperCase() : undefined,
-        nik: r.nik.trim() || undefined,
-        phoneNumber: r.phoneNumber.trim() || undefined,
-        nia: r.nia.trim() ? r.nia.trim().toUpperCase() : undefined,
-        currentRank:
-          formatRankLabel(r.currentRank) ||
-          r.currentRank.trim() ||
-          DEFAULT_MEMBER_RANK,
-        dojoId: r.dojoId || defaultDojoId || undefined,
-      }));
+      const members = payloadRows.map((r) => {
+        const parsedBirth = parseBirthPlaceAndDate(r.birthPlaceDate);
+        const birthDate =
+          parsedBirth.birthDate ||
+          parseFlexibleBirthDate(r.birthPlaceDate) ||
+          undefined;
+        return {
+          fullName: r.fullName.trim().toUpperCase(),
+          gender: (normalizeGenderStorage(r.gender) || undefined) as
+            | "L"
+            | "P"
+            | undefined,
+          birthPlace: parsedBirth.birthPlace || undefined,
+          birthDate,
+          address: r.address.trim()
+            ? r.address.trim().toUpperCase()
+            : undefined,
+          nik: r.nik.trim() || undefined,
+          phoneNumber: r.phoneNumber.trim() || undefined,
+          nia: r.nia.trim() ? r.nia.trim().toUpperCase() : undefined,
+          currentRank:
+            formatRankLabel(r.currentRank) ||
+            r.currentRank.trim() ||
+            DEFAULT_MEMBER_RANK,
+          dojoId: r.dojoId || bulkDojoId || defaultDojoId || undefined,
+        };
+      });
 
       setProgress(`Menyimpan ${members.length} anggota…`);
       const res = await fetch("/api/admin/members/bulk-create", {
@@ -373,12 +443,16 @@ export function AddMembersBulkDialog({
         <DialogHeader>
           <DialogTitle>Input Massal Anggota</DialogTitle>
           <DialogDescription>
-            Isi tabel di bawah (NIA &amp; NIK opsional). Tempel dari Excel/Sheets
-            (urutan kolom sesuai header). Maksimal 50 baris per simpan.
+            NIA &amp; NIK opsional. Jenis kelamin teks (L/P). Tempat &amp;
+            tanggal lahir bisa digabung, mis.{" "}
+            <span className="font-medium text-foreground">
+              Surabaya, 28 Maret 2015
+            </span>
+            . Tempel dari Excel sesuai header. Maks 50 baris.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-end gap-2">
           <Button
             type="button"
             variant="outline"
@@ -399,6 +473,35 @@ export function AddMembersBulkDialog({
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             Tambah 5 baris
           </Button>
+
+          {!lockDojo || dojos.length > 1 ? (
+            <div className="space-y-1">
+              <label className="text-[11px] text-muted-foreground">
+                Isi semua ranting
+              </label>
+              <select
+                className="h-8 min-w-[160px] rounded-lg border border-input bg-background px-2 text-sm text-foreground"
+                value={bulkDojoId}
+                onChange={(e) => applyDojoToAll(e.target.value)}
+                disabled={loading}
+              >
+                <option value="">Pilih ranting…</option>
+                {dojos.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Ranting:{" "}
+              <span className="font-medium text-foreground">
+                {dojos[0]?.name || "—"}
+              </span>
+            </p>
+          )}
+
           <p className="text-xs text-muted-foreground">
             {filledCount} baris terisi · {rows.length} baris tabel
             {progress ? ` · ${progress}` : ""}
@@ -414,7 +517,10 @@ export function AddMembersBulkDialog({
               <tr>
                 <th className="border-b px-2 py-2 font-medium">No</th>
                 {COLUMNS.map((c) => (
-                  <th key={c} className="border-b px-2 py-2 font-medium whitespace-nowrap">
+                  <th
+                    key={c}
+                    className="border-b px-2 py-2 font-medium whitespace-nowrap"
+                  >
                     {c}
                   </th>
                 ))}
@@ -461,42 +567,40 @@ export function AddMembersBulkDialog({
                     />
                   </td>
                   <td className="border-b px-1 py-1">
-                    <select
-                      className={cellClass}
+                    <input
+                      className={`${cellClass} min-w-[5rem]`}
                       value={row.gender}
+                      placeholder="L / P"
                       onChange={(e) =>
                         updateRow(row.key, { gender: e.target.value })
                       }
-                      disabled={loading}
-                    >
-                      <option value="">—</option>
-                      <option value="L">L</option>
-                      <option value="P">P</option>
-                    </select>
-                  </td>
-                  <td className="border-b px-1 py-1">
-                    <input
-                      className={cellClass}
-                      value={row.birthPlace}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          birthPlace: upper(e.target.value),
-                        })
-                      }
+                      onBlur={(e) => {
+                        const g = normalizeGenderStorage(e.target.value);
+                        if (g) updateRow(row.key, { gender: g });
+                      }}
                       disabled={loading}
                     />
                   </td>
                   <td className="border-b px-1 py-1">
                     <input
-                      className={`${cellClass} min-w-[8.5rem]`}
-                      value={row.birthDate}
-                      placeholder="YYYY-MM-DD"
+                      className={`${cellClass} min-w-[14rem]`}
+                      value={row.birthPlaceDate}
+                      placeholder="Surabaya, 28 Maret 2015"
                       onChange={(e) =>
-                        updateRow(row.key, { birthDate: e.target.value })
+                        updateRow(row.key, {
+                          birthPlaceDate: e.target.value,
+                        })
                       }
                       onBlur={(e) => {
-                        const parsed = parseFlexibleBirthDate(e.target.value);
-                        if (parsed) updateRow(row.key, { birthDate: parsed });
+                        const parsed = parseBirthPlaceAndDate(e.target.value);
+                        if (parsed.birthPlace || parsed.birthDate) {
+                          const display = parsed.birthDate
+                            ? `${parsed.birthPlace || ""}${parsed.birthPlace ? ", " : ""}${parsed.birthDate}`
+                            : parsed.birthPlace;
+                          if (display) {
+                            updateRow(row.key, { birthPlaceDate: display });
+                          }
+                        }
                       }}
                       disabled={loading}
                     />
@@ -610,7 +714,8 @@ export function AddMembersBulkDialog({
 
         <DialogFooter className="gap-2 sm:justify-between">
           <p className="self-center text-xs text-muted-foreground">
-            Tip: salin rentang Excel lalu Ctrl+V di area tabel.
+            Tip: pilih &quot;Isi semua ranting&quot; dulu, lalu tempel Excel
+            (Ctrl+V).
           </p>
           <div className="flex gap-2">
             <Button
