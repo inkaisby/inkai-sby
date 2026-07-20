@@ -297,7 +297,7 @@ Pusat / Nasional
 | Keamanan P0–P2 | Diperkuat | Pesan IDOR ditutup; verifikasi fail-closed; rate limit Upstash opsional; CSRF admin ketat; password register; audit upload/broadcast/verifikasi |
 | Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI anggota 1× groupBy; absensi/UKT scoped (bukan limit 3000); broadcast/generate chunked; polling diperlambat |
 | Index Prisma | Ditambah | Member/Billing/Attendance/Verification/Message — jalankan migrate/db push di production |
-| Pool DB Supabase | Perlu pantau | Session mode ~15 client → `EMAXCONNSESSION` saat bulk; app auto-pakai Transaction `:6543`+`pgbouncer`+`connection_limit=1`; soft-delete/nonaktif/purge tanpa interactive tx; toast sibuk |
+| Pool DB Supabase | Diperkuat | Transaction `:6543`+`pgbouncer`; `connection_limit=5`/`pool_timeout=20`; soft-delete & **purge massal batch** (`deleteMany` per relasi); chunk purge 25 + jeda/retry; toast sibuk |
 
 ---
 
@@ -472,6 +472,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Input Massal Tambah Anggota: tabel NIA…Ranting, template CSV, paste Excel, API `bulk-create` (maks 50) |
 | 20 Juli 2026 | Fix error NIA: cari pemilik global (bukan hanya Surabaya); pesan sebut nama+dojo+cabang+ARSIP (mis. ABDUL AZIZ · JAKARTA) |
 | 20 Juli 2026 | Input Massal: isi semua ranting; JK teks (paste); Tempat&Tgl lahir digabung (`Surabaya, 28 Maret 2015`) |
+| 20 Juli 2026 | Input Massal: kolom Kyu saat ini teks (bisa paste), saran via datalist |
+| 20 Juli 2026 | Fix “Database sibuk” saat hapus permanen arsip (1 user): purge batch `deleteMany` (bukan N× query/anggota); pool `connection_limit=5`; chunk purge 25 |
 
 ---
 

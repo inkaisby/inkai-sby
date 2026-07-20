@@ -443,14 +443,20 @@ export function AddMembersBulkDialog({
         <DialogHeader>
           <DialogTitle>Input Massal Anggota</DialogTitle>
           <DialogDescription>
-            NIA &amp; NIK opsional. Jenis kelamin teks (L/P). Tempat &amp;
-            tanggal lahir bisa digabung, mis.{" "}
+            NIA &amp; NIK opsional. Jenis kelamin &amp; Kyu teks (bisa paste).
+            Tempat &amp; tanggal lahir digabung, mis.{" "}
             <span className="font-medium text-foreground">
               Surabaya, 28 Maret 2015
             </span>
             . Tempel dari Excel sesuai header. Maks 50 baris.
           </DialogDescription>
         </DialogHeader>
+
+        <datalist id="bulk-kyu-options">
+          {BELT_RANK_OPTIONS.map((rank) => (
+            <option key={rank} value={rank} />
+          ))}
+        </datalist>
 
         <div className="flex flex-wrap items-end gap-2">
           <Button
@@ -645,20 +651,24 @@ export function AddMembersBulkDialog({
                     />
                   </td>
                   <td className="border-b px-1 py-1">
-                    <select
+                    <input
                       className={`${cellClass} min-w-[9rem]`}
                       value={row.currentRank}
+                      placeholder="Putih (Kyu 10)"
+                      list="bulk-kyu-options"
                       onChange={(e) =>
                         updateRow(row.key, { currentRank: e.target.value })
                       }
+                      onBlur={(e) => {
+                        const formatted =
+                          formatRankLabel(e.target.value) ||
+                          e.target.value.trim();
+                        if (formatted) {
+                          updateRow(row.key, { currentRank: formatted });
+                        }
+                      }}
                       disabled={loading}
-                    >
-                      {BELT_RANK_OPTIONS.map((rank) => (
-                        <option key={rank} value={rank}>
-                          {rank}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </td>
                   <td className="border-b px-1 py-1">
                     {lockDojo && dojos.length === 1 ? (
