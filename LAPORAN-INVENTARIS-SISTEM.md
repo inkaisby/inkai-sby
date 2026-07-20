@@ -489,6 +489,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Kelola Anggota: tampilkan anggota luar Surabaya / ranting terarsip (mis. JAKARTA PUSAT) agar NIA & arsip cabang bisa dibersihkan |
 | 20 Juli 2026 | Fix simpan password PIC ranting: update `User.passwordHash` lokal (bukan Inkai PATCH) — hilangkan error "Data tidak valid password baru ranting" |
 | 20 Juli 2026 | Pengaturan ranting: telepon maks 60 karakter (dukung 2 nomor dipisah `/`) |
+| 20 Juli 2026 | Input Massal: logo INKAI animasi saat progress menyimpan anggota |
 
 ---
 

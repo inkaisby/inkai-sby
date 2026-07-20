@@ -26,6 +26,7 @@ import { showError, showSuccess } from "@/lib/client-toast";
 import type { AddMemberDojoOption } from "@/components/admin/AddMemberDialog";
 import { triggerCsvDownload } from "@/lib/ukt";
 import { postBulkCreateChunked } from "@/lib/member-bulk-client";
+import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
 
 type BulkRow = {
   key: string;
@@ -596,20 +597,31 @@ export function AddMembersBulkDialog({
         </div>
 
         {loading ? (
-          <div className="space-y-1.5 rounded-lg border border-inkai-red/30 bg-inkai-red/5 px-3 py-2">
-            <div className="flex items-center justify-between gap-2 text-xs">
-              <span className="font-medium text-foreground">
-                {progress || "Menyimpan…"}
-              </span>
-              <span className="tabular-nums font-semibold text-inkai-red">
-                {progressPercent}%
-              </span>
-            </div>
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-inkai-red transition-[width] duration-200 ease-out"
-                style={{ width: `${Math.max(progressPercent, 2)}%` }}
-              />
+          <div className="space-y-2 rounded-lg border border-inkai-red/30 bg-inkai-red/5 px-3 py-3">
+            <div className="flex items-center gap-3">
+              <InkaiLogoLoader size="sm" showDots={false} className="shrink-0" />
+              <div className="min-w-0 flex-1 space-y-1.5">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="font-medium text-foreground">
+                    {progress || "Menyimpan…"}
+                  </span>
+                  <span className="tabular-nums font-semibold text-inkai-red">
+                    {progressPercent}%
+                  </span>
+                </div>
+                <div
+                  className="h-2.5 w-full overflow-hidden rounded-full bg-muted"
+                  role="progressbar"
+                  aria-valuenow={progressPercent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <div
+                    className="h-full rounded-full bg-inkai-red transition-[width] duration-200 ease-out"
+                    style={{ width: `${Math.max(progressPercent, 2)}%` }}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         ) : null}
