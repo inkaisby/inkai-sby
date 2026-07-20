@@ -72,9 +72,11 @@ export async function createAdminMember(opts: {
     const dojos = (data.data as Array<{ id: string; name: string }>) ?? [];
     const filter = buildDojoFilter(user);
     const scoped = dojos.filter((d) => {
-      if (filter.id && typeof filter.id === "string") return d.id === filter.id;
-      if (filter.id && typeof filter.id === "object" && "in" in filter.id) {
-        return (filter.id.in as string[]).includes(d.id);
+      if (!("id" in filter) || filter.id == null) return true;
+      const idFilter = filter.id;
+      if (typeof idFilter === "string") return d.id === idFilter;
+      if (typeof idFilter === "object" && "in" in idFilter) {
+        return (idFilter.in as string[]).includes(d.id);
       }
       return true;
     });
