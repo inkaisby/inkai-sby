@@ -11,9 +11,13 @@ export const ADMIN_ROLES = [
 
 /** Anggota di DB lokal yang dojo/cabangnya di luar Cabang Surabaya (data bocor/sync). */
 function outsideSiteBranchDojoClause() {
+  // Prisma: `mode` harus di level StringFilter, bukan di dalam `not: { equals }`.
   return {
     branch: {
-      name: { not: { equals: SITE_BRANCH_NAME, mode: "insensitive" as const } },
+      name: {
+        not: SITE_BRANCH_NAME,
+        mode: "insensitive" as const,
+      },
     },
   };
 }
