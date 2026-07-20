@@ -431,6 +431,8 @@ export function AnggotaBrowser({
         <MembersTable
           members={members}
           userRoles={userRoles}
+          dojos={dojos}
+          onMembersChanged={() => applyFilters({}, { resetPage: false })}
           page={safePage}
           pageSize={filters.pageSize}
         />

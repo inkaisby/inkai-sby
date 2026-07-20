@@ -24,6 +24,7 @@ import {
 } from "@/lib/wilayah-rbac";
 import { buildMemberFilter, type SessionUser } from "@/lib/rbac";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
+import { assertDojoInScope } from "@/lib/pengaturan";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -311,6 +312,112 @@ export async function PATCH(request: Request, context: RouteContext) {
       member: data.data,
       currentRank,
       message: `Sabuk diperbarui: ${currentRank}`,
+    });
+  }
+
+  if (action === "set_dojo") {
+    if (!canEditKyuBaru(roles)) {
+      return NextResponse.json(
+        {
+          error:
+            "Hanya pengurus cabang yang dapat memindahkan anggota antar ranting",
+        },
+        { status: 403 },
+      );
+    }
+    const nextDojoId = parsed.data.dojoId?.trim();
+    if (!nextDojoId) {
+      return NextResponse.json(
+        { error: "Ranting tujuan wajib dipilih" },
+        { status: 400 },
+      );
+    }
+
+    const scoped = await prisma.member.findFirst({
+      where: {
+        AND: [{ id }, buildMemberFilter(authResult.user)],
+      },
+      select: {
+        id: true,
+        fullName: true,
+        dojoId: true,
+        dojo: { select: { name: true } },
+      },
+    });
+    if (!scoped) {
+      return NextResponse.json(
+        { error: "Anggota tidak ditemukan di cakupan Anda" },
+        { status: 404 },
+      );
+    }
+
+    const targetDojo = await assertDojoInScope(authResult.user, nextDojoId);
+    if (!targetDojo || targetDojo.isDeleted) {
+      return NextResponse.json(
+        { error: "Ranting tujuan di luar cakupan atau tidak valid" },
+        { status: 400 },
+      );
+    }
+
+    if (scoped.dojoId === nextDojoId) {
+      return NextResponse.json({
+        success: true,
+        dojoId: nextDojoId,
+        dojoName: targetDojo.name,
+        message: `Anggota sudah di ranting ${targetDojo.name}`,
+      });
+    }
+
+    const previousDojoName = scoped.dojo?.name || "—";
+
+    const { res, data } = await inkaiFetch(
+      `/v1/members/${id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ dojoId: nextDojoId }),
+      },
+      token,
+    );
+
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: inkaiErrorMessage(data, "Gagal memindahkan ranting") },
+        { status: res.status },
+      );
+    }
+
+    try {
+      await prisma.member.update({
+        where: { id },
+        data: { dojoId: nextDojoId },
+      });
+    } catch (err) {
+      console.error("[set_dojo] prisma update failed:", err);
+      return NextResponse.json(
+        {
+          error:
+            "Ranting terbarui di sistem pusat, tetapi gagal sinkron lokal. Muat ulang halaman.",
+        },
+        { status: 500 },
+      );
+    }
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "MEMBER_SET_DOJO",
+      details: `Pindah ranting ${previousDojoName} → ${targetDojo.name} for ${scoped.fullName} (${id})`,
+      ip,
+      userAgent,
+      token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      member: data.data,
+      dojoId: nextDojoId,
+      dojoName: targetDojo.name,
+      message: `Dipindah: ${previousDojoName} → ${targetDojo.name}`,
     });
   }
 

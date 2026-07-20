@@ -295,22 +295,29 @@ function CopyableValue({ value }: { value: string }) {
 }
 
 export function MembersTable({
-  members,
+  members: membersProp,
   userRoles = [],
+  dojos = [],
+  onMembersChanged,
   page = 1,
   pageSize = 25,
 }: {
   members: AdminMemberRow[];
   userRoles?: string[];
+  dojos?: Array<{ id: string; name: string }>;
+  /** Dipanggil setelah pindah dojo agar daftar client di-refresh. */
+  onMembersChanged?: () => void;
   /** Halaman saat ini (1-based) — untuk nomor urut global. */
   page?: number;
   pageSize?: number;
 }) {
   const router = useRouter();
+  const [members, setMembers] = useState(membersProp);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<MemberDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [rankSavingId, setRankSavingId] = useState<string | null>(null);
+  const [dojoSavingId, setDojoSavingId] = useState<string | null>(null);
   const [duesSaving, setDuesSaving] = useState(false);
   const [duesDraft, setDuesDraft] = useState("");
   const {
@@ -329,7 +336,12 @@ export function MembersTable({
   } | null>(null);
   const canBulk = canToggleMemberActive(userRoles);
   const canEditRank = canEditKyuBaru(userRoles);
+  const canEditDojo = canEditKyuBaru(userRoles);
   const canEditDues = canManageIuranByWilayah(userRoles);
+
+  useEffect(() => {
+    setMembers(membersProp);
+  }, [membersProp]);
 
   const activeSelectable = members.filter((m) => {
     const s = m.status.trim().toUpperCase();
@@ -431,14 +443,73 @@ export function MembersTable({
         return;
       }
       showSuccess(data.message || `Sabuk diperbarui: ${currentRank}`);
+      const nextRank = data.currentRank || currentRank;
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.id === memberId ? { ...m, currentRank: nextRank } : m,
+        ),
+      );
       if (selectedId === memberId && detail) {
-        setDetail({ ...detail, currentRank: data.currentRank || currentRank });
+        setDetail({ ...detail, currentRank: nextRank });
       }
       router.refresh();
     } catch {
       showError("Gagal memperbarui sabuk");
     } finally {
       setRankSavingId(null);
+    }
+  }
+
+  async function handleSetDojo(memberId: string, dojoId: string) {
+    if (!dojoId.trim()) return;
+    const target = dojos.find((d) => d.id === dojoId);
+    setDojoSavingId(memberId);
+    try {
+      const res = await fetch(`/api/admin/members/${memberId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_dojo", dojoId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        dojoId?: string;
+        dojoName?: string;
+      };
+      if (!res.ok) {
+        showError(data.error || "Gagal memindahkan ranting");
+        return;
+      }
+      showSuccess(data.message || "Ranting diperbarui");
+      const nextName = data.dojoName || target?.name || "—";
+      const nextId = data.dojoId || dojoId;
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.id === memberId
+            ? {
+                ...m,
+                dojoId: nextId,
+                dojo: {
+                  name: nextName,
+                  branch: m.dojo?.branch,
+                },
+              }
+            : m,
+        ),
+      );
+      if (selectedId === memberId && detail) {
+        setDetail({
+          ...detail,
+          dojoId: nextId,
+          dojo: { name: nextName, branch: (detail.dojo as { branch?: { name: string } } | undefined)?.branch },
+        });
+      }
+      onMembersChanged?.();
+      router.refresh();
+    } catch {
+      showError("Gagal memindahkan ranting");
+    } finally {
+      setDojoSavingId(null);
     }
   }
 
@@ -659,8 +730,40 @@ export function MembersTable({
                           }
                         />
                       </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      {m.dojo?.name ?? "-"}
+                    <TableCell
+                      className="hidden sm:table-cell"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {canEditDojo && dojos.length > 0 ? (
+                        <select
+                          className="h-8 max-w-[11rem] rounded border bg-background px-1 text-xs"
+                          value={m.dojoId || ""}
+                          disabled={dojoSavingId === m.id}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            if (!next || next === m.dojoId) return;
+                            void handleSetDojo(m.id, next);
+                          }}
+                          aria-label={`Ubah ranting ${m.fullName}`}
+                        >
+                          {!m.dojoId ? (
+                            <option value="">— Pilih —</option>
+                          ) : null}
+                          {dojos.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.name}
+                            </option>
+                          ))}
+                          {m.dojoId &&
+                          !dojos.some((d) => d.id === m.dojoId) ? (
+                            <option value={m.dojoId}>
+                              {m.dojo?.name || m.dojoId}
+                            </option>
+                          ) : null}
+                        </select>
+                      ) : (
+                        (m.dojo?.name ?? "-")
+                      )}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
                       {formatDateTime(m.createdAt)}

@@ -103,7 +103,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
-| Kelola Anggota | Cari **autocomplete**; kolom **No**; KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; nonaktif/bulk; CSV; arsip; Prisma scoped; filter client-side; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50) |
+| Kelola Anggota | Cari **autocomplete**; kolom **No**; KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV; arsip; Prisma scoped; filter client-side; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50) |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran**, **arsip** |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
@@ -191,7 +191,7 @@ Pusat / Nasional
 4. **Deteksi duplikat** sebelum simpan: **keras** jika NIK, NIA, atau nama tepat + tanggal lahir sama (cakupan Cabang Surabaya); **lunak** jika nama mirip. Blok `POST /api/admin/members` & `POST /api/auth/register` (409); UI peringatan di form tambah anggota & daftar publik.
 5. **Gabungkan (merge)** oleh ranting/cabang di detail `/admin/anggota`: data operasional dipertahankan, akun login dari daftar mandiri dipindahkan, duplikat diarsipkan (`POST /api/admin/members/merge`). Cocok untuk kasus ranting daftar dulu (tanpa akun) lalu anggota daftar mandiri (PENDING + akun), atau sebaliknya.
 6. Admin memverifikasi di `/admin/verifikasi` atau kelola anggota.
-7. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran, dan **mengedit sabuk** anggota (kolom Sabuk di `/admin/anggota`).
+7. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran, **mengedit sabuk**, dan **memindahkan ranting** anggota (kolom Dojo inline di `/admin/anggota`, `set_dojo`). Ajuan pindah dari anggota tetap lewat verifikasi `DOJO_TRANSFER`.
 8. Anggota melengkapi profil & dokumen.
 9. **Nonaktifkan** (status `INACTIVE` / `SUSPENDED`) — ranting/cabang; wajib alasan + catatan; notifikasi ke anggota; login diblokir; NIA & riwayat tetap; dapat **aktifkan kembali**. Bulk nonaktif tersedia.
 10. **Hapus** = soft-delete (`isDeleted`) — cek dampak iuran/UKT; ranting & cabang dalam scope; aktif/ber-NIA wajib ketik nama. **Bulk hapus/arsip** dari floating bar (konfirmasi ketik `ARSIPKAN`). Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang; **bulk hapus permanen** di arsip (ketik `HAPUS`).
@@ -322,7 +322,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/auth/*                 Login, register (+ identitas/sabuk lengkap), check-duplicate, forgot/reset password
 /api/admin/members          POST create; GET list+KPI counts (filter cepat client-side)
 /api/admin/members/bulk-create  Input massal tambah anggota (maks 50)
-/api/admin/members/[id]     Detail + aksi (approve/NIA/set_rank/set_dues/dokumen/nonaktif/hapus/restore/merge)
+/api/admin/members/[id]     Detail + aksi (approve/NIA/set_rank/set_dojo/set_dues/dokumen/nonaktif/hapus/restore/merge)
 /api/admin/members/bulk     Bulk nonaktif / approve / hapus-arsip (ARSIPKAN) / purge arsip (HAPUS) / restore
 /api/admin/members/archived Daftar arsip soft-delete
 /api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas (ranting/cabang)
@@ -483,6 +483,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Input Massal: Isi semua Kyu/DAN = select langsung isi kolom; paste kosong tidak lagi default Putih jika sudah dipilih |
 | 20 Juli 2026 | Fix bocor URL Blob di field dokumen anggota: UI tampilkan status + unggah (bukan URL mentah) |
 | 20 Juli 2026 | Upload dokumen Akte/BPJS: kompres otomatis ke maks. 150 KB (JPEG client-side) |
+| 20 Juli 2026 | Kelola Anggota: cabang dapat **pindah ranting** via kolom Dojo inline (`set_dojo` → Inkai + Prisma) |
 
 ---
 

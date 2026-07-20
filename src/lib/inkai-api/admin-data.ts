@@ -37,6 +37,7 @@ export type AdminMemberRow = {
   nia: string | null;
   currentRank: string;
   status: string;
+  dojoId?: string | null;
   dojo: { name: string; branch?: { name: string } };
   birthCertificateUrl?: string | null;
   bpjsCardUrl?: string | null;
@@ -301,6 +302,7 @@ export async function fetchAdminMembersScoped(
           nia: true,
           currentRank: true,
           status: true,
+          dojoId: true,
           birthCertificateUrl: true,
           bpjsCardUrl: true,
           bpjsCardNumber: true,
@@ -326,6 +328,7 @@ export async function fetchAdminMembersScoped(
       nia: m.nia,
       currentRank: m.currentRank,
       status: m.status,
+      dojoId: m.dojoId,
       dojo: {
         name: m.dojo.name,
         branch: m.dojo.branch ? { name: m.dojo.branch.name } : undefined,
@@ -412,6 +415,7 @@ export async function fetchAdminMembersForDojoIds(
       nia: m.nia,
       currentRank: m.currentRank,
       status: m.status,
+      dojoId: m.dojoId,
       dojo: {
         name: m.dojo.name,
         branch: m.dojo.branch ? { name: m.dojo.branch.name } : undefined,

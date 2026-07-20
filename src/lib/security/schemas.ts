@@ -70,6 +70,7 @@ export const memberActionSchema = z.object({
     "set_rank",
     "set_dues",
     "set_documents",
+    "set_dojo",
     "deactivate",
     "activate",
     "delete",
@@ -80,6 +81,8 @@ export const memberActionSchema = z.object({
   currentRank: z.string().trim().min(2).max(64).optional(),
   /** Nominal iuran bulanan per anggota (ranting/cabang). */
   monthlyDuesAmount: z.coerce.number().min(0).max(10_000_000).optional(),
+  /** Pindah ranting (hanya cabang ke atas). */
+  dojoId: z.string().uuid().optional(),
   /** URL dokumen (setelah upload Blob) — kosong = hapus. */
   birthCertificateUrl: z.string().trim().max(2048).optional().nullable(),
   bpjsCardUrl: z.string().trim().max(2048).optional().nullable(),
