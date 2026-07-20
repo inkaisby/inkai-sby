@@ -109,6 +109,8 @@ function parseHrefToFilters(
 }
 
 export function AnggotaBrowser({
+  roleLabel,
+  scopeHint,
   initialMembers,
   initialTotal,
   initialStatusCounts,
@@ -122,6 +124,8 @@ export function AnggotaBrowser({
   canNormalize,
   defaultDojoId,
 }: {
+  roleLabel?: string;
+  scopeHint?: string;
   initialMembers: AdminMemberRow[];
   initialTotal: number;
   initialStatusCounts: MemberStatusCounts;
@@ -182,7 +186,21 @@ export function AnggotaBrowser({
       if (reqId !== reqIdRef.current) return;
       setMembers(data.members ?? []);
       setTotal(Number(data.total) || 0);
-      if (data.statusCounts) setStatusCounts(data.statusCounts);
+      if (data.statusCounts) {
+        const nextCounts = { ...data.statusCounts };
+        const listTotal = Number(data.total) || 0;
+        // Samakan Total KPI dengan total daftar saat tanpa filter status/dokumen.
+        if (
+          !next.status &&
+          !next.docs &&
+          !next.nia &&
+          !next.inactiveMonths &&
+          nextCounts.all !== listTotal
+        ) {
+          nextCounts.all = listTotal;
+        }
+        setStatusCounts(nextCounts);
+      }
     } catch (err) {
       if (ac.signal.aborted) return;
       if (reqId !== reqIdRef.current) return;
@@ -232,11 +250,21 @@ export function AnggotaBrowser({
     pageSize: String(filters.pageSize),
   };
 
+  const unfiltered =
+    !filters.status && !filters.docs && !filters.nia && !filters.inactiveMonths;
+  // Total KPI = total daftar saat tanpa filter status/dokumen (satu sumber kebenaran).
+  const totalKpiValue = unfiltered ? total : statusCounts.all;
+  const subtitleCount = unfiltered ? total : statusCounts.all;
+  const activeDojoName =
+    (filters.dojoId && dojos.find((d) => d.id === filters.dojoId)?.name) ||
+    scopeHint ||
+    "";
+
   const kpis: AnggotaKpiItem[] = [
     {
       key: "all",
       label: "Total",
-      value: statusCounts.all,
+      value: totalKpiValue,
       icon: "users" as AnggotaKpiIconName,
       href: buildHref({ ...kpiBase, status: "", docs: "", nia: "" }),
       active: !filters.status && !filters.docs && !filters.nia,
@@ -311,6 +339,13 @@ export function AnggotaBrowser({
   const safePage = Math.min(filters.page, totalPages);
 
   return (
+    <>
+      {roleLabel ? (
+        <p className="-mt-4 mb-4 text-muted-foreground">
+          {roleLabel} — {subtitleCount} anggota
+          {activeDojoName ? ` · ${activeDojoName}` : ""}
+        </p>
+      ) : null}
     <AnggotaKpiCards
       items={kpis}
       onNavigate={(href) => {
@@ -421,5 +456,6 @@ export function AnggotaBrowser({
         }}
       />
     </AnggotaKpiCards>
+    </>
   );
 }

@@ -152,28 +152,33 @@ async function AdminAnggotaContent({
   }
 
   const total = result.ok ? result.total : 0;
-  const subtitleTotal =
-    !q && !status && !docs && !niaFilter && !inactiveMonths
-      ? statusCounts.all
-      : total;
+  const syncedStatusCounts = { ...statusCounts };
+  // Samakan dengan KPI: unfiltered pakai total daftar (selalu fresh).
+  if (
+    !q &&
+    !status &&
+    !docs &&
+    !niaFilter &&
+    !inactiveMonths &&
+    syncedStatusCounts.all !== total
+  ) {
+    syncedStatusCounts.all = total;
+  }
+
+  const dojoLabel = dojoId
+    ? managedDojoOptions.find((d) => d.id === dojoId)?.name ||
+      dojos.find((d) => d.id === dojoId)?.name ||
+      "Dojo"
+    : "";
+  const roleLabel = ROLE_LABELS[primaryRole] || primaryRole;
+  const scopeHint =
+    allowlist.length > 1 && !dojoId ? `${allowlist.length} ranting` : dojoLabel;
 
   return (
     <>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">Kelola Anggota</h2>
-          <p className="text-muted-foreground">
-            {ROLE_LABELS[primaryRole] || primaryRole} — {subtitleTotal} anggota
-            {allowlist.length > 1 && !dojoId
-              ? ` · ${allowlist.length} ranting`
-              : dojoId
-                ? ` · ${
-                    managedDojoOptions.find((d) => d.id === dojoId)?.name ||
-                    dojos.find((d) => d.id === dojoId)?.name ||
-                    "Dojo"
-                  }`
-                : ""}
-          </p>
           {!result.ok && (
             <p className="mt-2 text-sm text-destructive">
               Gagal memuat data anggota.
@@ -190,11 +195,13 @@ async function AdminAnggotaContent({
       </div>
 
       <AnggotaBrowser
+        roleLabel={roleLabel}
+        scopeHint={scopeHint}
         initialMembers={members}
         initialTotal={
           inactiveMonths > 0 ? members.length : total
         }
-        initialStatusCounts={statusCounts}
+        initialStatusCounts={syncedStatusCounts}
         initialFilters={{
           q,
           status,

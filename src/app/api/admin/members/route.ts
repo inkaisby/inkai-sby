@@ -96,7 +96,22 @@ export async function GET(request: Request) {
     page: result.page,
     pageSize,
     dojoId,
-    statusCounts,
+    statusCounts: statusCounts
+      ? (() => {
+          const counts = { ...statusCounts };
+          if (
+            !q &&
+            !status &&
+            !docs &&
+            !niaFilter &&
+            !inactiveMonths &&
+            counts.all !== total
+          ) {
+            counts.all = total;
+          }
+          return counts;
+        })()
+      : null,
   });
 }
 

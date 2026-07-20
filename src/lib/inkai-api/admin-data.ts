@@ -163,7 +163,7 @@ function missingNiaClause() {
   return { nia: null };
 }
 
-/** Satu query Prisma groupBy + count dokumen/NIA untuk KPI — selalu scoped RBAC. */
+/** Satu query Prisma groupBy + count untuk KPI — selalu scoped RBAC. */
 export async function fetchAdminMemberStatusCounts(
   user: SessionUser,
   opts: {
@@ -173,7 +173,12 @@ export async function fetchAdminMemberStatusCounts(
 ): Promise<MemberStatusCounts> {
   const where = memberScopeWhere(user, opts);
 
-  const [statusResult, docsResult, niaResult] = await Promise.all([
+  const [allResult, statusResult, docsResult, niaResult] = await Promise.all([
+    withPrismaFallback(
+      "admin-member-all-count",
+      () => prisma.member.count({ where }),
+      0,
+    ),
     withPrismaFallback(
       "admin-member-status-counts",
       () =>
@@ -203,7 +208,8 @@ export async function fetchAdminMemberStatusCounts(
   ]);
 
   const counts: MemberStatusCounts = {
-    all: 0,
+    // `all` dari count() — sama dengan total daftar (bukan jumlah groupBy yang bisa stale/cache).
+    all: allResult.data,
     pending: 0,
     active: 0,
     inactive: 0,
@@ -214,12 +220,18 @@ export async function fetchAdminMemberStatusCounts(
 
   for (const row of statusResult.data) {
     const n = row._count._all;
-    counts.all += n;
     const st = row.status.trim().toUpperCase();
     if (st === "PENDING") counts.pending += n;
     else if (st === "ACTIVE" || st === "AKTIF") counts.active += n;
     else if (st === "INACTIVE" || st === "SUSPENDED") counts.inactive += n;
     else if (st === "REJECTED") counts.rejected += n;
+  }
+
+  // Jaga konsistensi: jika groupBy gagal/parsial, all tetap dari count().
+  const statusSum =
+    counts.pending + counts.active + counts.inactive + counts.rejected;
+  if (statusSum > counts.all) {
+    counts.all = statusSum;
   }
 
   return counts;
@@ -712,24 +724,15 @@ export function fetchAdminDojosScopedCached(user: SessionUser) {
   )();
 }
 
-/** Cache KPI counts 30s per cakupan dojo — ganti status/q tidak hitung ulang. */
+/**
+ * KPI counts — tanpa unstable_cache.
+ * Cache 30s membuat Total tertinggal setelah tambah/hapus anggota (mis. 15 vs 18).
+ */
 export function fetchAdminMemberStatusCountsCached(
   user: SessionUser,
   opts: { dojoIds?: string[]; dojoId?: string } = {},
 ) {
-  const role = getPrimaryAdminRole(user.roles);
-  const key = [
-    "admin-member-status-counts",
-    user.id,
-    role,
-    opts.dojoId ?? "",
-    (opts.dojoIds ?? []).slice().sort().join(","),
-  ];
-  return unstable_cache(
-    () => fetchAdminMemberStatusCounts(user, opts),
-    key,
-    { revalidate: 30 },
-  )();
+  return fetchAdminMemberStatusCounts(user, opts);
 }
 
 export async function fetchCarouselItems(): Promise<
