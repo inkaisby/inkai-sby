@@ -474,6 +474,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Input Massal: isi semua ranting; JK teks (paste); Tempat&Tgl lahir digabung (`Surabaya, 28 Maret 2015`) |
 | 20 Juli 2026 | Input Massal: kolom Kyu saat ini teks (bisa paste), saran via datalist |
 | 20 Juli 2026 | Fix “Database sibuk” saat hapus permanen arsip (1 user): purge batch `deleteMany` (bukan N× query/anggota); pool `connection_limit=5`; chunk purge 25 |
+| 20 Juli 2026 | Input Massal: paste Kyu 1 sel Excel tidak lagi jadi baris baru; placeholder Kyu “boleh kosong” |
 
 ---
 

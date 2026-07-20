@@ -645,8 +645,8 @@ export async function purgeArchivedMembersBulk(opts: {
       where: {
         AND: [
           { id: { in: ids } },
-          { isDeleted: true },
-          buildMemberFilter(opts.user),
+          // Wajib includeDeleted — default filter isDeleted:false bentrok dengan arsip.
+          buildMemberFilter(opts.user, { includeDeleted: true }),
         ],
       },
       select: { id: true, fullName: true, nia: true, userId: true },

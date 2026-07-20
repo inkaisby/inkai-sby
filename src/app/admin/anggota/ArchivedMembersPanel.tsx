@@ -143,7 +143,9 @@ export function ArchivedMembersPanel({
     );
     setActing(false);
     if (!result.ok && result.okCount === 0) {
-      showError(result.error || "Gagal hapus permanen");
+      showError(
+        result.error || result.message || "Gagal hapus permanen",
+      );
       return;
     }
     showSuccess(result.message || "Berhasil dihapus");

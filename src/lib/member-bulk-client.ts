@@ -128,10 +128,16 @@ export async function postMemberBulkChunked(
         break;
       }
     } else {
-      anyOk = true;
-      okCount += Number(data.okCount ?? memberIds.length);
-      failCount += Number(data.failCount ?? 0);
+      const chunkOk = Number(data.okCount ?? 0);
+      const chunkFail = Number(data.failCount ?? 0);
+      // Jangan anggap sukses hanya karena HTTP 200 — okCount bisa 0 (filter/scope).
+      if (chunkOk > 0) anyOk = true;
+      okCount += chunkOk;
+      failCount += chunkFail > 0 ? chunkFail : chunkOk === 0 ? memberIds.length : 0;
       lastMessage = data.message || lastMessage;
+      if (chunkOk === 0 && (data.error || data.message)) {
+        lastError = data.error || data.message || lastError;
+      }
     }
 
     const done = Math.min(okCount + failCount, total);

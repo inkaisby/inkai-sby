@@ -59,7 +59,7 @@ function newKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function emptyRow(dojoId = "", currentRank = DEFAULT_MEMBER_RANK): BulkRow {
+function emptyRow(dojoId = "", currentRank = ""): BulkRow {
   return {
     key: newKey(),
     nia: "",
@@ -284,7 +284,27 @@ export function AddMembersBulkDialog({
 
   function handlePaste(e: React.ClipboardEvent) {
     const text = e.clipboardData.getData("text");
-    if (!text || (!text.includes("\t") && !text.includes("\n"))) return;
+    if (!text) return;
+
+    // Excel paste 1 sel sering bawa \n di ujung — jangan anggap multi-baris.
+    const lines = text
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const isTabular = text.includes("\t") || lines.length > 1;
+
+    const target = e.target as HTMLElement | null;
+    const inField =
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement;
+
+    // Paste ke dalam sel (Kyu, Nama, dll): biarkan native jika bukan tabel.
+    if (inField && !isTabular) return;
+    if (!isTabular) return;
+
     const fallbackDojo = bulkDojoId || defaultDojoId;
     const parsed = parsePasteLines(text, dojos, fallbackDojo);
     if (parsed.length === 0) return;
@@ -443,12 +463,13 @@ export function AddMembersBulkDialog({
         <DialogHeader>
           <DialogTitle>Input Massal Anggota</DialogTitle>
           <DialogDescription>
-            NIA &amp; NIK opsional. Jenis kelamin &amp; Kyu teks (bisa paste).
-            Tempat &amp; tanggal lahir digabung, mis.{" "}
+            NIA &amp; NIK opsional. Jenis kelamin &amp; Kyu teks (bisa paste ke
+            sel; kosong = Putih Kyu 10). Tempat &amp; tanggal lahir digabung,
+            mis.{" "}
             <span className="font-medium text-foreground">
               Surabaya, 28 Maret 2015
             </span>
-            . Tempel dari Excel sesuai header. Maks 50 baris.
+            . Tempel tabel dari Excel sesuai header. Maks 50 baris.
           </DialogDescription>
         </DialogHeader>
 
@@ -654,18 +675,39 @@ export function AddMembersBulkDialog({
                     <input
                       className={`${cellClass} min-w-[9rem]`}
                       value={row.currentRank}
-                      placeholder="Putih (Kyu 10)"
+                      placeholder="boleh kosong"
                       list="bulk-kyu-options"
+                      autoComplete="off"
                       onChange={(e) =>
-                        updateRow(row.key, { currentRank: e.target.value })
+                        updateRow(row.key, {
+                          currentRank: e.target.value.replace(/\r?\n/g, " "),
+                        })
                       }
+                      onPaste={(e) => {
+                        // Cegah \n dari Excel masuk ke value / memicu baris baru.
+                        const raw = e.clipboardData.getData("text") || "";
+                        const lines = raw
+                          .replace(/\r\n/g, "\n")
+                          .replace(/\r/g, "\n")
+                          .split("\n")
+                          .map((l) => l.trim())
+                          .filter(Boolean);
+                        if (raw.includes("\t") || lines.length > 1) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const pasted = (lines[0] || raw.trim()).replace(
+                          /\r?\n/g,
+                          " ",
+                        );
+                        const formatted =
+                          formatRankLabel(pasted) || pasted;
+                        updateRow(row.key, { currentRank: formatted });
+                      }}
                       onBlur={(e) => {
                         const formatted =
                           formatRankLabel(e.target.value) ||
                           e.target.value.trim();
-                        if (formatted) {
-                          updateRow(row.key, { currentRank: formatted });
-                        }
+                        updateRow(row.key, { currentRank: formatted });
                       }}
                       disabled={loading}
                     />
