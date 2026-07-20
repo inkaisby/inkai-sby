@@ -462,6 +462,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Kolom Dokumen anggota: modal pratinjau (ukuran + Print), bukan tab baru; proxy `/api/admin/document-file` |
 | 19 Juli 2026 | Admin upload Akte/BPJS di detail anggota (`set_documents` + Blob); sinkron Prisma + Inkai PATCH |
 | 20 Juli 2026 | Fix crash Kelola Anggota: KPI ikon pakai nama string (bukan komponen Lucide ke Client Component) |
+| 20 Juli 2026 | Percepat bulk arsip: `updateMany` + Inkai DELETE background; chunk 50 (bukan tunggu API per anggota) |
 
 ---
 

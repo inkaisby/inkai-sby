@@ -11,14 +11,12 @@ import {
   deactivateMember,
   purgeArchivedMember,
   restoreMember,
-  softDeleteMember,
+  softDeleteMembersBulk,
 } from "@/lib/member-lifecycle-actions";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { PRISMA_BUSY_USER_MESSAGE } from "@/lib/prisma-errors";
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
@@ -78,7 +76,6 @@ export async function POST(request: Request) {
           ? { id: memberId, ok: true }
           : { id: memberId, ok: false, error: result.error },
       );
-      if (i < memberIds.length - 1) await sleep(60);
     }
   } else if (action === "restore") {
     if (!isCabangAdmin(authResult.user.roles)) {
@@ -115,27 +112,26 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    for (let i = 0; i < memberIds.length; i++) {
-      const memberId = memberIds[i];
-      const result = await softDeleteMember({
-        user: authResult.user,
-        token: authResult.token,
-        memberId,
-        confirmPhrase: phrase,
-        ip,
-        userAgent,
-      });
-      if (!result.ok && result.status === 503) {
-        results.push({ id: memberId, ok: false, error: result.error });
-        markRestBusy(i + 1, result.error);
-        break;
-      }
-      results.push(
-        result.ok
-          ? { id: memberId, ok: true }
-          : { id: memberId, ok: false, error: result.error },
+    const bulk = await softDeleteMembersBulk({
+      user: authResult.user,
+      token: authResult.token,
+      memberIds,
+      confirmPhrase: phrase,
+      ip,
+      userAgent,
+    });
+    results.push(...bulk.results);
+    if ("busy" in bulk && bulk.busy) {
+      return NextResponse.json(
+        {
+          error: PRISMA_BUSY_USER_MESSAGE,
+          okCount: 0,
+          failCount: results.length,
+          results,
+          message: PRISMA_BUSY_USER_MESSAGE,
+        },
+        { status: 503 },
       );
-      if (i < memberIds.length - 1) await sleep(60);
     }
   } else if (!canToggleMemberActive(authResult.user.roles)) {
     return NextResponse.json(
@@ -191,7 +187,6 @@ export async function POST(request: Request) {
           ? { id: memberId, ok: true }
           : { id: memberId, ok: false, error: result.error },
       );
-      if (i < memberIds.length - 1) await sleep(60);
     }
   }
 

@@ -262,6 +262,11 @@ export async function softDeleteMember(opts: {
   confirmName?: string;
   /** Bulk: ketik ARSIPKAN menggantikan konfirmasi nama per anggota. */
   confirmPhrase?: string;
+  /**
+   * Mode massal: lewati impact/notify & jangan tunggu Inkai DELETE
+   * (sinkron lokal dulu; Inkai best-effort di background).
+   */
+  bulkFast?: boolean;
   ip?: string | null;
   userAgent?: string | null;
 }) {
@@ -290,13 +295,17 @@ export async function softDeleteMember(opts: {
       }
     }
 
-    // Impact hanya untuk audit — jangan gagalkan arsip jika pool sibuk.
+    const fast = Boolean(opts.bulkFast);
+
+    // Impact hanya untuk audit single-delete — lewati di bulk.
     let impact: MemberImpactSummary = EMPTY_IMPACT;
-    try {
-      impact = await getMemberImpact(opts.memberId);
-    } catch (err) {
-      if (!isPrismaBusyError(err)) {
-        console.error("[softDeleteMember] impact", err);
+    if (!fast) {
+      try {
+        impact = await getMemberImpact(opts.memberId);
+      } catch (err) {
+        if (!isPrismaBusyError(err)) {
+          console.error("[softDeleteMember] impact", err);
+        }
       }
     }
 
@@ -323,11 +332,17 @@ export async function softDeleteMember(opts: {
       previousStatus: member.status,
     });
 
-    await inkaiFetch(
+    // Inkai sync: tunggu di single; fire-and-forget di bulk (paling lambat).
+    const inkaiPromise = inkaiFetch(
       `/v1/members/${opts.memberId}`,
       { method: "DELETE" },
       opts.token,
     );
+    if (fast) {
+      void inkaiPromise.catch(() => {});
+    } else {
+      await inkaiPromise;
+    }
 
     writeAuditLog({
       userId: opts.user.id,
@@ -337,21 +352,33 @@ export async function softDeleteMember(opts: {
         memberId: opts.memberId,
         fullName: member.fullName,
         nia: member.nia,
-        impact,
+        impact: fast ? undefined : impact,
+        bulkFast: fast || undefined,
       }),
       ip: opts.ip,
       userAgent: opts.userAgent,
       token: opts.token,
     });
 
-    await notifyMemberLifecycle({
-      token: opts.token,
-      userId: member.userId,
-      title: "Data keanggotaan diarsipkan",
-      content:
-        "Data keanggotaan Anda telah diarsipkan oleh pengurus. Hubungi sekretariat cabang jika ini tidak sesuai.",
-      type: "WARNING",
-    });
+    if (!fast) {
+      await notifyMemberLifecycle({
+        token: opts.token,
+        userId: member.userId,
+        title: "Data keanggotaan diarsipkan",
+        content:
+          "Data keanggotaan Anda telah diarsipkan oleh pengurus. Hubungi sekretariat cabang jika ini tidak sesuai.",
+        type: "WARNING",
+      });
+    } else {
+      void notifyMemberLifecycle({
+        token: opts.token,
+        userId: member.userId,
+        title: "Data keanggotaan diarsipkan",
+        content:
+          "Data keanggotaan Anda telah diarsipkan oleh pengurus. Hubungi sekretariat cabang jika ini tidak sesuai.",
+        type: "WARNING",
+      });
+    }
 
     return {
       ok: true as const,
@@ -372,6 +399,142 @@ export async function softDeleteMember(opts: {
       ok: false as const,
       error: "Gagal mengarsipkan anggota",
       status: 500,
+    };
+  }
+}
+
+/**
+ * Arsip massal cepat: updateMany lokal + lifecycle, Inkai DELETE di background.
+ */
+export async function softDeleteMembersBulk(opts: {
+  user: SessionUser;
+  token: string;
+  memberIds: string[];
+  confirmPhrase?: string;
+  ip?: string | null;
+  userAgent?: string | null;
+}) {
+  if (opts.confirmPhrase?.trim().toUpperCase() !== BULK_ARCHIVE_PHRASE) {
+    return {
+      results: opts.memberIds.map((id) => ({
+        id,
+        ok: false as const,
+        error: 'Ketik "ARSIPKAN" untuk mengonfirmasi arsip massal',
+      })),
+    };
+  }
+
+  const ids = [...new Set(opts.memberIds.filter(Boolean))];
+  if (ids.length === 0) return { results: [] as Array<{ id: string; ok: boolean; error?: string }> };
+
+  try {
+    const members = await prisma.member.findMany({
+      where: {
+        AND: [{ id: { in: ids } }, buildMemberFilter(opts.user)],
+      },
+      select: {
+        id: true,
+        fullName: true,
+        nia: true,
+        status: true,
+        userId: true,
+      },
+    });
+    const found = new Map(members.map((m) => [m.id, m]));
+    const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+    const okIds: string[] = [];
+    const userIds: string[] = [];
+
+    for (const id of ids) {
+      const m = found.get(id);
+      if (!m) {
+        results.push({ id, ok: false, error: "Anggota tidak ditemukan" });
+        continue;
+      }
+      okIds.push(id);
+      if (m.userId) userIds.push(m.userId);
+      results.push({ id, ok: true });
+    }
+
+    if (okIds.length === 0) return { results };
+
+    await prisma.member.updateMany({
+      where: { id: { in: okIds } },
+      data: { isDeleted: true, status: "INACTIVE" },
+    });
+
+    const uniqueUserIds = [...new Set(userIds)];
+    if (uniqueUserIds.length > 0) {
+      await prisma.user.updateMany({
+        where: { id: { in: uniqueUserIds } },
+        data: { isActive: false },
+      });
+    }
+
+    const changedAt = new Date().toISOString();
+    // Lifecycle berurutan tipis agar pool session tidak meledak.
+    for (const id of okIds) {
+      const m = found.get(id)!;
+      await setMemberLifecycle(id, {
+        statusKind: "INACTIVE",
+        reasonCode: "LAINNYA",
+        reasonNote: "Diarsipkan (soft-delete)",
+        changedAt,
+        changedByUserId: opts.user.id,
+        changedByEmail: opts.user.email ?? null,
+        changedByName: opts.user.name ?? null,
+        previousStatus: m.status,
+      });
+    }
+
+    // Inkai + notifikasi: background (jangan blok response).
+    for (const id of okIds) {
+      void inkaiFetch(`/v1/members/${id}`, { method: "DELETE" }, opts.token);
+      const m = found.get(id);
+      if (m?.userId) {
+        void notifyMemberLifecycle({
+          token: opts.token,
+          userId: m.userId,
+          title: "Data keanggotaan diarsipkan",
+          content:
+            "Data keanggotaan Anda telah diarsipkan oleh pengurus. Hubungi sekretariat cabang jika ini tidak sesuai.",
+          type: "WARNING",
+        });
+      }
+    }
+
+    writeAuditLog({
+      userId: opts.user.id,
+      email: opts.user.email,
+      action: "MEMBER_SOFT_DELETE_BULK",
+      details: JSON.stringify({
+        count: okIds.length,
+        memberIds: okIds,
+      }),
+      ip: opts.ip,
+      userAgent: opts.userAgent,
+      token: opts.token,
+    });
+
+    return { results };
+  } catch (err) {
+    console.error("[softDeleteMembersBulk]", err);
+    if (isPrismaBusyError(err)) {
+      return {
+        results: ids.map((id) => ({
+          id,
+          ok: false as const,
+          error: PRISMA_BUSY_USER_MESSAGE,
+        })),
+        busy: true as const,
+      };
+    }
+    return {
+      results: ids.map((id) => ({
+        id,
+        ok: false as const,
+        error: "Gagal mengarsipkan anggota",
+      })),
     };
   }
 }

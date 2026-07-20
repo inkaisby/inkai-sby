@@ -1,10 +1,13 @@
 import { PRISMA_BUSY_USER_MESSAGE } from "@/lib/prisma-errors";
 
-/** Pecah aksi bulk agar tidak timeout; chunk kecil = tekanan pool lebih rendah. */
-export const BULK_MEMBER_CHUNK_SIZE = 10;
+/**
+ * Chunk besar untuk arsip cepat (server pakai updateMany).
+ * Progress bar tetap update per chunk.
+ */
+export const BULK_MEMBER_CHUNK_SIZE = 50;
 
-/** Jeda antar chunk agar koneksi session-mode sempat lepas. */
-const CHUNK_PAUSE_MS = 500;
+/** Jeda singkat antar chunk (hampir nol — sinkron lokal sudah cepat). */
+const CHUNK_PAUSE_MS = 50;
 
 export function chunkIds(ids: string[], size = BULK_MEMBER_CHUNK_SIZE): string[][] {
   if (ids.length === 0) return [];
@@ -84,7 +87,7 @@ export async function postMemberBulkChunked(
 
     // Satu retry singkat jika pool sibuk.
     if (!res.ok && looksBusy(data.error, res.status)) {
-      await sleep(1200);
+      await sleep(800);
       res = await fetch("/api/admin/members/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -126,7 +129,7 @@ export async function postMemberBulkChunked(
       failCount,
     });
 
-    if (i < chunks.length - 1) {
+    if (i < chunks.length - 1 && CHUNK_PAUSE_MS > 0) {
       await sleep(CHUNK_PAUSE_MS);
     }
   }
