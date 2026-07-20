@@ -1,3 +1,5 @@
+import { SITE_BRANCH_NAME } from "@/lib/site";
+
 export const ADMIN_ROLES = [
   "ADMINISTRATOR",
   "ADMIN_PUSAT",
@@ -6,6 +8,25 @@ export const ADMIN_ROLES = [
   "ADMIN_DOJO",
   "ADMIN",
 ] as const;
+
+/** Anggota di DB lokal yang dojo/cabangnya di luar Cabang Surabaya (data bocor/sync). */
+function outsideSiteBranchDojoClause() {
+  return {
+    branch: {
+      name: { not: { equals: SITE_BRANCH_NAME, mode: "insensitive" as const } },
+    },
+  };
+}
+
+/** Ranting aktif ATAU terarsip tapi masih punya anggota hidup. */
+function dojoVisibleClause() {
+  return {
+    OR: [
+      { isDeleted: false as const },
+      { members: { some: { isDeleted: false as const } } },
+    ],
+  };
+}
 
 export const ROLE_LABELS: Record<string, string> = {
   ADMINISTRATOR: "Administrator",
@@ -105,13 +126,25 @@ export function buildMemberFilter(
   if (role === "ADMIN_PROVINCE" && user.managedProvinceId) {
     return {
       ...deletedClause,
-      dojo: { branch: { provinceId: user.managedProvinceId, isDeleted: false } },
+      OR: [
+        {
+          dojo: {
+            branch: { provinceId: user.managedProvinceId },
+          },
+        },
+        // Portal cabang: tampilkan juga anggota luar site yang nyangkut di DB lokal.
+        { dojo: outsideSiteBranchDojoClause() },
+      ],
     };
   }
   if (role === "ADMIN_BRANCH" && user.managedBranchId) {
     return {
       ...deletedClause,
-      dojo: { branchId: user.managedBranchId, isDeleted: false },
+      OR: [
+        // Termasuk ranting terarsip di cabang sendiri (jangan hilangkan anggota aktif).
+        { dojo: { branchId: user.managedBranchId } },
+        { dojo: outsideSiteBranchDojoClause() },
+      ],
     };
   }
   if (role === "ADMIN_DOJO") {
@@ -127,23 +160,41 @@ export function buildMemberFilter(
 
 export function buildDojoFilter(user: SessionUser) {
   const role = getPrimaryAdminRole(user.roles);
+  const visible = dojoVisibleClause();
 
   if (role === "ADMINISTRATOR" || role === "ADMIN_PUSAT" || role === "ADMIN") {
-    return { isDeleted: false };
+    return visible;
   }
   if (role === "ADMIN_PROVINCE" && user.managedProvinceId) {
     return {
-      isDeleted: false,
-      branch: { provinceId: user.managedProvinceId, isDeleted: false },
+      AND: [
+        visible,
+        {
+          OR: [
+            { branch: { provinceId: user.managedProvinceId } },
+            outsideSiteBranchDojoClause(),
+          ],
+        },
+      ],
     };
   }
   if (role === "ADMIN_BRANCH" && user.managedBranchId) {
-    return { isDeleted: false, branchId: user.managedBranchId };
+    return {
+      AND: [
+        visible,
+        {
+          OR: [
+            { branchId: user.managedBranchId },
+            outsideSiteBranchDojoClause(),
+          ],
+        },
+      ],
+    };
   }
   if (role === "ADMIN_DOJO") {
     const ids = dojoAllowlist(user);
-    if (ids.length === 1) return { id: ids[0], isDeleted: false };
-    if (ids.length > 1) return { id: { in: ids }, isDeleted: false };
+    if (ids.length === 1) return { id: ids[0], ...visible };
+    if (ids.length > 1) return { id: { in: ids }, ...visible };
   }
   return { id: "none", isDeleted: false };
 }

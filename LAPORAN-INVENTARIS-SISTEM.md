@@ -103,7 +103,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
-| Kelola Anggota | Cari **autocomplete**; kolom **No**; KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV; arsip; Prisma scoped; filter client-side; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50) |
+| Kelola Anggota | Cari **autocomplete**; kolom **No**; KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV; arsip; Prisma scoped (+ **anggota luar Surabaya / ranting arsip** tetap terlihat); filter client-side; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50) |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran**, **arsip** |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
@@ -486,6 +486,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Kelola Anggota: cabang dapat **pindah ranting** via kolom Dojo inline (`set_dojo` → Inkai + Prisma) |
 | 20 Juli 2026 | Pesan bentrok NIA lintas cabang: tegaskan bukan arsip Surabaya; NIA masih aktif di cabang lain (unik nasional) |
 | 20 Juli 2026 | Pengaturan Cabang: arsip punya **Hapus** permanen (tolak jika masih ada anggota; cabang SURABAYA dilindungi) |
+| 20 Juli 2026 | Kelola Anggota: tampilkan anggota luar Surabaya / ranting terarsip (mis. JAKARTA PUSAT) agar NIA & arsip cabang bisa dibersihkan |
 
 ---
 

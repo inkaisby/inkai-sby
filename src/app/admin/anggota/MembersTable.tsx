@@ -29,6 +29,7 @@ import {
 } from "@/components/admin/MergeMemberDialog";
 import { showError, showSuccess } from "@/lib/client-toast";
 import type { AdminMemberRow } from "@/lib/inkai-api/admin-data";
+import { SITE_BRANCH_NAME } from "@/lib/site";
 import {
   BELT_RANK_OPTIONS,
   canEditKyuBaru,
@@ -735,34 +736,58 @@ export function MembersTable({
                       onClick={(e) => e.stopPropagation()}
                     >
                       {canEditDojo && dojos.length > 0 ? (
-                        <select
-                          className="h-8 max-w-[11rem] rounded border bg-background px-1 text-xs"
-                          value={m.dojoId || ""}
-                          disabled={dojoSavingId === m.id}
-                          onChange={(e) => {
-                            const next = e.target.value;
-                            if (!next || next === m.dojoId) return;
-                            void handleSetDojo(m.id, next);
-                          }}
-                          aria-label={`Ubah ranting ${m.fullName}`}
-                        >
-                          {!m.dojoId ? (
-                            <option value="">— Pilih —</option>
+                        <div className="space-y-0.5">
+                          <select
+                            className="h-8 max-w-[11rem] rounded border bg-background px-1 text-xs"
+                            value={m.dojoId || ""}
+                            disabled={dojoSavingId === m.id}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              if (!next || next === m.dojoId) return;
+                              void handleSetDojo(m.id, next);
+                            }}
+                            aria-label={`Ubah ranting ${m.fullName}`}
+                          >
+                            {!m.dojoId ? (
+                              <option value="">— Pilih —</option>
+                            ) : null}
+                            {dojos.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name}
+                              </option>
+                            ))}
+                            {m.dojoId &&
+                            !dojos.some((d) => d.id === m.dojoId) ? (
+                              <option value={m.dojoId}>
+                                {m.dojo?.name || m.dojoId}
+                              </option>
+                            ) : null}
+                          </select>
+                          {m.dojo?.branch?.name &&
+                          m.dojo.branch.name.toUpperCase() !==
+                            SITE_BRANCH_NAME.toUpperCase() ? (
+                            <p className="max-w-[11rem] truncate text-[10px] text-amber-700 dark:text-amber-400">
+                              {m.dojo.branch.name}
+                              {m.dojo.isDeleted ? " · arsip" : ""}
+                            </p>
+                          ) : m.dojo?.isDeleted ? (
+                            <p className="text-[10px] text-muted-foreground">
+                              Ranting arsip
+                            </p>
                           ) : null}
-                          {dojos.map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name}
-                            </option>
-                          ))}
-                          {m.dojoId &&
-                          !dojos.some((d) => d.id === m.dojoId) ? (
-                            <option value={m.dojoId}>
-                              {m.dojo?.name || m.dojoId}
-                            </option>
-                          ) : null}
-                        </select>
+                        </div>
                       ) : (
-                        (m.dojo?.name ?? "-")
+                        <div className="space-y-0.5">
+                          <span>{m.dojo?.name ?? "-"}</span>
+                          {m.dojo?.branch?.name &&
+                          m.dojo.branch.name.toUpperCase() !==
+                            SITE_BRANCH_NAME.toUpperCase() ? (
+                            <p className="text-[10px] text-amber-700 dark:text-amber-400">
+                              {m.dojo.branch.name}
+                              {m.dojo.isDeleted ? " · arsip" : ""}
+                            </p>
+                          ) : null}
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">

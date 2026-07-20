@@ -7,6 +7,7 @@ import {
   buildDojoFilter,
   type SessionUser,
 } from "@/lib/rbac";
+import { SITE_BRANCH_NAME } from "@/lib/site";
 import { resolveUktRankColumns } from "@/lib/belt";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import {
@@ -38,7 +39,7 @@ export type AdminMemberRow = {
   currentRank: string;
   status: string;
   dojoId?: string | null;
-  dojo: { name: string; branch?: { name: string } };
+  dojo: { name: string; isDeleted?: boolean; branch?: { name: string } };
   birthCertificateUrl?: string | null;
   bpjsCardUrl?: string | null;
   bpjsCardNumber?: string | null;
@@ -311,6 +312,7 @@ export async function fetchAdminMembersScoped(
           dojo: {
             select: {
               name: true,
+              isDeleted: true,
               branch: { select: { name: true } },
             },
           },
@@ -331,6 +333,7 @@ export async function fetchAdminMembersScoped(
       dojoId: m.dojoId,
       dojo: {
         name: m.dojo.name,
+        isDeleted: m.dojo.isDeleted,
         branch: m.dojo.branch ? { name: m.dojo.branch.name } : undefined,
       },
       birthCertificateUrl: m.birthCertificateUrl,
@@ -398,6 +401,7 @@ export async function fetchAdminMembersForDojoIds(
           dojo: {
             select: {
               name: true,
+              isDeleted: true,
               branch: { select: { name: true } },
             },
           },
@@ -418,6 +422,7 @@ export async function fetchAdminMembersForDojoIds(
       dojoId: m.dojoId,
       dojo: {
         name: m.dojo.name,
+        isDeleted: m.dojo.isDeleted,
         branch: m.dojo.branch ? { name: m.dojo.branch.name } : undefined,
       },
       birthCertificateUrl: m.birthCertificateUrl,
@@ -699,10 +704,31 @@ export const fetchAdminDojos = cache(async (token: string) => {
  */
 export async function fetchAdminDojosScoped(user: SessionUser) {
   try {
-    return await prisma.dojo.findMany({
+    const rows = await prisma.dojo.findMany({
       where: buildDojoFilter(user),
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        isDeleted: true,
+        branch: { select: { name: true } },
+      },
       orderBy: { name: "asc" },
+    });
+    return rows.map((d) => {
+      const branchName = d.branch?.name?.trim() || "";
+      const outsideSite =
+        branchName.length > 0 &&
+        branchName.toUpperCase() !== SITE_BRANCH_NAME.toUpperCase();
+      const suffix = [
+        outsideSite ? branchName : null,
+        d.isDeleted ? "arsip" : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return {
+        id: d.id,
+        name: suffix ? `${d.name} (${suffix})` : d.name,
+      };
     });
   } catch (error) {
     console.error("[fetchAdminDojosScoped]", error);
