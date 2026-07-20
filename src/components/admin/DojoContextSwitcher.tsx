@@ -49,7 +49,7 @@ export function DojoContextSwitcher({
         value={value}
         disabled={pending}
         onChange={(e) => onChange(e.target.value)}
-        className="h-8 min-w-[180px] rounded-lg border border-inkai-red/30 bg-background px-2 text-sm font-medium"
+        className="h-8 min-w-[180px] rounded-lg border border-inkai-red/30 bg-background px-2 text-sm font-medium text-foreground"
         aria-label={label}
       >
         {allowAll ? <option value="">{allLabel}</option> : null}

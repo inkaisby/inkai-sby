@@ -1,6 +1,11 @@
 import { cache } from "react";
 import { inkaiFetch } from "./server";
-import { getPrimaryAdminRole, buildMemberFilter, type SessionUser } from "@/lib/rbac";
+import {
+  getPrimaryAdminRole,
+  buildMemberFilter,
+  buildDojoFilter,
+  type SessionUser,
+} from "@/lib/rbac";
 import { resolveUktRankColumns } from "@/lib/belt";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import {
@@ -666,6 +671,23 @@ export const fetchAdminDojos = cache(async (token: string) => {
     name: String(d.name),
   }));
 });
+
+/**
+ * Daftar dojo scoped RBAC via Prisma — cepat untuk filter/form admin
+ * (hindari round-trip Inkai `/v1/org/dojos/all` di setiap navigasi filter).
+ */
+export async function fetchAdminDojosScoped(user: SessionUser) {
+  try {
+    return await prisma.dojo.findMany({
+      where: buildDojoFilter(user),
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+  } catch (error) {
+    console.error("[fetchAdminDojosScoped]", error);
+    return [] as Array<{ id: string; name: string }>;
+  }
+}
 
 export async function fetchCarouselItems(): Promise<
   Array<{

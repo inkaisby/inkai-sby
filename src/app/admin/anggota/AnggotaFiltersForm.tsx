@@ -41,6 +41,9 @@ const STATUS_OPTIONS = [
   { value: "REJECTED", label: "Ditolak" },
 ] as const;
 
+const selectClassName =
+  "h-8 min-w-[140px] rounded-lg border border-input bg-background px-2 text-sm text-foreground";
+
 export function AnggotaFiltersForm({
   q,
   status,
@@ -79,7 +82,7 @@ export function AnggotaFiltersForm({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (document.activeElement === inputRef.current) return;
@@ -105,7 +108,9 @@ export function AnggotaFiltersForm({
       pageSize,
     });
     startTransition(() => {
-      router.push(`${pathname}${href === "?" ? "" : href}`);
+      router.replace(`${pathname}${href === "?" ? "" : href}`, {
+        scroll: false,
+      });
     });
   };
 
@@ -139,7 +144,12 @@ export function AnggotaFiltersForm({
       : pathname;
 
   return (
-    <div className="mb-4 flex flex-wrap items-end gap-2">
+    <div
+      className={`mb-4 flex flex-wrap items-end gap-2 ${
+        isPending ? "opacity-70" : ""
+      }`}
+      aria-busy={isPending}
+    >
       <div className="min-w-[180px] flex-1 space-y-1">
         <label className="text-xs text-muted-foreground">Pencarian</label>
         <Input
@@ -156,7 +166,8 @@ export function AnggotaFiltersForm({
         <select
           value={filters.status}
           onChange={(e) => handleFilterChange("status", e.target.value)}
-          className="h-8 min-w-[140px] rounded-lg border px-2 text-sm"
+          className={selectClassName}
+          disabled={isPending}
         >
           {STATUS_OPTIONS.map((opt) => (
             <option key={opt.value || "all"} value={opt.value}>
@@ -172,7 +183,8 @@ export function AnggotaFiltersForm({
           <select
             value={filters.dojoId}
             onChange={(e) => handleFilterChange("dojoId", e.target.value)}
-            className="h-8 min-w-[160px] rounded-lg border px-2 text-sm"
+            className={`${selectClassName} min-w-[160px]`}
+            disabled={isPending}
           >
             <option value="">Semua dojo</option>
             {dojos.map((d) => (
@@ -189,7 +201,8 @@ export function AnggotaFiltersForm({
         <select
           value={filters.docs}
           onChange={(e) => handleFilterChange("docs", e.target.value)}
-          className="h-8 min-w-[160px] rounded-lg border px-2 text-sm"
+          className={`${selectClassName} min-w-[160px]`}
+          disabled={isPending}
         >
           <option value="">Semua dokumen</option>
           <option value="incomplete">Belum lengkap</option>
@@ -201,7 +214,8 @@ export function AnggotaFiltersForm({
         <select
           value={filters.nia}
           onChange={(e) => handleFilterChange("nia", e.target.value)}
-          className="h-8 min-w-[140px] rounded-lg border px-2 text-sm"
+          className={selectClassName}
+          disabled={isPending}
         >
           <option value="">Semua NIA</option>
           <option value="missing">Belum ada NIA</option>
@@ -215,7 +229,8 @@ export function AnggotaFiltersForm({
           onChange={(e) =>
             handleFilterChange("inactiveMonths", e.target.value)
           }
-          className="h-8 min-w-[120px] rounded-lg border px-2 text-sm"
+          className={`${selectClassName} min-w-[120px]`}
+          disabled={isPending}
         >
           <option value="">Semua</option>
           <option value="3">3 bulan</option>

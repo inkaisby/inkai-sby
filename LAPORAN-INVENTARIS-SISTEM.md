@@ -3,7 +3,7 @@
 **Aplikasi:** Portal web Institut Karate-Do Indonesia (INKAI) Cabang Surabaya  
 **Repository:** `inkai-sby`  
 **Platform:** Next.js (App Router) + Inkai API + PostgreSQL (Supabase/Prisma)  
-**Tanggal dokumen:** 17 Juli 2026  
+**Tanggal dokumen:** 20 Juli 2026  
 **Peran:** living context untuk pengurus & agent — baca sebelum develop; update bersamaan dengan perubahan kode. Nama file ini **tetap**.
 
 ---
@@ -103,7 +103,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
-| Kelola Anggota | Cari **autocomplete**; kolom **No**; KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; nonaktif/bulk; CSV; arsip; Prisma scoped; KPI cepat |
+| Kelola Anggota | Cari **autocomplete**; kolom **No**; KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; nonaktif/bulk; CSV; arsip; Prisma scoped (anggota+dojo filter); KPI cepat; dark-mode select |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran**, **arsip** |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
@@ -463,6 +463,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 19 Juli 2026 | Admin upload Akte/BPJS di detail anggota (`set_documents` + Blob); sinkron Prisma + Inkai PATCH |
 | 20 Juli 2026 | Fix crash Kelola Anggota: KPI ikon pakai nama string (bukan komponen Lucide ke Client Component) |
 | 20 Juli 2026 | Percepat bulk arsip: `updateMany` + Inkai DELETE background; chunk 50 (bukan tunggu API per anggota) |
+| 20 Juli 2026 | Kelola Anggota: filter Dojo via Prisma (`fetchAdminDojosScoped`) bukan Inkai API; dark mode native `<select>` (`color-scheme` + bg/text) |
 
 ---
 

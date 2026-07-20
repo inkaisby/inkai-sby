@@ -7,7 +7,7 @@ import {
   ROLE_LABELS,
 } from "@/lib/rbac";
 import {
-  fetchAdminDojos,
+  fetchAdminDojosScoped,
   fetchAdminMembersScoped,
   fetchAdminMemberStatusCounts,
 } from "@/lib/inkai-api/admin-data";
@@ -15,7 +15,6 @@ import {
   getManagedDojoIdsFromUser,
   resolveActiveDojoId,
 } from "@/lib/managed-dojos";
-import { prisma } from "@/lib/prisma";
 import {
   getMemberLifecycles,
   monthsSince,
@@ -112,7 +111,7 @@ async function AdminAnggotaContent({
 }: {
   searchParams: SearchParams;
 }) {
-  const { session, token, user } = await requireAdminSession();
+  const { user } = await requireAdminSession();
 
   const params = await searchParams;
   const q = params.q?.trim() || "";
@@ -145,15 +144,6 @@ async function AdminAnggotaContent({
   const singleLockedDojo =
     isDojoAdmin && allowlist.length === 1 ? allowlist[0] : "";
   const canArchive = canSoftDeleteMembers(user.roles ?? []);
-
-  const managedDojoOptions =
-    isDojoAdmin && allowlist.length > 0
-      ? await prisma.dojo.findMany({
-          where: { id: { in: allowlist }, isDeleted: false },
-          select: { id: true, name: true },
-          orderBy: { name: "asc" },
-        })
-      : [];
 
   if (view === "archive") {
     return (
@@ -198,15 +188,7 @@ async function AdminAnggotaContent({
       docsIncomplete: docs === "incomplete",
       missingNia: niaFilter === "missing",
     }),
-    isDojoAdmin
-      ? Promise.resolve(
-          managedDojoOptions.map((d) => ({
-            id: d.id,
-            name: d.name,
-            branchId: "",
-          })),
-        )
-      : fetchAdminDojos(token),
+    fetchAdminDojosScoped(user),
     fetchAdminMemberStatusCounts(user, {
       dojoId: dojoId || undefined,
       dojoIds:
@@ -215,6 +197,8 @@ async function AdminAnggotaContent({
           : undefined,
     }),
   ]);
+
+  const managedDojoOptions = isDojoAdmin ? dojos : [];
 
   const pendingCount = { ok: true as const, total: statusCounts.pending };
   const activeCount = { ok: true as const, total: statusCounts.active };

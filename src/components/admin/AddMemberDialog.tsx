@@ -197,7 +197,7 @@ export function AddMemberDialog({
               <Label htmlFor="add-member-dojo">Dojo / Ranting</Label>
               <select
                 id="add-member-dojo"
-                className="h-9 w-full rounded-lg border px-2 text-sm"
+                className="h-9 w-full rounded-lg border border-input bg-background px-2 text-sm text-foreground"
                 value={form.dojoId}
                 onChange={(e) => setField("dojoId", e.target.value)}
               >

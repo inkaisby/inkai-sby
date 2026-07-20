@@ -5,6 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  color-scheme: light;
   --inkai-red: #c8102e;
   --inkai-yellow: #f5c518;
   --inkai-black: #1a1a1a;
@@ -31,6 +32,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: #121212;
   --foreground: #f5f5f5;
   --card: #1a1a1a;
@@ -92,6 +94,15 @@
   }
   html {
     @apply scroll-smooth font-sans;
+  }
+  /* Native <select>/<option>: hindari teks putih di popup putih (Windows + dark mode) */
+  select {
+    @apply bg-background text-foreground;
+  }
+  select option,
+  select optgroup {
+    background-color: var(--popover);
+    color: var(--popover-foreground);
   }
 }
 
