@@ -15,9 +15,12 @@ import type { uktMemberCreateSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
 import {
+  activeHardDuplicates,
+  archivedIdentityConflicts,
   findMemberDuplicates,
   formatDuplicateError,
-  hardDuplicates,
+  releasableArchivedIdConflicts,
+  releaseIdentifiersFromArchivedMembers,
 } from "@/lib/member-duplicate";
 
 type CreateInput = z.infer<typeof uktMemberCreateSchema>;
@@ -93,16 +96,49 @@ export async function createAdminMember(opts: {
     nik,
     nia,
   });
-  const hard = hardDuplicates(duplicates);
-  if (hard.length > 0) {
+
+  const activeHard = activeHardDuplicates(duplicates);
+  if (activeHard.length > 0) {
     return NextResponse.json(
       {
-        error: formatDuplicateError(hard, "admin"),
-        duplicates: hard,
+        error: formatDuplicateError(activeHard, "admin"),
+        duplicates: activeHard,
         code: "DUPLICATE_MEMBER",
       },
       { status: 409 },
     );
+  }
+
+  const archivedIdentity = archivedIdentityConflicts(duplicates);
+  if (archivedIdentity.length > 0) {
+    return NextResponse.json(
+      {
+        error: formatDuplicateError(archivedIdentity, "admin"),
+        duplicates: archivedIdentity,
+        code: "DUPLICATE_ARCHIVED_IDENTITY",
+      },
+      { status: 409 },
+    );
+  }
+
+  const releasable = releasableArchivedIdConflicts(duplicates);
+  if (releasable.length > 0) {
+    try {
+      await releaseIdentifiersFromArchivedMembers({
+        hits: releasable,
+        token,
+      });
+    } catch (err) {
+      console.error("[createAdminMember:releaseArchivedNia]", err);
+      return NextResponse.json(
+        {
+          error: formatDuplicateError(releasable, "admin"),
+          duplicates: releasable,
+          code: "DUPLICATE_ARCHIVED_NIA",
+        },
+        { status: 409 },
+      );
+    }
   }
 
   const payload: Record<string, unknown> = {
@@ -130,13 +166,97 @@ export async function createAdminMember(opts: {
   );
 
   if (!res.ok) {
+    const rawError = inkaiErrorMessage(data, "Gagal membuat anggota");
+    // Fallback: Inkai menolak NIA yang masih dipegang arsip (deteksi lokal terlewat).
+    if (nia && /nia/i.test(rawError)) {
+      const again = await findMemberDuplicates({ nia });
+      const release = releasableArchivedIdConflicts(again);
+      if (release.length > 0) {
+        try {
+          await releaseIdentifiersFromArchivedMembers({
+            hits: release,
+            token,
+          });
+          const retry = await inkaiFetch(
+            "/v1/members",
+            { method: "POST", body: JSON.stringify(payload) },
+            token,
+          );
+          if (retry.res.ok) {
+            const member = retry.data.data as Record<string, unknown>;
+            return await finalizeCreatedMember({
+              user,
+              token,
+              request,
+              member,
+              nik,
+              phoneNumber,
+              input,
+              currentRank,
+              nia,
+              auditAction: opts.auditAction,
+            });
+          }
+        } catch (err) {
+          console.error("[createAdminMember:niaRetry]", err);
+        }
+      }
+      const archived = again.filter((h) => h.isArchived && h.reasons.includes("NIA"));
+      if (archived.length > 0) {
+        return NextResponse.json(
+          {
+            error: formatDuplicateError(archived, "admin"),
+            duplicates: archived,
+            code: "DUPLICATE_ARCHIVED_NIA",
+          },
+          { status: 409 },
+        );
+      }
+    }
     return NextResponse.json(
-      { error: inkaiErrorMessage(data, "Gagal membuat anggota") },
+      { error: rawError },
       { status: res.status },
     );
   }
 
   const member = data.data as Record<string, unknown>;
+  return finalizeCreatedMember({
+    user,
+    token,
+    request,
+    member,
+    nik,
+    phoneNumber,
+    input,
+    currentRank,
+    nia,
+    auditAction: opts.auditAction,
+  });
+}
+
+async function finalizeCreatedMember(opts: {
+  user: SessionUser;
+  token: string;
+  request: Request;
+  member: Record<string, unknown>;
+  nik: string | undefined;
+  phoneNumber: string | undefined;
+  input: CreateInput;
+  currentRank: string;
+  nia: string | undefined;
+  auditAction?: string;
+}) {
+  const {
+    user,
+    token,
+    request,
+    member,
+    nik,
+    phoneNumber,
+    input,
+    currentRank,
+    nia,
+  } = opts;
   const memberId = typeof member?.id === "string" ? member.id : null;
 
   // Selaraskan field identitas di DB lokal (NIK kosong = null, bukan "").

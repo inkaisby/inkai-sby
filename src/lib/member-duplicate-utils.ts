@@ -7,6 +7,8 @@ export type DuplicateHit = {
   status: string;
   dojoName: string | null;
   hasAccount: boolean;
+  /** Soft-delete / arsip — tidak tampil di daftar aktif. */
+  isArchived: boolean;
   reasons: DuplicateMatchReason[];
   severity: "hard" | "soft";
 };
@@ -49,6 +51,26 @@ export function formatDuplicateError(
     : primary.fullName;
   const status = primary.status ? ` · status ${primary.status}` : "";
 
+  if (primary.isArchived) {
+    if (context === "public") {
+      return (
+        `Data dengan ${reasonLabel || "identitas"} ini sudah ada di arsip pengurus (${who}). ` +
+        "Jangan daftar ulang — hubungi ketua ranting/cabang."
+      );
+    }
+    if (primary.reasons.includes("NAME_BIRTHDATE")) {
+      return (
+        `Anggota sudah ada di arsip: ${who}${status}` +
+        `${reasonLabel ? ` · cocok ${reasonLabel}` : ""}. ` +
+        "Buka Kelola Anggota → Lihat arsip, lalu pulihkan data itu (jangan buat baru)."
+      );
+    }
+    return (
+      `${reasonLabel || "Identitas"} masih terpakai di arsip: ${who}${status}. ` +
+      "Buka Kelola Anggota → Lihat arsip, atau simpan lagi — sistem akan melepas NIA/NIK dari arsip bila hanya bentrok nomor."
+    );
+  }
+
   if (context === "public") {
     if (!primary.hasAccount) {
       return (
@@ -74,4 +96,30 @@ export function formatDuplicateError(
 
 export function hardDuplicates(hits: DuplicateHit[]): DuplicateHit[] {
   return hits.filter((h) => h.severity === "hard");
+}
+
+/** Duplikat keras yang masih aktif (bukan arsip). */
+export function activeHardDuplicates(hits: DuplicateHit[]): DuplicateHit[] {
+  return hardDuplicates(hits).filter((h) => !h.isArchived);
+}
+
+/**
+ * Bentrok NIA/NIK hanya dengan arsip (bukan nama+TTL) — aman dilepas untuk dipakai ulang.
+ */
+export function releasableArchivedIdConflicts(
+  hits: DuplicateHit[],
+): DuplicateHit[] {
+  return hardDuplicates(hits).filter(
+    (h) =>
+      h.isArchived &&
+      !h.reasons.includes("NAME_BIRTHDATE") &&
+      (h.reasons.includes("NIA") || h.reasons.includes("NIK")),
+  );
+}
+
+/** Arsip dengan nama+TTL sama — harus dipulihkan, bukan dibuat baru. */
+export function archivedIdentityConflicts(hits: DuplicateHit[]): DuplicateHit[] {
+  return hardDuplicates(hits).filter(
+    (h) => h.isArchived && h.reasons.includes("NAME_BIRTHDATE"),
+  );
 }

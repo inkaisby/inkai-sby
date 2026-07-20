@@ -25,6 +25,7 @@ export type MemberFormSuggestion = {
   currentRank?: string;
   status?: string;
   hasAccount?: boolean;
+  isArchived?: boolean;
   matchReasons?: string[];
   severity?: "hard" | "soft";
 };
@@ -128,7 +129,16 @@ export function MemberIdentitySection({
   duplicateBlocked = false,
 }: MemberFormSectionProps) {
   const hasHard = duplicateBlocked || suggestions.some((s) => s.severity === "hard");
-  const boxClass = hasHard
+  const hasArchivedIdOnly =
+    !duplicateBlocked &&
+    suggestions.some(
+      (s) =>
+        s.isArchived &&
+        s.severity === "hard" &&
+        (s.matchReasons?.includes("NIA") || s.matchReasons?.includes("NIK")) &&
+        !s.matchReasons?.includes("NAME_BIRTHDATE"),
+    );
+  const boxClass = hasHard && !hasArchivedIdOnly
     ? "rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-900 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-100"
     : "rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100";
   const req = requireCompleteIdentity;
@@ -155,9 +165,11 @@ export function MemberIdentitySection({
         {suggestions.length > 0 ? (
           <div className={boxClass}>
             <p className="mb-1 font-medium">
-              {hasHard
+              {hasHard && !hasArchivedIdOnly
                 ? "Duplikat terdeteksi — tidak dapat mendaftar ulang:"
-                : "Kemungkinan sudah terdaftar — periksa sebelum simpan:"}
+                : hasArchivedIdOnly
+                  ? "NIA/NIK masih di arsip — saat simpan nomor akan dilepas dari arsip:"
+                  : "Kemungkinan sudah terdaftar — periksa sebelum simpan:"}
             </p>
             <ul className="space-y-0.5">
               {suggestions.slice(0, 5).map((s) => (
@@ -165,7 +177,8 @@ export function MemberIdentitySection({
                   {s.fullName}
                   {s.nia ? ` · ${s.nia}` : " · tanpa NIA"}
                   {s.dojoName ? ` · ${s.dojoName}` : ""}
-                  {s.status ? ` · ${s.status}` : ""}
+                  {s.isArchived ? " · ARSIP" : ""}
+                  {s.status && !s.isArchived ? ` · ${s.status}` : ""}
                   {s.hasAccount === false ? " · belum punya akun" : ""}
                   {s.hasAccount === true ? " · sudah punya akun" : ""}
                   {reasonLabel(s.matchReasons)
@@ -174,10 +187,16 @@ export function MemberIdentitySection({
                 </li>
               ))}
             </ul>
-            {hasHard ? (
+            {hasHard && !hasArchivedIdOnly ? (
               <p className="mt-1.5">
                 Hubungi pengurus ranting/cabang jika perlu menghubungkan akun,
                 jangan buat data baru.
+              </p>
+            ) : null}
+            {hasArchivedIdOnly ? (
+              <p className="mt-1.5">
+                Data aktif tidak bentrok. Anda bisa menyimpan — NIA/NIK arsip
+                akan dikosongkan agar bisa dipakai ulang.
               </p>
             ) : null}
           </div>

@@ -34,6 +34,7 @@ describe("formatDuplicateError", () => {
     status: "Active",
     dojoName: "Dojo A",
     hasAccount: false,
+    isArchived: false,
     reasons: ["NIK", "NAME_BIRTHDATE"],
     severity: "hard",
   };
@@ -48,5 +49,19 @@ describe("formatDuplicateError", () => {
     const msg = formatDuplicateError([hit], "admin");
     expect(msg).toContain("Anggota sudah terdaftar");
     expect(msg).toContain("belum punya akun");
+  });
+
+  it("mentions archive when NIA is held by soft-deleted member", () => {
+    const archived: DuplicateHit = {
+      ...hit,
+      fullName: "ABDUL AZIZ AL-AMIN",
+      nia: "25.34533",
+      isArchived: true,
+      reasons: ["NIA"],
+      status: "INACTIVE",
+    };
+    const msg = formatDuplicateError([archived], "admin");
+    expect(msg).toContain("arsip");
+    expect(msg).toContain("ABDUL AZIZ AL-AMIN");
   });
 });

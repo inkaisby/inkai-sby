@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
+  activeHardDuplicates,
   findMemberDuplicates,
   hardDuplicates,
 } from "@/lib/member-duplicate";
@@ -27,6 +28,14 @@ export async function GET(request: Request) {
   });
 
   const hard = hardDuplicates(duplicates);
+  const activeHard = activeHardDuplicates(duplicates);
+  // Blok tombol simpan hanya untuk duplikat aktif / arsip nama+TTL.
+  // Bentrok NIA/NIK arsip saja: peringatan, simpan akan melepas nomor dari arsip.
+  const archivedIdentity = hard.filter(
+    (h) => h.isArchived && h.reasons.includes("NAME_BIRTHDATE"),
+  );
+  const blocked = activeHard.length > 0 || archivedIdentity.length > 0;
+
   return NextResponse.json({
     duplicates,
     suggestions: duplicates.map((d) => ({
@@ -36,9 +45,10 @@ export async function GET(request: Request) {
       dojoName: d.dojoName,
       status: d.status,
       hasAccount: d.hasAccount,
+      isArchived: d.isArchived,
       matchReasons: d.reasons,
       severity: d.severity,
     })),
-    blocked: hard.length > 0,
+    blocked,
   });
 }

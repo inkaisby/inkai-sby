@@ -86,6 +86,7 @@ export async function POST(request: Request) {
         dojoName: d.dojoName,
         status: d.status,
         hasAccount: d.hasAccount,
+        isArchived: d.isArchived,
         matchReasons: d.reasons,
         severity: d.severity,
       })),

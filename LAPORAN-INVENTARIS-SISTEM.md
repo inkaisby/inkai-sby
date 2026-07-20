@@ -276,7 +276,7 @@ Pusat / Nasional
 | Absensi admin | Aktif | Harian, belum hadir, rekap semester %, export CSV |
 | Iuran generate bulan | Aktif | `POST /api/admin/billing/generate` + UI Iuran |
 | Nav admin | Campuran | Top-level: Iuran, UKT, Event, Absensi; grup: Keanggotaan / Konten / Sistem + badge unread pesan |
-| Deteksi duplikat anggota | Aktif | Keras: NIK / NIA / nama+TTL; lunak: nama; blok create admin & daftar publik; UI peringatan |
+| Deteksi duplikat anggota | Aktif | Keras: NIK / NIA / nama+TTL (termasuk arsip untuk NIK/NIA); lunak: nama; admin create melepas NIA/NIK arsip bila hanya bentrok nomor; blok create admin & daftar publik; UI peringatan |
 | Gabungkan duplikat | Aktif | Ranting/cabang: pindahkan akun login + riwayat ke data operasional; arsipkan duplikat |
 | Audit admin | Aktif | Filter + export CSV di `/admin/audit` |
 | Nominal UKT | Tanpa kode unik | Frontend tidak menulis `uniqueTail`; tampilan pakai `uktBaseFeeAmount` (+ strip data lama). Sinkron backend Inkai (opsional) |
@@ -464,6 +464,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Fix crash Kelola Anggota: KPI ikon pakai nama string (bukan komponen Lucide ke Client Component) |
 | 20 Juli 2026 | Percepat bulk arsip: `updateMany` + Inkai DELETE background; chunk 50 (bukan tunggu API per anggota) |
 | 20 Juli 2026 | Kelola Anggota: filter Dojo via Prisma (`fetchAdminDojosScoped`) bukan Inkai API; dark mode native `<select>` (`color-scheme` + bg/text) |
+| 20 Juli 2026 | Fix NIA “sudah digunakan”: bentrok dengan arsip (mis. `25.34533` milik ABDUL AZIZ AL-AMIN); deteksi arsip + lepas NIA/NIK arsip saat tambah anggota |
 
 ---
 

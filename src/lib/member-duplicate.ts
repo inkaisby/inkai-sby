@@ -9,10 +9,13 @@ import {
 
 export type { DuplicateHit, DuplicateMatchReason } from "@/lib/member-duplicate-utils";
 export {
+  activeHardDuplicates,
+  archivedIdentityConflicts,
   birthDateDayRange,
   formatDuplicateError,
   hardDuplicates,
   normalizeMemberName,
+  releasableArchivedIdConflicts,
 } from "@/lib/member-duplicate-utils";
 
 export type DuplicateCheckInput = {
@@ -30,6 +33,7 @@ type Row = {
   nia: string | null;
   nik: string | null;
   status: string;
+  isDeleted: boolean;
   birthDate: Date | null;
   userId: string | null;
   dojo: { name: string } | null;
@@ -44,6 +48,7 @@ function toHit(row: Row, reasons: DuplicateMatchReason[]): DuplicateHit {
     status: row.status,
     dojoName: row.dojo?.name ?? null,
     hasAccount: Boolean(row.userId),
+    isArchived: row.isDeleted,
     reasons,
     severity: hardReasons.length > 0 ? "hard" : "soft",
   };
@@ -65,6 +70,7 @@ const memberSelect = {
   nia: true,
   nik: true,
   status: true,
+  isDeleted: true,
   birthDate: true,
   userId: true,
   dojo: { select: { name: true } },
@@ -72,8 +78,8 @@ const memberSelect = {
 
 /**
  * Cari duplikat anggota di Cabang Surabaya.
- * Keras: NIK, NIA, atau nama tepat + tanggal lahir.
- * Lunak: kemiripan nama (untuk peringatan UI).
+ * Keras: NIK, NIA, atau nama tepat + tanggal lahir (termasuk arsip untuk NIK/NIA).
+ * Lunak: kemiripan nama aktif (untuk peringatan UI).
  */
 export async function findMemberDuplicates(
   input: DuplicateCheckInput,
@@ -84,8 +90,7 @@ export async function findMemberDuplicates(
   const birthRange = input.birthDate ? birthDateDayRange(input.birthDate) : null;
   const excludeId = input.excludeMemberId?.trim() || undefined;
 
-  const baseWhere = {
-    isDeleted: false,
+  const scopeWhere = {
     dojo: surabayaDojoWhere,
     ...(excludeId ? { id: { not: excludeId } } : {}),
   };
@@ -93,8 +98,9 @@ export async function findMemberDuplicates(
   const map = new Map<string, DuplicateHit>();
 
   if (nik && /^\d{16}$/.test(nik)) {
+    // NIK unik juga di arsip — Inkai tetap menolak jika nomor masih terpakai.
     const rows = await prisma.member.findMany({
-      where: { ...baseWhere, nik },
+      where: { ...scopeWhere, nik },
       select: memberSelect,
       take: 5,
     });
@@ -104,7 +110,7 @@ export async function findMemberDuplicates(
   if (nia.length >= 2) {
     const rows = await prisma.member.findMany({
       where: {
-        ...baseWhere,
+        ...scopeWhere,
         nia: { equals: nia, mode: "insensitive" },
       },
       select: memberSelect,
@@ -116,7 +122,7 @@ export async function findMemberDuplicates(
   if (fullName.length >= 2 && birthRange) {
     const rows = await prisma.member.findMany({
       where: {
-        ...baseWhere,
+        ...scopeWhere,
         fullName: { equals: fullName, mode: "insensitive" },
         birthDate: { gte: birthRange.gte, lt: birthRange.lt },
       },
@@ -129,7 +135,8 @@ export async function findMemberDuplicates(
   if (fullName.length >= 3) {
     const rows = await prisma.member.findMany({
       where: {
-        ...baseWhere,
+        ...scopeWhere,
+        isDeleted: false,
         fullName: { contains: fullName, mode: "insensitive" },
       },
       select: memberSelect,
@@ -142,6 +149,55 @@ export async function findMemberDuplicates(
 
   return Array.from(map.values()).sort((a, b) => {
     if (a.severity !== b.severity) return a.severity === "hard" ? -1 : 1;
+    if (a.isArchived !== b.isArchived) return a.isArchived ? 1 : -1;
     return a.fullName.localeCompare(b.fullName);
   });
+}
+
+/**
+ * Lepas NIA/NIK dari anggota arsip agar bisa dipakai ulang (Prisma + Inkai).
+ */
+export async function releaseIdentifiersFromArchivedMembers(opts: {
+  hits: DuplicateHit[];
+  token: string;
+}): Promise<void> {
+  const { inkaiFetch } = await import("@/lib/inkai-api/server");
+  const releasable = opts.hits.filter(
+    (h) =>
+      h.isArchived &&
+      (h.reasons.includes("NIA") || h.reasons.includes("NIK")),
+  );
+
+  for (const hit of releasable) {
+    const clearNia = hit.reasons.includes("NIA");
+    const clearNik = hit.reasons.includes("NIK");
+    if (!clearNia && !clearNik) continue;
+
+    await prisma.member.update({
+      where: { id: hit.id },
+      data: {
+        ...(clearNia ? { nia: null } : {}),
+        ...(clearNik ? { nik: null } : {}),
+      },
+    });
+
+    const body: Record<string, null> = {};
+    if (clearNia) body.nia = null;
+    if (clearNik) body.nik = null;
+
+    // Inkai mungkin masih menahan unique NIA setelah soft-delete lokal.
+    const { res } = await inkaiFetch(
+      `/v1/members/${hit.id}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+      opts.token,
+    );
+    if (!res.ok) {
+      // Coba hapus permanen di Inkai jika PATCH gagal (sudah arsip lokal).
+      await inkaiFetch(
+        `/v1/members/${hit.id}`,
+        { method: "DELETE" },
+        opts.token,
+      );
+    }
+  }
 }
