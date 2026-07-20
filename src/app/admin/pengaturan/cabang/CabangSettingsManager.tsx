@@ -156,6 +156,30 @@ export function CabangSettingsManager({
     }
   }
 
+  async function purgeBranch(b: BranchRow) {
+    if (
+      !confirm(
+        `Hapus permanen cabang "${b.name}" dari arsip?\n\nData cabang & ranting kosong di bawahnya tidak bisa dipulihkan. Cabang yang masih punya anggota tidak bisa dihapus.`,
+      )
+    ) {
+      return;
+    }
+    setLoading(true);
+    const res = await fetch("/api/admin/pengaturan/cabang", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: b.id, permanent: true }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setLoading(false);
+    if (res.ok) {
+      showSuccess(data.message || "Cabang dihapus permanen");
+      router.refresh();
+    } else {
+      showError(data.error || "Gagal menghapus");
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
@@ -358,14 +382,25 @@ export function CabangSettingsManager({
                       {b.provinceName || "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={loading}
-                        onClick={() => void restoreBranch(b)}
-                      >
-                        Pulihkan
-                      </Button>
+                      <div className="flex flex-wrap justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={loading}
+                          onClick={() => void restoreBranch(b)}
+                        >
+                          Pulihkan
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={loading}
+                          onClick={() => void purgeBranch(b)}
+                          className="text-destructive"
+                        >
+                          Hapus
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

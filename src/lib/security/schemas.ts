@@ -421,6 +421,8 @@ export const rantingResetPasswordSchema = z
 export const softDeleteSchema = z.object({
   id: z.string().uuid(),
   restore: z.boolean().optional(),
+  /** Hapus permanen dari arsip (bukan soft-delete). */
+  permanent: z.boolean().optional(),
 });
 
 export const akunProfileSchema = z.object({

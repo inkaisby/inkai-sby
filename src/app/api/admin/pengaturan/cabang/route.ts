@@ -19,6 +19,10 @@ import { fetchOrgStructure } from "@/lib/inkai-api/admin-data";
 import { prisma } from "@/lib/prisma";
 import { SITE_BRANCH_NAME } from "@/lib/site";
 import { syncKetuaFromBranch } from "@/lib/pengurus-sync";
+import {
+  metaSettingKey,
+  primarySettingKey,
+} from "@/lib/wilayah-accounts";
 
 export async function GET() {
   const authResult = await requireAdmin();
@@ -273,6 +277,103 @@ export async function DELETE(request: Request) {
   }
 
   const restore = parsed.data.restore === true;
+  const permanent = parsed.data.permanent === true;
+
+  if (restore && permanent) {
+    return NextResponse.json(
+      { error: "Pulihkan dan hapus permanen tidak bisa sekaligus" },
+      { status: 400 },
+    );
+  }
+
+  if (permanent) {
+    if (!branch.isDeleted) {
+      return NextResponse.json(
+        { error: "Hanya cabang di arsip yang bisa dihapus permanen" },
+        { status: 400 },
+      );
+    }
+    if (branch.name.toUpperCase() === SITE_BRANCH_NAME.toUpperCase()) {
+      return NextResponse.json(
+        { error: `Cabang ${SITE_BRANCH_NAME} tidak boleh dihapus permanen` },
+        { status: 403 },
+      );
+    }
+
+    const dojos = await prisma.dojo.findMany({
+      where: { branchId: branch.id },
+      select: { id: true },
+    });
+    const dojoIds = dojos.map((d) => d.id);
+
+    const memberCount = await prisma.member.count({
+      where: { dojo: { branchId: branch.id } },
+    });
+    if (memberCount > 0) {
+      return NextResponse.json(
+        {
+          error:
+            `Tidak bisa hapus permanen: masih ada ${memberCount} anggota di bawah cabang ini. ` +
+            "Hapus/pindahkan anggota dulu, atau biarkan di arsip.",
+        },
+        { status: 409 },
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const settingKeys = [
+        primarySettingKey("branch", branch.id),
+        metaSettingKey("branch", branch.id),
+        ...dojoIds.flatMap((id) => [
+          primarySettingKey("dojo", id),
+          metaSettingKey("dojo", id),
+        ]),
+      ];
+      if (settingKeys.length > 0) {
+        await tx.appSetting.deleteMany({ where: { key: { in: settingKeys } } });
+      }
+
+      await tx.user.updateMany({
+        where: { managedBranchId: branch.id },
+        data: { managedBranchId: null, isActive: false },
+      });
+      if (dojoIds.length > 0) {
+        await tx.user.updateMany({
+          where: { managedDojoId: { in: dojoIds } },
+          data: { managedDojoId: null, isActive: false },
+        });
+        await tx.attendance.deleteMany({ where: { dojoId: { in: dojoIds } } });
+        await tx.dojo.deleteMany({ where: { id: { in: dojoIds } } });
+      }
+
+      await tx.event.updateMany({
+        where: { branchId: branch.id },
+        data: { branchId: null },
+      });
+
+      await tx.branch.delete({ where: { id: branch.id } });
+    });
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "SETTINGS_BRANCH_PURGE",
+      details: JSON.stringify({
+        branchId: branch.id,
+        name: branch.name,
+        dojoCount: dojoIds.length,
+      }),
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      token: authResult.token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Cabang dihapus permanen dari arsip",
+    });
+  }
+
   if (restore && !branch.isDeleted) {
     return NextResponse.json({ error: "Cabang tidak dalam arsip" }, { status: 400 });
   }
