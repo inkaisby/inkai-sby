@@ -98,10 +98,21 @@ export function formatDuplicateError(
   }
 
   if (primary.reasons.includes("NIA") && primary.nia) {
+    const outsideSurabaya =
+      Boolean(primary.branchName) &&
+      primary.branchName!.toUpperCase() !== "SURABAYA";
+    if (outsideSurabaya) {
+      return (
+        `NIA ${primary.nia} masih dipakai anggota aktif di cabang lain: ${who}${status}` +
+        `${primary.hasAccount ? " · sudah punya akun" : ""}. ` +
+        "Ini bukan arsip Cabang Surabaya — NIA unik nasional. " +
+        "Ganti NIA, atau minta pengurus cabang pemilik (atau pusat) melepas NIA dari data tersebut."
+      );
+    }
     return (
       `NIA ${primary.nia} sudah digunakan oleh ${who}${status}` +
       `${primary.hasAccount ? " · sudah punya akun" : ""}. ` +
-      "Ganti NIA atau periksa data anggota tersebut."
+      "Ganti NIA atau periksa data anggota tersebut di Kelola Anggota (bukan hanya arsip)."
     );
   }
 

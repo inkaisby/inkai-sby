@@ -484,6 +484,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Fix bocor URL Blob di field dokumen anggota: UI tampilkan status + unggah (bukan URL mentah) |
 | 20 Juli 2026 | Upload dokumen Akte/BPJS: kompres otomatis ke maks. 150 KB (JPEG client-side) |
 | 20 Juli 2026 | Kelola Anggota: cabang dapat **pindah ranting** via kolom Dojo inline (`set_dojo` → Inkai + Prisma) |
+| 20 Juli 2026 | Pesan bentrok NIA lintas cabang: tegaskan bukan arsip Surabaya; NIA masih aktif di cabang lain (unik nasional) |
 
 ---
 
