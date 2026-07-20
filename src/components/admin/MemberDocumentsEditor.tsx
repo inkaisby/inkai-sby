@@ -138,6 +138,7 @@ export function MemberDocumentsEditor({
           label="Akte kelahiran"
           value={akte}
           folder="members/akte"
+          hideUrl
           hint="PDF atau gambar, maks. 8 MB — unggah langsung tersimpan"
           onChange={setAkte}
           onUploaded={(url) => void uploadAndSave("birthCertificateUrl", url)}
@@ -161,6 +162,7 @@ export function MemberDocumentsEditor({
           label="Kartu BPJS"
           value={bpjs}
           folder="members/bpjs"
+          hideUrl
           hint="PDF atau gambar, maks. 8 MB — unggah langsung tersimpan"
           onChange={setBpjs}
           onUploaded={(url) => void uploadAndSave("bpjsCardUrl", url)}
