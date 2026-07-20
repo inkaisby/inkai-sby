@@ -476,6 +476,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Fix “Database sibuk” saat hapus permanen arsip (1 user): purge batch `deleteMany` (bukan N× query/anggota); pool `connection_limit=5`; chunk purge 25 |
 | 20 Juli 2026 | Input Massal: paste Kyu 1 sel Excel tidak lagi jadi baris baru; placeholder Kyu “boleh kosong” |
 | 20 Juli 2026 | Input Massal: hapus kolom NIK/Telepon; **isi semua Kyu/DAN**; progress bar persentase saat simpan (chunk 5) |
+| 20 Juli 2026 | Input Massal: urutan Tempat&Tgl sebelum JK; lebar kolom disesuaikan (table-fixed) |
 
 ---
 

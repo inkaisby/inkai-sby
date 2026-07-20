@@ -45,8 +45,8 @@ type BulkRow = {
 const COLUMNS = [
   "NIA",
   "Nama Lengkap",
-  "Jenis Kelamin",
   "Tempat & Tanggal Lahir",
+  "Jenis Kelamin",
   "Alamat",
   "Kyu saat ini",
   "Ranting",
@@ -94,9 +94,26 @@ function formatBirthCombined(place: string, dateRaw: string): string {
   return upper(placePart) || datePart;
 }
 
+function looksLikeGender(raw: string): boolean {
+  return Boolean(normalizeGenderStorage(raw));
+}
+
+function looksLikeBirthPlaceDate(raw: string): boolean {
+  const t = raw.trim();
+  if (!t) return false;
+  if (looksLikeGender(t)) return false;
+  if (/,/.test(t)) return true;
+  if (parseFlexibleBirthDate(t)) return true;
+  if (parseBirthPlaceAndDate(t).birthDate) return true;
+  return /(?:januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i.test(
+    t,
+  );
+}
+
 /**
  * Parse baris paste.
- * Format baru (7 kolom): NIA, Nama, JK, Tempat&Tgl, Alamat, Kyu, Ranting
+ * Format baru (7 kolom): NIA, Nama, Tempat&Tgl, JK, Alamat, Kyu, Ranting
+ * Format lama (7 kolom): NIA, Nama, JK, Tempat&Tgl, Alamat, Kyu, Ranting
  * Format lama (9 kolom): … Alamat, NIK, Tel, Kyu, Ranting (NIK/Tel diabaikan)
  * Format lama (10 kolom): … Tempat, Tgl, Alamat, NIK, Tel, Kyu, Ranting
  */
@@ -137,6 +154,7 @@ function parsePasteLines(
     let rantingRaw = "";
 
     if (cells.length >= 10) {
+      // Lama: NIA, Nama, JK, Tempat, Tgl, Alamat, NIK, Tel, Kyu, Ranting
       const [
         c0 = "",
         c1 = "",
@@ -157,6 +175,7 @@ function parsePasteLines(
       rankRaw = c8;
       rantingRaw = c9;
     } else if (cells.length >= 9) {
+      // Lama: NIA, Nama, JK, Tempat&Tgl, Alamat, NIK, Tel, Kyu, Ranting
       const [
         c0 = "",
         c1 = "",
@@ -187,11 +206,24 @@ function parsePasteLines(
       ] = cells;
       nia = c0;
       fullName = c1;
-      genderRaw = c2;
-      birthPlaceDate = c3;
-      address = c4;
-      rankRaw = c5;
-      rantingRaw = c6;
+      // Baru: Tempat&Tgl lalu JK — deteksi jika kolom ke-3 tampak lahir / kolom ke-4 tampak JK.
+      if (
+        looksLikeBirthPlaceDate(c2) ||
+        (looksLikeGender(c3) && !looksLikeGender(c2))
+      ) {
+        birthPlaceDate = c2;
+        genderRaw = c3;
+        address = c4;
+        rankRaw = c5;
+        rantingRaw = c6;
+      } else {
+        // Lama 7 kolom: JK lalu Tempat&Tgl
+        genderRaw = c2;
+        birthPlaceDate = c3;
+        address = c4;
+        rankRaw = c5;
+        rantingRaw = c6;
+      }
     }
 
     if (!fullName.trim() && !nia.trim()) continue;
@@ -218,7 +250,7 @@ function parsePasteLines(
 }
 
 const cellClass =
-  "h-8 w-full min-w-[7rem] rounded border border-input bg-background px-1.5 text-xs text-foreground";
+  "h-8 w-full rounded border border-input bg-background px-1.5 text-xs text-foreground";
 
 export function AddMembersBulkDialog({
   open,
@@ -342,8 +374,8 @@ export function AddMembersBulkDialog({
     const sample = [
       "25.00001",
       "BUDI SANTOSO",
-      "L",
       "SURABAYA, 28 Februari 2011",
+      "L",
       "JL CONTOH 1",
       "Putih (Kyu 10)",
       sampleDojo,
@@ -580,19 +612,34 @@ export function AddMembersBulkDialog({
           className="min-h-0 flex-1 overflow-auto rounded-lg border"
           onPaste={handlePaste}
         >
-          <table className="w-max min-w-full border-collapse text-left text-xs">
+          <table className="w-full min-w-[56rem] table-fixed border-collapse text-left text-xs">
+            <colgroup>
+              <col className="w-8" />
+              <col className="w-[6.5rem]" />
+              <col className="w-[11rem]" />
+              <col className="w-[12.5rem]" />
+              <col className="w-[3.5rem]" />
+              <col />
+              <col className="w-[8rem]" />
+              <col className="w-[9rem]" />
+              <col className="w-9" />
+            </colgroup>
             <thead className="sticky top-0 z-10 bg-muted">
               <tr>
-                <th className="border-b px-2 py-2 font-medium">No</th>
+                <th className="border-b px-1.5 py-2 font-medium">No</th>
                 {COLUMNS.map((c) => (
                   <th
                     key={c}
-                    className="border-b px-2 py-2 font-medium whitespace-nowrap"
+                    className="border-b px-1.5 py-2 font-medium whitespace-nowrap"
                   >
-                    {c}
+                    {c === "Tempat & Tanggal Lahir"
+                      ? "Tempat & Tgl Lahir"
+                      : c === "Jenis Kelamin"
+                        ? "JK"
+                        : c}
                   </th>
                 ))}
-                <th className="border-b px-2 py-2 font-medium"> </th>
+                <th className="border-b px-1 py-2 font-medium"> </th>
               </tr>
             </thead>
             <tbody>
@@ -607,7 +654,7 @@ export function AddMembersBulkDialog({
                         : undefined
                   }
                 >
-                  <td className="border-b px-2 py-1 tabular-nums text-muted-foreground">
+                  <td className="border-b px-1.5 py-1 tabular-nums text-muted-foreground">
                     {idx + 1}
                   </td>
                   <td className="border-b px-1 py-1">
@@ -623,7 +670,7 @@ export function AddMembersBulkDialog({
                   </td>
                   <td className="border-b px-1 py-1">
                     <input
-                      className={`${cellClass} min-w-[10rem]`}
+                      className={cellClass}
                       value={row.fullName}
                       placeholder="WAJIB"
                       onChange={(e) =>
@@ -636,22 +683,7 @@ export function AddMembersBulkDialog({
                   </td>
                   <td className="border-b px-1 py-1">
                     <input
-                      className={`${cellClass} min-w-[5rem]`}
-                      value={row.gender}
-                      placeholder="L / P"
-                      onChange={(e) =>
-                        updateRow(row.key, { gender: e.target.value })
-                      }
-                      onBlur={(e) => {
-                        const g = normalizeGenderStorage(e.target.value);
-                        if (g) updateRow(row.key, { gender: g });
-                      }}
-                      disabled={loading}
-                    />
-                  </td>
-                  <td className="border-b px-1 py-1">
-                    <input
-                      className={`${cellClass} min-w-[14rem]`}
+                      className={cellClass}
                       value={row.birthPlaceDate}
                       placeholder="Surabaya, 28 Maret 2015"
                       onChange={(e) =>
@@ -675,7 +707,22 @@ export function AddMembersBulkDialog({
                   </td>
                   <td className="border-b px-1 py-1">
                     <input
-                      className={`${cellClass} min-w-[12rem]`}
+                      className={`${cellClass} text-center`}
+                      value={row.gender}
+                      placeholder="L/P"
+                      onChange={(e) =>
+                        updateRow(row.key, { gender: e.target.value })
+                      }
+                      onBlur={(e) => {
+                        const g = normalizeGenderStorage(e.target.value);
+                        if (g) updateRow(row.key, { gender: g });
+                      }}
+                      disabled={loading}
+                    />
+                  </td>
+                  <td className="border-b px-1 py-1">
+                    <input
+                      className={cellClass}
                       value={row.address}
                       onChange={(e) =>
                         updateRow(row.key, {
@@ -687,7 +734,7 @@ export function AddMembersBulkDialog({
                   </td>
                   <td className="border-b px-1 py-1">
                     <input
-                      className={`${cellClass} min-w-[9rem]`}
+                      className={cellClass}
                       value={row.currentRank}
                       placeholder="boleh kosong"
                       autoComplete="off"
@@ -727,12 +774,12 @@ export function AddMembersBulkDialog({
                   </td>
                   <td className="border-b px-1 py-1">
                     {lockDojo && dojos.length === 1 ? (
-                      <span className="block max-w-[10rem] truncate px-1.5 py-1.5 text-xs">
+                      <span className="block truncate px-1.5 py-1.5 text-xs">
                         {dojos[0]?.name}
                       </span>
                     ) : (
                       <select
-                        className={`${cellClass} min-w-[9rem]`}
+                        className={cellClass}
                         value={row.dojoId}
                         onChange={(e) =>
                           updateRow(row.key, { dojoId: e.target.value })
