@@ -10,6 +10,7 @@ import { buildMemberFilter, type SessionUser } from "@/lib/rbac";
 import {
   clearMemberLifecycle,
   getMemberImpact,
+  lifecycleSettingKey,
   reasonLabel,
   setMemberLifecycle,
   statusKindLabel,
@@ -612,13 +613,13 @@ export async function restoreMember(opts: {
 const BULK_PURGE_PHRASE = "HAPUS";
 
 /**
- * Hapus permanen anggota yang sudah di arsip (isDeleted).
- * Menghapus riwayat terkait di DB lokal; tidak bisa dipulihkan.
+ * Hapus permanen massal anggota arsip — sedikit round-trip Prisma
+ * (bukan N× query per anggota) agar tidak kehabisan pool serverless.
  */
-export async function purgeArchivedMember(opts: {
+export async function purgeArchivedMembersBulk(opts: {
   user: SessionUser;
   token: string;
-  memberId: string;
+  memberIds: string[];
   confirmPhrase?: string;
   ip?: string | null;
   userAgent?: string | null;
@@ -626,37 +627,67 @@ export async function purgeArchivedMember(opts: {
   const phrase = opts.confirmPhrase?.trim().toUpperCase() || "";
   if (phrase !== BULK_PURGE_PHRASE) {
     return {
-      ok: false as const,
-      error: 'Ketik "HAPUS" untuk mengonfirmasi penghapusan permanen',
-      status: 400,
+      results: opts.memberIds.map((id) => ({
+        id,
+        ok: false as const,
+        error: 'Ketik "HAPUS" untuk mengonfirmasi penghapusan permanen',
+      })),
     };
   }
 
-  const member = await findScopedMember(opts.user, opts.memberId, {
-    includeDeleted: true,
-  });
-  if (!member || !member.isDeleted) {
-    return {
-      ok: false as const,
-      error: "Hanya anggota di arsip yang dapat dihapus permanen",
-      status: 404,
-    };
+  const ids = [...new Set(opts.memberIds.filter(Boolean))];
+  if (ids.length === 0) {
+    return { results: [] as Array<{ id: string; ok: boolean; error?: string }> };
   }
 
   try {
-    // Sequential (bukan interactive $transaction) agar cocok Transaction pooler.
+    const members = await prisma.member.findMany({
+      where: {
+        AND: [
+          { id: { in: ids } },
+          { isDeleted: true },
+          buildMemberFilter(opts.user),
+        ],
+      },
+      select: { id: true, fullName: true, nia: true, userId: true },
+    });
+    const found = new Map(members.map((m) => [m.id, m]));
+    const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+    const okIds: string[] = [];
+    const userIds: string[] = [];
+
+    for (const id of ids) {
+      const m = found.get(id);
+      if (!m) {
+        results.push({
+          id,
+          ok: false,
+          error: "Hanya anggota di arsip yang dapat dihapus permanen",
+        });
+        continue;
+      }
+      okIds.push(id);
+      if (m.userId) userIds.push(m.userId);
+      results.push({ id, ok: true });
+    }
+
+    if (okIds.length === 0) return { results };
+
+    // Sequential batch (bukan interactive $transaction) — cocok Transaction pooler.
     const billings = await prisma.billing.findMany({
-      where: { memberId: opts.memberId },
+      where: { memberId: { in: okIds } },
       select: { id: true },
     });
     const billingIds = billings.map((b) => b.id);
     if (billingIds.length > 0) {
-      await prisma.payment.deleteMany({ where: { billingId: { in: billingIds } } });
+      await prisma.payment.deleteMany({
+        where: { billingId: { in: billingIds } },
+      });
       await prisma.billing.deleteMany({ where: { id: { in: billingIds } } });
     }
 
     const orders = await prisma.storeOrder.findMany({
-      where: { memberId: opts.memberId },
+      where: { memberId: { in: okIds } },
       select: { id: true },
     });
     const orderIds = orders.map((o) => o.id);
@@ -667,54 +698,102 @@ export async function purgeArchivedMember(opts: {
       await prisma.storeOrder.deleteMany({ where: { id: { in: orderIds } } });
     }
 
-    await prisma.attendance.deleteMany({ where: { memberId: opts.memberId } });
-    await prisma.memberRank.deleteMany({ where: { memberId: opts.memberId } });
+    await prisma.attendance.deleteMany({ where: { memberId: { in: okIds } } });
+    await prisma.memberRank.deleteMany({ where: { memberId: { in: okIds } } });
     await prisma.eventRegistration.deleteMany({
-      where: { memberId: opts.memberId },
+      where: { memberId: { in: okIds } },
     });
-    await prisma.verification.deleteMany({ where: { memberId: opts.memberId } });
+    await prisma.verification.deleteMany({
+      where: { memberId: { in: okIds } },
+    });
+    await prisma.appSetting.deleteMany({
+      where: { key: { in: okIds.map(lifecycleSettingKey) } },
+    });
+    await prisma.member.deleteMany({ where: { id: { in: okIds } } });
 
-    await prisma.member.delete({ where: { id: opts.memberId } });
-
-    if (member.userId) {
+    const uniqueUserIds = [...new Set(userIds)];
+    if (uniqueUserIds.length > 0) {
       await prisma.user.updateMany({
-        where: { id: member.userId },
+        where: { id: { in: uniqueUserIds } },
         data: { isActive: false },
       });
     }
+
+    for (const id of okIds) {
+      void inkaiFetch(`/v1/members/${id}`, { method: "DELETE" }, opts.token);
+    }
+
+    writeAuditLog({
+      userId: opts.user.id,
+      email: opts.user.email,
+      action: "MEMBER_PURGE_BULK",
+      details: JSON.stringify({
+        count: okIds.length,
+        memberIds: okIds,
+      }),
+      ip: opts.ip,
+      userAgent: opts.userAgent,
+      token: opts.token,
+    });
+
+    return { results };
   } catch (err) {
-    console.error("[purgeArchivedMember]", err);
+    console.error("[purgeArchivedMembersBulk]", err);
     if (isPrismaBusyError(err)) {
       return {
-        ok: false as const,
-        error: PRISMA_BUSY_USER_MESSAGE,
-        status: 503,
+        results: ids.map((id) => ({
+          id,
+          ok: false as const,
+          error: PRISMA_BUSY_USER_MESSAGE,
+        })),
+        busy: true as const,
       };
     }
     return {
-      ok: false as const,
-      error: "Gagal menghapus permanen (ada data terkait)",
-      status: 500,
+      results: ids.map((id) => ({
+        id,
+        ok: false as const,
+        error: "Gagal menghapus permanen (ada data terkait)",
+      })),
     };
   }
+}
 
-  // Best-effort di Inkai (sudah soft-delete sebelumnya)
-  await inkaiFetch(`/v1/members/${opts.memberId}`, { method: "DELETE" }, opts.token);
-
-  writeAuditLog({
-    userId: opts.user.id,
-    email: opts.user.email,
-    action: "MEMBER_PURGE",
-    details: JSON.stringify({
-      memberId: opts.memberId,
-      fullName: member.fullName,
-      nia: member.nia,
-    }),
+/**
+ * Hapus permanen satu anggota arsip (wrapper bulk).
+ */
+export async function purgeArchivedMember(opts: {
+  user: SessionUser;
+  token: string;
+  memberId: string;
+  confirmPhrase?: string;
+  ip?: string | null;
+  userAgent?: string | null;
+}) {
+  const bulk = await purgeArchivedMembersBulk({
+    user: opts.user,
+    token: opts.token,
+    memberIds: [opts.memberId],
+    confirmPhrase: opts.confirmPhrase,
     ip: opts.ip,
     userAgent: opts.userAgent,
-    token: opts.token,
   });
-
+  const row = bulk.results[0];
+  if ("busy" in bulk && bulk.busy) {
+    return {
+      ok: false as const,
+      error: PRISMA_BUSY_USER_MESSAGE,
+      status: 503,
+    };
+  }
+  if (!row?.ok) {
+    const msg = row?.error || "Gagal menghapus permanen";
+    return {
+      ok: false as const,
+      error: msg,
+      status: msg.includes("HAPUS") ? 400 : 404,
+    };
+  }
   return {
     ok: true as const,
     message: "Anggota dihapus permanen dari arsip",

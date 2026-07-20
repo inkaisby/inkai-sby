@@ -24,11 +24,17 @@ function withServerlessPoolLimit(url: string | undefined) {
     ) {
       parsed.searchParams.set("pgbouncer", "true");
     }
+    // Transaction pooler (:6543) can spare a few connections per isolate so
+    // parallel admin queries (KPI + layout) don't starve each other.
+    // Session mode is rewritten to :6543 above — keep limit modest.
     if (!parsed.searchParams.has("connection_limit")) {
-      parsed.searchParams.set("connection_limit", "1");
+      parsed.searchParams.set(
+        "connection_limit",
+        isSupabasePooler || parsed.port === "6543" ? "5" : "1",
+      );
     }
     if (!parsed.searchParams.has("pool_timeout")) {
-      parsed.searchParams.set("pool_timeout", "10");
+      parsed.searchParams.set("pool_timeout", "20");
     }
     return parsed.toString();
   } catch {

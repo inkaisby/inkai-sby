@@ -9,7 +9,7 @@ import {
 } from "@/lib/wilayah-rbac";
 import {
   deactivateMember,
-  purgeArchivedMember,
+  purgeArchivedMembersBulk,
   restoreMember,
   softDeleteMembersBulk,
 } from "@/lib/member-lifecycle-actions";
@@ -56,25 +56,25 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    for (let i = 0; i < memberIds.length; i++) {
-      const memberId = memberIds[i];
-      const result = await purgeArchivedMember({
-        user: authResult.user,
-        token: authResult.token,
-        memberId,
-        confirmPhrase: phrase,
-        ip,
-        userAgent,
-      });
-      if (!result.ok && result.status === 503) {
-        results.push({ id: memberId, ok: false, error: result.error });
-        markRestBusy(i + 1, result.error);
-        break;
-      }
-      results.push(
-        result.ok
-          ? { id: memberId, ok: true }
-          : { id: memberId, ok: false, error: result.error },
+    const bulk = await purgeArchivedMembersBulk({
+      user: authResult.user,
+      token: authResult.token,
+      memberIds,
+      confirmPhrase: phrase,
+      ip,
+      userAgent,
+    });
+    results.push(...bulk.results);
+    if ("busy" in bulk && bulk.busy) {
+      return NextResponse.json(
+        {
+          error: PRISMA_BUSY_USER_MESSAGE,
+          okCount: 0,
+          failCount: results.length,
+          results,
+          message: PRISMA_BUSY_USER_MESSAGE,
+        },
+        { status: 503 },
       );
     }
   } else if (action === "restore") {

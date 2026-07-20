@@ -6,8 +6,14 @@ import { PRISMA_BUSY_USER_MESSAGE } from "@/lib/prisma-errors";
  */
 export const BULK_MEMBER_CHUNK_SIZE = 50;
 
+/** Chunk lebih kecil untuk hapus permanen (banyak relasi per anggota). */
+export const BULK_PURGE_CHUNK_SIZE = 25;
+
 /** Jeda singkat antar chunk (hampir nol — sinkron lokal sudah cepat). */
 const CHUNK_PAUSE_MS = 50;
+
+/** Jeda antar chunk purge agar pool sempat pulih. */
+const PURGE_CHUNK_PAUSE_MS = 250;
 
 export function chunkIds(ids: string[], size = BULK_MEMBER_CHUNK_SIZE): string[][] {
   if (ids.length === 0) return [];
@@ -52,10 +58,20 @@ function looksBusy(error: string | undefined, status: number) {
 /** Kirim POST /api/admin/members/bulk per chunk, gabungkan hasil. */
 export async function postMemberBulkChunked(
   payload: Record<string, unknown> & { memberIds: string[] },
-  opts?: { onProgress?: (p: BulkProgress) => void },
+  opts?: {
+    onProgress?: (p: BulkProgress) => void;
+    chunkSize?: number;
+    pauseMs?: number;
+  },
 ): Promise<BulkResult> {
   const total = payload.memberIds.length;
-  const chunks = chunkIds(payload.memberIds);
+  const isPurge = payload.action === "purge";
+  const chunkSize =
+    opts?.chunkSize ??
+    (isPurge ? BULK_PURGE_CHUNK_SIZE : BULK_MEMBER_CHUNK_SIZE);
+  const pauseMs =
+    opts?.pauseMs ?? (isPurge ? PURGE_CHUNK_PAUSE_MS : CHUNK_PAUSE_MS);
+  const chunks = chunkIds(payload.memberIds, chunkSize);
   let okCount = 0;
   let failCount = 0;
   let lastMessage = "";
@@ -87,7 +103,7 @@ export async function postMemberBulkChunked(
 
     // Satu retry singkat jika pool sibuk.
     if (!res.ok && looksBusy(data.error, res.status)) {
-      await sleep(800);
+      await sleep(isPurge ? 1500 : 800);
       res = await fetch("/api/admin/members/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -129,8 +145,8 @@ export async function postMemberBulkChunked(
       failCount,
     });
 
-    if (i < chunks.length - 1 && CHUNK_PAUSE_MS > 0) {
-      await sleep(CHUNK_PAUSE_MS);
+    if (i < chunks.length - 1 && pauseMs > 0) {
+      await sleep(pauseMs);
     }
   }
 
