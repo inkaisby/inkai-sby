@@ -491,6 +491,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Pengaturan ranting: telepon maks 60 karakter (dukung 2 nomor dipisah `/`) |
 | 20 Juli 2026 | Input Massal: logo INKAI animasi saat progress menyimpan anggota |
 | 20 Juli 2026 | Fix Kelola Anggota crash: filter luar Surabaya — `name.not` + `mode` (bukan `not.equals.mode`) |
+| 20 Juli 2026 | Fix filter ranting kosong: sintaks Prisma `name.not`, bust cache dojo `v3`, jangan cache hasil error `[]` |
 
 ---
 

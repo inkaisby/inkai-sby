@@ -703,37 +703,32 @@ export const fetchAdminDojos = cache(async (token: string) => {
  * (hindari round-trip Inkai `/v1/org/dojos/all` di setiap navigasi filter).
  */
 export async function fetchAdminDojosScoped(user: SessionUser) {
-  try {
-    const rows = await prisma.dojo.findMany({
-      where: buildDojoFilter(user),
-      select: {
-        id: true,
-        name: true,
-        isDeleted: true,
-        branch: { select: { name: true } },
-      },
-      orderBy: { name: "asc" },
-    });
-    return rows.map((d) => {
-      const branchName = d.branch?.name?.trim() || "";
-      const outsideSite =
-        branchName.length > 0 &&
-        branchName.toUpperCase() !== SITE_BRANCH_NAME.toUpperCase();
-      const suffix = [
-        outsideSite ? branchName : null,
-        d.isDeleted ? "arsip" : null,
-      ]
-        .filter(Boolean)
-        .join(" · ");
-      return {
-        id: d.id,
-        name: suffix ? `${d.name} (${suffix})` : d.name,
-      };
-    });
-  } catch (error) {
-    console.error("[fetchAdminDojosScoped]", error);
-    return [] as Array<{ id: string; name: string }>;
-  }
+  const rows = await prisma.dojo.findMany({
+    where: buildDojoFilter(user),
+    select: {
+      id: true,
+      name: true,
+      isDeleted: true,
+      branch: { select: { name: true } },
+    },
+    orderBy: { name: "asc" },
+  });
+  return rows.map((d) => {
+    const branchName = d.branch?.name?.trim() || "";
+    const outsideSite =
+      branchName.length > 0 &&
+      branchName.toUpperCase() !== SITE_BRANCH_NAME.toUpperCase();
+    const suffix = [
+      outsideSite ? branchName : null,
+      d.isDeleted ? "arsip" : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    return {
+      id: d.id,
+      name: suffix ? `${d.name} (${suffix})` : d.name,
+    };
+  });
 }
 
 /** Cache dojo list 60s — jarang berubah, dipanggil tiap filter. */
@@ -741,6 +736,7 @@ export function fetchAdminDojosScopedCached(user: SessionUser) {
   const role = getPrimaryAdminRole(user.roles);
   const key = [
     "admin-dojos-scoped",
+    "v3",
     user.id,
     role,
     user.managedBranchId ?? "",
@@ -748,10 +744,17 @@ export function fetchAdminDojosScopedCached(user: SessionUser) {
     user.managedDojoId ?? "",
   ];
   return unstable_cache(
-    () => fetchAdminDojosScoped(user),
+    async () => {
+      // Jangan tangkap error di dalam cache — hasil [] dari gagal query
+      // sempat ter-cache dan mengosongkan filter ranting.
+      return fetchAdminDojosScoped(user);
+    },
     key,
     { revalidate: 60 },
-  )();
+  )().catch((error) => {
+    console.error("[fetchAdminDojosScopedCached]", error);
+    return [] as Array<{ id: string; name: string }>;
+  });
 }
 
 /**

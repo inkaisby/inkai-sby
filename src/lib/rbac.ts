@@ -11,13 +11,11 @@ export const ADMIN_ROLES = [
 
 /** Anggota di DB lokal yang dojo/cabangnya di luar Cabang Surabaya (data bocor/sync). */
 function outsideSiteBranchDojoClause() {
-  // Prisma: `mode` harus di level StringFilter, bukan di dalam `not: { equals }`.
+  // Nama cabang di DB sudah huruf besar — jangan pakai `not: { equals, mode }`
+  // (Prisma 5 menolak `mode` di dalam nested `not.equals`).
   return {
     branch: {
-      name: {
-        not: SITE_BRANCH_NAME,
-        mode: "insensitive" as const,
-      },
+      name: { not: SITE_BRANCH_NAME },
     },
   };
 }
@@ -164,41 +162,43 @@ export function buildMemberFilter(
 
 export function buildDojoFilter(user: SessionUser) {
   const role = getPrimaryAdminRole(user.roles);
-  const visible = dojoVisibleClause();
 
   if (role === "ADMINISTRATOR" || role === "ADMIN_PUSAT" || role === "ADMIN") {
-    return visible;
+    return dojoVisibleClause();
   }
   if (role === "ADMIN_PROVINCE" && user.managedProvinceId) {
     return {
-      AND: [
-        visible,
+      OR: [
         {
-          OR: [
-            { branch: { provinceId: user.managedProvinceId } },
-            outsideSiteBranchDojoClause(),
-          ],
+          branch: { provinceId: user.managedProvinceId },
+          ...dojoVisibleClause(),
+        },
+        {
+          AND: [dojoVisibleClause(), outsideSiteBranchDojoClause()],
         },
       ],
     };
   }
   if (role === "ADMIN_BRANCH" && user.managedBranchId) {
     return {
-      AND: [
-        visible,
+      OR: [
+        // Semua ranting cabang sendiri (aktif + arsip yang masih relevan).
+        { branchId: user.managedBranchId },
+        // Ranting luar site yang masih ada di DB lokal.
         {
-          OR: [
-            { branchId: user.managedBranchId },
-            outsideSiteBranchDojoClause(),
-          ],
+          AND: [dojoVisibleClause(), outsideSiteBranchDojoClause()],
         },
       ],
     };
   }
   if (role === "ADMIN_DOJO") {
     const ids = dojoAllowlist(user);
-    if (ids.length === 1) return { id: ids[0], ...visible };
-    if (ids.length > 1) return { id: { in: ids }, ...visible };
+    if (ids.length === 1) {
+      return { id: ids[0] };
+    }
+    if (ids.length > 1) {
+      return { id: { in: ids } };
+    }
   }
   return { id: "none", isDeleted: false };
 }
