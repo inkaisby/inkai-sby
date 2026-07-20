@@ -18,6 +18,7 @@ import {
 import { validatePassword } from "@/lib/security/password";
 import { fetchOrgStructure } from "@/lib/inkai-api/admin-data";
 import { prisma } from "@/lib/prisma";
+import { upsertDojoPicCredentials } from "@/lib/ranting-credentials";
 
 function cleanOptional(value: string | undefined) {
   return value ? value : undefined;
@@ -117,12 +118,6 @@ export async function POST(request: Request) {
     bankName: cleanOptional(d.bankName),
     bankAccountNumber: cleanOptional(d.bankAccountNumber),
     bankAccountName: cleanOptional(d.bankAccountName),
-    ...(d.adminEmail
-      ? {
-          adminEmail: d.adminEmail,
-          ...(d.adminPassword ? { adminPassword: d.adminPassword } : {}),
-        }
-      : {}),
   };
 
   const { res, data } = await inkaiFetch(
@@ -138,6 +133,36 @@ export async function POST(request: Request) {
     );
   }
 
+  const created = data.data as { id?: string; dojoId?: string } | undefined;
+  const newDojoId =
+    (typeof created?.id === "string" && created.id) ||
+    (typeof created?.dojoId === "string" && created.dojoId) ||
+    "";
+
+  let loginEmail: string | undefined;
+  let loginPassword: string | undefined;
+  if (d.adminEmail && d.adminPassword && newDojoId) {
+    const cred = await upsertDojoPicCredentials({
+      dojoId: newDojoId,
+      email: d.adminEmail,
+      password: d.adminPassword,
+    });
+    if (!cred.ok) {
+      return NextResponse.json(
+        {
+          success: true,
+          data: data.data,
+          message:
+            "Ranting dibuat, tetapi akun login gagal. Buat akun lewat tombol Akun.",
+          warning: cred.error,
+        },
+        { status: 200 },
+      );
+    }
+    loginEmail = cred.email;
+    loginPassword = d.adminPassword;
+  }
+
   writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
@@ -146,6 +171,7 @@ export async function POST(request: Request) {
       name: d.name,
       branchId: branchResolved.branchId,
       adminEmail: d.adminEmail,
+      dojoId: newDojoId || undefined,
     }),
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
@@ -155,13 +181,13 @@ export async function POST(request: Request) {
   return NextResponse.json({
     success: true,
     data: data.data,
-    message: d.adminEmail
-      ? `Ranting berhasil ditambahkan. Admin ranting bisa login dengan ${d.adminEmail}`
+    message: loginEmail
+      ? `Ranting berhasil ditambahkan. Admin ranting bisa login dengan ${loginEmail}`
       : "Ranting berhasil ditambahkan. Tambahkan akun pengurus lewat tombol Akun.",
-    ...(d.adminEmail
+    ...(loginEmail
       ? {
-          loginEmail: d.adminEmail,
-          loginPassword: d.adminPassword,
+          loginEmail,
+          loginPassword,
         }
       : {}),
   });
@@ -190,7 +216,24 @@ export async function PATCH(request: Request) {
 
   const parsed = rantingUpdateSchema.safeParse(payload);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
+    const issue = parsed.error.issues[0];
+    const field = String(issue?.path?.[0] ?? "");
+    const labels: Record<string, string> = {
+      adminPassword: "password baru ranting",
+      adminEmail: "email login ranting",
+      phoneNumber: "telepon",
+      name: "nama ranting",
+    };
+    const label = labels[field];
+    const detail = issue?.message || "periksa isian form";
+    return NextResponse.json(
+      {
+        error: label
+          ? `Data tidak valid (${label}): ${detail}`
+          : `Data tidak valid: ${detail}`,
+      },
+      { status: 400 },
+    );
   }
 
   if (parsed.data.adminPassword) {
@@ -251,12 +294,6 @@ export async function PATCH(request: Request) {
     ...(d.bankAccountName !== undefined
       ? { bankAccountName: cleanOptional(d.bankAccountName) }
       : {}),
-    ...(canAdministerRantingAccounts(authResult.user) && d.adminEmail
-      ? { adminEmail: d.adminEmail }
-      : {}),
-    ...(canAdministerRantingAccounts(authResult.user) && d.adminPassword
-      ? { adminPassword: d.adminPassword }
-      : {}),
   };
 
   const { res, data } = await inkaiFetch(
@@ -272,11 +309,37 @@ export async function PATCH(request: Request) {
     );
   }
 
+  let loginEmail: string | undefined;
+  let loginPassword: string | undefined;
+  if (
+    canAdministerRantingAccounts(authResult.user) &&
+    (d.adminEmail || d.adminPassword)
+  ) {
+    const cred = await upsertDojoPicCredentials({
+      dojoId: id,
+      email: d.adminEmail || undefined,
+      password: d.adminPassword || undefined,
+    });
+    if (!cred.ok) {
+      return NextResponse.json(
+        { error: cred.error },
+        { status: cred.status },
+      );
+    }
+    loginEmail = cred.email;
+    if (d.adminPassword) loginPassword = d.adminPassword;
+  }
+
   writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
     action: "SETTINGS_RANTING_UPDATE",
-    details: JSON.stringify({ dojoId: id, name: d.name }),
+    details: JSON.stringify({
+      dojoId: id,
+      name: d.name,
+      adminEmail: loginEmail || d.adminEmail,
+      passwordUpdated: Boolean(d.adminPassword),
+    }),
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token: authResult.token,
@@ -285,13 +348,13 @@ export async function PATCH(request: Request) {
   return NextResponse.json({
     success: true,
     data: data.data,
-    message: "Ranting berhasil diperbarui",
-    ...(canAdministerRantingAccounts(authResult.user) &&
-    d.adminEmail &&
-    d.adminPassword
+    message: d.adminPassword
+      ? "Ranting & password login berhasil diperbarui"
+      : "Ranting berhasil diperbarui",
+    ...(loginEmail && loginPassword
       ? {
-          loginEmail: d.adminEmail,
-          loginPassword: d.adminPassword,
+          loginEmail,
+          loginPassword,
         }
       : {}),
   });

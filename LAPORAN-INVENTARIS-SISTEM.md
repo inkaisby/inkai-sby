@@ -487,6 +487,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Pesan bentrok NIA lintas cabang: tegaskan bukan arsip Surabaya; NIA masih aktif di cabang lain (unik nasional) |
 | 20 Juli 2026 | Pengaturan Cabang: arsip punya **Hapus** permanen (tolak jika masih ada anggota; cabang SURABAYA dilindungi) |
 | 20 Juli 2026 | Kelola Anggota: tampilkan anggota luar Surabaya / ranting terarsip (mis. JAKARTA PUSAT) agar NIA & arsip cabang bisa dibersihkan |
+| 20 Juli 2026 | Fix simpan password PIC ranting: update `User.passwordHash` lokal (bukan Inkai PATCH) — hilangkan error "Data tidak valid password baru ranting" |
 
 ---
 

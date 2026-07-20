@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
-import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
-import { assertDojoInScope, canAdministerRantingAccounts, canManageRanting } from "@/lib/pengaturan";
+import {
+  assertDojoInScope,
+  canAdministerRantingAccounts,
+  canManageRanting,
+} from "@/lib/pengaturan";
 import { getClientIp } from "@/lib/security/request";
 import { rantingResetPasswordSchema } from "@/lib/security/schemas";
 import { validatePassword } from "@/lib/security/password";
-import { prisma } from "@/lib/prisma";
+import { upsertDojoPicCredentials } from "@/lib/ranting-credentials";
 
 /** Reset password saja — tanpa ganti username/email */
 export async function POST(request: Request) {
@@ -43,42 +46,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const admin = await prisma.user.findFirst({
-    where: {
-      managedDojoId: dojo.id,
-      isDeleted: false,
-      roles: { some: { name: "ADMIN_DOJO" } },
-    },
-    select: { id: true, email: true },
+  const cred = await upsertDojoPicCredentials({
+    dojoId: dojo.id,
+    password: parsed.data.adminPassword,
   });
-
-  if (!admin?.email) {
-    return NextResponse.json(
-      {
-        error:
-          "Ranting belum punya akun login. Gunakan 'Buat Login' terlebih dahulu.",
-      },
-      { status: 400 },
-    );
-  }
-
-  const { res, data } = await inkaiFetch(
-    `/v1/org/dojos/${dojo.id}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({
-        adminEmail: admin.email,
-        adminPassword: parsed.data.adminPassword,
-      }),
-    },
-    authResult.token,
-  );
-
-  if (!res.ok) {
-    return NextResponse.json(
-      { error: inkaiErrorMessage(data, "Gagal reset password ranting") },
-      { status: res.status },
-    );
+  if (!cred.ok) {
+    return NextResponse.json({ error: cred.error }, { status: cred.status });
   }
 
   writeAuditLog({
@@ -88,7 +61,7 @@ export async function POST(request: Request) {
     details: JSON.stringify({
       dojoId: dojo.id,
       dojoName: dojo.name,
-      adminEmail: admin.email,
+      adminEmail: cred.email,
     }),
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
@@ -97,8 +70,8 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     success: true,
-    message: `Password login "${admin.email}" berhasil direset`,
-    loginEmail: admin.email,
+    message: `Password login "${cred.email}" berhasil direset`,
+    loginEmail: cred.email,
     loginPassword: parsed.data.adminPassword,
     dojoName: dojo.name,
   });
