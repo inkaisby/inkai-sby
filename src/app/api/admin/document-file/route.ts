@@ -29,11 +29,16 @@ export async function GET(request: Request) {
       );
     }
 
-    const contentType =
+    const upstreamType =
       upstream.headers.get("content-type") || "application/octet-stream";
+    const contentType =
+      upstreamType.includes("pdf") || /\.pdf(\?|$)/i.test(raw)
+        ? "application/pdf"
+        : upstreamType;
     const contentLength = upstream.headers.get("content-length");
     const headers = new Headers({
       "Content-Type": contentType,
+      "Content-Disposition": "inline",
       "Cache-Control": "private, max-age=60",
       "X-Content-Type-Options": "nosniff",
     });

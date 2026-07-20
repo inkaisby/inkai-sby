@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Printer } from "lucide-react";
+import { ExternalLink, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -80,12 +80,21 @@ export function DocumentPreviewDialog({
           lenHeader && Number.isFinite(Number(lenHeader))
             ? Number(lenHeader)
             : blob.size;
-        created = URL.createObjectURL(blob);
+        // Pastikan MIME PDF eksplisit agar Chrome viewer tidak gagal.
+        const normalizedType =
+          type?.includes("pdf") || /\.pdf(\?|$)/i.test(url!)
+            ? "application/pdf"
+            : type || blob.type || "application/octet-stream";
+        const typedBlob =
+          blob.type === normalizedType
+            ? blob
+            : new Blob([blob], { type: normalizedType });
+        created = URL.createObjectURL(typedBlob);
         setObjectUrl((prev) => {
           if (prev) URL.revokeObjectURL(prev);
           return created;
         });
-        setContentType(type || blob.type || null);
+        setContentType(normalizedType);
         setSizeLabel(formatFileSize(size));
       } catch (err) {
         if (!cancelled) {
@@ -138,6 +147,11 @@ export function DocumentPreviewDialog({
     w.document.close();
   }
 
+  function handleOpenTab() {
+    if (!objectUrl) return;
+    window.open(objectUrl, "_blank", "noopener,noreferrer");
+  }
+
   const kind = objectUrl
     ? isImageType(contentType, url || "")
       ? "image"
@@ -183,6 +197,20 @@ export function DocumentPreviewDialog({
                 aria-hidden
               />
             </div>
+          ) : objectUrl && kind === "pdf" ? (
+            <object
+              data={objectUrl}
+              type="application/pdf"
+              title={title}
+              className="h-[60vh] w-full bg-white"
+            >
+              <iframe
+                ref={iframeRef}
+                title={title}
+                src={objectUrl}
+                className="h-[60vh] w-full border-0 bg-white"
+              />
+            </object>
           ) : objectUrl ? (
             <iframe
               ref={iframeRef}
@@ -197,13 +225,22 @@ export function DocumentPreviewDialog({
           <p className="self-center text-xs text-muted-foreground">
             {contentType || (objectUrl ? "Dokumen siap ditampilkan" : "")}
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
               Tutup
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleOpenTab}
+              disabled={!objectUrl || loading || Boolean(error)}
+            >
+              <ExternalLink className="mr-1.5 h-4 w-4" />
+              Tab baru
             </Button>
             <Button
               type="button"

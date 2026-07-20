@@ -8,10 +8,12 @@ const csp = [
   "font-src 'self'",
   "connect-src 'self'",
   "media-src 'self' blob:",
+  // Pratinjau PDF/dokumen via blob: URL di <iframe>/<embed> (DocumentPreviewDialog)
+  "frame-src 'self' blob:",
+  "object-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
-  "object-src 'none'",
 ].join("; ");
 
 const securityHeaders = [
