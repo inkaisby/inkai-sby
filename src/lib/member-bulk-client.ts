@@ -9,6 +9,9 @@ export const BULK_MEMBER_CHUNK_SIZE = 50;
 /** Chunk lebih kecil untuk hapus permanen (banyak relasi per anggota). */
 export const BULK_PURGE_CHUNK_SIZE = 25;
 
+/** Chunk input massal tambah anggota — progress UI update per chunk. */
+export const BULK_CREATE_CHUNK_SIZE = 5;
+
 /** Jeda singkat antar chunk (hampir nol — sinkron lokal sudah cepat). */
 const CHUNK_PAUSE_MS = 50;
 
@@ -175,6 +178,138 @@ export async function postMemberBulkChunked(
     message:
       failCount === 0
         ? lastMessage || `${okCount} berhasil`
+        : `${okCount} berhasil, ${failCount} gagal`,
+  };
+}
+
+export type BulkCreateResultRow = {
+  index: number;
+  fullName: string;
+  ok: boolean;
+  error?: string;
+  memberId?: string;
+};
+
+/** Kirim POST /api/admin/members/bulk-create per chunk, gabungkan hasil + progress. */
+export async function postBulkCreateChunked(
+  members: Record<string, unknown>[],
+  opts?: {
+    onProgress?: (p: BulkProgress) => void;
+    chunkSize?: number;
+    pauseMs?: number;
+  },
+): Promise<{
+  ok: boolean;
+  okCount: number;
+  failCount: number;
+  results: BulkCreateResultRow[];
+  message: string;
+  error?: string;
+}> {
+  const total = members.length;
+  const chunkSize = opts?.chunkSize ?? BULK_CREATE_CHUNK_SIZE;
+  const pauseMs = opts?.pauseMs ?? CHUNK_PAUSE_MS;
+  const chunks: Record<string, unknown>[][] = [];
+  for (let i = 0; i < members.length; i += chunkSize) {
+    chunks.push(members.slice(i, i + chunkSize));
+  }
+
+  let okCount = 0;
+  let failCount = 0;
+  let lastMessage = "";
+  let lastError = "";
+  const allResults: BulkCreateResultRow[] = [];
+
+  opts?.onProgress?.({
+    done: 0,
+    total,
+    percent: 0,
+    okCount: 0,
+    failCount: 0,
+  });
+
+  for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
+    const chunk = chunks[chunkIdx]!;
+    const baseIndex = chunkIdx * chunkSize;
+
+    const res = await fetch("/api/admin/members/bulk-create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ members: chunk }),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      message?: string;
+      okCount?: number;
+      failCount?: number;
+      results?: BulkCreateResultRow[];
+    };
+
+    if (!res.ok && !data.results) {
+      lastError = data.error || data.message || "Gagal menyimpan massal";
+      for (let j = 0; j < chunk.length; j++) {
+        const raw = chunk[j] as { fullName?: string };
+        allResults.push({
+          index: baseIndex + j,
+          fullName: String(raw.fullName || ""),
+          ok: false,
+          error: lastError,
+        });
+      }
+      failCount += chunk.length;
+    } else {
+      const chunkResults = data.results ?? [];
+      for (const r of chunkResults) {
+        allResults.push({
+          ...r,
+          index: baseIndex + r.index,
+        });
+      }
+      const chunkOk = Number(data.okCount ?? chunkResults.filter((r) => r.ok).length);
+      const chunkFail = Number(
+        data.failCount ?? chunkResults.filter((r) => !r.ok).length,
+      );
+      okCount += chunkOk;
+      failCount += chunkFail;
+      lastMessage = data.message || lastMessage;
+    }
+
+    const done = Math.min(okCount + failCount, total);
+    const percent =
+      total === 0 ? 100 : Math.min(100, Math.round((done / total) * 100));
+    opts?.onProgress?.({
+      done,
+      total,
+      percent,
+      okCount,
+      failCount,
+    });
+
+    if (chunkIdx < chunks.length - 1 && pauseMs > 0) {
+      await sleep(pauseMs);
+    }
+  }
+
+  const anyOk = okCount > 0;
+  if (!anyOk) {
+    return {
+      ok: false,
+      okCount,
+      failCount,
+      results: allResults,
+      message: lastError || "Gagal menyimpan massal",
+      error: lastError || "Gagal menyimpan massal",
+    };
+  }
+
+  return {
+    ok: failCount === 0,
+    okCount,
+    failCount,
+    results: allResults,
+    message:
+      failCount === 0
+        ? lastMessage || `${okCount} anggota berhasil ditambahkan`
         : `${okCount} berhasil, ${failCount} gagal`,
   };
 }

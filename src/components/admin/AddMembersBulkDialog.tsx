@@ -25,6 +25,7 @@ import {
 import { showError, showSuccess } from "@/lib/client-toast";
 import type { AddMemberDojoOption } from "@/components/admin/AddMemberDialog";
 import { triggerCsvDownload } from "@/lib/ukt";
+import { postBulkCreateChunked } from "@/lib/member-bulk-client";
 
 type BulkRow = {
   key: string;
@@ -35,8 +36,6 @@ type BulkRow = {
   /** Gabungan tempat + tanggal, mis. "SURABAYA, 28 MARET 2015". */
   birthPlaceDate: string;
   address: string;
-  nik: string;
-  phoneNumber: string;
   currentRank: string;
   dojoId: string;
   error?: string;
@@ -49,8 +48,6 @@ const COLUMNS = [
   "Jenis Kelamin",
   "Tempat & Tanggal Lahir",
   "Alamat",
-  "NIK",
-  "Telepon",
   "Kyu saat ini",
   "Ranting",
 ] as const;
@@ -67,8 +64,6 @@ function emptyRow(dojoId = "", currentRank = ""): BulkRow {
     gender: "",
     birthPlaceDate: "",
     address: "",
-    nik: "",
-    phoneNumber: "",
     currentRank,
     dojoId,
   };
@@ -101,8 +96,9 @@ function formatBirthCombined(place: string, dateRaw: string): string {
 
 /**
  * Parse baris paste.
- * Format baru (9 kolom): NIA, Nama, JK, Tempat&Tgl, Alamat, NIK, Telp, Kyu, Ranting
- * Format lama (10 kolom): NIA, Nama, JK, Tempat, Tgl, Alamat, NIK, Telp, Kyu, Ranting
+ * Format baru (7 kolom): NIA, Nama, JK, Tempat&Tgl, Alamat, Kyu, Ranting
+ * Format lama (9 kolom): … Alamat, NIK, Tel, Kyu, Ranting (NIK/Tel diabaikan)
+ * Format lama (10 kolom): … Tempat, Tgl, Alamat, NIK, Tel, Kyu, Ranting
  */
 function parsePasteLines(
   text: string,
@@ -137,13 +133,10 @@ function parsePasteLines(
     let genderRaw = "";
     let birthPlaceDate = "";
     let address = "";
-    let nik = "";
-    let phoneNumber = "";
     let rankRaw = "";
     let rantingRaw = "";
 
     if (cells.length >= 10) {
-      // Format lama: tempat + tanggal terpisah
       const [
         c0 = "",
         c1 = "",
@@ -151,8 +144,8 @@ function parsePasteLines(
         place = "",
         dateRaw = "",
         c5 = "",
-        c6 = "",
-        c7 = "",
+        ,
+        ,
         c8 = "",
         c9 = "",
       ] = cells;
@@ -161,10 +154,27 @@ function parsePasteLines(
       genderRaw = c2;
       birthPlaceDate = formatBirthCombined(place, dateRaw);
       address = c5;
-      nik = c6;
-      phoneNumber = c7;
       rankRaw = c8;
       rantingRaw = c9;
+    } else if (cells.length >= 9) {
+      const [
+        c0 = "",
+        c1 = "",
+        c2 = "",
+        c3 = "",
+        c4 = "",
+        ,
+        ,
+        c7 = "",
+        c8 = "",
+      ] = cells;
+      nia = c0;
+      fullName = c1;
+      genderRaw = c2;
+      birthPlaceDate = c3;
+      address = c4;
+      rankRaw = c7;
+      rantingRaw = c8;
     } else {
       const [
         c0 = "",
@@ -174,21 +184,17 @@ function parsePasteLines(
         c4 = "",
         c5 = "",
         c6 = "",
-        c7 = "",
-        c8 = "",
       ] = cells;
       nia = c0;
       fullName = c1;
       genderRaw = c2;
       birthPlaceDate = c3;
       address = c4;
-      nik = c5;
-      phoneNumber = c6;
-      rankRaw = c7;
-      rantingRaw = c8;
+      rankRaw = c5;
+      rantingRaw = c6;
     }
 
-    if (!fullName.trim() && !nia.trim() && !nik.trim()) continue;
+    if (!fullName.trim() && !nia.trim()) continue;
 
     const gender =
       normalizeGenderStorage(genderRaw) ||
@@ -204,8 +210,6 @@ function parsePasteLines(
       gender,
       birthPlaceDate: birthPlaceDate.trim(),
       address: upper(address),
-      nik: nik.replace(/\D/g, "").slice(0, 16),
-      phoneNumber: phoneNumber.trim(),
       currentRank,
       dojoId: resolveDojoId(rantingRaw, dojos, defaultDojoId),
     });
@@ -233,17 +237,21 @@ export function AddMembersBulkDialog({
 }) {
   const router = useRouter();
   const [bulkDojoId, setBulkDojoId] = useState(defaultDojoId);
+  const [bulkRank, setBulkRank] = useState("");
   const [rows, setRows] = useState<BulkRow[]>(() =>
     Array.from({ length: 5 }, () => emptyRow(defaultDojoId)),
   );
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
+  const [progressPercent, setProgressPercent] = useState(0);
 
   useEffect(() => {
     if (open) {
       setBulkDojoId(defaultDojoId);
+      setBulkRank("");
       setRows(Array.from({ length: 5 }, () => emptyRow(defaultDojoId)));
       setProgress(null);
+      setProgressPercent(0);
       setLoading(false);
     }
   }, [open, defaultDojoId]);
@@ -268,11 +276,20 @@ export function AddMembersBulkDialog({
     setRows((prev) => prev.map((r) => ({ ...r, dojoId })));
   }
 
+  function applyRankToAll(rankRaw: string) {
+    const formatted =
+      formatRankLabel(rankRaw) || rankRaw.trim() || DEFAULT_MEMBER_RANK;
+    setBulkRank(formatted);
+    setRows((prev) => prev.map((r) => ({ ...r, currentRank: formatted })));
+  }
+
   function addRows(n = 5) {
     const dojo = bulkDojoId || defaultDojoId;
+    const rank =
+      formatRankLabel(bulkRank) || bulkRank.trim() || "";
     setRows((prev) => [
       ...prev,
-      ...Array.from({ length: n }, () => emptyRow(dojo)),
+      ...Array.from({ length: n }, () => emptyRow(dojo, rank)),
     ]);
   }
 
@@ -328,8 +345,6 @@ export function AddMembersBulkDialog({
       "L",
       "SURABAYA, 28 Februari 2011",
       "JL CONTOH 1",
-      "",
-      "081234567890",
       "Putih (Kyu 10)",
       sampleDojo,
     ].join(",");
@@ -356,14 +371,11 @@ export function AddMembersBulkDialog({
         showError(`Pilih ranting untuk ${r.fullName}`);
         return;
       }
-      if (r.nik && r.nik.length !== 16) {
-        showError(`NIK ${r.fullName} harus kosong atau 16 digit`);
-        return;
-      }
     }
 
     setLoading(true);
-    setProgress(`Menyimpan 0/${payloadRows.length}…`);
+    setProgressPercent(0);
+    setProgress(`Menyimpan 0/${payloadRows.length} (0%)`);
     try {
       const members = payloadRows.map((r) => {
         const parsedBirth = parseBirthPlaceAndDate(r.birthPlaceDate);
@@ -382,8 +394,6 @@ export function AddMembersBulkDialog({
           address: r.address.trim()
             ? r.address.trim().toUpperCase()
             : undefined,
-          nik: r.nik.trim() || undefined,
-          phoneNumber: r.phoneNumber.trim() || undefined,
           nia: r.nia.trim() ? r.nia.trim().toUpperCase() : undefined,
           currentRank:
             formatRankLabel(r.currentRank) ||
@@ -393,26 +403,14 @@ export function AddMembersBulkDialog({
         };
       });
 
-      setProgress(`Menyimpan ${members.length} anggota…`);
-      const res = await fetch("/api/admin/members/bulk-create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ members }),
+      const data = await postBulkCreateChunked(members, {
+        onProgress: (p) => {
+          setProgressPercent(p.percent);
+          setProgress(`Menyimpan ${p.done}/${p.total} (${p.percent}%)`);
+        },
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        message?: string;
-        okCount?: number;
-        failCount?: number;
-        results?: Array<{
-          index: number;
-          fullName: string;
-          ok: boolean;
-          error?: string;
-        }>;
-      };
 
-      if (!res.ok && !data.results) {
+      if (!data.results.length && !data.ok) {
         showError(data.error || "Gagal menyimpan massal");
         return;
       }
@@ -454,6 +452,7 @@ export function AddMembersBulkDialog({
     } finally {
       setLoading(false);
       setProgress(null);
+      setProgressPercent(0);
     }
   }
 
@@ -463,7 +462,9 @@ export function AddMembersBulkDialog({
         <DialogHeader>
           <DialogTitle>Input Massal Anggota</DialogTitle>
           <DialogDescription>
-            NIA &amp; NIK opsional. Jenis kelamin &amp; Kyu teks (bisa paste ke
+            NIA opsional. Isi{" "}
+            <span className="font-medium text-foreground">Kyu atau DAN</span> di
+            atas untuk mengisi semua baris. Jenis kelamin &amp; Kyu teks (bisa
             sel; kosong = Putih Kyu 10). Tempat &amp; tanggal lahir digabung,
             mis.{" "}
             <span className="font-medium text-foreground">
@@ -529,11 +530,51 @@ export function AddMembersBulkDialog({
             </p>
           )}
 
+          <div className="space-y-1">
+            <label className="text-[11px] text-muted-foreground">
+              Isi semua Kyu / DAN
+            </label>
+            <input
+              className="h-8 min-w-[180px] rounded-lg border border-input bg-background px-2 text-sm text-foreground"
+              value={bulkRank}
+              placeholder="mis. Kyu 5 atau DAN 1"
+              list="bulk-kyu-options"
+              autoComplete="off"
+              onChange={(e) => setBulkRank(e.target.value)}
+              onBlur={(e) => {
+                const raw = e.target.value.trim();
+                if (raw) applyRankToAll(raw);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const raw = bulkRank.trim();
+                  if (raw) applyRankToAll(raw);
+                }
+              }}
+              disabled={loading}
+            />
+          </div>
+
           <p className="text-xs text-muted-foreground">
             {filledCount} baris terisi · {rows.length} baris tabel
             {progress ? ` · ${progress}` : ""}
           </p>
         </div>
+
+        {loading ? (
+          <div className="space-y-1">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-inkai-red transition-[width] duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <p className="text-center text-[11px] text-muted-foreground">
+              {progress || "Menyimpan…"}
+            </p>
+          </div>
+        ) : null}
 
         <div
           className="min-h-0 flex-1 overflow-auto rounded-lg border"
@@ -647,36 +688,8 @@ export function AddMembersBulkDialog({
                   <td className="border-b px-1 py-1">
                     <input
                       className={`${cellClass} min-w-[9rem]`}
-                      value={row.nik}
-                      placeholder="16 digit"
-                      inputMode="numeric"
-                      maxLength={16}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          nik: e.target.value.replace(/\D/g, "").slice(0, 16),
-                        })
-                      }
-                      disabled={loading}
-                    />
-                  </td>
-                  <td className="border-b px-1 py-1">
-                    <input
-                      className={cellClass}
-                      value={row.phoneNumber}
-                      onChange={(e) =>
-                        updateRow(row.key, {
-                          phoneNumber: e.target.value,
-                        })
-                      }
-                      disabled={loading}
-                    />
-                  </td>
-                  <td className="border-b px-1 py-1">
-                    <input
-                      className={`${cellClass} min-w-[9rem]`}
                       value={row.currentRank}
                       placeholder="boleh kosong"
-                      list="bulk-kyu-options"
                       autoComplete="off"
                       onChange={(e) =>
                         updateRow(row.key, {
@@ -766,8 +779,7 @@ export function AddMembersBulkDialog({
 
         <DialogFooter className="gap-2 sm:justify-between">
           <p className="self-center text-xs text-muted-foreground">
-            Tip: pilih &quot;Isi semua ranting&quot; dulu, lalu tempel Excel
-            (Ctrl+V).
+            Tip: isi ranting &amp; Kyu/DAN dulu, lalu tempel Excel (Ctrl+V).
           </p>
           <div className="flex gap-2">
             <Button
@@ -786,7 +798,7 @@ export function AddMembersBulkDialog({
             >
               <Upload className="mr-1.5 h-4 w-4" />
               {loading
-                ? progress || "Menyimpan…"
+                ? progress || `Menyimpan… ${progressPercent}%`
                 : `Simpan ${filledCount} anggota`}
             </Button>
           </div>
