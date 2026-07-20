@@ -103,7 +103,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
-| Kelola Anggota | Cari **autocomplete**; kolom **No**; KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; nonaktif/bulk; CSV; arsip; Prisma scoped; **filter client-side** (`GET /api/admin/members`, tanpa RSC reload); KPI/dojo cache |
+| Kelola Anggota | Cari **autocomplete**; kolom **No**; KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; nonaktif/bulk; CSV; arsip; Prisma scoped; filter client-side; **Input Massal** (tabel NIA…Ranting, paste Excel, maks 50) |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Periode, daftar peserta, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran**, **arsip** |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
@@ -185,7 +185,7 @@ Pusat / Nasional
 ## 9. Alur bisnis yang sudah berjalan
 
 ### 9.1 Keanggotaan
-1. Calon anggota daftar via `/login?tab=daftar` — form **Identitas lengkap wajib** (nama, JK, tempat/tgl lahir, alamat, **NIK 16 digit**, telepon; **NIA tetap opsional**), **Sabuk**, **Akun**, **Dojo**. **Tambah Anggota** oleh ranting/cabang: NIK/NIA boleh kosong. Field teks identitas **huruf besar**; **tanggal lahir** bisa paste (mis. `28 Februari 2011`).
+1. Calon anggota daftar via `/login?tab=daftar` — form **Identitas lengkap wajib** (nama, JK, tempat/tgl lahir, alamat, **NIK 16 digit**, telepon; **NIA tetap opsional**), **Sabuk**, **Akun**, **Dojo**. **Tambah Anggota** oleh ranting/cabang: NIK/NIA boleh kosong. **Input Massal**: tabel NIA, Nama, JK, Tempat/Tgl Lahir, Alamat, NIK, Telepon, Kyu, Ranting (paste Excel/CSV, maks 50, `POST /api/admin/members/bulk-create`). Field teks identitas **huruf besar**; **tanggal lahir** bisa paste (mis. `28 Februari 2011`).
 2. `POST /api/auth/register` dan `POST /api/admin/members` meneruskan semua field anggota (termasuk NIA jika diisi) ke Inkai API.
 3. Status menunggu verifikasi (publik) atau aktif langsung (admin/ranting).
 4. **Deteksi duplikat** sebelum simpan: **keras** jika NIK, NIA, atau nama tepat + tanggal lahir sama (cakupan Cabang Surabaya); **lunak** jika nama mirip. Blok `POST /api/admin/members` & `POST /api/auth/register` (409); UI peringatan di form tambah anggota & daftar publik.
@@ -321,6 +321,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 ```
 /api/auth/*                 Login, register (+ identitas/sabuk lengkap), check-duplicate, forgot/reset password
 /api/admin/members          POST create; GET list+KPI counts (filter cepat client-side)
+/api/admin/members/bulk-create  Input massal tambah anggota (maks 50)
 /api/admin/members/[id]     Detail + aksi (approve/NIA/set_rank/set_dues/dokumen/nonaktif/hapus/restore/merge)
 /api/admin/members/bulk     Bulk nonaktif / approve / hapus-arsip (ARSIPKAN) / purge arsip (HAPUS) / restore
 /api/admin/members/archived Daftar arsip soft-delete
@@ -468,6 +469,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Fix NIA “sudah digunakan”: bentrok dengan arsip (mis. `25.34533` milik ABDUL AZIZ AL-AMIN); deteksi arsip + lepas NIA/NIK arsip saat tambah anggota |
 | 20 Juli 2026 | Fix pratinjau PDF Akte/BPJS: CSP izinkan `frame-src`/`object-src` `blob:` (Chrome “This content is blocked”) + tombol Tab baru |
 | 20 Juli 2026 | Percepat filter Kelola Anggota: client fetch `GET /api/admin/members` (bukan full RSC); cache KPI/dojo; query docs/NIA dirampingkan |
+| 20 Juli 2026 | Input Massal Tambah Anggota: tabel NIA…Ranting, template CSV, paste Excel, API `bulk-create` (maks 50) |
 
 ---
 

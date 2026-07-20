@@ -323,6 +323,7 @@ export function AnggotaBrowser({
           dojos={dojos}
           defaultDojoId={defaultDojoId}
           lockDojo={Boolean(singleLockedDojo)}
+          onMembersChanged={() => applyFilters({}, { resetPage: false })}
         />
         {canNormalize ? <NormalizeMembersButton /> : null}
         {canArchive ? (

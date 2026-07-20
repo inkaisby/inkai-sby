@@ -196,6 +196,14 @@ export const uktMemberCreateSchema = z.object({
 /** Alias semantik untuk create anggota dari Kelola Anggota / UKT */
 export const adminMemberCreateSchema = uktMemberCreateSchema;
 
+/** Input massal tambah anggota (maks 50 baris / request). */
+export const adminMemberBulkCreateSchema = z.object({
+  members: z
+    .array(uktMemberCreateSchema)
+    .min(1, "Minimal 1 baris")
+    .max(50, "Maksimal 50 anggota per unggah"),
+});
+
 export const uktBeltFeesSchema = z.object({
   PUTIH: z.coerce.number().int().min(0).max(10_000_000),
   KUNING: z.coerce.number().int().min(0).max(10_000_000),
