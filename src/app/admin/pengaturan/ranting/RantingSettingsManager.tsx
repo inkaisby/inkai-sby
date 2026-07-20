@@ -455,6 +455,8 @@ export function RantingSettingsManager({
             <Input
               value={form.phoneNumber}
               onChange={(e) => setField("phoneNumber", e.target.value)}
+              placeholder="08… atau dua nomor dipisah /"
+              maxLength={60}
             />
           </div>
           <div className="space-y-1.5">

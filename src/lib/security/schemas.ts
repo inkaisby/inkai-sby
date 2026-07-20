@@ -353,7 +353,12 @@ export const rantingCreateSchema = z.object({
   address: z.string().trim().max(300).optional().or(z.literal("")),
   kecamatan: z.string().trim().max(120).optional().or(z.literal("")),
   tempatLatihan: z.string().trim().max(200).optional().or(z.literal("")),
-  phoneNumber: z.string().trim().max(20).optional().or(z.literal("")),
+  phoneNumber: z
+    .string()
+    .trim()
+    .max(60, "Telepon maksimal 60 karakter (boleh beberapa nomor dipisah / atau ,)")
+    .optional()
+    .or(z.literal("")),
   schedule: z.string().trim().max(200).optional().or(z.literal("")),
   bankName: z.string().trim().max(80).optional().or(z.literal("")),
   bankAccountNumber: z.string().trim().max(40).optional().or(z.literal("")),
@@ -385,7 +390,12 @@ export const rantingUpdateSchema = z.object({
   address: z.string().trim().max(300).optional().or(z.literal("")),
   kecamatan: z.string().trim().max(120).optional().or(z.literal("")),
   tempatLatihan: z.string().trim().max(200).optional().or(z.literal("")),
-  phoneNumber: z.string().trim().max(20).optional().or(z.literal("")),
+  phoneNumber: z
+    .string()
+    .trim()
+    .max(60, "Telepon maksimal 60 karakter (boleh beberapa nomor dipisah / atau ,)")
+    .optional()
+    .or(z.literal("")),
   schedule: z.string().trim().max(200).optional().or(z.literal("")),
   bankName: z.string().trim().max(80).optional().or(z.literal("")),
   bankAccountNumber: z.string().trim().max(40).optional().or(z.literal("")),
