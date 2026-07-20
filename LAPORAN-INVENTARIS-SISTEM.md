@@ -477,6 +477,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Input Massal: paste Kyu 1 sel Excel tidak lagi jadi baris baru; placeholder Kyu “boleh kosong” |
 | 20 Juli 2026 | Input Massal: hapus kolom NIK/Telepon; **isi semua Kyu/DAN**; progress bar persentase saat simpan (chunk 5) |
 | 20 Juli 2026 | Input Massal: urutan Tempat&Tgl sebelum JK; lebar kolom disesuaikan (table-fixed) |
+| 20 Juli 2026 | Input Massal: angka Kyu (`4`) → `Biru (Kyu 4)`; lebar kolom diperlebar; error validasi lebih jelas; kirim `name` ke Inkai |
 
 ---
 

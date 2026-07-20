@@ -147,7 +147,58 @@ export function inkaiErrorMessage(
   data: Record<string, unknown>,
   fallback: string,
 ) {
-  if (typeof data.message === "string") return data.message;
-  if (typeof data.error === "string") return data.error;
+  if (typeof data.message === "string" && data.message.trim()) {
+    return friendlyInkaiValidationMessage(data.message);
+  }
+  if (typeof data.error === "string" && data.error.trim()) {
+    return friendlyInkaiValidationMessage(data.error);
+  }
+  // Zod-style issues dari Inkai: [{ path, message }]
+  const issues = data.issues ?? data.errors;
+  if (Array.isArray(issues) && issues.length > 0) {
+    const parts = issues
+      .map((issue) => {
+        if (!issue || typeof issue !== "object") return null;
+        const row = issue as { path?: unknown; message?: unknown };
+        const msg =
+          typeof row.message === "string" ? row.message.trim() : "";
+        if (!msg) return null;
+        const path = Array.isArray(row.path)
+          ? row.path.filter((p) => typeof p === "string" || typeof p === "number").join(".")
+          : "";
+        return friendlyInkaiValidationMessage(path ? `${path}: ${msg}` : msg);
+      })
+      .filter(Boolean);
+    if (parts.length > 0) return parts.join("; ");
+  }
   return fallback;
+}
+
+/** Ubah pesan validasi teknis Inkai/Zod jadi lebih mudah dibaca. */
+function friendlyInkaiValidationMessage(raw: string): string {
+  const text = raw.trim();
+  const lower = text.toLowerCase();
+
+  if (
+    /\bname\b/i.test(text) &&
+    (lower.includes("too small") || lower.includes("minimal") || lower.includes(">=2"))
+  ) {
+    return "Nama tidak valid (minimal 2 karakter). Periksa kolom Nama Lengkap.";
+  }
+  if (
+    /\bfullname\b/i.test(text) &&
+    (lower.includes("too small") || lower.includes(">=2"))
+  ) {
+    return "Nama tidak valid (minimal 2 karakter).";
+  }
+  if (
+    /\bcurrentrank\b/i.test(text) ||
+    (/\brank\b/i.test(text) && lower.includes("too small"))
+  ) {
+    return "Kyu/DAN tidak valid. Isi mis. Kyu 4, Biru, atau DAN 1.";
+  }
+  if (lower.includes("too small: expected string to have >=2 characters")) {
+    return "Ada field wajib yang terlalu pendek (minimal 2 karakter).";
+  }
+  return text;
 }

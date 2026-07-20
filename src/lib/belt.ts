@@ -65,6 +65,17 @@ export function formatRankLabel(rankRaw: string | null | undefined): string {
     if (byKyu) return byKyu;
   }
 
+  // Angka saja (mis. paste Excel "4" / "10") → Kyu N
+  if (/^\d{1,2}$/.test(r)) {
+    const n = Number(r);
+    if (n >= 1 && n <= 10) {
+      const byKyu = BELT_RANK_OPTIONS.find((opt) =>
+        new RegExp(`kyu\\s*${n}\\b`, "i").test(opt),
+      );
+      if (byKyu) return byKyu;
+    }
+  }
+
   const dan = r.match(/dan\s*(\d+)/i);
   if (dan) {
     const n = Number(dan[1]);

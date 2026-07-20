@@ -19,11 +19,32 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
+  // Normalisasi Kyu sebelum validasi (mis. "4" → "Biru (Kyu 4)").
+  if (body && typeof body === "object" && Array.isArray((body as { members?: unknown }).members)) {
+    const members = (body as { members: Array<Record<string, unknown>> }).members;
+    for (const m of members) {
+      if (!m || typeof m !== "object") continue;
+      const rawRank = typeof m.currentRank === "string" ? m.currentRank : "";
+      const formatted = formatRankLabel(rawRank) || rawRank.trim();
+      m.currentRank = formatted || DEFAULT_MEMBER_RANK;
+      if (typeof m.fullName === "string") {
+        m.fullName = m.fullName.trim().toUpperCase();
+      }
+    }
+  }
   const parsed = adminMemberBulkCreateSchema.safeParse(body);
   if (!parsed.success) {
-    const first = parsed.error.issues[0]?.message;
+    const issue = parsed.error.issues[0];
+    const path = issue?.path?.filter((p) => typeof p === "string" || typeof p === "number").join(".") || "";
+    const msg = issue?.message || "Data tidak valid";
     return NextResponse.json(
-      { error: first || "Data tidak valid" },
+      {
+        error: path.includes("currentRank")
+          ? "Kyu/DAN tidak valid. Isi mis. Kyu 4 atau DAN 1."
+          : path.includes("fullName")
+            ? "Nama minimal 2 karakter"
+            : msg,
+      },
       { status: 400 },
     );
   }

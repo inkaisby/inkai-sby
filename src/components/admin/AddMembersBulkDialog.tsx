@@ -612,18 +612,7 @@ export function AddMembersBulkDialog({
           className="min-h-0 flex-1 overflow-auto rounded-lg border"
           onPaste={handlePaste}
         >
-          <table className="w-full min-w-[56rem] table-fixed border-collapse text-left text-xs">
-            <colgroup>
-              <col className="w-8" />
-              <col className="w-[6.5rem]" />
-              <col className="w-[11rem]" />
-              <col className="w-[12.5rem]" />
-              <col className="w-[3.5rem]" />
-              <col />
-              <col className="w-[8rem]" />
-              <col className="w-[9rem]" />
-              <col className="w-9" />
-            </colgroup>
+          <table className="w-max min-w-full border-collapse text-left text-xs">
             <thead className="sticky top-0 z-10 bg-muted">
               <tr>
                 <th className="border-b px-1.5 py-2 font-medium">No</th>
@@ -659,7 +648,7 @@ export function AddMembersBulkDialog({
                   </td>
                   <td className="border-b px-1 py-1">
                     <input
-                      className={cellClass}
+                      className={`${cellClass} w-[7rem]`}
                       value={row.nia}
                       placeholder="opsional"
                       onChange={(e) =>
@@ -670,7 +659,7 @@ export function AddMembersBulkDialog({
                   </td>
                   <td className="border-b px-1 py-1">
                     <input
-                      className={cellClass}
+                      className={`${cellClass} w-[14rem]`}
                       value={row.fullName}
                       placeholder="WAJIB"
                       onChange={(e) =>
@@ -683,7 +672,7 @@ export function AddMembersBulkDialog({
                   </td>
                   <td className="border-b px-1 py-1">
                     <input
-                      className={cellClass}
+                      className={`${cellClass} w-[13rem]`}
                       value={row.birthPlaceDate}
                       placeholder="Surabaya, 28 Maret 2015"
                       onChange={(e) =>
@@ -707,7 +696,7 @@ export function AddMembersBulkDialog({
                   </td>
                   <td className="border-b px-1 py-1">
                     <input
-                      className={`${cellClass} text-center`}
+                      className={`${cellClass} w-[3rem] text-center`}
                       value={row.gender}
                       placeholder="L/P"
                       onChange={(e) =>
@@ -722,7 +711,7 @@ export function AddMembersBulkDialog({
                   </td>
                   <td className="border-b px-1 py-1">
                     <input
-                      className={cellClass}
+                      className={`${cellClass} w-[16rem]`}
                       value={row.address}
                       onChange={(e) =>
                         updateRow(row.key, {
@@ -734,7 +723,7 @@ export function AddMembersBulkDialog({
                   </td>
                   <td className="border-b px-1 py-1">
                     <input
-                      className={cellClass}
+                      className={`${cellClass} w-[9rem]`}
                       value={row.currentRank}
                       placeholder="boleh kosong"
                       autoComplete="off"
@@ -774,12 +763,12 @@ export function AddMembersBulkDialog({
                   </td>
                   <td className="border-b px-1 py-1">
                     {lockDojo && dojos.length === 1 ? (
-                      <span className="block truncate px-1.5 py-1.5 text-xs">
+                      <span className="block w-[11rem] truncate px-1.5 py-1.5 text-xs">
                         {dojos[0]?.name}
                       </span>
                     ) : (
                       <select
-                        className={cellClass}
+                        className={`${cellClass} w-[11rem]`}
                         value={row.dojoId}
                         onChange={(e) =>
                           updateRow(row.key, { dojoId: e.target.value })

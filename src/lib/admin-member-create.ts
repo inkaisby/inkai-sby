@@ -145,6 +145,8 @@ export async function createAdminMember(opts: {
 
   const payload: Record<string, unknown> = {
     fullName: input.fullName.toUpperCase(),
+    // Beberapa versi Inkai memvalidasi `name` (bukan hanya fullName).
+    name: input.fullName.toUpperCase(),
     gender: input.gender || null,
     birthPlace: input.birthPlace?.trim()
       ? input.birthPlace.trim().toUpperCase()

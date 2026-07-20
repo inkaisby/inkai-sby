@@ -170,7 +170,11 @@ export const uktRegistrationUpdateSchema = z.object({
 });
 
 export const uktMemberCreateSchema = z.object({
-  fullName: z.string().trim().min(2).max(100),
+  fullName: z
+    .string()
+    .trim()
+    .min(2, "Nama minimal 2 karakter")
+    .max(100, "Nama terlalu panjang"),
   gender: optionalBlankString(z.enum(["L", "P"])),
   birthPlace: optionalBlankString(z.string().trim().max(100)),
   birthDate: optionalBlankString(z.string()),
@@ -183,7 +187,13 @@ export const uktMemberCreateSchema = z.object({
   phoneNumber: optionalBlankString(
     z.string().trim().min(10, "Nomor telepon tidak valid").max(20),
   ),
-  currentRank: z.string().trim().min(2).max(64).optional(),
+  currentRank: optionalBlankString(
+    z
+      .string()
+      .trim()
+      .min(2, "Kyu/DAN tidak valid")
+      .max(64),
+  ),
   nia: optionalBlankString(
     z
       .string()
