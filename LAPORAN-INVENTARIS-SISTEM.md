@@ -480,6 +480,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Input Massal: angka Kyu (`4`) → `Biru (Kyu 4)`; lebar kolom diperlebar; error validasi lebih jelas; kirim `name` ke Inkai |
 | 20 Juli 2026 | Input Massal: progress % naik per anggota (chunk 1) + bar persentase lebih jelas |
 | 20 Juli 2026 | Fix KPI Total vs subtitle anggota: hapus cache 30s counts; `all` dari `count()`; samakan dengan total daftar |
+| 20 Juli 2026 | Input Massal: Isi semua Kyu/DAN = select langsung isi kolom; paste kosong tidak lagi default Putih jika sudah dipilih |
 
 ---
 

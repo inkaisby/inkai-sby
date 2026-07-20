@@ -233,7 +233,7 @@ function parsePasteLines(
       genderRaw.trim().toUpperCase() ||
       "";
     const currentRank =
-      formatRankLabel(rankRaw) || rankRaw.trim() || DEFAULT_MEMBER_RANK;
+      formatRankLabel(rankRaw) || rankRaw.trim() || "";
 
     rows.push({
       key: newKey(),
@@ -309,16 +309,19 @@ export function AddMembersBulkDialog({
   }
 
   function applyRankToAll(rankRaw: string) {
-    const formatted =
-      formatRankLabel(rankRaw) || rankRaw.trim() || DEFAULT_MEMBER_RANK;
+    const trimmed = rankRaw.trim();
+    if (!trimmed) {
+      setBulkRank("");
+      return;
+    }
+    const formatted = formatRankLabel(trimmed) || trimmed;
     setBulkRank(formatted);
     setRows((prev) => prev.map((r) => ({ ...r, currentRank: formatted })));
   }
 
   function addRows(n = 5) {
     const dojo = bulkDojoId || defaultDojoId;
-    const rank =
-      formatRankLabel(bulkRank) || bulkRank.trim() || "";
+    const rank = formatRankLabel(bulkRank) || bulkRank.trim() || "";
     setRows((prev) => [
       ...prev,
       ...Array.from({ length: n }, () => emptyRow(dojo, rank)),
@@ -355,7 +358,13 @@ export function AddMembersBulkDialog({
     if (!isTabular) return;
 
     const fallbackDojo = bulkDojoId || defaultDojoId;
-    const parsed = parsePasteLines(text, dojos, fallbackDojo);
+    const fallbackRank =
+      formatRankLabel(bulkRank) || bulkRank.trim() || "";
+    const parsed = parsePasteLines(text, dojos, fallbackDojo).map((row) => ({
+      ...row,
+      // Jika paste tanpa kolom Kyu, pakai "Isi semua Kyu/DAN" — jangan default Putih.
+      currentRank: row.currentRank.trim() || fallbackRank,
+    }));
     if (parsed.length === 0) return;
     e.preventDefault();
     setRows((prev) => {
@@ -430,6 +439,8 @@ export function AddMembersBulkDialog({
           currentRank:
             formatRankLabel(r.currentRank) ||
             r.currentRank.trim() ||
+            formatRankLabel(bulkRank) ||
+            bulkRank.trim() ||
             DEFAULT_MEMBER_RANK,
           dojoId: r.dojoId || bulkDojoId || defaultDojoId || undefined,
         };
@@ -498,23 +509,16 @@ export function AddMembersBulkDialog({
         <DialogHeader>
           <DialogTitle>Input Massal Anggota</DialogTitle>
           <DialogDescription>
-            NIA opsional. Isi{" "}
+            NIA opsional. Pilih{" "}
             <span className="font-medium text-foreground">Kyu atau DAN</span> di
             atas untuk mengisi semua baris. Jenis kelamin &amp; Kyu teks (bisa
-            sel; kosong = Putih Kyu 10). Tempat &amp; tanggal lahir digabung,
-            mis.{" "}
+            paste ke sel). Tempat &amp; tanggal lahir digabung, mis.{" "}
             <span className="font-medium text-foreground">
               Surabaya, 28 Maret 2015
             </span>
             . Tempel tabel dari Excel sesuai header. Maks 50 baris.
           </DialogDescription>
         </DialogHeader>
-
-        <datalist id="bulk-kyu-options">
-          {BELT_RANK_OPTIONS.map((rank) => (
-            <option key={rank} value={rank} />
-          ))}
-        </datalist>
 
         <div className="flex flex-wrap items-end gap-2">
           <Button
@@ -570,26 +574,19 @@ export function AddMembersBulkDialog({
             <label className="text-[11px] text-muted-foreground">
               Isi semua Kyu / DAN
             </label>
-            <input
+            <select
               className="h-8 min-w-[180px] rounded-lg border border-input bg-background px-2 text-sm text-foreground"
               value={bulkRank}
-              placeholder="mis. Kyu 5 atau DAN 1"
-              list="bulk-kyu-options"
-              autoComplete="off"
-              onChange={(e) => setBulkRank(e.target.value)}
-              onBlur={(e) => {
-                const raw = e.target.value.trim();
-                if (raw) applyRankToAll(raw);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  const raw = bulkRank.trim();
-                  if (raw) applyRankToAll(raw);
-                }
-              }}
+              onChange={(e) => applyRankToAll(e.target.value)}
               disabled={loading}
-            />
+            >
+              <option value="">Pilih Kyu / DAN…</option>
+              {BELT_RANK_OPTIONS.map((rank) => (
+                <option key={rank} value={rank}>
+                  {rank}
+                </option>
+              ))}
+            </select>
           </div>
 
           <p className="text-xs text-muted-foreground">
@@ -734,7 +731,7 @@ export function AddMembersBulkDialog({
                     <input
                       className={`${cellClass} w-[9rem]`}
                       value={row.currentRank}
-                      placeholder="boleh kosong"
+                      placeholder={bulkRank || "boleh kosong"}
                       autoComplete="off"
                       onChange={(e) =>
                         updateRow(row.key, {
@@ -762,10 +759,18 @@ export function AddMembersBulkDialog({
                         updateRow(row.key, { currentRank: formatted });
                       }}
                       onBlur={(e) => {
-                        const formatted =
-                          formatRankLabel(e.target.value) ||
-                          e.target.value.trim();
-                        updateRow(row.key, { currentRank: formatted });
+                        const raw = e.target.value.trim();
+                        if (!raw) {
+                          const fallback =
+                            formatRankLabel(bulkRank) || bulkRank.trim();
+                          if (fallback) {
+                            updateRow(row.key, { currentRank: fallback });
+                          }
+                          return;
+                        }
+                        updateRow(row.key, {
+                          currentRank: formatRankLabel(raw) || raw,
+                        });
                       }}
                       disabled={loading}
                     />
