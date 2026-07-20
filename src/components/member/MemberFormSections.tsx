@@ -22,6 +22,7 @@ export type MemberFormSuggestion = {
   fullName: string;
   nia?: string | null;
   dojoName?: string;
+  branchName?: string | null;
   currentRank?: string;
   status?: string;
   hasAccount?: boolean;
@@ -177,6 +178,7 @@ export function MemberIdentitySection({
                   {s.fullName}
                   {s.nia ? ` · ${s.nia}` : " · tanpa NIA"}
                   {s.dojoName ? ` · ${s.dojoName}` : ""}
+                  {s.branchName ? ` · ${s.branchName}` : ""}
                   {s.isArchived ? " · ARSIP" : ""}
                   {s.status && !s.isArchived ? ` · ${s.status}` : ""}
                   {s.hasAccount === false ? " · belum punya akun" : ""}

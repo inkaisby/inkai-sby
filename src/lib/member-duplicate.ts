@@ -36,7 +36,10 @@ type Row = {
   isDeleted: boolean;
   birthDate: Date | null;
   userId: string | null;
-  dojo: { name: string } | null;
+  dojo: {
+    name: string;
+    branch: { name: string } | null;
+  } | null;
 };
 
 function toHit(row: Row, reasons: DuplicateMatchReason[]): DuplicateHit {
@@ -47,6 +50,7 @@ function toHit(row: Row, reasons: DuplicateMatchReason[]): DuplicateHit {
     nia: row.nia,
     status: row.status,
     dojoName: row.dojo?.name ?? null,
+    branchName: row.dojo?.branch?.name ?? null,
     hasAccount: Boolean(row.userId),
     isArchived: row.isDeleted,
     reasons,
@@ -73,13 +77,38 @@ const memberSelect = {
   isDeleted: true,
   birthDate: true,
   userId: true,
-  dojo: { select: { name: true } },
+  dojo: {
+    select: {
+      name: true,
+      branch: { select: { name: true } },
+    },
+  },
 } as const;
 
 /**
- * Cari duplikat anggota di Cabang Surabaya.
- * Keras: NIK, NIA, atau nama tepat + tanggal lahir (termasuk arsip untuk NIK/NIA).
- * Lunak: kemiripan nama aktif (untuk peringatan UI).
+ * Cari pemilik NIA di seluruh sistem (unik global di Inkai), termasuk arsip.
+ */
+export async function findMembersByNia(
+  niaRaw: string,
+  excludeMemberId?: string | null,
+): Promise<DuplicateHit[]> {
+  const nia = niaRaw.trim().toUpperCase();
+  if (nia.length < 2) return [];
+  const rows = await prisma.member.findMany({
+    where: {
+      nia: { equals: nia, mode: "insensitive" },
+      ...(excludeMemberId ? { id: { not: excludeMemberId } } : {}),
+    },
+    select: memberSelect,
+    take: 5,
+  });
+  return rows.map((row) => toHit(row, ["NIA"]));
+}
+
+/**
+ * Cari duplikat anggota.
+ * NIK/NIA: cakupan global (unique di Inkai) termasuk arsip.
+ * Nama+TTL / nama: cakupan Cabang Surabaya.
  */
 export async function findMemberDuplicates(
   input: DuplicateCheckInput,
@@ -90,7 +119,7 @@ export async function findMemberDuplicates(
   const birthRange = input.birthDate ? birthDateDayRange(input.birthDate) : null;
   const excludeId = input.excludeMemberId?.trim() || undefined;
 
-  const scopeWhere = {
+  const surabayaWhere = {
     dojo: surabayaDojoWhere,
     ...(excludeId ? { id: { not: excludeId } } : {}),
   };
@@ -98,9 +127,12 @@ export async function findMemberDuplicates(
   const map = new Map<string, DuplicateHit>();
 
   if (nik && /^\d{16}$/.test(nik)) {
-    // NIK unik juga di arsip — Inkai tetap menolak jika nomor masih terpakai.
+    // NIK unik global — termasuk arsip & lintas cabang.
     const rows = await prisma.member.findMany({
-      where: { ...scopeWhere, nik },
+      where: {
+        nik,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
       select: memberSelect,
       take: 5,
     });
@@ -108,21 +140,25 @@ export async function findMemberDuplicates(
   }
 
   if (nia.length >= 2) {
-    const rows = await prisma.member.findMany({
-      where: {
-        ...scopeWhere,
-        nia: { equals: nia, mode: "insensitive" },
-      },
-      select: memberSelect,
-      take: 5,
-    });
-    for (const row of rows) mergeHits(map, row, ["NIA"]);
+    const hits = await findMembersByNia(nia, excludeId);
+    for (const hit of hits) {
+      const existing = map.get(hit.id);
+      if (!existing) {
+        map.set(hit.id, hit);
+      } else {
+        map.set(hit.id, {
+          ...existing,
+          reasons: Array.from(new Set([...existing.reasons, "NIA" as const])),
+          severity: "hard",
+        });
+      }
+    }
   }
 
   if (fullName.length >= 2 && birthRange) {
     const rows = await prisma.member.findMany({
       where: {
-        ...scopeWhere,
+        ...surabayaWhere,
         fullName: { equals: fullName, mode: "insensitive" },
         birthDate: { gte: birthRange.gte, lt: birthRange.lt },
       },
@@ -135,7 +171,7 @@ export async function findMemberDuplicates(
   if (fullName.length >= 3) {
     const rows = await prisma.member.findMany({
       where: {
-        ...scopeWhere,
+        ...surabayaWhere,
         isDeleted: false,
         fullName: { contains: fullName, mode: "insensitive" },
       },
@@ -200,4 +236,24 @@ export async function releaseIdentifiersFromArchivedMembers(opts: {
       );
     }
   }
+}
+
+/** Perkaya pesan error Inkai "NIA sudah digunakan" dengan nama pemilik. */
+export async function enrichNiaConflictError(
+  rawError: string,
+  nia: string | undefined,
+  knownHits: DuplicateHit[] = [],
+): Promise<string> {
+  if (!nia || !/nia/i.test(rawError)) return rawError;
+
+  let hits = knownHits.filter((h) => h.reasons.includes("NIA"));
+  if (hits.length === 0) {
+    hits = await findMembersByNia(nia);
+  }
+  if (hits.length === 0) {
+    return `${rawError} (NIA ${nia.trim().toUpperCase()} — pemilik tidak ditemukan di database lokal; cek arsip / cabang lain di Inkai).`;
+  }
+
+  const { formatDuplicateError } = await import("@/lib/member-duplicate-utils");
+  return formatDuplicateError(hits, "admin");
 }

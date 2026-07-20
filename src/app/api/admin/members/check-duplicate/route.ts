@@ -43,6 +43,7 @@ export async function GET(request: Request) {
       fullName: d.fullName,
       nia: d.nia,
       dojoName: d.dojoName,
+      branchName: d.branchName,
       status: d.status,
       hasAccount: d.hasAccount,
       isArchived: d.isArchived,

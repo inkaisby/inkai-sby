@@ -33,6 +33,7 @@ describe("formatDuplicateError", () => {
     nia: null,
     status: "Active",
     dojoName: "Dojo A",
+    branchName: "SURABAYA",
     hasAccount: false,
     isArchived: false,
     reasons: ["NIK", "NAME_BIRTHDATE"],
@@ -56,12 +57,28 @@ describe("formatDuplicateError", () => {
       ...hit,
       fullName: "ABDUL AZIZ AL-AMIN",
       nia: "25.34533",
+      dojoName: "DOJO PUSAT MANGGALA",
+      branchName: "JAKARTA PUSAT",
       isArchived: true,
       reasons: ["NIA"],
       status: "INACTIVE",
     };
     const msg = formatDuplicateError([archived], "admin");
-    expect(msg).toContain("arsip");
+    expect(msg).toContain("25.34533");
     expect(msg).toContain("ABDUL AZIZ AL-AMIN");
+    expect(msg).toContain("DOJO PUSAT MANGGALA");
+    expect(msg).toContain("ARSIP");
+  });
+
+  it("names the NIA holder for active members", () => {
+    const active: DuplicateHit = {
+      ...hit,
+      nia: "25.34533",
+      reasons: ["NIA"],
+      hasAccount: true,
+    };
+    const msg = formatDuplicateError([active], "admin");
+    expect(msg).toContain("NIA 25.34533");
+    expect(msg).toContain("BUDI SANTOSO");
   });
 });

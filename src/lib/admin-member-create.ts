@@ -17,6 +17,7 @@ import { getClientIp } from "@/lib/security/request";
 import {
   activeHardDuplicates,
   archivedIdentityConflicts,
+  enrichNiaConflictError,
   findMemberDuplicates,
   formatDuplicateError,
   releasableArchivedIdConflicts,
@@ -122,6 +123,7 @@ export async function createAdminMember(opts: {
   }
 
   const releasable = releasableArchivedIdConflicts(duplicates);
+  const knownNiaHits = duplicates.filter((h) => h.reasons.includes("NIA"));
   if (releasable.length > 0) {
     try {
       await releaseIdentifiersFromArchivedMembers({
@@ -167,10 +169,12 @@ export async function createAdminMember(opts: {
 
   if (!res.ok) {
     const rawError = inkaiErrorMessage(data, "Gagal membuat anggota");
-    // Fallback: Inkai menolak NIA yang masih dipegang arsip (deteksi lokal terlewat).
+    // Fallback: Inkai menolak NIA yang masih dipegang (lokal/arsip/lintas cabang).
     if (nia && /nia/i.test(rawError)) {
       const again = await findMemberDuplicates({ nia });
-      const release = releasableArchivedIdConflicts(again);
+      const release = releasableArchivedIdConflicts(
+        again.length > 0 ? again : knownNiaHits,
+      );
       if (release.length > 0) {
         try {
           await releaseIdentifiersFromArchivedMembers({
@@ -201,17 +205,19 @@ export async function createAdminMember(opts: {
           console.error("[createAdminMember:niaRetry]", err);
         }
       }
-      const archived = again.filter((h) => h.isArchived && h.reasons.includes("NIA"));
-      if (archived.length > 0) {
-        return NextResponse.json(
-          {
-            error: formatDuplicateError(archived, "admin"),
-            duplicates: archived,
-            code: "DUPLICATE_ARCHIVED_NIA",
-          },
-          { status: 409 },
-        );
-      }
+      const enriched = await enrichNiaConflictError(
+        rawError,
+        nia,
+        again.length > 0 ? again : knownNiaHits,
+      );
+      return NextResponse.json(
+        {
+          error: enriched,
+          duplicates: again.length > 0 ? again : knownNiaHits,
+          code: "DUPLICATE_NIA",
+        },
+        { status: 409 },
+      );
     }
     return NextResponse.json(
       { error: rawError },

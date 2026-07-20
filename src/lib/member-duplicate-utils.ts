@@ -6,6 +6,8 @@ export type DuplicateHit = {
   nia: string | null;
   status: string;
   dojoName: string | null;
+  /** Cabang dojo (untuk bentrok NIA lintas cabang). */
+  branchName: string | null;
   hasAccount: boolean;
   /** Soft-delete / arsip — tidak tampil di daftar aktif. */
   isArchived: boolean;
@@ -46,15 +48,24 @@ export function formatDuplicateError(
     })
     .join(", ");
 
-  const who = primary.dojoName
-    ? `${primary.fullName} (${primary.dojoName})`
-    : primary.fullName;
-  const status = primary.status ? ` · status ${primary.status}` : "";
+  const whoParts = [primary.fullName];
+  if (primary.dojoName) whoParts.push(primary.dojoName);
+  if (primary.branchName) whoParts.push(primary.branchName);
+  const who = whoParts.length > 1 ? `${whoParts[0]} (${whoParts.slice(1).join(" · ")})` : whoParts[0]!;
+  const status = primary.isArchived
+    ? " · ARSIP"
+    : primary.status
+      ? ` · status ${primary.status}`
+      : "";
+  const niaLabel =
+    primary.reasons.includes("NIA") && primary.nia
+      ? `NIA ${primary.nia}`
+      : reasonLabel || "Identitas";
 
   if (primary.isArchived) {
     if (context === "public") {
       return (
-        `Data dengan ${reasonLabel || "identitas"} ini sudah ada di arsip pengurus (${who}). ` +
+        `Data dengan ${niaLabel} ini sudah ada di arsip pengurus (${who}). ` +
         "Jangan daftar ulang — hubungi ketua ranting/cabang."
       );
     }
@@ -66,8 +77,8 @@ export function formatDuplicateError(
       );
     }
     return (
-      `${reasonLabel || "Identitas"} masih terpakai di arsip: ${who}${status}. ` +
-      "Buka Kelola Anggota → Lihat arsip, atau simpan lagi — sistem akan melepas NIA/NIK dari arsip bila hanya bentrok nomor."
+      `${niaLabel} masih dipakai oleh ${who}${status}. ` +
+      "Buka arsip anggota tersebut, atau simpan lagi agar sistem melepas NIA/NIK dari arsip bila hanya bentrok nomor."
     );
   }
 
@@ -83,6 +94,14 @@ export function formatDuplicateError(
       `Anda sudah terdaftar (${who}${status}` +
       `${reasonLabel ? ` · cocok ${reasonLabel}` : ""}). ` +
       "Silakan login, atau hubungi admin jika menunggu verifikasi / perlu digabung."
+    );
+  }
+
+  if (primary.reasons.includes("NIA") && primary.nia) {
+    return (
+      `NIA ${primary.nia} sudah digunakan oleh ${who}${status}` +
+      `${primary.hasAccount ? " · sudah punya akun" : ""}. ` +
+      "Ganti NIA atau periksa data anggota tersebut."
     );
   }
 

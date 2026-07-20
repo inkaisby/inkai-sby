@@ -470,6 +470,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 20 Juli 2026 | Fix pratinjau PDF Akte/BPJS: CSP izinkan `frame-src`/`object-src` `blob:` (Chrome “This content is blocked”) + tombol Tab baru |
 | 20 Juli 2026 | Percepat filter Kelola Anggota: client fetch `GET /api/admin/members` (bukan full RSC); cache KPI/dojo; query docs/NIA dirampingkan |
 | 20 Juli 2026 | Input Massal Tambah Anggota: tabel NIA…Ranting, template CSV, paste Excel, API `bulk-create` (maks 50) |
+| 20 Juli 2026 | Fix error NIA: cari pemilik global (bukan hanya Surabaya); pesan sebut nama+dojo+cabang+ARSIP (mis. ABDUL AZIZ · JAKARTA) |
 
 ---
 
