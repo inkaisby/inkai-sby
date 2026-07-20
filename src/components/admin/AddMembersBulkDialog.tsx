@@ -438,7 +438,11 @@ export function AddMembersBulkDialog({
       const data = await postBulkCreateChunked(members, {
         onProgress: (p) => {
           setProgressPercent(p.percent);
-          setProgress(`Menyimpan ${p.done}/${p.total} (${p.percent}%)`);
+          setProgress(
+            p.percent >= 100
+              ? `Selesai ${p.done}/${p.total} (100%)`
+              : `Menyimpan ${p.done}/${p.total} (${p.percent}%)`,
+          );
         },
       });
 
@@ -595,16 +599,21 @@ export function AddMembersBulkDialog({
         </div>
 
         {loading ? (
-          <div className="space-y-1">
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div className="space-y-1.5 rounded-lg border border-inkai-red/30 bg-inkai-red/5 px-3 py-2">
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <span className="font-medium text-foreground">
+                {progress || "Menyimpan…"}
+              </span>
+              <span className="tabular-nums font-semibold text-inkai-red">
+                {progressPercent}%
+              </span>
+            </div>
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-inkai-red transition-[width] duration-300"
-                style={{ width: `${progressPercent}%` }}
+                className="h-full rounded-full bg-inkai-red transition-[width] duration-200 ease-out"
+                style={{ width: `${Math.max(progressPercent, 2)}%` }}
               />
             </div>
-            <p className="text-center text-[11px] text-muted-foreground">
-              {progress || "Menyimpan…"}
-            </p>
           </div>
         ) : null}
 

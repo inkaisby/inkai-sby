@@ -9,8 +9,8 @@ export const BULK_MEMBER_CHUNK_SIZE = 50;
 /** Chunk lebih kecil untuk hapus permanen (banyak relasi per anggota). */
 export const BULK_PURGE_CHUNK_SIZE = 25;
 
-/** Chunk input massal tambah anggota — progress UI update per chunk. */
-export const BULK_CREATE_CHUNK_SIZE = 5;
+/** Chunk input massal tambah anggota — 1 per request agar progress % naik per baris. */
+export const BULK_CREATE_CHUNK_SIZE = 1;
 
 /** Jeda singkat antar chunk (hampir nol — sinkron lokal sudah cepat). */
 const CHUNK_PAUSE_MS = 50;
@@ -232,6 +232,22 @@ export async function postBulkCreateChunked(
     const chunk = chunks[chunkIdx]!;
     const baseIndex = chunkIdx * chunkSize;
 
+    // Progress "sedang memproses" sebelum request — agar UI tidak stuck di 0%.
+    const processing = Math.min(baseIndex + chunk.length, total);
+    const startedPercent =
+      total === 0
+        ? 100
+        : Math.min(99, Math.round((baseIndex / total) * 100));
+    opts?.onProgress?.({
+      done: processing,
+      total,
+      percent: startedPercent,
+      okCount,
+      failCount,
+    });
+    // Yield ke browser agar progress bar ter-render sebelum fetch.
+    await sleep(0);
+
     const res = await fetch("/api/admin/members/bulk-create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -284,6 +300,8 @@ export async function postBulkCreateChunked(
       okCount,
       failCount,
     });
+    // Biarkan React paint (1/3 → 33%, dst.) sebelum anggota berikutnya.
+    await sleep(16);
 
     if (chunkIdx < chunks.length - 1 && pauseMs > 0) {
       await sleep(pauseMs);
