@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { showError, showSuccess } from "@/lib/client-toast";
+import {
+  compressUploadFile,
+  DOCUMENT_COMPRESS_MAX_BYTES,
+} from "@/lib/compress-image";
 import { CheckCircle2, Loader2, Trash2, Upload } from "lucide-react";
 
 export function FileUploadField({
@@ -17,6 +21,8 @@ export function FileUploadField({
   hint,
   /** Sembunyikan URL di input (dokumen anggota — cegah bocor URL Blob). */
   hideUrl = false,
+  /** Kompres otomatis ke ~150 KB sebelum unggah (dokumen Akte/BPJS). */
+  compressToMaxBytes,
 }: {
   label: string;
   value?: string;
@@ -27,17 +33,27 @@ export function FileUploadField({
   accept?: string;
   hint?: string;
   hideUrl?: boolean;
+  compressToMaxBytes?: number;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const hasFile = Boolean(value?.trim());
+  const shouldCompress =
+    compressToMaxBytes != null ||
+    folder.startsWith("members/akte") ||
+    folder.startsWith("members/bpjs");
+  const maxBytes = compressToMaxBytes ?? DOCUMENT_COMPRESS_MAX_BYTES;
 
   async function handleFile(file: File | null) {
     if (!file) return;
     setUploading(true);
     try {
+      let toUpload = file;
+      if (shouldCompress) {
+        toUpload = await compressUploadFile(file, maxBytes);
+      }
       const body = new FormData();
-      body.set("file", file);
+      body.set("file", toUpload);
       body.set("folder", folder);
       const res = await fetch("/api/admin/upload", { method: "POST", body });
       const data = await res.json().catch(() => ({}));
@@ -48,7 +64,14 @@ export function FileUploadField({
       const url = String(data.url);
       onChange(url);
       onUploaded?.(url);
-      showSuccess("File berhasil diunggah");
+      const kb = Math.round(toUpload.size / 1024);
+      showSuccess(
+        shouldCompress
+          ? `Dokumen diunggah (${kb} KB)`
+          : "File berhasil diunggah",
+      );
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Gagal mengunggah");
     } finally {
       setUploading(false);
     }
@@ -88,7 +111,7 @@ export function FileUploadField({
           accept={accept}
           className="hidden"
           onChange={(e) => {
-            handleFile(e.target.files?.[0] ?? null);
+            void handleFile(e.target.files?.[0] ?? null);
             e.target.value = "";
           }}
         />

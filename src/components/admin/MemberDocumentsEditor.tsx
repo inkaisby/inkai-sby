@@ -139,7 +139,9 @@ export function MemberDocumentsEditor({
           value={akte}
           folder="members/akte"
           hideUrl
-          hint="PDF atau gambar, maks. 8 MB — unggah langsung tersimpan"
+          compressToMaxBytes={150 * 1024}
+          accept="image/jpeg,image/png,image/webp,application/pdf"
+          hint="Foto/scan otomatis dikompres maks. 150 KB (PDF hanya jika sudah ≤150 KB)"
           onChange={setAkte}
           onUploaded={(url) => void uploadAndSave("birthCertificateUrl", url)}
         />
@@ -163,7 +165,9 @@ export function MemberDocumentsEditor({
           value={bpjs}
           folder="members/bpjs"
           hideUrl
-          hint="PDF atau gambar, maks. 8 MB — unggah langsung tersimpan"
+          compressToMaxBytes={150 * 1024}
+          accept="image/jpeg,image/png,image/webp,application/pdf"
+          hint="Foto/scan otomatis dikompres maks. 150 KB (PDF hanya jika sudah ≤150 KB)"
           onChange={setBpjs}
           onUploaded={(url) => void uploadAndSave("bpjsCardUrl", url)}
         />
