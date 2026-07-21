@@ -81,6 +81,7 @@ import {
   BELT_FEE_KEYS,
   buildUktCabangWaReportText,
   buildUktRantingWaReportText,
+  resolveUktWaDojoLabel,
   canApplyUktKyuBaru,
   computeUktOperationalKpi,
   formatUktRegistrationBlockers,
@@ -212,6 +213,8 @@ type Props = {
   createMode?: boolean;
   dbError?: string | null;
   defaultDojoFilter?: string;
+  /** Nama ranting utama sesuai akun login (ADMIN_DOJO). */
+  loginDojoName?: string;
   beltFees: Record<BeltFeeKey, number>;
   komisiRanting: number;
   /** Biaya UI berasal dari snapshot period-meta (bukan template global). */
@@ -1278,8 +1281,8 @@ export function UktDashboard(props: Props) {
       return;
     }
 
-    // Admin cabang (semua ranting): daftar peserta dikelompokkan per ranting
-    if (!effectiveDojo && isCabang) {
+    // Admin cabang: selalu format ringkas (Total Ranting / List / Jumlah kyu)
+    if (isCabang) {
       const text = buildUktCabangWaReportText(title, approved);
       navigator.clipboard.writeText(text).then(
         () => toast.success("Laporan WA per ranting disalin — tempel di WhatsApp"),
@@ -1288,9 +1291,12 @@ export function UktDashboard(props: Props) {
       return;
     }
 
-    const dojoName = effectiveDojo
-      ? props.dojos.find((d) => d.id === effectiveDojo)?.name || "Ranting"
-      : "Semua Ranting";
+    const dojoName = resolveUktWaDojoLabel({
+      effectiveDojoId: effectiveDojo,
+      dojos: props.dojos,
+      approvedRows: approved,
+      loginDojoName: props.loginDojoName,
+    });
     const text = buildUktRantingWaReportText(title, dojoName, approved);
     navigator.clipboard.writeText(text).then(
       () => toast.success("Laporan WA disalin — tempel di WhatsApp"),

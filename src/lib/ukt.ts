@@ -1069,6 +1069,44 @@ function compareWaRankBuckets(a: string, b: string): number {
   return a.localeCompare(b, "id");
 }
 
+/**
+ * Label ranting untuk Laporan WA — jangan pakai "Semua Ranting" saat login ranting.
+ * Urutan: filter aktif → nama unik peserta → dojo tunggal di scope → fallback login.
+ */
+export function resolveUktWaDojoLabel(opts: {
+  effectiveDojoId?: string | null;
+  dojos: Array<{ id: string; name: string }>;
+  approvedRows: UktMemberRow[];
+  loginDojoName?: string | null;
+}): string {
+  const dojoId = opts.effectiveDojoId?.trim() || "";
+  if (dojoId) {
+    const fromList = opts.dojos.find((d) => d.id === dojoId)?.name?.trim();
+    if (fromList) return fromList;
+    const fromRow = opts.approvedRows
+      .find((r) => r.dojoId === dojoId)
+      ?.dojoName?.trim();
+    if (fromRow) return fromRow;
+  }
+
+  const fromRows = [
+    ...new Set(
+      opts.approvedRows
+        .map((r) => r.dojoName?.trim())
+        .filter((n): n is string => Boolean(n)),
+    ),
+  ];
+  if (fromRows.length === 1) return fromRows[0];
+  if (opts.dojos.length === 1) return opts.dojos[0].name.trim() || "Ranting";
+  const login = opts.loginDojoName?.trim();
+  if (login) return login;
+  if (fromRows.length > 1) return fromRows.join(", ");
+  if (opts.dojos.length > 0) {
+    return opts.dojos.map((d) => d.name.trim()).filter(Boolean).join(", ") || "Ranting";
+  }
+  return "Ranting";
+}
+
 /** Laporan WA satu ranting (peserta + total pembayaran). */
 export function buildUktRantingWaReportText(
   periodTitle: string,

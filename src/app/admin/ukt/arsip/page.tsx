@@ -19,6 +19,7 @@ import { fetchUktDashboardData } from "@/lib/inkai-api/admin-data";
 import { getBranchOrgProfile } from "@/lib/org-settings";
 import { getUktRegistrationPolicy } from "@/lib/ukt-registration-policy";
 import { requireAdminSession } from "@/lib/admin-session";
+import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
@@ -128,14 +129,21 @@ async function UktArsipPageContent({ searchParams }: { searchParams: SearchParam
     dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
   }
 
+  const managedDojoIds = getManagedDojoIdsFromUser(user);
   const autoDojoId =
-    primaryRole === "ADMIN_DOJO" && user.managedDojoIds?.length === 1
-      ? user.managedDojoIds[0]
-      : primaryRole === "ADMIN_DOJO" &&
-          (!user.managedDojoIds || user.managedDojoIds.length <= 1) &&
-          user.managedDojoId
-        ? user.managedDojoId
-        : "";
+    primaryRole === "ADMIN_DOJO" && managedDojoIds.length === 1
+      ? managedDojoIds[0]
+      : "";
+  const loginDojoId =
+    primaryRole === "ADMIN_DOJO"
+      ? (user.managedDojoId && managedDojoIds.includes(user.managedDojoId)
+          ? user.managedDojoId
+          : managedDojoIds[0] || user.managedDojoId || "")
+      : "";
+  const loginDojoName =
+    loginDojoId
+      ? dojos.find((d) => d.id === loginDojoId)?.name || ""
+      : "";
 
   const canCreatePeriod = canCreateEventsByWilayah(user.roles);
 
@@ -160,6 +168,7 @@ async function UktArsipPageContent({ searchParams }: { searchParams: SearchParam
         canCreatePeriod={canCreatePeriod}
         dbError={dbError}
         defaultDojoFilter={autoDojoId}
+        loginDojoName={loginDojoName}
         beltFees={beltFees}
         komisiRanting={komisiRanting}
         feesFromSnapshot={feesFromSnapshot}
