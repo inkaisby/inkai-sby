@@ -495,19 +495,6 @@ export async function DELETE(request: Request, context: RouteContext) {
     billingId = linkedBilling?.id ? String(linkedBilling.id) : null;
   }
 
-  const { res, data } = await inkaiFetch(
-    `/v1/events/register/${id}`,
-    { method: "DELETE" },
-    authResult.token,
-  );
-
-  if (!res.ok) {
-    return NextResponse.json(
-      { error: inkaiErrorMessage(data, "Gagal membatalkan pendaftaran") },
-      { status: res.status },
-    );
-  }
-
   if (billingId) {
     const { res: billingRes, data: billingData } = await inkaiFetch(
       `/v1/billing/${billingId}`,
@@ -525,6 +512,26 @@ export async function DELETE(request: Request, context: RouteContext) {
         { status: billingRes.status },
       );
     }
+  }
+
+  const { res, data } = await inkaiFetch(
+    `/v1/events/register/${id}`,
+    { method: "DELETE" },
+    authResult.token,
+  );
+
+  if (!res.ok) {
+    return NextResponse.json(
+      {
+        error: inkaiErrorMessage(
+          data,
+          billingId
+            ? "Tagihan UKT sudah dihapus, tetapi pendaftaran gagal dihapus"
+            : "Gagal membatalkan pendaftaran",
+        ),
+      },
+      { status: res.status },
+    );
   }
 
   writeAuditLog({
