@@ -359,6 +359,13 @@ export function UktDashboard(props: Props) {
     () => buildUktDepositReconciliation(rows, props.dojos, depositMap),
     [rows, props.dojos, depositMap],
   );
+  const cancelRow = useMemo(
+    () =>
+      cancelTarget?.id
+        ? rows.find((row) => row.registrationId === cancelTarget.id) ?? null
+        : null,
+    [rows, cancelTarget],
+  );
 
   useEffect(() => {
     if (isDojoAdmin) setCompactView(true);
@@ -1121,7 +1128,10 @@ export function UktDashboard(props: Props) {
           kyuBaru: null,
         });
       }
-      toast.success("Peserta berhasil dibatalkan dari UKT");
+      toast.success(
+        data.message ||
+          "Peserta berhasil dihapus dari UKT beserta tagihan terkait",
+      );
       setCancelTarget(null);
       setSelectedMember(null);
     } catch (e) {
@@ -2725,10 +2735,16 @@ export function UktDashboard(props: Props) {
       <Dialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Batalkan Pendaftaran UKT?</DialogTitle>
+            <DialogTitle>Hapus Pendaftaran UKT?</DialogTitle>
             <DialogDescription>
               Peserta <strong>{cancelTarget?.name}</strong> akan dihapus dari daftar UKT periode ini.
-              Tagihan yang belum lunas ikut dibatalkan. Tindakan ini tidak dapat dibatalkan.
+              {" "}
+              {cancelRow?.billingId
+                ? cancelRow.billingStatus === "PAID" || cancelRow.status === "PAID"
+                  ? "Tagihan UKT yang sudah lunas juga akan ikut dihapus."
+                  : "Tagihan UKT yang belum lunas juga akan ikut dihapus."
+                : "Jika ada tagihan UKT terkait, tagihan tersebut juga akan ikut dihapus."}{" "}
+              Tindakan ini tidak dapat dibatalkan.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -2740,7 +2756,7 @@ export function UktDashboard(props: Props) {
               onClick={() => cancelTarget && handleCancelRegistration(cancelTarget.id)}
               disabled={loading}
             >
-              Ya, Batalkan
+              Ya, Hapus
             </Button>
           </DialogFooter>
         </DialogContent>

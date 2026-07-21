@@ -477,6 +477,23 @@ export async function DELETE(request: Request, context: RouteContext) {
   }
 
   const { id } = await context.params;
+  let billingId: string | null = null;
+
+  const { res: getRes, data: getData } = await inkaiFetch(
+    `/v1/events/register/${id}`,
+    {},
+    authResult.token,
+  );
+  if (getRes.ok) {
+    const registration = (getData.data as Record<string, unknown>) ?? {};
+    const member = registration.member as
+      | { billings?: Array<{ id?: string; registrationId?: string | null }> }
+      | undefined;
+    const billings = member?.billings ?? [];
+    const linkedBilling =
+      billings.find((billing) => String(billing.registrationId ?? "") === id) ?? billings[0];
+    billingId = linkedBilling?.id ? String(linkedBilling.id) : null;
+  }
 
   const { res, data } = await inkaiFetch(
     `/v1/events/register/${id}`,
@@ -491,15 +508,39 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 
+  if (billingId) {
+    const { res: billingRes, data: billingData } = await inkaiFetch(
+      `/v1/billing/${billingId}`,
+      { method: "DELETE" },
+      authResult.token,
+    );
+    if (!billingRes.ok && billingRes.status !== 404) {
+      return NextResponse.json(
+        {
+          error: inkaiErrorMessage(
+            billingData,
+            "Pendaftaran UKT dihapus, tetapi tagihan terkait gagal dihapus",
+          ),
+        },
+        { status: billingRes.status },
+      );
+    }
+  }
+
   writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
     action: "UKT_REGISTRATION_CANCEL",
-    details: `Cancelled UKT registration (${id})`,
+    details: `Cancelled UKT registration (${id})${billingId ? ` and deleted billing (${billingId})` : ""}`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token: authResult.token,
   });
 
-  return NextResponse.json({ success: true, message: "Pendaftaran dibatalkan" });
+  return NextResponse.json({
+    success: true,
+    message: billingId
+      ? "Pendaftaran dan tagihan UKT berhasil dihapus"
+      : "Pendaftaran dibatalkan",
+  });
 }
