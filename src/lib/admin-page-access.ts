@@ -28,6 +28,7 @@ const DOJO_BLOCKED_PENGATURAN_CHILDREN = [
   "/admin/pengaturan/peran",
   "/admin/pengaturan/geofencing",
   "/admin/pengaturan/kebijakan",
+  "/admin/pengaturan/ukt",
 ];
 
 export function canAccessAdminPath(roles: string[], pathname: string): boolean {

@@ -1193,6 +1193,43 @@ export async function fetchUktDashboardData(
     AdminMemberRow & Record<string, unknown>
   >;
 
+  // Lengkapi URL dokumen dari Prisma bila list Inkai tidak mengembalikannya
+  // (agar gate Akte/BPJS di UI ranting akurat).
+  const docMissingIds = members
+    .filter((m) => !m.birthCertificateUrl?.trim() || !m.bpjsCardUrl?.trim())
+    .map((m) => m.id)
+    .filter(Boolean);
+  if (docMissingIds.length > 0) {
+    const localDocs = await withPrismaFallback(
+      "ukt-member-docs",
+      () =>
+        prisma.member.findMany({
+          where: { id: { in: docMissingIds } },
+          select: {
+            id: true,
+            birthCertificateUrl: true,
+            bpjsCardUrl: true,
+          },
+        }),
+      [] as Array<{
+        id: string;
+        birthCertificateUrl: string | null;
+        bpjsCardUrl: string | null;
+      }>,
+    );
+    const docsById = new Map((localDocs.data ?? []).map((r) => [r.id, r]));
+    for (const m of members) {
+      const docs = docsById.get(m.id);
+      if (!docs) continue;
+      if (!m.birthCertificateUrl?.trim() && docs.birthCertificateUrl) {
+        m.birthCertificateUrl = docs.birthCertificateUrl;
+      }
+      if (!m.bpjsCardUrl?.trim() && docs.bpjsCardUrl) {
+        m.bpjsCardUrl = docs.bpjsCardUrl;
+      }
+    }
+  }
+
   const billingCountByMember = billingsRes.res.ok
     ? buildBillingCountMap((billingsRes.data.data as Array<Record<string, unknown>>) ?? [])
     : new Map<string, number>();
@@ -1257,7 +1294,8 @@ export async function fetchUktDashboardData(
       outstandingDues: billingCountByMember.get(m.id) ?? 0,
       pendingVerifications: verificationCountByMember.get(m.id) ?? 0,
       attendanceCount: countByMember.get(m.id) ?? 0,
-      attendancePct: pctByMember.get(m.id) ?? null,
+      // Belum absen di semester → 0% agar gate Syarat memblokir Daftar UKT
+      attendancePct: pctByMember.get(m.id) ?? 0,
       examResult: reg?.id ? examResultMap.get(String(reg.id)) ?? null : null,
       examPresent: reg?.id ? examAttendanceMap.get(String(reg.id)) ?? null : null,
       registrationWaiver: waiverMap.get(m.id) ?? null,

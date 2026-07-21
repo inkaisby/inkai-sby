@@ -919,32 +919,43 @@ export function getUktRegistrationBlockers(
     registrationOpen: boolean;
     /** true jika sekarang masih sebelum tanggal buka pendaftaran */
     registrationNotYetOpen?: boolean;
+    /** @deprecated pakai requireMinAttendance */
     enforceAttendance?: boolean;
+    requireNoOutstandingDues?: boolean;
+    requireDocuments?: boolean;
+    requireMinAttendance?: boolean;
+    minAttendancePct?: number;
   },
 ): UktRegistrationBlocker[] {
   const blockers: UktRegistrationBlocker[] = [];
   if (!opts.registrationOpen) {
     blockers.push(opts.registrationNotYetOpen ? "PERIODE_BELUM_BUKA" : "PERIODE_TUTUP");
   }
-  if (row.outstandingDues > 0) blockers.push("IURAN_TUNGGAKAN");
-  if (!hasRequiredUktDocuments(row)) blockers.push("DOKUMEN_KURANG");
-  if (
-    opts.enforceAttendance !== false &&
-    row.attendancePct != null &&
-    row.attendancePct < UKT_MIN_ATTENDANCE_PCT
-  ) {
-    blockers.push("ABSENSI_KURANG");
+  const requireDues = opts.requireNoOutstandingDues !== false;
+  const requireDocs = opts.requireDocuments !== false;
+  const requireAttendance =
+    opts.requireMinAttendance !== false && opts.enforceAttendance !== false;
+  const minPct = opts.minAttendancePct ?? UKT_MIN_ATTENDANCE_PCT;
+
+  if (requireDues && row.outstandingDues > 0) blockers.push("IURAN_TUNGGAKAN");
+  if (requireDocs && !hasRequiredUktDocuments(row)) blockers.push("DOKUMEN_KURANG");
+  if (requireAttendance) {
+    const pct = row.attendancePct ?? 0;
+    if (pct < minPct) blockers.push("ABSENSI_KURANG");
   }
   return blockers;
 }
 
-export function formatUktRegistrationBlockers(blockers: UktRegistrationBlocker[]): string {
+export function formatUktRegistrationBlockers(
+  blockers: UktRegistrationBlocker[],
+  minAttendancePct = UKT_MIN_ATTENDANCE_PCT,
+): string {
   const labels: Record<UktRegistrationBlocker, string> = {
     PERIODE_TUTUP: "Batas pendaftaran sudah lewat",
     PERIODE_BELUM_BUKA: "Pendaftaran belum dibuka",
     IURAN_TUNGGAKAN: "Masih ada iuran belum lunas",
     DOKUMEN_KURANG: "Akte kelahiran & BPJS belum lengkap",
-    ABSENSI_KURANG: `Kehadiran semester di bawah ${UKT_MIN_ATTENDANCE_PCT}%`,
+    ABSENSI_KURANG: `Kehadiran semester di bawah ${minAttendancePct}%`,
   };
   return blockers.map((b) => labels[b]).join("; ");
 }
@@ -1344,10 +1355,21 @@ export function summarizeRowEligibility(
   >,
   registrationOpen: boolean,
   registrationNotYetOpen = false,
+  requirementOpts?: Pick<
+    Parameters<typeof getUktRegistrationBlockers>[1],
+    | "requireNoOutstandingDues"
+    | "requireDocuments"
+    | "requireMinAttendance"
+    | "minAttendancePct"
+  >,
 ): { ok: boolean; label: string } {
   const blockers = getUktRegistrationBlockersWithWaiver(
     row,
-    { registrationOpen, registrationNotYetOpen },
+    {
+      registrationOpen,
+      registrationNotYetOpen,
+      ...requirementOpts,
+    },
     row.registrationWaiver,
   );
   if (blockers.length === 0) {
@@ -1356,7 +1378,13 @@ export function summarizeRowEligibility(
       label: row.registrationWaiver ? "Disetujui cabang" : "Memenuhi syarat",
     };
   }
-  return { ok: false, label: formatUktRegistrationBlockers(blockers) };
+  return {
+    ok: false,
+    label: formatUktRegistrationBlockers(
+      blockers,
+      requirementOpts?.minAttendancePct ?? UKT_MIN_ATTENDANCE_PCT,
+    ),
+  };
 }
 
 function csvEscape(value: string | number | null | undefined): string {

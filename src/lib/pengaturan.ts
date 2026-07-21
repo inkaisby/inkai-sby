@@ -24,6 +24,12 @@ export const SETTINGS_HUB = [
     group: "kebijakan" as const,
   },
   {
+    href: "/admin/pengaturan/ukt",
+    title: "Pengaturan UKT",
+    description: "Centang syarat pendaftaran UKT (iuran, dokumen, absensi) per peran.",
+    group: "kebijakan" as const,
+  },
+  {
     href: "/admin/pengaturan/peran",
     title: "Role & Hak Akses",
     description: "Atur permission menu per role (Administrator).",
@@ -44,6 +50,12 @@ export const SETTINGS_HUB = [
 ] as const;
 
 export const SETTINGS_SHORTCUTS = [
+  {
+    href: "/admin/pengaturan/ukt",
+    title: "Syarat pendaftaran UKT",
+    description: "Centang iuran / dokumen / absensi & berlaku ranting/cabang",
+    kind: "kebijakan" as const,
+  },
   {
     href: buildDefaultUktAdminUrl(),
     title: "Tarif UKT & Komisi",

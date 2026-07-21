@@ -373,6 +373,15 @@ export const uktPeriodMetaSchema = z.object({
   notifiedExtendedAt: z.string().datetime().optional().nullable(),
 });
 
+export const uktRegistrationPolicySchema = z.object({
+  requireNoOutstandingDues: z.boolean(),
+  requireDocuments: z.boolean(),
+  requireMinAttendance: z.boolean(),
+  enforceForRanting: z.boolean(),
+  enforceForCabang: z.boolean(),
+  minAttendancePct: z.coerce.number().int().min(0).max(100).optional(),
+});
+
 export const operationalDefaultsSchema = z.object({
   monthlyDuesAmount: z.coerce.number().min(0).max(10_000_000),
   paymentInstructions: z.string().trim().max(1000),

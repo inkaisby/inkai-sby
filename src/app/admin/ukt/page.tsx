@@ -17,6 +17,7 @@ import {
 } from "@/lib/ukt";
 import { fetchUktDashboardData } from "@/lib/inkai-api/admin-data";
 import { getBranchOrgProfile } from "@/lib/org-settings";
+import { getUktRegistrationPolicy } from "@/lib/ukt-registration-policy";
 import { requireAdminSession } from "@/lib/admin-session";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
@@ -75,6 +76,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   let periodMeta: UktPeriodMeta = { archived: false, locked: false };
 
   const orgProfile = await getBranchOrgProfile();
+  const registrationPolicy = await getUktRegistrationPolicy();
 
   try {
     const data = await fetchUktDashboardData(token, user, {
@@ -171,6 +173,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         depositMap={depositMap}
         periodMeta={periodMeta}
         viewMode="registration"
+        registrationPolicy={registrationPolicy}
         orgProfile={{
           address: orgProfile.address,
           bidangUjianName: orgProfile.bidangUjianName,

@@ -10,9 +10,9 @@ import { canRegisterMembersToEvents } from "@/lib/wilayah-rbac";
 import { uktRegisterSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
+import { getPrimaryAdminRole } from "@/lib/rbac";
 import { validateUktRegistrationEligibility } from "@/lib/ukt-register";
 import { notifyUktStatusChange } from "@/lib/ukt-notify";
-
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
@@ -42,10 +42,12 @@ export async function POST(request: Request) {
 
     const { eventId, memberId } = parsed.data;
 
+    const primaryRole = getPrimaryAdminRole(authResult.user.roles);
     const eligibility = await validateUktRegistrationEligibility(
       authResult.token,
       eventId,
       memberId,
+      { primaryRole },
     );
     if (!eligibility.ok) {
       return NextResponse.json({ error: eligibility.error }, { status: 400 });

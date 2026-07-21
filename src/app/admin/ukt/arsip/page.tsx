@@ -17,6 +17,7 @@ import {
 } from "@/lib/ukt";
 import { fetchUktDashboardData } from "@/lib/inkai-api/admin-data";
 import { getBranchOrgProfile } from "@/lib/org-settings";
+import { getUktRegistrationPolicy } from "@/lib/ukt-registration-policy";
 import { requireAdminSession } from "@/lib/admin-session";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
@@ -73,6 +74,7 @@ async function UktArsipPageContent({ searchParams }: { searchParams: SearchParam
   let periodMeta: UktPeriodMeta = { archived: false, locked: false };
 
   const orgProfile = await getBranchOrgProfile();
+  const registrationPolicy = await getUktRegistrationPolicy();
 
   try {
     const data = await fetchUktDashboardData(token, user, {
@@ -157,6 +159,7 @@ async function UktArsipPageContent({ searchParams }: { searchParams: SearchParam
         depositMap={depositMap}
         periodMeta={periodMeta}
         viewMode="archive"
+        registrationPolicy={registrationPolicy}
         orgProfile={{
           address: orgProfile.address,
           bidangUjianName: orgProfile.bidangUjianName,

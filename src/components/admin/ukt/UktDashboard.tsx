@@ -28,6 +28,7 @@ import {
   ArrowLeft,
   ClipboardCheck,
   Archive,
+  Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -123,6 +124,11 @@ import {
   splitTimeInput,
   joinTimeInput,
 } from "@/lib/ukt";
+import {
+  DEFAULT_UKT_REGISTRATION_POLICY,
+  resolveUktMemberRequirementFlags,
+  type UktRegistrationPolicy,
+} from "@/lib/ukt-registration-policy";
 import { parseApiJson } from "@/lib/api-client";
 import { SortableTableHead } from "@/components/ui/SortableTableHead";
 import {
@@ -219,6 +225,8 @@ type Props = {
   };
   /** Pendaftaran = periode aktif; archive = riwayat/arsip (sidebar). */
   viewMode?: UktAdminViewMode;
+  /** Kebijakan syarat daftar dari Pengaturan UKT cabang. */
+  registrationPolicy?: UktRegistrationPolicy;
 };
 
 const PAGE_SIZES = [25, 50, 100, 1000] as const;
@@ -264,6 +272,14 @@ function statusBadge(row: UktMemberRow) {
 export function UktDashboard(props: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const viewMode: UktAdminViewMode = props.viewMode ?? "registration";
+  const isArchiveView = viewMode === "archive";
+  const registrationPolicy =
+    props.registrationPolicy ?? DEFAULT_UKT_REGISTRATION_POLICY;
+  const memberRequirementOpts = useMemo(
+    () => resolveUktMemberRequirementFlags(registrationPolicy, props.primaryRole),
+    [registrationPolicy, props.primaryRole],
+  );
   const [localQ, setLocalQ] = useState("");
   const [localStatus, setLocalStatus] = useState("");
   const [localDojo, setLocalDojo] = useState(props.defaultDojoFilter || "");
@@ -356,8 +372,16 @@ export function UktDashboard(props: Props) {
     setYearInput(String(props.year));
   }, [props.year]);
 
+  useEffect(() => {
+    if (!isArchiveView) return;
+    if (localStatus === "belum_daftar") setLocalStatus("");
+    if (localView === "unregistered") setLocalView("");
+  }, [isArchiveView, localStatus, localView]);
+
   const scopedRows = useMemo(() => {
     let rows = props.allRows;
+    // Arsip: hanya peserta yang sudah daftar (bukan pool seluruh anggota)
+    if (isArchiveView) rows = rows.filter((r) => Boolean(r.registrationId));
     if (effectiveDojo) rows = rows.filter((r) => r.dojoId === effectiveDojo);
     if (localStatus) rows = filterUktRowsByDisplayStatus(rows, localStatus);
     if (localQ.trim()) {
@@ -369,17 +393,32 @@ export function UktDashboard(props: Props) {
       );
     }
     return rows;
-  }, [props.allRows, effectiveDojo, localStatus, localQ]);
+  }, [props.allRows, isArchiveView, effectiveDojo, localStatus, localQ]);
+
+  const archiveSearchRows = useMemo(
+    () =>
+      isArchiveView
+        ? props.allRows.filter((r) => Boolean(r.registrationId))
+        : props.allRows,
+    [props.allRows, isArchiveView],
+  );
 
   const kpi = useMemo(() => computeUktOperationalKpi(scopedRows), [scopedRows]);
 
   const filteredRows = useMemo(() => {
     // Saat view "Terdaftar UKT" + pencarian aktif, tampilkan semua peserta yang cocok
     // agar admin bisa mendaftarkan anggota baru lewat tombol Daftar UKT.
+    // Di arsip tidak perlu pool belum daftar.
+    if (isArchiveView) {
+      return filterUktRowsByView(
+        scopedRows,
+        localView === "unregistered" ? "registered" : localView,
+      );
+    }
     const viewFilter =
       localView === "registered" && localQ.trim() ? "" : localView;
     return filterUktRowsByView(scopedRows, viewFilter);
-  }, [scopedRows, localView, localQ]);
+  }, [scopedRows, localView, localQ, isArchiveView]);
 
   const sortedRows = useMemo(() => {
     const rows = [...filteredRows];
@@ -438,7 +477,6 @@ export function UktDashboard(props: Props) {
     });
   };
 
-  const viewMode: UktAdminViewMode = props.viewMode ?? "registration";
   const uktBasePath =
     viewMode === "archive" ? "/admin/ukt/arsip" : "/admin/ukt";
 
@@ -681,7 +719,14 @@ export function UktDashboard(props: Props) {
   const openWaiverDialog = (row: UktMemberRow) => {
     const blockers = getUktRegistrationBlockersWithWaiver(
       row,
-      { registrationOpen, registrationNotYetOpen },
+      {
+        registrationOpen,
+        registrationNotYetOpen,
+        requireNoOutstandingDues: registrationPolicy.requireNoOutstandingDues,
+        requireDocuments: registrationPolicy.requireDocuments,
+        requireMinAttendance: registrationPolicy.requireMinAttendance,
+        minAttendancePct: registrationPolicy.minAttendancePct,
+      },
       null,
     ).filter((b) => b !== "PERIODE_TUTUP" && b !== "PERIODE_BELUM_BUKA");
     setWaiverTarget(row);
@@ -848,6 +893,27 @@ export function UktDashboard(props: Props) {
     if (!props.selectedPeriodId) {
       toast.error("Pilih atau buat periode UKT terlebih dahulu");
       return;
+    }
+    const row = props.allRows.find((r) => r.memberId === memberId);
+    if (row) {
+      const blockers = getUktRegistrationBlockersWithWaiver(
+        row,
+        {
+          registrationOpen,
+          registrationNotYetOpen,
+          ...memberRequirementOpts,
+        },
+        row.registrationWaiver,
+      );
+      if (blockers.length > 0) {
+        toast.error(
+          formatUktRegistrationBlockers(
+            blockers,
+            memberRequirementOpts.minAttendancePct,
+          ),
+        );
+        return;
+      }
     }
     setLoading(true);
     try {
@@ -1118,8 +1184,24 @@ export function UktDashboard(props: Props) {
   };
 
   const kpiCards = [
-    { label: "Total Anggota", value: kpi.allMembers, icon: Users, color: "text-blue-600", filter: "all" },
-    { label: "Belum Daftar", value: kpi.belumDaftar, icon: UserPlus, color: "text-amber-600", filter: "unregistered" },
+    {
+      label: isArchiveView ? "Peserta" : "Total Anggota",
+      value: isArchiveView ? kpi.total : kpi.allMembers,
+      icon: Users,
+      color: "text-blue-600",
+      filter: isArchiveView ? "registered" : "all",
+    },
+    ...(!isArchiveView
+      ? [
+          {
+            label: "Belum Daftar",
+            value: kpi.belumDaftar,
+            icon: UserPlus,
+            color: "text-amber-600",
+            filter: "unregistered",
+          },
+        ]
+      : []),
     { label: "Belum Bayar", value: kpi.belumBayar, icon: Clock, color: "text-yellow-600", filter: "belum_bayar" },
     { label: "Menunggu Verif.", value: kpi.menungguVerifikasi, icon: Wallet, color: "text-purple-600", filter: "menunggu_verifikasi" },
     { label: "Menunggu Ujian", value: kpi.menungguUjian, icon: FileText, color: "text-indigo-600", filter: "menunggu_ujian" },
@@ -1273,6 +1355,16 @@ export function UktDashboard(props: Props) {
             )}
             {isCabang && (
               <>
+                {viewMode === "registration" && (
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push("/admin/pengaturan/ukt")}
+                    title="Centang syarat pendaftaran UKT"
+                  >
+                    <Settings2 className="mr-1 h-4 w-4" />
+                    <span className="hidden lg:inline">Syarat UKT</span>
+                  </Button>
+                )}
                 {props.selectedPeriodId && (
                   <Button
                     variant="outline"
@@ -1696,12 +1788,22 @@ export function UktDashboard(props: Props) {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-        {kpiCards.map((card) => (
+      <div
+        className={`grid grid-cols-2 gap-3 sm:grid-cols-4 ${
+          isArchiveView ? "lg:grid-cols-7" : "lg:grid-cols-8"
+        }`}
+      >
+        {kpiCards.map((card) => {
+          const isDefault =
+            !localView &&
+            (card.filter === "all" ||
+              (isArchiveView && card.filter === "registered"));
+          const active = localView === card.filter || isDefault;
+          return (
           <Card
             key={card.label}
             className={`cursor-pointer transition-all hover:shadow-md hover:ring-1 hover:ring-inkai-red/30 ${
-              (localView === card.filter || (!localView && card.filter === "all")) ? "ring-2 ring-inkai-red" : ""
+              active ? "ring-2 ring-inkai-red" : ""
             }`}
             onClick={() => card.filter && handleKpiClick(card.filter)}
           >
@@ -1713,7 +1815,8 @@ export function UktDashboard(props: Props) {
               <p className="mt-1 text-xs text-muted-foreground">{card.label}</p>
             </CardContent>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {props.dbError && (
@@ -1733,18 +1836,18 @@ export function UktDashboard(props: Props) {
       {/* Search & inline filters */}
       <div className="flex flex-wrap items-center gap-2">
         <UktSearchBar
-          allRows={props.allRows}
+          allRows={archiveSearchRows}
           value={localQ}
           onChange={(q) => {
             setLocalQ(q);
             setLocalPage(1);
           }}
           placeholder={
-            localView === "registered"
+            !isArchiveView && localView === "registered"
               ? "Cari nama untuk daftarkan peserta UKT…"
               : "Cari nama atau NIA…"
           }
-          showRegistrationStatus={localView === "registered"}
+          showRegistrationStatus={!isArchiveView && localView === "registered"}
         />
 
         <Select
@@ -1758,7 +1861,9 @@ export function UktDashboard(props: Props) {
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            {UKT_DISPLAY_FILTER_OPTIONS.map((opt) => (
+            {UKT_DISPLAY_FILTER_OPTIONS.filter(
+              (opt) => !(isArchiveView && opt.value === "belum_daftar"),
+            ).map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
               </SelectItem>
@@ -2084,6 +2189,7 @@ export function UktDashboard(props: Props) {
                             row,
                             registrationOpen,
                             registrationNotYetOpen,
+                            memberRequirementOpts,
                           );
                           return (
                             <span
@@ -2151,7 +2257,11 @@ export function UktDashboard(props: Props) {
                         (() => {
                           const blockers = getUktRegistrationBlockersWithWaiver(
                             row,
-                            { registrationOpen, registrationNotYetOpen },
+                            {
+                              registrationOpen,
+                              registrationNotYetOpen,
+                              ...memberRequirementOpts,
+                            },
                             row.registrationWaiver,
                           );
                           const blocked = blockers.length > 0;
@@ -2162,14 +2272,40 @@ export function UktDashboard(props: Props) {
                                 variant="outline"
                                 className="h-7 text-xs"
                                 onClick={() => handleRegister(row.memberId)}
-                                disabled={loading || !props.selectedPeriodId || blocked}
+                                disabled={
+                                  loading ||
+                                  !props.selectedPeriodId ||
+                                  periodLocked ||
+                                  blocked
+                                }
                                 title={
-                                  blocked ? formatUktRegistrationBlockers(blockers) : "Daftarkan ke UKT"
+                                  blocked
+                                    ? formatUktRegistrationBlockers(
+                                        blockers,
+                                        memberRequirementOpts.minAttendancePct,
+                                      )
+                                    : "Daftarkan ke UKT"
                                 }
                               >
                                 Daftar UKT
                               </Button>
-                              {isCabang && blocked && (
+                              {isCabang &&
+                                getUktRegistrationBlockersWithWaiver(
+                                  row,
+                                  {
+                                    registrationOpen,
+                                    registrationNotYetOpen,
+                                    requireNoOutstandingDues:
+                                      registrationPolicy.requireNoOutstandingDues,
+                                    requireDocuments:
+                                      registrationPolicy.requireDocuments,
+                                    requireMinAttendance:
+                                      registrationPolicy.requireMinAttendance,
+                                    minAttendancePct:
+                                      registrationPolicy.minAttendancePct,
+                                  },
+                                  row.registrationWaiver,
+                                ).length > 0 && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -2373,7 +2509,11 @@ export function UktDashboard(props: Props) {
                   (() => {
                     const blockers = getUktRegistrationBlockersWithWaiver(
                       selectedMember,
-                      { registrationOpen, registrationNotYetOpen },
+                      {
+                        registrationOpen,
+                        registrationNotYetOpen,
+                        ...memberRequirementOpts,
+                      },
                       selectedMember.registrationWaiver,
                     );
                     const blocked = blockers.length > 0;
@@ -2384,8 +2524,20 @@ export function UktDashboard(props: Props) {
                       handleRegister(selectedMember.memberId);
                       setSelectedMember(null);
                     }}
-                    disabled={loading || !props.selectedPeriodId || blocked}
-                    title={blocked ? formatUktRegistrationBlockers(blockers) : "Daftar UKT"}
+                    disabled={
+                      loading ||
+                      !props.selectedPeriodId ||
+                      periodLocked ||
+                      blocked
+                    }
+                    title={
+                      blocked
+                        ? formatUktRegistrationBlockers(
+                            blockers,
+                            memberRequirementOpts.minAttendancePct,
+                          )
+                        : "Daftar UKT"
+                    }
                   >
                     Daftar UKT
                   </Button>

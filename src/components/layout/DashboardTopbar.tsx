@@ -24,6 +24,7 @@ const ADMIN_TITLES: Record<string, string> = {
   "/admin/audit": "Log Audit",
   "/admin/notifikasi": "Notifikasi",
   "/admin/pengaturan": "Pengaturan",
+  "/admin/pengaturan/ukt": "Pengaturan UKT",
   "/admin/pengaturan/user": "Pengaturan Ranting & User",
   "/admin/pengaturan/cabang": "Pengaturan Cabang",
   "/admin/pengaturan/ranting": "Pengaturan Ranting & User",

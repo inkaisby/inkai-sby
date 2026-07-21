@@ -15,13 +15,17 @@ import {
   uktRegistrationWaiverKey,
   type UktSemester,
 } from "@/lib/ukt";
+import {
+  getUktRegistrationPolicy,
+  resolveUktMemberRequirementFlags,
+} from "@/lib/ukt-registration-policy";
 
 async function fetchMemberAttendancePct(
   token: string,
   memberId: string,
   semester: UktSemester,
   year: number,
-): Promise<number | null> {
+): Promise<{ ok: true; pct: number } | { ok: false }> {
   const qs = new URLSearchParams({
     memberId,
     limit: "120",
@@ -35,7 +39,7 @@ async function fetchMemberAttendancePct(
       token,
     ));
   }
-  if (!res.ok) return null;
+  if (!res.ok) return { ok: false };
 
   const logs = ((data.data as Array<Record<string, unknown>>) ?? []).map((log) => {
     const m = log.member as { id?: string } | undefined;
@@ -45,24 +49,44 @@ async function fetchMemberAttendancePct(
     };
   });
   const { pctByMember } = computeSemesterAttendance(logs, semester, year);
-  return pctByMember.get(memberId) ?? null;
+  return { ok: true, pct: pctByMember.get(memberId) ?? 0 };
 }
 
 export async function validateUktRegistrationEligibility(
   token: string,
   eventId: string,
   memberId: string,
+  opts?: {
+    primaryRole?: string;
+  },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const primaryRole = opts?.primaryRole ?? "ADMIN_BRANCH";
+  const policy = await getUktRegistrationPolicy();
+  const req = resolveUktMemberRequirementFlags(policy, primaryRole);
+  const skipMemberRequirements =
+    !req.requireNoOutstandingDues &&
+    !req.requireDocuments &&
+    !req.requireMinAttendance;
+
   const [
     { res: eventRes, data: eventData },
     { res: memberRes, data: memberData },
-    billingsRes,
+    billingsScoped,
     waiverRes,
     metaRes,
   ] = await Promise.all([
     inkaiFetch(`/v1/events/${eventId}`, {}, token),
     inkaiFetch(`/v1/members/${memberId}`, {}, token),
-    inkaiFetch("/v1/billing?limit=250", {}, token),
+    skipMemberRequirements || !req.requireNoOutstandingDues
+      ? Promise.resolve({
+          res: { ok: true } as Response,
+          data: { data: [] as unknown[] },
+        })
+      : inkaiFetch(
+          `/v1/billing?memberId=${encodeURIComponent(memberId)}&limit=100`,
+          {},
+          token,
+        ),
     inkaiFetch(
       `/v1/settings/${encodeURIComponent(uktRegistrationWaiverKey(eventId, memberId))}`,
       {},
@@ -82,6 +106,17 @@ export async function validateUktRegistrationEligibility(
     return { ok: false, error: "Anggota tidak ditemukan" };
   }
 
+  let billingsRes = billingsScoped;
+  if (req.requireNoOutstandingDues && !billingsRes.res.ok) {
+    billingsRes = await inkaiFetch("/v1/billing?limit=250", {}, token);
+  }
+  if (req.requireNoOutstandingDues && !billingsRes.res.ok) {
+    return {
+      ok: false,
+      error: "Gagal memverifikasi status iuran. Coba lagi.",
+    };
+  }
+
   const event = eventData.data as Record<string, unknown>;
   const member = memberData.data as Record<string, unknown>;
   const periodMeta = parseUktPeriodMetaValue(
@@ -99,8 +134,9 @@ export async function validateUktRegistrationEligibility(
   };
   const registrationOpen = isUktRegistrationOpen(schedule);
   const registrationNotYetOpen = isUktRegistrationNotYetOpen(schedule);
+
   let outstandingDues = 0;
-  if (billingsRes.res.ok) {
+  if (req.requireNoOutstandingDues) {
     const billings = (billingsRes.data.data as Array<Record<string, unknown>>) ?? [];
     for (const b of billings) {
       if (String(b.memberId) !== memberId) continue;
@@ -116,10 +152,20 @@ export async function validateUktRegistrationEligibility(
   const semester = (parsed?.semester ?? "I") as UktSemester;
   const year = parsed?.year ?? new Date().getFullYear();
 
-  const attendancePct = await fetchMemberAttendancePct(token, memberId, semester, year);
+  let attendancePct = 100;
+  if (req.requireMinAttendance) {
+    const attendance = await fetchMemberAttendancePct(token, memberId, semester, year);
+    if (!attendance.ok) {
+      return {
+        ok: false,
+        error: "Gagal memverifikasi kehadiran semester. Coba lagi.",
+      };
+    }
+    attendancePct = attendance.pct;
+  }
 
   let waiver = null;
-  if (waiverRes.res.ok) {
+  if (!skipMemberRequirements && waiverRes.res.ok) {
     const val = (waiverRes.data.data as { value?: unknown } | undefined)?.value;
     const map = buildUktWaiverMap(
       [{ key: uktRegistrationWaiverKey(eventId, memberId), value: val }],
@@ -131,17 +177,31 @@ export async function validateUktRegistrationEligibility(
   const blockers = getUktRegistrationBlockersWithWaiver(
     {
       outstandingDues,
-      birthCertificateUrl: (member.birthCertificateUrl as string | null) ?? null,
-      bpjsCardUrl: (member.bpjsCardUrl as string | null) ?? null,
+      birthCertificateUrl: req.requireDocuments
+        ? ((member.birthCertificateUrl as string | null) ?? null)
+        : "skip",
+      bpjsCardUrl: req.requireDocuments
+        ? ((member.bpjsCardUrl as string | null) ?? null)
+        : "skip",
       pendingVerifications: 0,
       attendancePct,
     },
-    { registrationOpen, registrationNotYetOpen },
+    {
+      registrationOpen,
+      registrationNotYetOpen,
+      requireNoOutstandingDues: req.requireNoOutstandingDues,
+      requireDocuments: req.requireDocuments,
+      requireMinAttendance: req.requireMinAttendance,
+      minAttendancePct: req.minAttendancePct,
+    },
     waiver,
   );
 
   if (blockers.length > 0) {
-    return { ok: false, error: formatUktRegistrationBlockers(blockers) };
+    return {
+      ok: false,
+      error: formatUktRegistrationBlockers(blockers, req.minAttendancePct),
+    };
   }
 
   if (!registrationOpen) {
