@@ -126,39 +126,85 @@ export function parseUktEventTitle(title: string): { semester: UktSemester; year
   };
 }
 
-export type UktPeriodOption = { id: string; title: string; startDate?: string };
+export type UktPeriodOption = {
+  id: string;
+  title: string;
+  startDate?: string;
+  endDate?: string;
+  registrationCloseAt?: string | null;
+  createdAt?: string;
+  archived?: boolean;
+  locked?: boolean;
+};
+
+/** Apakah judul/event termasuk semester+tahun yang diminta. */
+export function uktPeriodBelongsToTerm(
+  period: UktPeriodOption,
+  semester: UktSemester,
+  year: number,
+): boolean {
+  const expectedTitle = buildUktEventTitle(semester, year).toLowerCase();
+  if (period.title.trim().toLowerCase() === expectedTitle) return true;
+  if (period.title.toLowerCase().startsWith(expectedTitle)) return true;
+  const parsed = parseUktEventTitle(period.title);
+  if (parsed?.semester === semester && parsed?.year === year) return true;
+
+  const { semesterStart, semesterEnd } = buildUktSemesterWindow(semester, year);
+  if (period.startDate) {
+    const t = new Date(period.startDate).getTime();
+    if (Number.isFinite(t) && t >= semesterStart.getTime() && t <= semesterEnd.getTime()) {
+      return true;
+    }
+  }
+  return false;
+}
 
 /** Cari event UKT yang cocok dengan semester + tahun (judul standar, parse judul, atau rentang tanggal). */
+export function findUktPeriodsForTerm(
+  periods: UktPeriodOption[],
+  semester: UktSemester,
+  year: number,
+): UktPeriodOption[] {
+  return periods.filter((p) => uktPeriodBelongsToTerm(p, semester, year));
+}
+
 export function findUktPeriodForTerm(
   periods: UktPeriodOption[],
   semester: UktSemester,
   year: number,
 ): UktPeriodOption | null {
-  const expectedTitle = buildUktEventTitle(semester, year).toLowerCase();
-  const byTitle = periods.find((p) => p.title.toLowerCase() === expectedTitle);
-  if (byTitle) return byTitle;
-  const byParsed =
-    periods.find((p) => {
-      const parsed = parseUktEventTitle(p.title);
-      return parsed?.semester === semester && parsed?.year === year;
-    }) ?? null;
-  if (byParsed) return byParsed;
+  const matches = findUktPeriodsForTerm(periods, semester, year);
+  if (matches.length === 0) return null;
 
-  const { semesterStart, semesterEnd } = buildUktSemesterWindow(semester, year);
-  const startMs = semesterStart.getTime();
-  const endMs = semesterEnd.getTime();
-  return (
-    periods.find((p) => {
-      if (!p.startDate) return false;
-      const t = new Date(p.startDate).getTime();
-      return Number.isFinite(t) && t >= startMs && t <= endMs;
-    }) ?? null
-  );
+  const expectedTitle = buildUktEventTitle(semester, year).toLowerCase();
+  const rank = (p: UktPeriodOption) => {
+    let score = 0;
+    if (!p.archived && !p.locked) score += 100;
+    if (isUktRegistrationOpen({
+      startDate: p.startDate ?? "",
+      endDate: p.endDate ?? p.startDate ?? "",
+      registrationCloseAt: p.registrationCloseAt,
+    })) {
+      score += 50;
+    }
+    if (p.title.trim().toLowerCase() === expectedTitle) score += 20;
+    if (parseUktEventTitle(p.title)) score += 10;
+    const created = p.createdAt ? new Date(p.createdAt).getTime() : 0;
+    score += Number.isFinite(created) ? created / 1e13 : 0;
+    return score;
+  };
+
+  return [...matches].sort((a, b) => rank(b) - rank(a))[0] ?? null;
+}
+
+/** Periode operasional (bukan arsip/kunci) — untuk halaman depan. */
+export function isUktPeriodActiveView(period: UktPeriodOption): boolean {
+  return !period.archived && !period.locked;
 }
 
 /**
- * Pilih periode aktif: URL `period` dipakai kecuali judulnya jelas milik semester/tahun lain.
- * Judul tanpa pola semester (atau belum di-parse) tetap dihormati agar kontrol batas pendaftaran tidak hilang.
+ * Pilih periode aktif: URL `period` dipakai kecuali judulnya jelas milik semester/tahun lain
+ * atau periode itu sudah diarsipkan sementara ada periode aktif lain di term yang sama.
  */
 export function resolveUktSelectedPeriodId(
   periods: UktPeriodOption[],
@@ -170,9 +216,17 @@ export function resolveUktSelectedPeriodId(
   if (periodFromUrl) {
     const urlPeriod = periods.find((p) => p.id === periodFromUrl);
     if (!urlPeriod) return matchByTerm?.id ?? null;
-    const parsed = parseUktEventTitle(urlPeriod.title);
-    if (parsed && (parsed.semester !== semester || parsed.year !== year)) {
+    if (!uktPeriodBelongsToTerm(urlPeriod, semester, year)) {
       return matchByTerm?.id ?? null;
+    }
+    // URL menunjuk arsip, tapi ada periode aktif di term yang sama → fokus ke aktif
+    if (
+      !isUktPeriodActiveView(urlPeriod) &&
+      matchByTerm &&
+      isUktPeriodActiveView(matchByTerm) &&
+      matchByTerm.id !== urlPeriod.id
+    ) {
+      return matchByTerm.id;
     }
     return periodFromUrl;
   }

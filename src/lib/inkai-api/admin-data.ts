@@ -22,6 +22,7 @@ import {
   uktBaseFeeAmount,
   resolveUktSelectedPeriodId,
   resolveUktPeriodFees,
+  findUktPeriodsForTerm,
   computeSemesterAttendance,
   buildUktSemesterWindow,
   buildUktEventDates,
@@ -825,7 +826,19 @@ export async function fetchEventDetail(token: string, eventId: string) {
   return (data.data as Record<string, unknown>) ?? null;
 }
 
-function periodOptionFromEvent(event: Record<string, unknown>, idFallback?: string) {
+function periodOptionFromEvent(
+  event: Record<string, unknown>,
+  idFallback?: string,
+): {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  registrationCloseAt: string | null;
+  createdAt?: string;
+  archived?: boolean;
+  locked?: boolean;
+} {
   return {
     id: String(event.id ?? idFallback ?? ""),
     title: String(event.title ?? ""),
@@ -834,6 +847,7 @@ function periodOptionFromEvent(event: Record<string, unknown>, idFallback?: stri
     registrationCloseAt: event.registrationCloseAt
       ? String(event.registrationCloseAt)
       : null,
+    createdAt: event.createdAt ? String(event.createdAt) : undefined,
   };
 }
 
@@ -1011,6 +1025,22 @@ export async function fetchUktDashboardData(
       )
     : [];
 
+  // Muat meta arsip untuk semua periode UKT agar resolusi aktif vs riwayat akurat.
+  const periodMetaRows = await fetchSettingsByPrefix(token, "ukt-period-meta:");
+  const metaByPeriodId = new Map<string, UktPeriodMeta>();
+  for (const row of periodMetaRows) {
+    const id = row.key.slice("ukt-period-meta:".length);
+    if (id) metaByPeriodId.set(id, parseUktPeriodMetaValue(row.value));
+  }
+  periods = periods.map((p) => {
+    const meta = metaByPeriodId.get(p.id);
+    return {
+      ...p,
+      archived: meta?.archived === true,
+      locked: meta?.locked === true,
+    };
+  });
+
   // Pastikan periode dari URL masuk daftar (list events bisa miss).
   if (
     periodFromUrl &&
@@ -1028,6 +1058,18 @@ export async function fetchUktDashboardData(
   let selectedPeriodId = forceNoPeriod
     ? null
     : resolveUktSelectedPeriodId(periods, semester, year, periodFromUrl);
+
+  // Jika URL/auto-select mengarah ke arsip dan tidak ada periode aktif → biarkan null
+  // agar UI menampilkan Buat Periode (kecuali createMode sudah null).
+  if (selectedPeriodId && !forceNoPeriod) {
+    const selected = periods.find((p) => p.id === selectedPeriodId);
+    const hasActive = findUktPeriodsForTerm(periods, semester, year).some(
+      (p) => !p.archived && !p.locked,
+    );
+    if (selected && (selected.archived || selected.locked) && !hasActive && !periodFromUrl) {
+      selectedPeriodId = null;
+    }
+  }
   let eventDetail = eventDetailInitial;
   let examSettings = examSettingsInitial;
   let waiverSettings = waiverSettingsInitial;
@@ -1061,10 +1103,12 @@ export async function fetchUktDashboardData(
 
   // Sinkronkan tanggal/batas pendaftaran dari detail event agar kartu "Atur" akurat.
   if (selectedPeriodId && eventDetail) {
-    periods = upsertPeriodOption(
-      periods,
-      periodOptionFromEvent(eventDetail, selectedPeriodId),
-    );
+    const prev = periods.find((p) => p.id === selectedPeriodId);
+    periods = upsertPeriodOption(periods, {
+      ...periodOptionFromEvent(eventDetail, selectedPeriodId),
+      archived: prev?.archived,
+      locked: prev?.locked,
+    });
   }
 
   const attendanceLogs = attendanceRes.map((log) => {

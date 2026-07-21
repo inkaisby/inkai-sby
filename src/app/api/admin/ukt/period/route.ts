@@ -6,9 +6,14 @@ import { uktPeriodPatchSchema, uktPeriodSchema } from "@/lib/security/schemas";
 import {
   buildUktEventDates,
   buildUktEventTitle,
+  findUktPeriodsForTerm,
   formatUktPeriodLabel,
   formatUktRegistrationDeadline,
+  getUktRegistrationDeadline,
+  isUktRegistrationOpen,
+  parseUktEventTitle,
   type BeltFeeKey,
+  type UktPeriodOption,
 } from "@/lib/ukt";
 import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
 import { writeAuditLog } from "@/lib/audit";
@@ -101,16 +106,78 @@ export async function POST(request: Request) {
     komisiRanting,
     notifyRanting = true,
   } = parsed.data;
-  const eventTitle = title || buildUktEventTitle(semester, year);
 
-  const { res: listRes, data: listData } = await inkaiFetch("/v1/events", {}, authResult.token);
-  if (listRes.ok) {
-    const events = (listData.data as Array<Record<string, unknown>>) ?? [];
-    const existing = events.find(
-      (e) => String(e.title).toLowerCase() === eventTitle.toLowerCase(),
-    );
-    if (existing) {
-      return NextResponse.json({ event: existing, created: false });
+  // Judul kanonis agar term semester/tahun selalu terbaca (hindari judul generik bentrok).
+  const canonicalTitle = buildUktEventTitle(semester, year);
+  const rawTitle = (title || "").trim();
+  const parsedRaw = rawTitle ? parseUktEventTitle(rawTitle) : null;
+  const eventTitle =
+    !rawTitle ||
+    rawTitle.toUpperCase() === "UJIAN KENAIKAN TINGKAT (UKT)" ||
+    rawTitle.toUpperCase() === "UKT" ||
+    (parsedRaw && (parsedRaw.semester !== semester || parsedRaw.year !== year))
+      ? canonicalTitle
+      : rawTitle;
+
+  const { res: listRes, data: listData } = await inkaiFetch(
+    "/v1/events?limit=200",
+    {},
+    authResult.token,
+  );
+  const allEvents = listRes.ok
+    ? ((listData.data as Array<Record<string, unknown>>) ?? [])
+    : [];
+  const uktOptions: UktPeriodOption[] = allEvents
+    .filter((e) => String(e.title ?? "").toUpperCase().includes("UKT"))
+    .map((e) => ({
+      id: String(e.id ?? ""),
+      title: String(e.title ?? ""),
+      startDate: String(e.startDate ?? ""),
+      endDate: String(e.endDate ?? ""),
+      registrationCloseAt: e.registrationCloseAt ? String(e.registrationCloseAt) : null,
+      createdAt: e.createdAt ? String(e.createdAt) : undefined,
+    }));
+
+  // Lengkapi flag arsip dari meta
+  for (const opt of uktOptions) {
+    if (!opt.id) continue;
+    const meta = await loadUktPeriodMeta(authResult.token, opt.id);
+    opt.archived = meta.archived;
+    opt.locked = meta.locked;
+  }
+
+  const sameTerm = findUktPeriodsForTerm(uktOptions, semester, year);
+  const exactTitle = sameTerm.find(
+    (p) => p.title.trim().toLowerCase() === eventTitle.toLowerCase(),
+  );
+  if (exactTitle) {
+    const stillOpen = isUktRegistrationOpen({
+      startDate: exactTitle.startDate ?? "",
+      endDate: exactTitle.endDate ?? exactTitle.startDate ?? "",
+      registrationCloseAt: exactTitle.registrationCloseAt,
+    });
+    if (stillOpen && !exactTitle.archived) {
+      return NextResponse.json({
+        event: allEvents.find((e) => String(e.id) === exactTitle.id),
+        created: false,
+        message: "Periode UKT untuk semester ini sudah ada dan masih terbuka",
+      });
+    }
+    // Judul sama tapi sudah tutup/arsip → buat judul unik untuk periode baru
+  }
+
+  let uniqueTitle = eventTitle;
+  if (
+    allEvents.some((e) => String(e.title).toLowerCase() === uniqueTitle.toLowerCase())
+  ) {
+    const stamp = new Date().toISOString().slice(0, 10);
+    uniqueTitle = `${canonicalTitle} · ${stamp}`;
+    let n = 2;
+    while (
+      allEvents.some((e) => String(e.title).toLowerCase() === uniqueTitle.toLowerCase())
+    ) {
+      uniqueTitle = `${canonicalTitle} · ${stamp} (${n})`;
+      n += 1;
     }
   }
 
@@ -163,8 +230,8 @@ export async function POST(request: Request) {
     {
       method: "POST",
       body: JSON.stringify({
-        title: eventTitle,
-        description: `Ujian Kenaikan Tingkat ${eventTitle}`,
+        title: uniqueTitle,
+        description: `Ujian Kenaikan Tingkat ${uniqueTitle}`,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         registrationCloseAt: registrationCloseAt.toISOString(),
@@ -184,6 +251,32 @@ export async function POST(request: Request) {
 
   const event = data.data as { id?: string } | undefined;
   if (event?.id) {
+    // Arsipkan periode lama di term yang sama agar halaman depan fokus ke yang baru.
+    for (const old of sameTerm) {
+      if (!old.id || old.id === event.id) continue;
+      if (old.archived) continue;
+      const oldMeta = await loadUktPeriodMeta(authResult.token, old.id);
+      const closed =
+        !isUktRegistrationOpen({
+          startDate: old.startDate ?? "",
+          endDate: old.endDate ?? old.startDate ?? "",
+          registrationCloseAt: old.registrationCloseAt,
+        }) ||
+        getUktRegistrationDeadline({
+          startDate: old.startDate ?? "",
+          endDate: old.endDate ?? old.startDate ?? "",
+          registrationCloseAt: old.registrationCloseAt,
+        }).getTime() < Date.now();
+      if (closed || sameTerm.length >= 1) {
+        const archived = mergeUktPeriodMeta(oldMeta, {
+          archived: true,
+          locked: true,
+          by: authResult.user.email,
+        });
+        await saveUktPeriodMeta(authResult.token, old.id, archived);
+      }
+    }
+
     const meta = mergeUktPeriodMeta(
       { archived: false, locked: false },
       {
@@ -209,7 +302,7 @@ export async function POST(request: Request) {
         token: authResult.token,
         actorEmail: authResult.user.email,
         title: `Periode UKT ${formatUktPeriodLabel(semester, year)} dibuka`,
-        content: `${eventTitle}: daftar ${openLabel} s/d ${closeLabel}. Ujian: ${examLabel}${examLocation ? ` · ${examLocation}` : ""}. Segera cek syarat anggota ranting.`,
+        content: `${uniqueTitle}: daftar ${openLabel} s/d ${closeLabel}. Ujian: ${examLabel}${examLocation ? ` · ${examLocation}` : ""}. Segera cek syarat anggota ranting.`,
         type: "SUCCESS",
       });
       meta.notifiedOpenAt =
@@ -226,7 +319,7 @@ export async function POST(request: Request) {
     userId: authResult.user.id,
     email: authResult.user.email,
     action: "UKT_PERIOD_CREATE",
-    details: `Created UKT period: ${eventTitle}`,
+    details: `Created UKT period: ${uniqueTitle}`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token: authResult.token,

@@ -97,8 +97,11 @@ import {
   getUktRegistrationOpenAt,
   isUktRegistrationNotYetOpen,
   isUktRegistrationOpen,
+  isUktPeriodActiveView,
   findUktPeriodForTerm,
+  findUktPeriodsForTerm,
   parseUktEventTitle,
+  buildUktEventTitle,
   buildUktDepositReconciliation,
   resolveEffectiveUktExamResult,
   resolveUktDisplayStatus,
@@ -180,6 +183,9 @@ export type UktPeriod = {
   startDate: string;
   endDate: string;
   registrationCloseAt?: string | null;
+  createdAt?: string;
+  archived?: boolean;
+  locked?: boolean;
 };
 
 export type UktDojo = { id: string; name: string };
@@ -456,16 +462,20 @@ export function UktDashboard(props: Props) {
   );
 
   const periodsForTerm = useMemo(
-    () =>
-      props.periods.filter((p) => {
-        const parsed = parseUktEventTitle(p.title);
-        return parsed?.semester === props.semester && parsed?.year === props.year;
-      }),
+    () => findUktPeriodsForTerm(props.periods, props.semester, props.year),
     [props.periods, props.semester, props.year],
   );
+  const activePeriodsForTerm = useMemo(
+    () => periodsForTerm.filter((p) => isUktPeriodActiveView(p)),
+    [periodsForTerm],
+  );
+  const historyPeriodsForTerm = useMemo(
+    () => periodsForTerm.filter((p) => !isUktPeriodActiveView(p)),
+    [periodsForTerm],
+  );
 
-  /** Periode bernama untuk semester/tahun ini — tombol Buat Periode hanya hilang jika sudah ada. */
-  const hasTermPeriod = periodsForTerm.length > 0;
+  /** Tombol Buat Periode: tampil jika belum ada periode aktif di term (arsip tidak menghalangi). */
+  const hasTermPeriod = activePeriodsForTerm.length > 0;
   const showCreatePeriod =
     props.canCreatePeriod && (!hasTermPeriod || Boolean(props.createMode));
   /** Back menghapus period di URL dan membuka mode buat periode. */
@@ -545,9 +555,18 @@ export function UktDashboard(props: Props) {
           notifyRanting: true,
         }),
       });
-      const data = await parseApiJson<{ error?: string; event?: { id: string }; created?: boolean }>(res);
+      const data = await parseApiJson<{
+        error?: string;
+        event?: { id: string };
+        created?: boolean;
+        message?: string;
+      }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal membuat periode");
-      toast.success(data.created ? "Periode UKT dibuat" : "Periode UKT sudah ada");
+      toast.success(
+        data.created
+          ? "Periode UKT dibuat — periode lama di term ini dipindah ke arsip bila sudah tutup"
+          : data.message || "Periode UKT sudah ada",
+      );
       setShowCreateWizard(false);
       setWizardStep(0);
       navigatePeriod({
@@ -694,6 +713,7 @@ export function UktDashboard(props: Props) {
   const wizardExamTimeParts = splitTimeInput(wizardExamTime || "08:00");
 
   const openCreateWizard = () => {
+    setPeriodTitle(buildUktEventTitle(props.semester, props.year));
     const { registrationCloseAt, registrationOpenAt } = buildUktEventDates(
       props.semester,
       props.year,
@@ -1155,7 +1175,7 @@ export function UktDashboard(props: Props) {
             )}
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
-            {periodsForTerm.length > 1 && (
+            {periodsForTerm.length > 0 && (
               <Select
                 value={props.selectedPeriodId || ""}
                 onValueChange={(v) =>
@@ -1167,15 +1187,35 @@ export function UktDashboard(props: Props) {
                   })
                 }
               >
-                <SelectTrigger className="w-52">
+                <SelectTrigger className="w-64">
                   <SelectValue placeholder="Pilih periode" />
                 </SelectTrigger>
                 <SelectContent>
-                  {periodsForTerm.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.title}
-                    </SelectItem>
-                  ))}
+                  {activePeriodsForTerm.length > 0 && (
+                    <>
+                      <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Aktif
+                      </div>
+                      {activePeriodsForTerm.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.title}
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                  {historyPeriodsForTerm.length > 0 && (
+                    <>
+                      <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Riwayat / Arsip
+                      </div>
+                      {historyPeriodsForTerm.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.title}
+                          {p.archived ? " (arsip)" : p.locked ? " (kunci)" : ""}
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             )}
@@ -1187,6 +1227,16 @@ export function UktDashboard(props: Props) {
               >
                 <Plus className="mr-1 h-4 w-4" />
                 Buat Periode
+              </Button>
+            )}
+            {!showCreatePeriod && isCabang && (
+              <Button
+                variant="outline"
+                onClick={goBackToCreatePeriod}
+                disabled={loading}
+              >
+                <Plus className="mr-1 h-4 w-4" />
+                Periode baru
               </Button>
             )}
             {isCabang && (

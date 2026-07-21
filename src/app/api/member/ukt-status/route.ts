@@ -8,10 +8,13 @@ import {
   buildUktExamResultMap,
   currentSemester,
   findUktPeriodForTerm,
+  findUktPeriodsForTerm,
   parseUktEventTitle,
+  parseUktPeriodMetaValue,
   resolveUktDisplayStatus,
   uktDisplayStatusLabel,
   type UktMemberRow,
+  type UktPeriodOption,
 } from "@/lib/ukt";
 import { fetchSettingsByPrefix } from "@/lib/inkai-api/admin-data";
 import { loadUktPeriodMeta } from "@/lib/ukt-period-meta-store";
@@ -33,22 +36,47 @@ export async function GET() {
   const year = new Date().getFullYear();
   const activeSemester = currentSemester();
 
-  const { res, data } = await inkaiFetch("/v1/events?limit=40", {}, token);
+  const { res, data } = await inkaiFetch("/v1/events?limit=200", {}, token);
   if (!res.ok) {
     return NextResponse.json({ period: null, status: null });
   }
 
-  const periods = filterUktEvents((data.data as Array<Record<string, unknown>>) ?? []).map((p) => ({
+  let periods: UktPeriodOption[] = filterUktEvents(
+    (data.data as Array<Record<string, unknown>>) ?? [],
+  ).map((p) => ({
     id: String(p.id),
     title: String(p.title),
     startDate: String(p.startDate),
     endDate: String(p.endDate),
     registrationCloseAt: p.registrationCloseAt ? String(p.registrationCloseAt) : null,
+    createdAt: p.createdAt ? String(p.createdAt) : undefined,
   }));
 
+  const metaRows = await fetchSettingsByPrefix(token, "ukt-period-meta:");
+  const metaById = new Map(
+    metaRows.map((row) => [
+      row.key.slice("ukt-period-meta:".length),
+      parseUktPeriodMetaValue(row.value),
+    ]),
+  );
+  periods = periods.map((p) => {
+    const meta = metaById.get(p.id);
+    return {
+      ...p,
+      archived: meta?.archived === true,
+      locked: meta?.locked === true,
+    };
+  });
+
+  const termPeriods = findUktPeriodsForTerm(periods, activeSemester, year);
+  const activeTermPeriods = termPeriods.filter((p) => !p.archived && !p.locked);
   const match =
-    findUktPeriodForTerm(periods, activeSemester, year) ??
-    periods.find((p) => parseUktEventTitle(p.title)?.year === year) ??
+    findUktPeriodForTerm(
+      activeTermPeriods.length > 0 ? activeTermPeriods : [],
+      activeSemester,
+      year,
+    ) ??
+    activeTermPeriods[0] ??
     null;
 
   if (!match) {
@@ -59,12 +87,15 @@ export async function GET() {
         year,
       },
       registered: false,
-      statusLabel: "Periode belum dibuka",
+      statusLabel:
+        termPeriods.length > 0
+          ? "Menunggu periode UKT baru"
+          : "Periode belum dibuka",
       displayStatus: "belum_daftar",
     });
   }
 
-  const periodMeta = await loadUktPeriodMeta(token, match.id);
+  const periodMeta = metaById.get(match.id) ?? (await loadUktPeriodMeta(token, match.id));
   const examPayload = {
     examAt: periodMeta.examAt ?? null,
     examLocation: periodMeta.examLocation ?? null,
@@ -94,7 +125,7 @@ export async function GET() {
     return NextResponse.json({
       period: match,
       registered: false,
-      statusLabel: "Belum terdaftar",
+      statusLabel: periodMeta.archived ? "Periode diarsipkan" : "Belum terdaftar",
       displayStatus: "belum_daftar",
       ...examPayload,
     });

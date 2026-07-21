@@ -60,6 +60,9 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     startDate: string;
     endDate: string;
     registrationCloseAt?: string | null;
+    createdAt?: string;
+    archived?: boolean;
+    locked?: boolean;
   }[] = [];
   let dojos: { id: string; name: string }[] = [];
   let selectedPeriodId: string | null = createMode ? null : params.period || null;
