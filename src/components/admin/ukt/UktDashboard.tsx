@@ -252,6 +252,13 @@ function canCancelUktRegistration(row: UktMemberRow): boolean {
   return true;
 }
 
+/** Cabang dapat menghapus pendaftaran di semua status termasuk sudah lunas/selesai. */
+function canForceDeleteUktRegistration(row: UktMemberRow, isCabang: boolean): boolean {
+  if (!row.registrationId) return false;
+  if (!isCabang) return false;
+  return true;
+}
+
 function formatRupiah(amount: number | null) {
   if (amount == null) return null;
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount);
@@ -2512,7 +2519,7 @@ export function UktDashboard(props: Props) {
                                 </SelectContent>
                               </Select>
                             )}
-                          {canCancelUktRegistration(row) && (isDojoAdmin || isCabang) && (
+                          {(canCancelUktRegistration(row) && (isDojoAdmin || isCabang)) || canForceDeleteUktRegistration(row, isCabang) ? (
                             <Button
                               size="sm"
                               variant="destructive"
@@ -2525,12 +2532,12 @@ export function UktDashboard(props: Props) {
                                 })
                               }
                               disabled={loading || isMemberPending(row.memberId)}
-                              title="Batalkan pendaftaran UKT"
+                              title="Hapus pendaftaran UKT"
                             >
                               <Trash2 className="mr-0.5 h-3 w-3" />
-                              {isMemberPending(row.memberId) ? "…" : "Batal"}
+                              {isMemberPending(row.memberId) ? "…" : "Hapus"}
                             </Button>
-                          )}
+                          ) : null}
                         </>
                       )}
                     </div>
@@ -2644,7 +2651,10 @@ export function UktDashboard(props: Props) {
                 )}
               </div>
               <DialogFooter className="gap-2 sm:gap-0">
-                {selectedMember.registrationId && canCancelUktRegistration(selectedMember) && (isDojoAdmin || isCabang) && (
+                {selectedMember.registrationId && (
+                  (canCancelUktRegistration(selectedMember) && (isDojoAdmin || isCabang)) ||
+                  canForceDeleteUktRegistration(selectedMember, isCabang)
+                ) && (
                   <Button
                     variant="destructive"
                     onClick={() =>
@@ -2657,7 +2667,7 @@ export function UktDashboard(props: Props) {
                     disabled={loading || isMemberPending(selectedMember.memberId)}
                   >
                     <Trash2 className="mr-1 h-4 w-4" />
-                    Batalkan UKT
+                    Hapus UKT
                   </Button>
                 )}
                 {!selectedMember.registrationId && (
