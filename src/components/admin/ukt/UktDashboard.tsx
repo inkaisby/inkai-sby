@@ -67,9 +67,12 @@ import { AddMemberDialog } from "@/components/admin/AddMemberDialog";
 import {
   BELT_RANK_OPTIONS,
   canEditKyuBaru,
+  displayUktKyuLama,
   formatGenderLabel,
   formatMemberName,
   formatRankLabel,
+  inferPreviousBeltRank,
+  isBlankUktRank,
 } from "@/lib/belt";
 import {
   type UktMemberRow,
@@ -384,7 +387,12 @@ export function UktDashboard(props: Props) {
   useEffect(() => {
     // Sync saat ganti periode/term atau Muat Ulang (props.allRows baru).
     // Aksi baris tidak memanggil refresh → patch lokal tidak tertimpa.
-    setRows(props.allRows);
+    setRows(
+      props.allRows.map((r) => {
+        const lama = displayUktKyuLama(r.kyuLama, r.kyuBaru);
+        return lama && lama !== r.kyuLama ? { ...r, kyuLama: lama } : r;
+      }),
+    );
   }, [
     props.selectedPeriodId,
     props.semester,
@@ -1013,18 +1021,28 @@ export function UktDashboard(props: Props) {
           action: "approve",
           eventId: props.selectedPeriodId,
           memberId: row.memberId,
-          previousRank:
-            row.kyuLama && row.kyuLama !== "—" ? row.kyuLama : undefined,
+          previousRank: !isBlankUktRank(row.kyuLama)
+            ? row.kyuLama
+            : inferPreviousBeltRank(newRank) || undefined,
         }),
       });
-      const data = await parseApiJson<{ error?: string; message?: string; kyuBaru?: string }>(res);
+      const data = await parseApiJson<{
+        error?: string;
+        message?: string;
+        kyuBaru?: string;
+        kyuLama?: string;
+      }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal memperbarui kyu");
       const paid =
         row.billingStatus === "PAID" ||
         row.status === "PAID" ||
         row.status === "SUCCESS";
+      const nextBaru = data.kyuBaru || newRank;
+      const nextLama =
+        displayUktKyuLama(data.kyuLama || row.kyuLama, nextBaru) || row.kyuLama;
       patchRow(row.memberId, {
-        kyuBaru: data.kyuBaru || newRank,
+        kyuBaru: nextBaru,
+        kyuLama: nextLama,
       });
       toast.success(
         paid
@@ -2260,7 +2278,7 @@ export function UktDashboard(props: Props) {
                   )}
                   <TableCell>
                     <Badge variant="secondary" className="text-xs">
-                      {formatRankLabel(row.kyuLama) || "—"}
+                      {displayUktKyuLama(row.kyuLama, row.kyuBaru) || "—"}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -2579,7 +2597,7 @@ export function UktDashboard(props: Props) {
                   <div><span className="text-muted-foreground">Tempat Lahir:</span> {selectedMember.birthPlace || "-"}</div>
                   <div><span className="text-muted-foreground">Tgl Lahir:</span> {formatDate(selectedMember.birthDate)}</div>
                   <div><span className="text-muted-foreground">Jenis Kelamin:</span> {formatGenderLabel(selectedMember.gender) || "-"}</div>
-                  <div><span className="text-muted-foreground">Kyu Lama:</span> {formatRankLabel(selectedMember.kyuLama) || "—"}</div>
+                  <div><span className="text-muted-foreground">Kyu Lama:</span> {displayUktKyuLama(selectedMember.kyuLama, selectedMember.kyuBaru) || "—"}</div>
                   <div><span className="text-muted-foreground">Kyu Baru:</span> {selectedMember.kyuBaru ? formatRankLabel(selectedMember.kyuBaru) : "—"}</div>
                 </div>
                 {selectedMember.outstandingDues > 0 && (

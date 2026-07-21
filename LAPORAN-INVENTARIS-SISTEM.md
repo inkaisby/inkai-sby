@@ -519,6 +519,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 21 Juli 2026 | UKT perf: tanpa soft-refresh setelah aksi baris; parallel org/policy+dashboard; period-meta paralel; notify daftar non-blocking; bulk verifikasi concurrent; page size maks 100 |
 | 21 Juli 2026 | Perf admin lintas halaman: overlay navigasi `pointer-events-none` + min loader lebih singkat; pageSize maks 100 (bukan 1000); MemberActions tanpa double refresh; iuran/verifikasi hide kartu optimistic; pesan kirim tanpa full reload list |
 | 21 Juli 2026 | Laporan WA UKT: ranting = daftar peserta + nama dojo login; cabang tetap ringkas (Total Ranting / List / Jumlah kyu) |
+| 21 Juli 2026 | Export PDF/CSV/print UKT: kolom KYU (lama) terisi — snapshot atau infer satu tingkat di bawah Kyu Baru |
+| 21 Juli 2026 | Tabel UKT: kolom Kyu Lama tampil (infer bila snapshot "—" / hilang setelah isi Kyu Baru) |
 
 ---
 

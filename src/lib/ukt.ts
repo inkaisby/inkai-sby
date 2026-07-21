@@ -1,4 +1,4 @@
-import { formatMemberName, formatRankLabel, formatGenderLabel, getBeltGroup, shortRankLabel } from "@/lib/belt";
+import { formatMemberName, formatRankLabel, formatGenderLabel, getBeltGroup, shortRankLabel, inferPreviousBeltRank, displayUktKyuLama } from "@/lib/belt";
 
 export type UktSemester = "I" | "II";
 
@@ -832,7 +832,7 @@ export function collectUktExportDataIssues(rows: UktMemberRow[]): UktExportDataI
     if (!r.nia?.trim()) missing.push("nia");
     if (!formatUktBirthPlaceDate(r.birthPlace, r.birthDate)) missing.push("ttl");
     if (!r.address?.trim()) missing.push("alamat");
-    if (!extractUktRankNumber(r.kyuLama)) missing.push("kyu");
+    if (!resolveUktExportKyuLamaNumber(r.kyuLama, r.kyuBaru)) missing.push("kyu");
     if (!formatGenderLabel(r.gender)) missing.push("jk");
     if (missing.length > 0) {
       issues.push({
@@ -1434,13 +1434,21 @@ function csvEscape(value: string | number | null | undefined): string {
 /** Angka Kyu/Dan saja untuk kolom daftar peserta (mis. "10", "5"). */
 export function extractUktRankNumber(rankRaw: string | null | undefined): string {
   const r = (rankRaw || "").trim();
-  if (!r) return "";
+  if (!r || r === "—" || r === "-") return "";
   const kyu = r.match(/kyu\s*(\d+)/i);
   if (kyu) return kyu[1];
   const dan = r.match(/dan\s*(\d+)/i);
   if (dan) return dan[1];
   if (/^\d+$/.test(r)) return r;
   return "";
+}
+
+/** Angka Kyu lama untuk export; fallback infer dari Kyu Baru bila snapshot hilang. */
+export function resolveUktExportKyuLamaNumber(
+  kyuLama: string | null | undefined,
+  kyuBaru: string | null | undefined,
+): string {
+  return extractUktRankNumber(displayUktKyuLama(kyuLama, kyuBaru));
 }
 
 export function formatUktBirthPlaceDate(
@@ -1490,7 +1498,7 @@ export function buildUktPesertaExportRows(rows: UktMemberRow[]): UktPesertaExpor
     tempatTanggalLahir: formatUktBirthPlaceDate(r.birthPlace, r.birthDate),
     jenisKelamin: formatGenderLabel(r.gender),
     alamat: (r.address || "").trim().toUpperCase(),
-    kyu: extractUktRankNumber(r.kyuLama),
+    kyu: resolveUktExportKyuLamaNumber(r.kyuLama, r.kyuBaru),
     kyuBaru: extractUktRankNumber(r.kyuBaru),
     ranting: (r.dojoName || "").trim().toUpperCase(),
   }));

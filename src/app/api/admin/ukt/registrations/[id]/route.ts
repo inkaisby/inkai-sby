@@ -8,6 +8,8 @@ import {
   encodeUktRegisteredRank,
   formatRankLabel,
   ranksEqual,
+  isBlankUktRank,
+  inferPreviousBeltRank,
   DEFAULT_MEMBER_RANK,
 } from "@/lib/belt";
 import { uktRegistrationUpdateSchema } from "@/lib/security/schemas";
@@ -93,15 +95,16 @@ async function applyKyuBaruToMember(opts: {
     formatRankLabel(memberCurrentRank) || memberCurrentRank;
 
   // Kyu Lama dikunci: snapshot lama > hint UI (bila bukan kyu baru) > sabuk anggota (bila belum naik)
-  let kyuLama = decoded.kyuLama || "";
-  if (!kyuLama && hint && !ranksEqual(hint, kyuBaru) && hint !== "—") {
+  let kyuLama =
+    decoded.kyuLama && !isBlankUktRank(decoded.kyuLama) ? decoded.kyuLama : "";
+  if (!kyuLama && hint && !ranksEqual(hint, kyuBaru) && !isBlankUktRank(hint)) {
     kyuLama = hint;
   }
   if (!kyuLama && fromMember && !ranksEqual(fromMember, kyuBaru)) {
     kyuLama = fromMember;
   }
   if (!kyuLama) {
-    kyuLama = DEFAULT_MEMBER_RANK;
+    kyuLama = inferPreviousBeltRank(kyuBaru) || DEFAULT_MEMBER_RANK;
   }
 
   const registeredRank = encodeUktRegisteredRank(kyuLama, kyuBaru);

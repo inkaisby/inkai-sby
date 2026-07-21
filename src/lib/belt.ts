@@ -209,6 +209,12 @@ export function ranksEqual(
   return Boolean(left && right && left === right);
 }
 
+/** Rank kosong / placeholder di UI UKT. */
+export function isBlankUktRank(rank: string | null | undefined): boolean {
+  const t = (rank || "").trim();
+  return !t || t === "—" || t === "-" || t === "–";
+}
+
 /**
  * Decode snapshot UKT.
  * - Format baru: "Putih (Kyu 10) || Hitam (DAN 1)"
@@ -228,14 +234,23 @@ export function decodeUktRegisteredRank(
     const baruRaw = raw.slice(idx + sep.length).trim();
     // Snapshot lama-only (saat daftar, belum ada kyu baru)
     if (lamaRaw && !baruRaw) {
+      const lama = formatRankLabel(lamaRaw) || lamaRaw;
       return {
-        kyuLama: formatRankLabel(lamaRaw) || lamaRaw,
+        kyuLama: isBlankUktRank(lama) ? null : lama,
         kyuBaru: null,
       };
     }
     if (lamaRaw && baruRaw) {
+      const lama = formatRankLabel(lamaRaw) || lamaRaw;
       return {
-        kyuLama: formatRankLabel(lamaRaw) || lamaRaw,
+        kyuLama: isBlankUktRank(lama) ? null : lama,
+        kyuBaru: formatRankLabel(baruRaw) || baruRaw,
+      };
+    }
+    // " || Kyu Baru" tanpa lama → treat as legacy kyu baru
+    if (!lamaRaw && baruRaw) {
+      return {
+        kyuLama: null,
         kyuBaru: formatRankLabel(baruRaw) || baruRaw,
       };
     }
@@ -259,30 +274,58 @@ export function resolveUktRankColumns(
     formatRankLabel(memberCurrentRank) || (memberCurrentRank || "").trim();
 
   // Snapshot lengkap / lama-only
-  if (decoded.kyuLama) {
+  if (decoded.kyuLama && !isBlankUktRank(decoded.kyuLama)) {
     return {
       kyuLama: decoded.kyuLama,
       kyuBaru: decoded.kyuBaru || categoryName || null,
     };
   }
 
-  // Legacy: registeredRank = kyu baru saja
-  if (decoded.kyuBaru) {
-    // Sabuk resmi sudah naik: jangan tarik kyu lama dari currentRank (bug utama).
-    // Tanpa snapshot, kyu lama tidak diketahui — biarkan kosong visual via current
-    // hanya jika belum diterapkan.
-    if (!ranksEqual(current, decoded.kyuBaru) && current) {
-      return { kyuLama: current, kyuBaru: decoded.kyuBaru };
+  const kyuBaru = decoded.kyuBaru || categoryName || null;
+
+  // Legacy / snapshot lama hilang: pakai sabuk anggota hanya jika belum sama dengan kyu baru
+  if (kyuBaru) {
+    if (!isBlankUktRank(current) && !ranksEqual(current, kyuBaru)) {
+      return { kyuLama: current, kyuBaru };
     }
-    // Sudah diterapkan tanpa snapshot lama: tetap tampilkan kyu baru;
-    // kyu lama tidak boleh = kyu baru → tampilkan "—" lewat string kosong di UI
-    return { kyuLama: "—", kyuBaru: decoded.kyuBaru };
+    const inferred = inferPreviousBeltRank(kyuBaru);
+    return {
+      kyuLama: inferred || "—",
+      kyuBaru,
+    };
   }
 
   return {
     kyuLama: current || DEFAULT_MEMBER_RANK,
-    kyuBaru: categoryName || null,
+    kyuBaru: null,
   };
+}
+
+/** Tampilkan Kyu Lama di UI/export; infer dari Kyu Baru bila kosong. */
+export function displayUktKyuLama(
+  kyuLama: string | null | undefined,
+  kyuBaru: string | null | undefined,
+): string {
+  if (!isBlankUktRank(kyuLama)) {
+    return formatRankLabel(kyuLama) || String(kyuLama).trim();
+  }
+  return inferPreviousBeltRank(kyuBaru) || "";
+}
+
+/**
+ * Sabuk sebelum naik (satu tingkat di bawah target UKT).
+ * Mis. target "Biru (Kyu 5)" → "Hijau (Kyu 6)".
+ */
+export function inferPreviousBeltRank(
+  kyuBaru: string | null | undefined,
+): string | null {
+  const label = formatRankLabel(kyuBaru) || (kyuBaru || "").trim();
+  if (!label || isBlankUktRank(label)) return null;
+  const idx = BELT_RANK_OPTIONS.findIndex(
+    (opt) => opt.toLowerCase() === label.toLowerCase(),
+  );
+  if (idx > 0) return BELT_RANK_OPTIONS[idx - 1];
+  return null;
 }
 
 export type BeltGroup = "PUTIH" | "KUNING" | "HIJAU" | "BIRU" | "COKELAT" | "LAINNYA";
