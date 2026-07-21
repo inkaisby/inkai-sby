@@ -66,6 +66,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   let allRows: Awaited<ReturnType<typeof fetchUktDashboardData>>["allRows"] = [];
   let beltFees = beltFeesFromTemplates([]);
   let komisiRanting = 0;
+  let feesFromSnapshot = false;
   let depositMap: Record<string, UktDepositRecord> = {};
   let periodMeta: UktPeriodMeta = { archived: false, locked: false };
 
@@ -104,6 +105,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     allRows = data.allRows;
     beltFees = data.beltFees;
     komisiRanting = data.komisiRanting;
+    feesFromSnapshot = Boolean(data.feesFromSnapshot);
     depositMap = data.depositMap ?? {};
     periodMeta = data.periodMeta ?? { archived: false, locked: false };
     if (!data.ok) dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
@@ -148,6 +150,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         defaultDojoFilter={autoDojoId}
         beltFees={beltFees}
         komisiRanting={komisiRanting}
+        feesFromSnapshot={feesFromSnapshot}
         depositMap={depositMap}
         periodMeta={periodMeta}
         orgProfile={{

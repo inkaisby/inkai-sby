@@ -178,6 +178,65 @@
   }
 }
 
+/** Soft blink untuk banner jadwal UKT (batas lewat / belum buka) */
+@keyframes ukt-alert-breathe {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--ukt-alert-accent) 35%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--ukt-alert-accent) 0%, transparent);
+  }
+  50% {
+    opacity: 0.88;
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--ukt-alert-accent) 55%, transparent),
+      0 0 18px 2px color-mix(in srgb, var(--ukt-alert-accent) 28%, transparent);
+  }
+}
+
+@keyframes ukt-alert-icon {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.08);
+  }
+}
+
+.ukt-registration-alert {
+  --ukt-alert-accent: #d97706;
+  border-color: color-mix(in srgb, var(--ukt-alert-accent) 45%, transparent);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--ukt-alert-accent) 12%, transparent) 0%,
+    color-mix(in srgb, var(--ukt-alert-accent) 6%, transparent) 100%
+  );
+  animation: ukt-alert-breathe 2.2s ease-in-out infinite;
+}
+
+.ukt-registration-alert--closed {
+  --ukt-alert-accent: #dc2626;
+}
+
+.ukt-registration-alert--pending {
+  --ukt-alert-accent: #d97706;
+}
+
+.ukt-registration-alert-icon {
+  animation: ukt-alert-icon 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ukt-registration-alert,
+  .ukt-registration-alert-icon {
+    animation: none;
+  }
+}
+
 .inkai-hero {
   background-color: #1a0a0c;
   background-image:

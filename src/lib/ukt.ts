@@ -32,13 +32,15 @@ export function buildUktSemesterWindow(semester: UktSemester, year: number) {
 /**
  * Tanggal event untuk backend: batas pendaftaran = akhir semester.
  * Backend mensyaratkan registrationCloseAt <= startDate; jika kosong, startDate jadi deadline.
+ * Buka pendaftaran default = awal semester (disimpan di period-meta, bukan kolom Event).
  */
 export function buildUktEventDates(semester: UktSemester, year: number) {
-  const { semesterEnd } = buildUktSemesterWindow(semester, year);
+  const { semesterStart, semesterEnd } = buildUktSemesterWindow(semester, year);
   return {
     startDate: semesterEnd,
     endDate: semesterEnd,
     registrationCloseAt: semesterEnd,
+    registrationOpenAt: semesterStart,
   };
 }
 
@@ -46,6 +48,8 @@ export type UktPeriodSchedule = {
   startDate: string;
   endDate: string;
   registrationCloseAt?: string | null;
+  /** ISO — dari period-meta; kosong = tidak ada batas buka (langsung boleh daftar). */
+  registrationOpenAt?: string | null;
 };
 
 export function getUktRegistrationDeadline(period: UktPeriodSchedule): Date {
@@ -55,8 +59,21 @@ export function getUktRegistrationDeadline(period: UktPeriodSchedule): Date {
   return new Date(period.startDate);
 }
 
+export function getUktRegistrationOpenAt(period: UktPeriodSchedule): Date | null {
+  if (!period.registrationOpenAt) return null;
+  const d = new Date(period.registrationOpenAt);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+export function isUktRegistrationNotYetOpen(period: UktPeriodSchedule): boolean {
+  const openAt = getUktRegistrationOpenAt(period);
+  return Boolean(openAt && Date.now() < openAt.getTime());
+}
+
 export function isUktRegistrationOpen(period: UktPeriodSchedule): boolean {
-  return Date.now() <= getUktRegistrationDeadline(period).getTime();
+  const now = Date.now();
+  if (isUktRegistrationNotYetOpen(period)) return false;
+  return now <= getUktRegistrationDeadline(period).getTime();
 }
 
 export function formatUktRegistrationDeadline(iso: string): string {
@@ -207,7 +224,7 @@ export const DEFAULT_BELT_FEES: Record<BeltFeeKey, number> = {
   COKELAT: 345000,
 };
 
-const BELT_FEE_LABELS: Record<BeltFeeKey, string> = {
+export const BELT_FEE_LABELS: Record<BeltFeeKey, string> = {
   PUTIH: "Putih",
   KUNING: "Kuning",
   HIJAU: "Hijau",
@@ -217,6 +234,50 @@ const BELT_FEE_LABELS: Record<BeltFeeKey, string> = {
 
 export function formatRupiahNota(amount: number): string {
   return `Rp ${amount.toLocaleString("id-ID")},-`;
+}
+
+/**
+ * Normalisasi nama template biaya: "Sabuk Biru", "Coklat (Kyu 3)", "Biru" → warna kanonis.
+ */
+export function normalizeBeltFeeRankName(rankName: string): string {
+  return rankName
+    .trim()
+    .toLowerCase()
+    .replace(/^(sabuk|belt)\s+/i, "")
+    .replace(/\bcoklat\b/g, "cokelat")
+    .replace(/\s*\([^)]*\)\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function beltFeeKeyFromRankName(rankName: string): BeltFeeKey | null {
+  const normalized = normalizeBeltFeeRankName(rankName);
+  if (!normalized) return null;
+  for (const key of BELT_FEE_KEYS) {
+    const label = BELT_FEE_LABELS[key].toLowerCase();
+    if (normalized === label || normalized.startsWith(`${label} `)) {
+      return key;
+    }
+  }
+  return null;
+}
+
+export function findTemplatesForBeltFee<T extends { rankName: string }>(
+  templates: T[],
+  key: BeltFeeKey,
+): T[] {
+  return templates.filter((t) => beltFeeKeyFromRankName(t.rankName) === key);
+}
+
+function preferCanonicalBeltTemplate<T extends { rankName: string; fee: number }>(
+  matches: T[],
+  key: BeltFeeKey,
+): T {
+  const canonical = BELT_FEE_LABELS[key].toLowerCase();
+  return (
+    matches.find((t) => normalizeBeltFeeRankName(t.rankName) === canonical) ??
+    matches[0]
+  );
 }
 
 /**
@@ -241,9 +302,9 @@ export function beltFeesFromTemplates(
 ): Record<BeltFeeKey, number> {
   const fees = { ...DEFAULT_BELT_FEES };
   for (const key of BELT_FEE_KEYS) {
-    const label = BELT_FEE_LABELS[key].toLowerCase();
-    const match = templates.find((t) => t.rankName.trim().toLowerCase().includes(label));
-    if (match) fees[key] = Math.round(match.fee);
+    const matches = findTemplatesForBeltFee(templates, key);
+    if (matches.length === 0) continue;
+    fees[key] = Math.round(preferCanonicalBeltTemplate(matches, key).fee);
   }
   return fees;
 }
@@ -362,6 +423,7 @@ export const UKT_SEMESTER_SESSION_TOTAL = 48;
 
 export type UktRegistrationBlocker =
   | "PERIODE_TUTUP"
+  | "PERIODE_BELUM_BUKA"
   | "IURAN_TUNGGAKAN"
   | "DOKUMEN_KURANG"
   | "ABSENSI_KURANG";
@@ -410,7 +472,151 @@ export type UktPeriodMeta = {
   archivedAt?: string;
   lockedAt?: string;
   by?: string;
+  /** ISO — kapan ranting boleh mulai mendaftarkan peserta. */
+  registrationOpenAt?: string;
+  /** Snapshot biaya sabuk periode (dibekukan saat buat / simpan periode). */
+  beltFees?: Partial<Record<BeltFeeKey, number>>;
+  komisiRanting?: number;
+  /** Jadwal & tempat ujian (bukan batas daftar). */
+  examAt?: string;
+  examLocation?: string;
+  /** Pejabat dokumen untuk periode ini (fallback ke kebijakan cabang). */
+  bidangUjianName?: string;
+  bendaharaCabangName?: string;
+  /** Idempotensi notifikasi jadwal. */
+  notifiedOpenAt?: string;
+  notifiedCloseReminderAt?: string;
+  notifiedExtendedAt?: string;
 };
+
+export function resolveUktPeriodFees(
+  globalFees: Record<BeltFeeKey, number>,
+  globalKomisi: number,
+  meta?: UktPeriodMeta | null,
+): {
+  beltFees: Record<BeltFeeKey, number>;
+  komisiRanting: number;
+  fromSnapshot: boolean;
+} {
+  const snap = meta?.beltFees;
+  const hasSnap =
+    Boolean(snap) &&
+    BELT_FEE_KEYS.every((k) => typeof snap?.[k] === "number" && Number.isFinite(snap[k]));
+  if (hasSnap && typeof meta?.komisiRanting === "number") {
+    const beltFees = { ...DEFAULT_BELT_FEES };
+    for (const k of BELT_FEE_KEYS) {
+      beltFees[k] = Math.round(Number(snap![k]));
+    }
+    return {
+      beltFees,
+      komisiRanting: Math.round(meta.komisiRanting),
+      fromSnapshot: true,
+    };
+  }
+  return {
+    beltFees: { ...globalFees },
+    komisiRanting: globalKomisi,
+    fromSnapshot: false,
+  };
+}
+
+export function resolveUktPeriodOfficers(
+  meta: UktPeriodMeta | null | undefined,
+  org?: { bidangUjianName?: string; bendaharaCabangName?: string } | null,
+): { bidangUjianName: string; bendaharaCabangName: string } {
+  return {
+    bidangUjianName:
+      meta?.bidangUjianName?.trim() || org?.bidangUjianName?.trim() || "SETIA BASUKI",
+    bendaharaCabangName:
+      meta?.bendaharaCabangName?.trim() ||
+      org?.bendaharaCabangName?.trim() ||
+      "Habibur Rahman",
+  };
+}
+
+export type UktDepositReconRow = {
+  dojoId: string;
+  dojoName: string;
+  participantCount: number;
+  paidCount: number;
+  expectedAmount: number;
+  depositStatus: UktDepositStatus;
+  gapLabel: string;
+};
+
+/** Rekonsiliasi setoran: total tagihan peserta terdaftar vs status setor ranting. */
+export function buildUktDepositReconciliation(
+  rows: Array<{
+    dojoId: string;
+    dojoName: string;
+    registrationId: string | null;
+    billingAmount: number | null;
+    billingStatus: string | null;
+    status: string;
+  }>,
+  dojos: Array<{ id: string; name: string }>,
+  depositMap: Record<string, UktDepositRecord>,
+): UktDepositReconRow[] {
+  const byDojo = new Map<
+    string,
+    { name: string; participantCount: number; paidCount: number; expectedAmount: number }
+  >();
+
+  for (const d of dojos) {
+    byDojo.set(d.id, {
+      name: d.name,
+      participantCount: 0,
+      paidCount: 0,
+      expectedAmount: 0,
+    });
+  }
+
+  for (const r of rows) {
+    if (!r.registrationId || !r.dojoId) continue;
+    if (r.status === "REJECTED") continue;
+    let bucket = byDojo.get(r.dojoId);
+    if (!bucket) {
+      bucket = {
+        name: r.dojoName || r.dojoId,
+        participantCount: 0,
+        paidCount: 0,
+        expectedAmount: 0,
+      };
+      byDojo.set(r.dojoId, bucket);
+    }
+    bucket.participantCount += 1;
+    const amt = uktBaseFeeAmount(r.billingAmount) ?? 0;
+    const paid =
+      r.billingStatus === "PAID" ||
+      r.status === "PAID" ||
+      r.status === "SUCCESS";
+    if (paid) {
+      bucket.paidCount += 1;
+      bucket.expectedAmount += amt;
+    }
+  }
+
+  const result: UktDepositReconRow[] = [];
+  for (const [dojoId, b] of byDojo) {
+    if (b.participantCount === 0) continue;
+    const depositStatus: UktDepositStatus = depositMap[dojoId]?.status ?? "PENDING";
+    let gapLabel = "Belum setor";
+    if (depositStatus === "SUBMITTED") gapLabel = "Menunggu konfirmasi cabang";
+    if (depositStatus === "RECEIVED") gapLabel = "Lunas ke cabang";
+    if (b.paidCount === 0) gapLabel = "Belum ada pembayaran peserta";
+    result.push({
+      dojoId,
+      dojoName: b.name,
+      participantCount: b.participantCount,
+      paidCount: b.paidCount,
+      expectedAmount: b.expectedAmount,
+      depositStatus,
+      gapLabel,
+    });
+  }
+
+  return result.sort((a, b) => a.dojoName.localeCompare(b.dojoName, "id"));
+}
 
 export function parseUktExamAttendanceValue(value: unknown): boolean | null {
   if (!value || typeof value !== "object") return null;
@@ -471,12 +677,43 @@ export function parseUktPeriodMetaValue(value: unknown): UktPeriodMeta {
     return { archived: false, locked: false };
   }
   const v = value as Record<string, unknown>;
+  const beltFeesRaw = v.beltFees;
+  let beltFees: Partial<Record<BeltFeeKey, number>> | undefined;
+  if (beltFeesRaw && typeof beltFeesRaw === "object") {
+    beltFees = {};
+    for (const key of BELT_FEE_KEYS) {
+      const n = Number((beltFeesRaw as Record<string, unknown>)[key]);
+      if (Number.isFinite(n)) beltFees[key] = Math.round(n);
+    }
+  }
+  const komisi = v.komisiRanting;
   return {
     archived: v.archived === true,
     locked: v.locked === true,
     archivedAt: typeof v.archivedAt === "string" ? v.archivedAt : undefined,
     lockedAt: typeof v.lockedAt === "string" ? v.lockedAt : undefined,
     by: typeof v.by === "string" ? v.by : undefined,
+    registrationOpenAt:
+      typeof v.registrationOpenAt === "string" ? v.registrationOpenAt : undefined,
+    beltFees,
+    komisiRanting:
+      typeof komisi === "number" && Number.isFinite(komisi)
+        ? Math.round(komisi)
+        : undefined,
+    examAt: typeof v.examAt === "string" ? v.examAt : undefined,
+    examLocation: typeof v.examLocation === "string" ? v.examLocation : undefined,
+    bidangUjianName:
+      typeof v.bidangUjianName === "string" ? v.bidangUjianName : undefined,
+    bendaharaCabangName:
+      typeof v.bendaharaCabangName === "string" ? v.bendaharaCabangName : undefined,
+    notifiedOpenAt:
+      typeof v.notifiedOpenAt === "string" ? v.notifiedOpenAt : undefined,
+    notifiedCloseReminderAt:
+      typeof v.notifiedCloseReminderAt === "string"
+        ? v.notifiedCloseReminderAt
+        : undefined,
+    notifiedExtendedAt:
+      typeof v.notifiedExtendedAt === "string" ? v.notifiedExtendedAt : undefined,
   };
 }
 
@@ -585,11 +822,15 @@ export function getUktRegistrationBlockers(
   >,
   opts: {
     registrationOpen: boolean;
+    /** true jika sekarang masih sebelum tanggal buka pendaftaran */
+    registrationNotYetOpen?: boolean;
     enforceAttendance?: boolean;
   },
 ): UktRegistrationBlocker[] {
   const blockers: UktRegistrationBlocker[] = [];
-  if (!opts.registrationOpen) blockers.push("PERIODE_TUTUP");
+  if (!opts.registrationOpen) {
+    blockers.push(opts.registrationNotYetOpen ? "PERIODE_BELUM_BUKA" : "PERIODE_TUTUP");
+  }
   if (row.outstandingDues > 0) blockers.push("IURAN_TUNGGAKAN");
   if (!hasRequiredUktDocuments(row)) blockers.push("DOKUMEN_KURANG");
   if (
@@ -605,6 +846,7 @@ export function getUktRegistrationBlockers(
 export function formatUktRegistrationBlockers(blockers: UktRegistrationBlocker[]): string {
   const labels: Record<UktRegistrationBlocker, string> = {
     PERIODE_TUTUP: "Batas pendaftaran sudah lewat",
+    PERIODE_BELUM_BUKA: "Pendaftaran belum dibuka",
     IURAN_TUNGGAKAN: "Masih ada iuran belum lunas",
     DOKUMEN_KURANG: "Akte kelahiran & BPJS belum lengkap",
     ABSENSI_KURANG: `Kehadiran semester di bawah ${UKT_MIN_ATTENDANCE_PCT}%`,
@@ -955,6 +1197,7 @@ export function parseUktWaiverValue(value: unknown): UktRegistrationWaiver | nul
   const blockers = Array.isArray(raw.blockers)
     ? raw.blockers.filter((b): b is UktRegistrationBlocker =>
         b === "PERIODE_TUTUP" ||
+        b === "PERIODE_BELUM_BUKA" ||
         b === "IURAN_TUNGGAKAN" ||
         b === "DOKUMEN_KURANG" ||
         b === "ABSENSI_KURANG",
@@ -1005,10 +1248,11 @@ export function summarizeRowEligibility(
     | "registrationWaiver"
   >,
   registrationOpen: boolean,
+  registrationNotYetOpen = false,
 ): { ok: boolean; label: string } {
   const blockers = getUktRegistrationBlockersWithWaiver(
     row,
-    { registrationOpen },
+    { registrationOpen, registrationNotYetOpen },
     row.registrationWaiver,
   );
   if (blockers.length === 0) {

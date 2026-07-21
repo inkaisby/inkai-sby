@@ -6,8 +6,12 @@ import {
   formatUktRegistrationBlockers,
   getUktRegistrationBlockersWithWaiver,
   getUktRegistrationDeadline,
+  getUktRegistrationOpenAt,
+  isUktRegistrationNotYetOpen,
   isUktRegistrationOpen,
   parseUktEventTitle,
+  parseUktPeriodMetaValue,
+  uktPeriodMetaKey,
   uktRegistrationWaiverKey,
   type UktSemester,
 } from "@/lib/ukt";
@@ -49,17 +53,27 @@ export async function validateUktRegistrationEligibility(
   eventId: string,
   memberId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const [{ res: eventRes, data: eventData }, { res: memberRes, data: memberData }, billingsRes, waiverRes] =
-    await Promise.all([
-      inkaiFetch(`/v1/events/${eventId}`, {}, token),
-      inkaiFetch(`/v1/members/${memberId}`, {}, token),
-      inkaiFetch("/v1/billing?limit=250", {}, token),
-      inkaiFetch(
-        `/v1/settings/${encodeURIComponent(uktRegistrationWaiverKey(eventId, memberId))}`,
-        {},
-        token,
-      ),
-    ]);
+  const [
+    { res: eventRes, data: eventData },
+    { res: memberRes, data: memberData },
+    billingsRes,
+    waiverRes,
+    metaRes,
+  ] = await Promise.all([
+    inkaiFetch(`/v1/events/${eventId}`, {}, token),
+    inkaiFetch(`/v1/members/${memberId}`, {}, token),
+    inkaiFetch("/v1/billing?limit=250", {}, token),
+    inkaiFetch(
+      `/v1/settings/${encodeURIComponent(uktRegistrationWaiverKey(eventId, memberId))}`,
+      {},
+      token,
+    ),
+    inkaiFetch(
+      `/v1/settings/${encodeURIComponent(uktPeriodMetaKey(eventId))}`,
+      {},
+      token,
+    ),
+  ]);
 
   if (!eventRes.ok) {
     return { ok: false, error: "Periode UKT tidak ditemukan" };
@@ -70,14 +84,21 @@ export async function validateUktRegistrationEligibility(
 
   const event = eventData.data as Record<string, unknown>;
   const member = memberData.data as Record<string, unknown>;
-  const registrationOpen = isUktRegistrationOpen({
+  const periodMeta = parseUktPeriodMetaValue(
+    metaRes.res.ok
+      ? ((metaRes.data.data as { value?: unknown })?.value ?? null)
+      : null,
+  );
+  const schedule = {
     startDate: String(event.startDate),
     endDate: String(event.endDate),
     registrationCloseAt: event.registrationCloseAt
       ? String(event.registrationCloseAt)
       : null,
-  });
-
+    registrationOpenAt: periodMeta.registrationOpenAt ?? null,
+  };
+  const registrationOpen = isUktRegistrationOpen(schedule);
+  const registrationNotYetOpen = isUktRegistrationNotYetOpen(schedule);
   let outstandingDues = 0;
   if (billingsRes.res.ok) {
     const billings = (billingsRes.data.data as Array<Record<string, unknown>>) ?? [];
@@ -115,7 +136,7 @@ export async function validateUktRegistrationEligibility(
       pendingVerifications: 0,
       attendancePct,
     },
-    { registrationOpen },
+    { registrationOpen, registrationNotYetOpen },
     waiver,
   );
 
@@ -124,13 +145,14 @@ export async function validateUktRegistrationEligibility(
   }
 
   if (!registrationOpen) {
-    const deadline = getUktRegistrationDeadline({
-      startDate: String(event.startDate),
-      endDate: String(event.endDate),
-      registrationCloseAt: event.registrationCloseAt
-        ? String(event.registrationCloseAt)
-        : null,
-    });
+    if (registrationNotYetOpen) {
+      const openAt = getUktRegistrationOpenAt(schedule);
+      return {
+        ok: false,
+        error: `Pendaftaran belum dibuka${openAt ? ` (mulai ${openAt.toLocaleString("id-ID")})` : ""}`,
+      };
+    }
+    const deadline = getUktRegistrationDeadline(schedule);
     return {
       ok: false,
       error: `Batas pendaftaran sudah lewat (${deadline.toLocaleString("id-ID")})`,

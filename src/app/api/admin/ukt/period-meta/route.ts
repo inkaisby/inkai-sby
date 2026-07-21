@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
 import { canEditKyuBaru } from "@/lib/belt";
-import { inkaiErrorMessage, inkaiFetch } from "@/lib/inkai-api/server";
-import { parseUktPeriodMetaValue, uktPeriodMetaKey } from "@/lib/ukt";
+import { inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { uktPeriodMetaSchema } from "@/lib/security/schemas";
 import { getClientIp } from "@/lib/security/request";
+import {
+  loadUktPeriodMeta,
+  mergeUktPeriodMeta,
+  saveUktPeriodMeta,
+} from "@/lib/ukt-period-meta-store";
 
 export async function PATCH(request: Request) {
   const authResult = await requireAdmin();
@@ -15,7 +19,7 @@ export async function PATCH(request: Request) {
   }
   if (!canEditKyuBaru(authResult.user.roles)) {
     return NextResponse.json(
-      { error: "Hanya admin cabang yang dapat mengarsipkan periode" },
+      { error: "Hanya admin cabang yang dapat mengubah meta periode" },
       { status: 403 },
     );
   }
@@ -26,48 +30,18 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
   }
 
-  const { eventId, archived, locked } = parsed.data;
-  const key = uktPeriodMetaKey(eventId);
-
-  const existingRes = await inkaiFetch(
-    `/v1/settings/${encodeURIComponent(key)}`,
-    {},
-    authResult.token,
-  );
-  const existingValue = existingRes.res.ok
-    ? ((existingRes.data.data as { value?: unknown })?.value ?? null)
-    : null;
-  const current = parseUktPeriodMetaValue(existingValue);
-
-  const now = new Date().toISOString();
-  const next = {
-    archived: archived ?? current.archived,
-    locked: locked ?? current.locked ?? archived === true,
-    archivedAt:
-      archived === true
-        ? now
-        : archived === false
-          ? undefined
-          : current.archivedAt,
-    lockedAt:
-      locked === true || (archived === true && locked !== false)
-        ? now
-        : locked === false
-          ? undefined
-          : current.lockedAt,
+  const { eventId, ...patch } = parsed.data;
+  const current = await loadUktPeriodMeta(authResult.token, eventId);
+  const next = mergeUktPeriodMeta(current, {
+    ...patch,
     by: authResult.user.email,
-  };
+  });
 
-  const { res, data } = await inkaiFetch(
-    `/v1/settings/${encodeURIComponent(key)}`,
-    { method: "PUT", body: JSON.stringify({ value: next }) },
-    authResult.token,
-  );
-
-  if (!res.ok) {
+  const saved = await saveUktPeriodMeta(authResult.token, eventId, next);
+  if (!saved.ok) {
     return NextResponse.json(
-      { error: inkaiErrorMessage(data, "Gagal menyimpan arsip periode") },
-      { status: res.status },
+      { error: inkaiErrorMessage(saved.errorData as Record<string, unknown>, "Gagal menyimpan meta periode") },
+      { status: saved.status },
     );
   }
 
@@ -88,6 +62,6 @@ export async function PATCH(request: Request) {
       ? "Periode diarsipkan & dikunci"
       : next.locked
         ? "Periode dikunci"
-        : "Periode dibuka kembali",
+        : "Meta periode disimpan",
   });
 }

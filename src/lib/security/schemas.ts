@@ -138,12 +138,45 @@ export const uktPeriodSchema = z.object({
   title: z.string().trim().min(3).max(120).optional(),
   /** Batas pendaftaran (ISO). Default: akhir semester. */
   registrationCloseAt: z.string().datetime().optional(),
+  /** Buka pendaftaran (ISO). Default: awal semester — disimpan di period-meta. */
+  registrationOpenAt: z.string().datetime().optional(),
+  examAt: z.string().datetime().optional().nullable(),
+  examLocation: z.string().trim().max(200).optional().nullable(),
+  bidangUjianName: z.string().trim().max(120).optional().nullable(),
+  bendaharaCabangName: z.string().trim().max(120).optional().nullable(),
+  beltFees: z
+    .object({
+      PUTIH: z.coerce.number().int().min(0).max(10_000_000),
+      KUNING: z.coerce.number().int().min(0).max(10_000_000),
+      HIJAU: z.coerce.number().int().min(0).max(10_000_000),
+      BIRU: z.coerce.number().int().min(0).max(10_000_000),
+      COKELAT: z.coerce.number().int().min(0).max(10_000_000),
+    })
+    .optional(),
+  komisiRanting: z.coerce.number().int().min(0).max(1_000_000).optional(),
+  notifyRanting: z.boolean().optional(),
 });
 
 export const uktPeriodPatchSchema = z.object({
   eventId: z.string().uuid(),
   title: z.string().trim().min(3).max(120).optional(),
   registrationCloseAt: z.string().datetime().optional(),
+  registrationOpenAt: z.string().datetime().optional().nullable(),
+  examAt: z.string().datetime().optional().nullable(),
+  examLocation: z.string().trim().max(200).optional().nullable(),
+  bidangUjianName: z.string().trim().max(120).optional().nullable(),
+  bendaharaCabangName: z.string().trim().max(120).optional().nullable(),
+  beltFees: z
+    .object({
+      PUTIH: z.coerce.number().int().min(0).max(10_000_000),
+      KUNING: z.coerce.number().int().min(0).max(10_000_000),
+      HIJAU: z.coerce.number().int().min(0).max(10_000_000),
+      BIRU: z.coerce.number().int().min(0).max(10_000_000),
+      COKELAT: z.coerce.number().int().min(0).max(10_000_000),
+    })
+    .optional(),
+  komisiRanting: z.coerce.number().int().min(0).max(1_000_000).optional(),
+  notifyRanting: z.boolean().optional(),
 });
 
 export const uktRegisterSchema = z.object({
@@ -224,6 +257,10 @@ export const uktBeltFeesSchema = z.object({
   BIRU: z.coerce.number().int().min(0).max(10_000_000),
   COKELAT: z.coerce.number().int().min(0).max(10_000_000),
   komisiRanting: z.coerce.number().int().min(0).max(1_000_000),
+  /** Jika diisi: simpan juga sebagai snapshot biaya periode. */
+  eventId: z.string().uuid().optional(),
+  /** true = juga update template global cabang. Default: true jika tanpa eventId. */
+  updateGlobal: z.boolean().optional(),
 });
 
 export const adminUserPatchSchema = z.object({
@@ -316,6 +353,24 @@ export const uktPeriodMetaSchema = z.object({
   eventId: z.string().uuid(),
   archived: z.boolean().optional(),
   locked: z.boolean().optional(),
+  registrationOpenAt: z.string().datetime().optional().nullable(),
+  examAt: z.string().datetime().optional().nullable(),
+  examLocation: z.string().trim().max(200).optional().nullable(),
+  bidangUjianName: z.string().trim().max(120).optional().nullable(),
+  bendaharaCabangName: z.string().trim().max(120).optional().nullable(),
+  beltFees: z
+    .object({
+      PUTIH: z.coerce.number().int().min(0).max(10_000_000),
+      KUNING: z.coerce.number().int().min(0).max(10_000_000),
+      HIJAU: z.coerce.number().int().min(0).max(10_000_000),
+      BIRU: z.coerce.number().int().min(0).max(10_000_000),
+      COKELAT: z.coerce.number().int().min(0).max(10_000_000),
+    })
+    .optional(),
+  komisiRanting: z.coerce.number().int().min(0).max(1_000_000).optional(),
+  notifiedOpenAt: z.string().datetime().optional().nullable(),
+  notifiedCloseReminderAt: z.string().datetime().optional().nullable(),
+  notifiedExtendedAt: z.string().datetime().optional().nullable(),
 });
 
 export const operationalDefaultsSchema = z.object({

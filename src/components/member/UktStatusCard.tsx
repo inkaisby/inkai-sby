@@ -6,7 +6,7 @@ import { Award, ChevronRight, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatRankLabel } from "@/lib/belt";
-import type { UktDisplayStatus } from "@/lib/ukt";
+import { formatUktRegistrationDeadline, type UktDisplayStatus } from "@/lib/ukt";
 
 type UktStatusPayload = {
   period?: { title?: string; semester?: string; year?: number };
@@ -15,6 +15,8 @@ type UktStatusPayload = {
   displayStatus?: UktDisplayStatus;
   kyuLama?: string;
   kyuBaru?: string | null;
+  examAt?: string | null;
+  examLocation?: string | null;
 };
 
 const STATUS_CLASS: Partial<Record<UktDisplayStatus, string>> = {
@@ -127,6 +129,12 @@ export function UktStatusCard({ compact = false }: Props) {
       ) : (
         <p className="mt-1 text-sm text-muted-foreground">
           Belum terdaftar pada periode aktif.
+        </p>
+      )}
+      {data.examAt && (
+        <p className="mt-1 text-sm text-muted-foreground">
+          Ujian: {formatUktRegistrationDeadline(data.examAt)}
+          {data.examLocation ? ` · ${data.examLocation}` : ""}
         </p>
       )}
       {hint && (

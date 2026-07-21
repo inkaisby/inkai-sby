@@ -5,20 +5,20 @@ import { canEditKyuBaru } from "@/lib/belt";
 import {
   beltFeesFromTemplates,
   BELT_FEE_KEYS,
+  BELT_FEE_LABELS,
   DEFAULT_KOMISI_RANTING,
+  findTemplatesForBeltFee,
+  normalizeBeltFeeRankName,
   UKT_KOMISI_SETTING_KEY,
 } from "@/lib/ukt";
 import { uktBeltFeesSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
-
-const BELT_LABELS: Record<(typeof BELT_FEE_KEYS)[number], string> = {
-  PUTIH: "Putih",
-  KUNING: "Kuning",
-  HIJAU: "Hijau",
-  BIRU: "Biru",
-  COKELAT: "Cokelat",
-};
+import {
+  loadUktPeriodMeta,
+  mergeUktPeriodMeta,
+  saveUktPeriodMeta,
+} from "@/lib/ukt-period-meta-store";
 
 async function loadKomisiRanting(token: string): Promise<number> {
   const { res, data } = await inkaiFetch(`/v1/settings/${UKT_KOMISI_SETTING_KEY}`, {}, token);
@@ -69,7 +69,52 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Data pengaturan UKT tidak valid" }, { status: 400 });
   }
 
-  const { komisiRanting, ...fees } = parsed.data;
+  const {
+    komisiRanting,
+    eventId,
+    updateGlobal,
+    PUTIH,
+    KUNING,
+    HIJAU,
+    BIRU,
+    COKELAT,
+  } = parsed.data;
+  const fees = { PUTIH, KUNING, HIJAU, BIRU, COKELAT };
+  const shouldUpdateGlobal = updateGlobal ?? !eventId;
+
+  if (eventId) {
+    const current = await loadUktPeriodMeta(authResult.token, eventId);
+    const next = mergeUktPeriodMeta(current, {
+      beltFees: fees,
+      komisiRanting,
+      by: authResult.user.email,
+    });
+    const saved = await saveUktPeriodMeta(authResult.token, eventId, next);
+    if (!saved.ok) {
+      return NextResponse.json(
+        { error: inkaiErrorMessage(saved.errorData as Record<string, unknown>, "Gagal menyimpan biaya periode") },
+        { status: saved.status },
+      );
+    }
+  }
+
+  if (!shouldUpdateGlobal) {
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "UKT_SETTINGS_UPDATE",
+      details: JSON.stringify({ fees, komisiRanting, eventId, updateGlobal: false }),
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      token: authResult.token,
+    });
+    return NextResponse.json({
+      success: true,
+      fees,
+      komisiRanting,
+      periodSnapshot: Boolean(eventId),
+    });
+  }
 
   const { res: listRes, data: listData } = await inkaiFetch(
     "/v1/events/rank-fee-templates",
@@ -81,15 +126,34 @@ export async function PUT(request: Request) {
   }
 
   const existing = (listData.data as Array<{ id: string; rankName: string; fee: number }>) ?? [];
-  const templates = BELT_FEE_KEYS.map((key) => {
-    const label = BELT_LABELS[key];
-    const found = existing.find((t) => t.rankName.toLowerCase().startsWith(label.toLowerCase()));
-    return {
-      id: found?.id ?? existing[0]?.id ?? "",
-      rankName: label,
-      fee: fees[key],
-    };
-  }).filter((t) => t.id);
+  const usedIds = new Set<string>();
+  const templates: Array<{ id: string; rankName: string; fee: number }> = [];
+
+  for (const key of BELT_FEE_KEYS) {
+    const label = BELT_FEE_LABELS[key];
+    const matches = findTemplatesForBeltFee(existing, key).filter((t) => !usedIds.has(t.id));
+    if (matches.length === 0) {
+      return NextResponse.json(
+        {
+          error: `Template biaya sabuk "${label}" tidak ditemukan. Perbaiki data RankFeeTemplate lalu coba lagi.`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const canonical = label.toLowerCase();
+    const preferred =
+      matches.find((t) => normalizeBeltFeeRankName(t.rankName) === canonical) ?? matches[0];
+
+    for (const match of matches) {
+      usedIds.add(match.id);
+      templates.push({
+        id: match.id,
+        rankName: match.id === preferred.id ? label : match.rankName,
+        fee: fees[key],
+      });
+    }
+  }
 
   const { res, data } = await inkaiFetch(
     "/v1/events/rank-fee-templates",
@@ -120,11 +184,16 @@ export async function PUT(request: Request) {
     userId: authResult.user.id,
     email: authResult.user.email,
     action: "UKT_SETTINGS_UPDATE",
-    details: JSON.stringify({ fees, komisiRanting }),
+    details: JSON.stringify({ fees, komisiRanting, eventId }),
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token: authResult.token,
   });
 
-  return NextResponse.json({ success: true, fees, komisiRanting });
+  return NextResponse.json({
+    success: true,
+    fees,
+    komisiRanting,
+    periodSnapshot: Boolean(eventId),
+  });
 }

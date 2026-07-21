@@ -21,13 +21,16 @@ import {
   UKT_KOMISI_SETTING_KEY,
   uktBaseFeeAmount,
   resolveUktSelectedPeriodId,
+  resolveUktPeriodFees,
   computeSemesterAttendance,
   buildUktSemesterWindow,
+  buildUktEventDates,
   buildUktExamResultMap,
   buildUktExamAttendanceMap,
   buildUktDepositMap,
   buildUktWaiverMap,
   parseUktPeriodMetaValue,
+  parseUktEventTitle,
   uktPeriodMetaKey,
   type UktExamResult,
   type UktMemberRow,
@@ -1085,16 +1088,48 @@ export async function fetchUktDashboardData(
   const depositMap = selectedPeriodId
     ? buildUktDepositMap(depositSettings, selectedPeriodId)
     : new Map<string, UktDepositRecord>();
-  const periodMeta: UktPeriodMeta = parseUktPeriodMetaValue(periodMetaValue);
   const waiverMap = selectedPeriodId
     ? buildUktWaiverMap(waiverSettings, selectedPeriodId)
     : new Map<string, UktRegistrationWaiver>();
-
-  const beltFees = feesRes.res.ok
+  const beltFeesGlobal = feesRes.res.ok
     ? beltFeesFromTemplates(
         (feesRes.data.data as Array<{ rankName: string; fee: number }>) ?? [],
       )
     : beltFeesFromTemplates([]);
+
+  // Backfill registrationOpenAt untuk periode lama (awal semester dari judul).
+  let periodMeta: UktPeriodMeta = parseUktPeriodMetaValue(periodMetaValue);
+  if (selectedPeriodId && !periodMeta.registrationOpenAt) {
+    const selected = periods.find((p) => p.id === selectedPeriodId);
+    const parsedTitle = selected ? parseUktEventTitle(selected.title) : null;
+    if (parsedTitle) {
+      const { registrationOpenAt } = buildUktEventDates(
+        parsedTitle.semester,
+        parsedTitle.year,
+      );
+      periodMeta = {
+        ...periodMeta,
+        registrationOpenAt: registrationOpenAt.toISOString(),
+      };
+      // Persist soft (jangan blok halaman jika gagal)
+      void inkaiFetch(
+        `/v1/settings/${encodeURIComponent(uktPeriodMetaKey(selectedPeriodId))}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ value: periodMeta }),
+        },
+        token,
+      );
+    }
+  }
+
+  const resolvedFees = resolveUktPeriodFees(
+    beltFeesGlobal,
+    komisiRanting,
+    periodMeta,
+  );
+  const beltFees = resolvedFees.beltFees;
+  const effectiveKomisi = resolvedFees.komisiRanting;
 
   const members = (membersResult.ok ? membersResult.members : []) as Array<
     AdminMemberRow & Record<string, unknown>
@@ -1177,7 +1212,10 @@ export async function fetchUktDashboardData(
     dojos,
     allRows,
     beltFees,
-    komisiRanting,
+    komisiRanting: effectiveKomisi,
+    feesFromSnapshot: resolvedFees.fromSnapshot,
+    globalBeltFees: beltFeesGlobal,
+    globalKomisiRanting: komisiRanting,
     depositMap: Object.fromEntries(depositMap.entries()) as Record<
       string,
       UktDepositRecord

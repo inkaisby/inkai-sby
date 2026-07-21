@@ -12,9 +12,9 @@ import {
   resolveUktDisplayStatus,
   uktDisplayStatusLabel,
   type UktMemberRow,
-  type UktSemester,
 } from "@/lib/ukt";
 import { fetchSettingsByPrefix } from "@/lib/inkai-api/admin-data";
+import { loadUktPeriodMeta } from "@/lib/ukt-period-meta-store";
 
 function filterUktEvents(events: Array<Record<string, unknown>>) {
   return events.filter((e) => String(e.title).toUpperCase().includes("UKT"));
@@ -64,13 +64,24 @@ export async function GET() {
     });
   }
 
+  const periodMeta = await loadUktPeriodMeta(token, match.id);
+  const examPayload = {
+    examAt: periodMeta.examAt ?? null,
+    examLocation: periodMeta.examLocation ?? null,
+  };
+
   const { res: detailRes, data: detailData } = await inkaiFetch(
     `/v1/events/${match.id}`,
     {},
     token,
   );
   if (!detailRes.ok) {
-    return NextResponse.json({ period: match, registered: false, statusLabel: "—" });
+    return NextResponse.json({
+      period: match,
+      registered: false,
+      statusLabel: "—",
+      ...examPayload,
+    });
   }
 
   const event = detailData.data as Record<string, unknown>;
@@ -85,6 +96,7 @@ export async function GET() {
       registered: false,
       statusLabel: "Belum terdaftar",
       displayStatus: "belum_daftar",
+      ...examPayload,
     });
   }
 
@@ -139,5 +151,6 @@ export async function GET() {
     displayStatus,
     statusLabel: uktDisplayStatusLabel(displayStatus),
     examResult: row.examResult,
+    ...examPayload,
   });
 }

@@ -94,11 +94,15 @@ import {
   formatUktPeriodLabel,
   formatUktRegistrationDeadline,
   getUktRegistrationDeadline,
+  getUktRegistrationOpenAt,
+  isUktRegistrationNotYetOpen,
   isUktRegistrationOpen,
   findUktPeriodForTerm,
   parseUktEventTitle,
+  buildUktDepositReconciliation,
   resolveEffectiveUktExamResult,
   resolveUktDisplayStatus,
+  resolveUktPeriodOfficers,
   summarizeRowEligibility,
   toDateInput,
   toTimeInput,
@@ -196,6 +200,8 @@ type Props = {
   defaultDojoFilter?: string;
   beltFees: Record<BeltFeeKey, number>;
   komisiRanting: number;
+  /** Biaya UI berasal dari snapshot period-meta (bukan template global). */
+  feesFromSnapshot?: boolean;
   depositMap?: Record<string, UktDepositRecord>;
   periodMeta?: UktPeriodMeta;
   orgProfile?: {
@@ -276,6 +282,8 @@ export function UktDashboard(props: Props) {
   const [showRegistrationDeadline, setShowRegistrationDeadline] = useState(false);
   const [registrationDeadlineDate, setRegistrationDeadlineDate] = useState("");
   const [registrationDeadlineTime, setRegistrationDeadlineTime] = useState("");
+  const [registrationOpenDate, setRegistrationOpenDate] = useState("");
+  const [registrationOpenTime, setRegistrationOpenTime] = useState("00:00");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [printOnlySelected, setPrintOnlySelected] = useState(false);
   const [compactView, setCompactView] = useState(false);
@@ -283,8 +291,16 @@ export function UktDashboard(props: Props) {
   const [showExamDay, setShowExamDay] = useState(false);
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
+  const [wizardOpenDate, setWizardOpenDate] = useState("");
+  const [wizardOpenTime, setWizardOpenTime] = useState("00:00");
   const [wizardDeadlineDate, setWizardDeadlineDate] = useState("");
   const [wizardDeadlineTime, setWizardDeadlineTime] = useState("23:59");
+  const [wizardExamDate, setWizardExamDate] = useState("");
+  const [wizardExamTime, setWizardExamTime] = useState("08:00");
+  const [wizardExamLocation, setWizardExamLocation] = useState("");
+  const [wizardBidang, setWizardBidang] = useState("");
+  const [wizardBendahara, setWizardBendahara] = useState("");
+  const [updateFeesGlobal, setUpdateFeesGlobal] = useState(false);
   const [waiverTarget, setWaiverTarget] = useState<UktMemberRow | null>(null);
   const [waiverBlockers, setWaiverBlockers] = useState<UktRegistrationBlocker[]>([]);
   const [waiverNote, setWaiverNote] = useState("");
@@ -293,6 +309,11 @@ export function UktDashboard(props: Props) {
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
   const periodLocked = Boolean(props.periodMeta?.locked || props.periodMeta?.archived);
   const depositMap = props.depositMap ?? {};
+  const periodOfficers = resolveUktPeriodOfficers(props.periodMeta, props.orgProfile);
+  const depositRecon = useMemo(
+    () => buildUktDepositReconciliation(props.allRows, props.dojos, depositMap),
+    [props.allRows, props.dojos, depositMap],
+  );
 
   useEffect(() => {
     if (isDojoAdmin) setCompactView(true);
@@ -303,9 +324,21 @@ export function UktDashboard(props: Props) {
     setKomisiRanting(props.komisiRanting);
   }, [props.beltFees, props.komisiRanting]);
   const selectedPeriod = props.periods.find((p) => p.id === props.selectedPeriodId);
-  const registrationOpen = selectedPeriod ? isUktRegistrationOpen(selectedPeriod) : true;
-  const registrationDeadlineIso = selectedPeriod
-    ? getUktRegistrationDeadline(selectedPeriod).toISOString()
+  const periodSchedule = selectedPeriod
+    ? {
+        ...selectedPeriod,
+        registrationOpenAt: props.periodMeta?.registrationOpenAt ?? null,
+      }
+    : null;
+  const registrationOpen = periodSchedule ? isUktRegistrationOpen(periodSchedule) : true;
+  const registrationNotYetOpen = periodSchedule
+    ? isUktRegistrationNotYetOpen(periodSchedule)
+    : false;
+  const registrationDeadlineIso = periodSchedule
+    ? getUktRegistrationDeadline(periodSchedule).toISOString()
+    : null;
+  const registrationOpenIso = periodSchedule
+    ? (getUktRegistrationOpenAt(periodSchedule)?.toISOString() ?? null)
     : null;
   const effectiveDojo = isDojoAdmin ? props.defaultDojoFilter || "" : localDojo;
 
@@ -461,14 +494,36 @@ export function UktDashboard(props: Props) {
   );
 
   const handleCreatePeriod = async () => {
+    if (!wizardOpenDate || !wizardOpenTime) {
+      toast.error("Isi tanggal dan jam buka pendaftaran");
+      return;
+    }
     if (!wizardDeadlineDate || !wizardDeadlineTime) {
       toast.error("Isi tanggal dan jam batas pendaftaran");
       return;
     }
+    const openAt = combineDateAndTimeLocal(wizardOpenDate, wizardOpenTime);
     const closeAt = combineDateAndTimeLocal(wizardDeadlineDate, wizardDeadlineTime);
+    if (Number.isNaN(openAt.getTime())) {
+      toast.error("Tanggal buka pendaftaran tidak valid");
+      return;
+    }
     if (Number.isNaN(closeAt.getTime())) {
       toast.error("Batas pendaftaran tidak valid");
       return;
+    }
+    if (openAt.getTime() > closeAt.getTime()) {
+      toast.error("Tanggal buka harus sebelum atau sama dengan batas pendaftaran");
+      return;
+    }
+    let examAtIso: string | undefined;
+    if (wizardExamDate && wizardExamTime) {
+      const examAt = combineDateAndTimeLocal(wizardExamDate, wizardExamTime);
+      if (Number.isNaN(examAt.getTime())) {
+        toast.error("Tanggal/jam ujian tidak valid");
+        return;
+      }
+      examAtIso = examAt.toISOString();
     }
     setLoading(true);
     try {
@@ -479,7 +534,15 @@ export function UktDashboard(props: Props) {
           semester: props.semester,
           year: props.year,
           title: periodTitle,
+          registrationOpenAt: openAt.toISOString(),
           registrationCloseAt: closeAt.toISOString(),
+          examAt: examAtIso ?? null,
+          examLocation: wizardExamLocation.trim() || null,
+          bidangUjianName: wizardBidang.trim() || null,
+          bendaharaCabangName: wizardBendahara.trim() || null,
+          beltFees,
+          komisiRanting,
+          notifyRanting: true,
         }),
       });
       const data = await parseApiJson<{ error?: string; event?: { id: string }; created?: boolean }>(res);
@@ -560,9 +623,9 @@ export function UktDashboard(props: Props) {
   const openWaiverDialog = (row: UktMemberRow) => {
     const blockers = getUktRegistrationBlockersWithWaiver(
       row,
-      { registrationOpen },
+      { registrationOpen, registrationNotYetOpen },
       null,
-    ).filter((b) => b !== "PERIODE_TUTUP");
+    ).filter((b) => b !== "PERIODE_TUTUP" && b !== "PERIODE_BELUM_BUKA");
     setWaiverTarget(row);
     setWaiverBlockers(blockers);
     setWaiverNote("");
@@ -625,29 +688,74 @@ export function UktDashboard(props: Props) {
   };
 
   const registrationTimeParts = splitTimeInput(registrationDeadlineTime || "00:00");
+  const registrationOpenTimeParts = splitTimeInput(registrationOpenTime || "00:00");
   const wizardTimeParts = splitTimeInput(wizardDeadlineTime || "23:59");
+  const wizardOpenTimeParts = splitTimeInput(wizardOpenTime || "00:00");
+  const wizardExamTimeParts = splitTimeInput(wizardExamTime || "08:00");
 
   const openCreateWizard = () => {
-    const { registrationCloseAt } = buildUktEventDates(props.semester, props.year);
-    const iso = registrationCloseAt.toISOString();
-    setWizardDeadlineDate(toDateInput(iso));
-    setWizardDeadlineTime(toTimeInput(iso));
+    const { registrationCloseAt, registrationOpenAt } = buildUktEventDates(
+      props.semester,
+      props.year,
+    );
+    const closeIso = registrationCloseAt.toISOString();
+    const openIso = registrationOpenAt.toISOString();
+    setWizardOpenDate(toDateInput(openIso));
+    setWizardOpenTime(toTimeInput(openIso));
+    setWizardDeadlineDate(toDateInput(closeIso));
+    setWizardDeadlineTime(toTimeInput(closeIso));
+    const examDefault = new Date();
+    examDefault.setDate(examDefault.getDate() + 14);
+    examDefault.setHours(8, 0, 0, 0);
+    const examIso = examDefault.toISOString();
+    setWizardExamDate(toDateInput(examIso));
+    setWizardExamTime(toTimeInput(examIso));
+    setWizardExamLocation("");
+    setWizardBidang(props.orgProfile?.bidangUjianName?.trim() || "");
+    setWizardBendahara(props.orgProfile?.bendaharaCabangName?.trim() || "");
     setWizardStep(0);
     setShowCreateWizard(true);
+  };
+
+  const openBeltFeesDialog = () => {
+    setUpdateFeesGlobal(!props.selectedPeriodId);
+    setShowBeltFees(true);
   };
 
   const openRegistrationDeadlineDialog = () => {
     if (!registrationDeadlineIso) return;
     setRegistrationDeadlineDate(toDateInput(registrationDeadlineIso));
     setRegistrationDeadlineTime(toTimeInput(registrationDeadlineIso));
+    if (registrationOpenIso) {
+      setRegistrationOpenDate(toDateInput(registrationOpenIso));
+      setRegistrationOpenTime(toTimeInput(registrationOpenIso));
+    } else {
+      const { registrationOpenAt } = buildUktEventDates(props.semester, props.year);
+      const iso = registrationOpenAt.toISOString();
+      setRegistrationOpenDate(toDateInput(iso));
+      setRegistrationOpenTime(toTimeInput(iso));
+    }
     setShowRegistrationDeadline(true);
   };
 
   const handleSaveRegistrationDeadline = async () => {
     if (!props.selectedPeriodId || !registrationDeadlineDate || !registrationDeadlineTime) return;
+    if (!registrationOpenDate || !registrationOpenTime) {
+      toast.error("Isi tanggal dan jam buka pendaftaran");
+      return;
+    }
+    const openAt = combineDateAndTimeLocal(registrationOpenDate, registrationOpenTime);
     const closeAt = combineDateAndTimeLocal(registrationDeadlineDate, registrationDeadlineTime);
+    if (Number.isNaN(openAt.getTime())) {
+      toast.error("Tanggal buka pendaftaran tidak valid");
+      return;
+    }
     if (Number.isNaN(closeAt.getTime())) {
       toast.error("Batas pendaftaran tidak valid");
+      return;
+    }
+    if (openAt.getTime() > closeAt.getTime()) {
+      toast.error("Tanggal buka harus sebelum atau sama dengan batas pendaftaran");
       return;
     }
     setLoading(true);
@@ -657,12 +765,13 @@ export function UktDashboard(props: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId: props.selectedPeriodId,
+          registrationOpenAt: openAt.toISOString(),
           registrationCloseAt: closeAt.toISOString(),
         }),
       });
       const data = await parseApiJson<{ error?: string }>(res);
-      if (!res.ok) throw new Error(data.error || "Gagal menyimpan batas pendaftaran");
-      toast.success("Batas pendaftaran UKT diperbarui");
+      if (!res.ok) throw new Error(data.error || "Gagal menyimpan jadwal pendaftaran");
+      toast.success("Jadwal pendaftaran UKT diperbarui");
       setShowRegistrationDeadline(false);
       router.refresh();
     } catch (e) {
@@ -782,14 +891,33 @@ export function UktDashboard(props: Props) {
   const handleSaveBeltFees = async () => {
     setLoading(true);
     try {
+      const payload: Record<string, unknown> = {
+        ...beltFees,
+        komisiRanting,
+      };
+      if (props.selectedPeriodId) {
+        payload.eventId = props.selectedPeriodId;
+        payload.updateGlobal = updateFeesGlobal;
+      } else {
+        payload.updateGlobal = true;
+      }
       const res = await fetch("/api/admin/ukt/fees", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...beltFees, komisiRanting }),
+        body: JSON.stringify(payload),
       });
-      const data = await parseApiJson<{ error?: string }>(res);
+      const data = await parseApiJson<{
+        error?: string;
+        periodSnapshot?: boolean;
+      }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal menyimpan biaya sabuk");
-      toast.success("Biaya sabuk berhasil disimpan");
+      if (props.selectedPeriodId && !updateFeesGlobal) {
+        toast.success("Biaya sabuk periode (snapshot) disimpan");
+      } else if (props.selectedPeriodId && updateFeesGlobal) {
+        toast.success("Biaya sabuk periode & global cabang disimpan");
+      } else {
+        toast.success("Biaya sabuk global cabang disimpan");
+      }
       setShowBeltFees(false);
       router.refresh();
     } catch (e) {
@@ -1089,7 +1217,7 @@ export function UktDashboard(props: Props) {
                   <>
                     <Button
                       variant="outline"
-                      onClick={() => setShowBeltFees(true)}
+                      onClick={openBeltFeesDialog}
                       disabled={periodLocked}
                     >
                       <Wallet className="mr-1 h-4 w-4" />
@@ -1160,9 +1288,18 @@ export function UktDashboard(props: Props) {
 
       {props.selectedPeriodId && selectedPeriod && (
         <Card className="border-muted">
-          <CardContent className="p-4">
+          <CardContent className="space-y-2 p-4">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
               <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="text-muted-foreground">Buka pendaftaran:</span>
+              <span className="font-medium">
+                {registrationOpenIso
+                  ? formatUktRegistrationDeadline(registrationOpenIso)
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
+              <span className="w-4 shrink-0" aria-hidden />
               <span className="text-muted-foreground">Batas pendaftaran:</span>
               <span className="font-medium">
                 {registrationDeadlineIso
@@ -1170,7 +1307,11 @@ export function UktDashboard(props: Props) {
                   : "—"}
               </span>
               <Badge variant={registrationOpen ? "default" : "secondary"}>
-                {registrationOpen ? "Masih terbuka" : "Sudah tutup"}
+                {registrationOpen
+                  ? "Masih terbuka"
+                  : registrationNotYetOpen
+                    ? "Belum dibuka"
+                    : "Sudah tutup"}
               </Badge>
               {isCabang && (
                 <Button
@@ -1186,25 +1327,69 @@ export function UktDashboard(props: Props) {
                 </Button>
               )}
             </div>
+            {(props.periodMeta?.examAt || props.periodMeta?.examLocation) && (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
+                <span className="w-4 shrink-0" aria-hidden />
+                <span className="text-muted-foreground">Ujian:</span>
+                <span className="font-medium">
+                  {props.periodMeta?.examAt
+                    ? formatUktRegistrationDeadline(props.periodMeta.examAt)
+                    : "—"}
+                  {props.periodMeta?.examLocation
+                    ? ` · ${props.periodMeta.examLocation}`
+                    : ""}
+                </span>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
+              <span className="w-4 shrink-0" aria-hidden />
+              <span className="text-muted-foreground">Pejabat:</span>
+              <span className="font-medium">
+                Bidang Ujian {periodOfficers.bidangUjianName} · Bendahara{" "}
+                {periodOfficers.bendaharaCabangName}
+              </span>
+            </div>
           </CardContent>
         </Card>
       )}
 
       {props.selectedPeriodId && !registrationOpen && (
-        <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
+        <Card
+          className={`ukt-registration-alert overflow-hidden ${
+            registrationNotYetOpen
+              ? "ukt-registration-alert--pending"
+              : "ukt-registration-alert--closed"
+          }`}
+        >
           <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-            <div className="flex items-start gap-2 text-sm text-amber-800 dark:text-amber-200">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>
-                Batas waktu pendaftaran untuk periode ini sudah lewat.
+            <div
+              className={`flex items-start gap-2.5 text-sm ${
+                registrationNotYetOpen
+                  ? "text-amber-900 dark:text-amber-100"
+                  : "text-red-900 dark:text-red-100"
+              }`}
+            >
+              <span className="ukt-registration-alert-icon mt-0.5 inline-flex shrink-0">
+                <AlertTriangle
+                  className={`h-4 w-4 ${
+                    registrationNotYetOpen ? "text-amber-600" : "text-red-600"
+                  }`}
+                />
+              </span>
+              <span className="leading-relaxed">
+                {registrationNotYetOpen
+                  ? "Pendaftaran untuk periode ini belum dibuka."
+                  : "Batas waktu pendaftaran untuk periode ini sudah lewat."}
                 {isCabang
-                  ? " Perpanjang batas pendaftaran agar ranting dapat mendaftarkan peserta."
-                  : " Hubungi admin cabang untuk perpanjangan pendaftaran."}
+                  ? registrationNotYetOpen
+                    ? " Atur tanggal buka agar ranting dapat mendaftarkan peserta."
+                    : " Perpanjang batas pendaftaran agar ranting dapat mendaftarkan peserta."
+                  : " Hubungi admin cabang untuk penyesuaian jadwal pendaftaran."}
               </span>
             </div>
             {isCabang && (
               <Button size="sm" onClick={openRegistrationDeadlineDialog} disabled={loading}>
-                Perpanjang Batas
+                {registrationNotYetOpen ? "Atur Jadwal" : "Perpanjang Batas"}
               </Button>
             )}
           </CardContent>
@@ -1367,6 +1552,41 @@ export function UktDashboard(props: Props) {
                 );
               })}
             </div>
+            {depositRecon.length > 0 && (
+              <div className="overflow-x-auto rounded-lg border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ranting</TableHead>
+                      <TableHead className="text-right">Peserta</TableHead>
+                      <TableHead className="text-right">Lunas</TableHead>
+                      <TableHead className="text-right">Total tagihan</TableHead>
+                      <TableHead>Status setor</TableHead>
+                      <TableHead>Keterangan</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(isDojoAdmin
+                      ? depositRecon.filter(
+                          (r) => r.dojoId === (props.defaultDojoFilter || effectiveDojo),
+                        )
+                      : depositRecon
+                    ).map((row) => (
+                      <TableRow key={row.dojoId}>
+                        <TableCell className="font-medium">{row.dojoName}</TableCell>
+                        <TableCell className="text-right">{row.participantCount}</TableCell>
+                        <TableCell className="text-right">{row.paidCount}</TableCell>
+                        <TableCell className="text-right">
+                          {formatRupiahNota(row.expectedAmount)}
+                        </TableCell>
+                        <TableCell>{uktDepositStatusLabel(row.depositStatus)}</TableCell>
+                        <TableCell className="text-muted-foreground">{row.gapLabel}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -1756,7 +1976,11 @@ export function UktDashboard(props: Props) {
                       </TableCell>
                       <TableCell className="text-xs">
                         {(() => {
-                          const eligibility = summarizeRowEligibility(row, registrationOpen);
+                          const eligibility = summarizeRowEligibility(
+                            row,
+                            registrationOpen,
+                            registrationNotYetOpen,
+                          );
                           return (
                             <span
                               className={eligibility.ok ? "text-emerald-600" : "text-amber-700"}
@@ -1823,7 +2047,7 @@ export function UktDashboard(props: Props) {
                         (() => {
                           const blockers = getUktRegistrationBlockersWithWaiver(
                             row,
-                            { registrationOpen },
+                            { registrationOpen, registrationNotYetOpen },
                             row.registrationWaiver,
                           );
                           const blocked = blockers.length > 0;
@@ -2045,7 +2269,7 @@ export function UktDashboard(props: Props) {
                   (() => {
                     const blockers = getUktRegistrationBlockersWithWaiver(
                       selectedMember,
-                      { registrationOpen },
+                      { registrationOpen, registrationNotYetOpen },
                       selectedMember.registrationWaiver,
                     );
                     const blocked = blockers.length > 0;
@@ -2125,7 +2349,10 @@ export function UktDashboard(props: Props) {
           beltFees={beltFees}
           komisiRanting={komisiRanting}
           isDojoAdmin={isDojoAdmin}
-          orgProfile={props.orgProfile}
+          orgProfile={{
+            address: props.orgProfile?.address,
+            ...periodOfficers,
+          }}
         />
       )}
 
@@ -2152,65 +2379,131 @@ export function UktDashboard(props: Props) {
       />
 
       <Dialog open={showRegistrationDeadline} onOpenChange={setShowRegistrationDeadline}>
-        <DialogContent className="max-w-sm gap-4">
+        <DialogContent className="max-w-md gap-4">
           <DialogHeader>
-            <DialogTitle>Batas Pendaftaran UKT</DialogTitle>
+            <DialogTitle>Jadwal Pendaftaran UKT</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <label htmlFor="ukt-registration-date" className="text-sm font-medium">
-                Tanggal
-              </label>
-              <Input
-                id="ukt-registration-date"
-                type="date"
-                lang="id-ID"
-                value={registrationDeadlineDate}
-                onChange={(e) => setRegistrationDeadlineDate(e.target.value)}
-              />
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5 sm:col-span-2">
+                <p className="text-xs font-medium text-muted-foreground">Buka pendaftaran</p>
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="ukt-registration-open-date" className="text-sm font-medium">
+                  Tanggal
+                </label>
+                <Input
+                  id="ukt-registration-open-date"
+                  type="date"
+                  lang="id-ID"
+                  value={registrationOpenDate}
+                  onChange={(e) => setRegistrationOpenDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Jam</label>
+                <div className="flex items-center gap-1.5">
+                  <Select
+                    value={registrationOpenTimeParts.hour}
+                    onValueChange={(hour) =>
+                      setRegistrationOpenTime(
+                        joinTimeInput(hour, registrationOpenTimeParts.minute),
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-[4.5rem]">
+                      <SelectValue placeholder="JJ" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-52">
+                      {HOURS_24.map((hour) => (
+                        <SelectItem key={hour} value={hour}>
+                          {hour}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm font-semibold text-muted-foreground">.</span>
+                  <Select
+                    value={registrationOpenTimeParts.minute}
+                    onValueChange={(minute) =>
+                      setRegistrationOpenTime(
+                        joinTimeInput(registrationOpenTimeParts.hour, minute),
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-[4.5rem]">
+                      <SelectValue placeholder="MM" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-52">
+                      {MINUTES_60.map((minute) => (
+                        <SelectItem key={minute} value={minute}>
+                          {minute}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Jam</label>
-              <div className="flex items-center gap-1.5">
-                <Select
-                  value={registrationTimeParts.hour}
-                  onValueChange={(hour) =>
-                    setRegistrationDeadlineTime(
-                      joinTimeInput(hour, registrationTimeParts.minute),
-                    )
-                  }
-                >
-                  <SelectTrigger className="w-[4.5rem]">
-                    <SelectValue placeholder="JJ" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-52">
-                    {HOURS_24.map((hour) => (
-                      <SelectItem key={hour} value={hour}>
-                        {hour}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <span className="text-sm font-semibold text-muted-foreground">.</span>
-                <Select
-                  value={registrationTimeParts.minute}
-                  onValueChange={(minute) =>
-                    setRegistrationDeadlineTime(
-                      joinTimeInput(registrationTimeParts.hour, minute),
-                    )
-                  }
-                >
-                  <SelectTrigger className="w-[4.5rem]">
-                    <SelectValue placeholder="MM" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-52">
-                    {MINUTES_60.map((minute) => (
-                      <SelectItem key={minute} value={minute}>
-                        {minute}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="grid gap-3 border-t pt-4 sm:grid-cols-2">
+              <div className="space-y-1.5 sm:col-span-2">
+                <p className="text-xs font-medium text-muted-foreground">Batas pendaftaran</p>
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="ukt-registration-date" className="text-sm font-medium">
+                  Tanggal
+                </label>
+                <Input
+                  id="ukt-registration-date"
+                  type="date"
+                  lang="id-ID"
+                  value={registrationDeadlineDate}
+                  onChange={(e) => setRegistrationDeadlineDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Jam</label>
+                <div className="flex items-center gap-1.5">
+                  <Select
+                    value={registrationTimeParts.hour}
+                    onValueChange={(hour) =>
+                      setRegistrationDeadlineTime(
+                        joinTimeInput(hour, registrationTimeParts.minute),
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-[4.5rem]">
+                      <SelectValue placeholder="JJ" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-52">
+                      {HOURS_24.map((hour) => (
+                        <SelectItem key={hour} value={hour}>
+                          {hour}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm font-semibold text-muted-foreground">.</span>
+                  <Select
+                    value={registrationTimeParts.minute}
+                    onValueChange={(minute) =>
+                      setRegistrationDeadlineTime(
+                        joinTimeInput(registrationTimeParts.hour, minute),
+                      )
+                    }
+                  >
+                    <SelectTrigger className="w-[4.5rem]">
+                      <SelectValue placeholder="MM" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-52">
+                      {MINUTES_60.map((minute) => (
+                        <SelectItem key={minute} value={minute}>
+                          {minute}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </div>
@@ -2230,7 +2523,11 @@ export function UktDashboard(props: Props) {
           <DialogHeader>
             <DialogTitle>Atur Biaya Sabuk UKT</DialogTitle>
             <DialogDescription>
-              Nominal biaya sabuk dan komisi ranting ditentukan oleh admin cabang untuk pendaftaran serta cetak nota.
+              {props.selectedPeriodId
+                ? props.feesFromSnapshot
+                  ? "Nilai saat ini dari snapshot periode ini. Simpan default hanya ke periode (bukan template global)."
+                  : "Simpan default ke snapshot periode ini. Centang opsi di bawah untuk juga memperbarui template global cabang."
+                : "Tidak ada periode terpilih — perubahan disimpan ke biaya global cabang (template + komisi)."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
@@ -2263,6 +2560,23 @@ export function UktDashboard(props: Props) {
                 {formatRupiahNota(komisiRanting)} / orang
               </span>
             </div>
+            {props.selectedPeriodId ? (
+              <label className="flex items-start gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 accent-inkai-red"
+                  checked={updateFeesGlobal}
+                  onChange={(e) => setUpdateFeesGlobal(e.target.checked)}
+                />
+                <span>
+                  Juga update biaya global cabang (berlaku untuk periode baru berikutnya)
+                </span>
+              </label>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Mode tanpa periode: penyimpanan selalu ke biaya global.
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowBeltFees(false)}>
@@ -2287,14 +2601,70 @@ export function UktDashboard(props: Props) {
             <div className="space-y-3 text-sm">
               <p>
                 Periode <b>{formatUktPeriodLabel(props.semester, props.year)}</b> akan dibuat
-                sebagai event UKT terpisah. Atur batas pendaftaran (tanggal & jam 24 jam) di
-                bawah — default akhir semester.
+                sebagai event UKT terpisah. Atur jadwal pendaftaran (tanggal & jam 24 jam) di
+                bawah — default buka di awal semester, tutup di akhir semester.
               </p>
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">
                   Judul periode
                 </label>
                 <Input value={periodTitle} onChange={(e) => setPeriodTitle(e.target.value)} />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label htmlFor="ukt-wizard-open-date" className="text-xs font-medium text-muted-foreground">
+                    Tanggal buka pendaftaran
+                  </label>
+                  <Input
+                    id="ukt-wizard-open-date"
+                    type="date"
+                    lang="id-ID"
+                    value={wizardOpenDate}
+                    onChange={(e) => setWizardOpenDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Jam buka (24 jam)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <Select
+                      value={wizardOpenTimeParts.hour}
+                      onValueChange={(hour) =>
+                        setWizardOpenTime(joinTimeInput(hour, wizardOpenTimeParts.minute))
+                      }
+                    >
+                      <SelectTrigger className="w-[4.5rem]">
+                        <SelectValue placeholder="JJ" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-52">
+                        {HOURS_24.map((hour) => (
+                          <SelectItem key={hour} value={hour}>
+                            {hour}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm font-semibold text-muted-foreground">.</span>
+                    <Select
+                      value={wizardOpenTimeParts.minute}
+                      onValueChange={(minute) =>
+                        setWizardOpenTime(joinTimeInput(wizardOpenTimeParts.hour, minute))
+                      }
+                    >
+                      <SelectTrigger className="w-[4.5rem]">
+                        <SelectValue placeholder="MM" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-52">
+                        {MINUTES_60.map((minute) => (
+                          <SelectItem key={minute} value={minute}>
+                            {minute}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
@@ -2311,7 +2681,7 @@ export function UktDashboard(props: Props) {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-muted-foreground">
-                    Jam (24 jam)
+                    Jam batas (24 jam)
                   </label>
                   <div className="flex items-center gap-1.5">
                     <Select
@@ -2352,12 +2722,104 @@ export function UktDashboard(props: Props) {
                   </div>
                 </div>
               </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label htmlFor="ukt-wizard-exam-date" className="text-xs font-medium text-muted-foreground">
+                    Tanggal ujian
+                  </label>
+                  <Input
+                    id="ukt-wizard-exam-date"
+                    type="date"
+                    lang="id-ID"
+                    value={wizardExamDate}
+                    onChange={(e) => setWizardExamDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Jam ujian (24 jam)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <Select
+                      value={wizardExamTimeParts.hour}
+                      onValueChange={(hour) =>
+                        setWizardExamTime(joinTimeInput(hour, wizardExamTimeParts.minute))
+                      }
+                    >
+                      <SelectTrigger className="w-[4.5rem]">
+                        <SelectValue placeholder="JJ" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-52">
+                        {HOURS_24.map((hour) => (
+                          <SelectItem key={hour} value={hour}>
+                            {hour}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm font-semibold text-muted-foreground">.</span>
+                    <Select
+                      value={wizardExamTimeParts.minute}
+                      onValueChange={(minute) =>
+                        setWizardExamTime(joinTimeInput(wizardExamTimeParts.hour, minute))
+                      }
+                    >
+                      <SelectTrigger className="w-[4.5rem]">
+                        <SelectValue placeholder="MM" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-52">
+                        {MINUTES_60.map((minute) => (
+                          <SelectItem key={minute} value={minute}>
+                            {minute}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="ukt-wizard-exam-location" className="text-xs font-medium text-muted-foreground">
+                  Tempat ujian
+                </label>
+                <Input
+                  id="ukt-wizard-exam-location"
+                  placeholder="Contoh: GOR UNESA / Dojo Cabang"
+                  value={wizardExamLocation}
+                  onChange={(e) => setWizardExamLocation(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label htmlFor="ukt-wizard-bidang" className="text-xs font-medium text-muted-foreground">
+                    Bidang Ujian
+                  </label>
+                  <Input
+                    id="ukt-wizard-bidang"
+                    value={wizardBidang}
+                    onChange={(e) => setWizardBidang(e.target.value)}
+                    placeholder="Nama pejabat Bidang Ujian"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="ukt-wizard-bendahara" className="text-xs font-medium text-muted-foreground">
+                    Bendahara Cabang
+                  </label>
+                  <Input
+                    id="ukt-wizard-bendahara"
+                    value={wizardBendahara}
+                    onChange={(e) => setWizardBendahara(e.target.value)}
+                    placeholder="Nama Bendahara Cabang"
+                  />
+                </div>
+              </div>
             </div>
           )}
           {wizardStep === 1 && (
             <div className="space-y-2 text-sm">
               <p className="text-muted-foreground">
-                Pastikan biaya sabuk & komisi ranting sudah benar sebelum membuka periode.
+                Pastikan biaya sabuk & komisi ranting sudah benar. Nominal ini akan
+                di-snapshot ke periode baru (tidak berubah jika template global diubah nanti).
               </p>
               {BELT_FEE_KEYS.map((belt) => (
                 <div key={belt} className="flex justify-between gap-2">
@@ -2369,7 +2831,7 @@ export function UktDashboard(props: Props) {
                 <span>Komisi ranting</span>
                 <span className="font-medium">{formatRupiahNota(komisiRanting)} / orang</span>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setShowBeltFees(true)}>
+              <Button variant="outline" size="sm" onClick={openBeltFeesDialog}>
                 Ubah biaya sabuk
               </Button>
             </div>
@@ -2381,6 +2843,17 @@ export function UktDashboard(props: Props) {
                 <li>Judul: {periodTitle}</li>
                 <li>Semester {props.semester} · Tahun {props.year}</li>
                 <li>
+                  Buka pendaftaran:{" "}
+                  {wizardOpenDate && wizardOpenTime
+                    ? formatUktRegistrationDeadline(
+                        combineDateAndTimeLocal(
+                          wizardOpenDate,
+                          wizardOpenTime,
+                        ).toISOString(),
+                      )
+                    : "—"}
+                </li>
+                <li>
                   Batas pendaftaran:{" "}
                   {wizardDeadlineDate && wizardDeadlineTime
                     ? formatUktRegistrationDeadline(
@@ -2391,8 +2864,41 @@ export function UktDashboard(props: Props) {
                       )
                     : "—"}
                 </li>
-                <li>Ketua ranting dapat mendaftarkan anggota setelah periode aktif</li>
-                <li>Notifikasi otomatis dikirim saat status UKT berubah</li>
+                <li>
+                  Ujian:{" "}
+                  {wizardExamDate && wizardExamTime
+                    ? formatUktRegistrationDeadline(
+                        combineDateAndTimeLocal(
+                          wizardExamDate,
+                          wizardExamTime,
+                        ).toISOString(),
+                      )
+                    : "Belum diisi"}
+                </li>
+                <li>Tempat: {wizardExamLocation.trim() || "Belum diisi"}</li>
+                <li>
+                  Pejabat: Bidang Ujian {wizardBidang.trim() || periodOfficers.bidangUjianName}
+                  {" · "}Bendahara{" "}
+                  {wizardBendahara.trim() || periodOfficers.bendaharaCabangName}
+                </li>
+              </ul>
+              <ul className="mt-2 space-y-1 text-sm">
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  Biaya sabuk & komisi siap di-snapshot
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  Jadwal buka/batas (+ ujian jika diisi) OK
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  Pejabat dokumen periode OK
+                </li>
+                <li className="flex items-center gap-2 text-muted-foreground">
+                  <MessageCircle className="h-4 w-4" />
+                  Notifikasi otomatis ke ketua ranting saat periode dibuat
+                </li>
               </ul>
             </div>
           )}
@@ -2412,16 +2918,34 @@ export function UktDashboard(props: Props) {
                 className="bg-inkai-red"
                 onClick={() => {
                   if (wizardStep === 0) {
+                    if (!wizardOpenDate || !wizardOpenTime) {
+                      toast.error("Isi tanggal dan jam buka pendaftaran");
+                      return;
+                    }
                     if (!wizardDeadlineDate || !wizardDeadlineTime) {
                       toast.error("Isi tanggal dan jam batas pendaftaran");
                       return;
                     }
+                    const openAt = combineDateAndTimeLocal(
+                      wizardOpenDate,
+                      wizardOpenTime,
+                    );
                     const closeAt = combineDateAndTimeLocal(
                       wizardDeadlineDate,
                       wizardDeadlineTime,
                     );
+                    if (Number.isNaN(openAt.getTime())) {
+                      toast.error("Tanggal buka pendaftaran tidak valid");
+                      return;
+                    }
                     if (Number.isNaN(closeAt.getTime())) {
                       toast.error("Batas pendaftaran tidak valid");
+                      return;
+                    }
+                    if (openAt.getTime() > closeAt.getTime()) {
+                      toast.error(
+                        "Tanggal buka harus sebelum atau sama dengan batas pendaftaran",
+                      );
                       return;
                     }
                   }
