@@ -7,31 +7,62 @@ import {
 } from "@/lib/managed-dojos";
 import { SITE_BRANCH_NAME } from "@/lib/site";
 import { textMentionsDojo } from "@/lib/notification-display";
+import {
+  filterNotificationsForCurrentUser,
+  isBranchWideAdminNotification,
+  isMemberPersonalNotification,
+  normalizeAudience,
+  type NotifText,
+} from "@/lib/notification-filters";
 
 export {
   extractDojoLabelFromNotificationText,
   textMentionsDojo,
 } from "@/lib/notification-display";
 
+export {
+  filterNotificationsForCurrentUser,
+  filterNotificationsForMemberInbox,
+  isAdminOpsNotification,
+  isBranchWideAdminNotification,
+  isMemberPersonalNotification,
+  normalizeAudience,
+  withFilterStats,
+  type NotifText,
+  type NotificationFilterStats,
+} from "@/lib/notification-filters";
+
 /**
- * Admin ranting hanya melihat notifikasi yang menyebut rantingnya
- * (atau tidak menyebut ranting lain di cabang yang sama).
- * Cabang / pusat: semua notifikasi tetap tampil.
+ * Inbox admin:
+ * - Semua role: hanya penerima yang benar; sembunyikan notif pribadi anggota.
+ * - ADMIN_DOJO: hanya notif rantingnya + ops cabang untuk semua ranting.
+ * - Cabang / pusat: tetap lihat semua ranting (setelah filter di atas).
  */
 export async function filterNotificationsForAdminScope<
-  T extends { title?: string | null; content?: string | null },
+  T extends NotifText,
 >(user: SessionUser, items: T[]): Promise<T[]> {
+  let scoped = filterNotificationsForCurrentUser(user.id, items);
+
+  scoped = scoped.filter((item) => {
+    if (typeof item.userId === "string" && item.userId === user.id) {
+      const audience = normalizeAudience(item.audience);
+      if (audience === "ADMIN") return true;
+      if (audience === "MEMBER") return false;
+    }
+    return !isMemberPersonalNotification(item);
+  });
+
   const role = getPrimaryAdminRole(user.roles);
-  if (role !== "ADMIN_DOJO") return items;
+  if (role !== "ADMIN_DOJO") return scoped;
 
   const managedIds = getManagedDojoIdsFromUser(user);
-  if (managedIds.length === 0) return items;
+  if (managedIds.length === 0) return scoped;
 
   const managed = await prisma.dojo.findMany({
     where: { id: { in: managedIds }, isDeleted: false },
     select: { id: true, name: true, branchId: true },
   });
-  if (managed.length === 0) return items;
+  if (managed.length === 0) return scoped;
 
   const branchIds = [...new Set(managed.map((d) => d.branchId))];
   const siblings = await prisma.dojo.findMany({
@@ -45,12 +76,16 @@ export async function filterNotificationsForAdminScope<
     .filter((d) => !managedIdSet.has(d.id))
     .map((d) => d.name);
 
-  return items.filter((item) => {
+  return scoped.filter((item) => {
+    if (typeof item.userId === "string" && item.userId === user.id) {
+      return true;
+    }
     const text = `${item.title ?? ""} ${item.content ?? ""}`;
     const mentionsMine = managedNames.some((n) => textMentionsDojo(text, n));
     if (mentionsMine) return true;
     const mentionsOther = otherNames.some((n) => textMentionsDojo(text, n));
-    return !mentionsOther;
+    if (mentionsOther) return false;
+    return isBranchWideAdminNotification(item);
   });
 }
 
@@ -118,6 +153,7 @@ export async function notifyDojoAndBranchAdmins(opts: {
         content: opts.content,
         type: opts.type ?? "INFO",
         token: opts.token,
+        audience: "ADMIN",
         email: opts.email ?? false,
       }),
     ),

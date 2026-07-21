@@ -13,7 +13,7 @@ export default async function NotifikasiPage() {
   const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
 
-  const notifications = await fetchMyNotifications(token, 100);
+  const notifications = await fetchMyNotifications(token, 100, session.user.id);
 
   return (
     <>

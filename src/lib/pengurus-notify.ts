@@ -40,6 +40,7 @@ export async function notifyPengurusUpdate(opts: {
             content: `${opts.actorEmail} mengubah periode ${opts.periodeLabel}: ${opts.summary}`,
             type: "INFO",
             token: opts.token,
+            audience: "ADMIN",
           }),
         ),
     );

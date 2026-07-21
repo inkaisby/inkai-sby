@@ -43,6 +43,7 @@ export async function notifyUktDojoAdmins(opts: {
             content: opts.content,
             type: opts.type ?? "INFO",
             token: opts.token,
+            audience: "ADMIN",
           }),
         ),
     );

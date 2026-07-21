@@ -280,11 +280,23 @@ export async function findUserIdsManagingDojo(dojoId: string): Promise<string[]>
   ]);
 
   const ids = new Set(homes.map((u) => u.id));
+  const candidateIds: string[] = [];
   for (const row of settings) {
     const parsed = asManagedDojosValue(row.value);
     if (!parsed.dojoIds.includes(dojoId)) continue;
     const userId = row.key.slice(MANAGED_DOJOS_KEY_PREFIX.length);
-    if (userId) ids.add(userId);
+    if (userId && !ids.has(userId)) candidateIds.push(userId);
+  }
+  if (candidateIds.length > 0) {
+    const admins = await prisma.user.findMany({
+      where: {
+        id: { in: candidateIds },
+        isDeleted: false,
+        roles: { some: { name: "ADMIN_DOJO" } },
+      },
+      select: { id: true },
+    });
+    for (const u of admins) ids.add(u.id);
   }
   return [...ids];
 }

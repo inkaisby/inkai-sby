@@ -2,12 +2,15 @@ import { inkaiFetch } from "@/lib/inkai-api/server";
 import { prisma } from "@/lib/prisma";
 import { sendNotificationEmail } from "@/lib/email";
 
+export type NotificationAudience = "MEMBER" | "ADMIN" | "BROADCAST";
+
 export async function notifyUser({
   userId,
   title,
   content,
   type = "SUCCESS",
   token,
+  audience = "MEMBER",
   /** Juga kirim email jika RESEND_API_KEY tersedia (default true). */
   email = true,
 }: {
@@ -16,13 +19,14 @@ export async function notifyUser({
   content: string;
   type?: string;
   token: string;
+  audience?: NotificationAudience;
   email?: boolean;
 }) {
   const { res, data } = await inkaiFetch(
     "/v1/notifications",
     {
       method: "POST",
-      body: JSON.stringify({ userId, title, content, type }),
+      body: JSON.stringify({ userId, title, content, type, audience }),
     },
     token,
   );

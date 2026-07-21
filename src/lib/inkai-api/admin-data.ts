@@ -535,14 +535,25 @@ export async function fetchMyNotifications(
   token: string,
   user?: SessionUser,
 ) {
-  const { res, data } = await inkaiFetch("/v1/notifications/my", {}, token);
+  const { res, data } = await inkaiFetch(
+    "/v1/notifications/my?limit=100",
+    {},
+    token,
+  );
   if (!res.ok) return { items: [], unread: 0 };
   let items = (data.data as Array<Record<string, unknown>>) ?? [];
   if (user) {
-    const { filterNotificationsForAdminScope } = await import(
+    const { filterNotificationsForAdminScope, withFilterStats } = await import(
       "@/lib/admin-notify-scope"
     );
-    items = await filterNotificationsForAdminScope(user, items);
+    const filtered = await filterNotificationsForAdminScope(user, items);
+    const { items: out, stats } = withFilterStats(items, filtered);
+    if (stats.dropped > 0) {
+      console.info(
+        `[admin-data:notifications] filtered dropped=${stats.dropped} input=${stats.input} output=${stats.output}`,
+      );
+    }
+    items = out;
   }
   const unread = items.filter((n) => !n.isRead).length;
   return { items: items.slice(0, 5), unread };
@@ -553,14 +564,25 @@ export async function fetchAllNotifications(
   limit = 100,
   user?: SessionUser,
 ) {
-  const { res, data } = await inkaiFetch("/v1/notifications/my", {}, token);
+  const { res, data } = await inkaiFetch(
+    "/v1/notifications/my?limit=100",
+    {},
+    token,
+  );
   if (!res.ok) return [];
   let items = (data.data as Array<Record<string, unknown>>) ?? [];
   if (user) {
-    const { filterNotificationsForAdminScope } = await import(
+    const { filterNotificationsForAdminScope, withFilterStats } = await import(
       "@/lib/admin-notify-scope"
     );
-    items = await filterNotificationsForAdminScope(user, items);
+    const filtered = await filterNotificationsForAdminScope(user, items);
+    const { items: out, stats } = withFilterStats(items, filtered);
+    if (stats.dropped > 0) {
+      console.info(
+        `[admin-data:all-notifications] filtered dropped=${stats.dropped} input=${stats.input} output=${stats.output}`,
+      );
+    }
+    items = out;
   }
   return items.slice(0, limit);
 }

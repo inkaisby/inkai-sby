@@ -366,6 +366,7 @@ export async function notifyWilayahAdmins(opts: {
           : opts.content,
         type: "INFO",
         token: opts.token,
+        audience: "ADMIN",
       });
     }),
   );

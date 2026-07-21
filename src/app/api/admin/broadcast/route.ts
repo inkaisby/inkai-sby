@@ -70,6 +70,7 @@ export async function POST(request: Request) {
           content,
           type: "INFO",
           token: authResult.token,
+          audience: "BROADCAST",
         }),
       ),
     );

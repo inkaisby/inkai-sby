@@ -88,36 +88,5 @@ export async function POST(request: Request) {
     );
   }
 
-  // Notifikasi hanya ke admin ranting anggota + cabang (bukan semua ranting).
-  const dojoId =
-    typeof member?.dojoId === "string" ? member.dojoId : null;
-  if (dojoId) {
-    const memberName =
-      String(member?.fullName ?? "Anggota").trim() || "Anggota";
-    const payloadData = data.data as
-      | { eventTitle?: unknown; event?: { title?: unknown } }
-      | undefined;
-    const eventLabel =
-      (typeof payloadData?.eventTitle === "string"
-        ? payloadData.eventTitle
-        : null) ||
-      (typeof payloadData?.event?.title === "string"
-        ? payloadData.event.title
-        : null) ||
-      "kegiatan";
-    void import("@/lib/admin-notify-scope")
-      .then(({ notifySelfEventRegistration }) =>
-        notifySelfEventRegistration({
-          dojoId,
-          memberName,
-          eventLabel,
-          token,
-        }),
-      )
-      .catch((err) => {
-        console.error("[events/register:notify]", err);
-      });
-  }
-
   return NextResponse.json({ success: true, data: data.data });
 }

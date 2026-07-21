@@ -90,7 +90,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Store | Aktif | Katalog produk + pesan (stok) |
 | Prestasi & Sabuk | Aktif | Sabuk, unggah piagam, pelatihan |
 | Dokumen | Aktif | Akte kelahiran & BPJS |
-| Notifikasi | Aktif | Notifikasi anggota |
+| Notifikasi | Aktif | Notifikasi **akun sendiri** saja (filter fan-out Inkai + sembunyikan notif ops admin) |
 | Pesan | Aktif | Chat dengan pengurus |
 | Pindah Dojo | Aktif | Ajuan pindah ranting → verifikasi |
 | Panduan | Aktif | Panduan penggunaan |
@@ -115,7 +115,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Absensi | Harian + **belum hadir** + **rekap semester %** + export |
 | Carousel Beranda | Upload gambar + aktif + **urutkan** |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
-| Notifikasi | Inbox admin (ada di nav); **ranting hanya lihat notif rantingnya**; cabang lihat semua + badge ranting |
+| Notifikasi | Inbox admin (ada di nav); **ranting: rantingnya + ops cabang**; field `audience`; tanpa notif pribadi anggota; cabang lihat semua ranting |
 | Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, **Pengaturan UKT (syarat daftar)**, peran (**preset**), geofencing (**pratinjau peta**), akun; **arsip cabang: Pulihkan + Hapus permanen** (ditolak jika masih ada anggota / cabang SURABAYA) |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, serta sebagian submenu pengaturan tingkat cabang/pusat.
@@ -360,7 +360,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/member/piagam          Unggah piagam
 /api/member/billing/[id]    Unggah bukti pembayaran iuran
 /api/member/attendance/checkin  Check-in absensi GPS
-/api/notifications/*        Notifikasi (admin ranting: filter scope dojo)
+/api/notifications/*        Notifikasi (anggota: akun sendiri; admin ranting: ranting+ops cabang; tanpa notif pribadi anggota)
 /api/dojos                  Daftar dojo publik
 Inkai API `/v1/members/verify/[id]`  Verifikasi kartu anggota (publik, via halaman `/v/[id]`)
 ```
@@ -521,6 +521,9 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 21 Juli 2026 | Laporan WA UKT: ranting = daftar peserta + nama dojo login; cabang tetap ringkas (Total Ranting / List / Jumlah kyu) |
 | 21 Juli 2026 | Export PDF/CSV/print UKT: kolom KYU (lama) terisi — snapshot atau infer satu tingkat di bawah Kyu Baru |
 | 21 Juli 2026 | Tabel UKT: kolom Kyu Lama tampil (infer bila snapshot "—" / hilang setelah isi Kyu Baru) |
+| 21 Juli 2026 | Fix notifikasi anggota: inbox `/dashboard/notifikasi` + bell hanya akun sendiri; sembunyikan notif ops admin (fan-out Inkai) |
+| 21 Juli 2026 | Fix notifikasi admin: ranting hanya notif rantingnya + ops cabang; semua admin sembunyikan notif pribadi anggota (fan-out) |
+| 21 Juli 2026 | Paket notifikasi komplit: fix akar `notifyAdmins` (jangan fan-out semua user), field `audience`, cleanup DB, filter+log+test di sby |
 
 ---
 

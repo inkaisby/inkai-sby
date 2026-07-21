@@ -4,7 +4,11 @@ import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { inkaiFetch } from "@/lib/inkai-api/server";
 import { enrichSessionUser } from "@/lib/managed-dojos";
 import { canAccessAdmin, type SessionUser } from "@/lib/rbac";
-import { filterNotificationsForAdminScope } from "@/lib/admin-notify-scope";
+import {
+  filterNotificationsForAdminScope,
+  filterNotificationsForMemberInbox,
+  withFilterStats,
+} from "@/lib/admin-notify-scope";
 
 type NotifRow = {
   id: string;
@@ -13,6 +17,8 @@ type NotifRow = {
   type?: string;
   isRead?: boolean;
   createdAt?: string;
+  userId?: string;
+  audience?: string;
 };
 
 export async function GET() {
@@ -22,26 +28,40 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { res, data } = await inkaiFetch("/v1/notifications/my", {}, token);
+  const { res, data } = await inkaiFetch(
+    "/v1/notifications/my?limit=100",
+    {},
+    token,
+  );
   if (!res.ok) {
     return NextResponse.json({ error: "Gagal memuat notifikasi" }, { status: res.status });
   }
 
-  let list = ((data.data as NotifRow[]) ?? []).slice(0, 80);
+  const raw = ((data.data as NotifRow[]) ?? []).slice(0, 100);
+  const sessionUser = session.user as SessionUser;
 
-  // Admin ranting: sembunyikan notifikasi ranting lain (fan-out Inkai).
-  if (canAccessAdmin(session.user as SessionUser)) {
-    const user = await enrichSessionUser(session.user as SessionUser);
-    list = await filterNotificationsForAdminScope(user, list);
+  let filtered: NotifRow[];
+  if (canAccessAdmin(sessionUser)) {
+    const user = await enrichSessionUser(sessionUser);
+    filtered = await filterNotificationsForAdminScope(user, raw);
+  } else {
+    filtered = filterNotificationsForMemberInbox(sessionUser.id, raw);
   }
 
-  list = list.slice(0, 50);
+  const { items: list, stats } = withFilterStats(raw, filtered.slice(0, 50));
+  if (stats.dropped > 0) {
+    console.info(
+      `[notifications] filtered dropped=${stats.dropped} input=${stats.input} output=${stats.output} user=${sessionUser.id}`,
+    );
+  }
+
   const unreadCount = list.filter((n) => !n.isRead).length;
 
   return NextResponse.json({
     data: list,
     notifications: list,
     unreadCount,
+    filterStats: stats,
   });
 }
 
@@ -54,6 +74,7 @@ export async function PATCH(request: Request) {
 
   const body = (await request.json()) as { markAll?: boolean };
   if (body.markAll) {
+    // Inkai mark-all sudah scoped ke userId caller — aman setelah fix fan-out write.
     const { res } = await inkaiFetch(
       "/v1/notifications/read-all",
       { method: "PATCH" },

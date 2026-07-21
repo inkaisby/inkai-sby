@@ -315,10 +315,15 @@ model Notification {
   title     String
   content   String
   type      String   @default("INFO")
+  // MEMBER | ADMIN | BROADCAST
+  audience  String   @default("MEMBER")
   userId    String?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
   user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([audience, createdAt])
 }
 
 model Verification {

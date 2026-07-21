@@ -130,7 +130,7 @@ export default async function MemberDashboard() {
 
   const [notifications, attendances, billings, registrations, upcomingEvents, unreadPesanResult] =
     await Promise.all([
-      fetchMyNotifications(token, 50),
+      fetchMyNotifications(token, 50, session.user.id),
       fetchMyAttendance(token, 100),
       fetchMyBillings(token, 12),
       member ? fetchMyEventRegistrations(token) : Promise.resolve([]),

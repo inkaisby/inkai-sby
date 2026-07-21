@@ -59,13 +59,33 @@ export async function fetchMyEventRegistrations(token: string) {
   );
 }
 
-export async function fetchMyNotifications(token: string, limit = 100) {
+export async function fetchMyNotifications(
+  token: string,
+  limit = 100,
+  userId?: string,
+) {
   return safeCall(
     "notifications",
     async () => {
-      const { res, data } = await inkaiFetch("/v1/notifications/my", {}, token);
+      const { res, data } = await inkaiFetch(
+        `/v1/notifications/my?limit=${Math.min(Math.max(limit, 1), 100)}`,
+        {},
+        token,
+      );
       if (!res.ok) return [];
-      const items = (data.data as Array<Record<string, unknown>>) ?? [];
+      let items = (data.data as Array<Record<string, unknown>>) ?? [];
+      if (userId) {
+        const { filterNotificationsForMemberInbox, withFilterStats } =
+          await import("@/lib/admin-notify-scope");
+        const filtered = filterNotificationsForMemberInbox(userId, items);
+        const { items: out, stats } = withFilterStats(items, filtered);
+        if (stats.dropped > 0) {
+          console.info(
+            `[member-data:notifications] filtered dropped=${stats.dropped} input=${stats.input} output=${stats.output}`,
+          );
+        }
+        items = out;
+      }
       return items.slice(0, limit);
     },
     [],
