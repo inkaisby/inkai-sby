@@ -21,7 +21,7 @@ import { Building2, Home, MapPin, UserCheck } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-const PAGE_SIZE_OPTIONS = [10, 50, 100, 1000];
+const PAGE_SIZE_OPTIONS = [10, 50, 100];
 
 type SearchParams = Promise<{
   q?: string;

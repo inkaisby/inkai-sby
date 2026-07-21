@@ -44,8 +44,8 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
   const [bcDojoId, setBcDojoId] = useState(dojos[0]?.id ?? "");
   const [broadcasting, setBroadcasting] = useState(false);
 
-  async function loadList() {
-    setLoading(true);
+  async function loadList(opts?: { soft?: boolean }) {
+    if (!opts?.soft) setLoading(true);
     try {
       const res = await fetch("/api/admin/pesan");
       const data = await res.json().catch(() => ({}));
@@ -56,7 +56,7 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
       setList(data.data ?? []);
       setMeId(data.meId || "");
     } finally {
-      setLoading(false);
+      if (!opts?.soft) setLoading(false);
     }
   }
 
@@ -81,12 +81,13 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
 
   async function send() {
     if (!activeId || !text.trim()) return;
+    const content = text.trim();
     setSending(true);
     try {
       const res = await fetch("/api/admin/pesan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId: activeId, content: text.trim() }),
+        body: JSON.stringify({ conversationId: activeId, content }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -94,9 +95,27 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
         return;
       }
       setText("");
+      const sent: Message = {
+        id: String(data.message?.id ?? data.data?.id ?? `tmp-${Date.now()}`),
+        content,
+        createdAt: new Date().toISOString(),
+        senderId: meId,
+        sender: { fullName: null },
+      };
+      setMessages((prev) => [...prev, sent]);
+      setList((prev) =>
+        prev.map((c) =>
+          c.id === activeId
+            ? {
+                ...c,
+                lastMessageAt: sent.createdAt,
+                messages: [{ content, createdAt: sent.createdAt }],
+              }
+            : c,
+        ),
+      );
       showSuccess("Terkirim");
-      await openConv(activeId);
-      await loadList();
+      void loadList({ soft: true });
     } finally {
       setSending(false);
     }

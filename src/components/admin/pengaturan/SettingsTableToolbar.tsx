@@ -7,7 +7,7 @@ export function parsePage(raw: string | undefined, fallback = 1) {
 
 export function parsePageSize(
   raw: string | undefined,
-  allowed: number[] = [10, 50, 100, 1000],
+  allowed: number[] = [10, 50, 100],
   fallback = 10,
 ) {
   const n = parseInt(raw || String(fallback), 10);

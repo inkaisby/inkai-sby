@@ -20,7 +20,7 @@ function MainContent({ children }: { children: React.ReactNode }) {
 
     if (!overlayVisible) return;
 
-    const timer = setTimeout(() => setOverlayVisible(false), 280);
+    const timer = setTimeout(() => setOverlayVisible(false), 120);
     return () => clearTimeout(timer);
   }, [isNavigating, overlayVisible]);
 
@@ -28,14 +28,14 @@ function MainContent({ children }: { children: React.ReactNode }) {
     <main className="relative flex-1 p-4 sm:p-6">
       {overlayVisible && (
         <div
-          className={`absolute inset-0 z-10 flex items-start justify-center bg-background/50 pt-20 backdrop-blur-[2px] transition-opacity duration-300 ${
+          className={`pointer-events-none absolute inset-0 z-10 flex items-start justify-center bg-background/40 pt-20 backdrop-blur-[1px] transition-opacity duration-200 ${
             isNavigating ? "opacity-100" : "opacity-0"
           }`}
           aria-live="polite"
           aria-label="Memuat halaman"
         >
           <div
-            className={`rounded-2xl border bg-background/90 px-10 py-8 shadow-lg backdrop-blur-sm transition-transform duration-300 ${
+            className={`rounded-2xl border bg-background/90 px-10 py-8 shadow-lg backdrop-blur-sm transition-transform duration-200 ${
               isNavigating ? "scale-100" : "scale-[0.98]"
             }`}
           >

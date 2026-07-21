@@ -21,7 +21,7 @@ import { NormalizeMembersButton } from "./NormalizeMembersButton";
 import type { MemberSortKey, SortDir } from "@/lib/table-sort";
 import { parseMemberSortKey, parseSortDir, toggleSortKey } from "@/lib/table-sort";
 
-const PAGE_SIZE_OPTIONS = [25, 50, 100, 1000];
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
 type DojoOption = { id: string; name: string };
 

@@ -17,7 +17,7 @@ export function SettingsPagination({
   total,
   pageSize,
   baseParams,
-  pageSizeOptions = [10, 50, 100, 1000],
+  pageSizeOptions = [10, 50, 100],
   onNavigate,
 }: SettingsPaginationProps) {
   if (total === 0) return null;

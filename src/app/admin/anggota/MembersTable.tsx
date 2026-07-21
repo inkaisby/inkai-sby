@@ -866,6 +866,7 @@ export function MembersTable({
                         nia={m.nia}
                         fullName={m.fullName}
                         userRoles={userRoles}
+                        onSuccess={onMembersChanged}
                       />
                     </TableCell>
                   </TableRow>
@@ -1328,6 +1329,7 @@ export function MembersTable({
                     impact={impact ?? null}
                     isArchived={detail.isDeleted === true}
                     onSuccess={() => {
+                      onMembersChanged?.();
                       const row = members.find(
                         (m) => m.id === String(detail.id),
                       );

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { Loader2, Pencil } from "lucide-react";
+import { useOptimisticHide } from "@/components/admin/OptimisticHide";
 
 type Props = {
   billingId: string;
@@ -25,6 +26,7 @@ export function BillingActions({
   canEdit,
 }: Props) {
   const router = useRouter();
+  const hideCard = useOptimisticHide();
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [notes, setNotes] = useState("");
@@ -55,7 +57,15 @@ export function BillingActions({
       showSuccess(data.message || "Berhasil disimpan");
       setEditing(false);
       setNotes("");
-      router.refresh();
+      const action = String(body.action ?? "");
+      if (
+        action === "approve" ||
+        action === "reject" ||
+        action === "mark_paid"
+      ) {
+        hideCard?.();
+      }
+      startTransition(() => router.refresh());
     } finally {
       setLoading(false);
     }

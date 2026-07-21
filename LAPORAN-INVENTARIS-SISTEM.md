@@ -305,7 +305,8 @@ Pusat / Nasional
 | Ketergantungan API | Ada | Halaman degrade jika API sibuk/timeout |
 | Email & Blob | Opsional | Perlu env production |
 | Keamanan P0–P2 | Diperkuat | Pesan IDOR ditutup; verifikasi fail-closed; rate limit Upstash opsional; CSRF admin ketat; password register; audit upload/broadcast/verifikasi |
-| Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI anggota 1× groupBy; absensi/UKT scoped (bukan limit 3000); broadcast/generate chunked; polling diperlambat |
+| Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI anggota 1× groupBy; absensi/UKT scoped; overlay nav non-blocking; pageSize maks 100; aksi iuran/verifikasi/UKT optimistic; pesan soft-reload |
+
 | Index Prisma | Ditambah | Member/Billing/Attendance/Verification/Message — jalankan migrate/db push di production |
 | Pool DB Supabase | Diperkuat | Transaction `:6543`+`pgbouncer`; `connection_limit=5`/`pool_timeout=20`; soft-delete & **purge massal batch** (`deleteMany` per relasi); chunk purge 25 + jeda/retry; toast sibuk |
 
@@ -516,6 +517,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 21 Juli 2026 | Pengaturan UKT cabang: centang syarat daftar (iuran/dokumen/absensi) + berlaku ranting/cabang; ganti flag hardcode |
 | 21 Juli 2026 | UKT UI lebih responsif: update status lokal segera setelah daftar/batal/verifikasi/hasil; refresh server di background |
 | 21 Juli 2026 | UKT perf: tanpa soft-refresh setelah aksi baris; parallel org/policy+dashboard; period-meta paralel; notify daftar non-blocking; bulk verifikasi concurrent; page size maks 100 |
+| 21 Juli 2026 | Perf admin lintas halaman: overlay navigasi `pointer-events-none` + min loader lebih singkat; pageSize maks 100 (bukan 1000); MemberActions tanpa double refresh; iuran/verifikasi hide kartu optimistic; pesan kirim tanpa full reload list |
 
 ---
 

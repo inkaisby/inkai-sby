@@ -29,7 +29,7 @@ import { parseMemberSortKey, parseSortDir } from "@/lib/table-sort";
 
 export const dynamic = "force-dynamic";
 
-const PAGE_SIZE_OPTIONS = [25, 50, 100, 1000];
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
 type SearchParams = Promise<{
   q?: string;

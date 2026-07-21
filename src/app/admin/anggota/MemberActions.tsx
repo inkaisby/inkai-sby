@@ -151,7 +151,8 @@ export function MemberActions({
       showSuccess(data.message || "Aksi berhasil disimpan");
       setConfirmKind(null);
       onSuccess?.();
-      router.refresh();
+      // Hindari double reload: caller dengan onSuccess mengurus daftar sendiri.
+      if (!onSuccess) router.refresh();
     } else {
       const msg =
         (typeof data.error === "string" && data.error) ||

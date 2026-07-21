@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { VerificationActions } from "./VerificationActions";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { OptimisticHide } from "@/components/admin/OptimisticHide";
 
 export const dynamic = "force-dynamic";
 
@@ -169,85 +170,87 @@ async function AdminVerifikasiContent({
                   )
                 : null;
             return (
-              <Card key={String(c.id)}>
-                <CardContent className="p-4">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="font-medium">
-                        {String(member?.fullName ?? "—")}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {String(member?.nia ?? "—")} · {dojo?.name ?? "—"}
-                        {age != null ? ` · ${age} hari di antrian` : ""}
-                      </p>
-                      {resetEmail ? (
-                        <p className="text-sm font-medium text-inkai-red">
-                          Email login: {resetEmail}
+              <OptimisticHide key={String(c.id)}>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="font-medium">
+                          {String(member?.fullName ?? "—")}
                         </p>
-                      ) : null}
+                        <p className="text-sm text-muted-foreground">
+                          {String(member?.nia ?? "—")} · {dojo?.name ?? "—"}
+                          {age != null ? ` · ${age} hari di antrian` : ""}
+                        </p>
+                        {resetEmail ? (
+                          <p className="text-sm font-medium text-inkai-red">
+                            Email login: {resetEmail}
+                          </p>
+                        ) : null}
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className={
+                          claimType === "PASSWORD_RESET"
+                            ? "bg-inkai-red/10 text-inkai-red"
+                            : undefined
+                        }
+                      >
+                        {VERIFICATION_TYPE_LABELS[claimType] || claimType}
+                      </Badge>
                     </div>
-                    <Badge
-                      variant="secondary"
-                      className={
-                        claimType === "PASSWORD_RESET"
-                          ? "bg-inkai-red/10 text-inkai-red"
-                          : undefined
-                      }
-                    >
-                      {VERIFICATION_TYPE_LABELS[claimType] || claimType}
-                    </Badge>
-                  </div>
-                  {claimType !== "PASSWORD_RESET" &&
-                    c.data != null &&
-                    c.data !== "" && (
-                      <p className="mb-2 text-sm whitespace-pre-wrap">
-                        {(() => {
-                          try {
-                            const parsed = JSON.parse(String(c.data)) as Record<
-                              string,
-                              unknown
-                            >;
-                            if (claimType === "DOJO_TRANSFER" || claimType === "TRANSFER") {
-                              return `${parsed.fromDojoName ?? "—"} → ${parsed.targetDojoName ?? "—"}\n${parsed.reason ?? ""}`;
+                    {claimType !== "PASSWORD_RESET" &&
+                      c.data != null &&
+                      c.data !== "" && (
+                        <p className="mb-2 text-sm whitespace-pre-wrap">
+                          {(() => {
+                            try {
+                              const parsed = JSON.parse(String(c.data)) as Record<
+                                string,
+                                unknown
+                              >;
+                              if (claimType === "DOJO_TRANSFER" || claimType === "TRANSFER") {
+                                return `${parsed.fromDojoName ?? "—"} → ${parsed.targetDojoName ?? "—"}\n${parsed.reason ?? ""}`;
+                              }
+                              if (claimType === "ACHIEVEMENT") {
+                                return `${parsed.title ?? "Piagam"}${parsed.notes ? `\n${parsed.notes}` : ""}`;
+                              }
+                              return JSON.stringify(parsed, null, 2);
+                            } catch {
+                              return String(c.data);
                             }
-                            if (claimType === "ACHIEVEMENT") {
-                              return `${parsed.title ?? "Piagam"}${parsed.notes ? `\n${parsed.notes}` : ""}`;
-                            }
-                            return JSON.stringify(parsed, null, 2);
-                          } catch {
-                            return String(c.data);
-                          }
-                        })()}
+                          })()}
+                        </p>
+                      )}
+                    {event != null && (
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        Event: {event.title}
                       </p>
                     )}
-                  {event != null && (
-                    <p className="mb-2 text-xs text-muted-foreground">
-                      Event: {event.title}
+                    {c.proofUrl != null &&
+                      c.proofUrl !== "" &&
+                      c.proofUrl !== "—" && (
+                        <a
+                          href={String(c.proofUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mb-3 inline-block text-xs text-inkai-red hover:underline"
+                        >
+                          Lihat bukti pendukung
+                        </a>
+                      )}
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      Diajukan:{" "}
+                      {new Date(String(c.createdAt)).toLocaleString("id-ID")}
                     </p>
-                  )}
-                  {c.proofUrl != null &&
-                    c.proofUrl !== "" &&
-                    c.proofUrl !== "—" && (
-                      <a
-                        href={String(c.proofUrl)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mb-3 inline-block text-xs text-inkai-red hover:underline"
-                      >
-                        Lihat bukti pendukung
-                      </a>
-                    )}
-                  <p className="mb-3 text-xs text-muted-foreground">
-                    Diajukan:{" "}
-                    {new Date(String(c.createdAt)).toLocaleString("id-ID")}
-                  </p>
-                <VerificationActions
-                  verificationId={String(c.id)}
-                  type={claimType}
-                  nameHint={String(member?.fullName ?? "")}
-                />
-                </CardContent>
-              </Card>
+                    <VerificationActions
+                      verificationId={String(c.id)}
+                      type={claimType}
+                      nameHint={String(member?.fullName ?? "")}
+                    />
+                  </CardContent>
+                </Card>
+              </OptimisticHide>
             );
           })}
         </div>

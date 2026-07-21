@@ -12,7 +12,7 @@ import {
 import { usePathname } from "next/navigation";
 
 /** Keep logo loader visible briefly so fast navigations still feel polished. */
-const MIN_NAVIGATION_MS = 750;
+const MIN_NAVIGATION_MS = 180;
 
 type NavigationContextValue = {
   isNavigating: boolean;

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { generateSimplePassword } from "@/lib/security/password";
+import { useOptimisticHide } from "@/components/admin/OptimisticHide";
 
 export function VerificationActions({
   verificationId,
@@ -18,6 +19,7 @@ export function VerificationActions({
   nameHint?: string | null;
 }) {
   const router = useRouter();
+  const hideCard = useOptimisticHide();
   const [notes, setNotes] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -46,7 +48,8 @@ export function VerificationActions({
     setLoading(false);
     if (res.ok) {
       showSuccess(data.message || "Verifikasi berhasil disimpan");
-      router.refresh();
+      hideCard?.();
+      startTransition(() => router.refresh());
     } else {
       showError(data.error || "Gagal memproses verifikasi");
     }
@@ -81,7 +84,8 @@ export function VerificationActions({
       showSuccess(data.message || "Password berhasil diubah");
       setNewPassword("");
       setConfirmPassword("");
-      router.refresh();
+      hideCard?.();
+      startTransition(() => router.refresh());
     } else {
       showError(data.error || "Gagal mengubah password");
     }

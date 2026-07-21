@@ -12,6 +12,7 @@ import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { IuranOpsBar } from "./IuranOpsBar";
 import { getOperationalDefaults } from "@/lib/org-settings";
 import { billingStatusLabel } from "@/lib/admin-labels";
+import { OptimisticHide } from "@/components/admin/OptimisticHide";
 
 export const dynamic = "force-dynamic";
 
@@ -187,56 +188,58 @@ async function AdminIuranContent({
             } | undefined;
             const payment = b.payment as { proofUrl?: string } | null | undefined;
             return (
-              <Card key={String(b.id)}>
-                <CardContent className="flex flex-wrap items-start justify-between gap-3 p-4">
-                  <div>
-                    <p className="font-medium">{member?.fullName ?? "—"}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {member?.nia || "—"} · {member?.dojo?.name ?? "—"} ·{" "}
-                      {String(b.type)}
-                    </p>
-                    {b.description != null && String(b.description) !== "" && (
+              <OptimisticHide key={String(b.id)}>
+                <Card>
+                  <CardContent className="flex flex-wrap items-start justify-between gap-3 p-4">
+                    <div>
+                      <p className="font-medium">{member?.fullName ?? "—"}</p>
                       <p className="text-sm text-muted-foreground">
-                        {String(b.description)}
+                        {member?.nia || "—"} · {member?.dojo?.name ?? "—"} ·{" "}
+                        {String(b.type)}
                       </p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      Jatuh tempo:{" "}
-                      {new Date(String(b.dueDate)).toLocaleDateString("id-ID")}
-                    </p>
-                    {payment?.proofUrl && (
-                      <a
-                        href={payment.proofUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-inkai-red hover:underline"
+                      {b.description != null && String(b.description) !== "" && (
+                        <p className="text-sm text-muted-foreground">
+                          {String(b.description)}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Jatuh tempo:{" "}
+                        {new Date(String(b.dueDate)).toLocaleDateString("id-ID")}
+                      </p>
+                      {payment?.proofUrl && (
+                        <a
+                          href={payment.proofUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-inkai-red hover:underline"
+                        >
+                          Lihat bukti transfer
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex min-w-[200px] flex-col items-end gap-2">
+                      <p className="font-bold">
+                        Rp {Number(b.amount).toLocaleString("id-ID")}
+                      </p>
+                      <Badge
+                        variant={b.status === "PAID" ? "default" : "secondary"}
                       >
-                        Lihat bukti transfer
-                      </a>
-                    )}
-                  </div>
-                  <div className="flex min-w-[200px] flex-col items-end gap-2">
-                    <p className="font-bold">
-                      Rp {Number(b.amount).toLocaleString("id-ID")}
-                    </p>
-                    <Badge
-                      variant={b.status === "PAID" ? "default" : "secondary"}
-                    >
-                      {billingStatusLabel(String(b.status))}
-                    </Badge>
-                    <BillingActions
-                      billingId={String(b.id)}
-                      status={String(b.status)}
-                      amount={Number(b.amount)}
-                      dueDate={String(b.dueDate)}
-                      description={
-                        b.description != null ? String(b.description) : null
-                      }
-                      canEdit={canEdit}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+                        {billingStatusLabel(String(b.status))}
+                      </Badge>
+                      <BillingActions
+                        billingId={String(b.id)}
+                        status={String(b.status)}
+                        amount={Number(b.amount)}
+                        dueDate={String(b.dueDate)}
+                        description={
+                          b.description != null ? String(b.description) : null
+                        }
+                        canEdit={canEdit}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </OptimisticHide>
             );
           })}
         </div>
