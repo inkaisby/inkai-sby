@@ -37,43 +37,46 @@ function calcRemaining(targetMs: number, nowMs: number): Remaining | null {
   };
 }
 
-function CompactUnit({
+function Unit({
   value,
   label,
   emergency,
+  wide,
 }: {
   value: string;
   label: string;
   emergency?: boolean;
+  wide?: boolean;
 }) {
   return (
-    <span className="inline-flex flex-col items-center leading-none">
+    <div className="flex min-w-0 flex-col items-center gap-1">
       <span
         className={cn(
-          "font-mono text-sm font-semibold tabular-nums tracking-tight",
-          emergency ? "text-inkai-red" : "text-foreground",
+          "rounded-lg bg-background/80 px-2.5 py-1.5 font-mono text-2xl font-semibold tabular-nums tracking-tight shadow-sm ring-1 ring-black/[0.04] sm:text-3xl",
+          wide ? "min-w-[3.25rem]" : "min-w-[2.75rem]",
+          emergency ? "text-inkai-red ring-inkai-red/20" : "text-foreground",
         )}
       >
         {value}
       </span>
       <span
         className={cn(
-          "mt-0.5 text-[8px] font-medium uppercase tracking-wider",
+          "text-[10px] font-medium uppercase tracking-[0.16em]",
           emergency ? "text-inkai-red/70" : "text-muted-foreground",
         )}
       >
         {label}
       </span>
-    </span>
+    </div>
   );
 }
 
-function CompactSep({ emergency }: { emergency?: boolean }) {
+function Sep({ emergency }: { emergency?: boolean }) {
   return (
     <span
       className={cn(
-        "mb-2.5 text-xs font-light",
-        emergency ? "text-inkai-red/60" : "text-muted-foreground/50",
+        "mb-5 self-center text-xl font-light",
+        emergency ? "text-inkai-red/50" : "text-muted-foreground/40",
       )}
       aria-hidden
     >
@@ -82,7 +85,7 @@ function CompactSep({ emergency }: { emergency?: boolean }) {
   );
 }
 
-/** Timer kompak inline — ditempatkan di samping badge status. */
+/** Timer besar elegan — mengisi ruang kosong di toolbar aksi. */
 export function UktFloatingCountdown({ targetIso, className }: Props) {
   const targetMs = new Date(targetIso).getTime();
   const [ready, setReady] = useState(false);
@@ -135,30 +138,50 @@ export function UktFloatingCountdown({ targetIso, className }: Props) {
   return (
     <div
       className={cn(
-        "inline-flex items-end gap-1 rounded-lg border px-2 py-1.5",
+        "relative min-w-0 flex-1 overflow-hidden rounded-xl border px-4 py-3",
         emergency
-          ? "ukt-timer-emergency border-inkai-red/40 bg-inkai-red/5"
-          : "border-border/70 bg-muted/40",
+          ? "ukt-timer-emergency border-inkai-red/40 bg-gradient-to-br from-inkai-red/10 via-background to-inkai-red/[0.06]"
+          : "border-border/50 bg-gradient-to-br from-background via-muted/30 to-inkai-red/[0.03]",
         expired && "opacity-60",
         className,
       )}
       aria-live="polite"
       aria-atomic="true"
-      title={expired ? "Pendaftaran ditutup" : emergency ? "H-2 · Darurat" : "Hitungan mundur"}
     >
-      <CompactUnit
-        value={pad(parts.days, parts.days >= 100 ? 3 : 2)}
-        label="hr"
-        emergency={emergency}
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-x-0 top-0 h-0.5",
+          emergency
+            ? "ukt-timer-emergency-bar bg-gradient-to-r from-inkai-red via-inkai-yellow to-inkai-red"
+            : "bg-gradient-to-r from-transparent via-inkai-red/40 to-transparent",
+        )}
       />
-      <CompactSep emergency={emergency} />
-      <CompactUnit value={pad(parts.hours)} label="jm" emergency={emergency} />
-      <CompactSep emergency={emergency} />
-      <CompactUnit value={pad(parts.minutes)} label="mn" emergency={emergency} />
-      <CompactSep emergency={emergency} />
-      <CompactUnit value={pad(parts.seconds)} label="dt" emergency={emergency} />
-      <CompactSep emergency={emergency} />
-      <CompactUnit value={pad(parts.ms, 3)} label="ms" emergency={emergency} />
+
+      <p
+        className={cn(
+          "mb-2.5 text-[10px] font-semibold uppercase tracking-[0.18em]",
+          expired ? "text-muted-foreground" : emergency ? "text-inkai-red" : "text-muted-foreground",
+        )}
+      >
+        {expired ? "Pendaftaran ditutup" : emergency ? "H-2 · Batas hampir tutup" : "Batas pendaftaran"}
+      </p>
+
+      <div className="flex flex-wrap items-end justify-center gap-1.5 sm:gap-2.5">
+        <Unit
+          value={pad(parts.days, parts.days >= 100 ? 3 : 2)}
+          label="Hari"
+          wide
+          emergency={emergency}
+        />
+        <Sep emergency={emergency} />
+        <Unit value={pad(parts.hours)} label="Jam" emergency={emergency} />
+        <Sep emergency={emergency} />
+        <Unit value={pad(parts.minutes)} label="Menit" emergency={emergency} />
+        <Sep emergency={emergency} />
+        <Unit value={pad(parts.seconds)} label="Detik" emergency={emergency} />
+        <Sep emergency={emergency} />
+        <Unit value={pad(parts.ms, 3)} label="ms" wide emergency={emergency} />
+      </div>
     </div>
   );
 }

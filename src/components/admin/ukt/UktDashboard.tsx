@@ -1426,7 +1426,7 @@ export function UktDashboard(props: Props) {
 
       {/* Period actions */}
       <Card className="border-inkai-red/20 bg-gradient-to-r from-background to-muted/30">
-        <CardContent className="flex flex-wrap items-center gap-3 p-4">
+        <CardContent className="flex flex-wrap items-center gap-3 p-4 sm:gap-4">
           {showBackToCreate && (
             <Button
               type="button"
@@ -1440,6 +1440,15 @@ export function UktDashboard(props: Props) {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           )}
+          {!isArchiveView &&
+            props.selectedPeriodId &&
+            registrationDeadlineIso &&
+            !props.createMode && (
+              <UktFloatingCountdown
+                targetIso={registrationDeadlineIso}
+                className="min-w-[min(100%,18rem)] max-w-xl"
+              />
+            )}
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {selectablePeriodsForTerm.length > 1 && (
               <Select
@@ -1666,9 +1675,6 @@ export function UktDashboard(props: Props) {
                         ? "Belum dibuka"
                         : "Sudah tutup"}
                   </Badge>
-                  {!isArchiveView && registrationDeadlineIso && !props.createMode && (
-                    <UktFloatingCountdown targetIso={registrationDeadlineIso} />
-                  )}
                   {isCabang && (
                     <Button
                       type="button"
