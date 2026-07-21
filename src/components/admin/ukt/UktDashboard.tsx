@@ -332,7 +332,13 @@ export function UktDashboard(props: Props) {
   );
   /** Salinan lokal agar status UI langsung berubah tanpa tunggu refresh penuh. */
   const [rows, setRows] = useState(props.allRows);
-  const [cancelTarget, setCancelTarget] = useState<{ id: string; name: string; memberId?: string } | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<{
+    id: string;
+    name: string;
+    memberId?: string;
+    billingId?: string | null;
+    force?: boolean;
+  } | null>(null);
   const [showRegistrationDeadline, setShowRegistrationDeadline] = useState(false);
   const [registrationDeadlineDate, setRegistrationDeadlineDate] = useState("");
   const [registrationDeadlineTime, setRegistrationDeadlineTime] = useState("");
@@ -1120,9 +1126,24 @@ export function UktDashboard(props: Props) {
     if (memberId) setMemberPending(memberId, true);
     else setLoading(true);
     try {
-      const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
-        method: "DELETE",
-      });
+      const qs = new URLSearchParams();
+      const billingId =
+        cancelTarget?.billingId ||
+        rows.find((r) => r.registrationId === registrationId)?.billingId ||
+        null;
+      if (billingId) qs.set("billingId", billingId);
+      if (
+        cancelTarget?.force ||
+        cancelRow?.billingStatus === "PAID" ||
+        cancelRow?.status === "PAID"
+      ) {
+        qs.set("force", "1");
+      }
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      const res = await fetch(
+        `/api/admin/ukt/registrations/${registrationId}${suffix}`,
+        { method: "DELETE" },
+      );
       const data = await parseApiJson<{ error?: string; message?: string }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal membatalkan");
       if (memberId) {
@@ -2550,6 +2571,8 @@ export function UktDashboard(props: Props) {
                                   id: row.registrationId!,
                                   name: row.fullName,
                                   memberId: row.memberId,
+                                  billingId: row.billingId,
+                                  force: canForceDeleteUktRegistration(row, isCabang),
                                 })
                               }
                               disabled={loading || isMemberPending(row.memberId)}
@@ -2683,6 +2706,8 @@ export function UktDashboard(props: Props) {
                         id: selectedMember.registrationId!,
                         name: selectedMember.fullName,
                         memberId: selectedMember.memberId,
+                        billingId: selectedMember.billingId,
+                        force: canForceDeleteUktRegistration(selectedMember, isCabang),
                       })
                     }
                     disabled={loading || isMemberPending(selectedMember.memberId)}

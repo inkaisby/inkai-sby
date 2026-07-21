@@ -532,6 +532,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 21 Juli 2026 | UKT UI polish: hilangkan judul ganda (topbar cukup), toolbar **Lainnya** (Syarat/Biaya/Arsip), kartu jadwal grid 2 kolom, sembunyikan Nota Terpilih kosong, badge terbuka pakai titik pulse |
 | 21 Juli 2026 | UKT: timer kompak inline di kanan badge **Masih terbuka** (bukan floating); hapus judul periode & kontrol semester/tahun dari kiri kartu aksi |
 | 21 Juli 2026 | UKT: timer besar elegan mengisi ruang kosong kiri kartu aksi (sebelah kiri Laporan WA) |
+| 21 Juli 2026 | Fix hapus paksa peserta UKT lunas: kirim `billingId`+`force`, resolve tagihan multi-sumber, coba DELETE/PATCH force sebelum hapus registrasi |
 
 ---
 

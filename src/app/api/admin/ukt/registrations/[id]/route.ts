@@ -476,8 +476,17 @@ export async function DELETE(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
   }
 
+  const isCabang = canEditKyuBaru(authResult.user.roles);
   const { id } = await context.params;
-  let billingId: string | null = null;
+  const url = new URL(request.url);
+  const billingIdFromClient = url.searchParams.get("billingId")?.trim() || null;
+  const forceRequested =
+    url.searchParams.get("force") === "1" ||
+    url.searchParams.get("force") === "true";
+
+  let billingId: string | null = billingIdFromClient;
+  let billingStatus: string | null = null;
+  let memberId = "";
 
   const { res: getRes, data: getData } = await inkaiFetch(
     `/v1/events/register/${id}`,
@@ -487,58 +496,232 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (getRes.ok) {
     const registration = (getData.data as Record<string, unknown>) ?? {};
     const member = registration.member as
-      | { billings?: Array<{ id?: string; registrationId?: string | null }> }
+      | {
+          id?: string;
+          billings?: Array<{
+            id?: string;
+            status?: string;
+            registrationId?: string | null;
+            type?: string;
+            description?: string | null;
+          }>;
+        }
       | undefined;
+    memberId = String(member?.id ?? registration.memberId ?? "");
     const billings = member?.billings ?? [];
     const linkedBilling =
-      billings.find((billing) => String(billing.registrationId ?? "") === id) ?? billings[0];
-    billingId = linkedBilling?.id ? String(linkedBilling.id) : null;
+      billings.find((billing) => String(billing.registrationId ?? "") === id) ??
+      billings.find((billing) => String(billing.id ?? "") === String(billingIdFromClient ?? "")) ??
+      null;
+    if (!billingId && linkedBilling?.id) billingId = String(linkedBilling.id);
+    if (linkedBilling?.status) billingStatus = String(linkedBilling.status);
+  }
+
+  // Fallback: daftar tagihan anggota dari Inkai
+  if ((!billingId || !billingStatus) && memberId) {
+    const { res: billListRes, data: billListData } = await inkaiFetch(
+      `/v1/billing?memberId=${encodeURIComponent(memberId)}&limit=100`,
+      {},
+      authResult.token,
+    );
+    if (billListRes.ok) {
+      const list =
+        (billListData.data as Array<{
+          id?: string;
+          status?: string;
+          registrationId?: string | null;
+          type?: string;
+          description?: string | null;
+        }>) ?? [];
+      const linked =
+        list.find((b) => String(b.registrationId ?? "") === id) ??
+        (billingIdFromClient
+          ? list.find((b) => String(b.id ?? "") === billingIdFromClient)
+          : null) ??
+        list.find((b) => {
+          const type = String(b.type ?? "").toUpperCase();
+          const desc = String(b.description ?? "").toUpperCase();
+          return type.includes("UKT") || desc.includes("UKT");
+        }) ??
+        null;
+      if (linked?.id) {
+        billingId = String(linked.id);
+        billingStatus = linked.status ? String(linked.status) : billingStatus;
+      }
+    }
+  }
+
+  // Fallback lokal Prisma
+  if (!billingId) {
+    try {
+      const local = await prisma.billing.findFirst({
+        where: { registrationId: id, isDeleted: false },
+        select: { id: true, status: true },
+      });
+      if (local) {
+        billingId = local.id;
+        billingStatus = local.status;
+      }
+    } catch (error) {
+      console.error("[UKT DELETE] prisma billing lookup failed", error);
+    }
+  } else if (!billingStatus) {
+    try {
+      const local = await prisma.billing.findFirst({
+        where: { id: billingId },
+        select: { status: true },
+      });
+      if (local?.status) billingStatus = local.status;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const isPaid =
+    billingStatus === "PAID" ||
+    billingStatus === "SUCCESS" ||
+    billingStatus === "APPROVED";
+  const force = forceRequested || isPaid;
+
+  if (force && !isCabang) {
+    return NextResponse.json(
+      { error: "Hanya admin cabang yang dapat menghapus paksa peserta lunas" },
+      { status: 403 },
+    );
+  }
+
+  async function deleteBillingHard(targetBillingId: string): Promise<{
+    ok: boolean;
+    error?: string;
+    status?: number;
+  }> {
+    const attempts = [
+      `/v1/billing/${targetBillingId}?force=true`,
+      `/v1/billing/${targetBillingId}?force=1`,
+      `/v1/billing/${targetBillingId}`,
+    ];
+
+    let lastError = "Gagal menghapus tagihan UKT terkait";
+    let lastStatus = 400;
+
+    for (const path of attempts) {
+      const { res, data } = await inkaiFetch(
+        path,
+        { method: "DELETE" },
+        authResult.token,
+      );
+      if (res.ok || res.status === 404) return { ok: true };
+      lastError = inkaiErrorMessage(data, lastError);
+      lastStatus = res.status;
+    }
+
+    // Soft-void lewat PATCH bila DELETE ditolak untuk tagihan lunas
+    const patchAttempts = [
+      { isDeleted: true },
+      { status: "CANCELLED", isDeleted: true },
+      { status: "REJECTED" },
+    ];
+    for (const body of patchAttempts) {
+      const { res } = await inkaiFetch(
+        `/v1/billing/${targetBillingId}`,
+        { method: "PATCH", body: JSON.stringify(body) },
+        authResult.token,
+      );
+      if (res.ok) {
+        const { res: delRes } = await inkaiFetch(
+          `/v1/billing/${targetBillingId}?force=true`,
+          { method: "DELETE" },
+          authResult.token,
+        );
+        if (delRes.ok || delRes.status === 404) return { ok: true };
+        // PATCH sukses sudah memutus tautan operasional — lanjut hapus registrasi
+        return { ok: true };
+      }
+    }
+
+    try {
+      await prisma.billing.updateMany({
+        where: { id: targetBillingId },
+        data: { isDeleted: true },
+      });
+    } catch (error) {
+      console.error("[UKT DELETE] local billing soft-delete failed", error);
+    }
+
+    // Saat force cabang: jangan blokir total — tetap coba hapus registrasi
+    if (force) return { ok: true };
+    return { ok: false, error: lastError, status: lastStatus };
   }
 
   if (billingId) {
-    const { res: billingRes, data: billingData } = await inkaiFetch(
-      `/v1/billing/${billingId}`,
-      { method: "DELETE" },
-      authResult.token,
-    );
-    if (!billingRes.ok && billingRes.status !== 404) {
+    const billingDelete = await deleteBillingHard(billingId);
+    if (!billingDelete.ok) {
       return NextResponse.json(
         {
-          error: inkaiErrorMessage(
-            billingData,
-            "Pendaftaran UKT dihapus, tetapi tagihan terkait gagal dihapus",
-          ),
+          error:
+            billingDelete.error ||
+            "Tidak dapat menghapus tagihan UKT terkait sebelum membatalkan pendaftaran",
         },
-        { status: billingRes.status },
+        { status: billingDelete.status || 400 },
       );
     }
   }
 
-  const { res, data } = await inkaiFetch(
-    `/v1/events/register/${id}`,
-    { method: "DELETE" },
-    authResult.token,
-  );
+  const registerPaths = force
+    ? [
+        `/v1/events/register/${id}?force=true`,
+        `/v1/events/register/${id}?force=1`,
+        `/v1/events/register/${id}`,
+      ]
+    : [`/v1/events/register/${id}`];
 
-  if (!res.ok) {
+  let regError = "Gagal membatalkan pendaftaran";
+  let regStatus = 400;
+  let regOk = false;
+
+  for (const path of registerPaths) {
+    const { res, data } = await inkaiFetch(
+      path,
+      { method: "DELETE" },
+      authResult.token,
+    );
+    if (res.ok || res.status === 404) {
+      regOk = true;
+      break;
+    }
+    regError = inkaiErrorMessage(data, regError);
+    regStatus = res.status;
+  }
+
+  if (!regOk) {
     return NextResponse.json(
       {
-        error: inkaiErrorMessage(
-          data,
-          billingId
-            ? "Tagihan UKT sudah dihapus, tetapi pendaftaran gagal dihapus"
-            : "Gagal membatalkan pendaftaran",
-        ),
+        error: billingId
+          ? `Tagihan UKT sudah diproses, tetapi pendaftaran gagal dihapus: ${regError}`
+          : regError,
       },
-      { status: res.status },
+      { status: regStatus },
     );
+  }
+
+  if (billingId) {
+    try {
+      await prisma.billing.updateMany({
+        where: { id: billingId },
+        data: { isDeleted: true },
+      });
+    } catch {
+      /* ignore */
+    }
   }
 
   writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
     action: "UKT_REGISTRATION_CANCEL",
-    details: `Cancelled UKT registration (${id})${billingId ? ` and deleted billing (${billingId})` : ""}`,
+    details: `Cancelled UKT registration (${id})${
+      billingId ? ` and deleted billing (${billingId})` : ""
+    }${force ? " [force]" : ""}`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token: authResult.token,
