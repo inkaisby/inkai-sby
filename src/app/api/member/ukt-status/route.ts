@@ -9,7 +9,6 @@ import {
   currentSemester,
   findUktPeriodForTerm,
   findUktPeriodsForTerm,
-  parseUktEventTitle,
   parseUktPeriodMetaValue,
   resolveUktDisplayStatus,
   uktDisplayStatusLabel,
