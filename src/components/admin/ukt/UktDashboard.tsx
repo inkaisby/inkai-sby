@@ -455,6 +455,12 @@ export function UktDashboard(props: Props) {
   const kpi = useMemo(() => computeUktOperationalKpi(scopedRows), [scopedRows]);
 
   const filteredRows = useMemo(() => {
+    if (localView === "gagal_mengulang") {
+      return scopedRows.filter((row) => {
+        const status = resolveUktDisplayStatus(row);
+        return status === "gagal" || status === "mengulang";
+      });
+    }
     // Saat view "Terdaftar UKT" + pencarian aktif, tampilkan semua peserta yang cocok
     // agar admin bisa mendaftarkan anggota baru lewat tombol Daftar UKT.
     // Di arsip tidak perlu pool belum daftar.
@@ -1346,7 +1352,13 @@ export function UktDashboard(props: Props) {
     { label: "Menunggu Ujian", value: kpi.menungguUjian, icon: FileText, color: "text-indigo-600", filter: "menunggu_ujian" },
     { label: "Lulus", value: kpi.lulus, icon: CheckCircle2, color: "text-emerald-600", filter: "lulus" },
     { label: "Selesai", value: kpi.selesai, icon: Check, color: "text-green-600", filter: "selesai" },
-    { label: "Gagal/Mengulang", value: kpi.gagal + kpi.mengulang, icon: XCircle, color: "text-red-600", filter: "gagal" },
+    {
+      label: "Gagal/Mengulang",
+      value: kpi.gagal + kpi.mengulang,
+      icon: XCircle,
+      color: "text-red-600",
+      filter: "gagal_mengulang",
+    },
   ];
 
   return (

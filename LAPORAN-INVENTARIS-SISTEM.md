@@ -290,7 +290,7 @@ Pusat / Nasional
 | Eligibility UKT | Diterapkan | Gate periode tutup, iuran, dokumen, absensi semester minimum 75% |
 | Hasil ujian UKT | Aktif | Cabang tetapkan `LULUS` / `GAGAL` / `MENGULANG`; Kyu Baru **wajib** setelah LULUS |
 | Status UKT anggota | Aktif | `/api/member/ukt-status` + kartu status di beranda & Prestasi (CTA + jadwal ujian bila ada) |
-| Filter/KPI UKT operasional | Aktif | Status UI selaras: Belum Bayar, Menunggu Verif/Ujian, Lulus, Selesai |
+| Filter/KPI UKT operasional | Aktif | Status UI selaras: Belum Bayar, Menunggu Verif/Ujian, Lulus, Selesai; kartu KPI **Gagal/Mengulang** memfilter kedua status |
 | Pengecualian UKT (waiver) | Aktif | Cabang kecualikan iuran/dokumen/absensi + catatan audit |
 | Kebijakan syarat UKT | Aktif | `/admin/pengaturan/ukt` — centang iuran/dokumen/absensi + enforce ranting/cabang (`AppSetting` `ukt.registration.policy`) |
 | Export rekap UKT | Aktif | Daftar peserta (formulir): Print/Save as PDF/CSV + pilih ranting + validasi + pratinjau |
@@ -524,6 +524,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 21 Juli 2026 | Fix notifikasi anggota: inbox `/dashboard/notifikasi` + bell hanya akun sendiri; sembunyikan notif ops admin (fan-out Inkai) |
 | 21 Juli 2026 | Fix notifikasi admin: ranting hanya notif rantingnya + ops cabang; semua admin sembunyikan notif pribadi anggota (fan-out) |
 | 21 Juli 2026 | Paket notifikasi komplit: fix akar `notifyAdmins` (jangan fan-out semua user), field `audience`, cleanup DB, filter+log+test di sby |
+| 21 Juli 2026 | Fix filter KPI UKT: kartu **Gagal/Mengulang** di `/admin/ukt` kini menampilkan peserta status `GAGAL` dan `MENGULANG` sekaligus |
 
 ---
 
