@@ -824,7 +824,7 @@ export function UktDashboard(props: Props) {
           note: waiverNote.trim(),
         }),
       });
-      const data = await parseApiJson<{ error?: string }>(res);
+      const data = await parseApiJson<{ error?: string; message?: string }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal menyimpan pengecualian");
       toast.success("Pengecualian pendaftaran disimpan");
       setWaiverTarget(null);
@@ -942,7 +942,7 @@ export function UktDashboard(props: Props) {
           registrationCloseAt: closeAt.toISOString(),
         }),
       });
-      const data = await parseApiJson<{ error?: string }>(res);
+      const data = await parseApiJson<{ error?: string; message?: string }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal menyimpan jadwal pendaftaran");
       toast.success("Jadwal pendaftaran UKT diperbarui");
       setShowRegistrationDeadline(false);
@@ -1114,7 +1114,7 @@ export function UktDashboard(props: Props) {
       const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
         method: "DELETE",
       });
-      const data = await parseApiJson<{ error?: string }>(res);
+      const data = await parseApiJson<{ error?: string; message?: string }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal membatalkan");
       if (memberId) {
         patchRow(memberId, {
