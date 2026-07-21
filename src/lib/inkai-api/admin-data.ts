@@ -22,6 +22,7 @@ import {
   uktBaseFeeAmount,
   resolveUktSelectedPeriodId,
   resolveUktPeriodFees,
+  type UktAdminViewMode,
   findUktPeriodsForTerm,
   computeSemesterAttendance,
   buildUktSemesterWindow,
@@ -934,9 +935,17 @@ export async function fetchUktDashboardData(
     year: number;
     /** Mode buat periode: jangan auto-pilih event yang sudah ada. */
     forceNoPeriod?: boolean;
+    /** Pendaftaran = periode aktif; archive = riwayat/arsip. */
+    viewMode?: UktAdminViewMode;
   },
 ) {
-  const { periodFromUrl = null, semester, year, forceNoPeriod = false } = opts;
+  const {
+    periodFromUrl = null,
+    semester,
+    year,
+    forceNoPeriod = false,
+    viewMode = "registration",
+  } = opts;
   const { semesterStart, semesterEnd } = buildUktSemesterWindow(semester, year);
   const attendanceFrom = semesterStart.toISOString();
   const attendanceTo = semesterEnd.toISOString();
@@ -1057,16 +1066,21 @@ export async function fetchUktDashboardData(
 
   let selectedPeriodId = forceNoPeriod
     ? null
-    : resolveUktSelectedPeriodId(periods, semester, year, periodFromUrl);
+    : resolveUktSelectedPeriodId(
+        periods,
+        semester,
+        year,
+        periodFromUrl,
+        viewMode,
+      );
 
-  // Jika URL/auto-select mengarah ke arsip dan tidak ada periode aktif → biarkan null
-  // agar UI menampilkan Buat Periode (kecuali createMode sudah null).
-  if (selectedPeriodId && !forceNoPeriod) {
+  // Pendaftaran: jika hanya ada arsip → biarkan null agar UI Buat Periode.
+  if (selectedPeriodId && !forceNoPeriod && viewMode === "registration") {
     const selected = periods.find((p) => p.id === selectedPeriodId);
     const hasActive = findUktPeriodsForTerm(periods, semester, year).some(
       (p) => !p.archived && !p.locked,
     );
-    if (selected && (selected.archived || selected.locked) && !hasActive && !periodFromUrl) {
+    if (selected && (selected.archived || selected.locked) && !hasActive) {
       selectedPeriodId = null;
     }
   }

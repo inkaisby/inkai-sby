@@ -202,16 +202,50 @@ export function isUktPeriodActiveView(period: UktPeriodOption): boolean {
   return !period.archived && !period.locked;
 }
 
+/** Periode riwayat/arsip untuk term — yang paling baru lebih dulu. */
+export function findUktArchivedPeriodForTerm(
+  periods: UktPeriodOption[],
+  semester: UktSemester,
+  year: number,
+): UktPeriodOption | null {
+  const matches = findUktPeriodsForTerm(periods, semester, year).filter(
+    (p) => !isUktPeriodActiveView(p),
+  );
+  if (matches.length === 0) return null;
+  return [...matches].sort((a, b) => {
+    const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return cb - ca;
+  })[0] ?? null;
+}
+
+export type UktAdminViewMode = "registration" | "archive";
+
 /**
- * Pilih periode aktif: URL `period` dipakai kecuali judulnya jelas milik semester/tahun lain
- * atau periode itu sudah diarsipkan sementara ada periode aktif lain di term yang sama.
+ * Pilih periode: Pendaftaran mengutamakan aktif; Arsip mengutamakan riwayat/terkunci.
  */
 export function resolveUktSelectedPeriodId(
   periods: UktPeriodOption[],
   semester: UktSemester,
   year: number,
   periodFromUrl: string | null | undefined,
+  viewMode: UktAdminViewMode = "registration",
 ): string | null {
+  if (viewMode === "archive") {
+    const archiveMatch = findUktArchivedPeriodForTerm(periods, semester, year);
+    if (periodFromUrl) {
+      const urlPeriod = periods.find((p) => p.id === periodFromUrl);
+      if (
+        urlPeriod &&
+        !isUktPeriodActiveView(urlPeriod) &&
+        uktPeriodBelongsToTerm(urlPeriod, semester, year)
+      ) {
+        return periodFromUrl;
+      }
+    }
+    return archiveMatch?.id ?? null;
+  }
+
   const matchByTerm = findUktPeriodForTerm(periods, semester, year);
   if (periodFromUrl) {
     const urlPeriod = periods.find((p) => p.id === periodFromUrl);
@@ -228,6 +262,12 @@ export function resolveUktSelectedPeriodId(
     ) {
       return matchByTerm.id;
     }
+    // Di Pendaftaran: jangan buka arsip — kosongkan agar UI buat/alih term
+    if (!isUktPeriodActiveView(urlPeriod)) {
+      return matchByTerm && isUktPeriodActiveView(matchByTerm)
+        ? matchByTerm.id
+        : null;
+    }
     return periodFromUrl;
   }
   return matchByTerm?.id ?? null;
@@ -237,12 +277,13 @@ export function buildUktAdminUrl(
   semester: UktSemester,
   year: number,
   periodId: string | null,
-  opts?: { create?: boolean },
+  opts?: { create?: boolean; basePath?: "/admin/ukt" | "/admin/ukt/arsip" },
 ): string {
   const qs = new URLSearchParams({ semester, year: String(year) });
   if (periodId) qs.set("period", periodId);
   if (opts?.create) qs.set("create", "1");
-  return `/admin/ukt?${qs.toString()}`;
+  const base = opts?.basePath ?? "/admin/ukt";
+  return `${base}?${qs.toString()}`;
 }
 
 /** URL UKT admin untuk semester berjalan (nav menu, quick link). */

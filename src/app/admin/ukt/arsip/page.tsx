@@ -36,10 +36,9 @@ type SearchParams = Promise<{
   period?: string;
   semester?: string;
   year?: string;
-  create?: string;
 }>;
 
-async function UktPageContent({ searchParams }: { searchParams: SearchParams }) {
+async function UktArsipPageContent({ searchParams }: { searchParams: SearchParams }) {
   const { user, token } = await requireAdminSession();
 
   const params = await searchParams;
@@ -50,7 +49,6 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     2100,
     Math.max(2020, parseInt(params.year || String(new Date().getFullYear()), 10) || new Date().getFullYear()),
   );
-  const createMode = params.create === "1";
 
   const primaryRole = getPrimaryAdminRole(user.roles);
   let dbError: string | null = null;
@@ -66,7 +64,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     locked?: boolean;
   }[] = [];
   let dojos: { id: string; name: string }[] = [];
-  let selectedPeriodId: string | null = createMode ? null : params.period || null;
+  let selectedPeriodId: string | null = params.period || null;
   let allRows: Awaited<ReturnType<typeof fetchUktDashboardData>>["allRows"] = [];
   let beltFees = beltFeesFromTemplates([]);
   let komisiRanting = 0;
@@ -78,47 +76,36 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
 
   try {
     const data = await fetchUktDashboardData(token, user, {
-      periodFromUrl: createMode ? null : params.period || null,
+      periodFromUrl: params.period || null,
       semester,
       year,
-      forceNoPeriod: createMode,
-      viewMode: "registration",
+      viewMode: "archive",
     });
     periods = data.periods;
     dojos = data.dojos;
-    selectedPeriodId = createMode ? null : data.selectedPeriodId;
+    selectedPeriodId = data.selectedPeriodId;
 
-    // Bookmark / deep-link periode arsip → menu Arsip UKT
-    if (!createMode && params.period) {
-      const fromUrl = periods.find((p) => p.id === params.period);
-      if (fromUrl && !isUktPeriodActiveView(fromUrl)) {
-        redirect(
-          buildUktAdminUrl(semester, year, params.period, {
-            basePath: "/admin/ukt/arsip",
-          }),
-        );
+    // Periode aktif → kembali ke Pendaftaran
+    if (selectedPeriodId) {
+      const selected = periods.find((p) => p.id === selectedPeriodId);
+      if (selected && isUktPeriodActiveView(selected)) {
+        redirect(buildUktAdminUrl(semester, year, selectedPeriodId));
       }
     }
 
-    if (createMode) {
-      const urlNeedsSync =
-        params.semester !== semester ||
-        params.year !== String(year) ||
-        Boolean(params.period) ||
-        params.create !== "1";
-      if (urlNeedsSync) {
-        redirect(buildUktAdminUrl(semester, year, null, { create: true }));
-      }
-    } else {
-      const canonicalPeriod = data.selectedPeriodId;
-      const urlNeedsSync =
-        params.semester !== semester ||
-        params.year !== String(year) ||
-        (params.period ?? "") !== (canonicalPeriod ?? "");
-      if (urlNeedsSync) {
-        redirect(buildUktAdminUrl(semester, year, canonicalPeriod));
-      }
+    const canonicalPeriod = data.selectedPeriodId;
+    const urlNeedsSync =
+      params.semester !== semester ||
+      params.year !== String(year) ||
+      (params.period ?? "") !== (canonicalPeriod ?? "");
+    if (urlNeedsSync) {
+      redirect(
+        buildUktAdminUrl(semester, year, canonicalPeriod, {
+          basePath: "/admin/ukt/arsip",
+        }),
+      );
     }
+
     allRows = data.allRows;
     beltFees = data.beltFees;
     komisiRanting = data.komisiRanting;
@@ -128,7 +115,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     if (!data.ok) dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
   } catch (error) {
     if (isNextRedirectError(error)) throw error;
-    console.error("[AdminUkt] API error:", error);
+    console.error("[AdminUktArsip] API error:", error);
     dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
   }
 
@@ -146,9 +133,9 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   return (
     <>
       <div className="mb-6">
-        <h2 className="text-2xl font-bold">UKT — Pendaftaran</h2>
+        <h2 className="text-2xl font-bold">UKT — Arsip</h2>
         <p className="text-muted-foreground">
-          {ROLE_LABELS[primaryRole] || primaryRole} — Periode aktif & pendaftaran anggota
+          {ROLE_LABELS[primaryRole] || primaryRole} — Riwayat periode UKT yang sudah diarsipkan
         </p>
       </div>
 
@@ -162,7 +149,6 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         semester={semester}
         year={year}
         canCreatePeriod={canCreatePeriod}
-        createMode={createMode}
         dbError={dbError}
         defaultDojoFilter={autoDojoId}
         beltFees={beltFees}
@@ -170,7 +156,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         feesFromSnapshot={feesFromSnapshot}
         depositMap={depositMap}
         periodMeta={periodMeta}
-        viewMode="registration"
+        viewMode="archive"
         orgProfile={{
           address: orgProfile.address,
           bidangUjianName: orgProfile.bidangUjianName,
@@ -181,10 +167,14 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   );
 }
 
-export default function AdminUktPage({ searchParams }: { searchParams: SearchParams }) {
+export default function AdminUktArsipPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
   return (
-    <Suspense fallback={<AdminPageLoader rows={8} message="Memuat data UKT..." />}>
-      <UktPageContent searchParams={searchParams} />
+    <Suspense fallback={<AdminPageLoader rows={8} message="Memuat arsip UKT..." />}>
+      <UktArsipPageContent searchParams={searchParams} />
     </Suspense>
   );
 }

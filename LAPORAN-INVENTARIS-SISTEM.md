@@ -105,7 +105,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
 | Kelola Anggota | Cari **autocomplete**; kolom **No**; **sort kolom** (NIA, Nama, Sabuk, Status, Dojo, Terdaftar — ikon naik/turun, server-side); KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV; arsip; Prisma scoped (+ **anggota luar Surabaya / ranting arsip** tetap terlihat); filter client-side; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50) |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
-| UKT | Periode, daftar peserta, **sort kolom** (NIA, Nama, Kyu, Status, Ranting, dll. — ikon naik/turun), multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya) |
+| UKT | Nav grup **Pendaftaran** (`/admin/ukt`) + **Arsip UKT** (`/admin/ukt/arsip`); periode aktif, daftar peserta, **sort kolom**, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya) |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
 | Verifikasi | Antrian klaim + **filter tipe/aging**; riwayat |
 | Event & Kegiatan | Buat + **ubah/tutup** event non-UKT + **roster pendaftar**; link UKT |
@@ -208,7 +208,7 @@ Pusat / Nasional
 
 ### 9.3 UKT (Ujian Kenaikan Tingkat)
 1. **Cabang** membuat periode UKT per semester (Semester I = Jan–Jun, Semester II = Jul–Des); setiap semester = **event terpisah** dengan registrasi & pembayaran sendiri.
-2. URL admin `/admin/ukt?semester=I|II&year=YYYY&period=<eventId>` — dropdown semester/tahun **otomatis** memilih event yang cocok; bila **belum ada periode berjudul semester/tahun**, tombol **Buat Periode** di toolbar (kiri Dokumen/Export).
+2. URL admin: **Pendaftaran** `/admin/ukt?semester=I|II&year=YYYY&period=<eventId>` (periode aktif) dan **Arsip UKT** `/admin/ukt/arsip?...` (riwayat/terkunci). Dropdown semester/tahun memilih event yang cocok; bila belum ada periode aktif, tombol **Buat Periode** di Pendaftaran.
 3. **Ranting** mendaftarkan anggota (snapshot **Sabuk saat ini / Kyu Lama** dikunci per periode).
 4. Pendaftaran UKT kini memakai **gate operasional**: periode masih terbuka, **iuran tidak menunggak**, **dokumen Akte + BPJS lengkap**, dan **kehadiran semester minimal 75%**.
 5. **Ranting** memilih peserta (multi-select) → **Nota Terpilih** / **Siap Bayar UKT** selaras baris terpilih.
@@ -222,7 +222,7 @@ Pusat / Nasional
 11. Jadwal pendaftaran: **buka** default awal semester + **batas** default akhir semester; cabang atur di wizard (langkah 1) atau **Atur** setelahnya. Gate daftar: sekarang ∈ [buka, batas]. Kartu jadwal menampilkan juga **ujian + tempat** dan **pejabat** bila ada.
 11b. **Rekonsiliasi setoran**: tabel di kartu setoran (Ranting, Peserta, Lunas, Total tagihan, Status setor, Keterangan) via `buildUktDepositReconciliation`.
 11c. **Cron H-3** (`/api/cron/ukt-reminders`, `vercel.json`): pengingat batas daftar & notifikasi jadwal ke ranting (idempoten lewat `notified*` di period-meta).
-11d. **Fokus periode aktif:** resolusi mengutamakan non-arsip; judul kanonis `UKT Semester {I|II}-{tahun}`; buat periode baru mengarsipkan term yang sudah tutup; dropdown **Aktif** vs **Riwayat/Arsip**; anggota hanya melihat periode aktif.
+11d. **Fokus periode aktif:** resolusi mengutamakan non-arsip; judul kanonis `UKT Semester {I|II}-{tahun}`; buat periode baru mengarsipkan term yang sudah tutup; sidebar **UKT → Pendaftaran / Arsip UKT** (bukan dropdown campuran); anggota hanya melihat periode aktif. Arsipkan dari Pendaftaran mengarahkan ke Arsip; buka arsip mengembalikan ke Pendaftaran.
 12. Dashboard anggota menampilkan **kartu Status UKT** di beranda & Prestasi (termasuk **jadwal ujian + lokasi** bila diisi); admin cabang: **export daftar peserta** (Print/Save as PDF/CSV + pilih ranting + validasi data), **Laporan WA** ringkas, **hari-H** (roster hadir + hasil massal), **status setoran** ranting↔cabang, **arsip/kunci periode**, waiver, wizard, action bar.
 13. Toolbar cabang: **Buat Periode**, Hari-H, Export, Laporan WA, Cetak Nota, Biaya Sabuk, Arsip (tombol terpisah).
 
@@ -280,7 +280,7 @@ Pusat / Nasional
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` + `/api/member/attendance/checkin` |
 | Absensi admin | Aktif | Harian, belum hadir, rekap semester %, export CSV |
 | Iuran generate bulan | Aktif | `POST /api/admin/billing/generate` + UI Iuran |
-| Nav admin | Campuran | Top-level: Iuran, UKT, Event, Absensi; grup: Keanggotaan / Konten / Sistem + badge unread pesan |
+| Nav admin | Campuran | Top-level: Iuran, Event, Absensi; **UKT** sebagai grup (Pendaftaran + Arsip UKT); grup: Keanggotaan / Konten / Sistem + badge unread pesan |
 | Deteksi duplikat anggota | Aktif | Keras: NIK / NIA / nama+TTL (termasuk arsip untuk NIK/NIA); lunak: nama; admin create melepas NIA/NIK arsip bila hanya bentrok nomor; blok create admin & daftar publik; UI peringatan |
 | Gabungkan duplikat | Aktif | Ranting/cabang: pindahkan akun login + riwayat ke data operasional; arsipkan duplikat |
 | Audit admin | Aktif | Filter + export CSV di `/admin/audit` |
@@ -508,6 +508,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 21 Juli 2026 | Banner jadwal UKT (batas lewat / belum buka): soft blink + glow elegan |
 | 21 Juli 2026 | Paket UKT komplit UI: snapshot biaya per periode, jadwal/tempat ujian + pejabat di wizard & kartu, rekonsiliasi setoran, pejabat nota dari period-meta, kartu anggota tampilkan ujian, inventaris §9.3/§11 |
 | 21 Juli 2026 | UKT fokus aktif vs riwayat: judul kanonis, buat periode baru arsipkan yang tutup, dropdown Aktif/Arsip, anggota fokus periode non-arsip |
+| 21 Juli 2026 | Nav UKT: sub-menu **Pendaftaran** (periode aktif) + **Arsip UKT** (`/admin/ukt/arsip`); arsipkan/buka arsip pindah antar halaman |
 
 ---
 

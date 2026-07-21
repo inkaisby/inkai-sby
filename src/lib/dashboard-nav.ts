@@ -48,13 +48,23 @@ function withFreshUktHref(items: NavItem[]): NavItem[] {
       return {
         ...item,
         children: item.children.map((c) =>
-          c.label === "UKT" ? { ...c, href: uktHref } : c,
+          c.label === "Pendaftaran" && c.href.startsWith("/admin/ukt")
+            ? { ...c, href: uktHref }
+            : c,
         ),
       };
     }
-    return item.label === "UKT" ? { ...item, href: uktHref } : item;
+    return item;
   });
 }
+
+const UKT_NAV_GROUP: NavGroup = {
+  label: "UKT",
+  children: [
+    { href: "/admin/ukt", label: "Pendaftaran" },
+    { href: "/admin/ukt/arsip", label: "Arsip UKT" },
+  ],
+};
 
 export const ADMIN_LINKS: NavItem[] = [
   { href: "/admin", label: "Beranda Admin" },
@@ -67,7 +77,7 @@ export const ADMIN_LINKS: NavItem[] = [
     ],
   },
   { href: "/admin/iuran", label: "Iuran Anggota" },
-  { href: "/admin/ukt", label: "UKT" },
+  UKT_NAV_GROUP,
   { href: "/admin/kegiatan", label: "Event & Kegiatan" },
   { href: "/admin/absensi", label: "Absensi" },
   {
@@ -112,7 +122,7 @@ export function getAdminNavLinks(roles: string[]): NavItem[] {
       ],
     },
     { href: "/admin/iuran", label: "Iuran Anggota" },
-    { href: "/admin/ukt", label: "UKT" },
+    UKT_NAV_GROUP,
     { href: "/admin/kegiatan", label: "Event & Kegiatan" },
     { href: "/admin/absensi", label: "Absensi" },
     {

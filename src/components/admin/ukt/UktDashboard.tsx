@@ -99,9 +99,11 @@ import {
   isUktRegistrationOpen,
   isUktPeriodActiveView,
   findUktPeriodForTerm,
+  findUktArchivedPeriodForTerm,
   findUktPeriodsForTerm,
   parseUktEventTitle,
   buildUktEventTitle,
+  type UktAdminViewMode,
   buildUktDepositReconciliation,
   resolveEffectiveUktExamResult,
   resolveUktDisplayStatus,
@@ -215,6 +217,8 @@ type Props = {
     bidangUjianName?: string;
     bendaharaCabangName?: string;
   };
+  /** Pendaftaran = periode aktif; archive = riwayat/arsip (sidebar). */
+  viewMode?: UktAdminViewMode;
 };
 
 const PAGE_SIZES = [25, 50, 100, 1000] as const;
@@ -434,23 +438,30 @@ export function UktDashboard(props: Props) {
     });
   };
 
+  const viewMode: UktAdminViewMode = props.viewMode ?? "registration";
+  const uktBasePath =
+    viewMode === "archive" ? "/admin/ukt/arsip" : "/admin/ukt";
+
   const navigatePeriod = useCallback(
-    (updates: Record<string, string>) => {
+    (updates: Record<string, string>, basePath = uktBasePath) => {
       const params = new URLSearchParams(searchParams.toString());
       Object.entries(updates).forEach(([k, v]) => {
         if (v) params.set(k, v);
         else params.delete(k);
       });
-      router.push(`/admin/ukt?${params.toString()}`);
+      router.push(`${basePath}?${params.toString()}`);
     },
-    [router, searchParams],
+    [router, searchParams, uktBasePath],
   );
 
   const syncNavigateTerm = useCallback(
     (updates: { semester?: UktSemester; year?: number }) => {
       const semester = updates.semester ?? props.semester;
       const year = updates.year ?? props.year;
-      const match = findUktPeriodForTerm(props.periods, semester, year);
+      const match =
+        viewMode === "archive"
+          ? findUktArchivedPeriodForTerm(props.periods, semester, year)
+          : findUktPeriodForTerm(props.periods, semester, year);
       navigatePeriod({
         semester,
         year: String(year),
@@ -458,7 +469,7 @@ export function UktDashboard(props: Props) {
         create: "",
       });
     },
-    [navigatePeriod, props.periods, props.semester, props.year],
+    [navigatePeriod, props.periods, props.semester, props.year, viewMode],
   );
 
   const periodsForTerm = useMemo(
@@ -473,14 +484,21 @@ export function UktDashboard(props: Props) {
     () => periodsForTerm.filter((p) => !isUktPeriodActiveView(p)),
     [periodsForTerm],
   );
+  const selectablePeriodsForTerm =
+    viewMode === "archive" ? historyPeriodsForTerm : activePeriodsForTerm;
 
-  /** Tombol Buat Periode: tampil jika belum ada periode aktif di term (arsip tidak menghalangi). */
+  /** Tombol Buat Periode: hanya di Pendaftaran; arsip tidak menghalangi. */
   const hasTermPeriod = activePeriodsForTerm.length > 0;
   const showCreatePeriod =
-    props.canCreatePeriod && (!hasTermPeriod || Boolean(props.createMode));
+    viewMode === "registration" &&
+    props.canCreatePeriod &&
+    (!hasTermPeriod || Boolean(props.createMode));
   /** Back menghapus period di URL dan membuka mode buat periode. */
   const showBackToCreate =
-    props.canCreatePeriod && Boolean(props.selectedPeriodId) && !props.createMode;
+    viewMode === "registration" &&
+    props.canCreatePeriod &&
+    Boolean(props.selectedPeriodId) &&
+    !props.createMode;
 
   const goBackToCreatePeriod = () => {
     navigatePeriod({
@@ -607,6 +625,27 @@ export function UktDashboard(props: Props) {
       const data = await parseApiJson<{ error?: string; message?: string }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal");
       toast.success(data.message || "Periode diperbarui");
+      if (archived) {
+        navigatePeriod(
+          {
+            semester: props.semester,
+            year: String(props.year),
+            period: props.selectedPeriodId,
+            create: "",
+          },
+          "/admin/ukt/arsip",
+        );
+      } else {
+        navigatePeriod(
+          {
+            semester: props.semester,
+            year: String(props.year),
+            period: props.selectedPeriodId,
+            create: "",
+          },
+          "/admin/ukt",
+        );
+      }
       router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
@@ -1175,7 +1214,7 @@ export function UktDashboard(props: Props) {
             )}
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
-            {periodsForTerm.length > 0 && (
+            {selectablePeriodsForTerm.length > 0 && (
               <Select
                 value={props.selectedPeriodId || ""}
                 onValueChange={(v) =>
@@ -1188,34 +1227,27 @@ export function UktDashboard(props: Props) {
                 }
               >
                 <SelectTrigger className="w-64">
-                  <SelectValue placeholder="Pilih periode" />
+                  <SelectValue
+                    placeholder={
+                      viewMode === "archive"
+                        ? "Pilih arsip periode"
+                        : "Pilih periode aktif"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  {activePeriodsForTerm.length > 0 && (
-                    <>
-                      <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Aktif
-                      </div>
-                      {activePeriodsForTerm.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.title}
-                        </SelectItem>
-                      ))}
-                    </>
-                  )}
-                  {historyPeriodsForTerm.length > 0 && (
-                    <>
-                      <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        Riwayat / Arsip
-                      </div>
-                      {historyPeriodsForTerm.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.title}
-                          {p.archived ? " (arsip)" : p.locked ? " (kunci)" : ""}
-                        </SelectItem>
-                      ))}
-                    </>
-                  )}
+                  {selectablePeriodsForTerm.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.title}
+                      {viewMode === "archive"
+                        ? p.archived
+                          ? " (arsip)"
+                          : p.locked
+                            ? " (kunci)"
+                            : ""
+                        : ""}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             )}
@@ -1229,7 +1261,7 @@ export function UktDashboard(props: Props) {
                 Buat Periode
               </Button>
             )}
-            {!showCreatePeriod && isCabang && (
+            {viewMode === "registration" && !showCreatePeriod && isCabang && (
               <Button
                 variant="outline"
                 onClick={goBackToCreatePeriod}
@@ -1323,14 +1355,36 @@ export function UktDashboard(props: Props) {
         </CardContent>
       </Card>
 
-      {isDojoAdmin && !props.selectedPeriodId && (
+      {isDojoAdmin && !props.selectedPeriodId && viewMode === "registration" && (
         <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
           <CardContent className="flex flex-wrap items-center gap-3 p-4 text-sm text-amber-800 dark:text-amber-200">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             <span>
               Periode UKT <b>{formatUktPeriodLabel(props.semester, props.year)}</b> belum
-              dibuat oleh admin cabang. Pilih semester lain jika perlu melihat riwayat, atau
-              hubungi cabang untuk membuka periode baru.
+              dibuat oleh admin cabang. Pilih semester lain jika perlu, atau buka{" "}
+              <a href="/admin/ukt/arsip" className="underline font-medium">
+                Arsip UKT
+              </a>{" "}
+              untuk riwayat, atau hubungi cabang untuk membuka periode baru.
+            </span>
+          </CardContent>
+        </Card>
+      )}
+
+      {viewMode === "archive" && !props.selectedPeriodId && (
+        <Card className="border-muted">
+          <CardContent className="flex flex-wrap items-center gap-3 p-4 text-sm text-muted-foreground">
+            <Archive className="h-4 w-4 shrink-0" />
+            <span>
+              Belum ada arsip UKT untuk{" "}
+              <b className="text-foreground">
+                {formatUktPeriodLabel(props.semester, props.year)}
+              </b>
+              . Periode aktif dikelola di menu{" "}
+              <a href="/admin/ukt" className="underline font-medium text-foreground">
+                Pendaftaran
+              </a>
+              .
             </span>
           </CardContent>
         </Card>
