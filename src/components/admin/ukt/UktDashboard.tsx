@@ -1389,91 +1389,59 @@ export function UktDashboard(props: Props) {
 
   return (
     <div className="space-y-6">
-      {/* Period selector */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Select
+          value={props.semester}
+          onValueChange={(v) => syncNavigateTerm({ semester: v as UktSemester })}
+        >
+          <SelectTrigger
+            className="h-8 w-[8.5rem] border-border/80 bg-background text-sm font-medium shadow-none"
+            aria-label="Pilih semester UKT"
+          >
+            <SelectValue placeholder="Semester" />
+          </SelectTrigger>
+          <SelectContent className="min-w-[8.5rem]">
+            <SelectItem value="I">Semester I</SelectItem>
+            <SelectItem value="II">Semester II</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input
+          type="number"
+          className="h-8 w-20 text-sm font-medium"
+          value={yearInput}
+          onChange={(e) => setYearInput(e.target.value)}
+          onBlur={() => {
+            const y = parseInt(yearInput, 10);
+            if (Number.isFinite(y) && y >= 2020 && y <= 2100) {
+              syncNavigateTerm({ year: y });
+            } else {
+              setYearInput(String(props.year));
+            }
+          }}
+          min={2020}
+          max={2100}
+          aria-label="Tahun UKT"
+        />
+      </div>
+
+      {/* Period actions */}
       <Card className="border-inkai-red/20 bg-gradient-to-r from-background to-muted/30">
         <CardContent className="flex flex-wrap items-center gap-3 p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            {showBackToCreate && (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 shrink-0 border-inkai-red/30"
-                onClick={goBackToCreatePeriod}
-                title="Kembali — tampilkan Buat Periode"
-                aria-label="Kembali ke buat periode UKT"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            )}
-            <Select
-              value={props.semester}
-              onValueChange={(v) => syncNavigateTerm({ semester: v as UktSemester })}
+          {showBackToCreate && (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-9 w-9 shrink-0 border-inkai-red/30"
+              onClick={goBackToCreatePeriod}
+              title="Kembali — tampilkan Buat Periode"
+              aria-label="Kembali ke buat periode UKT"
             >
-              <SelectTrigger
-                className="h-9 w-[9.5rem] border-inkai-red/30 bg-background font-semibold text-foreground shadow-sm"
-                aria-label="Pilih semester UKT"
-              >
-                <SelectValue placeholder="Pilih semester" />
-              </SelectTrigger>
-              <SelectContent className="min-w-[9.5rem]">
-                <SelectItem
-                  value="I"
-                  className="font-medium focus:bg-inkai-red/10 focus:text-foreground data-[highlighted]:bg-inkai-red/10 data-[highlighted]:text-foreground"
-                >
-                  Semester I
-                </SelectItem>
-                <SelectItem
-                  value="II"
-                  className="font-medium focus:bg-inkai-red/10 focus:text-foreground data-[highlighted]:bg-inkai-red/10 data-[highlighted]:text-foreground"
-                >
-                  Semester II
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              type="number"
-              className="h-9 w-24 font-semibold"
-              value={yearInput}
-              onChange={(e) => setYearInput(e.target.value)}
-              onBlur={() => {
-                const y = parseInt(yearInput, 10);
-                if (Number.isFinite(y) && y >= 2020 && y <= 2100) {
-                  syncNavigateTerm({ year: y });
-                } else {
-                  setYearInput(String(props.year));
-                }
-              }}
-              min={2020}
-              max={2100}
-              aria-label="Tahun UKT"
-            />
-            {editingTitle && isCabang ? (
-              <div className="flex items-center gap-1">
-                <Input
-                  value={periodTitle}
-                  onChange={(e) => setPeriodTitle(e.target.value)}
-                  className="min-w-48"
-                />
-                <Button size="sm" variant="ghost" onClick={handleSaveTitle} disabled={loading}>
-                  <Check className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1">
-                <span className="text-lg font-bold">
-                  {selectedPeriod?.title || formatUktPeriodLabel(props.semester, props.year)}
-                </span>
-                {isCabang && props.selectedPeriodId && (
-                  <Button size="sm" variant="ghost" onClick={() => setEditingTitle(true)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="ml-auto flex flex-wrap gap-2">
-            {selectablePeriodsForTerm.length > 0 && (
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          )}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {selectablePeriodsForTerm.length > 1 && (
               <Select
                 value={props.selectedPeriodId || ""}
                 onValueChange={(v) =>
@@ -1485,7 +1453,7 @@ export function UktDashboard(props: Props) {
                   })
                 }
               >
-                <SelectTrigger className="w-64">
+                <SelectTrigger className="w-56">
                   <SelectValue
                     placeholder={
                       viewMode === "archive"
@@ -1569,6 +1537,12 @@ export function UktDashboard(props: Props) {
                         >
                           <Settings2 className="h-4 w-4" />
                           Syarat UKT
+                        </DropdownMenuItem>
+                      )}
+                      {props.selectedPeriodId && (
+                        <DropdownMenuItem onClick={() => setEditingTitle(true)}>
+                          <Pencil className="h-4 w-4" />
+                          Ubah judul
                         </DropdownMenuItem>
                       )}
                       {props.selectedPeriodId && (
@@ -1692,6 +1666,9 @@ export function UktDashboard(props: Props) {
                         ? "Belum dibuka"
                         : "Sudah tutup"}
                   </Badge>
+                  {!isArchiveView && registrationDeadlineIso && !props.createMode && (
+                    <UktFloatingCountdown targetIso={registrationDeadlineIso} />
+                  )}
                   {isCabang && (
                     <Button
                       type="button"
@@ -3434,12 +3411,34 @@ export function UktDashboard(props: Props) {
         </DialogContent>
       </Dialog>
 
-      {!isArchiveView &&
-        props.selectedPeriodId &&
-        registrationDeadlineIso &&
-        !props.createMode && (
-          <UktFloatingCountdown targetIso={registrationDeadlineIso} />
-        )}
+      <Dialog open={editingTitle} onOpenChange={(o) => !o && setEditingTitle(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ubah judul periode</DialogTitle>
+            <DialogDescription>
+              Label yang tampil di daftar periode UKT.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={periodTitle}
+            onChange={(e) => setPeriodTitle(e.target.value)}
+            placeholder={formatUktPeriodLabel(props.semester, props.year)}
+            aria-label="Judul periode UKT"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingTitle(false)}>
+              Batal
+            </Button>
+            <Button
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              onClick={() => void handleSaveTitle()}
+              disabled={loading || !periodTitle.trim()}
+            >
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!waiverTarget} onOpenChange={(o) => !o && setWaiverTarget(null)}>
         <DialogContent className="max-w-md">
