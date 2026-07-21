@@ -237,6 +237,68 @@
   }
 }
 
+/** Timer floating UKT — mode H-2 darurat */
+@keyframes ukt-timer-emergency-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--inkai-red) 0%, transparent),
+      0 12px 28px -8px rgba(0, 0, 0, 0.12);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 0 0 6px color-mix(in srgb, var(--inkai-red) 18%, transparent),
+      0 12px 32px -6px color-mix(in srgb, var(--inkai-red) 35%, transparent);
+    transform: scale(1.01);
+  }
+}
+
+@keyframes ukt-timer-emergency-bar {
+  0%,
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.55;
+    filter: brightness(1.25);
+  }
+}
+
+@keyframes ukt-timer-emergency-icon {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--inkai-red) 0%, transparent);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--inkai-red) 22%, transparent);
+  }
+}
+
+.ukt-timer-emergency {
+  animation: ukt-timer-emergency-pulse 1.1s ease-in-out infinite;
+}
+
+.ukt-timer-emergency-bar {
+  animation: ukt-timer-emergency-bar 0.9s ease-in-out infinite;
+  background-size: 200% 100%;
+}
+
+.ukt-timer-emergency-icon {
+  animation: ukt-timer-emergency-icon 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ukt-timer-emergency,
+  .ukt-timer-emergency-bar,
+  .ukt-timer-emergency-icon {
+    animation: none;
+  }
+}
+
 .inkai-hero {
   background-color: #1a0a0c;
   background-image:

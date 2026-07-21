@@ -62,6 +62,7 @@ import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
 import { UktPrintModal } from "@/components/admin/ukt/UktPrintModal";
 import { UktExportDialog } from "@/components/admin/ukt/UktExportDialog";
 import { UktExamDayDialog } from "@/components/admin/ukt/UktExamDayDialog";
+import { UktFloatingCountdown } from "@/components/admin/ukt/UktFloatingCountdown";
 import { UktSearchBar } from "@/components/admin/ukt/UktSearchBar";
 import { AddMemberDialog } from "@/components/admin/AddMemberDialog";
 import {
@@ -3405,6 +3406,13 @@ export function UktDashboard(props: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {!isArchiveView &&
+        props.selectedPeriodId &&
+        registrationDeadlineIso &&
+        !props.createMode && (
+          <UktFloatingCountdown targetIso={registrationDeadlineIso} />
+        )}
 
       <Dialog open={!!waiverTarget} onOpenChange={(o) => !o && setWaiverTarget(null)}>
         <DialogContent className="max-w-md">
