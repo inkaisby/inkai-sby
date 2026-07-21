@@ -162,12 +162,9 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">UKT — Pendaftaran</h2>
-        <p className="text-muted-foreground">
-          {ROLE_LABELS[primaryRole] || primaryRole} — Periode aktif & pendaftaran anggota
-        </p>
-      </div>
+      <p className="mb-4 text-sm text-muted-foreground">
+        {ROLE_LABELS[primaryRole] || primaryRole} — Periode aktif & pendaftaran anggota
+      </p>
 
       <UktDashboard
         periods={periods}

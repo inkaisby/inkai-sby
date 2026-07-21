@@ -149,12 +149,9 @@ async function UktArsipPageContent({ searchParams }: { searchParams: SearchParam
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">UKT — Arsip</h2>
-        <p className="text-muted-foreground">
-          {ROLE_LABELS[primaryRole] || primaryRole} — Riwayat periode UKT yang sudah diarsipkan
-        </p>
-      </div>
+      <p className="mb-4 text-sm text-muted-foreground">
+        {ROLE_LABELS[primaryRole] || primaryRole} — Riwayat periode UKT yang sudah diarsipkan
+      </p>
 
       <UktDashboard
         periods={periods}

@@ -29,6 +29,7 @@ import {
   ClipboardCheck,
   Archive,
   Settings2,
+  MoreHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -51,6 +52,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -1522,28 +1530,18 @@ export function UktDashboard(props: Props) {
                 Periode baru
               </Button>
             )}
+            {isCabang && props.selectedPeriodId && (
+              <Button
+                variant="outline"
+                onClick={() => setShowExamDay(true)}
+                disabled={periodLocked}
+              >
+                <ClipboardCheck className="mr-1 h-4 w-4" />
+                Hari-H
+              </Button>
+            )}
             {isCabang && (
               <>
-                {viewMode === "registration" && (
-                  <Button
-                    variant="outline"
-                    onClick={() => router.push("/admin/pengaturan/ukt")}
-                    title="Centang syarat pendaftaran UKT"
-                  >
-                    <Settings2 className="mr-1 h-4 w-4" />
-                    <span className="hidden lg:inline">Syarat UKT</span>
-                  </Button>
-                )}
-                {props.selectedPeriodId && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowExamDay(true)}
-                    disabled={periodLocked}
-                  >
-                    <ClipboardCheck className="mr-1 h-4 w-4" />
-                    <span className="hidden sm:inline">Hari-H</span>
-                  </Button>
-                )}
                 <Button variant="outline" onClick={openExportDialog}>
                   <Download className="mr-1 h-4 w-4" />
                   Export
@@ -1556,36 +1554,56 @@ export function UktDashboard(props: Props) {
                   <Printer className="mr-1 h-4 w-4" />
                   Cetak Nota
                 </Button>
-                {props.selectedPeriodId && (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={openBeltFeesDialog}
-                      disabled={periodLocked}
-                    >
-                      <Wallet className="mr-1 h-4 w-4" />
-                      <span className="hidden md:inline">Biaya Sabuk</span>
-                    </Button>
-                    {periodLocked ? (
-                      <Button
-                        variant="outline"
-                        onClick={() => void handlePeriodArchive(false)}
-                        disabled={loading}
-                      >
-                        <Archive className="mr-1 h-4 w-4" />
-                        <span className="hidden lg:inline">Buka arsip</span>
+                {(viewMode === "registration" || Boolean(props.selectedPeriodId)) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" aria-label="Aksi lainnya">
+                        <MoreHorizontal className="mr-1 h-4 w-4" />
+                        Lainnya
                       </Button>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        onClick={() => void handlePeriodArchive(true)}
-                        disabled={loading}
-                      >
-                        <Archive className="mr-1 h-4 w-4" />
-                        <span className="hidden lg:inline">Arsipkan</span>
-                      </Button>
-                    )}
-                  </>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-48">
+                      {viewMode === "registration" && (
+                        <DropdownMenuItem
+                          onClick={() => router.push("/admin/pengaturan/ukt")}
+                        >
+                          <Settings2 className="h-4 w-4" />
+                          Syarat UKT
+                        </DropdownMenuItem>
+                      )}
+                      {props.selectedPeriodId && (
+                        <DropdownMenuItem
+                          onClick={openBeltFeesDialog}
+                          disabled={periodLocked}
+                        >
+                          <Wallet className="h-4 w-4" />
+                          Biaya Sabuk
+                        </DropdownMenuItem>
+                      )}
+                      {props.selectedPeriodId && (
+                        <>
+                          <DropdownMenuSeparator />
+                          {periodLocked ? (
+                            <DropdownMenuItem
+                              onClick={() => void handlePeriodArchive(false)}
+                              disabled={loading}
+                            >
+                              <Archive className="h-4 w-4" />
+                              Buka arsip
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              onClick={() => void handlePeriodArchive(true)}
+                              disabled={loading}
+                            >
+                              <Archive className="h-4 w-4" />
+                              Arsipkan
+                            </DropdownMenuItem>
+                          )}
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
               </>
             )}
@@ -1600,17 +1618,6 @@ export function UktDashboard(props: Props) {
                   Cetak Nota
                 </Button>
               </>
-            )}
-            {(isDojoAdmin || isCabang) && selectedIds.size === 0 && (
-              <Button
-                variant="outline"
-                onClick={() => openPrintNota(true)}
-                disabled={selectedIds.size === 0}
-                className="hidden sm:inline-flex"
-              >
-                <Printer className="mr-1 h-4 w-4" />
-                Nota Terpilih
-              </Button>
             )}
           </div>
         </CardContent>
@@ -1653,69 +1660,86 @@ export function UktDashboard(props: Props) {
 
       {props.selectedPeriodId && selectedPeriod && (
         <Card className="border-muted">
-          <CardContent className="space-y-2 p-4">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
-              <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="text-muted-foreground">Buka pendaftaran:</span>
-              <span className="font-medium">
-                {registrationOpenIso
-                  ? formatUktRegistrationDeadline(registrationOpenIso)
-                  : "—"}
+          <CardContent className="p-4 sm:p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Jadwal periode
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
-              <span className="w-4 shrink-0" aria-hidden />
-              <span className="text-muted-foreground">Batas pendaftaran:</span>
-              <span className="font-medium">
-                {registrationDeadlineIso
-                  ? formatUktRegistrationDeadline(registrationDeadlineIso)
-                  : "—"}
-              </span>
-              <Badge
-                variant={registrationOpen ? "default" : "secondary"}
-                className={registrationOpen ? "ukt-open-badge" : undefined}
-              >
-                {registrationOpen
-                  ? "Masih terbuka"
-                  : registrationNotYetOpen
-                    ? "Belum dibuka"
-                    : "Sudah tutup"}
-              </Badge>
-              {isCabang && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2"
-                  onClick={openRegistrationDeadlineDialog}
-                  disabled={loading}
-                >
-                  <Pencil className="mr-1 h-3 w-3" />
-                  Atur
-                </Button>
-              )}
-            </div>
-            {(props.periodMeta?.examAt || props.periodMeta?.examLocation) && (
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
-                <span className="w-4 shrink-0" aria-hidden />
-                <span className="text-muted-foreground">Ujian:</span>
-                <span className="font-medium">
-                  {props.periodMeta?.examAt
-                    ? formatUktRegistrationDeadline(props.periodMeta.examAt)
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Buka pendaftaran</p>
+                <p className="text-base font-semibold tracking-tight text-foreground">
+                  {registrationOpenIso
+                    ? formatUktRegistrationDeadline(registrationOpenIso)
                     : "—"}
-                  {props.periodMeta?.examLocation
-                    ? ` · ${props.periodMeta.examLocation}`
-                    : ""}
-                </span>
+                </p>
               </div>
-            )}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
-              <span className="w-4 shrink-0" aria-hidden />
-              <span className="text-muted-foreground">Pejabat:</span>
-              <span className="font-medium">
-                Bidang Ujian {periodOfficers.bidangUjianName} · Bendahara{" "}
-                {periodOfficers.bendaharaCabangName}
-              </span>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs text-muted-foreground">Batas pendaftaran</p>
+                  <Badge
+                    variant={registrationOpen ? "default" : "secondary"}
+                    className={registrationOpen ? "ukt-open-badge gap-1.5" : undefined}
+                  >
+                    {registrationOpen && (
+                      <span className="ukt-open-badge-dot" aria-hidden />
+                    )}
+                    {registrationOpen
+                      ? "Masih terbuka"
+                      : registrationNotYetOpen
+                        ? "Belum dibuka"
+                        : "Sudah tutup"}
+                  </Badge>
+                  {isCabang && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2"
+                      onClick={openRegistrationDeadlineDialog}
+                      disabled={loading}
+                    >
+                      <Pencil className="mr-1 h-3 w-3" />
+                      Atur
+                    </Button>
+                  )}
+                </div>
+                <p className="text-base font-semibold tracking-tight text-foreground">
+                  {registrationDeadlineIso
+                    ? formatUktRegistrationDeadline(registrationDeadlineIso)
+                    : "—"}
+                </p>
+              </div>
+              {(props.periodMeta?.examAt || props.periodMeta?.examLocation) && (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Ujian</p>
+                  <p className="text-base font-semibold tracking-tight text-foreground">
+                    {props.periodMeta?.examAt
+                      ? formatUktRegistrationDeadline(props.periodMeta.examAt)
+                      : "—"}
+                  </p>
+                  {props.periodMeta?.examLocation ? (
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {props.periodMeta.examLocation}
+                    </p>
+                  ) : null}
+                </div>
+              )}
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Pejabat</p>
+                <p className="text-sm font-medium text-foreground">
+                  Bidang Ujian{" "}
+                  <span className="font-semibold">{periodOfficers.bidangUjianName}</span>
+                </p>
+                <p className="text-sm font-medium text-foreground">
+                  Bendahara{" "}
+                  <span className="font-semibold">
+                    {periodOfficers.bendaharaCabangName}
+                  </span>
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

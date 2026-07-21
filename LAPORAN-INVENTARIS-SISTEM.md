@@ -105,7 +105,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
 | Kelola Anggota | Cari **autocomplete**; kolom **No**; **sort kolom** (NIA, Nama, Sabuk, Status, Dojo, Terdaftar — ikon naik/turun, server-side); KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV; arsip; Prisma scoped (+ **anggota luar Surabaya / ranting arsip** tetap terlihat); filter client-side; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50) |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
-| UKT | Nav grup **Pendaftaran** (`/admin/ukt`) + **Arsip UKT** (`/admin/ukt/arsip`); periode aktif, daftar peserta, **sort kolom**, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya), **timer floating** hitungan mundur batas pendaftaran |
+| UKT | Nav grup **Pendaftaran** (`/admin/ukt`) + **Arsip UKT** (`/admin/ukt/arsip`); periode aktif, daftar peserta, **sort kolom**, multi-select ranting, bayar/verifikasi, sabuk target, nota, **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya), **timer floating** hitungan mundur batas pendaftaran; toolbar aksi sekunder di menu **Lainnya**; kartu jadwal grid 2 kolom |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
 | Verifikasi | Antrian klaim + **filter tipe/aging**; riwayat |
 | Event & Kegiatan | Buat + **ubah/tutup** event non-UKT + **roster pendaftar**; link UKT |
@@ -529,6 +529,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 21 Juli 2026 | UKT Pendaftaran: timer floating hitungan mundur (hari/jam/menit/detik/ms) ke batas pendaftaran, fixed saat scroll, glassmorphism + aksen inkai-red |
 | 21 Juli 2026 | UKT timer: mode H-2 darurat (≤48 jam) — strip h-2 berdenyut, glow merah, label H-2 · Darurat |
 | 21 Juli 2026 | UKT jadwal: badge **Masih terbuka** animasi glow lembut (`ukt-open-badge`) |
+| 21 Juli 2026 | UKT UI polish: hilangkan judul ganda (topbar cukup), toolbar **Lainnya** (Syarat/Biaya/Arsip), kartu jadwal grid 2 kolom, sembunyikan Nota Terpilih kosong, badge terbuka pakai titik pulse |
 
 ---
 
