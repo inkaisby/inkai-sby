@@ -74,18 +74,25 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   let feesFromSnapshot = false;
   let depositMap: Record<string, UktDepositRecord> = {};
   let periodMeta: UktPeriodMeta = { archived: false, locked: false };
-
-  const orgProfile = await getBranchOrgProfile();
-  const registrationPolicy = await getUktRegistrationPolicy();
+  let orgProfile: Awaited<ReturnType<typeof getBranchOrgProfile>> | null = null;
+  let registrationPolicy: Awaited<
+    ReturnType<typeof getUktRegistrationPolicy>
+  > | null = null;
 
   try {
-    const data = await fetchUktDashboardData(token, user, {
-      periodFromUrl: createMode ? null : params.period || null,
-      semester,
-      year,
-      forceNoPeriod: createMode,
-      viewMode: "registration",
-    });
+    const [profile, policy, data] = await Promise.all([
+      getBranchOrgProfile(),
+      getUktRegistrationPolicy(),
+      fetchUktDashboardData(token, user, {
+        periodFromUrl: createMode ? null : params.period || null,
+        semester,
+        year,
+        forceNoPeriod: createMode,
+        viewMode: "registration",
+      }),
+    ]);
+    orgProfile = profile;
+    registrationPolicy = policy;
     periods = data.periods;
     dojos = data.dojos;
     selectedPeriodId = createMode ? null : data.selectedPeriodId;
@@ -173,11 +180,11 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
         depositMap={depositMap}
         periodMeta={periodMeta}
         viewMode="registration"
-        registrationPolicy={registrationPolicy}
+        registrationPolicy={registrationPolicy ?? undefined}
         orgProfile={{
-          address: orgProfile.address,
-          bidangUjianName: orgProfile.bidangUjianName,
-          bendaharaCabangName: orgProfile.bendaharaCabangName,
+          address: orgProfile?.address,
+          bidangUjianName: orgProfile?.bidangUjianName,
+          bendaharaCabangName: orgProfile?.bendaharaCabangName,
         }}
       />
     </>

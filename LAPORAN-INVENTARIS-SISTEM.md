@@ -514,6 +514,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 21 Juli 2026 | Fix gate daftar UKT ranting: absensi null/0% & dokumen/iuran ditegakkan di UI+API (fail-closed) |
 | 21 Juli 2026 | Sementara: ranting boleh daftar UKT tanpa gate iuran/dokumen/absensi (`UKT_ENFORCE_ELIGIBILITY_FOR_RANTING=false`); cabang tetap ketat |
 | 21 Juli 2026 | Pengaturan UKT cabang: centang syarat daftar (iuran/dokumen/absensi) + berlaku ranting/cabang; ganti flag hardcode |
+| 21 Juli 2026 | UKT UI lebih responsif: update status lokal segera setelah daftar/batal/verifikasi/hasil; refresh server di background |
+| 21 Juli 2026 | UKT perf: tanpa soft-refresh setelah aksi baris; parallel org/policy+dashboard; period-meta paralel; notify daftar non-blocking; bulk verifikasi concurrent; page size maks 100 |
 
 ---
 

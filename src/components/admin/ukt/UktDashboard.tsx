@@ -229,7 +229,7 @@ type Props = {
   registrationPolicy?: UktRegistrationPolicy;
 };
 
-const PAGE_SIZES = [25, 50, 100, 1000] as const;
+const PAGE_SIZES = [25, 50, 100] as const;
 
 function formatDate(d: string | null) {
   if (!d) return "-";
@@ -304,7 +304,13 @@ export function UktDashboard(props: Props) {
   const [beltFees, setBeltFees] = useState(props.beltFees);
   const [komisiRanting, setKomisiRanting] = useState(props.komisiRanting);
   const [loading, setLoading] = useState(false);
-  const [cancelTarget, setCancelTarget] = useState<{ id: string; name: string } | null>(null);
+  /** Pending per anggota — aksi baris tidak memblokir seluruh tabel. */
+  const [pendingMemberIds, setPendingMemberIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  /** Salinan lokal agar status UI langsung berubah tanpa tunggu refresh penuh. */
+  const [rows, setRows] = useState(props.allRows);
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; name: string; memberId?: string } | null>(null);
   const [showRegistrationDeadline, setShowRegistrationDeadline] = useState(false);
   const [registrationDeadlineDate, setRegistrationDeadlineDate] = useState("");
   const [registrationDeadlineTime, setRegistrationDeadlineTime] = useState("");
@@ -337,8 +343,8 @@ export function UktDashboard(props: Props) {
   const depositMap = props.depositMap ?? {};
   const periodOfficers = resolveUktPeriodOfficers(props.periodMeta, props.orgProfile);
   const depositRecon = useMemo(
-    () => buildUktDepositReconciliation(props.allRows, props.dojos, depositMap),
-    [props.allRows, props.dojos, depositMap],
+    () => buildUktDepositReconciliation(rows, props.dojos, depositMap),
+    [rows, props.dojos, depositMap],
   );
 
   useEffect(() => {
@@ -373,34 +379,66 @@ export function UktDashboard(props: Props) {
   }, [props.year]);
 
   useEffect(() => {
+    // Sync saat ganti periode/term atau Muat Ulang (props.allRows baru).
+    // Aksi baris tidak memanggil refresh → patch lokal tidak tertimpa.
+    setRows(props.allRows);
+  }, [
+    props.selectedPeriodId,
+    props.semester,
+    props.year,
+    props.createMode,
+    props.allRows,
+  ]);
+
+  const patchRow = useCallback((memberId: string, patch: Partial<UktMemberRow>) => {
+    setRows((prev) =>
+      prev.map((r) => (r.memberId === memberId ? { ...r, ...patch } : r)),
+    );
+  }, []);
+
+  const setMemberPending = useCallback((memberId: string, pending: boolean) => {
+    setPendingMemberIds((prev) => {
+      const next = new Set(prev);
+      if (pending) next.add(memberId);
+      else next.delete(memberId);
+      return next;
+    });
+  }, []);
+
+  const isMemberPending = useCallback(
+    (memberId: string) => pendingMemberIds.has(memberId),
+    [pendingMemberIds],
+  );
+
+  useEffect(() => {
     if (!isArchiveView) return;
     if (localStatus === "belum_daftar") setLocalStatus("");
     if (localView === "unregistered") setLocalView("");
   }, [isArchiveView, localStatus, localView]);
 
   const scopedRows = useMemo(() => {
-    let rows = props.allRows;
+    let list = rows;
     // Arsip: hanya peserta yang sudah daftar (bukan pool seluruh anggota)
-    if (isArchiveView) rows = rows.filter((r) => Boolean(r.registrationId));
-    if (effectiveDojo) rows = rows.filter((r) => r.dojoId === effectiveDojo);
-    if (localStatus) rows = filterUktRowsByDisplayStatus(rows, localStatus);
+    if (isArchiveView) list = list.filter((r) => Boolean(r.registrationId));
+    if (effectiveDojo) list = list.filter((r) => r.dojoId === effectiveDojo);
+    if (localStatus) list = filterUktRowsByDisplayStatus(list, localStatus);
     if (localQ.trim()) {
       const q = localQ.toLowerCase();
-      rows = rows.filter(
+      list = list.filter(
         (r) =>
           r.fullName.toLowerCase().includes(q) ||
           (r.nia?.toLowerCase().includes(q) ?? false),
       );
     }
-    return rows;
-  }, [props.allRows, isArchiveView, effectiveDojo, localStatus, localQ]);
+    return list;
+  }, [rows, isArchiveView, effectiveDojo, localStatus, localQ]);
 
   const archiveSearchRows = useMemo(
     () =>
       isArchiveView
-        ? props.allRows.filter((r) => Boolean(r.registrationId))
-        : props.allRows,
-    [props.allRows, isArchiveView],
+        ? rows.filter((r) => Boolean(r.registrationId))
+        : rows,
+    [rows, isArchiveView],
   );
 
   const kpi = useMemo(() => computeUktOperationalKpi(scopedRows), [scopedRows]);
@@ -448,8 +486,8 @@ export function UktDashboard(props: Props) {
   );
 
   const selectedRows = useMemo(
-    () => props.allRows.filter((r) => selectedIds.has(r.memberId)),
-    [props.allRows, selectedIds],
+    () => rows.filter((r) => selectedIds.has(r.memberId)),
+    [rows, selectedIds],
   );
 
   const allSelectableChecked =
@@ -640,7 +678,7 @@ export function UktDashboard(props: Props) {
   };
 
   const openExportDialog = () => {
-    if (!props.allRows.some((r) => r.registrationId)) {
+    if (!rows.some((r) => r.registrationId)) {
       toast.error("Tidak ada peserta terdaftar untuk diekspor");
       return;
     }
@@ -894,7 +932,8 @@ export function UktDashboard(props: Props) {
       toast.error("Pilih atau buat periode UKT terlebih dahulu");
       return;
     }
-    const row = props.allRows.find((r) => r.memberId === memberId);
+    if (isMemberPending(memberId)) return;
+    const row = rows.find((r) => r.memberId === memberId);
     if (row) {
       const blockers = getUktRegistrationBlockersWithWaiver(
         row,
@@ -915,21 +954,43 @@ export function UktDashboard(props: Props) {
         return;
       }
     }
-    setLoading(true);
+    setMemberPending(memberId, true);
     try {
       const res = await fetch("/api/admin/ukt/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId: props.selectedPeriodId, memberId }),
       });
-      const data = await parseApiJson<{ error?: string; success?: boolean }>(res);
+      const data = await parseApiJson<{
+        error?: string;
+        success?: boolean;
+        registrationId?: string;
+        billingId?: string | null;
+        billingAmount?: number | null;
+        billingStatus?: string | null;
+      }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal mendaftarkan anggota");
+      const registrationId = data.registrationId
+        ? String(data.registrationId)
+        : `pending-${memberId}`;
+      patchRow(memberId, {
+        registrationId,
+        billingId: data.billingId ? String(data.billingId) : null,
+        billingStatus: data.billingStatus
+          ? String(data.billingStatus)
+          : "PENDING",
+        billingAmount:
+          data.billingAmount != null && Number.isFinite(Number(data.billingAmount))
+            ? Number(data.billingAmount)
+            : null,
+        status: "APPROVED",
+        examResult: null,
+      });
       toast.success("Anggota berhasil didaftarkan dan disetujui otomatis");
-      router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal mendaftarkan");
     } finally {
-      setLoading(false);
+      setMemberPending(memberId, false);
     }
   };
 
@@ -938,7 +999,8 @@ export function UktDashboard(props: Props) {
     newRank: string,
     row: UktMemberRow,
   ) => {
-    setLoading(true);
+    if (isMemberPending(row.memberId)) return;
+    setMemberPending(row.memberId, true);
     try {
       const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
         method: "PATCH",
@@ -958,16 +1020,18 @@ export function UktDashboard(props: Props) {
         row.billingStatus === "PAID" ||
         row.status === "PAID" ||
         row.status === "SUCCESS";
+      patchRow(row.memberId, {
+        kyuBaru: data.kyuBaru || newRank,
+      });
       toast.success(
         paid
           ? `Kyu Baru diisi — status Selesai: ${formatRankLabel(newRank)}`
           : data.message || `Sabuk diperbarui: ${formatRankLabel(newRank)}`,
       );
-      router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
-      setLoading(false);
+      setMemberPending(row.memberId, false);
     }
   };
 
@@ -976,7 +1040,10 @@ export function UktDashboard(props: Props) {
     examResult: "LULUS" | "GAGAL" | "MENGULANG",
   ) => {
     if (!props.selectedPeriodId) return;
-    setLoading(true);
+    const target = rows.find((r) => r.registrationId === registrationId);
+    if (target && isMemberPending(target.memberId)) return;
+    if (target) setMemberPending(target.memberId, true);
+    else setLoading(true);
     try {
       const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
         method: "PATCH",
@@ -985,31 +1052,49 @@ export function UktDashboard(props: Props) {
       });
       const data = await parseApiJson<{ error?: string }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal menyimpan hasil ujian");
+      if (target) patchRow(target.memberId, { examResult });
       toast.success(`Hasil ujian disimpan: ${examResult}`);
-      router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
-      setLoading(false);
+      if (target) setMemberPending(target.memberId, false);
+      else setLoading(false);
     }
   };
 
   const handleCancelRegistration = async (registrationId: string) => {
-    setLoading(true);
+    const memberId =
+      cancelTarget?.memberId ||
+      rows.find((r) => r.registrationId === registrationId)?.memberId;
+    if (memberId && isMemberPending(memberId)) return;
+    if (memberId) setMemberPending(memberId, true);
+    else setLoading(true);
     try {
       const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
         method: "DELETE",
       });
       const data = await parseApiJson<{ error?: string }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal membatalkan");
+      if (memberId) {
+        patchRow(memberId, {
+          registrationId: null,
+          billingId: null,
+          billingStatus: null,
+          billingAmount: null,
+          status: "BELUM_DAFTAR",
+          examResult: null,
+          examPresent: null,
+          kyuBaru: null,
+        });
+      }
       toast.success("Peserta berhasil dibatalkan dari UKT");
       setCancelTarget(null);
       setSelectedMember(null);
-      router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal membatalkan");
     } finally {
-      setLoading(false);
+      if (memberId) setMemberPending(memberId, false);
+      else setLoading(false);
     }
   };
 
@@ -1054,7 +1139,8 @@ export function UktDashboard(props: Props) {
 
   const handleMarkPaid = async (row: UktMemberRow) => {
     if (!row.registrationId) return;
-    setLoading(true);
+    if (isMemberPending(row.memberId)) return;
+    setMemberPending(row.memberId, true);
     try {
       if (row.billingId) {
         const res = await fetch(`/api/admin/billing/${row.billingId}`, {
@@ -1073,16 +1159,19 @@ export function UktDashboard(props: Props) {
         const data = await parseApiJson<{ error?: string }>(res);
         if (!res.ok) throw new Error(data.error || "Gagal menandai lunas");
       }
+      patchRow(row.memberId, {
+        billingStatus: "PAID",
+        status: "PAID",
+      });
       toast.success(
         row.kyuBaru
           ? "Pembayaran diverifikasi — status Selesai"
           : "Pembayaran diverifikasi. Isi sabuk target untuk menyelesaikan.",
       );
-      router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
-      setLoading(false);
+      setMemberPending(row.memberId, false);
     }
   };
 
@@ -1100,31 +1189,57 @@ export function UktDashboard(props: Props) {
     }
     setLoading(true);
     let ok = 0;
+    const paidIds: string[] = [];
     try {
-      for (const row of targets) {
-        try {
-          if (row.billingId) {
-            const res = await fetch(`/api/admin/billing/${row.billingId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "approve" }),
-            });
-            if (res.ok) ok += 1;
-          } else if (row.registrationId) {
-            const res = await fetch(`/api/admin/ukt/registrations/${row.registrationId}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "mark_paid" }),
-            });
-            if (res.ok) ok += 1;
+      const concurrency = 4;
+      for (let i = 0; i < targets.length; i += concurrency) {
+        const chunk = targets.slice(i, i + concurrency);
+        const results = await Promise.all(
+          chunk.map(async (row) => {
+            try {
+              if (row.billingId) {
+                const res = await fetch(`/api/admin/billing/${row.billingId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "approve" }),
+                });
+                return res.ok ? row.memberId : null;
+              }
+              if (row.registrationId) {
+                const res = await fetch(
+                  `/api/admin/ukt/registrations/${row.registrationId}`,
+                  {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "mark_paid" }),
+                  },
+                );
+                return res.ok ? row.memberId : null;
+              }
+            } catch {
+              return null;
+            }
+            return null;
+          }),
+        );
+        for (const id of results) {
+          if (id) {
+            ok += 1;
+            paidIds.push(id);
           }
-        } catch {
-          /* continue */
         }
+      }
+      if (paidIds.length > 0) {
+        setRows((prev) =>
+          prev.map((r) =>
+            paidIds.includes(r.memberId)
+              ? { ...r, billingStatus: "PAID", status: "PAID" }
+              : r,
+          ),
+        );
       }
       toast.success(`${ok}/${targets.length} pembayaran diverifikasi`);
       setSelectedIds(new Set());
-      router.refresh();
     } finally {
       setLoading(false);
     }
@@ -1152,7 +1267,7 @@ export function UktDashboard(props: Props) {
 
   const buildWaReport = () => {
     const title = selectedPeriod?.title || periodTitle;
-    const approved = props.allRows.filter(
+    const approved = rows.filter(
       (r) =>
         r.registrationId &&
         isRegistrationApproved(r.status) &&
@@ -1685,7 +1800,7 @@ export function UktDashboard(props: Props) {
               {(isDojoAdmin
                 ? props.dojos.filter((d) => d.id === (props.defaultDojoFilter || effectiveDojo))
                 : props.dojos.filter((d) =>
-                    props.allRows.some((r) => r.dojoId === d.id && r.registrationId),
+                    rows.some((r) => r.dojoId === d.id && r.registrationId),
                   )
               ).map((d) => {
                 const dep = depositMap[d.id];
@@ -2071,7 +2186,7 @@ export function UktDashboard(props: Props) {
             {displayRows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={20} className="py-12 text-center text-muted-foreground">
-                  {props.allRows.length === 0 && !props.dbError
+                  {rows.length === 0 && !props.dbError
                     ? "Belum ada anggota. Tambahkan anggota untuk memulai pendaftaran UKT."
                     : "Tidak ada data sesuai filter."}
                 </TableCell>
@@ -2150,7 +2265,7 @@ export function UktDashboard(props: Props) {
                         onChange={(e) =>
                           handleKyuUpdate(row.registrationId!, e.target.value, row)
                         }
-                        disabled={loading}
+                        disabled={loading || isMemberPending(row.memberId)}
                       >
                         <option value="">— Pilih —</option>
                         {BELT_RANK_OPTIONS.map((opt) => (
@@ -2273,7 +2388,7 @@ export function UktDashboard(props: Props) {
                                 className="h-7 text-xs"
                                 onClick={() => handleRegister(row.memberId)}
                                 disabled={
-                                  loading ||
+                                  isMemberPending(row.memberId) ||
                                   !props.selectedPeriodId ||
                                   periodLocked ||
                                   blocked
@@ -2287,7 +2402,9 @@ export function UktDashboard(props: Props) {
                                     : "Daftarkan ke UKT"
                                 }
                               >
-                                Daftar UKT
+                                {isMemberPending(row.memberId)
+                                  ? "Mendaftar…"
+                                  : "Daftar UKT"}
                               </Button>
                               {isCabang &&
                                 getUktRegistrationBlockersWithWaiver(
@@ -2329,11 +2446,11 @@ export function UktDashboard(props: Props) {
                               variant="outline"
                               className="h-7 text-xs"
                               onClick={() => void handleMarkPaid(row)}
-                              disabled={loading}
+                              disabled={loading || isMemberPending(row.memberId)}
                               title="Verifikasi pembayaran UKT"
                             >
                               <CheckCircle2 className="mr-0.5 h-3 w-3" />
-                              Verifikasi
+                              {isMemberPending(row.memberId) ? "…" : "Verifikasi"}
                             </Button>
                           )}
                           {isCabang &&
@@ -2368,13 +2485,14 @@ export function UktDashboard(props: Props) {
                                 setCancelTarget({
                                   id: row.registrationId!,
                                   name: row.fullName,
+                                  memberId: row.memberId,
                                 })
                               }
-                              disabled={loading}
+                              disabled={loading || isMemberPending(row.memberId)}
                               title="Batalkan pendaftaran UKT"
                             >
                               <Trash2 className="mr-0.5 h-3 w-3" />
-                              Batal
+                              {isMemberPending(row.memberId) ? "…" : "Batal"}
                             </Button>
                           )}
                         </>
@@ -2497,9 +2615,10 @@ export function UktDashboard(props: Props) {
                       setCancelTarget({
                         id: selectedMember.registrationId!,
                         name: selectedMember.fullName,
+                        memberId: selectedMember.memberId,
                       })
                     }
-                    disabled={loading}
+                    disabled={loading || isMemberPending(selectedMember.memberId)}
                   >
                     <Trash2 className="mr-1 h-4 w-4" />
                     Batalkan UKT
@@ -2521,11 +2640,15 @@ export function UktDashboard(props: Props) {
                   <Button
                     className="bg-inkai-red"
                     onClick={() => {
-                      handleRegister(selectedMember.memberId);
-                      setSelectedMember(null);
+                      void (async () => {
+                        const id = selectedMember.memberId;
+                        await handleRegister(id);
+                        setSelectedMember(null);
+                      })();
                     }}
                     disabled={
                       loading ||
+                      isMemberPending(selectedMember.memberId) ||
                       !props.selectedPeriodId ||
                       periodLocked ||
                       blocked
@@ -2539,7 +2662,9 @@ export function UktDashboard(props: Props) {
                         : "Daftar UKT"
                     }
                   >
-                    Daftar UKT
+                    {isMemberPending(selectedMember.memberId)
+                      ? "Mendaftar…"
+                      : "Daftar UKT"}
                   </Button>
                     );
                   })()
@@ -2598,7 +2723,7 @@ export function UktDashboard(props: Props) {
           year={props.year}
           rows={(printOnlySelected && selectedRows.length > 0
             ? selectedRows
-            : props.allRows
+            : rows
           ).filter((r) => r.registrationId && isNotaParticipant(r.status))}
           dojos={props.dojos}
           dojoFilter={effectiveDojo}
@@ -2615,7 +2740,7 @@ export function UktDashboard(props: Props) {
       <UktExportDialog
         open={showExport}
         onOpenChange={setShowExport}
-        rows={props.allRows}
+        rows={rows}
         dojos={props.dojos}
         semester={props.semester}
         year={props.year}
@@ -2628,7 +2753,7 @@ export function UktDashboard(props: Props) {
         open={showExamDay}
         onOpenChange={setShowExamDay}
         eventId={props.selectedPeriodId || ""}
-        rows={props.allRows}
+        rows={rows}
         dojos={props.dojos}
         initialDojoId={effectiveDojo || undefined}
         locked={periodLocked}

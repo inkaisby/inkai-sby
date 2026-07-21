@@ -986,6 +986,7 @@ export async function fetchUktDashboardData(
     examAttendanceInitial,
     depositSettingsInitial,
     periodMetaInitial,
+    periodMetaRowsAll,
   ] = await Promise.all([
     inkaiFetch("/v1/events?limit=200", {}, token),
     fetchAdminDojos(token),
@@ -1021,6 +1022,8 @@ export async function fetchUktDashboardData(
           res.ok ? ((data.data as { value?: unknown })?.value ?? null) : null,
         )
       : Promise.resolve(null),
+    // Meta arsip semua periode — paralel agar tidak menambah 1 RTT serial
+    fetchSettingsByPrefix(token, "ukt-period-meta:"),
   ]);
 
   const dojos =
@@ -1034,8 +1037,7 @@ export async function fetchUktDashboardData(
       )
     : [];
 
-  // Muat meta arsip untuk semua periode UKT agar resolusi aktif vs riwayat akurat.
-  const periodMetaRows = await fetchSettingsByPrefix(token, "ukt-period-meta:");
+  const periodMetaRows = periodMetaRowsAll;
   const metaByPeriodId = new Map<string, UktPeriodMeta>();
   for (const row of periodMetaRows) {
     const id = row.key.slice("ukt-period-meta:".length);

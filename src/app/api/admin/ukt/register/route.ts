@@ -130,20 +130,27 @@ export async function POST(request: Request) {
       token: authResult.token,
     });
 
-    await notifyUktStatusChange({
+    // Jangan tunggu notifikasi — respons daftar harus cepat
+    void notifyUktStatusChange({
       token: authResult.token,
       memberId,
       memberName: String(member?.fullName ?? "Anggota"),
       periodTitle: String(event?.title ?? "UKT"),
       displayStatus: "belum_bayar",
       extra: "Silakan koordinasi pembayaran UKT dengan ketua ranting.",
-    });
+    }).catch((err) => console.error("[UKT Register] notify", err));
 
-    const billings = (member as { billings?: Array<{ id: string }> } | undefined)?.billings;
+    const billings = (member as { billings?: Array<{ id: string; amount?: number; status?: string }> } | undefined)?.billings;
+    const billing = billings?.[0];
     return NextResponse.json({
       success: true,
       registrationId: approvedRegistration.id ?? registrationId,
-      billingId: billings?.[0]?.id ?? null,
+      billingId: billing?.id ?? null,
+      billingAmount:
+        billing?.amount != null && Number.isFinite(Number(billing.amount))
+          ? Number(billing.amount)
+          : null,
+      billingStatus: billing?.status ? String(billing.status) : "PENDING",
     });
   } catch (error) {
     console.error("[UKT Register]", error);
