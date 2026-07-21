@@ -299,6 +299,33 @@
   }
 }
 
+/** Badge "Masih terbuka" — denyut lembut elegan */
+@keyframes ukt-open-badge-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--inkai-red) 0%, transparent),
+      0 1px 2px color-mix(in srgb, var(--inkai-red) 20%, transparent);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px color-mix(in srgb, var(--inkai-red) 16%, transparent),
+      0 0 14px 1px color-mix(in srgb, var(--inkai-red) 28%, transparent);
+    filter: brightness(1.08);
+  }
+}
+
+.ukt-open-badge {
+  animation: ukt-open-badge-glow 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ukt-open-badge {
+    animation: none;
+  }
+}
+
 .inkai-hero {
   background-color: #1a0a0c;
   background-image:

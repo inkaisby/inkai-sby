@@ -528,6 +528,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 21 Juli 2026 | UKT admin: hapus peserta dari kolom Aksi juga menghapus tagihan UKT terkait, termasuk yang sudah `PAID`, dengan dialog konfirmasi yang menyebut dampaknya |
 | 21 Juli 2026 | UKT Pendaftaran: timer floating hitungan mundur (hari/jam/menit/detik/ms) ke batas pendaftaran, fixed saat scroll, glassmorphism + aksen inkai-red |
 | 21 Juli 2026 | UKT timer: mode H-2 darurat (≤48 jam) — strip h-2 berdenyut, glow merah, label H-2 · Darurat |
+| 21 Juli 2026 | UKT jadwal: badge **Masih terbuka** animasi glow lembut (`ukt-open-badge`) |
 
 ---
 

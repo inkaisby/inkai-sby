@@ -1671,7 +1671,10 @@ export function UktDashboard(props: Props) {
                   ? formatUktRegistrationDeadline(registrationDeadlineIso)
                   : "—"}
               </span>
-              <Badge variant={registrationOpen ? "default" : "secondary"}>
+              <Badge
+                variant={registrationOpen ? "default" : "secondary"}
+                className={registrationOpen ? "ukt-open-badge" : undefined}
+              >
                 {registrationOpen
                   ? "Masih terbuka"
                   : registrationNotYetOpen
