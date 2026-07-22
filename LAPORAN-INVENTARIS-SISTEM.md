@@ -558,6 +558,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Fix daftar UKT ulang setelah cabang hapus peserta selesai: jangan hapus semua tagihan PAID anggota; pulihkan soft-delete; fallback Prisma bila Inkai GET anggota 404 |
 | 22 Juli 2026 | Fix ranting daftar UKT "Akses wilayah ditolak": jangan PATCH anggota pakai token ranting; fallback daftar+tagihan via Prisma (atau INKAI_SERVICE_TOKEN) setelah cek scope dojo |
 | 22 Juli 2026 | Filter ranting UKT cabang: opsi **Gabungan** dari akun multi-ranting (mis. Gabungan GADING · CAKRA, MANYAR) |
+| 22 Juli 2026 | Fix UKT ranting multi: load anggota+registrasi semua managed dojo via Prisma; filter + kolom Ranting di UI ranting |
 
 ---
 

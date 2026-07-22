@@ -428,8 +428,13 @@ export function UktDashboard(props: Props) {
     : null;
 
   /** Filter ranting: satu id, gabungan multi-ranting, atau semua (null). */
+  const isMultiDojoAdmin = isDojoAdmin && props.dojos.length > 1;
   const dojoFilterParsed = useMemo(() => {
-    const raw = isDojoAdmin ? props.defaultDojoFilter || "" : localDojo;
+    const raw = isDojoAdmin
+      ? isMultiDojoAdmin
+        ? localDojo
+        : props.defaultDojoFilter || ""
+      : localDojo;
     const parsed = parseUktDojoFilterValue(raw);
     if (raw.startsWith("group:")) {
       const group = (props.dojoGroups ?? []).find((g) => g.value === raw);
@@ -443,6 +448,7 @@ export function UktDashboard(props: Props) {
     return parsed;
   }, [
     isDojoAdmin,
+    isMultiDojoAdmin,
     props.defaultDojoFilter,
     localDojo,
     props.dojoGroups,
@@ -605,9 +611,11 @@ export function UktDashboard(props: Props) {
     setLocalQ("");
     setLocalStatus("");
     setLocalView("");
-    if (!isDojoAdmin) setLocalDojo(props.defaultDojoFilter || "");
+    if (!isDojoAdmin || isMultiDojoAdmin) {
+      setLocalDojo(isDojoAdmin ? "" : props.defaultDojoFilter || "");
+    }
     setLocalPage(1);
-  }, [isDojoAdmin, props.defaultDojoFilter]);
+  }, [isDojoAdmin, isMultiDojoAdmin, props.defaultDojoFilter]);
 
   const setMemberPending = useCallback((memberId: string, pending: boolean) => {
     setPendingMemberIds((prev) => {
@@ -2483,7 +2491,7 @@ export function UktDashboard(props: Props) {
           {tableRefreshing ? "Memuat…" : "Refresh"}
         </Button>
 
-        {!isDojoAdmin && (
+        {( !isDojoAdmin || isMultiDojoAdmin) && (
           <Select
             value={localDojo || "all"}
             onValueChange={(v) => {
@@ -2495,16 +2503,15 @@ export function UktDashboard(props: Props) {
               <SelectValue placeholder="Ranting" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Semua ranting</SelectItem>
-              {(props.dojoGroups ?? []).length > 0 && (
-                <>
-                  {(props.dojoGroups ?? []).map((g) => (
-                    <SelectItem key={g.value} value={g.value} title={g.label}>
-                      {g.shortLabel}
-                    </SelectItem>
-                  ))}
-                </>
-              )}
+              <SelectItem value="all">
+                {isDojoAdmin ? "Semua ranting dikelola" : "Semua ranting"}
+              </SelectItem>
+              {!isDojoAdmin &&
+                (props.dojoGroups ?? []).map((g) => (
+                  <SelectItem key={g.value} value={g.value} title={g.label}>
+                    {g.shortLabel}
+                  </SelectItem>
+                ))}
               {props.dojos.map((d) => (
                 <SelectItem key={d.id} value={d.id}>
                   {d.name}
@@ -2669,6 +2676,16 @@ export function UktDashboard(props: Props) {
                 <TableHead className="hidden md:table-cell">Dokumen</TableHead>
               )}
               {!isDojoAdmin && !compactView && (
+                <SortableTableHead
+                  label="Ranting"
+                  sortKey="dojoName"
+                  activeKey={sort.key}
+                  activeDir={sort.dir}
+                  onSort={handleSort}
+                  className="hidden sm:table-cell"
+                />
+              )}
+              {isMultiDojoAdmin && (
                 <SortableTableHead
                   label="Ranting"
                   sortKey="dojoName"
@@ -2871,6 +2888,9 @@ export function UktDashboard(props: Props) {
                     </TableCell>
                   )}
                   {!isDojoAdmin && !compactView && (
+                    <TableCell className="hidden sm:table-cell text-xs">{row.dojoName}</TableCell>
+                  )}
+                  {isMultiDojoAdmin && (
                     <TableCell className="hidden sm:table-cell text-xs">{row.dojoName}</TableCell>
                   )}
                   <TableCell>

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { fetchUktTableRefreshSnapshot } from "@/lib/inkai-api/admin-data";
+import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
+import { getPrimaryAdminRole } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 15;
@@ -26,7 +28,15 @@ export async function GET(request: Request) {
   }
 
   try {
-    const data = await fetchUktTableRefreshSnapshot(authResult.token, period);
+    const primaryRole = getPrimaryAdminRole(authResult.user.roles);
+    const dojoAllowlist =
+      primaryRole === "ADMIN_DOJO"
+        ? getManagedDojoIdsFromUser(authResult.user)
+        : [];
+
+    const data = await fetchUktTableRefreshSnapshot(authResult.token, period, {
+      dojoAllowlist,
+    });
     return NextResponse.json({
       success: true,
       periodId: data.periodId,

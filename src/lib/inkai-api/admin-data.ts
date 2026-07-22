@@ -987,17 +987,24 @@ export async function fetchUktDashboardData(
           : []
       : [];
 
+  // Ranting (termasuk multi): selalu Prisma agar semua managed dojo ikut,
+  // bukan hanya ranting utama yang terlihat token Inkai.
   const membersPromise =
-    dojoAllowlist.length > 1
+    primaryRole === "ADMIN_DOJO" && dojoAllowlist.length > 0
       ? fetchAdminMembersForDojoIds(token, dojoAllowlist, {
           limit: 500,
           page: 1,
         })
-      : fetchAdminMembers(token, {
-          limit: dojoAllowlist.length === 1 ? 250 : 500,
-          page: 1,
-          dojoId: dojoAllowlist[0],
-        });
+      : dojoAllowlist.length > 1
+        ? fetchAdminMembersForDojoIds(token, dojoAllowlist, {
+            limit: 500,
+            page: 1,
+          })
+        : fetchAdminMembers(token, {
+            limit: dojoAllowlist.length === 1 ? 250 : 500,
+            page: 1,
+            dojoId: dojoAllowlist[0],
+          });
 
   const [
     eventsRes,
@@ -1054,10 +1061,23 @@ export async function fetchUktDashboardData(
     fetchSettingsByPrefix(token, "ukt-period-meta:"),
   ]);
 
-  const dojos =
-    dojoAllowlist.length > 0
-      ? dojosRaw.filter((d) => dojoAllowlist.includes(d.id))
-      : dojosRaw;
+  let dojos: Array<{ id: string; name: string }> = dojosRaw;
+  if (dojoAllowlist.length > 0) {
+    const localDojos = await withPrismaFallback(
+      "ukt-dojos-allowlist",
+      () =>
+        prisma.dojo.findMany({
+          where: { id: { in: dojoAllowlist }, isDeleted: false },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        }),
+      [] as Array<{ id: string; name: string }>,
+    );
+    dojos =
+      (localDojos.data?.length ?? 0) > 0
+        ? (localDojos.data as Array<{ id: string; name: string }>)
+        : dojosRaw.filter((d) => dojoAllowlist.includes(d.id));
+  }
 
   let periods = eventsRes.res.ok
     ? filterUktEvents((eventsRes.data.data as Array<Record<string, unknown>>) ?? []).map((p) =>
@@ -1219,7 +1239,7 @@ export async function fetchUktDashboardData(
   const beltFees = resolvedFees.beltFees;
   const effectiveKomisi = resolvedFees.komisiRanting;
 
-  const members = (membersResult.ok ? membersResult.members : []) as Array<
+  let members = (membersResult.ok ? membersResult.members : []) as Array<
     AdminMemberRow & Record<string, unknown>
   >;
 
@@ -1330,6 +1350,177 @@ export async function fetchUktDashboardData(
     }
   }
 
+  // Ranting multi: Inkai sering hanya kirim registrasi ranting utama.
+  // Lengkapi dari Prisma agar peserta ranting lain di allowlist ikut tampil.
+  if (selectedPeriodId && dojoAllowlist.length > 0) {
+    const prismaRegs = await withPrismaFallback(
+      "ukt-regs-allowlist",
+      () =>
+        prisma.eventRegistration.findMany({
+          where: {
+            eventId: selectedPeriodId,
+            member: {
+              isDeleted: false,
+              dojoId: { in: dojoAllowlist },
+            },
+          },
+          select: {
+            id: true,
+            status: true,
+            registeredRank: true,
+            memberId: true,
+            member: {
+              select: {
+                id: true,
+                fullName: true,
+                nia: true,
+                currentRank: true,
+                status: true,
+                dojoId: true,
+                birthPlace: true,
+                birthDate: true,
+                gender: true,
+                address: true,
+                birthCertificateUrl: true,
+                bpjsCardUrl: true,
+                bpjsCardNumber: true,
+                monthlyDuesAmount: true,
+                createdAt: true,
+                dojo: {
+                  select: {
+                    name: true,
+                    isDeleted: true,
+                    branch: { select: { name: true } },
+                  },
+                },
+                user: { select: { photoUrl: true } },
+              },
+            },
+          },
+          take: 500,
+        }),
+      [] as Array<{
+        id: string;
+        status: string;
+        registeredRank: string | null;
+        memberId: string;
+        member: {
+          id: string;
+          fullName: string;
+          nia: string | null;
+          currentRank: string;
+          status: string;
+          dojoId: string;
+          birthPlace: string | null;
+          birthDate: Date | null;
+          gender: string | null;
+          address: string | null;
+          birthCertificateUrl: string | null;
+          bpjsCardUrl: string | null;
+          bpjsCardNumber: string | null;
+          monthlyDuesAmount: number;
+          createdAt: Date;
+          dojo: {
+            name: string;
+            isDeleted: boolean;
+            branch: { name: string } | null;
+          };
+          user: { photoUrl: string | null } | null;
+        };
+      }>,
+    );
+
+    const memberIds = new Set(members.map((m) => m.id));
+    for (const reg of prismaRegs.data ?? []) {
+      const mid = reg.memberId;
+      if (!regMap.has(mid)) {
+        regMap.set(mid, {
+          id: reg.id,
+          status: reg.status,
+          registeredRank: reg.registeredRank,
+          memberId: mid,
+          member: {
+            id: reg.member.id,
+            currentRank: reg.member.currentRank,
+            fullName: reg.member.fullName,
+            birthPlace: reg.member.birthPlace,
+            birthDate: reg.member.birthDate?.toISOString() ?? null,
+            gender: reg.member.gender,
+            address: reg.member.address,
+            birthCertificateUrl: reg.member.birthCertificateUrl,
+            bpjsCardUrl: reg.member.bpjsCardUrl,
+          },
+        });
+      }
+      if (!memberIds.has(mid)) {
+        memberIds.add(mid);
+        members.push({
+          id: reg.member.id,
+          fullName: reg.member.fullName,
+          nia: reg.member.nia,
+          currentRank: reg.member.currentRank,
+          status: reg.member.status,
+          dojoId: reg.member.dojoId,
+          dojo: {
+            name: reg.member.dojo.name,
+            isDeleted: reg.member.dojo.isDeleted,
+            branch: reg.member.dojo.branch
+              ? { name: reg.member.dojo.branch.name }
+              : undefined,
+          },
+          birthCertificateUrl: reg.member.birthCertificateUrl,
+          bpjsCardUrl: reg.member.bpjsCardUrl,
+          bpjsCardNumber: reg.member.bpjsCardNumber,
+          photoUrl: reg.member.user?.photoUrl ?? null,
+          createdAt: reg.member.createdAt.toISOString(),
+          monthlyDuesAmount: reg.member.monthlyDuesAmount,
+        });
+      }
+    }
+
+    const missingBillingRegIds = (prismaRegs.data ?? [])
+      .map((r) => r.id)
+      .filter((id) => id && !billingMap.has(id));
+    if (missingBillingRegIds.length > 0) {
+      const localBillings = await withPrismaFallback(
+        "ukt-billings-allowlist",
+        () =>
+          prisma.billing.findMany({
+            where: {
+              registrationId: { in: missingBillingRegIds },
+              isDeleted: false,
+            },
+            select: {
+              id: true,
+              status: true,
+              amount: true,
+              baseFeeAmount: true,
+              registrationId: true,
+            },
+            take: 500,
+          }),
+        [] as Array<{
+          id: string;
+          status: string;
+          amount: number;
+          baseFeeAmount: number | null;
+          registrationId: string | null;
+        }>,
+      );
+      for (const b of localBillings.data ?? []) {
+        const rid = b.registrationId ? String(b.registrationId) : "";
+        if (!rid || billingMap.has(rid)) continue;
+        billingMap.set(rid, {
+          id: b.id,
+          status: b.status,
+          amount: b.amount,
+          baseFeeAmount: b.baseFeeAmount,
+          registrationId: rid,
+        });
+      }
+    }
+  }
+
   const allRows: UktMemberRow[] = members.map((m) => {
     const reg = regMap.get(m.id);
     const regBilling = reg ? billingMap.get(String(reg.id)) : null;
@@ -1424,11 +1615,13 @@ export type { UktRegistrationSnapshotItem };
 export async function fetchUktTableRefreshSnapshot(
   token: string,
   periodId: string,
+  opts?: { dojoAllowlist?: string[] },
 ): Promise<{
   periodId: string;
   participants: UktRegistrationSnapshotItem[];
   depositMap: Record<string, UktDepositRecord>;
 }> {
+  const dojoAllowlist = opts?.dojoAllowlist?.filter(Boolean) ?? [];
   const [
     eventDetail,
     billingsRes,
@@ -1457,8 +1650,55 @@ export async function fetchUktTableRefreshSnapshot(
   const waiverMap = buildUktWaiverMap(waiverSettings, periodId);
 
   const billingMap = new Map<string, Record<string, unknown>>();
-  const registrations =
-    (eventDetail?.registrations as Array<Record<string, unknown>>) ?? [];
+  const registrations = [
+    ...((eventDetail?.registrations as Array<Record<string, unknown>>) ?? []),
+  ];
+  const seenRegIds = new Set(
+    registrations.map((r) => String(r.id ?? "")).filter(Boolean),
+  );
+
+  // Ranting multi: lengkapi registrasi dari Prisma (Inkai sering scoped ranting utama)
+  if (dojoAllowlist.length > 0) {
+    const prismaRegs = await withPrismaFallback(
+      "ukt-refresh-regs-allowlist",
+      () =>
+        prisma.eventRegistration.findMany({
+          where: {
+            eventId: periodId,
+            member: { isDeleted: false, dojoId: { in: dojoAllowlist } },
+          },
+          select: {
+            id: true,
+            status: true,
+            registeredRank: true,
+            memberId: true,
+            member: { select: { id: true, currentRank: true } },
+          },
+          take: 500,
+        }),
+      [] as Array<{
+        id: string;
+        status: string;
+        registeredRank: string | null;
+        memberId: string;
+        member: { id: string; currentRank: string };
+      }>,
+    );
+    for (const reg of prismaRegs.data ?? []) {
+      if (seenRegIds.has(reg.id)) continue;
+      seenRegIds.add(reg.id);
+      registrations.push({
+        id: reg.id,
+        status: reg.status,
+        registeredRank: reg.registeredRank,
+        memberId: reg.memberId,
+        member: {
+          id: reg.member.id,
+          currentRank: reg.member.currentRank,
+        },
+      });
+    }
+  }
 
   for (const reg of registrations) {
     const member = reg.member as Record<string, unknown> | undefined;
@@ -1499,6 +1739,49 @@ export async function fetchUktTableRefreshSnapshot(
         );
       });
       if (match?.id) billingMap.set(regId, match);
+    }
+  }
+
+  // Prisma billing untuk registrasi yang baru digabung
+  const missingBillingIds = registrations
+    .map((r) => String(r.id ?? ""))
+    .filter((id) => id && !billingMap.has(id));
+  if (missingBillingIds.length > 0) {
+    const localBillings = await withPrismaFallback(
+      "ukt-refresh-billings",
+      () =>
+        prisma.billing.findMany({
+          where: {
+            registrationId: { in: missingBillingIds },
+            isDeleted: false,
+          },
+          select: {
+            id: true,
+            status: true,
+            amount: true,
+            baseFeeAmount: true,
+            registrationId: true,
+          },
+          take: 500,
+        }),
+      [] as Array<{
+        id: string;
+        status: string;
+        amount: number;
+        baseFeeAmount: number | null;
+        registrationId: string | null;
+      }>,
+    );
+    for (const b of localBillings.data ?? []) {
+      const rid = b.registrationId ? String(b.registrationId) : "";
+      if (!rid || billingMap.has(rid)) continue;
+      billingMap.set(rid, {
+        id: b.id,
+        status: b.status,
+        amount: b.amount,
+        baseFeeAmount: b.baseFeeAmount,
+        registrationId: rid,
+      });
     }
   }
 
