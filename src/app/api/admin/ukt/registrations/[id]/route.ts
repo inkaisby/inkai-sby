@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { getPrimaryAdminRole } from "@/lib/rbac";
+import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import {
   canEditKyuBaru,
   decodeUktRegisteredRank,
@@ -18,6 +19,7 @@ import { getClientIp } from "@/lib/security/request";
 import { prisma } from "@/lib/prisma";
 import { uktExamResultKey } from "@/lib/ukt";
 import { notifyUktStatusChange } from "@/lib/ukt-notify";
+import { notifyUktBranchAdmins } from "@/lib/ukt-period-notify";
 import {
   deleteBillingsHard,
   forceDeleteRegistrationInDb,
@@ -483,6 +485,9 @@ export async function DELETE(request: Request, context: RouteContext) {
 
   const token = authResult.token;
   const isCabang = canEditKyuBaru(authResult.user.roles);
+  const primaryRole = getPrimaryAdminRole(authResult.user.roles);
+  const isDojo = primaryRole === "ADMIN_DOJO";
+  const canForcePaid = isCabang || isDojo;
   const { id } = await context.params;
   const url = new URL(request.url);
   const billingIdFromClient = url.searchParams.get("billingId")?.trim() || null;
@@ -495,6 +500,9 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (billingIdFromClient) billingIds.add(billingIdFromClient);
 
   let memberId = memberIdFromClient || "";
+  let memberDojoId = "";
+  let memberName = "";
+  let periodTitle = "UKT";
   let sawPaid = false;
 
   type BillingRow = {
@@ -527,12 +535,48 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (getRes.ok) {
     const registration = (getData.data as Record<string, unknown>) ?? {};
     const member = registration.member as
-      | { id?: string; billings?: BillingRow[] }
+      | {
+          id?: string;
+          fullName?: string;
+          dojoId?: string;
+          dojo?: { id?: string };
+          billings?: BillingRow[];
+        }
       | undefined;
     if (!memberId) memberId = String(member?.id ?? registration.memberId ?? "");
+    memberDojoId = String(
+      member?.dojoId ?? member?.dojo?.id ?? registration.dojoId ?? "",
+    );
+    memberName = String(member?.fullName ?? "Anggota");
+    const event = registration.event as { title?: string } | undefined;
+    periodTitle = String(event?.title ?? "UKT");
     for (const b of member?.billings ?? []) {
       if (String(b.registrationId ?? "") === id || isUktish(b) || !b.registrationId) {
         considerBilling(b);
+      }
+    }
+  }
+
+  if (isDojo) {
+    const allowlist = getManagedDojoIdsFromUser(authResult.user);
+    if (allowlist.length > 0) {
+      if (!memberDojoId && memberId) {
+        try {
+          const local = await prisma.member.findFirst({
+            where: { id: memberId, isDeleted: false },
+            select: { dojoId: true, fullName: true },
+          });
+          if (local?.dojoId) memberDojoId = local.dojoId;
+          if (local?.fullName) memberName = local.fullName;
+        } catch {
+          /* ignore */
+        }
+      }
+      if (memberDojoId && !allowlist.includes(memberDojoId)) {
+        return NextResponse.json(
+          { error: "Peserta di luar ranting Anda" },
+          { status: 403 },
+        );
       }
     }
   }
@@ -579,19 +623,19 @@ export async function DELETE(request: Request, context: RouteContext) {
     console.error("[UKT DELETE] prisma billing lookup failed", error);
   }
 
-  const force = forceRequested || sawPaid || isCabang;
+  const force = forceRequested || sawPaid || canForcePaid;
   const FAST = { timeoutMs: 5_000, retries: 0 as const };
 
-  if ((forceRequested || sawPaid) && !isCabang) {
+  if ((forceRequested || sawPaid) && !canForcePaid) {
     return NextResponse.json(
-      { error: "Hanya admin cabang yang dapat menghapus paksa peserta lunas" },
+      { error: "Anda tidak berwenang membatalkan peserta yang tagihannya sudah lunas" },
       { status: 403 },
     );
   }
 
   if (billingIds.size > 0) {
     await deleteBillingsHard(token, billingIds, {
-      continueOnFailure: Boolean(force && isCabang),
+      continueOnFailure: Boolean(force && canForcePaid),
     });
   }
 
@@ -628,7 +672,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   let looksPaidBlock =
     /tagihan.*lunas|sudah lunas|billing.*paid|paid.*billing/i.test(regResult.error);
 
-  if (!regResult.ok && isCabang && looksPaidBlock && memberId) {
+  if (!regResult.ok && canForcePaid && looksPaidBlock && memberId) {
     const list = await collectMemberBillings(memberId);
     const retryIds = new Set<string>();
     for (const b of list) {
@@ -662,9 +706,9 @@ export async function DELETE(request: Request, context: RouteContext) {
     }
   }
 
-  // Cabang force: API gagal (blokir lunas) → putuskan di shared DB
+  // Cabang/ranting force: API gagal (blokir lunas) → putuskan di shared DB
   let usedDbForce = false;
-  if (!regResult.ok && isCabang && (looksPaidBlock || forceRequested || sawPaid)) {
+  if (!regResult.ok && canForcePaid && (looksPaidBlock || forceRequested || sawPaid)) {
     if (billingIds.size > 0) {
       const unlink = await forceUnlinkBillingsInDb(billingIds);
       if (!unlink.ok) {
@@ -718,11 +762,25 @@ export async function DELETE(request: Request, context: RouteContext) {
     action: "UKT_REGISTRATION_CANCEL",
     details: `Cancelled UKT registration (${id})${
       billingIds.size ? ` and deleted billings (${[...billingIds].join(",")})` : ""
-    }${force ? " [force]" : ""}${usedDbForce ? " [db-force]" : ""}`,
+    }${force ? " [force]" : ""}${usedDbForce ? " [db-force]" : ""}${
+      isDojo ? " [ranting]" : ""
+    }`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token,
   });
+
+  if (isDojo) {
+    void notifyUktBranchAdmins({
+      token,
+      title: "UKT — Pembatalan dari ranting",
+      content: `${memberName} dibatalkan dari ${periodTitle}${
+        sawPaid ? " (termasuk tagihan yang sudah lunas)" : ""
+      }.`,
+      actorEmail: authResult.user.email,
+      type: "WARNING",
+    }).catch((err) => console.error("[UKT DELETE] notify cabang", err));
+  }
 
   return NextResponse.json({
     success: true,

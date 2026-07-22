@@ -258,15 +258,15 @@ function formatDate(d: string | null) {
 }
 
 function canCancelUktRegistration(row: UktMemberRow): boolean {
-  if (!row.registrationId) return false;
-  if (row.billingStatus === "PAID" || row.status === "PAID") return false;
-  return true;
+  return Boolean(row.registrationId);
 }
 
-/** Cabang dapat menghapus pendaftaran di semua status termasuk sudah lunas/selesai. */
-function canForceDeleteUktRegistration(row: UktMemberRow, isCabang: boolean): boolean {
-  if (!row.registrationId) return false;
-  if (!isCabang) return false;
+/** Cabang & ranting dapat membatalkan termasuk yang sudah lunas. */
+function canForceCancelUktRegistration(
+  row: UktMemberRow,
+  canForcePaid: boolean,
+): boolean {
+  if (!row.registrationId || !canForcePaid) return false;
   return true;
 }
 
@@ -375,6 +375,7 @@ export function UktDashboard(props: Props) {
 
   const isCabang = canEditKyuBaru(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
+  const canForcePaidCancel = isCabang || isDojoAdmin;
   const periodLocked = Boolean(props.periodMeta?.locked || props.periodMeta?.archived);
   const depositMap = props.depositMap ?? {};
   const periodOfficers = resolveUktPeriodOfficers(props.periodMeta, props.orgProfile);
@@ -1040,7 +1041,7 @@ export function UktDashboard(props: Props) {
         status: "APPROVED",
         examResult: null,
       });
-      toast.success("Anggota berhasil didaftarkan dan disetujui otomatis");
+      toast.success("Anggota didaftarkan — status Belum Bayar");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal mendaftarkan");
     } finally {
@@ -1139,9 +1140,10 @@ export function UktDashboard(props: Props) {
       rows.find((r) => r.registrationId === registrationId)?.billingId ||
       null;
     const useForce =
-      isCabang ||
+      canForcePaidCancel ||
       Boolean(target?.force) ||
       cancelRow?.billingStatus === "PAID" ||
+      cancelRow?.billingStatus === "SUCCESS" ||
       cancelRow?.status === "PAID";
     setCancelTarget(null);
     const toastId = toast.loading("Menghapus peserta UKT…");
@@ -1367,8 +1369,14 @@ export function UktDashboard(props: Props) {
     }
   };
 
-  const openPrintNota = (onlySelected: boolean) => {
-    if (onlySelected && selectedRows.length === 0) {
+  const openPrintNota = (onlySelected: boolean, forceMemberIds?: string[]) => {
+    if (forceMemberIds) {
+      if (forceMemberIds.length === 0) {
+        toast.error("Pilih peserta yang akan masuk nota");
+        return;
+      }
+      setSelectedIds(new Set(forceMemberIds));
+    } else if (onlySelected && selectedRows.length === 0) {
       toast.error("Pilih peserta yang akan masuk nota");
       return;
     }
@@ -1663,7 +1671,7 @@ export function UktDashboard(props: Props) {
                 )}
               </>
             )}
-            {!isCabang && (
+            {!isCabang && !isDojoAdmin && (
               <>
                 <Button variant="outline" onClick={buildWaReport}>
                   <MessageCircle className="mr-1 h-4 w-4" />
@@ -1852,7 +1860,7 @@ export function UktDashboard(props: Props) {
               <div className="min-w-[120px] flex-1 text-sm text-muted-foreground">
                 <span className="font-medium text-inkai-red">{selectedIds.size} terpilih</span>
               </div>
-              {(isDojoAdmin || isCabang) && (
+              {isCabang && (
                 <Button variant="outline" size="sm" onClick={() => openPrintNota(true)} disabled={loading}>
                   <Printer className="mr-1 h-4 w-4" />
                   Nota
@@ -1864,9 +1872,10 @@ export function UktDashboard(props: Props) {
                   className="bg-inkai-red hover:bg-inkai-red/90"
                   onClick={() => openPrintNota(true)}
                   disabled={loading}
+                  title="Cetak nota / siap setor ke cabang (bukan langsung lunas)"
                 >
                   <Banknote className="mr-1 h-4 w-4" />
-                  Siap Bayar
+                  Bayar UKT
                 </Button>
               )}
               {isCabang && selectedUnpaidCount > 0 && (
@@ -1923,7 +1932,7 @@ export function UktDashboard(props: Props) {
         </Card>
       )}
 
-      {props.selectedPeriodId && (isCabang || isDojoAdmin) && (
+      {props.selectedPeriodId && isCabang && (
         <Card className="border-muted">
           <CardContent className="space-y-3 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1935,12 +1944,9 @@ export function UktDashboard(props: Props) {
               </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {(isDojoAdmin
-                ? props.dojos.filter((d) => d.id === (props.defaultDojoFilter || effectiveDojo))
-                : props.dojos.filter((d) =>
-                    rows.some((r) => r.dojoId === d.id && r.registrationId),
-                  )
-              ).map((d) => {
+              {props.dojos
+                .filter((d) => rows.some((r) => r.dojoId === d.id && r.registrationId))
+                .map((d) => {
                 const dep = depositMap[d.id];
                 const status: UktDepositStatus = dep?.status ?? "PENDING";
                 return (
@@ -1955,23 +1961,7 @@ export function UktDashboard(props: Props) {
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {isDojoAdmin && !periodLocked && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          disabled={loading || status === "RECEIVED"}
-                          onClick={() =>
-                            void handleDepositStatus(
-                              d.id,
-                              status === "SUBMITTED" ? "PENDING" : "SUBMITTED",
-                            )
-                          }
-                        >
-                          {status === "SUBMITTED" ? "Batalkan" : "Tandai setor"}
-                        </Button>
-                      )}
-                      {isCabang && !periodLocked && (
+                      {!periodLocked && (
                         <>
                           {status !== "RECEIVED" && (
                             <Button
@@ -2015,12 +2005,7 @@ export function UktDashboard(props: Props) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(isDojoAdmin
-                      ? depositRecon.filter(
-                          (r) => r.dojoId === (props.defaultDojoFilter || effectiveDojo),
-                        )
-                      : depositRecon
-                    ).map((row) => (
+                    {depositRecon.map((row) => (
                       <TableRow key={row.dojoId}>
                         <TableCell className="font-medium">{row.dojoName}</TableCell>
                         <TableCell className="text-right">{row.participantCount}</TableCell>
@@ -2176,19 +2161,26 @@ export function UktDashboard(props: Props) {
           </SelectContent>
         </Select>
 
-        <Button type="button" variant="outline" onClick={() => setShowAddMember(true)}>
-          <UserPlus className="mr-1 h-4 w-4" />
-          Tambah Anggota
-        </Button>
+        {!isDojoAdmin && (
+          <Button type="button" variant="outline" onClick={() => setShowAddMember(true)}>
+            <UserPlus className="mr-1 h-4 w-4" />
+            Tambah Anggota
+          </Button>
+        )}
       </div>
 
       {isDojoAdmin && (
         <Card className="border-muted">
-          <CardContent className="p-3 text-sm text-muted-foreground">
-            Centang peserta yang akan dibayar, lalu pakai <b>Nota Terpilih</b> /{" "}
-            <b>Siap Bayar UKT</b> agar daftar selaras dengan nota. Cabang akan
-            memverifikasi pembayaran dan mengisi Kyu Baru hingga status{" "}
-            <b>Selesai</b>.
+          <CardContent className="space-y-1 p-3 text-sm text-muted-foreground">
+            <p>
+              Aksi ranting: <b>Daftar UKT</b>, <b>Batal UKT</b>, dan{" "}
+              <b>Bayar UKT</b>.
+            </p>
+            <p>
+              <b>Bayar UKT</b> = cetak nota / siap setor ke cabang (bukan langsung
+              lunas). Cabang yang memverifikasi pembayaran, lalu mengisi hasil ujian
+              &amp; Kyu Baru.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -2196,9 +2188,11 @@ export function UktDashboard(props: Props) {
       {isCabang && (
         <Card className="border-muted">
           <CardContent className="p-3 text-sm text-muted-foreground">
-            Verifikasi pembayaran (per baris atau massal), lalu isi{" "}
-            <b>Kyu Baru</b>. Status menjadi <b>Selesai</b> setelah lunas +
-            Kyu Baru terisi.
+            Alur: ranting daftar (**Belum Bayar**) → nota/setor → cabang{" "}
+            <b>Verifikasi</b> (**Menunggu Ujian**) → hasil ujian → isi{" "}
+            <b>Kyu Baru</b> (**Selesai**). Batal dari ranting (termasuk yang sudah
+            lunas) akan memberi notifikasi ke cabang — sesuaikan pengembalian uang
+            di luar sistem bila perlu.
           </CardContent>
         </Card>
       )}
@@ -2578,6 +2572,18 @@ export function UktDashboard(props: Props) {
                         })()
                       ) : (
                         <>
+                          {isDojoAdmin && isUktBillingUnpaid(row) && (
+                            <Button
+                              size="sm"
+                              className="h-7 bg-inkai-red text-xs hover:bg-inkai-red/90"
+                              onClick={() => openPrintNota(true, [row.memberId])}
+                              disabled={loading || isMemberPending(row.memberId)}
+                              title="Cetak nota / siap setor ke cabang (bukan langsung lunas)"
+                            >
+                              <Banknote className="mr-0.5 h-3 w-3" />
+                              Bayar UKT
+                            </Button>
+                          )}
                           {isCabang && isUktBillingUnpaid(row) && (
                             <Button
                               size="sm"
@@ -2634,7 +2640,8 @@ export function UktDashboard(props: Props) {
                               {isMemberPending(row.memberId) ? "…" : "Hapus tagihan"}
                             </Button>
                           )}
-                          {(canCancelUktRegistration(row) && (isDojoAdmin || isCabang)) || canForceDeleteUktRegistration(row, isCabang) ? (
+                          {(canCancelUktRegistration(row) && (isDojoAdmin || isCabang)) ||
+                          canForceCancelUktRegistration(row, canForcePaidCancel) ? (
                             <Button
                               size="sm"
                               variant="destructive"
@@ -2645,14 +2652,21 @@ export function UktDashboard(props: Props) {
                                   name: row.fullName,
                                   memberId: row.memberId,
                                   billingId: row.billingId,
-                                  force: canForceDeleteUktRegistration(row, isCabang),
+                                  force: canForceCancelUktRegistration(
+                                    row,
+                                    canForcePaidCancel,
+                                  ),
                                 })
                               }
                               disabled={loading || isMemberPending(row.memberId)}
-                              title="Hapus pendaftaran UKT"
+                              title={isDojoAdmin ? "Batalkan pendaftaran UKT" : "Hapus pendaftaran UKT"}
                             >
                               <Trash2 className="mr-0.5 h-3 w-3" />
-                              {isMemberPending(row.memberId) ? "…" : "Hapus"}
+                              {isMemberPending(row.memberId)
+                                ? "…"
+                                : isDojoAdmin
+                                  ? "Batal UKT"
+                                  : "Hapus"}
                             </Button>
                           ) : null}
                         </>
@@ -2787,7 +2801,7 @@ export function UktDashboard(props: Props) {
                 )}
                 {selectedMember.registrationId && (
                   (canCancelUktRegistration(selectedMember) && (isDojoAdmin || isCabang)) ||
-                  canForceDeleteUktRegistration(selectedMember, isCabang)
+                  canForceCancelUktRegistration(selectedMember, canForcePaidCancel)
                 ) && (
                   <Button
                     variant="destructive"
@@ -2797,13 +2811,16 @@ export function UktDashboard(props: Props) {
                         name: selectedMember.fullName,
                         memberId: selectedMember.memberId,
                         billingId: selectedMember.billingId,
-                        force: canForceDeleteUktRegistration(selectedMember, isCabang),
+                        force: canForceCancelUktRegistration(
+                          selectedMember,
+                          canForcePaidCancel,
+                        ),
                       })
                     }
                     disabled={loading || isMemberPending(selectedMember.memberId)}
                   >
                     <Trash2 className="mr-1 h-4 w-4" />
-                    Hapus UKT
+                    {isDojoAdmin ? "Batal UKT" : "Hapus UKT"}
                   </Button>
                 )}
                 {!selectedMember.registrationId && (
@@ -2861,17 +2878,24 @@ export function UktDashboard(props: Props) {
       <Dialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Hapus Pendaftaran UKT?</DialogTitle>
+            <DialogTitle>{isDojoAdmin ? "Batal Pendaftaran UKT?" : "Hapus Pendaftaran UKT?"}</DialogTitle>
             <DialogDescription>
               Peserta <strong>{cancelTarget?.name}</strong> akan dihapus dari daftar UKT periode ini.
               {" "}
-              {isCabang
+              {isCabang || isDojoAdmin
                 ? "Semua tagihan UKT terkait (termasuk yang sudah lunas) akan dicoba dihapus terlebih dahulu."
                 : cancelRow?.billingId
-                  ? cancelRow.billingStatus === "PAID" || cancelRow.status === "PAID"
-                    ? "Tagihan UKT yang sudah lunas juga akan ikut dihapus."
-                    : "Tagihan UKT yang belum lunas juga akan ikut dihapus."
+                  ? "Tagihan UKT terkait juga akan ikut dihapus."
                   : "Jika ada tagihan UKT terkait, tagihan tersebut juga akan ikut dihapus."}{" "}
+              {(cancelRow?.billingStatus === "PAID" ||
+                cancelRow?.billingStatus === "SUCCESS" ||
+                cancelRow?.status === "PAID") && (
+                <>
+                  {isDojoAdmin
+                    ? "Cabang akan mendapat notifikasi. Jika uang sudah disetor, koordinasikan pengembalian dengan cabang di luar sistem."
+                    : "Pastikan pengembalian uang (bila ada) dicatat di kas/SOP cabang."}{" "}
+                </>
+              )}
               Tindakan ini tidak dapat dibatalkan.
             </DialogDescription>
           </DialogHeader>
@@ -2884,7 +2908,7 @@ export function UktDashboard(props: Props) {
               onClick={() => cancelTarget && handleCancelRegistration(cancelTarget.id)}
               disabled={loading}
             >
-              Ya, Hapus
+              Ya, {isDojoAdmin ? "Batalkan" : "Hapus"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -53,3 +53,50 @@ export async function notifyUktDojoAdmins(opts: {
     return 0;
   }
 }
+
+/** Notifikasi admin cabang saat ranting mendaftarkan peserta UKT. */
+export async function notifyUktBranchAdmins(opts: {
+  token: string;
+  title: string;
+  content: string;
+  actorEmail?: string;
+  type?: string;
+}) {
+  try {
+    const recipients = await prisma.user.findMany({
+      where: {
+        isDeleted: false,
+        isActive: true,
+        roles: {
+          some: {
+            name: {
+              in: ["ADMIN_BRANCH", "ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN"],
+            },
+          },
+        },
+      },
+      select: { id: true, email: true },
+      take: 40,
+    });
+
+    const actor = opts.actorEmail?.toLowerCase();
+    await Promise.allSettled(
+      recipients
+        .filter((u) => !actor || u.email?.toLowerCase() !== actor)
+        .map((u) =>
+          notifyUser({
+            userId: u.id,
+            title: opts.title,
+            content: opts.content,
+            type: opts.type ?? "INFO",
+            token: opts.token,
+            audience: "ADMIN",
+          }),
+        ),
+    );
+    return recipients.length;
+  } catch (error) {
+    console.error("[notifyUktBranchAdmins]", error);
+    return 0;
+  }
+}

@@ -970,6 +970,26 @@ export function isUktRegistrationAllowed(
   return getUktRegistrationBlockers(row, opts).length === 0;
 }
 
+export function isUktBillingPaid(
+  row: Pick<UktMemberRow, "billingStatus" | "status">,
+): boolean {
+  const bs = String(row.billingStatus ?? "").toUpperCase();
+  if (bs === "PAID" || bs === "SUCCESS") return true;
+  // Status tagihan eksplisit belum lunas → jangan loncat ke Menunggu Ujian
+  if (
+    bs === "PENDING" ||
+    bs === "WAITING_VERIFICATION" ||
+    bs === "REJECTED" ||
+    bs === "CANCELLED"
+  ) {
+    return false;
+  }
+  // Tanpa status tagihan: hanya anggap lunas bila status registrasi memang PAID/SUCCESS
+  // (bukan APPROVED hasil daftar ranting)
+  const st = String(row.status ?? "").toUpperCase();
+  return st === "PAID" || st === "SUCCESS";
+}
+
 export function resolveUktDisplayStatus(
   row: UktMemberRow,
   examResult: UktExamResult | null = row.examResult,
@@ -980,8 +1000,7 @@ export function resolveUktDisplayStatus(
   if (examResult === "MENGULANG") return "mengulang";
   if (isUktSelesai(row)) return "selesai";
 
-  const paid =
-    row.billingStatus === "PAID" || row.status === "PAID" || row.status === "SUCCESS";
+  const paid = isUktBillingPaid(row);
 
   if (paid && examResult === "LULUS" && row.kyuBaru?.trim()) return "selesai";
   if (paid && examResult === "LULUS") return "lulus";
@@ -1013,9 +1032,7 @@ export function canApplyUktKyuBaru(
   row: UktMemberRow,
   examResult: UktExamResult | null = row.examResult,
 ): boolean {
-  const paid =
-    row.billingStatus === "PAID" || row.status === "PAID" || row.status === "SUCCESS";
-  return paid && examResult === "LULUS";
+  return isUktBillingPaid(row) && examResult === "LULUS";
 }
 
 /**
@@ -1185,11 +1202,7 @@ export function buildUktCabangWaReportText(
 
 /** Selesai = pembayaran lunas + sabuk target (Kyu Baru) sudah diisi cabang. */
 export function isUktSelesai(row: UktMemberRow): boolean {
-  const paid =
-    row.billingStatus === "PAID" ||
-    row.status === "PAID" ||
-    row.status === "SUCCESS";
-  return paid && Boolean(row.kyuBaru?.trim());
+  return isUktBillingPaid(row) && Boolean(row.kyuBaru?.trim());
 }
 
 export function isUktBillingUnpaid(row: UktMemberRow): boolean {

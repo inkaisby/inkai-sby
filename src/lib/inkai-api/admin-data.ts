@@ -1278,21 +1278,17 @@ export async function fetchUktDashboardData(
       regMap.set(String((reg.member as { id?: string })?.id ?? reg.memberId), reg);
       const member = reg.member as Record<string, unknown> | undefined;
       const billings = (member?.billings as Array<Record<string, unknown>>) ?? [];
-      const billing =
-        billings.find((b) => String(b.registrationId ?? "") === String(reg.id)) ??
-        billings.find((b) => {
-          const type = String(b.type ?? "").toUpperCase();
-          const desc = String(b.description ?? "").toUpperCase();
-          return type.includes("UKT") || desc.includes("UKT");
-        }) ??
-        billings[0];
+      // Hanya tagihan yang tertaut ke registrasi ini — jangan ambil UKT lama (sering PAID)
+      const billing = billings.find(
+        (b) => String(b.registrationId ?? "") === String(reg.id),
+      );
       if (billing?.id) {
         billingMap.set(String(reg.id), billing);
       }
     }
   }
 
-  // Lengkapi billingMap dari daftar global /v1/billing (sering lebih lengkap dari nested member.billings)
+  // Lengkapi billingMap dari daftar global /v1/billing (hanya by registrationId)
   if (billingsRes.res.ok) {
     const globalBillings =
       (billingsRes.data.data as Array<Record<string, unknown>>) ?? [];
@@ -1302,7 +1298,7 @@ export async function fetchUktDashboardData(
       if (b.isDeleted === true) continue;
       billingMap.set(rid, b);
     }
-    // Untuk registrasi yang masih tanpa billing: cocokkan UKT by memberId
+    // Cadangan: tagihan UKT belum tertaut registrationId — hanya yang belum lunas
     if (selectedPeriodId && eventDetail) {
       const registrations =
         (eventDetail.registrations as Array<Record<string, unknown>>) ?? [];
@@ -1316,9 +1312,17 @@ export async function fetchUktDashboardData(
         const match = globalBillings.find((b) => {
           if (b.isDeleted === true) return false;
           if (String(b.memberId ?? "") !== mid) return false;
+          const rid = String(b.registrationId ?? "");
+          if (rid && rid !== regId) return false;
+          const st = String(b.status ?? "").toUpperCase();
+          if (st === "PAID" || st === "SUCCESS" || st === "CANCELLED") return false;
           const type = String(b.type ?? "").toUpperCase();
           const desc = String(b.description ?? "").toUpperCase();
-          return type.includes("UKT") || desc.includes("UKT");
+          return (
+            type.includes("UKT") ||
+            type === "EVENT" ||
+            desc.includes("UKT")
+          );
         });
         if (match?.id) billingMap.set(regId, match);
       }
@@ -1337,10 +1341,7 @@ export async function fetchUktDashboardData(
     const kyuBaruHint = decoded.kyuBaru || category?.name || null;
     const billingStatus = regBilling?.status ? String(regBilling.status) : null;
     const paid =
-      billingStatus === "PAID" ||
-      billingStatus === "SUCCESS" ||
-      String(reg?.status ?? "") === "PAID" ||
-      String(reg?.status ?? "") === "SUCCESS";
+      billingStatus === "PAID" || billingStatus === "SUCCESS";
     // Kunci snapshot Kyu Lama hanya setelah sabuk anggota sudah naik ke Kyu Baru (UKT selesai)
     const lockSnapshot = Boolean(
       paid &&

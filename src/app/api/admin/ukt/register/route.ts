@@ -13,7 +13,47 @@ import { getClientIp } from "@/lib/security/request";
 import { getPrimaryAdminRole } from "@/lib/rbac";
 import { validateUktRegistrationEligibility } from "@/lib/ukt-register";
 import { notifyUktStatusChange } from "@/lib/ukt-notify";
+import { notifyUktBranchAdmins } from "@/lib/ukt-period-notify";
+
 export const maxDuration = 30;
+
+type BillingRow = {
+  id?: string;
+  amount?: number;
+  status?: string;
+  registrationId?: string | null;
+  type?: string;
+  description?: string | null;
+};
+
+function pickBillingForRegistration(
+  registrationId: string,
+  billings: BillingRow[] | undefined,
+): BillingRow | null {
+  if (!billings?.length) return null;
+  const linked = billings.find(
+    (b) => b.id && String(b.registrationId ?? "") === registrationId,
+  );
+  if (linked) return linked;
+
+  // Jangan ambil tagihan lunas lama — hanya terbuka (PENDING / menunggu verif)
+  const open = billings.find((b) => {
+    if (!b.id) return false;
+    const rid = String(b.registrationId ?? "");
+    if (rid && rid !== registrationId) return false;
+    const st = String(b.status ?? "").toUpperCase();
+    if (st === "PAID" || st === "SUCCESS" || st === "CANCELLED") return false;
+    const type = String(b.type ?? "").toUpperCase();
+    const desc = String(b.description ?? "").toUpperCase();
+    return (
+      type.includes("UKT") ||
+      type === "EVENT" ||
+      desc.includes("UKT") ||
+      !rid
+    );
+  });
+  return open ?? null;
+}
 
 export async function POST(request: Request) {
   try {
@@ -71,7 +111,7 @@ export async function POST(request: Request) {
     const registration = data.data as Record<string, unknown>;
     const registrationId = String(registration.id);
 
-    // Kunci Kyu Lama saat daftar (snapshot sabuk saat ini) — tidak berubah saat Kyu Baru diisi
+    // Kunci Kyu Lama saat daftar (snapshot sabuk saat ini)
     let kyuLamaSnapshot = "";
     const regMember = registration.member as { currentRank?: string } | undefined;
     if (regMember?.currentRank) {
@@ -116,9 +156,36 @@ export async function POST(request: Request) {
       );
     }
 
-    const approvedRegistration = (approveData.data as Record<string, unknown>) ?? registration;
-    const member = approvedRegistration.member as { fullName?: string } | undefined;
+    const approvedRegistration =
+      (approveData.data as Record<string, unknown>) ?? registration;
+    const member = approvedRegistration.member as
+      | {
+          fullName?: string;
+          billings?: BillingRow[];
+        }
+      | undefined;
     const event = approvedRegistration.event as { title?: string } | undefined;
+
+    let billing = pickBillingForRegistration(
+      registrationId,
+      member?.billings,
+    );
+
+    // Pastikan ada tagihan periode ini (jangan pakai tagihan lunas lama)
+    if (!billing) {
+      const listRes = await inkaiFetch(
+        `/v1/billing?memberId=${encodeURIComponent(memberId)}&limit=50`,
+        {},
+        authResult.token,
+        { timeoutMs: 5_000, retries: 0 },
+      );
+      if (listRes.res.ok) {
+        billing = pickBillingForRegistration(
+          registrationId,
+          (listRes.data.data as BillingRow[]) ?? [],
+        );
+      }
+    }
 
     writeAuditLog({
       userId: authResult.user.id,
@@ -130,18 +197,34 @@ export async function POST(request: Request) {
       token: authResult.token,
     });
 
-    // Jangan tunggu notifikasi — respons daftar harus cepat
+    const memberName = String(member?.fullName ?? "Anggota");
+    const periodTitle = String(event?.title ?? "UKT");
+
+    // Status awal setelah daftar ranting: Belum Bayar (bukan Menunggu Ujian)
     void notifyUktStatusChange({
       token: authResult.token,
       memberId,
-      memberName: String(member?.fullName ?? "Anggota"),
-      periodTitle: String(event?.title ?? "UKT"),
+      memberName,
+      periodTitle,
       displayStatus: "belum_bayar",
       extra: "Silakan koordinasi pembayaran UKT dengan ketua ranting.",
-    }).catch((err) => console.error("[UKT Register] notify", err));
+    }).catch((err) => console.error("[UKT Register] notify member", err));
 
-    const billings = (member as { billings?: Array<{ id: string; amount?: number; status?: string }> } | undefined)?.billings;
-    const billing = billings?.[0];
+    // Cabang otomatis mendapat sinyal bila ranting mendaftarkan peserta
+    if (primaryRole === "ADMIN_DOJO") {
+      void notifyUktBranchAdmins({
+        token: authResult.token,
+        title: "UKT — Pendaftaran baru dari ranting",
+        content: `${memberName} didaftarkan ke ${periodTitle}. Status: Belum Bayar — menunggu setoran/verifikasi cabang.`,
+        actorEmail: authResult.user.email,
+        type: "INFO",
+      }).catch((err) => console.error("[UKT Register] notify cabang", err));
+    }
+
+    const billingStatus = billing?.status
+      ? String(billing.status)
+      : "PENDING";
+
     return NextResponse.json({
       success: true,
       registrationId: approvedRegistration.id ?? registrationId,
@@ -150,7 +233,7 @@ export async function POST(request: Request) {
         billing?.amount != null && Number.isFinite(Number(billing.amount))
           ? Number(billing.amount)
           : null,
-      billingStatus: billing?.status ? String(billing.status) : "PENDING",
+      billingStatus,
     });
   } catch (error) {
     console.error("[UKT Register]", error);
