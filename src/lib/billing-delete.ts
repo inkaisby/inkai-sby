@@ -7,51 +7,67 @@ export type DeleteBillingHardResult = {
   status?: number;
 };
 
+const FAST = { timeoutMs: 5_000, retries: 0 as const };
+
 /**
- * Hapus tagihan lewat Inkai (force DELETE → PATCH void → soft-delete lokal).
- * `continueOnFailure`: bila true (mode force cabang), tetap ok agar alur berikutnya bisa lanjut.
+ * Hapus / putuskan tagihan cepat (timeout pendek, sedikit percobaan).
+ * Urutan: unlink → DELETE force → soft-delete lokal.
  */
 export async function deleteBillingHard(
   token: string,
   targetBillingId: string,
   opts?: { continueOnFailure?: boolean },
 ): Promise<DeleteBillingHardResult> {
-  const attempts = [
-    `/v1/billing/${targetBillingId}?force=true`,
-    `/v1/billing/${targetBillingId}?force=1`,
+  // Putuskan tautan ke pendaftaran dulu — ini yang biasanya memblokir DELETE register
+  await inkaiFetch(
     `/v1/billing/${targetBillingId}`,
-  ];
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        registrationId: null,
+        isDeleted: true,
+        status: "CANCELLED",
+      }),
+    },
+    token,
+    FAST,
+  );
 
-  let lastError = "Gagal menghapus tagihan";
-  let lastStatus = 400;
-
-  for (const path of attempts) {
-    const { res, data } = await inkaiFetch(path, { method: "DELETE" }, token);
-    if (res.ok || res.status === 404) return { ok: true };
-    lastError = inkaiErrorMessage(data, lastError);
-    lastStatus = res.status;
+  const { res, data } = await inkaiFetch(
+    `/v1/billing/${targetBillingId}?force=true`,
+    { method: "DELETE" },
+    token,
+    FAST,
+  );
+  if (res.ok || res.status === 404) {
+    try {
+      await prisma.billing.updateMany({
+        where: { id: targetBillingId },
+        data: { isDeleted: true },
+      });
+    } catch {
+      /* ignore */
+    }
+    return { ok: true };
   }
 
-  const patchAttempts = [
-    { isDeleted: true },
-    { status: "CANCELLED", isDeleted: true },
-    { status: "REJECTED" },
-  ];
-  for (const body of patchAttempts) {
-    const { res } = await inkaiFetch(
-      `/v1/billing/${targetBillingId}`,
-      { method: "PATCH", body: JSON.stringify(body) },
-      token,
-    );
-    if (res.ok) {
-      const { res: delRes } = await inkaiFetch(
-        `/v1/billing/${targetBillingId}?force=true`,
-        { method: "DELETE" },
-        token,
-      );
-      if (delRes.ok || delRes.status === 404) return { ok: true };
-      return { ok: true };
+  // Satu cadangan DELETE biasa
+  const second = await inkaiFetch(
+    `/v1/billing/${targetBillingId}`,
+    { method: "DELETE" },
+    token,
+    FAST,
+  );
+  if (second.res.ok || second.res.status === 404) {
+    try {
+      await prisma.billing.updateMany({
+        where: { id: targetBillingId },
+        data: { isDeleted: true },
+      });
+    } catch {
+      /* ignore */
     }
+    return { ok: true };
   }
 
   try {
@@ -64,5 +80,22 @@ export async function deleteBillingHard(
   }
 
   if (opts?.continueOnFailure) return { ok: true };
-  return { ok: false, error: lastError, status: lastStatus };
+  return {
+    ok: false,
+    error: inkaiErrorMessage(data, inkaiErrorMessage(second.data, "Gagal menghapus tagihan")),
+    status: second.res.status || res.status || 400,
+  };
+}
+
+/** Hapus banyak tagihan secara paralel. */
+export async function deleteBillingsHard(
+  token: string,
+  billingIds: Iterable<string>,
+  opts?: { continueOnFailure?: boolean },
+): Promise<void> {
+  const ids = [...new Set([...billingIds].filter(Boolean))];
+  if (ids.length === 0) return;
+  await Promise.all(
+    ids.map((id) => deleteBillingHard(token, id, opts)),
+  );
 }

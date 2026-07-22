@@ -18,7 +18,7 @@ import { getClientIp } from "@/lib/security/request";
 import { prisma } from "@/lib/prisma";
 import { uktExamResultKey } from "@/lib/ukt";
 import { notifyUktStatusChange } from "@/lib/ukt-notify";
-import { deleteBillingHard as deleteBillingHardShared } from "@/lib/billing-delete";
+import { deleteBillingsHard } from "@/lib/billing-delete";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -518,6 +518,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     `/v1/events/register/${id}`,
     {},
     token,
+    { timeoutMs: 5_000, retries: 0 },
   );
   if (getRes.ok) {
     const registration = (getData.data as Record<string, unknown>) ?? {};
@@ -537,6 +538,7 @@ export async function DELETE(request: Request, context: RouteContext) {
       `/v1/billing?memberId=${encodeURIComponent(mid)}&limit=100`,
       {},
       token,
+      { timeoutMs: 5_000, retries: 0 },
     );
     if (!res.ok) return [] as BillingRow[];
     return (data.data as BillingRow[]) ?? [];
@@ -574,6 +576,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   }
 
   const force = forceRequested || sawPaid || isCabang;
+  const FAST = { timeoutMs: 5_000, retries: 0 as const };
 
   if ((forceRequested || sawPaid) && !isCabang) {
     return NextResponse.json(
@@ -582,16 +585,10 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 
-  async function wipeBillings(ids: Iterable<string>) {
-    for (const billingId of ids) {
-      await deleteBillingHardShared(token, billingId, {
-        continueOnFailure: Boolean(force && isCabang),
-      });
-    }
-  }
-
   if (billingIds.size > 0) {
-    await wipeBillings(billingIds);
+    await deleteBillingsHard(token, billingIds, {
+      continueOnFailure: Boolean(force && isCabang),
+    });
   }
 
   async function tryDeleteRegistration(): Promise<{
@@ -599,21 +596,25 @@ export async function DELETE(request: Request, context: RouteContext) {
     error: string;
     status: number;
   }> {
+    // Coba force dulu (1x), lalu plain — jangan 3 path berantai
     const registerPaths = force
-      ? [
-          `/v1/events/register/${id}?force=true`,
-          `/v1/events/register/${id}?force=1`,
-          `/v1/events/register/${id}`,
-        ]
+      ? [`/v1/events/register/${id}?force=true`, `/v1/events/register/${id}`]
       : [`/v1/events/register/${id}`];
 
     let regError = "Gagal membatalkan pendaftaran";
     let regStatus = 400;
     for (const path of registerPaths) {
-      const { res, data } = await inkaiFetch(path, { method: "DELETE" }, token);
+      const { res, data } = await inkaiFetch(
+        path,
+        { method: "DELETE" },
+        token,
+        FAST,
+      );
       if (res.ok || res.status === 404) return { ok: true, error: "", status: 200 };
       regError = inkaiErrorMessage(data, regError);
       regStatus = res.status;
+      // Jika bukan blokir lunas, jangan coba path lain
+      if (!/tagihan.*lunas|sudah lunas/i.test(regError)) break;
     }
     return { ok: false, error: regError, status: regStatus };
   }
@@ -623,19 +624,17 @@ export async function DELETE(request: Request, context: RouteContext) {
   const looksPaidBlock =
     /tagihan.*lunas|sudah lunas|billing.*paid|paid.*billing/i.test(regResult.error);
 
-  if (!regResult.ok && isCabang && (force || looksPaidBlock) && memberId) {
+  if (!regResult.ok && isCabang && looksPaidBlock && memberId) {
     const list = await collectMemberBillings(memberId);
     const retryIds = new Set<string>();
     for (const b of list) {
       if (!b.id) continue;
-      // Hanya tagihan terkait registrasi ini / bertipe UKT — jangan sapu iuran bulanan
       if (String(b.registrationId ?? "") === id || isUktish(b)) {
         retryIds.add(String(b.id));
         considerBilling(b);
       }
     }
-    // Jika masih kosong tapi Inkai bilang lunas: ambil PAID yang tidak punya registrationId lain
-    if (retryIds.size === 0 && looksPaidBlock) {
+    if (retryIds.size === 0) {
       for (const b of list) {
         if (!b.id) continue;
         const st = String(b.status ?? "").toUpperCase();
@@ -650,7 +649,7 @@ export async function DELETE(request: Request, context: RouteContext) {
       }
     }
     if (retryIds.size > 0) {
-      await wipeBillings(retryIds);
+      await deleteBillingsHard(token, retryIds, { continueOnFailure: true });
       regResult = await tryDeleteRegistration();
     }
   }
@@ -658,9 +657,10 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (!regResult.ok) {
     return NextResponse.json(
       {
-        error:
-          billingIds.size > 0
-            ? `Tagihan UKT sudah diproses, tetapi pendaftaran gagal dihapus: ${regResult.error}`
+        error: looksPaidBlock
+          ? "Masih ada tagihan lunas di Inkai yang menahan hapus. Coba Hapus tagihan dulu, atau hubungi admin sistem bila tombol tidak muncul."
+          : billingIds.size > 0
+            ? `Tagihan sudah diproses, tetapi pendaftaran gagal dihapus: ${regResult.error}`
             : regResult.error,
       },
       { status: regResult.status },

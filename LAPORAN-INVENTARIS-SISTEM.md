@@ -535,6 +535,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 21 Juli 2026 | Fix hapus paksa peserta UKT lunas: kirim `billingId`+`force`, resolve tagihan multi-sumber, coba DELETE/PATCH force sebelum hapus registrasi |
 | 22 Juli 2026 | UKT: tombol **Hapus tagihan** (cabang) + `DELETE /api/admin/billing/[id]`; helper bersama `billing-delete.ts` |
 | 22 Juli 2026 | Fix hapus peserta lunas: cari semua tagihan UKT anggota (bukan hanya billingId UI), sapu lalu retry DELETE registrasi; mapping billing UI diperbaiki |
+| 22 Juli 2026 | Percepat hapus UKT: timeout 5s, hapus tagihan paralel + unlink dulu, toast loading di UI |
 
 ---
 

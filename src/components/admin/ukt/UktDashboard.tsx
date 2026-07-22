@@ -1125,29 +1125,29 @@ export function UktDashboard(props: Props) {
   };
 
   const handleCancelRegistration = async (registrationId: string) => {
+    const target = cancelTarget;
     const memberId =
-      cancelTarget?.memberId ||
+      target?.memberId ||
       rows.find((r) => r.registrationId === registrationId)?.memberId;
     if (memberId && isMemberPending(memberId)) return;
     if (memberId) setMemberPending(memberId, true);
     else setLoading(true);
+    const billingId =
+      target?.billingId ||
+      rows.find((r) => r.registrationId === registrationId)?.billingId ||
+      null;
+    const useForce =
+      isCabang ||
+      Boolean(target?.force) ||
+      cancelRow?.billingStatus === "PAID" ||
+      cancelRow?.status === "PAID";
+    setCancelTarget(null);
+    const toastId = toast.loading("Menghapus peserta UKT…");
     try {
       const qs = new URLSearchParams();
-      const billingId =
-        cancelTarget?.billingId ||
-        rows.find((r) => r.registrationId === registrationId)?.billingId ||
-        null;
       if (billingId) qs.set("billingId", billingId);
       if (memberId) qs.set("memberId", memberId);
-      // Cabang selalu force — tagihan lunas sering tidak punya billingId di UI
-      if (isCabang || cancelTarget?.force) {
-        qs.set("force", "1");
-      } else if (
-        cancelRow?.billingStatus === "PAID" ||
-        cancelRow?.status === "PAID"
-      ) {
-        qs.set("force", "1");
-      }
+      if (useForce) qs.set("force", "1");
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       const res = await fetch(
         `/api/admin/ukt/registrations/${registrationId}${suffix}`,
@@ -1170,11 +1170,13 @@ export function UktDashboard(props: Props) {
       toast.success(
         data.message ||
           "Peserta berhasil dihapus dari UKT beserta tagihan terkait",
+        { id: toastId },
       );
-      setCancelTarget(null);
       setSelectedMember(null);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal membatalkan");
+      toast.error(e instanceof Error ? e.message : "Gagal membatalkan", {
+        id: toastId,
+      });
     } finally {
       if (memberId) setMemberPending(memberId, false);
       else setLoading(false);
