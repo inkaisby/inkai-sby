@@ -1199,6 +1199,12 @@ export function UktDashboard(props: Props) {
     row: UktMemberRow,
   ) => {
     if (isMemberPending(row.memberId)) return;
+    if (!canApplyUktKyuBaru(row)) {
+      toast.error(
+        "Isi Kyu Baru setelah pembayaran lunas dan hasil ujian Lulus",
+      );
+      return;
+    }
     setMemberPending(row.memberId, true);
     try {
       const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
@@ -1221,21 +1227,16 @@ export function UktDashboard(props: Props) {
         kyuLama?: string;
       }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal memperbarui kyu");
-      const paid =
-        row.billingStatus === "PAID" ||
-        row.status === "PAID" ||
-        row.status === "SUCCESS";
       const nextBaru = data.kyuBaru || newRank;
       const nextLama =
         displayUktKyuLama(data.kyuLama || row.kyuLama, nextBaru) || row.kyuLama;
       patchRow(row.memberId, {
         kyuBaru: nextBaru,
         kyuLama: nextLama,
+        examResult: "LULUS",
       });
       toast.success(
-        paid
-          ? `Kyu Baru diisi — status Selesai: ${formatRankLabel(newRank)}`
-          : data.message || `Sabuk diperbarui: ${formatRankLabel(newRank)}`,
+        `Kyu Baru diisi — status Selesai: ${formatRankLabel(newRank)}`,
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
@@ -1422,11 +1423,7 @@ export function UktDashboard(props: Props) {
         billingStatus: "PAID",
         status: "PAID",
       });
-      toast.success(
-        row.kyuBaru
-          ? "Pembayaran diverifikasi — status Selesai"
-          : "Pembayaran diverifikasi. Isi sabuk target untuk menyelesaikan.",
-      );
+      toast.success("Pembayaran diverifikasi — status Menunggu Ujian");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
@@ -2495,10 +2492,10 @@ export function UktDashboard(props: Props) {
           <CardContent className="p-3 text-sm text-muted-foreground">
             Alur: ranting daftar (**Belum Bayar**) → ranting{" "}
             <b>Bayar UKT</b> (**Menunggu Verifikasi**) → cabang{" "}
-            <b>Verifikasi</b> (**Menunggu Ujian**) → hasil ujian → isi{" "}
-            <b>Kyu Baru</b> (**Selesai**). Batal dari ranting (termasuk yang sudah
-            lunas) akan memberi notifikasi ke cabang — sesuaikan pengembalian uang
-            di luar sistem bila perlu.
+            <b>Verifikasi</b> (**Menunggu Ujian**) → hasil ujian{" "}
+            <b>Lulus</b> → isi <b>Kyu Baru</b> (**Selesai**). Batal dari ranting
+            (termasuk yang sudah lunas) akan memberi notifikasi ke cabang —
+            sesuaikan pengembalian uang di luar sistem bila perlu.
           </CardContent>
         </Card>
       )}
@@ -2698,14 +2695,31 @@ export function UktDashboard(props: Props) {
                   <TableCell>
                     {row.registrationId && isCabang ? (
                       <select
-                        className="h-7 max-w-36 rounded border px-1 text-xs"
-                        value={row.kyuBaru ? formatRankLabel(row.kyuBaru) : ""}
+                        className="h-7 max-w-36 rounded border px-1 text-xs disabled:opacity-60"
+                        value={
+                          canApplyUktKyuBaru(row) || isUktSelesai(row)
+                            ? row.kyuBaru
+                              ? formatRankLabel(row.kyuBaru)
+                              : ""
+                            : ""
+                        }
                         onChange={(e) =>
                           handleKyuUpdate(row.registrationId!, e.target.value, row)
                         }
-                        disabled={loading || isMemberPending(row.memberId)}
+                        disabled={
+                          loading ||
+                          isMemberPending(row.memberId) ||
+                          !canApplyUktKyuBaru(row)
+                        }
+                        title={
+                          canApplyUktKyuBaru(row)
+                            ? "Isi Kyu Baru setelah lulus ujian"
+                            : "Tersedia setelah Verifikasi + Hasil Ujian Lulus"
+                        }
                       >
-                        <option value="">— Pilih —</option>
+                        <option value="">
+                          {canApplyUktKyuBaru(row) ? "— Pilih —" : "— Menunggu ujian —"}
+                        </option>
                         {BELT_RANK_OPTIONS.map((opt) => (
                           <option key={opt} value={opt}>
                             {opt}
@@ -2714,7 +2728,9 @@ export function UktDashboard(props: Props) {
                       </select>
                     ) : (
                       <span className="text-sm">
-                        {row.kyuBaru ? formatRankLabel(row.kyuBaru) : "-"}
+                        {isUktSelesai(row) && row.kyuBaru
+                          ? formatRankLabel(row.kyuBaru)
+                          : "-"}
                       </span>
                     )}
                   </TableCell>

@@ -213,7 +213,7 @@ Pusat / Nasional
 4. Pendaftaran UKT: gate operasional dikonfigurasi di **Pengaturan → UKT** (`/admin/pengaturan/ukt`): centang iuran / dokumen / absensi (+ ambang %), serta **berlaku untuk ranting / cabang**. Periode buka/tutup selalu berlaku. Cabang tetap bisa waiver per anggota.
 5. **Ranting** — aksi baris: **Daftar UKT**, **Batal UKT** (termasuk yang sudah bayar/lunas, scope ranting sendiri; notifikasi cabang + peringatan koordinasi pengembalian uang), **Bayar UKT** (= ajukan ke cabang → status **Menunggu Verifikasi** / `WAITING_VERIFICATION`, **bukan** lunas; cabang yang **Verifikasi** → lunas/**Menunggu Ujian**). Toolbar ranting tetap punya **Laporan WA** (buka WhatsApp siap kirim, bukan salin clipboard) dan **Cetak Nota** (manual — **tidak** otomatis saat daftar/Bayar). Setelah daftar, status **Belum Bayar**; cabang mendapat notifikasi otomatis saat daftar/batal/**Bayar UKT**. Tanpa setoran/tambah anggota di halaman UKT.
 6. **Cabang** **memverifikasi pembayaran** (per baris / bulk; dari **Belum Bayar** atau **Menunggu Verifikasi**) → status **Menunggu Ujian**, lalu mencatat **hasil ujian**: `LULUS` / `GAGAL` / `MENGULANG`.
-7. **Sabuk target / Kyu Baru** hanya dapat diisi setelah peserta **lunas** dan hasil ujian ditandai **LULUS**.
+7. **Sabuk target / Kyu Baru** hanya dapat diisi setelah peserta **lunas** dan hasil ujian ditandai **LULUS**. Status **Selesai** = lunas + LULUS + Kyu Baru (bukan langsung setelah Verifikasi).
 8. Status operasional UKT disederhanakan untuk UI: **Belum Daftar / Belum Bayar / Menunggu Verifikasi / Menunggu Ujian / Lulus Ujian / Tidak Lulus / Mengulang / Selesai**.
 9. Status **Selesai** bila sudah lunas + lulus + sabuk target terisi; sabuk resmi anggota diperbarui + riwayat.
 10. Cetak nota memakai tabel biaya sabuk bulat; **tanpa kode unik** (+1…999). Nomor nota memuat semester (`UKT/SBY/{RANTING}/I|II/{tahun}`). Pejabat (Bidang Ujian / Bendahara) dari **period-meta per periode**, fallback **Pengaturan → Kebijakan**.
@@ -550,6 +550,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Toolbar ranting: kembalikan Laporan WA + Cetak Nota; WA buka kirim manual (bukan copy); Daftar/Bayar tidak auto-buka nota |
 | 22 Juli 2026 | UKT: tombol Reset filter + Refresh tabel (`GET /api/admin/ukt/table`) tanpa reload halaman |
 | 22 Juli 2026 | Percepat Refresh UKT: snapshot registrasi/tagihan saja (bukan full dashboard), merge ke baris lokal |
+| 22 Juli 2026 | Fix status UKT: Verifikasi → Menunggu Ujian (bukan Selesai); Selesai hanya setelah Lulus + Kyu Baru |
 
 ---
 

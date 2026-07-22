@@ -1093,8 +1093,9 @@ export function canApplyUktKyuBaru(
 }
 
 /**
- * Hasil ujian efektif untuk UI: jika sudah Selesai (lunas + Kyu Baru),
- * tampilkan LULUS meski setting hasil ujian belum ter-load / kosong.
+ * Hasil ujian efektif untuk UI.
+ * Jangan infer LULUS hanya dari sabuk target (category) — itu membuat
+ * Verifikasi langsung terlihat Selesai.
  */
 export function resolveEffectiveUktExamResult(
   row: UktMemberRow,
@@ -1106,7 +1107,6 @@ export function resolveEffectiveUktExamResult(
   ) {
     return row.examResult;
   }
-  if (isUktSelesai(row)) return "LULUS";
   return null;
 }
 
@@ -1257,9 +1257,13 @@ export function buildUktCabangWaReportText(
   ].join("\n");
 }
 
-/** Selesai = pembayaran lunas + sabuk target (Kyu Baru) sudah diisi cabang. */
+/** Selesai = lunas + lulus ujian + Kyu Baru diisi cabang. */
 export function isUktSelesai(row: UktMemberRow): boolean {
-  return isUktBillingPaid(row) && Boolean(row.kyuBaru?.trim());
+  return (
+    isUktBillingPaid(row) &&
+    row.examResult === "LULUS" &&
+    Boolean(row.kyuBaru?.trim())
+  );
 }
 
 export function isUktBillingUnpaid(row: UktMemberRow): boolean {
