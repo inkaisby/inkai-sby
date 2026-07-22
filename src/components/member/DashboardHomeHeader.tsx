@@ -6,6 +6,7 @@ import { Bell, LogOut, MessageCircle, ScrollText } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogoutConfirmDialog } from "@/components/auth/LogoutConfirmDialog";
 import { ThemeIconButton } from "@/components/member/ThemeIconButton";
+import { MemberAdminPortalIconButton } from "@/components/member/MemberAdminPortalIconButton";
 
 export function DashboardHomeHeader({
   name,
@@ -86,6 +87,7 @@ export function DashboardHomeHeader({
             </span>
           ) : null}
         </Link>
+        <MemberAdminPortalIconButton />
         <button
           type="button"
           onClick={() => setLogoutOpen(true)}

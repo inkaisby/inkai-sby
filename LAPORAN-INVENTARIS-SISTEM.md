@@ -81,7 +81,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Modul | Status | Fungsi |
 |-------|--------|--------|
-| Beranda | Aktif | Kartu anggota, **checklist keanggotaan + CTA**, dojo/jadwal/**absen hari ini**/PIC, aksi cepat kontekstual, UKT, agenda gabungan, badge pesan+notif; **dual-role: link Panel Admin** |
+| Beranda | Aktif | Kartu anggota, **checklist keanggotaan + CTA**, dojo/jadwal/**absen hari ini**/PIC, aksi cepat kontekstual, UKT, agenda gabungan, badge pesan+notif; **dual-role: ikon Panel Admin** di header (sebelah logout) |
 | Profil | Aktif | Edit data pribadi (bukan Kyu/DAN) |
 | Absensi | Aktif | Riwayat + check-in GPS (kode QR opsional) |
 | Iuran | Aktif | Daftar tagihan + unggah bukti pembayaran |
@@ -146,7 +146,7 @@ Pusat / Nasional
 | `MEMBER` | Anggota | `memberId` |
 | `PARENT` | Orang tua | Anak anggota |
 
-**Dual-role:** satu `User` dapat punya peran admin (`ADMIN_*`) sekaligus `memberId` (anggota terhubung). Setelah login → `/dashboard`; admin-only → `/admin`. Pindah portal lewat **Panel Admin** (dashboard) atau **Dashboard Anggota** (menu admin).
+**Dual-role:** satu `User` dapat punya peran admin (`ADMIN_*`) sekaligus `memberId` (anggota terhubung). Setelah login → `/dashboard`; admin-only → `/admin`. Pindah portal lewat **ikon perisai Panel Admin** di header dashboard (sebelah logout) atau **Dashboard Anggota** (menu admin). JWT sesi di-refresh otomatis (~30 detik) agar promosi admin cabang/ranting langsung terdeteksi tanpa login ulang.
 
 ### 7.3 Matriks hak akses WILAYAH
 
@@ -585,6 +585,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Pengaturan Cabang: tambah alur **Jadikan admin cabang** untuk akun existing (contoh ketua cabang) tanpa akun baru; panel Akun Admin membedakan **Admin + Anggota** vs **Admin saja** |
 | 22 Juli 2026 | Hotfix build Vercel: `wilayah-accounts` — `memberId` via relasi Prisma `member`; hapus `adminGrantsRaw` dari response PATCH tanpa `delete` pada field wajib |
 | 22 Juli 2026 | Perbaikan cabang: fallback PIC & `isHomeDojo` scope-aware di `listWilayahAccounts`; audit promote cabang `WILAYAH_ACCOUNT_PROMOTE_ADMIN_BRANCH`; copy UI tanpa contoh email spesifik |
+| 22 Juli 2026 | Dashboard dual-role: **ikon Panel Admin** (perisai) di header kanan sebelah logout + sub-halaman anggota; refresh klaim JWT dari DB (~30s) setelah promosi admin cabang/ranting |
 
 ---
 

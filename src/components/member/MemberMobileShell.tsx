@@ -2,7 +2,6 @@
 
 import { BottomNav } from "@/components/member/BottomNav";
 import { MemberWelcomeGuide } from "@/components/member/MemberWelcomeGuide";
-import { MemberAdminPortalLink } from "@/components/member/MemberAdminPortalLink";
 
 export function MemberMobileShell({ children }: { children: React.ReactNode }) {
   return (
@@ -15,7 +14,6 @@ export function MemberMobileShell({ children }: { children: React.ReactNode }) {
           paddingRight: "max(16px, env(safe-area-inset-right))",
         }}
       >
-        <MemberAdminPortalLink compact withBar />
         <div className="member-fade-in flex-1 pb-[100px]">{children}</div>
         <BottomNav />
         <MemberWelcomeGuide />

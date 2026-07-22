@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ThemeIconButton } from "@/components/member/ThemeIconButton";
+import { MemberAdminPortalIconButton } from "@/components/member/MemberAdminPortalIconButton";
 
 export function MemberPageHeader({
   title,
@@ -29,6 +30,7 @@ export function MemberPageHeader({
       </h1>
       <div className="z-[1] flex items-center justify-end gap-1.5">
         {rightSlot}
+        <MemberAdminPortalIconButton />
         <ThemeIconButton />
       </div>
     </header>

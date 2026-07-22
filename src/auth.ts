@@ -10,6 +10,9 @@ import {
 import { isMemberLoginBlocked } from "@/lib/security/member-status";
 import { clearPresence, markUserLogin } from "@/lib/presence";
 import { snapshotFromNextHeaders } from "@/lib/session-audit";
+import { loadSessionClaimsFromDb } from "@/lib/session-refresh";
+
+const SESSION_CLAIMS_TTL_MS = 30_000;
 
 declare module "next-auth" {
   interface User {
@@ -43,6 +46,7 @@ declare module "@auth/core/jwt" {
     managedDojoId?: string | null;
     memberId?: string | null;
     accessToken?: string;
+    claimsUpdatedAt?: number;
   }
 }
 
@@ -60,6 +64,55 @@ type BackendUser = {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  callbacks: {
+    ...authConfig.callbacks,
+    async jwt({ token, user, trigger }) {
+      if (user) {
+        token.roles = user.roles;
+        token.managedProvinceId = user.managedProvinceId;
+        token.managedBranchId = user.managedBranchId;
+        token.managedDojoId = user.managedDojoId;
+        token.memberId = user.memberId;
+        token.name = user.name;
+        token.claimsUpdatedAt = Date.now();
+        return token;
+      }
+
+      const userId = token.sub;
+      if (!userId) return token;
+
+      const stale =
+        trigger === "update" ||
+        !token.claimsUpdatedAt ||
+        Date.now() - token.claimsUpdatedAt > SESSION_CLAIMS_TTL_MS;
+
+      if (!stale) return token;
+
+      const claims = await loadSessionClaimsFromDb(userId);
+      if (claims) {
+        token.roles = claims.roles;
+        token.managedProvinceId = claims.managedProvinceId;
+        token.managedBranchId = claims.managedBranchId;
+        token.managedDojoId = claims.managedDojoId;
+        token.memberId = claims.memberId;
+        if (claims.name) token.name = claims.name;
+      }
+      token.claimsUpdatedAt = Date.now();
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.sub!;
+        session.user.name = (token.name as string) || session.user.name;
+        session.user.roles = (token.roles as string[]) || [];
+        session.user.managedProvinceId = token.managedProvinceId as string | null;
+        session.user.managedBranchId = token.managedBranchId as string | null;
+        session.user.managedDojoId = token.managedDojoId as string | null;
+        session.user.memberId = token.memberId as string | null;
+      }
+      return session;
+    },
+  },
   events: {
     async signOut(message) {
       const cookieStore = await cookies();
