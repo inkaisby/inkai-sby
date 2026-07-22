@@ -19,6 +19,13 @@ import {
 } from "@/components/admin/pengaturan/CredentialsReveal";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { generateSimplePassword } from "@/lib/security/password";
+import { AdminDojoGrantsEditor } from "@/components/admin/pengaturan/AdminDojoGrantsEditor";
+import {
+  DEFAULT_ADMIN_DOJO_GRANTS,
+  adminDojoGrantsFromInput,
+  summarizeAdminDojoGrants,
+  type AdminDojoGrants,
+} from "@/lib/admin-dojo-grants";
 import {
   ArrowRightLeft,
   KeyRound,
@@ -28,6 +35,7 @@ import {
   UserCheck,
   UserX,
   Users,
+  Shield,
 } from "lucide-react";
 
 const JABATAN_OPTIONS = [
@@ -49,6 +57,7 @@ type AccountRow = {
   managedDojoCount?: number;
   jabatan: string | null;
   jabatanLabel: string | null;
+  adminGrants?: AdminDojoGrants | null;
   createdAt: string;
 };
 
@@ -95,6 +104,13 @@ export function WilayahAccountsPanel({
   const [promoteEmail, setPromoteEmail] = useState("");
   const [promoteJabatan, setPromoteJabatan] = useState("KETUA");
   const [promoteSetPrimary, setPromoteSetPrimary] = useState(false);
+  const [promoteGrants, setPromoteGrants] = useState<AdminDojoGrants>({
+    ...DEFAULT_ADMIN_DOJO_GRANTS,
+  });
+  const [grantsTarget, setGrantsTarget] = useState<AccountRow | null>(null);
+  const [grantsDraft, setGrantsDraft] = useState<AdminDojoGrants>({
+    ...DEFAULT_ADMIN_DOJO_GRANTS,
+  });
   const [manageTarget, setManageTarget] = useState<AccountRow | null>(null);
   const [manageIds, setManageIds] = useState<string[]>([]);
   const [managePrimary, setManagePrimary] = useState("");
@@ -117,6 +133,9 @@ export function WilayahAccountsPanel({
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [setAsPrimary, setSetAsPrimary] = useState(false);
   const [jabatan, setJabatan] = useState<string>("PENGURUS");
+  const [addGrants, setAddGrants] = useState<AdminDojoGrants>({
+    ...DEFAULT_ADMIN_DOJO_GRANTS,
+  });
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
 
@@ -159,6 +178,7 @@ export function WilayahAccountsPanel({
     setPasswordConfirm(pw);
     setSetAsPrimary(accounts.length === 0);
     setJabatan(accounts.length === 0 ? "KETUA" : "PENGURUS");
+    setAddGrants({ ...DEFAULT_ADMIN_DOJO_GRANTS });
   }
 
   function openReset(a: AccountRow) {
@@ -183,6 +203,7 @@ export function WilayahAccountsPanel({
         passwordConfirm,
         setAsPrimary,
         jabatan,
+        adminGrants: scope === "dojo" ? addGrants : undefined,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -215,8 +236,9 @@ export function WilayahAccountsPanel({
       | "handover"
       | "change_email"
       | "set_managed_dojos"
-      | "unlink_dojo",
-    extra?: Record<string, string | boolean | null | string[]>,
+      | "unlink_dojo"
+      | "set_admin_grants",
+    extra?: Record<string, string | boolean | null | string[] | AdminDojoGrants>,
   ) {
     setBusy(true);
     const res = await fetch("/api/admin/pengaturan/wilayah-accounts", {
@@ -258,6 +280,9 @@ export function WilayahAccountsPanel({
       }
       if (action === "set_managed_dojos" || action === "unlink_dojo") {
         setManageTarget(null);
+      }
+      if (action === "set_admin_grants") {
+        setGrantsTarget(null);
       }
       void load();
     } else {
@@ -309,6 +334,7 @@ export function WilayahAccountsPanel({
         linkEmail: promoteEmail.trim().toLowerCase(),
         jabatan: promoteJabatan || null,
         setAsPrimary: promoteSetPrimary,
+        adminGrants: promoteGrants,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -317,6 +343,7 @@ export function WilayahAccountsPanel({
       showSuccess(data.message || "Admin ranting ditambahkan");
       setPromoteOpen(false);
       setPromoteEmail("");
+      setPromoteGrants({ ...DEFAULT_ADMIN_DOJO_GRANTS });
       void load();
     } else {
       showError(data.error || "Gagal menjadikan admin ranting");
@@ -359,6 +386,10 @@ export function WilayahAccountsPanel({
       name: dojoNameById.get(id) || id.slice(0, 8),
       isCurrent: id === wilayahId,
     }));
+  }
+
+  function grantSummary(a: AccountRow) {
+    return summarizeAdminDojoGrants(a.adminGrants ?? DEFAULT_ADMIN_DOJO_GRANTS);
   }
 
   return (
@@ -414,6 +445,7 @@ export function WilayahAccountsPanel({
                 setPromoteEmail("");
                 setPromoteJabatan(accounts.length === 0 ? "KETUA" : "PENGURUS");
                 setPromoteSetPrimary(accounts.length === 0);
+                setPromoteGrants({ ...DEFAULT_ADMIN_DOJO_GRANTS });
               }}
             >
               Jadikan admin ranting
@@ -466,6 +498,7 @@ export function WilayahAccountsPanel({
                   setPromoteEmail("");
                   setPromoteJabatan("KETUA");
                   setPromoteSetPrimary(true);
+                  setPromoteGrants({ ...DEFAULT_ADMIN_DOJO_GRANTS });
                 }}
               >
                 Jadikan admin ranting
@@ -517,6 +550,21 @@ export function WilayahAccountsPanel({
                   {a.jabatanLabel ? (
                     <Badge variant="secondary">{a.jabatanLabel}</Badge>
                   ) : null}
+                  {scope === "dojo" ? (
+                    <>
+                      <Badge
+                        variant={grantSummary(a).editProfile ? "secondary" : "outline"}
+                      >
+                        Profil {grantSummary(a).editProfile ? "On" : "Off"}
+                      </Badge>
+                      <Badge variant={grantSummary(a).crud ? "secondary" : "outline"}>
+                        CRUD {grantSummary(a).crud ? "On" : "Off"}
+                      </Badge>
+                      <Badge variant="outline">
+                        Menu {grantSummary(a).menuCount}
+                      </Badge>
+                    </>
+                  ) : null}
                   <Badge variant={a.isActive ? "default" : "outline"}>
                     {a.isActive ? "Aktif" : "Nonaktif"}
                   </Badge>
@@ -565,6 +613,25 @@ export function WilayahAccountsPanel({
                 </select>
               </div>
               <div className="flex flex-wrap gap-1">
+                {scope === "dojo" ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => {
+                      setGrantsTarget(a);
+                      setGrantsDraft(
+                        adminDojoGrantsFromInput(
+                          a.adminGrants ?? DEFAULT_ADMIN_DOJO_GRANTS,
+                        ),
+                      );
+                    }}
+                    title="Hak akses admin"
+                  >
+                    <Shield className="h-3.5 w-3.5" />
+                  </Button>
+                ) : null}
                 {showMultiDojo ? (
                   <Button
                     type="button"
@@ -729,6 +796,13 @@ export function WilayahAccountsPanel({
               />
               Jadikan PIC utama (kontak resmi & notifikasi prioritas)
             </label>
+            {scope === "dojo" ? (
+              <AdminDojoGrantsEditor
+                value={addGrants}
+                onChange={setAddGrants}
+                disabled={busy}
+              />
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>
@@ -972,7 +1046,7 @@ export function WilayahAccountsPanel({
           }
         }}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Jadikan admin ranting</DialogTitle>
             <DialogDescription>
@@ -1014,6 +1088,11 @@ export function WilayahAccountsPanel({
               />
               Jadikan PIC utama ranting ini
             </label>
+            <AdminDojoGrantsEditor
+              value={promoteGrants}
+              onChange={setPromoteGrants}
+              disabled={busy}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPromoteOpen(false)}>
@@ -1025,6 +1104,45 @@ export function WilayahAccountsPanel({
               onClick={() => void promoteExistingAccount()}
             >
               Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!grantsTarget}
+        onOpenChange={(o) => {
+          if (!o) setGrantsTarget(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Hak akses admin ranting</DialogTitle>
+            <DialogDescription>
+              {grantsTarget?.fullName || grantsTarget?.email} —{" "}
+              <span className="font-mono text-xs">{grantsTarget?.email}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <AdminDojoGrantsEditor
+            value={grantsDraft}
+            onChange={setGrantsDraft}
+            disabled={busy}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGrantsTarget(null)}>
+              Batal
+            </Button>
+            <Button
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              disabled={busy || !grantsTarget}
+              onClick={() =>
+                grantsTarget &&
+                void patch(grantsTarget.id, "set_admin_grants", {
+                  adminGrants: grantsDraft,
+                })
+              }
+            >
+              Simpan hak akses
             </Button>
           </DialogFooter>
         </DialogContent>

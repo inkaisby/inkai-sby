@@ -70,7 +70,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/v/[id]` | Verifikasi kartu anggota (scan QR — UUID atau NIA) |
 | `/kontak` | Kontak sekretariat |
 | `/keamanan-siber` | Kebijakan keamanan siber |
-| `/login` | Login & registrasi (form selaras admin: identitas, sabuk, akun, dojo) |
+| `/login` | Login & registrasi (form selaras admin: identitas, sabuk, akun, dojo); **dual-role** (admin + anggota terhubung) default masuk `/dashboard`, pilih **Panel Admin** manual |
 | `/daftar` | Redirect ke form daftar |
 | `/lupa-password` | Ajuan reset password |
 | `/reset-password` | Set password baru |
@@ -81,7 +81,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Modul | Status | Fungsi |
 |-------|--------|--------|
-| Beranda | Aktif | Kartu anggota, **checklist keanggotaan + CTA**, dojo/jadwal/**absen hari ini**/PIC, aksi cepat kontekstual, UKT, agenda gabungan, badge pesan+notif |
+| Beranda | Aktif | Kartu anggota, **checklist keanggotaan + CTA**, dojo/jadwal/**absen hari ini**/PIC, aksi cepat kontekstual, UKT, agenda gabungan, badge pesan+notif; **dual-role: link Panel Admin** |
 | Profil | Aktif | Edit data pribadi (bukan Kyu/DAN) |
 | Absensi | Aktif | Riwayat + check-in GPS (kode QR opsional) |
 | Iuran | Aktif | Daftar tagihan + unggah bukti pembayaran |
@@ -102,7 +102,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Modul | Fungsi |
 |-------|--------|
-| Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
+| Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda); **dual-role: menu Dashboard Anggota** |
 | Kelola Anggota | Cari **autocomplete**; kolom **No**; **sort kolom** (NIA, Nama, Sabuk, Status, Dojo, Terdaftar — ikon naik/turun, server-side); KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; **pengecualian iuran (event/UKT)**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV; arsip; Prisma scoped (+ **anggota luar Surabaya / ranting arsip** tetap terlihat); filter client-side; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50); detail: **username login dari Prisma** (bukan hint palsu); **Reset password** sementara (ranting/cabang) |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Nav grup **Pendaftaran** (`/admin/ukt`) + **Arsip UKT** (`/admin/ukt/arsip`); periode aktif, daftar peserta, **sort kolom**, multi-select ranting, **filter Gabungan multi-ranting**, bayar→verifikasi cabang, sabuk target, nota, **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya); **toolbar atas sticky**; **ranting: Daftar/Batal/Bayar + toolbar Laporan WA & Cetak Nota**; cabang: **Hapus tagihan** terpisah dari hapus pendaftaran |
@@ -117,7 +117,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
 | Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; tanpa force-logout; ranting tidak akses |
 | Notifikasi | Inbox admin (ada di nav); **ranting: rantingnya + ops cabang**; field `audience`; tanpa notif pribadi anggota; cabang lihat semua ranting |
-| Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; panel Akun: **Jadikan admin ranting** (email anggota existing → dual-role); admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, **Pengaturan UKT (syarat daftar)**, peran (**preset**), geofencing (**pratinjau peta**), akun; **arsip cabang: Pulihkan + Hapus permanen** (ditolak jika masih ada anggota / cabang SURABAYA) |
+| Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; panel Akun: **Jadikan admin ranting** (email anggota existing → dual-role) + **centang hak akses** (edit profil, CRUD, menu sidebar); admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, **Pengaturan UKT (syarat daftar)**, peran (**preset**), geofencing (**pratinjau peta**), akun; **arsip cabang: Pulihkan + Hapus permanen** (ditolak jika masih ada anggota / cabang SURABAYA) |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, **Kehadiran akun**, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
@@ -145,6 +145,8 @@ Pusat / Nasional
 | `ADMIN_DOJO` | Ranting | `managedDojoId` (utama) + `managedDojoIds` (multi, AppSetting) |
 | `MEMBER` | Anggota | `memberId` |
 | `PARENT` | Orang tua | Anak anggota |
+
+**Dual-role:** satu `User` dapat punya peran admin (`ADMIN_*`) sekaligus `memberId` (anggota terhubung). Setelah login → `/dashboard`; admin-only → `/admin`. Pindah portal lewat **Panel Admin** (dashboard) atau **Dashboard Anggota** (menu admin).
 
 ### 7.3 Matriks hak akses WILAYAH
 
@@ -575,6 +577,10 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Fix sabuk kartu anggota: `resolveMemberDisplayRank` mengikuti `currentRank` keanggotaan (selaras admin/verifikasi QR), bukan sabuk tertinggi dari riwayat/UKT |
 | 22 Juli 2026 | Detail anggota: centang **pengecualian iuran** (`allowEventWithoutDues`) — gate daftar event/UKT tanpa lunas iuran; generate tagihan bulanan skip anggota pengecualian |
 | 22 Juli 2026 | Pengaturan ranting (cabang): **Jadikan admin ranting** — email login existing (anggota) jadi `ADMIN_DOJO` dual-role tanpa akun baru (`promote_existing`) |
+| 22 Juli 2026 | Portal dual-role: login default `/dashboard` bila `memberId` + admin; admin-only tetap `/admin`; **Panel Admin** hanya tampil bila email punya role admin (`canChooseAdminPortal`) |
+| 22 Juli 2026 | **Jadikan admin ranting**: centang hak akses per akun — edit profil, CRUD anggota, menu sidebar admin (`adminGrants` di meta ranting); tombol perbarui hak akses di daftar akun |
+| 22 Juli 2026 | Form Tambah Ranting: penanda field wajib (*); perbaiki kirim `adminEmail` ke Inkai saat buat/ubah (password tetap Prisma); validasi email+password berpasangan |
+| 22 Juli 2026 | Topbar akun gabungan: hanya tampilkan email yang berbagi kelola ranting (API `/account-peers`), bukan riwayat Ganti Akun dari localStorage |
 
 ---
 

@@ -24,6 +24,7 @@ import {
   canManageIuranByWilayah,
 } from "@/lib/wilayah-rbac";
 import { buildMemberFilter, type SessionUser } from "@/lib/rbac";
+import { adminDojoGrantBlocksMemberAction } from "@/lib/admin-dojo-grants";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { assertDojoInScope } from "@/lib/pengaturan";
 
@@ -208,6 +209,13 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const action = parsed.data.action;
   const roles = authResult.user.roles;
+  const grantBlock = adminDojoGrantBlocksMemberAction(
+    authResult.adminDojoGrants,
+    action,
+  );
+  if (grantBlock) {
+    return NextResponse.json({ error: grantBlock }, { status: 403 });
+  }
   const ip = getClientIp(request);
   const userAgent = request.headers.get("user-agent");
   const token = authResult.token;

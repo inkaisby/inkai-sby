@@ -1,4 +1,4 @@
-import { isAdmin } from "@/lib/rbac";
+import { isAdmin, resolvePostLoginPath } from "@/lib/rbac";
 
 const ADMIN_TO_MEMBER: Record<string, string> = {
   "/admin": "/dashboard",
@@ -36,8 +36,10 @@ export function resolvePageForNewAccount(
   pathname: string,
   roles: string[],
   search = "",
+  memberId?: string | null,
 ): string {
   const userIsAdmin = isAdmin(roles);
+  const dualRole = userIsAdmin && Boolean(memberId);
   const query = search.replace(/^\?/, "");
   const querySuffix = query ? `?${query}` : "";
 
@@ -54,7 +56,7 @@ export function resolvePageForNewAccount(
   }
 
   if (pathname.startsWith("/dashboard")) {
-    if (userIsAdmin) {
+    if (userIsAdmin && !dualRole) {
       const mapped = longestPrefixMatch(pathname, MEMBER_TO_ADMIN) ?? "/admin";
       if (pathname.startsWith("/dashboard/prestasi") && query) {
         return `${mapped}${querySuffix}`;
@@ -64,5 +66,5 @@ export function resolvePageForNewAccount(
     return `${pathname}${querySuffix}`;
   }
 
-  return userIsAdmin ? "/admin" : "/dashboard";
+  return resolvePostLoginPath(roles, memberId);
 }

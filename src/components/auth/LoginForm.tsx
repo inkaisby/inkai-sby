@@ -8,7 +8,7 @@ import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { isAdmin } from "@/lib/rbac";
+import { resolvePostLoginPath } from "@/lib/rbac";
 import { AuthTransitionOverlay } from "@/components/auth/AuthTransitionOverlay";
 import { showError } from "@/lib/client-toast";
 
@@ -79,7 +79,8 @@ export default function LoginForm({
 
     const session = await getSession();
     const roles: string[] = session?.user?.roles || [];
-    const destination = isAdmin(roles) ? "/admin" : "/dashboard";
+    const memberId = session?.user?.memberId ?? null;
+    const destination = resolvePostLoginPath(roles, memberId);
 
     onSuccess?.();
     router.refresh();

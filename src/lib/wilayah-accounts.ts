@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { notifyUser } from "@/lib/notifications";
 import {
   findUserIdsManagingDojo,
@@ -28,6 +29,7 @@ export type WilayahHandover = {
 type WilayahMeta = {
   jabatanByUserId: Record<string, WilayahJabatan>;
   handovers: WilayahHandover[];
+  grantsByUserId?: Record<string, unknown>;
   updatedAt?: string;
 };
 
@@ -45,7 +47,7 @@ export function jabatanLabel(value: string | null | undefined) {
 }
 
 function emptyMeta(): WilayahMeta {
-  return { jabatanByUserId: {}, handovers: [] };
+  return { jabatanByUserId: {}, handovers: [], grantsByUserId: {} };
 }
 
 function asMeta(value: unknown): WilayahMeta {
@@ -71,9 +73,18 @@ function asMeta(value: unknown): WilayahMeta {
         (h) => h && typeof h === "object" && typeof h.toUserId === "string",
       )
     : [];
+  const grantsByUserId: Record<string, unknown> = {};
+  if (v.grantsByUserId && typeof v.grantsByUserId === "object") {
+    for (const [uid, raw] of Object.entries(
+      v.grantsByUserId as Record<string, unknown>,
+    )) {
+      if (raw && typeof raw === "object") grantsByUserId[uid] = raw;
+    }
+  }
   return {
     jabatanByUserId,
     handovers,
+    grantsByUserId,
     updatedAt: typeof v.updatedAt === "string" ? v.updatedAt : undefined,
   };
 }
@@ -93,12 +104,21 @@ async function saveWilayahMeta(
   wilayahId: string,
   meta: WilayahMeta,
 ) {
-  const value = { ...meta, updatedAt: new Date().toISOString() };
+  const value = { ...meta, updatedAt: new Date().toISOString() } as Prisma.InputJsonValue;
   await prisma.appSetting.upsert({
     where: { key: metaSettingKey(scope, wilayahId) },
     create: { key: metaSettingKey(scope, wilayahId), value },
     update: { value },
   });
+}
+
+/** Persist meta wilayah (dipakai modul hak akses admin ranting). */
+export async function persistWilayahMeta(
+  scope: WilayahScope,
+  wilayahId: string,
+  meta: WilayahMeta,
+) {
+  await saveWilayahMeta(scope, wilayahId, meta);
 }
 
 export async function setAccountJabatan(opts: {
@@ -295,6 +315,7 @@ export async function listWilayahAccounts(opts: {
         managedDojoCount: managedDojoIds.length,
         jabatan: meta.jabatanByUserId[u.id] ?? null,
         jabatanLabel: jabatanLabel(meta.jabatanByUserId[u.id] ?? null),
+        adminGrantsRaw: meta.grantsByUserId?.[u.id] ?? null,
       };
     }),
     handovers: meta.handovers,

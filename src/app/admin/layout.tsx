@@ -1,4 +1,5 @@
 import { requireAdminSession } from "@/lib/admin-session";
+import { hasMemberPortal } from "@/lib/rbac";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { applyNavBadges, getAdminNavLinks } from "@/lib/dashboard-nav";
 import { getCachedAdminUnreadPesan } from "@/lib/admin-pesan-unread";
@@ -9,8 +10,11 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   try {
-    const { session } = await requireAdminSession();
-    const baseLinks = getAdminNavLinks(session.user.roles ?? []);
+    const { session, adminDojoGrants } = await requireAdminSession();
+    const baseLinks = getAdminNavLinks(
+      session.user.roles ?? [],
+      adminDojoGrants,
+    );
 
     const unreadPesan = await getCachedAdminUnreadPesan(session.user.id);
 
@@ -25,7 +29,9 @@ export default async function AdminLayout({
         userName={session.user.name || session.user.email || "Admin"}
         userEmail={session.user.email || ""}
         roles={session.user.roles ?? []}
+        adminDojoGrants={adminDojoGrants}
         showAdmin
+        hasMemberPortal={hasMemberPortal(session.user)}
       >
         {children}
       </DashboardShell>

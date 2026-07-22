@@ -145,12 +145,13 @@ export function SwitchAccountModal({
 
       const session = await getSession();
       const roles = session?.user?.roles ?? [];
+      const memberId = session?.user?.memberId ?? null;
       const search =
         typeof window !== "undefined"
           ? window.location.search.replace(/^\?/, "")
           : "";
       const fullCurrentPath = `${pathname}${search ? `?${search}` : ""}`;
-      const targetPath = resolvePageForNewAccount(pathname, roles, search);
+      const targetPath = resolvePageForNewAccount(pathname, roles, search, memberId);
 
       const primaryRole = getPrimaryAdminRole(roles);
       const roleLabel = ROLE_LABELS[primaryRole] || primaryRole;

@@ -69,6 +69,31 @@ export function canAccessAdmin(user: SessionUser) {
   return isAdmin(user.roles);
 }
 
+export function hasMemberPortal(user: Pick<SessionUser, "memberId">) {
+  return Boolean(user.memberId);
+}
+
+/** Satu akun login sekaligus anggota terhubung dan admin wilayah/ranting. */
+export function isDualRoleUser(user: SessionUser) {
+  return canAccessAdmin(user) && hasMemberPortal(user);
+}
+
+/** Destinasi setelah login: dual-role & anggota → dashboard; admin saja → admin. */
+export function resolvePostLoginPath(
+  roles: string[],
+  memberId?: string | null,
+): "/dashboard" | "/admin" {
+  if (isAdmin(roles)) {
+    return memberId ? "/dashboard" : "/admin";
+  }
+  return "/dashboard";
+}
+
+/** Tampilkan opsi masuk portal admin — hanya jika email terdaftar punya role admin. */
+export function canChooseAdminPortal(user: Pick<SessionUser, "roles">) {
+  return isAdmin(user.roles);
+}
+
 export function canEditPengurus(roles: string[]) {
   const role = getPrimaryAdminRole(roles);
   return [

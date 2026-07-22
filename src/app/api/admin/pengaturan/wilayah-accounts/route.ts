@@ -32,6 +32,11 @@ import {
 } from "@/lib/managed-dojos";
 import { promoteUserToAdminDojo } from "@/lib/promote-admin-dojo";
 import {
+  adminDojoGrantsFromInput,
+  parseAdminDojoGrants,
+  setAdminDojoGrants,
+} from "@/lib/admin-dojo-grants";
+import {
   wilayahAccountCreateSchema,
   wilayahAccountPatchSchema,
 } from "@/lib/security/schemas";
@@ -85,7 +90,16 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
-    data: result.accounts,
+    data: result.accounts.map((a) => {
+      const raw = (a as { adminGrantsRaw?: unknown }).adminGrantsRaw;
+      const { adminGrantsRaw: _drop, ...rest } = a as typeof a & {
+        adminGrantsRaw?: unknown;
+      };
+      return {
+        ...rest,
+        adminGrants: raw ? parseAdminDojoGrants(raw) : null,
+      };
+    }),
     handovers: result.handovers,
     primaryContact: result.primaryContact,
     jabatanOptions: WILAYAH_JABATAN,
@@ -194,6 +208,14 @@ export async function POST(request: Request) {
     });
   }
 
+  if (scope === "dojo" && parsed.data.adminGrants) {
+    await setAdminDojoGrants(
+      wilayahId,
+      created.id,
+      adminDojoGrantsFromInput(parsed.data.adminGrants),
+    );
+  }
+
   writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
@@ -206,6 +228,7 @@ export async function POST(request: Request) {
       targetEmail: created.email,
       isPrimary: makePrimary,
       jabatan: parsed.data.jabatan || (makePrimary ? "KETUA" : null),
+      adminGrants: scope === "dojo" ? parsed.data.adminGrants ?? null : null,
     }),
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
@@ -364,6 +387,7 @@ export async function PATCH(request: Request) {
         branchId,
         jabatan: parsed.data.jabatan ?? undefined,
         setAsPrimary: parsed.data.setAsPrimary,
+        adminGrants: parsed.data.adminGrants,
       });
 
       if (result.alreadyManaging && !result.roleGranted) {
@@ -415,6 +439,55 @@ export async function PATCH(request: Request) {
       const status = msg.includes("tidak ditemukan") ? 404 : 400;
       return NextResponse.json({ error: msg }, { status });
     }
+  }
+
+  if (action === "set_admin_grants") {
+    if (scope !== "dojo") {
+      return NextResponse.json(
+        { error: "Hak akses admin hanya untuk ranting" },
+        { status: 400 },
+      );
+    }
+    const userId = parsed.data.userId;
+    if (!userId) {
+      return NextResponse.json({ error: "userId wajib" }, { status: 400 });
+    }
+    if (!parsed.data.adminGrants) {
+      return NextResponse.json(
+        { error: "adminGrants wajib diisi" },
+        { status: 400 },
+      );
+    }
+    const managingIds = await findUserIdsManagingDojo(wilayahId);
+    if (!managingIds.includes(userId)) {
+      return NextResponse.json(
+        { error: "Akun tidak mengelola ranting ini" },
+        { status: 404 },
+      );
+    }
+    await setAdminDojoGrants(
+      wilayahId,
+      userId,
+      adminDojoGrantsFromInput(parsed.data.adminGrants),
+    );
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "WILAYAH_ACCOUNT_SET_ADMIN_GRANTS",
+      details: JSON.stringify({
+        scope,
+        wilayahId,
+        targetUserId: userId,
+        grants: parsed.data.adminGrants,
+      }),
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      token: authResult.token,
+    });
+    return NextResponse.json({
+      success: true,
+      message: "Hak akses admin ranting disimpan",
+    });
   }
 
   const userId = parsed.data.userId;

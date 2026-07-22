@@ -1,6 +1,10 @@
 import { getPrimaryAdminRole } from "@/lib/rbac";
 import { canViewAccountPresence } from "@/lib/presence-constants";
 import { buildDefaultUktAdminUrl } from "@/lib/ukt";
+import {
+  filterNavByAdminDojoGrants,
+  type AdminDojoGrants,
+} from "@/lib/admin-dojo-grants";
 
 export type NavLink = {
   href: string;
@@ -109,7 +113,10 @@ export const ADMIN_LINKS: NavItem[] = [
 ];
 
 /** Sidebar links filtered by admin role. */
-export function getAdminNavLinks(roles: string[]): NavItem[] {
+export function getAdminNavLinks(
+  roles: string[],
+  grants?: AdminDojoGrants | null,
+): NavItem[] {
   const role = getPrimaryAdminRole(roles);
 
   if (role !== "ADMIN_DOJO") {
@@ -125,7 +132,7 @@ export function getAdminNavLinks(roles: string[]): NavItem[] {
   }
 
   // Ranting: tanpa organisasi/carousel/audit/kehadiran/sistem cabang
-  return withFreshUktHref([
+  const rantingLinks = withFreshUktHref([
     { href: "/admin", label: "Beranda Admin" },
     {
       label: "Keanggotaan",
@@ -149,6 +156,9 @@ export function getAdminNavLinks(roles: string[]): NavItem[] {
     },
     { href: "/admin/pengaturan", label: "Pengaturan" },
   ]);
+
+  if (grants) return filterNavByAdminDojoGrants(rantingLinks, grants);
+  return rantingLinks;
 }
 
 export const MEMBER_LINKS: NavItem[] = [

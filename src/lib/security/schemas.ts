@@ -553,6 +553,13 @@ export const wilayahAccountCreateSchema = z
       .enum(["KETUA", "SEKRETARIS", "BENDAHARA", "PENGURUS"])
       .optional()
       .nullable(),
+    adminGrants: z
+      .object({
+        editProfile: z.boolean().optional(),
+        crud: z.boolean().optional(),
+        sidebarPaths: z.array(z.string()).max(32).optional(),
+      })
+      .optional(),
   })
   .refine((d) => d.password === d.passwordConfirm, {
     message: "Konfirmasi password tidak cocok",
@@ -576,6 +583,7 @@ export const wilayahAccountPatchSchema = z
       "link_existing",
       "promote_existing",
       "unlink_dojo",
+      "set_admin_grants",
     ]),
     newPassword: z.string().min(8).max(72).optional(),
     newPasswordConfirm: z.string().min(8).max(72).optional(),
@@ -600,6 +608,13 @@ export const wilayahAccountPatchSchema = z
       .email("Format email tidak valid")
       .optional(),
     setAsPrimary: z.boolean().optional(),
+    adminGrants: z
+      .object({
+        editProfile: z.boolean().optional(),
+        crud: z.boolean().optional(),
+        sidebarPaths: z.array(z.string()).max(32).optional(),
+      })
+      .optional(),
   })
   .superRefine((d, ctx) => {
     if (d.action === "link_existing" || d.action === "promote_existing") {

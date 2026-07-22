@@ -9,6 +9,10 @@ import {
   setPrimaryAccountId,
   type WilayahJabatan,
 } from "@/lib/wilayah-accounts";
+import {
+  adminDojoGrantsFromInput,
+  setAdminDojoGrants,
+} from "@/lib/admin-dojo-grants";
 
 export type PromoteAdminDojoResult = {
   userId: string;
@@ -32,6 +36,11 @@ export async function promoteUserToAdminDojo(opts: {
   branchId: string;
   jabatan?: WilayahJabatan | null;
   setAsPrimary?: boolean;
+  adminGrants?: {
+    editProfile?: boolean;
+    crud?: boolean;
+    sidebarPaths?: string[];
+  };
 }): Promise<PromoteAdminDojoResult> {
   const email = opts.email.trim().toLowerCase();
   if (!email) {
@@ -65,6 +74,13 @@ export async function promoteUserToAdminDojo(opts: {
   const alreadyManaging = managingIds.includes(user.id);
 
   if (alreadyManaging && hasAdminDojo) {
+    if (opts.adminGrants) {
+      await setAdminDojoGrants(
+        opts.dojoId,
+        user.id,
+        adminDojoGrantsFromInput(opts.adminGrants),
+      );
+    }
     return {
       userId: user.id,
       email: user.email,
@@ -128,6 +144,14 @@ export async function promoteUserToAdminDojo(opts: {
 
   if (opts.setAsPrimary) {
     await setPrimaryAccountId("dojo", opts.dojoId, user.id);
+  }
+
+  if (opts.adminGrants) {
+    await setAdminDojoGrants(
+      opts.dojoId,
+      user.id,
+      adminDojoGrantsFromInput(opts.adminGrants),
+    );
   }
 
   return {

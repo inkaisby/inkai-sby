@@ -126,6 +126,12 @@ export async function POST(request: Request) {
   if (!authResult.token) {
     return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
   }
+  if (authResult.adminDojoGrants && !authResult.adminDojoGrants.crud) {
+    return NextResponse.json(
+      { error: "Akun admin ranting Anda tidak diizinkan menambah anggota" },
+      { status: 403 },
+    );
+  }
 
   const body = await request.json();
   const parsed = uktMemberCreateSchema.safeParse(body);

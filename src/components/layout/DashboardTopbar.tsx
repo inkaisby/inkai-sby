@@ -70,12 +70,14 @@ export function DashboardTopbar({
   userName,
   userEmail,
   showAdmin = false,
+  hasMemberPortal = false,
 }: {
   title: string;
   links: NavItem[];
   userName: string;
   userEmail: string;
   showAdmin?: boolean;
+  hasMemberPortal?: boolean;
 }) {
   const pathname = usePathname();
   const { startNavigation } = useNavigation();
@@ -104,7 +106,12 @@ export function DashboardTopbar({
       <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
         <NotificationBell viewAllHref={notificationsHref} />
         <ThemeToggle />
-        <UserMenu name={userName} email={userEmail} showAdmin={showAdmin} />
+        <UserMenu
+          name={userName}
+          email={userEmail}
+          showAdmin={showAdmin}
+          hasMemberPortal={hasMemberPortal}
+        />
       </div>
     </header>
   );

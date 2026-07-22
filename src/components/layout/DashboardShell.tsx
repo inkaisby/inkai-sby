@@ -6,6 +6,7 @@ import { DashboardTopbar } from "@/components/layout/DashboardTopbar";
 import { NavigationProvider, useNavigation } from "@/components/layout/NavigationProvider";
 import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
 import type { NavItem } from "@/lib/dashboard-nav";
+import type { AdminDojoGrants } from "@/lib/admin-dojo-grants";
 import { useEffect, useState } from "react";
 
 function MainContent({ children }: { children: React.ReactNode }) {
@@ -54,7 +55,9 @@ export function DashboardShell({
   userName,
   userEmail,
   showAdmin = false,
+  hasMemberPortal = false,
   roles = [],
+  adminDojoGrants = null,
   children,
 }: {
   title: string;
@@ -62,7 +65,9 @@ export function DashboardShell({
   userName: string;
   userEmail: string;
   showAdmin?: boolean;
+  hasMemberPortal?: boolean;
   roles?: string[];
+  adminDojoGrants?: AdminDojoGrants | null;
   children: React.ReactNode;
 }) {
   return (
@@ -76,9 +81,10 @@ export function DashboardShell({
             userName={userName}
             userEmail={userEmail}
             showAdmin={showAdmin}
+            hasMemberPortal={hasMemberPortal}
           />
           {showAdmin ? (
-            <AdminAccessGate roles={roles}>
+            <AdminAccessGate roles={roles} adminDojoGrants={adminDojoGrants}>
               <MainContent>{children}</MainContent>
             </AdminAccessGate>
           ) : (

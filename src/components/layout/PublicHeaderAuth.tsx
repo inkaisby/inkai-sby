@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { canAccessAdmin } from "@/lib/rbac";
+import { canChooseAdminPortal, resolvePostLoginPath } from "@/lib/rbac";
 import { useLoginModal } from "@/components/auth/LoginModal";
 
 type GuestAuthProps = {
@@ -85,8 +85,12 @@ function GuestAuthMobile({ onLoginClick }: GuestAuthProps) {
 }
 
 function AuthenticatedAuthDesktop({ session }: { session: NonNullable<ReturnType<typeof useSession>["data"]> }) {
-  const href = canAccessAdmin(session.user) ? "/admin" : "/dashboard";
-  const label = canAccessAdmin(session.user) ? "Admin" : "Dashboard";
+  const isAdmin = canChooseAdminPortal(session.user);
+  const href = resolvePostLoginPath(
+    session.user.roles ?? [],
+    session.user.memberId,
+  );
+  const label = isAdmin && href === "/admin" ? "Admin" : "Dashboard";
 
   return (
     <Button asChild variant="outline" size="sm" className="hidden rounded-lg md:inline-flex">
@@ -98,8 +102,12 @@ function AuthenticatedAuthDesktop({ session }: { session: NonNullable<ReturnType
 }
 
 function AuthenticatedAuthMobile({ session }: { session: NonNullable<ReturnType<typeof useSession>["data"]> }) {
-  const href = canAccessAdmin(session.user) ? "/admin" : "/dashboard";
-  const label = canAccessAdmin(session.user) ? "Admin" : "Dashboard";
+  const isAdmin = canChooseAdminPortal(session.user);
+  const href = resolvePostLoginPath(
+    session.user.roles ?? [],
+    session.user.memberId,
+  );
+  const label = isAdmin && href === "/admin" ? "Admin" : "Dashboard";
 
   return (
     <Link

@@ -1,4 +1,6 @@
 import { getPrimaryAdminRole } from "@/lib/rbac";
+import type { AdminDojoGrants } from "@/lib/admin-dojo-grants";
+import { isAdminPathAllowedByGrants } from "@/lib/admin-dojo-grants";
 
 /** Prefix paths yang boleh diakses per role (ADMIN_DOJO lebih ketat). */
 const DOJO_ALLOWED_PREFIXES = [
@@ -32,7 +34,11 @@ const DOJO_BLOCKED_PENGATURAN_CHILDREN = [
   "/admin/pengaturan/ukt",
 ];
 
-export function canAccessAdminPath(roles: string[], pathname: string): boolean {
+export function canAccessAdminPath(
+  roles: string[],
+  pathname: string,
+  grants?: AdminDojoGrants | null,
+): boolean {
   const role = getPrimaryAdminRole(roles);
   const path = pathname.split("?")[0].replace(/\/$/, "") || "/admin";
 
@@ -53,17 +59,28 @@ export function canAccessAdminPath(roles: string[], pathname: string): boolean {
     return true;
   }
 
-  if (path === "/admin") return true;
+  if (path === "/admin") {
+    return grants ? isAdminPathAllowedByGrants(path, grants) : true;
+  }
 
-  return DOJO_ALLOWED_PREFIXES.some(
+  const prefixOk = DOJO_ALLOWED_PREFIXES.some(
     (prefix) =>
       prefix !== "/admin" &&
       (path === prefix || path.startsWith(`${prefix}/`)),
   );
+  if (!prefixOk) return false;
+  if (grants) return isAdminPathAllowedByGrants(path, grants);
+  return true;
 }
 
-export function adminFallbackPath(roles: string[]): string {
+export function adminFallbackPath(
+  roles: string[],
+  grants?: AdminDojoGrants | null,
+): string {
   const role = getPrimaryAdminRole(roles);
-  if (role === "ADMIN_DOJO") return "/admin/pengaturan";
+  if (role === "ADMIN_DOJO") {
+    const preferred = grants?.sidebarPaths?.[0];
+    return preferred || "/admin/pengaturan/akun";
+  }
   return "/admin";
 }
