@@ -121,6 +121,10 @@ export function SwitchAccountModal({
       onOpenChange(false);
       setPhase("switching");
 
+      const { clearPresenceBeforeLogout } = await import(
+        "@/components/presence/PresenceHeartbeat"
+      );
+      await clearPresenceBeforeLogout();
       await signOut({ redirect: false });
 
       const result = await signIn("credentials", {

@@ -1,4 +1,5 @@
 import { getPrimaryAdminRole } from "@/lib/rbac";
+import { canViewAccountPresence } from "@/lib/presence-constants";
 import { buildDefaultUktAdminUrl } from "@/lib/ukt";
 
 export type NavLink = {
@@ -93,6 +94,7 @@ export const ADMIN_LINKS: NavItem[] = [
   {
     label: "Sistem",
     children: [
+      { href: "/admin/online", label: "Kehadiran akun" },
       { href: "/admin/audit", label: "Log Audit" },
       { href: "/admin/pengaturan", label: "Ringkasan Pengaturan" },
       { href: "/admin/pengaturan/cabang", label: "Pengaturan Cabang" },
@@ -110,9 +112,19 @@ export const ADMIN_LINKS: NavItem[] = [
 export function getAdminNavLinks(roles: string[]): NavItem[] {
   const role = getPrimaryAdminRole(roles);
 
-  if (role !== "ADMIN_DOJO") return withFreshUktHref(ADMIN_LINKS);
+  if (role !== "ADMIN_DOJO") {
+    const links = withFreshUktHref(ADMIN_LINKS);
+    if (canViewAccountPresence(roles)) return links;
+    return links.map((item) => {
+      if (!isNavGroup(item) || item.label !== "Sistem") return item;
+      return {
+        ...item,
+        children: item.children.filter((c) => c.href !== "/admin/online"),
+      };
+    });
+  }
 
-  // Ranting: tanpa organisasi/carousel/audit/sistem cabang
+  // Ranting: tanpa organisasi/carousel/audit/kehadiran/sistem cabang
   return withFreshUktHref([
     { href: "/admin", label: "Beranda Admin" },
     {

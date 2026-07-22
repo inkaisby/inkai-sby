@@ -124,6 +124,10 @@ export function AkunSayaForm({ initial }: { initial: AkunSayaData }) {
           ))}
           <Badge variant="outline">{initial.scopeLabel}</Badge>
         </div>
+        <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+          Status keaktifan akun dapat dilihat pengurus cabang/pusat saat Anda
+          membuka aplikasi (untuk koordinasi operasional).
+        </p>
         <Button
           type="submit"
           disabled={savingProfile}

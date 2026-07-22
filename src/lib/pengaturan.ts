@@ -69,6 +69,12 @@ export const SETTINGS_SHORTCUTS = [
     kind: "konten" as const,
   },
   {
+    href: "/admin/online",
+    title: "Kehadiran akun",
+    description: "Siapa yang sedang aktif di portal (cabang/pusat)",
+    kind: "audit" as const,
+  },
+  {
     href: "/admin/audit",
     title: "Log Audit",
     description: "Jejak aksi sensitif admin",

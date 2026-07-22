@@ -115,10 +115,11 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Absensi | Harian + **belum hadir** + **rekap semester %** + export |
 | Carousel Beranda | Upload gambar + aktif + **urutkan** |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
+| Kehadiran akun | **Sedang aktif** + last login (pusat & cabang); heartbeat; tanpa force-logout; ranting tidak akses |
 | Notifikasi | Inbox admin (ada di nav); **ranting: rantingnya + ops cabang**; field `audience`; tanpa notif pribadi anggota; cabang lihat semua ranting |
 | Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, **Pengaturan UKT (syarat daftar)**, peran (**preset**), geofencing (**pratinjau peta**), akun; **arsip cabang: Pulihkan + Hapus permanen** (ditolak jika masih ada anggota / cabang SURABAYA) |
 
-**Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, serta sebagian submenu pengaturan tingkat cabang/pusat.
+**Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, **Kehadiran akun**, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
 ---
 
@@ -155,6 +156,7 @@ Pusat / Nasional
 | NIA | Lihat sendiri | Tidak assign | **Assign NIA** | Lihat saja |
 | Iuran | Lihat & bayar sendiri | **Edit tagihan + verifikasi + lunas**; **edit Iuran/bln per anggota** (scope dojo) | **Kelola iuran** cabang (edit/verifikasi/lunas + Iuran/bln) | Lihat saja (tanpa edit) |
 | Status keanggotaan | Lihat sendiri | **Nonaktifkan / aktifkan**; **hapus/arsip** (aktif/ber-NIA: ketik nama; bulk: ketik ARSIPKAN); **gabungkan duplikat** | **Nonaktif / aktif / hapus (arsip)** + bulk; gabungkan duplikat | Lihat saja |
+| Kehadiran akun | Tidak lihat daftar | Tidak lihat | **Lihat sedang aktif + last login** (scope cabang) | Tidak (khusus pusat/cabang) |
 
 ---
 
@@ -163,7 +165,7 @@ Pusat / Nasional
 | Entitas | Isi penting |
 |---------|-------------|
 | `Province` / `Branch` / `Dojo` | Wilayah & ranting (termasuk geofence) |
-| `User` / `Role` / `Permission` | Akun & RBAC |
+| `User` / `Role` / `Permission` | Akun & RBAC (+ `lastLoginAt` / `lastSeenAt` kehadiran) |
 | `Member` | NIA, NIK, nama, sabuk, status, dokumen, dojo |
 | `MemberRank` | Riwayat kenaikan sabuk |
 | `Billing` / `Payment` | Tagihan & bukti bayar |
@@ -285,6 +287,7 @@ Pusat / Nasional
 | Deteksi duplikat anggota | Aktif | Keras: NIK / NIA / nama+TTL (termasuk arsip untuk NIK/NIA); lunak: nama; admin create melepas NIA/NIK arsip bila hanya bentrok nomor; blok create admin & daftar publik; UI peringatan |
 | Gabungkan duplikat | Aktif | Ranting/cabang: pindahkan akun login + riwayat ke data operasional; arsipkan duplikat |
 | Audit admin | Aktif | Filter + export CSV di `/admin/audit` |
+| Kehadiran akun | Aktif | `/admin/online` — pusat & cabang; heartbeat `/api/presence`; Redis opsional + DB fallback; tanpa force-logout |
 | Nominal UKT | Tanpa kode unik | Frontend tidak menulis `uniqueTail`; tampilan pakai `uktBaseFeeAmount` (+ strip data lama). Sinkron backend Inkai (opsional) |
 | Unduh PDF UKT | Aktif | Tombol **Unduh PDF** di nota & export peserta (jspdf+html2canvas); Print tetap ada |
 | Email notifikasi | Opsional (Resend) | `notifyUser` kirim email bila `RESEND_API_KEY`; dipakai pesan admin, verifikasi, UKT, lifecycle; reset-password email ke ranting |
@@ -332,6 +335,8 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 
 ```
 /api/auth/*                 Login, register (+ identitas/sabuk lengkap), check-duplicate, forgot/reset password
+/api/presence               POST heartbeat kehadiran; DELETE clear (logout/ganti akun)
+/api/admin/presence         GET daftar sedang aktif / login 24 jam (pusat & cabang, scoped)
 /api/admin/members          POST create; GET list+KPI counts (filter cepat client-side)
 /api/admin/members/bulk-create  Input massal tambah anggota (maks 50)
 /api/admin/members/[id]     Detail + aksi (approve/NIA/set_rank/set_dojo/set_dues/dokumen/reset_password/nonaktif/hapus/restore/merge)
@@ -563,6 +568,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Fix UKT ranting multi: load anggota+registrasi semua managed dojo via Prisma; filter + kolom Ranting di UI ranting |
 | 22 Juli 2026 | Topbar admin: daftar email akun gabungan multi-ranting + pindah akun cepat (prefill Ganti Akun) |
 | 22 Juli 2026 | Fix detail anggota: overlay username/telepon dari Prisma; hapus hint password palsu (`nama+123`); tombol **Reset password** sementara (ranting/cabang, `PATCH reset_password`) |
+| 22 Juli 2026 | **Kehadiran akun**: `/admin/online` untuk pusat & cabang; heartbeat + `lastLoginAt`/`lastSeenAt`; Redis opsional; clear saat logout; catatan privasi di profil/akun; tanpa force-logout |
 
 ---
 

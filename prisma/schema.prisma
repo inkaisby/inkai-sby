@@ -81,6 +81,10 @@ model User {
   photoUrl          String?
   resetToken        String?        @unique
   resetTokenExpiry  DateTime?
+  /// Waktu authorize/login sukses terakhir (Prisma lokal).
+  lastLoginAt       DateTime?
+  /// Waktu aktivitas terakhir (heartbeat); dipakai deteksi online + fallback tanpa Redis.
+  lastSeenAt        DateTime?
   childrenMembers   Member[]       @relation("ParentChildren")
   member            Member?
   messages          Message[]
@@ -92,6 +96,9 @@ model User {
   roles             Role[]         @relation("UserRoles")
   events            Event[]        @relation("UserEvents")
   auditLogs         AuditLog[]
+
+  @@index([lastSeenAt])
+  @@index([lastLoginAt])
 }
 
 model Role {

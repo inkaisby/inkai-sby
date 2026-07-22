@@ -20,6 +20,7 @@ const DOJO_BLOCKED_EXACT = new Set([
   "/admin/organisasi",
   "/admin/carousel",
   "/admin/audit",
+  "/admin/online",
 ]);
 
 const DOJO_BLOCKED_PENGATURAN_CHILDREN = [

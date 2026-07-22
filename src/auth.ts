@@ -8,6 +8,7 @@ import {
   INKAI_TOKEN_COOKIE,
 } from "@/lib/inkai-api/cookies";
 import { isMemberLoginBlocked } from "@/lib/security/member-status";
+import { clearPresence, markUserLogin } from "@/lib/presence";
 
 declare module "next-auth" {
   interface User {
@@ -59,9 +60,16 @@ type BackendUser = {
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   events: {
-    async signOut() {
+    async signOut(message) {
       const cookieStore = await cookies();
       cookieStore.delete(INKAI_TOKEN_COOKIE);
+      const userId =
+        message && "token" in message
+          ? (message.token?.sub as string | undefined)
+          : undefined;
+      if (userId) {
+        await clearPresence(userId).catch(() => {});
+      }
     },
   },
   providers: [
@@ -109,6 +117,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const cookieStore = await cookies();
         cookieStore.set(INKAI_TOKEN_COOKIE, token, getInkaiTokenCookieOptions());
+
+        // Non-blocking: gagal presence tidak boleh gagalkan login.
+        void markUserLogin(user.id);
 
         return {
           id: user.id,

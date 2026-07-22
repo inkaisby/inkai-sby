@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { clearPresenceBeforeLogout } from "@/components/presence/PresenceHeartbeat";
 
 export function LogoutConfirmDialog({
   open,
@@ -26,6 +27,7 @@ export function LogoutConfirmDialog({
     if (loading) return;
     setLoading(true);
     try {
+      await clearPresenceBeforeLogout();
       await signOut({ callbackUrl: "/" });
     } catch {
       setLoading(false);

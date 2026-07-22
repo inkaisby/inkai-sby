@@ -4,6 +4,7 @@ import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { PresenceHeartbeat } from "@/components/presence/PresenceHeartbeat";
 
 export default function Providers({
   children,
@@ -19,6 +20,7 @@ export default function Providers({
       refetchOnWindowFocus={false}
     >
       <ThemeProvider>
+        <PresenceHeartbeat />
         {children}
         <Toaster
           position="top-center"

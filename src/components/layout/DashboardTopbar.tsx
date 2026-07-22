@@ -22,6 +22,7 @@ const ADMIN_TITLES: Record<string, string> = {
   "/admin/absensi": "Absensi",
   "/admin/carousel": "Carousel Beranda",
   "/admin/audit": "Log Audit",
+  "/admin/online": "Kehadiran akun",
   "/admin/notifikasi": "Notifikasi",
   "/admin/pengaturan": "Pengaturan",
   "/admin/pengaturan/ukt": "Pengaturan UKT",
