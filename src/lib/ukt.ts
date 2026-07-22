@@ -1089,8 +1089,8 @@ export function canApplyUktKyuBaru(
   row: UktMemberRow,
   _examResult: UktExamResult | null = row.examResult,
 ): boolean {
-  // Alur cabang: Verifikasi → Menunggu Ujian → isi Kyu Baru → Lulus → Selesai
-  return isUktBillingPaid(row);
+  // Alur cabang: Verifikasi → Menunggu Ujian → isi Kyu Baru (= otomatis Lulus+Selesai)
+  return isUktBillingPaid(row) && !isUktSelesai(row);
 }
 
 /**

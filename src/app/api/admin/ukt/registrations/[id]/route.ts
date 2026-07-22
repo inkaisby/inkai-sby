@@ -858,102 +858,74 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    const { res: settingRes, data: settingData } = await inkaiFetch(
-      `/v1/settings/${encodeURIComponent(uktExamResultKey(data.eventId, id))}`,
-      {},
+    // Isi Kyu Baru setelah Verifikasi = otomatis Lulus + Selesai
+    const examKey = uktExamResultKey(data.eventId, id);
+    await inkaiFetch(
+      `/v1/settings/${encodeURIComponent(examKey)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          value: {
+            result: "LULUS",
+            at: new Date().toISOString(),
+            by: authResult.user.email,
+            autoFromKyuBaru: true,
+          },
+        }),
+      },
       authResult.token,
     );
-    const examResult = settingRes.ok
-      ? String(
-          (settingData.data as { value?: { result?: string } } | undefined)?.value
-            ?.result ?? "",
-        ).toUpperCase()
-      : "";
 
-    if (examResult === "LULUS") {
-      const applied = await applyKyuBaruToMember({
-        registrationId: id,
-        newRank: data.newRank,
-        token: authResult.token,
-        memberIdHint: data.memberId,
-        previousRankHint: data.previousRank,
-      });
-
-      if (!applied.ok) {
-        return NextResponse.json(
-          { error: applied.error || "Gagal menerapkan Kyu Baru" },
-          { status: applied.status || 500 },
-        );
-      }
-
-      writeAuditLog({
-        userId: authResult.user.id,
-        email: authResult.user.email,
-        action: "UKT_KYU_BARU_APPLY",
-        details: `UKT ${id}: ${applied.kyuLama} → ${applied.kyuBaru} (member ${applied.memberId})`,
-        ip: getClientIp(request),
-        userAgent: request.headers.get("user-agent"),
-        token: authResult.token,
-      });
-
-      if (applied.memberId) {
-        await notifyUktStatusChange({
-          token: authResult.token,
-          memberId: applied.memberId,
-          memberName: String(
-            (applied.registration?.member as { fullName?: string } | undefined)
-              ?.fullName ?? "Anggota",
-          ),
-          periodTitle: String(
-            (applied.registration?.event as { title?: string } | undefined)
-              ?.title ?? "UKT",
-          ),
-          displayStatus: "selesai",
-          extra: `Sabuk resmi diperbarui ke ${applied.kyuBaru}.`,
-        });
-      }
-
-      return NextResponse.json({
-        success: true,
-        registration: applied.registration,
-        kyuLama: applied.kyuLama,
-        kyuBaru: applied.kyuBaru,
-        selesai: true,
-        message: `Sabuk diperbarui: ${applied.kyuBaru}`,
-      });
-    }
-
-    const saved = await saveUktKyuBaruTarget({
+    const applied = await applyKyuBaruToMember({
       registrationId: id,
       newRank: data.newRank,
       token: authResult.token,
       memberIdHint: data.memberId || String(reg?.memberId ?? ""),
       previousRankHint: data.previousRank,
     });
-    if (!saved.ok) {
+
+    if (!applied.ok) {
       return NextResponse.json(
-        { error: saved.error || "Gagal menyimpan Kyu Baru" },
-        { status: saved.status || 500 },
+        { error: applied.error || "Gagal menerapkan Kyu Baru" },
+        { status: applied.status || 500 },
       );
     }
 
     writeAuditLog({
       userId: authResult.user.id,
       email: authResult.user.email,
-      action: "UKT_KYU_BARU_TARGET",
-      details: `UKT ${id}: target ${saved.kyuLama} → ${saved.kyuBaru} (menunggu Lulus)`,
+      action: "UKT_KYU_BARU_APPLY",
+      details: `UKT ${id}: ${applied.kyuLama} → ${applied.kyuBaru} (member ${applied.memberId}) [auto Lulus→Selesai]`,
       ip: getClientIp(request),
       userAgent: request.headers.get("user-agent"),
       token: authResult.token,
     });
 
+    if (applied.memberId) {
+      await notifyUktStatusChange({
+        token: authResult.token,
+        memberId: applied.memberId,
+        memberName: String(
+          (applied.registration?.member as { fullName?: string } | undefined)
+            ?.fullName ?? "Anggota",
+        ),
+        periodTitle: String(
+          (applied.registration?.event as { title?: string } | undefined)
+            ?.title ?? "UKT",
+        ),
+        displayStatus: "selesai",
+        extra: `Sabuk resmi diperbarui ke ${applied.kyuBaru}.`,
+      });
+    }
+
     return NextResponse.json({
       success: true,
-      registration: saved.registration,
-      kyuLama: saved.kyuLama,
-      kyuBaru: saved.kyuBaru,
-      selesai: false,
-      message: `Kyu Baru disimpan. Tandai Lulus untuk menyelesaikan.`,
+      registration: applied.registration,
+      kyuLama: applied.kyuLama,
+      kyuBaru: applied.kyuBaru,
+      examResult: "LULUS",
+      selesai: true,
+      message: `Kyu Baru disimpan — status Selesai: ${applied.kyuBaru}`,
     });
   }
 
