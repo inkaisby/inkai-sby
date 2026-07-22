@@ -514,6 +514,63 @@ export type UktMemberRow = {
   registrationWaiver?: UktRegistrationWaiver | null;
 };
 
+/** Item snapshot refresh cepat — hanya field pendaftaran/tagihan periode. */
+export type UktRegistrationSnapshotItem = {
+  memberId: string;
+  registrationId: string;
+  status: string;
+  kyuLama: string | null;
+  kyuBaru: string | null;
+  billingId: string | null;
+  billingStatus: string | null;
+  billingAmount: number | null;
+  examResult: UktExamResult | null;
+  examPresent: boolean | null;
+  registrationWaiver: UktRegistrationWaiver | null;
+};
+
+/**
+ * Gabungkan snapshot registrasi ke pool anggota yang sudah ada di UI.
+ * Anggota yang hilang dari snapshot → Belum Daftar (tanpa refetch pool).
+ */
+export function applyUktRegistrationSnapshotToRows(
+  rows: UktMemberRow[],
+  participants: UktRegistrationSnapshotItem[],
+): UktMemberRow[] {
+  const byMember = new Map(participants.map((p) => [p.memberId, p]));
+  return rows.map((r) => {
+    const p = byMember.get(r.memberId);
+    if (!p) {
+      if (!r.registrationId) return r;
+      return {
+        ...r,
+        registrationId: null,
+        billingId: null,
+        billingStatus: null,
+        billingAmount: null,
+        status: "BELUM_DAFTAR",
+        examResult: null,
+        examPresent: null,
+        kyuBaru: null,
+        registrationWaiver: null,
+      };
+    }
+    return {
+      ...r,
+      registrationId: p.registrationId,
+      status: p.status,
+      billingId: p.billingId,
+      billingStatus: p.billingStatus,
+      billingAmount: p.billingAmount,
+      examResult: p.examResult,
+      examPresent: p.examPresent,
+      registrationWaiver: p.registrationWaiver,
+      kyuLama: p.kyuLama?.trim() ? p.kyuLama : r.kyuLama,
+      kyuBaru: p.kyuBaru,
+    };
+  });
+}
+
 /** Minimum kehadiran latihan per semester agar boleh daftar UKT (48 sesi = 100%). */
 export const UKT_MIN_ATTENDANCE_PCT = 75;
 export const UKT_SEMESTER_SESSION_TOTAL = 48;

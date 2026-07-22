@@ -44,6 +44,7 @@ import {
   type UktPeriodMeta,
   type UktDepositRecord,
   type UktRegistrationWaiver,
+  type UktRegistrationSnapshotItem,
   type UktSemester,
 } from "@/lib/ukt";
 
@@ -1412,3 +1413,157 @@ export async function fetchUktDashboardData(
     ok: eventsRes.res.ok || membersResult.ok,
   };
 }
+
+/** Snapshot peserta periode untuk refresh cepat (tanpa pool anggota penuh). */
+export type { UktRegistrationSnapshotItem };
+
+/**
+ * Refresh ringan: hanya detail event + tagihan + setting periode.
+ * Skip daftar events, fee templates, absensi semester, verifikasi pending, pool anggota.
+ */
+export async function fetchUktTableRefreshSnapshot(
+  token: string,
+  periodId: string,
+): Promise<{
+  periodId: string;
+  participants: UktRegistrationSnapshotItem[];
+  depositMap: Record<string, UktDepositRecord>;
+}> {
+  const [
+    eventDetail,
+    billingsRes,
+    examSettings,
+    waiverSettings,
+    examAttendanceSettings,
+    depositSettings,
+  ] = await Promise.all([
+    fetchEventDetail(token, periodId),
+    inkaiFetch("/v1/billing?limit=250", {}, token, {
+      timeoutMs: 8_000,
+      retries: 0,
+    }),
+    fetchSettingsByPrefix(token, `ukt-exam-result:${periodId}:`),
+    fetchSettingsByPrefix(token, `ukt-registration-waiver:${periodId}:`),
+    fetchSettingsByPrefix(token, `ukt-exam-attendance:${periodId}:`),
+    fetchSettingsByPrefix(token, `ukt-deposit:${periodId}:`),
+  ]);
+
+  const examResultMap = buildUktExamResultMap(examSettings, periodId);
+  const examAttendanceMap = buildUktExamAttendanceMap(
+    examAttendanceSettings,
+    periodId,
+  );
+  const depositMap = buildUktDepositMap(depositSettings, periodId);
+  const waiverMap = buildUktWaiverMap(waiverSettings, periodId);
+
+  const billingMap = new Map<string, Record<string, unknown>>();
+  const registrations =
+    (eventDetail?.registrations as Array<Record<string, unknown>>) ?? [];
+
+  for (const reg of registrations) {
+    const member = reg.member as Record<string, unknown> | undefined;
+    const billings = (member?.billings as Array<Record<string, unknown>>) ?? [];
+    const billing = billings.find(
+      (b) => String(b.registrationId ?? "") === String(reg.id),
+    );
+    if (billing?.id) billingMap.set(String(reg.id), billing);
+  }
+
+  if (billingsRes.res.ok) {
+    const globalBillings =
+      (billingsRes.data.data as Array<Record<string, unknown>>) ?? [];
+    for (const b of globalBillings) {
+      const rid = b.registrationId != null ? String(b.registrationId) : "";
+      if (!rid || billingMap.has(rid)) continue;
+      if (b.isDeleted === true) continue;
+      billingMap.set(rid, b);
+    }
+    for (const reg of registrations) {
+      const regId = String(reg.id ?? "");
+      if (!regId || billingMap.has(regId)) continue;
+      const mid = String(
+        (reg.member as { id?: string } | undefined)?.id ?? reg.memberId ?? "",
+      );
+      if (!mid) continue;
+      const match = globalBillings.find((b) => {
+        if (b.isDeleted === true) return false;
+        if (String(b.memberId ?? "") !== mid) return false;
+        const rid = String(b.registrationId ?? "");
+        if (rid && rid !== regId) return false;
+        const st = String(b.status ?? "").toUpperCase();
+        if (st === "PAID" || st === "SUCCESS" || st === "CANCELLED") return false;
+        const type = String(b.type ?? "").toUpperCase();
+        const desc = String(b.description ?? "").toUpperCase();
+        return (
+          type.includes("UKT") || type === "EVENT" || desc.includes("UKT")
+        );
+      });
+      if (match?.id) billingMap.set(regId, match);
+    }
+  }
+
+  const participants: UktRegistrationSnapshotItem[] = [];
+  for (const reg of registrations) {
+    const memberId = String(
+      (reg.member as { id?: string } | undefined)?.id ?? reg.memberId ?? "",
+    );
+    const registrationId = String(reg.id ?? "");
+    if (!memberId || !registrationId) continue;
+
+    const member = reg.member as
+      | { currentRank?: string; billings?: unknown }
+      | undefined;
+    const category = reg.category as { name?: string } | null | undefined;
+    const registeredRank =
+      typeof reg.registeredRank === "string" ? reg.registeredRank : null;
+    const regBilling = billingMap.get(registrationId) ?? null;
+    const billingStatus = regBilling?.status ? String(regBilling.status) : null;
+    const paid =
+      billingStatus === "PAID" || billingStatus === "SUCCESS";
+    const decoded = decodeUktRegisteredRank(registeredRank);
+    const kyuBaruHint = decoded.kyuBaru || category?.name || null;
+    const memberRank = String(member?.currentRank ?? "");
+    const lockSnapshot = Boolean(
+      paid &&
+        kyuBaruHint &&
+        ranksEqual(memberRank, kyuBaruHint) &&
+        decoded.kyuLama &&
+        !ranksEqual(decoded.kyuLama, kyuBaruHint),
+    );
+    const { kyuLama, kyuBaru } = resolveUktRankColumns(
+      registeredRank,
+      memberRank,
+      category?.name,
+      { lockSnapshot },
+    );
+
+    participants.push({
+      memberId,
+      registrationId,
+      status: reg.status ? String(reg.status) : "APPROVED",
+      kyuLama: kyuLama || null,
+      kyuBaru: kyuBaru || null,
+      billingId: regBilling?.id ? String(regBilling.id) : null,
+      billingStatus,
+      billingAmount: uktBaseFeeAmount(
+        regBilling?.amount != null ? Number(regBilling.amount) : null,
+        regBilling?.baseFeeAmount != null
+          ? Number(regBilling.baseFeeAmount)
+          : null,
+      ),
+      examResult: examResultMap.get(registrationId) ?? null,
+      examPresent: examAttendanceMap.get(registrationId) ?? null,
+      registrationWaiver: waiverMap.get(memberId) ?? null,
+    });
+  }
+
+  return {
+    periodId,
+    participants,
+    depositMap: Object.fromEntries(depositMap.entries()) as Record<
+      string,
+      UktDepositRecord
+    >,
+  };
+}
+

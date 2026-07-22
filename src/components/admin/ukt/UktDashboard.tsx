@@ -86,9 +86,11 @@ import {
 } from "@/lib/belt";
 import {
   type UktMemberRow,
+  type UktDepositRecord,
+  type UktRegistrationSnapshotItem,
+  applyUktRegistrationSnapshotToRows,
   type UktSemester,
   type BeltFeeKey,
-  type UktDepositRecord,
   type UktDepositStatus,
   type UktPeriodMeta,
   BELT_FEE_KEYS,
@@ -450,26 +452,29 @@ export function UktDashboard(props: Props) {
   const requestServerRowsSync = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (tableRefreshing) return;
+      if (!props.selectedPeriodId) {
+        if (!opts?.silent) toast.error("Pilih periode UKT terlebih dahulu");
+        return;
+      }
       setTableRefreshing(true);
       try {
-        const qs = new URLSearchParams({
-          semester: props.semester,
-          year: String(props.year),
-          viewMode,
-        });
-        if (props.selectedPeriodId) qs.set("period", props.selectedPeriodId);
-        if (props.createMode) qs.set("create", "1");
+        const qs = new URLSearchParams({ period: props.selectedPeriodId });
         const res = await fetch(`/api/admin/ukt/table?${qs.toString()}`, {
           cache: "no-store",
         });
         const data = await parseApiJson<{
           error?: string;
-          allRows?: UktMemberRow[];
+          participants?: UktRegistrationSnapshotItem[];
           depositMap?: Record<string, UktDepositRecord>;
         }>(res);
         if (!res.ok) throw new Error(data.error || "Gagal memuat ulang tabel");
         pendingServerRowsSyncRef.current = false;
-        setRows(normalizeRows(data.allRows ?? []));
+        const participants = data.participants ?? [];
+        setRows((prev) =>
+          normalizeRows(
+            applyUktRegistrationSnapshotToRows(prev, participants),
+          ),
+        );
         setDepositMap(data.depositMap ?? {});
         if (!opts?.silent) toast.success("Tabel diperbarui");
       } catch (e) {
@@ -482,15 +487,7 @@ export function UktDashboard(props: Props) {
         setTableRefreshing(false);
       }
     },
-    [
-      tableRefreshing,
-      props.semester,
-      props.year,
-      props.selectedPeriodId,
-      props.createMode,
-      viewMode,
-      normalizeRows,
-    ],
+    [tableRefreshing, props.selectedPeriodId, normalizeRows],
   );
 
   useEffect(() => {
