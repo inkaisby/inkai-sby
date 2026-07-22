@@ -83,7 +83,7 @@ export function DashboardTopbar({
   const backHref = showAdmin ? resolveAdminBackHref(pathname) : null;
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6">
+    <header className="sticky top-0 z-40 flex min-h-16 items-center justify-between gap-2 border-b bg-background/95 px-4 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6">
       <div className="flex min-w-0 items-center gap-2">
         <MobileDashboardNav title={title} links={links} />
         {backHref ? (

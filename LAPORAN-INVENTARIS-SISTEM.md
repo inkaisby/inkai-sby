@@ -342,6 +342,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/ukt/table        Refresh cepat tabel UKT (snapshot registrasi/tagihan periode, merge ke rows lokal)
 /api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees (snapshot/global), Kyu, exam-day, deposit, period-meta, hapus pendaftaran + tagihan terkait
 /api/cron/ukt-reminders     Cron H-3 pengingat UKT (batas daftar / jadwal ranting)
+/api/admin/account-peers   Email akun ranting gabungan (overlap managed dojos) untuk topbar ganti akun
 /api/admin/pengaturan/*     User, cabang, ranting, wilayah-accounts, roles, geofencing, akun, kebijakan (pejabat dokumen), **ukt** (syarat daftar)
 /api/admin/verifications/*  Proses klaim
 /api/admin/carousel/*       Carousel beranda
@@ -559,6 +560,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Fix ranting daftar UKT "Akses wilayah ditolak": jangan PATCH anggota pakai token ranting; fallback daftar+tagihan via Prisma (atau INKAI_SERVICE_TOKEN) setelah cek scope dojo |
 | 22 Juli 2026 | Filter ranting UKT cabang: opsi **Gabungan** dari akun multi-ranting (mis. Gabungan GADING · CAKRA, MANYAR) |
 | 22 Juli 2026 | Fix UKT ranting multi: load anggota+registrasi semua managed dojo via Prisma; filter + kolom Ranting di UI ranting |
+| 22 Juli 2026 | Topbar admin: daftar email akun gabungan multi-ranting + pindah akun cepat (prefill Ganti Akun) |
 
 ---
 

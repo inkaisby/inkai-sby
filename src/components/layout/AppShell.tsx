@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { SidebarNavLink } from "@/components/layout/SidebarNavLink";
 import Image from "next/image";
@@ -18,7 +18,18 @@ import { LogoutConfirmDialog } from "@/components/auth/LogoutConfirmDialog";
 import { SwitchAccountModal } from "@/components/auth/SwitchAccountModal";
 import { SidebarNavGroup } from "@/components/layout/SidebarNavGroup";
 import { isNavGroup, type NavItem } from "@/lib/dashboard-nav";
-import { LogOut, Home, User, Bell, ArrowLeftRight } from "lucide-react";
+import {
+  listRecentSwitchAccounts,
+  rememberSwitchAccount,
+} from "@/lib/switch-accounts-storage";
+import { LogOut, Home, User, Bell, ArrowLeftRight, Check } from "lucide-react";
+
+type PeerAccount = {
+  email: string;
+  fullName: string | null;
+  dojoNames: string[];
+  isCurrent: boolean;
+};
 
 export function UserMenu({
   name,
@@ -30,7 +41,10 @@ export function UserMenu({
   showAdmin?: boolean;
 }) {
   const [switchOpen, setSwitchOpen] = useState(false);
+  const [switchPrefill, setSwitchPrefill] = useState("");
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [peers, setPeers] = useState<PeerAccount[]>([]);
+  const [recentEmails, setRecentEmails] = useState<string[]>([]);
 
   const initials = name
     .split(" ")
@@ -39,65 +53,204 @@ export function UserMenu({
     .slice(0, 2)
     .toUpperCase();
 
+  const refreshRecent = useCallback(() => {
+    setRecentEmails(
+      listRecentSwitchAccounts({ excludeEmail: email }).map((r) => r.email),
+    );
+  }, [email]);
+
+  useEffect(() => {
+    if (email) rememberSwitchAccount(email);
+    refreshRecent();
+  }, [email, refreshRecent]);
+
+  useEffect(() => {
+    if (!showAdmin) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/admin/account-peers", {
+          cache: "no-store",
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          peers?: PeerAccount[];
+        };
+        if (!cancelled && res.ok) {
+          setPeers(data.peers ?? []);
+        }
+      } catch {
+        if (!cancelled) setPeers([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showAdmin, email]);
+
+  const linkedEmails = useMemo(() => {
+    const current = email.trim().toLowerCase();
+    const fromPeers = peers
+      .map((p) => p.email.trim().toLowerCase())
+      .filter(Boolean);
+    const merged = [...fromPeers];
+    for (const r of recentEmails) {
+      if (!merged.includes(r)) merged.push(r);
+    }
+    if (current && !merged.includes(current)) {
+      merged.unshift(current);
+    }
+    // Unik, current dulu
+    const uniq: string[] = [];
+    for (const e of merged) {
+      if (!uniq.includes(e)) uniq.push(e);
+    }
+    uniq.sort((a, b) => {
+      if (a === current) return -1;
+      if (b === current) return 1;
+      return a.localeCompare(b);
+    });
+    return uniq;
+  }, [peers, recentEmails, email]);
+
+  const openSwitch = (prefill = "") => {
+    setSwitchPrefill(prefill);
+    setSwitchOpen(true);
+  };
+
+  const otherLinked = linkedEmails.filter(
+    (e) => e.toLowerCase() !== email.trim().toLowerCase(),
+  );
+
   return (
     <>
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="gap-2">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-inkai-red text-white text-xs">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          <span className="hidden sm:inline text-sm">{name}</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <div className="px-2 py-1.5 text-sm">
-          <p className="font-medium">{name}</p>
-          <p className="text-xs text-muted-foreground">{email}</p>
-        </div>
-        <DropdownMenuItem asChild>
-          <Link href={showAdmin ? "/admin/notifikasi" : "/dashboard/notifikasi"}>
-            <Bell className="mr-2 h-4 w-4" />
-            Notifikasi
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/">
-            <Home className="mr-2 h-4 w-4" />
-            Beranda Publik
-          </Link>
-        </DropdownMenuItem>
-        {!showAdmin && (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            className="h-auto max-w-[min(100vw-8rem,16rem)] gap-2 px-2 py-1.5"
+          >
+            <Avatar className="h-8 w-8 shrink-0">
+              <AvatarFallback className="bg-inkai-red text-xs text-white">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <span className="hidden min-w-0 flex-col items-start text-left sm:flex">
+              <span className="truncate text-xs font-semibold leading-tight">
+                {email || name}
+              </span>
+              {otherLinked.slice(0, 3).map((e) => (
+                <span
+                  key={e}
+                  className="truncate text-[10px] leading-tight text-muted-foreground"
+                >
+                  {e}
+                </span>
+              ))}
+              {otherLinked.length > 3 ? (
+                <span className="text-[10px] text-muted-foreground">
+                  +{otherLinked.length - 3} akun lain
+                </span>
+              ) : null}
+            </span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-72">
+          <div className="px-2 py-1.5 text-sm">
+            <p className="font-medium">{name}</p>
+            <p className="text-xs text-muted-foreground">{email}</p>
+          </div>
+
+          {linkedEmails.length > 1 && (
+            <>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Akun gabungan / pindah
+                </p>
+              </div>
+              {linkedEmails.map((e) => {
+                const isCurrent =
+                  e.toLowerCase() === email.trim().toLowerCase();
+                const peer = peers.find(
+                  (p) => p.email.toLowerCase() === e.toLowerCase(),
+                );
+                return (
+                  <DropdownMenuItem
+                    key={e}
+                    disabled={isCurrent}
+                    onSelect={() => {
+                      if (!isCurrent) openSwitch(e);
+                    }}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <span className="flex w-full items-center gap-2">
+                      {isCurrent ? (
+                        <Check className="h-3.5 w-3.5 shrink-0 text-inkai-red" />
+                      ) : (
+                        <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      )}
+                      <span className="truncate font-mono text-xs">{e}</span>
+                    </span>
+                    {peer?.dojoNames?.length ? (
+                      <span className="pl-5 text-[10px] text-muted-foreground">
+                        {peer.dojoNames.join(" · ")}
+                      </span>
+                    ) : null}
+                  </DropdownMenuItem>
+                );
+              })}
+            </>
+          )}
+
+          <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Link href="/dashboard">
-              <User className="mr-2 h-4 w-4" />
-              Dashboard Anggota
+            <Link href={showAdmin ? "/admin/notifikasi" : "/dashboard/notifikasi"}>
+              <Bell className="mr-2 h-4 w-4" />
+              Notifikasi
             </Link>
           </DropdownMenuItem>
-        )}
-        <DropdownMenuItem onSelect={() => setSwitchOpen(true)}>
-          <ArrowLeftRight className="mr-2 h-4 w-4" />
-          Ganti Akun
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={() => setLogoutOpen(true)}
-          className="text-destructive"
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          Keluar
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuItem asChild>
+            <Link href="/">
+              <Home className="mr-2 h-4 w-4" />
+              Beranda Publik
+            </Link>
+          </DropdownMenuItem>
+          {!showAdmin && (
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard">
+                <User className="mr-2 h-4 w-4" />
+                Dashboard Anggota
+              </Link>
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onSelect={() => openSwitch("")}>
+            <ArrowLeftRight className="mr-2 h-4 w-4" />
+            Ganti Akun lain…
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => setLogoutOpen(true)}
+            className="text-destructive"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Keluar
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-    <SwitchAccountModal
-      open={switchOpen}
-      onOpenChange={setSwitchOpen}
-      currentEmail={email}
-    />
-    <LogoutConfirmDialog open={logoutOpen} onOpenChange={setLogoutOpen} />
+      <SwitchAccountModal
+        open={switchOpen}
+        onOpenChange={(open) => {
+          setSwitchOpen(open);
+          if (!open) {
+            setSwitchPrefill("");
+            refreshRecent();
+          }
+        }}
+        currentEmail={email}
+        initialEmail={switchPrefill}
+      />
+      <LogoutConfirmDialog open={logoutOpen} onOpenChange={setLogoutOpen} />
     </>
   );
 }
@@ -139,15 +292,15 @@ export function AppSidebar({
             (item.href !== "/dashboard" &&
               item.href !== "/admin" &&
               pathname.startsWith(item.href));
-            return (
-              <SidebarNavLink
-                key={item.href}
-                href={item.href}
-                label={item.label}
-                isActive={isActive}
-                badge={item.badge}
-              />
-            );
+          return (
+            <SidebarNavLink
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              isActive={isActive}
+              badge={item.badge}
+            />
+          );
         })}
       </nav>
     </aside>

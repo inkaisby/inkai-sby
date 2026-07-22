@@ -20,6 +20,7 @@ import { useNavigation } from "@/components/layout/NavigationProvider";
 import { resolvePageForNewAccount } from "@/lib/auth/post-login-redirect";
 import { getPrimaryAdminRole, ROLE_LABELS } from "@/lib/rbac";
 import { showError, showSuccess } from "@/lib/client-toast";
+import { rememberSwitchAccount } from "@/lib/switch-accounts-storage";
 
 const MIN_TRANSITION_MS = 750;
 
@@ -33,10 +34,13 @@ export function SwitchAccountModal({
   open,
   onOpenChange,
   currentEmail,
+  initialEmail = "",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentEmail: string;
+  /** Prefill dari daftar akun gabungan / riwayat. */
+  initialEmail?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -57,8 +61,18 @@ export function SwitchAccountModal({
   }, []);
 
   useEffect(() => {
-    if (!open) resetForm();
-  }, [open, resetForm]);
+    if (!open) {
+      resetForm();
+      return;
+    }
+    const prefill = initialEmail.trim();
+    if (prefill) {
+      setIdentifier(prefill);
+      setPassword("");
+      setError("");
+      setPhase("idle");
+    }
+  }, [open, initialEmail, resetForm]);
 
   const overlayActive = phase === "switching" || phase === "adapting";
   const overlayMessage =
@@ -149,6 +163,8 @@ export function SwitchAccountModal({
       await wait(Math.max(0, MIN_TRANSITION_MS - elapsed));
 
       showSuccess(`Berhasil ganti ke ${displayName} (${roleLabel})`);
+      rememberSwitchAccount(trimmedId);
+      if (currentEmail) rememberSwitchAccount(currentEmail);
       resetForm();
     } catch {
       setPhase("idle");
