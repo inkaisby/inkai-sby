@@ -1071,7 +1071,8 @@ export async function DELETE(request: Request, context: RouteContext) {
     const event = registration.event as { title?: string } | undefined;
     periodTitle = String(event?.title ?? "UKT");
     for (const b of member?.billings ?? []) {
-      if (String(b.registrationId ?? "") === id || isUktish(b) || !b.registrationId) {
+      const rid = String(b.registrationId ?? "");
+      if (rid === id || (!rid && isUktish(b))) {
         considerBilling(b);
       }
     }
@@ -1115,29 +1116,54 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (memberId) {
     const list = await collectMemberBillings(memberId);
     for (const b of list) {
-      if (String(b.registrationId ?? "") === id || isUktish(b)) {
+      const rid = String(b.registrationId ?? "");
+      if (rid === id || (!rid && isUktish(b))) {
         considerBilling(b);
       }
     }
   }
 
   try {
+    // Hanya tagihan tertaut registrasi ini / ID dari klien — jangan hapus semua
+    // tagihan PAID anggota (iuran bulanan dll.) yang bisa merusak status anggota.
     const locals = await prisma.billing.findMany({
       where: {
         isDeleted: false,
         OR: [
           { registrationId: id },
           ...(billingIdFromClient ? [{ id: billingIdFromClient }] : []),
-          ...(memberId
-            ? [{ memberId, status: { in: ["PAID", "SUCCESS", "APPROVED"] } }]
-            : []),
         ],
       },
-      select: { id: true, status: true },
+      select: { id: true, status: true, type: true, description: true },
       take: 50,
     });
     for (const local of locals) {
       considerBilling(local);
+    }
+    // Cadangan: tagihan UKT anggota yang registrationId sudah putus/null
+    // (setelah unlink gagal) — tetap batasi type/desc UKT, bukan semua PAID.
+    if (memberId && billingIds.size === 0) {
+      const orphanUkt = await prisma.billing.findMany({
+        where: {
+          memberId,
+          isDeleted: false,
+          OR: [{ registrationId: null }, { registrationId: id }],
+          status: { in: ["PAID", "SUCCESS", "APPROVED", "PENDING", "WAITING_VERIFICATION"] },
+        },
+        select: {
+          id: true,
+          status: true,
+          type: true,
+          description: true,
+          registrationId: true,
+        },
+        take: 20,
+      });
+      for (const b of orphanUkt) {
+        if (String(b.registrationId ?? "") === id || isUktish(b)) {
+          considerBilling(b);
+        }
+      }
     }
   } catch (error) {
     console.error("[UKT DELETE] prisma billing lookup failed", error);
@@ -1197,23 +1223,11 @@ export async function DELETE(request: Request, context: RouteContext) {
     const retryIds = new Set<string>();
     for (const b of list) {
       if (!b.id) continue;
-      if (String(b.registrationId ?? "") === id || isUktish(b)) {
+      const rid = String(b.registrationId ?? "");
+      // Hanya tagihan periode ini, atau UKT yatim (registrationId null)
+      if (rid === id || (!rid && isUktish(b))) {
         retryIds.add(String(b.id));
         considerBilling(b);
-      }
-    }
-    if (retryIds.size === 0) {
-      for (const b of list) {
-        if (!b.id) continue;
-        const st = String(b.status ?? "").toUpperCase();
-        const rid = String(b.registrationId ?? "");
-        if (
-          (st === "PAID" || st === "SUCCESS" || st === "APPROVED") &&
-          (!rid || rid === id)
-        ) {
-          retryIds.add(String(b.id));
-          considerBilling(b);
-        }
       }
     }
     if (retryIds.size > 0) {
@@ -1289,6 +1303,45 @@ export async function DELETE(request: Request, context: RouteContext) {
     userAgent: request.headers.get("user-agent"),
     token,
   });
+
+  // Hapus pendaftaran UKT tidak boleh mengarsipkan anggota. Pulihkan bila
+  // side-effect API force-delete tagihan menandai isDeleted.
+  if (memberId) {
+    try {
+      const localMember = await prisma.member.findFirst({
+        where: { id: memberId },
+        select: { id: true, isDeleted: true, status: true },
+      });
+      if (localMember?.isDeleted) {
+        await prisma.member.update({
+          where: { id: memberId },
+          data: {
+            isDeleted: false,
+            status: localMember.status === "INACTIVE" ? localMember.status : "Active",
+          },
+        });
+        await inkaiFetch(
+          `/v1/members/${memberId}`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              isDeleted: false,
+              status:
+                localMember.status === "INACTIVE" ? "INACTIVE" : "Active",
+            }),
+          },
+          token,
+          FAST,
+        );
+        console.warn(
+          "[UKT DELETE] restored member soft-deleted during UKT cancel",
+          memberId,
+        );
+      }
+    } catch (error) {
+      console.error("[UKT DELETE] member restore check failed", error);
+    }
+  }
 
   if (isDojo) {
     void notifyUktBranchAdmins({

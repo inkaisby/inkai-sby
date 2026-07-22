@@ -1,4 +1,5 @@
 import { inkaiFetch } from "@/lib/inkai-api/server";
+import { prisma } from "@/lib/prisma";
 import {
   buildUktSemesterWindow,
   buildUktWaiverMap,
@@ -52,6 +53,110 @@ async function fetchMemberAttendancePct(
   return { ok: true, pct: pctByMember.get(memberId) ?? 0 };
 }
 
+/**
+ * Ambil anggota untuk gate daftar UKT.
+ * Inkai GET by-id sering 404 untuk token ranting / setelah force-hapus tagihan
+ * menandai soft-delete — fallback Prisma (+ pulihkan isDeleted bila perlu).
+ */
+async function resolveMemberForUktRegister(
+  token: string,
+  memberId: string,
+): Promise<
+  | { ok: true; member: Record<string, unknown> }
+  | { ok: false; error: string }
+> {
+  const { res, data } = await inkaiFetch(`/v1/members/${memberId}`, {}, token);
+  if (res.ok) {
+    return { ok: true, member: (data.data as Record<string, unknown>) ?? {} };
+  }
+
+  let local: {
+    id: string;
+    isDeleted: boolean;
+    status: string;
+    fullName: string;
+    currentRank: string;
+    birthCertificateUrl: string | null;
+    bpjsCardUrl: string | null;
+  } | null = null;
+
+  try {
+    local = await prisma.member.findFirst({
+      where: { id: memberId },
+      select: {
+        id: true,
+        isDeleted: true,
+        status: true,
+        fullName: true,
+        currentRank: true,
+        birthCertificateUrl: true,
+        bpjsCardUrl: true,
+      },
+    });
+  } catch (error) {
+    console.error("[ukt-register] prisma member lookup failed", error);
+  }
+
+  if (!local) {
+    return { ok: false, error: "Anggota tidak ditemukan" };
+  }
+
+  // Hapus peserta UKT tidak boleh mengarsipkan anggota — pulihkan agar daftar ulang.
+  if (local.isDeleted) {
+    const restoreStatus =
+      local.status === "INACTIVE" || local.status === "Inactive"
+        ? local.status
+        : "Active";
+    try {
+      await prisma.member.update({
+        where: { id: memberId },
+        data: { isDeleted: false, status: restoreStatus },
+      });
+      await inkaiFetch(
+        `/v1/members/${memberId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ isDeleted: false, status: restoreStatus }),
+        },
+        token,
+        { timeoutMs: 5_000, retries: 0 },
+      );
+      console.warn(
+        "[ukt-register] restored soft-deleted member for re-register",
+        memberId,
+      );
+    } catch (error) {
+      console.error("[ukt-register] restore soft-deleted member failed", error);
+      return {
+        ok: false,
+        error:
+          "Anggota terarsip setelah hapus UKT. Minta cabang pulihkan di Kelola Anggota, lalu daftar ulang.",
+      };
+    }
+  }
+
+  // Coba ulang Inkai setelah restore; jika tetap gagal pakai data Prisma.
+  const retry = await inkaiFetch(`/v1/members/${memberId}`, {}, token);
+  if (retry.res.ok) {
+    return {
+      ok: true,
+      member: (retry.data.data as Record<string, unknown>) ?? {},
+    };
+  }
+
+  return {
+    ok: true,
+    member: {
+      id: local.id,
+      fullName: local.fullName,
+      currentRank: local.currentRank,
+      status: local.isDeleted ? "Active" : local.status,
+      birthCertificateUrl: local.birthCertificateUrl,
+      bpjsCardUrl: local.bpjsCardUrl,
+    },
+  };
+}
+
 export async function validateUktRegistrationEligibility(
   token: string,
   eventId: string,
@@ -70,13 +175,13 @@ export async function validateUktRegistrationEligibility(
 
   const [
     { res: eventRes, data: eventData },
-    { res: memberRes, data: memberData },
+    memberResolved,
     billingsScoped,
     waiverRes,
     metaRes,
   ] = await Promise.all([
     inkaiFetch(`/v1/events/${eventId}`, {}, token),
-    inkaiFetch(`/v1/members/${memberId}`, {}, token),
+    resolveMemberForUktRegister(token, memberId),
     skipMemberRequirements || !req.requireNoOutstandingDues
       ? Promise.resolve({
           res: { ok: true } as Response,
@@ -102,8 +207,8 @@ export async function validateUktRegistrationEligibility(
   if (!eventRes.ok) {
     return { ok: false, error: "Periode UKT tidak ditemukan" };
   }
-  if (!memberRes.ok) {
-    return { ok: false, error: "Anggota tidak ditemukan" };
+  if (!memberResolved.ok) {
+    return { ok: false, error: memberResolved.error };
   }
 
   let billingsRes = billingsScoped;
@@ -118,7 +223,7 @@ export async function validateUktRegistrationEligibility(
   }
 
   const event = eventData.data as Record<string, unknown>;
-  const member = memberData.data as Record<string, unknown>;
+  const member = memberResolved.member;
   const periodMeta = parseUktPeriodMetaValue(
     metaRes.res.ok
       ? ((metaRes.data.data as { value?: unknown })?.value ?? null)

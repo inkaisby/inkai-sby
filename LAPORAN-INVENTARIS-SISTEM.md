@@ -223,7 +223,7 @@ Pusat / Nasional
 11b. **Rekonsiliasi setoran** (kartu di UI **cabang**): tabel Ranting / Peserta / Lunas / Total / Status setor via `buildUktDepositReconciliation`; ranting tidak lagi menandai setor dari halaman UKT (diganti alur nota + verifikasi cabang).
 11c. **Cron H-3** (`/api/cron/ukt-reminders`, `vercel.json`): pengingat batas daftar & notifikasi jadwal ke ranting (idempoten lewat `notified*` di period-meta).
 11d. **Fokus periode aktif:** resolusi mengutamakan non-arsip; judul kanonis `UKT Semester {I|II}-{tahun}`; buat periode baru mengarsipkan term yang sudah tutup; sidebar **UKT → Pendaftaran / Arsip UKT** (bukan dropdown campuran); anggota hanya melihat periode aktif. Arsipkan dari Pendaftaran mengarahkan ke Arsip; buka arsip mengembalikan ke Pendaftaran. **Arsip UKT** hanya menampilkan peserta yang sudah mendaftar (tanpa pool “Belum Daftar”).
-12. Dashboard anggota menampilkan **kartu Status UKT** di beranda & Prestasi (termasuk **jadwal ujian + lokasi** bila diisi); admin cabang: **export daftar peserta** (Print/Save as PDF/CSV + pilih ranting + validasi data; kolom **KYU** = sabuk keanggotaan), **Laporan WA** ringkas, **hari-H** (roster hadir + hasil massal), **status setoran** (cabang), **arsip/kunci periode**, waiver, wizard, action bar. Cabang & ranting dapat **membatalkan pendaftaran UKT beserta tagihan terkait, termasuk yang sudah lunas** (ranting: scope dojo + notifikasi cabang). Bila API Inkai menolak karena tagihan lunas, server memakai **fallback Prisma**. Cabang dapat **menghapus tagihan UKT saja** (`DELETE /api/admin/billing/[id]`).
+12. Dashboard anggota menampilkan **kartu Status UKT** di beranda & Prestasi (termasuk **jadwal ujian + lokasi** bila diisi); admin cabang: **export daftar peserta** (Print/Save as PDF/CSV + pilih ranting + validasi data; kolom **KYU** = sabuk keanggotaan), **Laporan WA** ringkas, **hari-H** (roster hadir + hasil massal), **status setoran** (cabang), **arsip/kunci periode**, waiver, wizard, action bar. Cabang & ranting dapat **membatalkan pendaftaran UKT beserta tagihan terkait, termasuk yang sudah lunas** (ranting: scope dojo + notifikasi cabang). Hapus hanya menyasar tagihan tertaut registrasi / UKT yatim (bukan semua iuran PAID anggota); bila API Inkai menolak karena tagihan lunas, server memakai **fallback Prisma**. Setelah hapus, anggota yang ikut ter-soft-delete dipulihkan agar bisa daftar UKT lain. Gate daftar memakai fallback Prisma bila GET anggota Inkai 404. Cabang dapat **menghapus tagihan UKT saja** (`DELETE /api/admin/billing/[id]`).
 13. Toolbar cabang: **Buat Periode**, Hari-H, Export, Laporan WA, Cetak Nota, Biaya Sabuk, Arsip (tombol terpisah). Toolbar ranting: **Laporan WA** + **Cetak Nota** (manual).
 
 ### 9.4 Kegiatan & absensi
@@ -555,6 +555,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Fix isi Kyu Baru: jangan gagal bila GET Inkai 404 — fallback Prisma + cek lunas via billing |
 | 22 Juli 2026 | Isi Kyu Baru (cabang) otomatis Lulus + Selesai; kolom status/aksi langsung Selesai |
 | 22 Juli 2026 | Ranting: status Selesai → aksi tampil Selesai (disabled), tanpa Batal UKT |
+| 22 Juli 2026 | Fix daftar UKT ulang setelah cabang hapus peserta selesai: jangan hapus semua tagihan PAID anggota; pulihkan soft-delete; fallback Prisma bila Inkai GET anggota 404 |
 
 ---
 
