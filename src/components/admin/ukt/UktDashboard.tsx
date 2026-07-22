@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Users,
@@ -335,6 +335,9 @@ export function UktDashboard(props: Props) {
   );
   /** Salinan lokal agar status UI langsung berubah tanpa tunggu refresh penuh. */
   const [rows, setRows] = useState(props.allRows);
+  /** Anggota yang baru dibatalkan lokal — cegah sync server usang menimpa UI. */
+  const locallyClearedMemberIdsRef = useRef<Set<string>>(new Set());
+  const pendingServerRowsSyncRef = useRef(false);
   const [cancelTarget, setCancelTarget] = useState<{
     id: string;
     name: string;
@@ -380,10 +383,6 @@ export function UktDashboard(props: Props) {
   const periodLocked = Boolean(props.periodMeta?.locked || props.periodMeta?.archived);
   const depositMap = props.depositMap ?? {};
   const periodOfficers = resolveUktPeriodOfficers(props.periodMeta, props.orgProfile);
-  const depositRecon = useMemo(
-    () => buildUktDepositReconciliation(rows, props.dojos, depositMap),
-    [rows, props.dojos, depositMap],
-  );
   const cancelRow = useMemo(
     () =>
       cancelTarget?.id
@@ -419,30 +418,116 @@ export function UktDashboard(props: Props) {
     : null;
   const effectiveDojo = isDojoAdmin ? props.defaultDojoFilter || "" : localDojo;
 
+  const normalizeRows = useCallback((list: UktMemberRow[]) => {
+    const cleared = locallyClearedMemberIdsRef.current;
+    return list.map((r) => {
+      const lama = displayUktKyuLama(r.kyuLama, r.kyuBaru);
+      let next = lama && lama !== r.kyuLama ? { ...r, kyuLama: lama } : r;
+      if (cleared.has(r.memberId)) {
+        if (r.registrationId) {
+          // Server masih usang setelah hapus lokal — pertahankan Belum Daftar.
+          next = {
+            ...next,
+            registrationId: null,
+            billingId: null,
+            billingStatus: null,
+            billingAmount: null,
+            status: "BELUM_DAFTAR",
+            examResult: null,
+            examPresent: null,
+            kyuBaru: null,
+          };
+        } else {
+          cleared.delete(r.memberId);
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  const requestServerRowsSync = useCallback(() => {
+    pendingServerRowsSyncRef.current = true;
+    router.refresh();
+  }, [router]);
+
   useEffect(() => {
     setYearInput(String(props.year));
   }, [props.year]);
 
+  const periodKey = `${props.selectedPeriodId ?? ""}|${props.semester}|${props.year}|${
+    props.createMode ? 1 : 0
+  }`;
+  const prevPeriodKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
-    // Sync saat ganti periode/term atau Muat Ulang (props.allRows baru).
-    // Aksi baris tidak memanggil refresh → patch lokal tidak tertimpa.
-    setRows(
-      props.allRows.map((r) => {
-        const lama = displayUktKyuLama(r.kyuLama, r.kyuBaru);
-        return lama && lama !== r.kyuLama ? { ...r, kyuLama: lama } : r;
-      }),
-    );
-  }, [
-    props.selectedPeriodId,
-    props.semester,
-    props.year,
-    props.createMode,
-    props.allRows,
-  ]);
+    const first = prevPeriodKeyRef.current === null;
+    const periodChanged = prevPeriodKeyRef.current !== periodKey;
+    prevPeriodKeyRef.current = periodKey;
+    if (first || periodChanged) {
+      locallyClearedMemberIdsRef.current.clear();
+      pendingServerRowsSyncRef.current = false;
+      setRows(normalizeRows(props.allRows));
+      return;
+    }
+    // Muat Ulang / hapus / fokus fokus — terima allRows baru dari server.
+    if (!pendingServerRowsSyncRef.current) return;
+    pendingServerRowsSyncRef.current = false;
+    setRows(normalizeRows(props.allRows));
+  }, [periodKey, props.allRows, normalizeRows]);
+
+  // Cabang: bila tab sempat disembunyikan, segarkan saat kembali
+  // (batal dari ranting terlihat tanpa F5), tanpa ganggu klik di halaman.
+  useEffect(() => {
+    if (!isCabang || isArchiveView) return;
+    let hiddenAt = 0;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (hiddenAt > 0 && Date.now() - hiddenAt >= 2_000) {
+        pendingServerRowsSyncRef.current = true;
+        router.refresh();
+      }
+      hiddenAt = 0;
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [isCabang, isArchiveView, router]);
 
   const patchRow = useCallback((memberId: string, patch: Partial<UktMemberRow>) => {
     setRows((prev) =>
       prev.map((r) => (r.memberId === memberId ? { ...r, ...patch } : r)),
+    );
+  }, []);
+
+  const clearMemberFromUktLocal = useCallback((memberId: string) => {
+    locallyClearedMemberIdsRef.current.add(memberId);
+    setRows((prev) =>
+      prev.map((r) =>
+        r.memberId === memberId
+          ? {
+              ...r,
+              registrationId: null,
+              billingId: null,
+              billingStatus: null,
+              billingAmount: null,
+              status: "BELUM_DAFTAR",
+              examResult: null,
+              examPresent: null,
+              kyuBaru: null,
+            }
+          : r,
+      ),
+    );
+    setSelectedIds((prev) => {
+      if (!prev.has(memberId)) return prev;
+      const next = new Set(prev);
+      next.delete(memberId);
+      return next;
+    });
+    setSelectedMember((prev) =>
+      prev && prev.memberId === memberId ? null : prev,
     );
   }, []);
 
@@ -483,6 +568,14 @@ export function UktDashboard(props: Props) {
     return list;
   }, [rows, isArchiveView, effectiveDojo, localStatus, localQ]);
 
+  /** KPI & rekap tidak ikut filter status/cari — selalu dari pool periode (+ranting). */
+  const kpiSourceRows = useMemo(() => {
+    let list = rows;
+    if (isArchiveView) list = list.filter((r) => Boolean(r.registrationId));
+    if (effectiveDojo) list = list.filter((r) => r.dojoId === effectiveDojo);
+    return list;
+  }, [rows, isArchiveView, effectiveDojo]);
+
   const archiveSearchRows = useMemo(
     () =>
       isArchiveView
@@ -491,7 +584,15 @@ export function UktDashboard(props: Props) {
     [rows, isArchiveView],
   );
 
-  const kpi = useMemo(() => computeUktOperationalKpi(scopedRows), [scopedRows]);
+  const kpi = useMemo(
+    () => computeUktOperationalKpi(kpiSourceRows),
+    [kpiSourceRows],
+  );
+
+  const depositRecon = useMemo(
+    () => buildUktDepositReconciliation(kpiSourceRows, props.dojos, depositMap),
+    [kpiSourceRows, props.dojos, depositMap],
+  );
 
   const filteredRows = useMemo(() => {
     if (localView === "gagal_mengulang") {
@@ -1161,23 +1262,14 @@ export function UktDashboard(props: Props) {
       const data = await parseApiJson<{ error?: string; message?: string }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal membatalkan");
       if (memberId) {
-        patchRow(memberId, {
-          registrationId: null,
-          billingId: null,
-          billingStatus: null,
-          billingAmount: null,
-          status: "BELUM_DAFTAR",
-          examResult: null,
-          examPresent: null,
-          kyuBaru: null,
-        });
+        clearMemberFromUktLocal(memberId);
       }
       toast.success(
         data.message ||
           "Peserta berhasil dihapus dari UKT beserta tagihan terkait",
         { id: toastId },
       );
-      setSelectedMember(null);
+      requestServerRowsSync();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal membatalkan", {
         id: toastId,
@@ -1391,7 +1483,8 @@ export function UktDashboard(props: Props) {
           ? "Diajukan ke cabang — menunggu verifikasi (belum lunas)"
           : `${ok}/${rows.length} diajukan ke cabang — menunggu verifikasi`,
       );
-      if (opts?.openNota !== false) {
+      // Nota tidak otomatis — gunakan Cetak Nota di toolbar bila perlu.
+      if (opts?.openNota === true) {
         openPrintNota(
           true,
           submittedIds.length > 0 ? submittedIds : undefined,
@@ -1513,26 +1606,27 @@ export function UktDashboard(props: Props) {
     }
 
     // Admin cabang: selalu format ringkas (Total Ranting / List / Jumlah kyu)
-    if (isCabang) {
-      const text = buildUktCabangWaReportText(title, approved);
-      navigator.clipboard.writeText(text).then(
-        () => toast.success("Laporan WA per ranting disalin — tempel di WhatsApp"),
-        () => toast.error("Gagal menyalin"),
-      );
+    const text = isCabang
+      ? buildUktCabangWaReportText(title, approved)
+      : buildUktRantingWaReportText(
+          title,
+          resolveUktWaDojoLabel({
+            effectiveDojoId: effectiveDojo,
+            dojos: props.dojos,
+            approvedRows: approved,
+            loginDojoName: props.loginDojoName,
+          }),
+          approved,
+        );
+
+    // Buka WhatsApp dengan teks siap kirim (pilih penerima manual) — bukan salin clipboard.
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    const opened = window.open(waUrl, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      toast.error("Popup diblokir — izinkan jendela baru untuk membuka WhatsApp");
       return;
     }
-
-    const dojoName = resolveUktWaDojoLabel({
-      effectiveDojoId: effectiveDojo,
-      dojos: props.dojos,
-      approvedRows: approved,
-      loginDojoName: props.loginDojoName,
-    });
-    const text = buildUktRantingWaReportText(title, dojoName, approved);
-    navigator.clipboard.writeText(text).then(
-      () => toast.success("Laporan WA disalin — tempel di WhatsApp"),
-      () => toast.error("Gagal menyalin"),
-    );
+    toast.success("WhatsApp dibuka — pilih penerima lalu kirim laporan");
   };
 
   const kpiCards = [
@@ -1775,6 +1869,18 @@ export function UktDashboard(props: Props) {
                 )}
               </>
             )}
+            {isDojoAdmin && props.selectedPeriodId && (
+              <>
+                <Button variant="outline" onClick={buildWaReport}>
+                  <MessageCircle className="mr-1 h-4 w-4" />
+                  Laporan WA
+                </Button>
+                <Button variant="outline" onClick={() => openPrintNota(false)}>
+                  <Printer className="mr-1 h-4 w-4" />
+                  Cetak Nota
+                </Button>
+              </>
+            )}
             {!isCabang && !isDojoAdmin && (
               <>
                 <Button variant="outline" onClick={buildWaReport}>
@@ -1966,6 +2072,17 @@ export function UktDashboard(props: Props) {
               </div>
               {isCabang && (
                 <Button variant="outline" size="sm" onClick={() => openPrintNota(true)} disabled={loading}>
+                  <Printer className="mr-1 h-4 w-4" />
+                  Nota
+                </Button>
+              )}
+              {isDojoAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openPrintNota(true)}
+                  disabled={loading}
+                >
                   <Printer className="mr-1 h-4 w-4" />
                   Nota
                 </Button>
@@ -2176,7 +2293,7 @@ export function UktDashboard(props: Props) {
               <AlertTriangle className="h-4 w-4 shrink-0" />
               <span>{props.dbError}</span>
             </div>
-            <Button size="sm" variant="outline" onClick={() => router.refresh()}>
+            <Button size="sm" variant="outline" onClick={() => requestServerRowsSync()}>
               Muat Ulang
             </Button>
           </CardContent>
@@ -2286,7 +2403,7 @@ export function UktDashboard(props: Props) {
           <CardContent className="space-y-1 p-3 text-sm text-muted-foreground">
             <p>
               Aksi ranting: <b>Daftar UKT</b>, <b>Batal UKT</b>, dan{" "}
-              <b>Bayar UKT</b>.
+              <b>Bayar UKT</b>. Cetak nota &amp; laporan WA lewat toolbar (manual).
             </p>
             <p>
               <b>Bayar UKT</b> = ajukan ke cabang (
