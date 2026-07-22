@@ -25,7 +25,6 @@ import {
   Download,
   LayoutList,
   ShieldCheck,
-  ArrowLeft,
   ClipboardCheck,
   Archive,
   Settings2,
@@ -368,6 +367,8 @@ export function UktDashboard(props: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [printOnlySelected, setPrintOnlySelected] = useState(false);
   const [compactView, setCompactView] = useState(false);
+  const [alurOpen, setAlurOpen] = useState(false);
+  const [jadwalOpen, setJadwalOpen] = useState(true);
   const [showExport, setShowExport] = useState(false);
   const [showExamDay, setShowExamDay] = useState(false);
   const [showCreateWizard, setShowCreateWizard] = useState(false);
@@ -535,6 +536,14 @@ export function UktDashboard(props: Props) {
   useEffect(() => {
     setYearInput(String(props.year));
   }, [props.year]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    if (mq.matches) {
+      setCompactView(true);
+      setJadwalOpen(false);
+    }
+  }, []);
 
   const periodKey = `${props.selectedPeriodId ?? ""}|${props.semester}|${props.year}|${
     props.createMode ? 1 : 0
@@ -816,13 +825,6 @@ export function UktDashboard(props: Props) {
     viewMode === "registration" &&
     props.canCreatePeriod &&
     (!hasTermPeriod || Boolean(props.createMode));
-  /** Back menghapus period di URL dan membuka mode buat periode. */
-  const showBackToCreate =
-    viewMode === "registration" &&
-    props.canCreatePeriod &&
-    Boolean(props.selectedPeriodId) &&
-    !props.createMode;
-
   const goBackToCreatePeriod = () => {
     navigatePeriod({
       semester: props.semester,
@@ -1771,73 +1773,65 @@ export function UktDashboard(props: Props) {
     },
   ];
 
+  const periodActionBtn =
+    "h-10 min-h-10 justify-center px-2 text-xs sm:h-9 sm:justify-start sm:px-3 sm:text-sm";
+
   return (
-    <div className="space-y-6">
-      <div className="sticky top-16 z-30 -mx-4 space-y-3 border-b border-border/50 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:-mx-6 sm:px-6">
-      {props.headerNote ? (
-        <p className="text-sm text-muted-foreground">{props.headerNote}</p>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <Select
-          value={props.semester}
-          onValueChange={(v) => syncNavigateTerm({ semester: v as UktSemester })}
-        >
-          <SelectTrigger
-            className="h-8 w-[8.5rem] border-border/80 bg-background text-sm font-medium shadow-none"
-            aria-label="Pilih semester UKT"
+    <div className="space-y-4 sm:space-y-6">
+      {/* Sticky hanya semester/tahun — hindari sticky tinggi yang menutupi tabel di HP */}
+      <div className="sticky top-16 z-30 -mx-4 space-y-2 border-b border-border/50 bg-background/95 px-4 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:-mx-6 sm:space-y-3 sm:px-6 sm:py-3">
+        {props.headerNote ? (
+          <p className="hidden text-sm text-muted-foreground sm:block">{props.headerNote}</p>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={props.semester}
+            onValueChange={(v) => syncNavigateTerm({ semester: v as UktSemester })}
           >
-            <SelectValue placeholder="Semester" />
-          </SelectTrigger>
-          <SelectContent className="min-w-[8.5rem]">
-            <SelectItem value="I">Semester I</SelectItem>
-            <SelectItem value="II">Semester II</SelectItem>
-          </SelectContent>
-        </Select>
-        <Input
-          type="number"
-          className="h-8 w-20 text-sm font-medium"
-          value={yearInput}
-          onChange={(e) => setYearInput(e.target.value)}
-          onBlur={() => {
-            const y = parseInt(yearInput, 10);
-            if (Number.isFinite(y) && y >= 2020 && y <= 2100) {
-              syncNavigateTerm({ year: y });
-            } else {
-              setYearInput(String(props.year));
-            }
-          }}
-          min={2020}
-          max={2100}
-          aria-label="Tahun UKT"
-        />
+            <SelectTrigger
+              className="h-9 w-[8.5rem] border-border/80 bg-background text-sm font-medium shadow-none sm:h-8"
+              aria-label="Pilih semester UKT"
+            >
+              <SelectValue placeholder="Semester" />
+            </SelectTrigger>
+            <SelectContent className="min-w-[8.5rem]">
+              <SelectItem value="I">Semester I</SelectItem>
+              <SelectItem value="II">Semester II</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            type="number"
+            className="h-9 w-20 text-sm font-medium sm:h-8"
+            value={yearInput}
+            onChange={(e) => setYearInput(e.target.value)}
+            onBlur={() => {
+              const y = parseInt(yearInput, 10);
+              if (Number.isFinite(y) && y >= 2020 && y <= 2100) {
+                syncNavigateTerm({ year: y });
+              } else {
+                setYearInput(String(props.year));
+              }
+            }}
+            min={2020}
+            max={2100}
+            aria-label="Tahun UKT"
+          />
+        </div>
       </div>
 
-      {/* Period actions */}
+      {/* Period actions — di luar sticky agar tidak memakan viewport HP */}
       <Card className="border-inkai-red/20 bg-gradient-to-r from-background to-muted/30 shadow-sm">
-        <CardContent className="flex flex-wrap items-center gap-3 p-4 sm:gap-4">
-          {showBackToCreate && (
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-9 w-9 shrink-0 border-inkai-red/30"
-              onClick={goBackToCreatePeriod}
-              title="Kembali — tampilkan Buat Periode"
-              aria-label="Kembali ke buat periode UKT"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          )}
+        <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:p-4">
           {!isArchiveView &&
             props.selectedPeriodId &&
             registrationDeadlineIso &&
             !props.createMode && (
               <UktFloatingCountdown
                 targetIso={registrationDeadlineIso}
-                className="min-w-[min(100%,18rem)] max-w-xl"
+                className="w-full sm:min-w-[min(100%,18rem)] sm:max-w-xl"
               />
             )}
-          <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:ml-auto sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             {selectablePeriodsForTerm.length > 1 && (
               <Select
                 value={props.selectedPeriodId || ""}
@@ -1850,7 +1844,7 @@ export function UktDashboard(props: Props) {
                   })
                 }
               >
-                <SelectTrigger className="w-56">
+                <SelectTrigger className="col-span-2 h-10 w-full sm:h-9 sm:w-56">
                   <SelectValue
                     placeholder={
                       viewMode === "archive"
@@ -1879,7 +1873,7 @@ export function UktDashboard(props: Props) {
               <Button
                 onClick={openCreateWizard}
                 disabled={loading}
-                className="bg-inkai-red hover:bg-inkai-red/90"
+                className={`col-span-2 bg-inkai-red hover:bg-inkai-red/90 sm:col-span-1 ${periodActionBtn}`}
               >
                 <Plus className="mr-1 h-4 w-4" />
                 Buat Periode
@@ -1890,6 +1884,7 @@ export function UktDashboard(props: Props) {
                 variant="outline"
                 onClick={goBackToCreatePeriod}
                 disabled={loading}
+                className={periodActionBtn}
               >
                 <Plus className="mr-1 h-4 w-4" />
                 Periode baru
@@ -1900,6 +1895,7 @@ export function UktDashboard(props: Props) {
                 variant="outline"
                 onClick={() => setShowExamDay(true)}
                 disabled={periodLocked}
+                className={periodActionBtn}
               >
                 <ClipboardCheck className="mr-1 h-4 w-4" />
                 Hari-H
@@ -1907,22 +1903,38 @@ export function UktDashboard(props: Props) {
             )}
             {isCabang && (
               <>
-                <Button variant="outline" onClick={openExportDialog}>
+                <Button
+                  variant="outline"
+                  onClick={openExportDialog}
+                  className={periodActionBtn}
+                >
                   <Download className="mr-1 h-4 w-4" />
                   Export
                 </Button>
-                <Button variant="outline" onClick={buildWaReport}>
+                <Button
+                  variant="outline"
+                  onClick={buildWaReport}
+                  className={periodActionBtn}
+                >
                   <MessageCircle className="mr-1 h-4 w-4" />
                   Laporan WA
                 </Button>
-                <Button variant="outline" onClick={() => openPrintNota(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => openPrintNota(false)}
+                  className={periodActionBtn}
+                >
                   <Printer className="mr-1 h-4 w-4" />
                   Cetak Nota
                 </Button>
                 {(viewMode === "registration" || Boolean(props.selectedPeriodId)) && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" aria-label="Aksi lainnya">
+                      <Button
+                        variant="outline"
+                        aria-label="Aksi lainnya"
+                        className={periodActionBtn}
+                      >
                         <MoreHorizontal className="mr-1 h-4 w-4" />
                         Lainnya
                       </Button>
@@ -1980,11 +1992,19 @@ export function UktDashboard(props: Props) {
             )}
             {isDojoAdmin && props.selectedPeriodId && (
               <>
-                <Button variant="outline" onClick={buildWaReport}>
+                <Button
+                  variant="outline"
+                  onClick={buildWaReport}
+                  className={periodActionBtn}
+                >
                   <MessageCircle className="mr-1 h-4 w-4" />
                   Laporan WA
                 </Button>
-                <Button variant="outline" onClick={() => openPrintNota(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => openPrintNota(false)}
+                  className={periodActionBtn}
+                >
                   <Printer className="mr-1 h-4 w-4" />
                   Cetak Nota
                 </Button>
@@ -1992,11 +2012,19 @@ export function UktDashboard(props: Props) {
             )}
             {!isCabang && !isDojoAdmin && (
               <>
-                <Button variant="outline" onClick={buildWaReport}>
+                <Button
+                  variant="outline"
+                  onClick={buildWaReport}
+                  className={periodActionBtn}
+                >
                   <MessageCircle className="mr-1 h-4 w-4" />
                   Laporan WA
                 </Button>
-                <Button variant="outline" onClick={() => openPrintNota(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => openPrintNota(false)}
+                  className={periodActionBtn}
+                >
                   <Printer className="mr-1 h-4 w-4" />
                   Cetak Nota
                 </Button>
@@ -2005,7 +2033,6 @@ export function UktDashboard(props: Props) {
           </div>
         </CardContent>
       </Card>
-      </div>
 
       {isDojoAdmin && !props.selectedPeriodId && viewMode === "registration" && (
         <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
@@ -2043,14 +2070,34 @@ export function UktDashboard(props: Props) {
       )}
 
       {props.selectedPeriodId && selectedPeriod && (
-        <Card className="border-muted">
-          <CardContent className="p-4 sm:p-5">
-            <div className="mb-4 flex items-center gap-2">
-              <CalendarClock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Jadwal periode
+        <details
+          className="rounded-xl border border-muted bg-card"
+          open={jadwalOpen}
+          onToggle={(e) => setJadwalOpen((e.target as HTMLDetailsElement).open)}
+        >
+          <summary className="cursor-pointer list-none px-4 py-3 marker:content-none [&::-webkit-details-marker]:hidden">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  Jadwal periode
+                </span>
+              </div>
+              <span className="text-xs font-normal text-muted-foreground sm:hidden">
+                {jadwalOpen ? "Sembunyikan" : "Tampilkan"}
               </span>
             </div>
+            {!jadwalOpen && (
+              <p className="mt-1.5 text-sm font-medium text-foreground sm:hidden">
+                Batas:{" "}
+                {registrationDeadlineIso
+                  ? formatUktRegistrationDeadline(registrationDeadlineIso)
+                  : "—"}
+                {registrationOpen ? " · terbuka" : ""}
+              </p>
+            )}
+          </summary>
+          <div className="border-t px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Buka pendaftaran</p>
@@ -2125,8 +2172,8 @@ export function UktDashboard(props: Props) {
                 </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </details>
       )}
 
       {props.selectedPeriodId && !registrationOpen && (
@@ -2173,7 +2220,7 @@ export function UktDashboard(props: Props) {
       )}
 
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-4 left-1/2 z-50 w-[min(640px,94vw)] -translate-x-1/2">
+        <div className="fixed bottom-4 left-1/2 z-50 w-[min(640px,94vw)] -translate-x-1/2 pb-[env(safe-area-inset-bottom)]">
           <Card className="shadow-xl">
             <CardContent className="flex flex-wrap items-center gap-2 p-3">
               <div className="min-w-[120px] flex-1 text-sm text-muted-foreground">
@@ -2418,139 +2465,160 @@ export function UktDashboard(props: Props) {
       )}
 
       {/* Search & inline filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <UktSearchBar
-          allRows={archiveSearchRows}
-          value={localQ}
-          onChange={(q) => {
-            setLocalQ(q);
-            setLocalPage(1);
-          }}
-          placeholder={
-            !isArchiveView && localView === "registered"
-              ? "Cari nama untuk daftarkan peserta UKT…"
-              : "Cari nama atau NIA…"
-          }
-          showRegistrationStatus={!isArchiveView && localView === "registered"}
-        />
-
-        <Select
-          value={localStatus || "all"}
-          onValueChange={(v) => {
-            setLocalStatus(v === "all" ? "" : v);
-            setLocalPage(1);
-          }}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            {UKT_DISPLAY_FILTER_OPTIONS.filter(
-              (opt) => !(isArchiveView && opt.value === "belum_daftar"),
-            ).map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => setCompactView((v) => !v)}
-          title={compactView ? "Tampilan lengkap" : "Tampilan ringkas"}
-        >
-          <LayoutList className="mr-1 h-4 w-4" />
-          {compactView ? "Lengkap" : "Ringkas"}
-        </Button>
-
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => resetTableFilters()}
-          title="Reset filter status, cari, dan ranting"
-          disabled={tableRefreshing}
-        >
-          Reset filter
-        </Button>
-
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => void requestServerRowsSync()}
-          title="Muat ulang data tabel tanpa refresh halaman"
-          disabled={tableRefreshing || loading}
-        >
-          <RefreshCw
-            className={`mr-1 h-4 w-4 ${tableRefreshing ? "animate-spin" : ""}`}
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="min-w-0 w-full sm:w-auto sm:min-w-[14rem] sm:flex-1 sm:max-w-md">
+          <UktSearchBar
+            allRows={archiveSearchRows}
+            value={localQ}
+            onChange={(q) => {
+              setLocalQ(q);
+              setLocalPage(1);
+            }}
+            placeholder={
+              !isArchiveView && localView === "registered"
+                ? "Cari nama untuk daftarkan peserta UKT…"
+                : "Cari nama atau NIA…"
+            }
+            showRegistrationStatus={!isArchiveView && localView === "registered"}
           />
-          {tableRefreshing ? "Memuat…" : "Refresh"}
-        </Button>
+        </div>
 
-        {( !isDojoAdmin || isMultiDojoAdmin) && (
+        <div className="grid grid-cols-2 gap-2 sm:contents">
           <Select
-            value={localDojo || "all"}
+            value={localStatus || "all"}
             onValueChange={(v) => {
-              setLocalDojo(v === "all" ? "" : v);
+              setLocalStatus(v === "all" ? "" : v);
               setLocalPage(1);
             }}
           >
-            <SelectTrigger className="w-[min(100%,16rem)] min-w-[11rem]">
-              <SelectValue placeholder="Ranting" />
+            <SelectTrigger className="h-10 w-full sm:h-8 sm:w-44">
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">
-                {isDojoAdmin ? "Semua ranting dikelola" : "Semua ranting"}
-              </SelectItem>
-              {!isDojoAdmin &&
-                (props.dojoGroups ?? []).map((g) => (
-                  <SelectItem key={g.value} value={g.value} title={g.label}>
-                    {g.shortLabel}
-                  </SelectItem>
-                ))}
-              {props.dojos.map((d) => (
-                <SelectItem key={d.id} value={d.id}>
-                  {d.name}
+              {UKT_DISPLAY_FILTER_OPTIONS.filter(
+                (opt) => !(isArchiveView && opt.value === "belum_daftar"),
+              ).map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        )}
 
-        <Select
-          value={String(localPageSize)}
-          onValueChange={(v) => {
-            setLocalPageSize(parseInt(v, 10));
-            setLocalPage(1);
-          }}
-        >
-          <SelectTrigger className="w-28">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {PAGE_SIZES.map((s) => (
-              <SelectItem key={s} value={String(s)}>
-                {s} / hal
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {!isDojoAdmin && (
-          <Button type="button" variant="outline" onClick={() => setShowAddMember(true)}>
-            <UserPlus className="mr-1 h-4 w-4" />
-            Tambah Anggota
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 sm:h-8"
+            onClick={() => setCompactView((v) => !v)}
+            title={compactView ? "Tampilan lengkap" : "Tampilan ringkas"}
+          >
+            <LayoutList className="mr-1 h-4 w-4" />
+            {compactView ? "Lengkap" : "Ringkas"}
           </Button>
-        )}
+
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 sm:h-8"
+            onClick={() => resetTableFilters()}
+            title="Reset filter status, cari, dan ranting"
+            disabled={tableRefreshing}
+          >
+            Reset filter
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 sm:h-8"
+            onClick={() => void requestServerRowsSync()}
+            title="Muat ulang data tabel tanpa refresh halaman"
+            disabled={tableRefreshing || loading}
+          >
+            <RefreshCw
+              className={`mr-1 h-4 w-4 ${tableRefreshing ? "animate-spin" : ""}`}
+            />
+            {tableRefreshing ? "Memuat…" : "Refresh"}
+          </Button>
+
+          {(!isDojoAdmin || isMultiDojoAdmin) && (
+            <Select
+              value={localDojo || "all"}
+              onValueChange={(v) => {
+                setLocalDojo(v === "all" ? "" : v);
+                setLocalPage(1);
+              }}
+            >
+              <SelectTrigger className="col-span-2 h-10 w-full sm:col-span-1 sm:h-8 sm:w-[min(100%,16rem)] sm:min-w-[11rem]">
+                <SelectValue placeholder="Ranting" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {isDojoAdmin ? "Semua ranting dikelola" : "Semua ranting"}
+                </SelectItem>
+                {!isDojoAdmin &&
+                  (props.dojoGroups ?? []).map((g) => (
+                    <SelectItem key={g.value} value={g.value} title={g.label}>
+                      {g.shortLabel}
+                    </SelectItem>
+                  ))}
+                {props.dojos.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <Select
+            value={String(localPageSize)}
+            onValueChange={(v) => {
+              setLocalPageSize(parseInt(v, 10));
+              setLocalPage(1);
+            }}
+          >
+            <SelectTrigger className="h-10 w-full sm:h-8 sm:w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PAGE_SIZES.map((s) => (
+                <SelectItem key={s} value={String(s)}>
+                  {s} / hal
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {!isDojoAdmin && (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 sm:h-8"
+              onClick={() => setShowAddMember(true)}
+            >
+              <UserPlus className="mr-1 h-4 w-4" />
+              Tambah Anggota
+            </Button>
+          )}
+        </div>
       </div>
 
       {isDojoAdmin && (
-        <Card className="border-muted">
-          <CardContent className="space-y-1 p-3 text-sm text-muted-foreground">
+        <details
+          className="rounded-xl border border-muted bg-card open:pb-0"
+          open={alurOpen}
+          onToggle={(e) => setAlurOpen((e.target as HTMLDetailsElement).open)}
+        >
+          <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center justify-between gap-2">
+              Panduan aksi ranting
+              <span className="text-xs font-normal text-muted-foreground">
+                {alurOpen ? "Sembunyikan" : "Tampilkan"}
+              </span>
+            </span>
+          </summary>
+          <div className="space-y-1 border-t px-3 py-3 text-sm text-muted-foreground">
             <p>
               Aksi ranting: <b>Daftar UKT</b>, <b>Batal UKT</b>, dan{" "}
               <b>Bayar UKT</b>. Cetak nota &amp; laporan WA lewat toolbar (manual).
@@ -2561,21 +2629,33 @@ export function UktDashboard(props: Props) {
               memverifikasi pembayaran, lalu mengisi hasil ujian &amp; Kyu
               Baru.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </details>
       )}
 
       {isCabang && (
-        <Card className="border-muted">
-          <CardContent className="p-3 text-sm text-muted-foreground">
-            Alur: ranting daftar (**Belum Bayar**) → ranting{" "}
-            <b>Bayar UKT</b> (**Menunggu Verifikasi**) → cabang{" "}
-            <b>Verifikasi</b> (**Menunggu Ujian**) → isi <b>Kyu Baru</b>{" "}
-            (**Selesai**, otomatis Lulus). Batal dari ranting (termasuk yang
+        <details
+          className="rounded-xl border border-muted bg-card"
+          open={alurOpen}
+          onToggle={(e) => setAlurOpen((e.target as HTMLDetailsElement).open)}
+        >
+          <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center justify-between gap-2">
+              Alur pendaftaran UKT
+              <span className="text-xs font-normal text-muted-foreground">
+                {alurOpen ? "Sembunyikan" : "Tampilkan"}
+              </span>
+            </span>
+          </summary>
+          <div className="border-t px-3 py-3 text-sm text-muted-foreground">
+            Alur: ranting daftar (<b>Belum Bayar</b>) → ranting{" "}
+            <b>Bayar UKT</b> (<b>Menunggu Verifikasi</b>) → cabang{" "}
+            <b>Verifikasi</b> (<b>Menunggu Ujian</b>) → isi <b>Kyu Baru</b>{" "}
+            (<b>Selesai</b>, otomatis Lulus. Batal dari ranting (termasuk yang
             sudah lunas) akan memberi notifikasi ke cabang — sesuaikan
             pengembalian uang di luar sistem bila perlu.
-          </CardContent>
-        </Card>
+          </div>
+        </details>
       )}
 
       {/* Table */}
