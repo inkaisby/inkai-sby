@@ -198,6 +198,13 @@ export function CabangSettingsManager({
         </Button>
       </div>
 
+      <div className="rounded-lg border border-inkai-red/20 bg-inkai-red/5 px-3 py-2 text-xs text-muted-foreground">
+        Panel <span className="font-medium text-foreground">Akun Admin</span> hanya untuk pengurus yang punya akses admin cabang.
+        Ketua cabang yang sudah punya akun anggota, seperti <span className="font-mono">jonathankandou@gmail.com</span>,
+        bisa langsung ditambahkan lewat tombol <span className="font-medium text-foreground">Jadikan admin cabang</span>
+        tanpa membuat akun baru.
+      </div>
+
       {openForm && (
         <form
           onSubmit={handleSubmit}
@@ -266,7 +273,7 @@ export function CabangSettingsManager({
               <TableHead className="hidden sm:table-cell">Provinsi</TableHead>
               <TableHead>Ketua</TableHead>
               <TableHead className="hidden md:table-cell">Kota</TableHead>
-              <TableHead className="hidden lg:table-cell">Admin</TableHead>
+              <TableHead className="hidden lg:table-cell">Akun Admin</TableHead>
               <TableHead>Ranting</TableHead>
               <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
@@ -331,7 +338,7 @@ export function CabangSettingsManager({
                         className="gap-1"
                       >
                         <Users className="h-3.5 w-3.5" />
-                        Akun
+                        Akun Admin
                       </Button>
                       <Button
                         size="sm"
@@ -422,8 +429,9 @@ export function CabangSettingsManager({
               <SheetHeader>
                 <SheetTitle>Akun admin — {accountsBranch.name}</SheetTitle>
                 <SheetDescription>
-                  Satu pintu multi-akun: jabatan, PIC, serah terima, reset
-                  password. Akun aktif terakhir tidak bisa dinonaktifkan.
+                  Satu pintu akun admin cabang: jabatan, PIC, dual-role anggota,
+                  serah terima, dan reset password. Akun aktif terakhir tidak
+                  bisa dinonaktifkan.
                 </SheetDescription>
               </SheetHeader>
               <div className="px-4 pb-6">

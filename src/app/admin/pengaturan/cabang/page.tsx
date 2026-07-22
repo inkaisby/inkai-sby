@@ -204,7 +204,7 @@ async function PengaturanCabangContent({
       <div className="mb-6">
         <h2 className="text-2xl font-bold">Pengaturan Cabang</h2>
         <p className="text-muted-foreground">
-          Tambah dan ubah cabang; satu cabang boleh punya beberapa akun admin
+          Tambah dan ubah cabang; satu cabang boleh punya beberapa akun admin, termasuk akun dual-role anggota + admin cabang
         </p>
       </div>
 

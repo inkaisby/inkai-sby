@@ -50,6 +50,7 @@ type AccountRow = {
   email: string;
   fullName: string | null;
   phoneNumber: string | null;
+  memberId?: string | null;
   isActive: boolean;
   isPrimary: boolean;
   isHomeDojo?: boolean;
@@ -165,6 +166,8 @@ export function WilayahAccountsPanel({
   }, [scope, wilayahId]);
 
   useEffect(() => {
+    // Data akun perlu dimuat saat scope/wilayah berubah; state diisi dari hasil fetch async.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
 
@@ -340,13 +343,13 @@ export function WilayahAccountsPanel({
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (res.ok) {
-      showSuccess(data.message || "Admin ranting ditambahkan");
+      showSuccess(data.message || `Admin ${label} ditambahkan`);
       setPromoteOpen(false);
       setPromoteEmail("");
       setPromoteGrants({ ...DEFAULT_ADMIN_DOJO_GRANTS });
       void load();
     } else {
-      showError(data.error || "Gagal menjadikan admin ranting");
+      showError(data.error || `Gagal menjadikan admin ${label}`);
     }
   }
 
@@ -374,6 +377,7 @@ export function WilayahAccountsPanel({
   }
 
   const label = scope === "branch" ? "cabang" : "ranting";
+  const adminLabel = scope === "branch" ? "admin cabang" : "admin ranting";
   const activeCount = accounts.filter((a) => a.isActive).length;
   const showMultiDojo = scope === "dojo" && siblingDojos.length > 1;
 
@@ -390,6 +394,19 @@ export function WilayahAccountsPanel({
 
   function grantSummary(a: AccountRow) {
     return summarizeAdminDojoGrants(a.adminGrants ?? DEFAULT_ADMIN_DOJO_GRANTS);
+  }
+
+  function accountType(a: AccountRow) {
+    if (a.memberId) {
+      return {
+        label: "Admin + Anggota",
+        hint: "Dual-role: bisa masuk dashboard anggota dan panel admin.",
+      };
+    }
+    return {
+      label: "Admin saja",
+      hint: "Akun ini khusus akses panel admin.",
+    };
   }
 
   return (
@@ -423,7 +440,7 @@ export function WilayahAccountsPanel({
           <Users className="h-4 w-4 text-inkai-red" />
           <div>
             <p className="text-sm font-semibold">
-              Akun admin {label}
+              Akun {adminLabel}
               {!compact ? ` — ${wilayahName}` : ""}
             </p>
             <p className="text-xs text-muted-foreground">
@@ -434,7 +451,7 @@ export function WilayahAccountsPanel({
           </div>
         </div>
         <div className="flex flex-wrap gap-1">
-          {scope === "dojo" ? (
+          {(scope === "dojo" || scope === "branch") ? (
             <Button
               type="button"
               size="sm"
@@ -448,7 +465,7 @@ export function WilayahAccountsPanel({
                 setPromoteGrants({ ...DEFAULT_ADMIN_DOJO_GRANTS });
               }}
             >
-              Jadikan admin ranting
+              {scope === "branch" ? "Jadikan admin cabang" : "Jadikan admin ranting"}
             </Button>
           ) : null}
           {showMultiDojo ? (
@@ -478,6 +495,16 @@ export function WilayahAccountsPanel({
         </div>
       </div>
 
+      {(scope === "dojo" || scope === "branch") ? (
+        <div className="rounded-lg border border-inkai-red/20 bg-inkai-red/5 px-3 py-2 text-xs text-muted-foreground">
+          Panel ini hanya menampilkan <span className="font-medium text-foreground">akun {adminLabel}</span>.
+          Anggota biasa belum muncul di sini sampai dijadikan {adminLabel}.
+          Jika email seperti <span className="font-mono">jonathankandou@gmail.com</span> sudah ditambahkan lewat
+          <span className="font-medium text-foreground"> {scope === "branch" ? "Jadikan admin cabang" : "Jadikan admin ranting"}</span>, akun itu akan tampil dengan badge
+          <span className="font-medium text-foreground"> Admin + Anggota</span>.
+        </div>
+      ) : null}
+
       {loading ? (
         <p className="text-sm text-muted-foreground">Memuat daftar akun…</p>
       ) : accounts.length === 0 ? (
@@ -485,10 +512,10 @@ export function WilayahAccountsPanel({
           <p className="text-sm font-medium">Belum ada akun pengurus</p>
           <p className="mt-1 text-xs text-muted-foreground">
             Tambahkan email baru, atau jadikan anggota yang sudah punya login
-            sebagai admin ranting.
+            sebagai {adminLabel}.
           </p>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
-            {scope === "dojo" ? (
+            {(scope === "dojo" || scope === "branch") ? (
               <Button
                 type="button"
                 size="sm"
@@ -501,7 +528,7 @@ export function WilayahAccountsPanel({
                   setPromoteGrants({ ...DEFAULT_ADMIN_DOJO_GRANTS });
                 }}
               >
-                Jadikan admin ranting
+                {scope === "branch" ? "Jadikan admin cabang" : "Jadikan admin ranting"}
               </Button>
             ) : null}
             <Button
@@ -549,6 +576,15 @@ export function WilayahAccountsPanel({
                   ) : null}
                   {a.jabatanLabel ? (
                     <Badge variant="secondary">{a.jabatanLabel}</Badge>
+                  ) : null}
+                  {(scope === "dojo" || scope === "branch") ? (
+                    <Badge
+                      variant={a.memberId ? "default" : "outline"}
+                      className={a.memberId ? "bg-inkai-red hover:bg-inkai-red/90" : undefined}
+                      title={accountType(a).hint}
+                    >
+                      {accountType(a).label}
+                    </Badge>
                   ) : null}
                   {scope === "dojo" ? (
                     <>
@@ -1048,11 +1084,13 @@ export function WilayahAccountsPanel({
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Jadikan admin ranting</DialogTitle>
+            <DialogTitle>
+              {scope === "branch" ? "Jadikan admin cabang" : "Jadikan admin ranting"}
+            </DialogTitle>
             <DialogDescription>
               Pakai email login yang sudah ada (mis. anggota{" "}
-              <strong>{wilayahName}</strong>). Role admin ranting ditambahkan
-              tanpa membuat akun baru — dual-role anggota + pengurus.
+              <strong>{wilayahName}</strong>). Role {adminLabel} ditambahkan tanpa
+              membuat akun baru — dual-role anggota + pengurus.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -1086,13 +1124,15 @@ export function WilayahAccountsPanel({
                 checked={promoteSetPrimary}
                 onChange={(e) => setPromoteSetPrimary(e.target.checked)}
               />
-              Jadikan PIC utama ranting ini
+              Jadikan PIC utama {label} ini
             </label>
-            <AdminDojoGrantsEditor
-              value={promoteGrants}
-              onChange={setPromoteGrants}
-              disabled={busy}
-            />
+            {scope === "dojo" ? (
+              <AdminDojoGrantsEditor
+                value={promoteGrants}
+                onChange={setPromoteGrants}
+                disabled={busy}
+              />
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPromoteOpen(false)}>

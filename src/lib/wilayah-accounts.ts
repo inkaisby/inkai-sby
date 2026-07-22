@@ -239,6 +239,7 @@ export async function listWilayahAccounts(opts: {
         createdAt: true,
         updatedAt: true,
         managedDojoId: true,
+        memberId: true,
       },
       orderBy: [{ isActive: "desc" }, { email: "asc" }],
     }),
@@ -268,6 +269,7 @@ export async function listWilayahAccounts(opts: {
           createdAt: true,
           updatedAt: true,
           managedDojoId: true,
+          memberId: true,
         },
       });
       users = [...users, ...extras].sort((a, b) => {

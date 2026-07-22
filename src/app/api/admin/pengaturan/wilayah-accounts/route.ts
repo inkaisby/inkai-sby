@@ -31,6 +31,7 @@ import {
   setManagedDojoIds,
 } from "@/lib/managed-dojos";
 import { promoteUserToAdminDojo } from "@/lib/promote-admin-dojo";
+import { promoteUserToAdminBranch } from "@/lib/promote-admin-branch";
 import {
   adminDojoGrantsFromInput,
   parseAdminDojoGrants,
@@ -92,9 +93,8 @@ export async function GET(request: Request) {
   return NextResponse.json({
     data: result.accounts.map((a) => {
       const raw = (a as { adminGrantsRaw?: unknown }).adminGrantsRaw;
-      const { adminGrantsRaw: _drop, ...rest } = a as typeof a & {
-        adminGrantsRaw?: unknown;
-      };
+      const rest = { ...(a as typeof a & { adminGrantsRaw?: unknown }) };
+      delete rest.adminGrantsRaw;
       return {
         ...rest,
         adminGrants: raw ? parseAdminDojoGrants(raw) : null,
@@ -359,41 +359,42 @@ export async function PATCH(request: Request) {
 
   // --- Jadikan admin ranting: akun login existing (anggota / user lain) ---
   if (action === "promote_existing") {
-    if (scope !== "dojo") {
-      return NextResponse.json(
-        { error: "Promosi admin ranting hanya untuk ranting" },
-        { status: 400 },
-      );
-    }
     const linkEmail = parsed.data.linkEmail?.trim().toLowerCase();
     if (!linkEmail) {
       return NextResponse.json({ error: "Email wajib" }, { status: 400 });
     }
-    const branchId =
-      "branchId" in scoped && typeof scoped.branchId === "string"
-        ? scoped.branchId
-        : null;
-    if (!branchId) {
-      return NextResponse.json(
-        { error: "Cabang ranting tidak ditemukan" },
-        { status: 400 },
-      );
-    }
 
     try {
-      const result = await promoteUserToAdminDojo({
-        email: linkEmail,
-        dojoId: wilayahId,
-        branchId,
-        jabatan: parsed.data.jabatan ?? undefined,
-        setAsPrimary: parsed.data.setAsPrimary,
-        adminGrants: parsed.data.adminGrants,
-      });
+      const result =
+        scope === "dojo"
+          ? await (async () => {
+              const branchId =
+                "branchId" in scoped && typeof scoped.branchId === "string"
+                  ? scoped.branchId
+                  : null;
+              if (!branchId) {
+                throw new Error("Cabang ranting tidak ditemukan");
+              }
+              return promoteUserToAdminDojo({
+                email: linkEmail,
+                dojoId: wilayahId,
+                branchId,
+                jabatan: parsed.data.jabatan ?? undefined,
+                setAsPrimary: parsed.data.setAsPrimary,
+                adminGrants: parsed.data.adminGrants,
+              });
+            })()
+          : await promoteUserToAdminBranch({
+              email: linkEmail,
+              branchId: wilayahId,
+              jabatan: parsed.data.jabatan ?? undefined,
+              setAsPrimary: parsed.data.setAsPrimary,
+            });
 
       if (result.alreadyManaging && !result.roleGranted) {
         return NextResponse.json({
           success: true,
-          message: `${result.email} sudah admin ranting ${scoped.name}`,
+          message: `${result.email} sudah admin ${scope === "dojo" ? "ranting" : "cabang"} ${scoped.name}`,
           data: result,
         });
       }
@@ -421,8 +422,8 @@ export async function PATCH(request: Request) {
         scope,
         wilayahId,
         excludeUserId: authResult.user.id,
-        title: "Admin ranting — akun ditambahkan",
-        content: `${result.email} dijadikan admin ranting ${scoped.name} oleh ${authResult.user.email}.${result.memberLinked ? " Akun dual-role (anggota + pengurus)." : ""}`,
+        title: `Admin ${scope === "dojo" ? "ranting" : "cabang"} — akun ditambahkan`,
+        content: `${result.email} dijadikan admin ${scope === "dojo" ? "ranting" : "cabang"} ${scoped.name} oleh ${authResult.user.email}.${result.memberLinked ? " Akun dual-role (anggota + pengurus)." : ""}`,
       });
 
       const dualHint = result.memberLinked
@@ -431,7 +432,7 @@ export async function PATCH(request: Request) {
 
       return NextResponse.json({
         success: true,
-        message: `${result.email} sekarang admin ranting ${scoped.name}.${dualHint}`,
+        message: `${result.email} sekarang admin ${scope === "dojo" ? "ranting" : "cabang"} ${scoped.name}.${dualHint}`,
         data: result,
       });
     } catch (e) {

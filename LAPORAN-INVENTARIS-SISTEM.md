@@ -117,7 +117,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
 | Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; tanpa force-logout; ranting tidak akses |
 | Notifikasi | Inbox admin (ada di nav); **ranting: rantingnya + ops cabang**; field `audience`; tanpa notif pribadi anggota; cabang lihat semua ranting |
-| Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; panel Akun: **Jadikan admin ranting** (email anggota existing → dual-role) + **centang hak akses** (edit profil, CRUD, menu sidebar); admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, **Pengaturan UKT (syarat daftar)**, peran (**preset**), geofencing (**pratinjau peta**), akun; **arsip cabang: Pulihkan + Hapus permanen** (ditolak jika masih ada anggota / cabang SURABAYA) |
+| Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; panel Akun: **Jadikan admin ranting** (email anggota existing → dual-role) + **centang hak akses** (edit profil, CRUD, menu sidebar); **Pengaturan Cabang** mendukung **Jadikan admin cabang** dari akun existing (mis. ketua cabang) tanpa akun baru + badge **Admin + Anggota / Admin saja**; admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, **Pengaturan UKT (syarat daftar)**, peran (**preset**), geofencing (**pratinjau peta**), akun; **arsip cabang: Pulihkan + Hapus permanen** (ditolak jika masih ada anggota / cabang SURABAYA) |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, **Kehadiran akun**, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
@@ -281,7 +281,7 @@ Pusat / Nasional
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
 | Materi / Store / Pesan / Pindah / Piagam | Aktif | Pesan: partisipan wajib (tanpa IDOR/fallback all); unread + cari + broadcast; store/materi upload |
 | RBAC wilayah | Diterapkan | Matriks tampil di Pengaturan & Role; multi-akun per cabang/ranting + PIC; **preset permission** |
-| Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC, serah terima; **email/password PIC** di form Ubah Data ranting (cabang); admin ranting ubah email/password di **Akun Saya** (email bisa diedit); geofence + **pratinjau peta OSM**; degradasi username login: klasifikasi pool vs error lain, KPI/filter aman saat DB gagal; **multi-ranting per akun** (`AppSetting` + context switcher); arsip cabang **hapus permanen** (`permanent` pada DELETE cabang) |
+| Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC, serah terima; **email/password PIC** di form Ubah Data ranting (cabang); admin ranting ubah email/password di **Akun Saya** (email bisa diedit); geofence + **pratinjau peta OSM**; degradasi username login: klasifikasi pool vs error lain, KPI/filter aman saat DB gagal; **multi-ranting per akun** (`AppSetting` + context switcher); **promote akun existing ke admin cabang** (dual-role anggota + admin cabang) + badge tipe akun; arsip cabang **hapus permanen** (`permanent` pada DELETE cabang) |
 | Upload bukti iuran (anggota) | Aktif | `/dashboard/iuran` + `/api/member/billing/[id]` |
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` + `/api/member/attendance/checkin` |
 | Absensi admin | Aktif | Harian, belum hadir, rekap semester %, export CSV |
@@ -581,6 +581,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | **Jadikan admin ranting**: centang hak akses per akun — edit profil, CRUD anggota, menu sidebar admin (`adminGrants` di meta ranting); tombol perbarui hak akses di daftar akun |
 | 22 Juli 2026 | Form Tambah Ranting: penanda field wajib (*); perbaiki kirim `adminEmail` ke Inkai saat buat/ubah (password tetap Prisma); validasi email+password berpasangan |
 | 22 Juli 2026 | Topbar akun gabungan: hanya tampilkan email yang berbagi kelola ranting (API `/account-peers`), bukan riwayat Ganti Akun dari localStorage |
+| 22 Juli 2026 | Pengaturan Ranting & User: UI diperjelas sebagai panel **akun admin ranting**; akun dual-role ditandai **Admin + Anggota**, anggota biasa tidak tampil sampai dijadikan admin ranting |
+| 22 Juli 2026 | Pengaturan Cabang: tambah alur **Jadikan admin cabang** untuk akun existing (contoh ketua cabang) tanpa akun baru; panel Akun Admin membedakan **Admin + Anggota** vs **Admin saja** |
 
 ---
 

@@ -357,7 +357,7 @@ export function RantingSettingsManager({
         <p className="text-sm text-muted-foreground">
           {selfManagedOnly
             ? "Klik Ubah untuk memperbarui data ranting Anda. Email & password di bagian Akun Saya."
-            : "Data ranting + email/password login PIC. Multi-akun lewat tombol Akun (jabatan, serah terima)."}
+            : "Data ranting + email/password login PIC. Panel Akun Admin memisahkan pengurus yang punya akses admin dari anggota biasa."}
         </p>
         {!selfManagedOnly && (
           <Button
@@ -601,7 +601,7 @@ export function RantingSettingsManager({
               <TableHead className="hidden sm:table-cell">Cabang</TableHead>
               <TableHead className="hidden md:table-cell">PIC</TableHead>
               <TableHead className="hidden lg:table-cell">Kecamatan</TableHead>
-              <TableHead>Akun</TableHead>
+              <TableHead>Akun Admin</TableHead>
               <TableHead className="hidden md:table-cell">Anggota</TableHead>
               <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
@@ -679,7 +679,7 @@ export function RantingSettingsManager({
                           className="gap-1"
                         >
                           <Users className="h-3.5 w-3.5" />
-                          Akun
+                          Akun Admin
                         </Button>
                       )}
                       <Button
@@ -764,7 +764,7 @@ export function RantingSettingsManager({
               <SheetHeader>
                 <SheetTitle>{detailDojo.name}</SheetTitle>
                 <SheetDescription>
-                  Multi-akun pengurus, jabatan, PIC, dan serah terima
+                  Khusus akun yang sudah punya hak akses admin ranting: multi-akun pengurus, jabatan, PIC, dan serah terima
                 </SheetDescription>
               </SheetHeader>
 
