@@ -117,7 +117,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
 | Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; tanpa force-logout; ranting tidak akses |
 | Notifikasi | Inbox admin (ada di nav); **ranting: rantingnya + ops cabang**; field `audience`; tanpa notif pribadi anggota; cabang lihat semua ranting |
-| Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, **Pengaturan UKT (syarat daftar)**, peran (**preset**), geofencing (**pratinjau peta**), akun; **arsip cabang: Pulihkan + Hapus permanen** (ditolak jika masih ada anggota / cabang SURABAYA) |
+| Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; panel Akun: **Jadikan admin ranting** (email anggota existing → dual-role); admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, **Pengaturan UKT (syarat daftar)**, peran (**preset**), geofencing (**pratinjau peta**), akun; **arsip cabang: Pulihkan + Hapus permanen** (ditolak jika masih ada anggota / cabang SURABAYA) |
 
 **Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, **Kehadiran akun**, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
@@ -574,6 +574,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Fix WA PIC beranda anggota: multi-nomor di `Dojo.phoneNumber` (mis. `0852…/0896…`) tidak lagi di-concat; pakai nomor utama + bersihkan data JWON |
 | 22 Juli 2026 | Fix sabuk kartu anggota: `resolveMemberDisplayRank` mengikuti `currentRank` keanggotaan (selaras admin/verifikasi QR), bukan sabuk tertinggi dari riwayat/UKT |
 | 22 Juli 2026 | Detail anggota: centang **pengecualian iuran** (`allowEventWithoutDues`) — gate daftar event/UKT tanpa lunas iuran; generate tagihan bulanan skip anggota pengecualian |
+| 22 Juli 2026 | Pengaturan ranting (cabang): **Jadikan admin ranting** — email login existing (anggota) jadi `ADMIN_DOJO` dual-role tanpa akun baru (`promote_existing`) |
 
 ---
 

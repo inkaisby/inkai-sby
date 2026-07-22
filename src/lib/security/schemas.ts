@@ -574,6 +574,7 @@ export const wilayahAccountPatchSchema = z
       "change_email",
       "set_managed_dojos",
       "link_existing",
+      "promote_existing",
       "unlink_dojo",
     ]),
     newPassword: z.string().min(8).max(72).optional(),
@@ -598,9 +599,10 @@ export const wilayahAccountPatchSchema = z
       .toLowerCase()
       .email("Format email tidak valid")
       .optional(),
+    setAsPrimary: z.boolean().optional(),
   })
   .superRefine((d, ctx) => {
-    if (d.action === "link_existing") {
+    if (d.action === "link_existing" || d.action === "promote_existing") {
       if (!d.linkEmail) {
         ctx.addIssue({
           code: "custom",

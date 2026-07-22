@@ -30,6 +30,7 @@ import {
   removeManagedDojo,
   setManagedDojoIds,
 } from "@/lib/managed-dojos";
+import { promoteUserToAdminDojo } from "@/lib/promote-admin-dojo";
 import {
   wilayahAccountCreateSchema,
   wilayahAccountPatchSchema,
@@ -330,6 +331,89 @@ export async function PATCH(request: Request) {
         { error: e instanceof Error ? e.message : "Gagal menautkan akun" },
         { status: 400 },
       );
+    }
+  }
+
+  // --- Jadikan admin ranting: akun login existing (anggota / user lain) ---
+  if (action === "promote_existing") {
+    if (scope !== "dojo") {
+      return NextResponse.json(
+        { error: "Promosi admin ranting hanya untuk ranting" },
+        { status: 400 },
+      );
+    }
+    const linkEmail = parsed.data.linkEmail?.trim().toLowerCase();
+    if (!linkEmail) {
+      return NextResponse.json({ error: "Email wajib" }, { status: 400 });
+    }
+    const branchId =
+      "branchId" in scoped && typeof scoped.branchId === "string"
+        ? scoped.branchId
+        : null;
+    if (!branchId) {
+      return NextResponse.json(
+        { error: "Cabang ranting tidak ditemukan" },
+        { status: 400 },
+      );
+    }
+
+    try {
+      const result = await promoteUserToAdminDojo({
+        email: linkEmail,
+        dojoId: wilayahId,
+        branchId,
+        jabatan: parsed.data.jabatan ?? undefined,
+        setAsPrimary: parsed.data.setAsPrimary,
+      });
+
+      if (result.alreadyManaging && !result.roleGranted) {
+        return NextResponse.json({
+          success: true,
+          message: `${result.email} sudah admin ranting ${scoped.name}`,
+          data: result,
+        });
+      }
+
+      writeAuditLog({
+        userId: authResult.user.id,
+        email: authResult.user.email,
+        action: "WILAYAH_ACCOUNT_PROMOTE_ADMIN_DOJO",
+        details: JSON.stringify({
+          scope,
+          wilayahId,
+          wilayahName: scoped.name,
+          targetUserId: result.userId,
+          targetEmail: result.email,
+          roleGranted: result.roleGranted,
+          memberLinked: result.memberLinked,
+        }),
+        ip: getClientIp(request),
+        userAgent: request.headers.get("user-agent"),
+        token: authResult.token,
+      });
+
+      await notifyWilayahAdmins({
+        token: authResult.token,
+        scope,
+        wilayahId,
+        excludeUserId: authResult.user.id,
+        title: "Admin ranting — akun ditambahkan",
+        content: `${result.email} dijadikan admin ranting ${scoped.name} oleh ${authResult.user.email}.${result.memberLinked ? " Akun dual-role (anggota + pengurus)." : ""}`,
+      });
+
+      const dualHint = result.memberLinked
+        ? " Akun dual-role: bisa login ke dashboard anggota dan panel admin."
+        : "";
+
+      return NextResponse.json({
+        success: true,
+        message: `${result.email} sekarang admin ranting ${scoped.name}.${dualHint}`,
+        data: result,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Gagal menjadikan admin ranting";
+      const status = msg.includes("tidak ditemukan") ? 404 : 400;
+      return NextResponse.json({ error: msg }, { status });
     }
   }
 

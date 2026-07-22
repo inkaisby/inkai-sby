@@ -91,6 +91,10 @@ export function WilayahAccountsPanel({
   const [addOpen, setAddOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkEmail, setLinkEmail] = useState("");
+  const [promoteOpen, setPromoteOpen] = useState(false);
+  const [promoteEmail, setPromoteEmail] = useState("");
+  const [promoteJabatan, setPromoteJabatan] = useState("KETUA");
+  const [promoteSetPrimary, setPromoteSetPrimary] = useState(false);
   const [manageTarget, setManageTarget] = useState<AccountRow | null>(null);
   const [manageIds, setManageIds] = useState<string[]>([]);
   const [managePrimary, setManagePrimary] = useState("");
@@ -289,6 +293,36 @@ export function WilayahAccountsPanel({
     }
   }
 
+  async function promoteExistingAccount() {
+    if (!promoteEmail.trim()) {
+      showError("Email wajib diisi");
+      return;
+    }
+    setBusy(true);
+    const res = await fetch("/api/admin/pengaturan/wilayah-accounts", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        scope,
+        wilayahId,
+        action: "promote_existing",
+        linkEmail: promoteEmail.trim().toLowerCase(),
+        jabatan: promoteJabatan || null,
+        setAsPrimary: promoteSetPrimary,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (res.ok) {
+      showSuccess(data.message || "Admin ranting ditambahkan");
+      setPromoteOpen(false);
+      setPromoteEmail("");
+      void load();
+    } else {
+      showError(data.error || "Gagal menjadikan admin ranting");
+    }
+  }
+
   function openManageDojos(a: AccountRow) {
     const ids =
       a.managedDojoIds && a.managedDojoIds.length > 0
@@ -369,6 +403,22 @@ export function WilayahAccountsPanel({
           </div>
         </div>
         <div className="flex flex-wrap gap-1">
+          {scope === "dojo" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy || loading}
+              onClick={() => {
+                setPromoteOpen(true);
+                setPromoteEmail("");
+                setPromoteJabatan(accounts.length === 0 ? "KETUA" : "PENGURUS");
+                setPromoteSetPrimary(accounts.length === 0);
+              }}
+            >
+              Jadikan admin ranting
+            </Button>
+          ) : null}
           {showMultiDojo ? (
             <Button
               type="button"
@@ -402,18 +452,35 @@ export function WilayahAccountsPanel({
         <div className="rounded-lg border border-dashed px-3 py-6 text-center">
           <p className="text-sm font-medium">Belum ada akun pengurus</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Tambahkan email sendiri per pengurus — jangan saling pinjam
-            password.
+            Tambahkan email baru, atau jadikan anggota yang sudah punya login
+            sebagai admin ranting.
           </p>
-          <Button
-            type="button"
-            size="sm"
-            className="mt-3 bg-inkai-red hover:bg-inkai-red/90"
-            onClick={openAdd}
-          >
-            <Plus className="mr-1 h-3.5 w-3.5" />
-            Tambah akun pertama
-          </Button>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            {scope === "dojo" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setPromoteOpen(true);
+                  setPromoteEmail("");
+                  setPromoteJabatan("KETUA");
+                  setPromoteSetPrimary(true);
+                }}
+              >
+                Jadikan admin ranting
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              onClick={openAdd}
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" />
+              Tambah akun baru
+            </Button>
+          </div>
         </div>
       ) : (
         <ul className="divide-y rounded-lg border">
@@ -891,6 +958,73 @@ export function WilayahAccountsPanel({
               }
             >
               Serahkan PIC
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={promoteOpen}
+        onOpenChange={(o) => {
+          if (!o) {
+            setPromoteOpen(false);
+            setPromoteEmail("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Jadikan admin ranting</DialogTitle>
+            <DialogDescription>
+              Pakai email login yang sudah ada (mis. anggota{" "}
+              <strong>{wilayahName}</strong>). Role admin ranting ditambahkan
+              tanpa membuat akun baru — dual-role anggota + pengurus.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Email login anggota / user</Label>
+              <Input
+                type="email"
+                value={promoteEmail}
+                onChange={(e) => setPromoteEmail(e.target.value)}
+                placeholder="jonathankandou@gmail.com"
+                autoComplete="off"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Jabatan</Label>
+              <select
+                className="h-9 w-full rounded-lg border bg-background px-2 text-sm"
+                value={promoteJabatan}
+                onChange={(e) => setPromoteJabatan(e.target.value)}
+              >
+                {JABATAN_OPTIONS.map((j) => (
+                  <option key={j.value} value={j.value}>
+                    {j.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={promoteSetPrimary}
+                onChange={(e) => setPromoteSetPrimary(e.target.checked)}
+              />
+              Jadikan PIC utama ranting ini
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPromoteOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              disabled={busy || !promoteEmail.trim()}
+              onClick={() => void promoteExistingAccount()}
+            >
+              Simpan
             </Button>
           </DialogFooter>
         </DialogContent>
