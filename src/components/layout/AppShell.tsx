@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { SidebarNavLink } from "@/components/layout/SidebarNavLink";
 import Image from "next/image";
@@ -19,7 +19,6 @@ import { SwitchAccountModal } from "@/components/auth/SwitchAccountModal";
 import { SidebarNavGroup } from "@/components/layout/SidebarNavGroup";
 import { isNavGroup, type NavItem } from "@/lib/dashboard-nav";
 import {
-  listRecentSwitchAccounts,
   rememberSwitchAccount,
 } from "@/lib/switch-accounts-storage";
 import { LogOut, Home, User, Bell, ArrowLeftRight, Check } from "lucide-react";
@@ -35,16 +34,17 @@ export function UserMenu({
   name,
   email,
   showAdmin = false,
+  hasMemberPortal = false,
 }: {
   name: string;
   email: string;
   showAdmin?: boolean;
+  hasMemberPortal?: boolean;
 }) {
   const [switchOpen, setSwitchOpen] = useState(false);
   const [switchPrefill, setSwitchPrefill] = useState("");
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [peers, setPeers] = useState<PeerAccount[]>([]);
-  const [recentEmails, setRecentEmails] = useState<string[]>([]);
 
   const initials = name
     .split(" ")
@@ -53,16 +53,9 @@ export function UserMenu({
     .slice(0, 2)
     .toUpperCase();
 
-  const refreshRecent = useCallback(() => {
-    setRecentEmails(
-      listRecentSwitchAccounts({ excludeEmail: email }).map((r) => r.email),
-    );
-  }, [email]);
-
   useEffect(() => {
     if (email) rememberSwitchAccount(email);
-    refreshRecent();
-  }, [email, refreshRecent]);
+  }, [email]);
 
   useEffect(() => {
     if (!showAdmin) return;
@@ -87,30 +80,22 @@ export function UserMenu({
     };
   }, [showAdmin, email]);
 
+  /** Hanya akun yang berbagi kelola ranting (dari pengaturan), bukan riwayat ganti akun. */
   const linkedEmails = useMemo(() => {
     const current = email.trim().toLowerCase();
     const fromPeers = peers
       .map((p) => p.email.trim().toLowerCase())
       .filter(Boolean);
-    const merged = [...fromPeers];
-    for (const r of recentEmails) {
-      if (!merged.includes(r)) merged.push(r);
+    if (current && !fromPeers.includes(current)) {
+      fromPeers.unshift(current);
     }
-    if (current && !merged.includes(current)) {
-      merged.unshift(current);
-    }
-    // Unik, current dulu
-    const uniq: string[] = [];
-    for (const e of merged) {
-      if (!uniq.includes(e)) uniq.push(e);
-    }
-    uniq.sort((a, b) => {
+    fromPeers.sort((a, b) => {
       if (a === current) return -1;
       if (b === current) return 1;
       return a.localeCompare(b);
     });
-    return uniq;
-  }, [peers, recentEmails, email]);
+    return fromPeers;
+  }, [peers, email]);
 
   const openSwitch = (prefill = "") => {
     setSwitchPrefill(prefill);
@@ -223,6 +208,14 @@ export function UserMenu({
               </Link>
             </DropdownMenuItem>
           )}
+          {showAdmin && hasMemberPortal && (
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard">
+                <User className="mr-2 h-4 w-4" />
+                Dashboard Anggota
+              </Link>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={() => openSwitch("")}>
             <ArrowLeftRight className="mr-2 h-4 w-4" />
             Ganti Akun lain…
@@ -242,10 +235,7 @@ export function UserMenu({
         open={switchOpen}
         onOpenChange={(open) => {
           setSwitchOpen(open);
-          if (!open) {
-            setSwitchPrefill("");
-            refreshRecent();
-          }
+          if (!open) setSwitchPrefill("");
         }}
         currentEmail={email}
         initialEmail={switchPrefill}
