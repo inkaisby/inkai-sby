@@ -1,9 +1,11 @@
 import { inkaiFetch } from "@/lib/inkai-api/server";
+import { getBeltGroup } from "@/lib/belt";
 import { prisma } from "@/lib/prisma";
 import {
   buildUktSemesterWindow,
   buildUktWaiverMap,
   computeSemesterAttendance,
+  DEFAULT_BELT_FEES,
   formatUktRegistrationBlockers,
   getUktRegistrationBlockersWithWaiver,
   getUktRegistrationDeadline,
@@ -12,6 +14,7 @@ import {
   isUktRegistrationOpen,
   parseUktEventTitle,
   parseUktPeriodMetaValue,
+  type BeltFeeKey,
   uktPeriodMetaKey,
   uktRegistrationWaiverKey,
   type UktSemester,
@@ -55,17 +58,18 @@ async function fetchMemberAttendancePct(
 
 /**
  * Ambil anggota untuk gate daftar UKT.
- * Inkai GET by-id sering 404 untuk token ranting / setelah force-hapus tagihan
- * menandai soft-delete — fallback Prisma (+ pulihkan isDeleted bila perlu).
+ * Inkai GET by-id sering 403/404 untuk token ranting (multi-dojo / soft-delete) —
+ * fallback Prisma. Pulihkan soft-delete hanya via Prisma (jangan PATCH Inkai
+ * dengan token ranting → "Akses wilayah ditolak").
  */
 async function resolveMemberForUktRegister(
-  token: string,
+  _token: string,
   memberId: string,
 ): Promise<
   | { ok: true; member: Record<string, unknown> }
   | { ok: false; error: string }
 > {
-  const { res, data } = await inkaiFetch(`/v1/members/${memberId}`, {}, token);
+  const { res, data } = await inkaiFetch(`/v1/members/${memberId}`, {}, _token);
   if (res.ok) {
     return { ok: true, member: (data.data as Record<string, unknown>) ?? {} };
   }
@@ -101,7 +105,7 @@ async function resolveMemberForUktRegister(
     return { ok: false, error: "Anggota tidak ditemukan" };
   }
 
-  // Hapus peserta UKT tidak boleh mengarsipkan anggota — pulihkan agar daftar ulang.
+  // Hapus peserta UKT tidak boleh mengarsipkan anggota — pulihkan di DB bersama.
   if (local.isDeleted) {
     const restoreStatus =
       local.status === "INACTIVE" || local.status === "Inactive"
@@ -112,17 +116,9 @@ async function resolveMemberForUktRegister(
         where: { id: memberId },
         data: { isDeleted: false, status: restoreStatus },
       });
-      await inkaiFetch(
-        `/v1/members/${memberId}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ isDeleted: false, status: restoreStatus }),
-        },
-        token,
-        { timeoutMs: 5_000, retries: 0 },
-      );
+      local = { ...local, isDeleted: false, status: restoreStatus };
       console.warn(
-        "[ukt-register] restored soft-deleted member for re-register",
+        "[ukt-register] restored soft-deleted member via Prisma",
         memberId,
       );
     } catch (error) {
@@ -135,26 +131,173 @@ async function resolveMemberForUktRegister(
     }
   }
 
-  // Coba ulang Inkai setelah restore; jika tetap gagal pakai data Prisma.
-  const retry = await inkaiFetch(`/v1/members/${memberId}`, {}, token);
-  if (retry.res.ok) {
-    return {
-      ok: true,
-      member: (retry.data.data as Record<string, unknown>) ?? {},
-    };
-  }
-
   return {
     ok: true,
     member: {
       id: local.id,
       fullName: local.fullName,
       currentRank: local.currentRank,
-      status: local.isDeleted ? "Active" : local.status,
+      status: local.status,
       birthCertificateUrl: local.birthCertificateUrl,
       bpjsCardUrl: local.bpjsCardUrl,
     },
   };
+}
+
+export function isInkaiScopeDeniedError(
+  message: string,
+  status?: number,
+): boolean {
+  const m = message.toLowerCase();
+  if (status === 403) return true;
+  return (
+    m.includes("wilayah") ||
+    m.includes("akses ditolak") ||
+    m.includes("forbidden") ||
+    m.includes("di luar cakupan") ||
+    m.includes("out of scope")
+  );
+}
+
+/** Daftar UKT langsung di DB bersama bila API Inkai menolak token ranting. */
+export async function forceRegisterUktInDb(opts: {
+  eventId: string;
+  memberId: string;
+  registeredByUserId: string;
+  kyuLamaSnapshot: string;
+  periodTitle: string;
+  amount: number;
+}): Promise<
+  | {
+      ok: true;
+      registrationId: string;
+      billingId: string;
+      billingAmount: number;
+      billingStatus: string;
+      memberName: string;
+    }
+  | { ok: false; error: string }
+> {
+  const amount = Math.max(0, Math.round(opts.amount));
+  try {
+    const existing = await prisma.eventRegistration.findFirst({
+      where: { eventId: opts.eventId, memberId: opts.memberId },
+      select: { id: true, status: true },
+    });
+    if (existing && existing.status !== "REJECTED" && existing.status !== "CANCELLED") {
+      return {
+        ok: false,
+        error: "Anggota sudah terdaftar pada periode UKT ini",
+      };
+    }
+
+    const member = await prisma.member.findFirst({
+      where: { id: opts.memberId, isDeleted: false },
+      select: { fullName: true, currentRank: true },
+    });
+    if (!member) {
+      return { ok: false, error: "Anggota tidak ditemukan" };
+    }
+
+    const event = await prisma.event.findFirst({
+      where: { id: opts.eventId, isDeleted: false },
+      select: { id: true, title: true, registrationCloseAt: true, endDate: true },
+    });
+    if (!event) {
+      return { ok: false, error: "Periode UKT tidak ditemukan" };
+    }
+
+    const registration = existing
+      ? await prisma.eventRegistration.update({
+          where: { id: existing.id },
+          data: {
+            status: "APPROVED",
+            registeredRank: opts.kyuLamaSnapshot,
+            registeredByUserId: opts.registeredByUserId,
+          },
+        })
+      : await prisma.eventRegistration.create({
+          data: {
+            eventId: opts.eventId,
+            memberId: opts.memberId,
+            registeredByUserId: opts.registeredByUserId,
+            status: "APPROVED",
+            registeredRank: opts.kyuLamaSnapshot,
+          },
+        });
+
+    const dueDate =
+      event.registrationCloseAt ?? event.endDate ?? new Date();
+    const desc = `UKT — ${opts.periodTitle || event.title || "Pendaftaran"}`;
+
+    const billing = await prisma.billing.create({
+      data: {
+        memberId: opts.memberId,
+        registrationId: registration.id,
+        type: "EVENT",
+        amount,
+        baseFeeAmount: amount,
+        description: desc,
+        dueDate,
+        status: "PENDING",
+        isDeleted: false,
+      },
+    });
+
+    return {
+      ok: true,
+      registrationId: registration.id,
+      billingId: billing.id,
+      billingAmount: amount,
+      billingStatus: "PENDING",
+      memberName: member.fullName,
+    };
+  } catch (error) {
+    console.error("[ukt-register] forceRegisterUktInDb failed", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Gagal mendaftarkan anggota di database",
+    };
+  }
+}
+
+export async function resolveUktRegisterFeeAmount(opts: {
+  token: string;
+  eventId: string;
+  memberRank: string;
+}): Promise<number> {
+  const group = getBeltGroup(opts.memberRank);
+  const key =
+    group === "LAINNYA"
+      ? null
+      : (group as BeltFeeKey);
+  const fees = { ...DEFAULT_BELT_FEES };
+  try {
+    const { res, data } = await inkaiFetch(
+      `/v1/settings/${encodeURIComponent(uktPeriodMetaKey(opts.eventId))}`,
+      {},
+      opts.token,
+      { timeoutMs: 5_000, retries: 0 },
+    );
+    if (res.ok) {
+      const meta = parseUktPeriodMetaValue(
+        (data.data as { value?: unknown } | undefined)?.value ?? null,
+      );
+      if (meta.beltFees) {
+        for (const k of Object.keys(fees) as BeltFeeKey[]) {
+          const n = Number(meta.beltFees[k]);
+          if (Number.isFinite(n) && n > 0) fees[k] = Math.round(n);
+        }
+      }
+    }
+  } catch {
+    /* pakai default */
+  }
+  if (key && key in fees) return fees[key];
+  return fees.PUTIH;
 }
 
 export async function validateUktRegistrationEligibility(

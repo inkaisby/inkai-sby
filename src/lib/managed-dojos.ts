@@ -411,3 +411,96 @@ export async function loadManagedDojoMatrix(branchId: string): Promise<{
   rows.sort((a, b) => a.email.localeCompare(b.email));
   return { dojos, rows };
 }
+
+/** Opsi filter UKT cabang untuk akun multi-ranting (gabungan). */
+export type UktDojoFilterGroup = {
+  /** Nilai Select: `group:uuid|uuid|…` (dojoIds terurut). */
+  value: string;
+  /** Label panjang: Gabungan GADING · CAKRA, MANYAR */
+  label: string;
+  /** Label pendek di dropdown. */
+  shortLabel: string;
+  dojoIds: string[];
+  primaryDojoId: string;
+};
+
+export function buildUktDojoFilterGroups(
+  rows: ManagedDojoMatrixRow[],
+): UktDojoFilterGroup[] {
+  const multi = rows.filter((r) => r.isActive && r.dojoIds.length > 1);
+  const seen = new Set<string>();
+  const groups: UktDojoFilterGroup[] = [];
+
+  for (const r of multi) {
+    const sorted = [...r.dojoIds].sort();
+    const key = sorted.join("|");
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const primaryDojoId =
+      r.primaryDojoId && sorted.includes(r.primaryDojoId)
+        ? r.primaryDojoId
+        : sorted[0];
+    const nameById = new Map(
+      r.dojoIds.map((id, i) => [id, r.dojoNames[i] ?? id]),
+    );
+    const primaryName =
+      nameById.get(primaryDojoId) || r.primaryDojoName || "Gabungan";
+    const others = sorted
+      .filter((id) => id !== primaryDojoId)
+      .map((id) => nameById.get(id) || id);
+
+    groups.push({
+      value: `group:${key}`,
+      label:
+        others.length > 0
+          ? `Gabungan ${primaryName} · ${others.join(", ")}`
+          : `Gabungan ${primaryName}`,
+      shortLabel: `Gabungan ${primaryName}`,
+      dojoIds: sorted,
+      primaryDojoId,
+    });
+  }
+
+  groups.sort((a, b) => a.shortLabel.localeCompare(b.shortLabel, "id"));
+  return groups;
+}
+
+/** Muat opsi gabungan multi-ranting untuk filter UKT (admin cabang+). */
+export async function loadUktDojoFilterGroups(
+  user: SessionUser,
+): Promise<UktDojoFilterGroup[]> {
+  const role = getPrimaryAdminRole(user.roles);
+  if (role === "ADMIN_DOJO") return [];
+
+  let branchId = user.managedBranchId ?? null;
+  if (!branchId) {
+    // Administrator / pusat: ambil cabang dari ranting yang punya multi-manager
+    return [];
+  }
+
+  try {
+    const { rows } = await loadManagedDojoMatrix(branchId);
+    return buildUktDojoFilterGroups(rows);
+  } catch (error) {
+    console.error("[loadUktDojoFilterGroups]", error);
+    return [];
+  }
+}
+
+export function parseUktDojoFilterValue(value: string): {
+  ids: string[] | null;
+  primaryDojoId: string;
+} {
+  const raw = value.trim();
+  if (!raw || raw === "all") return { ids: null, primaryDojoId: "" };
+  if (raw.startsWith("group:")) {
+    const ids = raw
+      .slice("group:".length)
+      .split("|")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return { ids, primaryDojoId: ids[0] ?? "" };
+  }
+  return { ids: [raw], primaryDojoId: raw };
+}

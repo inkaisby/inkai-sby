@@ -85,6 +85,10 @@ import {
   isBlankUktRank,
 } from "@/lib/belt";
 import {
+  parseUktDojoFilterValue,
+  type UktDojoFilterGroup,
+} from "@/lib/managed-dojos";
+import {
   type UktMemberRow,
   type UktDepositRecord,
   type UktRegistrationSnapshotItem,
@@ -220,6 +224,8 @@ type Props = {
   selectedPeriodId: string | null;
   allRows: UktMemberRow[];
   dojos: UktDojo[];
+  /** Opsi gabungan multi-ranting untuk filter cabang. */
+  dojoGroups?: UktDojoFilterGroup[];
   userRoles: string[];
   primaryRole: string;
   semester: UktSemester;
@@ -420,7 +426,37 @@ export function UktDashboard(props: Props) {
   const registrationOpenIso = periodSchedule
     ? (getUktRegistrationOpenAt(periodSchedule)?.toISOString() ?? null)
     : null;
-  const effectiveDojo = isDojoAdmin ? props.defaultDojoFilter || "" : localDojo;
+
+  /** Filter ranting: satu id, gabungan multi-ranting, atau semua (null). */
+  const dojoFilterParsed = useMemo(() => {
+    const raw = isDojoAdmin ? props.defaultDojoFilter || "" : localDojo;
+    const parsed = parseUktDojoFilterValue(raw);
+    if (raw.startsWith("group:")) {
+      const group = (props.dojoGroups ?? []).find((g) => g.value === raw);
+      if (group) {
+        return {
+          ids: group.dojoIds,
+          primaryDojoId: group.primaryDojoId,
+        };
+      }
+    }
+    return parsed;
+  }, [
+    isDojoAdmin,
+    props.defaultDojoFilter,
+    localDojo,
+    props.dojoGroups,
+  ]);
+
+  const effectiveDojoIds = dojoFilterParsed.ids;
+  /** Satu dojo untuk dialog/default (primary gabungan bila filter group). */
+  const effectiveDojo = dojoFilterParsed.primaryDojoId;
+
+  const matchesDojoFilter = useCallback(
+    (dojoId: string) =>
+      !effectiveDojoIds || effectiveDojoIds.includes(dojoId),
+    [effectiveDojoIds],
+  );
 
   const normalizeRows = useCallback((list: UktMemberRow[]) => {
     const cleared = locallyClearedMemberIdsRef.current;
@@ -597,7 +633,9 @@ export function UktDashboard(props: Props) {
     let list = rows;
     // Arsip: hanya peserta yang sudah daftar (bukan pool seluruh anggota)
     if (isArchiveView) list = list.filter((r) => Boolean(r.registrationId));
-    if (effectiveDojo) list = list.filter((r) => r.dojoId === effectiveDojo);
+    if (effectiveDojoIds) {
+      list = list.filter((r) => effectiveDojoIds.includes(r.dojoId));
+    }
     if (localStatus) list = filterUktRowsByDisplayStatus(list, localStatus);
     if (localQ.trim()) {
       const q = localQ.toLowerCase();
@@ -608,15 +646,17 @@ export function UktDashboard(props: Props) {
       );
     }
     return list;
-  }, [rows, isArchiveView, effectiveDojo, localStatus, localQ]);
+  }, [rows, isArchiveView, effectiveDojoIds, localStatus, localQ]);
 
   /** KPI & rekap tidak ikut filter status/cari — selalu dari pool periode (+ranting). */
   const kpiSourceRows = useMemo(() => {
     let list = rows;
     if (isArchiveView) list = list.filter((r) => Boolean(r.registrationId));
-    if (effectiveDojo) list = list.filter((r) => r.dojoId === effectiveDojo);
+    if (effectiveDojoIds) {
+      list = list.filter((r) => effectiveDojoIds.includes(r.dojoId));
+    }
     return list;
-  }, [rows, isArchiveView, effectiveDojo]);
+  }, [rows, isArchiveView, effectiveDojoIds]);
 
   const archiveSearchRows = useMemo(
     () =>
@@ -1659,7 +1699,7 @@ export function UktDashboard(props: Props) {
       (r) =>
         r.registrationId &&
         isRegistrationApproved(r.status) &&
-        (!effectiveDojo || r.dojoId === effectiveDojo),
+        matchesDojoFilter(r.dojoId),
     );
     if (approved.length === 0) {
       toast.error("Belum ada peserta disetujui");
@@ -2451,11 +2491,20 @@ export function UktDashboard(props: Props) {
               setLocalPage(1);
             }}
           >
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-[min(100%,16rem)] min-w-[11rem]">
               <SelectValue placeholder="Ranting" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua ranting</SelectItem>
+              {(props.dojoGroups ?? []).length > 0 && (
+                <>
+                  {(props.dojoGroups ?? []).map((g) => (
+                    <SelectItem key={g.value} value={g.value} title={g.label}>
+                      {g.shortLabel}
+                    </SelectItem>
+                  ))}
+                </>
+              )}
               {props.dojos.map((d) => (
                 <SelectItem key={d.id} value={d.id}>
                   {d.name}
@@ -3364,9 +3413,18 @@ export function UktDashboard(props: Props) {
           rows={(printOnlySelected && selectedRows.length > 0
             ? selectedRows
             : rows
-          ).filter((r) => r.registrationId && isNotaParticipant(r.status))}
+          ).filter(
+            (r) =>
+              r.registrationId &&
+              isNotaParticipant(r.status) &&
+              matchesDojoFilter(r.dojoId),
+          )}
           dojos={props.dojos}
-          dojoFilter={effectiveDojo}
+          dojoFilter={
+            effectiveDojoIds && effectiveDojoIds.length === 1
+              ? effectiveDojo
+              : ""
+          }
           beltFees={beltFees}
           komisiRanting={komisiRanting}
           isDojoAdmin={isDojoAdmin}

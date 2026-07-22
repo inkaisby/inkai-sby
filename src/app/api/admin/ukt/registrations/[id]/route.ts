@@ -1304,8 +1304,8 @@ export async function DELETE(request: Request, context: RouteContext) {
     token,
   });
 
-  // Hapus pendaftaran UKT tidak boleh mengarsipkan anggota. Pulihkan bila
-  // side-effect API force-delete tagihan menandai isDeleted.
+  // Hapus pendaftaran UKT tidak boleh mengarsipkan anggota. Pulihkan di DB
+  // bersama saja — jangan PATCH Inkai dengan token ranting (Akses wilayah ditolak).
   if (memberId) {
     try {
       const localMember = await prisma.member.findFirst({
@@ -1317,22 +1317,13 @@ export async function DELETE(request: Request, context: RouteContext) {
           where: { id: memberId },
           data: {
             isDeleted: false,
-            status: localMember.status === "INACTIVE" ? localMember.status : "Active",
+            status:
+              localMember.status === "INACTIVE" ||
+              localMember.status === "Inactive"
+                ? localMember.status
+                : "Active",
           },
         });
-        await inkaiFetch(
-          `/v1/members/${memberId}`,
-          {
-            method: "PATCH",
-            body: JSON.stringify({
-              isDeleted: false,
-              status:
-                localMember.status === "INACTIVE" ? "INACTIVE" : "Active",
-            }),
-          },
-          token,
-          FAST,
-        );
         console.warn(
           "[UKT DELETE] restored member soft-deleted during UKT cancel",
           memberId,

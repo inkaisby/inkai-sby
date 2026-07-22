@@ -19,7 +19,7 @@ import { fetchUktDashboardData } from "@/lib/inkai-api/admin-data";
 import { getBranchOrgProfile } from "@/lib/org-settings";
 import { getUktRegistrationPolicy } from "@/lib/ukt-registration-policy";
 import { requireAdminSession } from "@/lib/admin-session";
-import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
+import { getManagedDojoIdsFromUser, loadUktDojoFilterGroups } from "@/lib/managed-dojos";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
@@ -145,6 +145,11 @@ async function UktArsipPageContent({ searchParams }: { searchParams: SearchParam
       ? dojos.find((d) => d.id === loginDojoId)?.name || ""
       : "";
 
+  const dojoGroups =
+    primaryRole === "ADMIN_DOJO"
+      ? []
+      : await loadUktDojoFilterGroups(user);
+
   const canCreatePeriod = canCreateEventsByWilayah(user.roles);
 
   return (
@@ -155,6 +160,7 @@ async function UktArsipPageContent({ searchParams }: { searchParams: SearchParam
         selectedPeriodId={selectedPeriodId}
         allRows={allRows}
         dojos={dojos}
+        dojoGroups={dojoGroups}
         userRoles={user.roles}
         primaryRole={primaryRole}
         semester={semester}

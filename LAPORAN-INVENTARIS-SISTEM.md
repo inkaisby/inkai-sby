@@ -105,7 +105,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
 | Kelola Anggota | Cari **autocomplete**; kolom **No**; **sort kolom** (NIA, Nama, Sabuk, Status, Dojo, Terdaftar — ikon naik/turun, server-side); KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV; arsip; Prisma scoped (+ **anggota luar Surabaya / ranting arsip** tetap terlihat); filter client-side; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50) |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
-| UKT | Nav grup **Pendaftaran** (`/admin/ukt`) + **Arsip UKT** (`/admin/ukt/arsip`); periode aktif, daftar peserta, **sort kolom**, multi-select ranting, bayar→verifikasi cabang, sabuk target, nota, **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya); **toolbar atas sticky**; **ranting: Daftar/Batal/Bayar + toolbar Laporan WA & Cetak Nota**; cabang: **Hapus tagihan** terpisah dari hapus pendaftaran |
+| UKT | Nav grup **Pendaftaran** (`/admin/ukt`) + **Arsip UKT** (`/admin/ukt/arsip`); periode aktif, daftar peserta, **sort kolom**, multi-select ranting, **filter Gabungan multi-ranting**, bayar→verifikasi cabang, sabuk target, nota, **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya); **toolbar atas sticky**; **ranting: Daftar/Batal/Bayar + toolbar Laporan WA & Cetak Nota**; cabang: **Hapus tagihan** terpisah dari hapus pendaftaran |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
 | Verifikasi | Antrian klaim + **filter tipe/aging**; riwayat |
 | Event & Kegiatan | Buat + **ubah/tutup** event non-UKT + **roster pendaftar**; link UKT |
@@ -556,6 +556,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Isi Kyu Baru (cabang) otomatis Lulus + Selesai; kolom status/aksi langsung Selesai |
 | 22 Juli 2026 | Ranting: status Selesai → aksi tampil Selesai (disabled), tanpa Batal UKT |
 | 22 Juli 2026 | Fix daftar UKT ulang setelah cabang hapus peserta selesai: jangan hapus semua tagihan PAID anggota; pulihkan soft-delete; fallback Prisma bila Inkai GET anggota 404 |
+| 22 Juli 2026 | Fix ranting daftar UKT "Akses wilayah ditolak": jangan PATCH anggota pakai token ranting; fallback daftar+tagihan via Prisma (atau INKAI_SERVICE_TOKEN) setelah cek scope dojo |
+| 22 Juli 2026 | Filter ranting UKT cabang: opsi **Gabungan** dari akun multi-ranting (mis. Gabungan GADING · CAKRA, MANYAR) |
 
 ---
 
