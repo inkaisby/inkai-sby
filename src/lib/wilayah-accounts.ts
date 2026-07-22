@@ -239,7 +239,7 @@ export async function listWilayahAccounts(opts: {
         createdAt: true,
         updatedAt: true,
         managedDojoId: true,
-        memberId: true,
+        member: { select: { id: true } },
       },
       orderBy: [{ isActive: "desc" }, { email: "asc" }],
     }),
@@ -269,7 +269,7 @@ export async function listWilayahAccounts(opts: {
           createdAt: true,
           updatedAt: true,
           managedDojoId: true,
-          memberId: true,
+          member: { select: { id: true } },
         },
       });
       users = [...users, ...extras].sort((a, b) => {
@@ -309,6 +309,7 @@ export async function listWilayahAccounts(opts: {
       const managedDojoIds = managedMap.get(u.id) ?? [];
       return {
         ...u,
+        memberId: u.member?.id ?? null,
         createdAt: u.createdAt.toISOString(),
         updatedAt: u.updatedAt.toISOString(),
         isPrimary: u.id === effectivePrimary,

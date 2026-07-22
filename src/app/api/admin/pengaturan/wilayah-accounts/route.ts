@@ -92,12 +92,12 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     data: result.accounts.map((a) => {
-      const raw = (a as { adminGrantsRaw?: unknown }).adminGrantsRaw;
-      const rest = { ...(a as typeof a & { adminGrantsRaw?: unknown }) };
-      delete rest.adminGrantsRaw;
+      const { adminGrantsRaw, ...rest } = a as typeof a & {
+        adminGrantsRaw?: unknown;
+      };
       return {
         ...rest,
-        adminGrants: raw ? parseAdminDojoGrants(raw) : null,
+        adminGrants: adminGrantsRaw ? parseAdminDojoGrants(adminGrantsRaw) : null,
       };
     }),
     handovers: result.handovers,
