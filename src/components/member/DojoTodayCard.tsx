@@ -1,18 +1,8 @@
 import Link from "next/link";
 import { CalendarClock, MapPin, MessageCircle, Phone, QrCode } from "lucide-react";
 import { SITE_CONTACT } from "@/lib/site";
+import { primaryPhoneDigits, toWhatsAppLink } from "@/lib/phone";
 import { cn } from "@/lib/utils";
-
-function toWaLink(phone: string | null | undefined) {
-  const digits = String(phone || "").replace(/\D/g, "");
-  if (!digits) return `https://wa.me/${SITE_CONTACT.whatsapp}`;
-  const normalized = digits.startsWith("0")
-    ? `62${digits.slice(1)}`
-    : digits.startsWith("62")
-      ? digits
-      : digits;
-  return `https://wa.me/${normalized}`;
-}
 
 export function DojoTodayCard({
   dojoName,
@@ -31,8 +21,8 @@ export function DojoTodayCard({
   checkedInToday: boolean;
   isActive: boolean;
 }) {
-  const wa = toWaLink(phoneNumber);
-  const hasPhone = Boolean(String(phoneNumber || "").replace(/\D/g, ""));
+  const wa = toWhatsAppLink(phoneNumber, SITE_CONTACT.whatsapp);
+  const hasPhone = Boolean(primaryPhoneDigits(phoneNumber));
 
   return (
     <section className="flex flex-col gap-3">
