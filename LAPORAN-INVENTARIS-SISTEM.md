@@ -339,6 +339,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/billing/[id]     Edit tagihan, **submit_for_verification** (ranting→Menunggu Verifikasi), verifikasi/tandai lunas, **hapus** (ranting/cabang; force lunas = cabang; fallback Prisma bila API gagal)
 /api/admin/billing/generate Buat tagihan iuran bulanan massal
 /api/admin/ukt/registrations/[id]  Update/hapus pendaftaran UKT (`submit_for_verification` / `mark_paid` / Kyu; cabang force hapus: API lalu fallback Prisma shared DB)
+/api/admin/ukt/table        Refresh data tabel UKT (rows+deposit) tanpa reload halaman
 /api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees (snapshot/global), Kyu, exam-day, deposit, period-meta, hapus pendaftaran + tagihan terkait
 /api/cron/ukt-reminders     Cron H-3 pengingat UKT (batas daftar / jadwal ranting)
 /api/admin/pengaturan/*     User, cabang, ranting, wilayah-accounts, roles, geofencing, akun, kebijakan (pejabat dokumen), **ukt** (syarat daftar)
@@ -547,6 +548,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Ranting Bayar UKT = `submit_for_verification` → Menunggu Verifikasi (bukan lunas); cabang Verifikasi yang menandai lunas |
 | 22 Juli 2026 | UKT cabang: Hapus/Batal langsung update tabel+KPI+rekap tanpa F5; sync aman vs data server usang; refresh saat fokus tab |
 | 22 Juli 2026 | Toolbar ranting: kembalikan Laporan WA + Cetak Nota; WA buka kirim manual (bukan copy); Daftar/Bayar tidak auto-buka nota |
+| 22 Juli 2026 | UKT: tombol Reset filter + Refresh tabel (`GET /api/admin/ukt/table`) tanpa reload halaman |
 
 ---
 

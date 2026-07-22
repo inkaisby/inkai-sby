@@ -30,6 +30,7 @@ import {
   Archive,
   Settings2,
   MoreHorizontal,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -381,8 +382,9 @@ export function UktDashboard(props: Props) {
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
   const canForcePaidCancel = isCabang || isDojoAdmin;
   const periodLocked = Boolean(props.periodMeta?.locked || props.periodMeta?.archived);
-  const depositMap = props.depositMap ?? {};
+  const [depositMap, setDepositMap] = useState(props.depositMap ?? {});
   const periodOfficers = resolveUktPeriodOfficers(props.periodMeta, props.orgProfile);
+  const [tableRefreshing, setTableRefreshing] = useState(false);
   const cancelRow = useMemo(
     () =>
       cancelTarget?.id
@@ -445,10 +447,51 @@ export function UktDashboard(props: Props) {
     });
   }, []);
 
-  const requestServerRowsSync = useCallback(() => {
-    pendingServerRowsSyncRef.current = true;
-    router.refresh();
-  }, [router]);
+  const requestServerRowsSync = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (tableRefreshing) return;
+      setTableRefreshing(true);
+      try {
+        const qs = new URLSearchParams({
+          semester: props.semester,
+          year: String(props.year),
+          viewMode,
+        });
+        if (props.selectedPeriodId) qs.set("period", props.selectedPeriodId);
+        if (props.createMode) qs.set("create", "1");
+        const res = await fetch(`/api/admin/ukt/table?${qs.toString()}`, {
+          cache: "no-store",
+        });
+        const data = await parseApiJson<{
+          error?: string;
+          allRows?: UktMemberRow[];
+          depositMap?: Record<string, UktDepositRecord>;
+        }>(res);
+        if (!res.ok) throw new Error(data.error || "Gagal memuat ulang tabel");
+        pendingServerRowsSyncRef.current = false;
+        setRows(normalizeRows(data.allRows ?? []));
+        setDepositMap(data.depositMap ?? {});
+        if (!opts?.silent) toast.success("Tabel diperbarui");
+      } catch (e) {
+        if (!opts?.silent) {
+          toast.error(
+            e instanceof Error ? e.message : "Gagal memuat ulang tabel",
+          );
+        }
+      } finally {
+        setTableRefreshing(false);
+      }
+    },
+    [
+      tableRefreshing,
+      props.semester,
+      props.year,
+      props.selectedPeriodId,
+      props.createMode,
+      viewMode,
+      normalizeRows,
+    ],
+  );
 
   useEffect(() => {
     setYearInput(String(props.year));
@@ -467,16 +510,11 @@ export function UktDashboard(props: Props) {
       locallyClearedMemberIdsRef.current.clear();
       pendingServerRowsSyncRef.current = false;
       setRows(normalizeRows(props.allRows));
-      return;
+      setDepositMap(props.depositMap ?? {});
     }
-    // Muat Ulang / hapus / fokus fokus — terima allRows baru dari server.
-    if (!pendingServerRowsSyncRef.current) return;
-    pendingServerRowsSyncRef.current = false;
-    setRows(normalizeRows(props.allRows));
-  }, [periodKey, props.allRows, normalizeRows]);
+  }, [periodKey, props.allRows, props.depositMap, normalizeRows]);
 
-  // Cabang: bila tab sempat disembunyikan, segarkan saat kembali
-  // (batal dari ranting terlihat tanpa F5), tanpa ganggu klik di halaman.
+  // Cabang: bila tab sempat disembunyikan, segarkan tabel (bukan reload halaman).
   useEffect(() => {
     if (!isCabang || isArchiveView) return;
     let hiddenAt = 0;
@@ -486,14 +524,13 @@ export function UktDashboard(props: Props) {
         return;
       }
       if (hiddenAt > 0 && Date.now() - hiddenAt >= 2_000) {
-        pendingServerRowsSyncRef.current = true;
-        router.refresh();
+        void requestServerRowsSync({ silent: true });
       }
       hiddenAt = 0;
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [isCabang, isArchiveView, router]);
+  }, [isCabang, isArchiveView, requestServerRowsSync]);
 
   const patchRow = useCallback((memberId: string, patch: Partial<UktMemberRow>) => {
     setRows((prev) =>
@@ -530,6 +567,14 @@ export function UktDashboard(props: Props) {
       prev && prev.memberId === memberId ? null : prev,
     );
   }, []);
+
+  const resetTableFilters = useCallback(() => {
+    setLocalQ("");
+    setLocalStatus("");
+    setLocalView("");
+    if (!isDojoAdmin) setLocalDojo(props.defaultDojoFilter || "");
+    setLocalPage(1);
+  }, [isDojoAdmin, props.defaultDojoFilter]);
 
   const setMemberPending = useCallback((memberId: string, pending: boolean) => {
     setPendingMemberIds((prev) => {
@@ -1269,7 +1314,7 @@ export function UktDashboard(props: Props) {
           "Peserta berhasil dihapus dari UKT beserta tagihan terkait",
         { id: toastId },
       );
-      requestServerRowsSync();
+      void requestServerRowsSync({ silent: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal membatalkan", {
         id: toastId,
@@ -2293,8 +2338,16 @@ export function UktDashboard(props: Props) {
               <AlertTriangle className="h-4 w-4 shrink-0" />
               <span>{props.dbError}</span>
             </div>
-            <Button size="sm" variant="outline" onClick={() => requestServerRowsSync()}>
-              Muat Ulang
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void requestServerRowsSync()}
+              disabled={tableRefreshing}
+            >
+              <RefreshCw
+                className={`mr-1 h-4 w-4 ${tableRefreshing ? "animate-spin" : ""}`}
+              />
+              {tableRefreshing ? "Memuat…" : "Muat Ulang"}
             </Button>
           </CardContent>
         </Card>
@@ -2347,6 +2400,31 @@ export function UktDashboard(props: Props) {
         >
           <LayoutList className="mr-1 h-4 w-4" />
           {compactView ? "Lengkap" : "Ringkas"}
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => resetTableFilters()}
+          title="Reset filter status, cari, dan ranting"
+          disabled={tableRefreshing}
+        >
+          Reset filter
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => void requestServerRowsSync()}
+          title="Muat ulang data tabel tanpa refresh halaman"
+          disabled={tableRefreshing || loading}
+        >
+          <RefreshCw
+            className={`mr-1 h-4 w-4 ${tableRefreshing ? "animate-spin" : ""}`}
+          />
+          {tableRefreshing ? "Memuat…" : "Refresh"}
         </Button>
 
         {!isDojoAdmin && (
