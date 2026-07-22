@@ -554,6 +554,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Alur cabang: Verifikasi → Menunggu Ujian → isi Kyu Baru → Lulus → Selesai |
 | 22 Juli 2026 | Fix isi Kyu Baru: jangan gagal bila GET Inkai 404 — fallback Prisma + cek lunas via billing |
 | 22 Juli 2026 | Isi Kyu Baru (cabang) otomatis Lulus + Selesai; kolom status/aksi langsung Selesai |
+| 22 Juli 2026 | Ranting: status Selesai → aksi tampil Selesai (disabled), tanpa Batal UKT |
 
 ---
 

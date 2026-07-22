@@ -2976,6 +2976,18 @@ export function UktDashboard(props: Props) {
                               Selesai
                             </Badge>
                           )}
+                          {isDojoAdmin && isUktSelesai(row) && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 cursor-not-allowed text-xs opacity-70"
+                              disabled
+                              title="UKT sudah selesai"
+                            >
+                              <Check className="mr-0.5 h-3 w-3" />
+                              Selesai
+                            </Button>
+                          )}
                           {isCabang && row.billingId && (
                             <Button
                               size="sm"
@@ -2996,8 +3008,13 @@ export function UktDashboard(props: Props) {
                               {isMemberPending(row.memberId) ? "…" : "Hapus tagihan"}
                             </Button>
                           )}
-                          {(canCancelUktRegistration(row) && (isDojoAdmin || isCabang)) ||
-                          canForceCancelUktRegistration(row, canForcePaidCancel) ? (
+                          {((canCancelUktRegistration(row) &&
+                            (isDojoAdmin || isCabang)) ||
+                            canForceCancelUktRegistration(
+                              row,
+                              canForcePaidCancel,
+                            )) &&
+                          !(isDojoAdmin && isUktSelesai(row)) ? (
                             <Button
                               size="sm"
                               variant="destructive"
@@ -3155,10 +3172,22 @@ export function UktDashboard(props: Props) {
                     Hapus tagihan
                   </Button>
                 )}
-                {selectedMember.registrationId && (
-                  (canCancelUktRegistration(selectedMember) && (isDojoAdmin || isCabang)) ||
-                  canForceCancelUktRegistration(selectedMember, canForcePaidCancel)
-                ) && (
+                {selectedMember.registrationId &&
+                  isDojoAdmin &&
+                  isUktSelesai(selectedMember) && (
+                    <Button variant="outline" disabled title="UKT sudah selesai">
+                      <Check className="mr-1 h-4 w-4" />
+                      Selesai
+                    </Button>
+                  )}
+                {selectedMember.registrationId &&
+                  ((canCancelUktRegistration(selectedMember) &&
+                    (isDojoAdmin || isCabang)) ||
+                    canForceCancelUktRegistration(
+                      selectedMember,
+                      canForcePaidCancel,
+                    )) &&
+                  !(isDojoAdmin && isUktSelesai(selectedMember)) && (
                   <Button
                     variant="destructive"
                     onClick={() =>
