@@ -46,6 +46,26 @@ export type PresenceListRow = {
   lastSeenAt: string | null;
   lastLoginAt: string | null;
   isSelf: boolean;
+  /** Jejak audit sesi aktif / terakhir. */
+  session: {
+    id: string | null;
+    ip: string | null;
+    deviceType: string | null;
+    browser: string | null;
+    os: string | null;
+    deviceLabel: string | null;
+    locationLabel: string | null;
+    city: string | null;
+    region: string | null;
+    country: string | null;
+    timezone: string | null;
+    language: string | null;
+    screen: string | null;
+    platform: string | null;
+    userAgent: string | null;
+    startedAt: string | null;
+    lastSeenAt: string | null;
+  } | null;
 };
 
 export function formatRelativeId(

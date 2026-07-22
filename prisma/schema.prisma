@@ -96,9 +96,41 @@ model User {
   roles             Role[]         @relation("UserRoles")
   events            Event[]        @relation("UserEvents")
   auditLogs         AuditLog[]
+  sessions          UserSession[]
 
   @@index([lastSeenAt])
   @@index([lastLoginAt])
+}
+
+/// Jejak sesi login untuk audit kehadiran (IP, perangkat, lokasi).
+model UserSession {
+  id           String    @id @default(uuid())
+  userId       String
+  startedAt    DateTime  @default(now())
+  lastSeenAt   DateTime  @default(now())
+  endedAt      DateTime?
+  ip           String?
+  userAgent    String?   @db.Text
+  deviceType   String?
+  browser      String?
+  os           String?
+  city         String?
+  region       String?
+  country      String?
+  locationLabel String?
+  timezone     String?
+  language     String?
+  screen       String?
+  platform     String?
+  isCurrent    Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isCurrent])
+  @@index([userId, startedAt])
+  @@index([lastSeenAt])
+  @@index([ip])
 }
 
 model Role {

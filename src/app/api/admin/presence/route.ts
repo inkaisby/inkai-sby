@@ -9,8 +9,10 @@ import {
   canViewAccountPresence,
   getRedisOnlineUserIds,
   isOnlineFromTimestamps,
+  loadCurrentSessionsByUserIds,
   type PresenceListRow,
 } from "@/lib/presence";
+import { deviceSummary } from "@/lib/session-audit-parse";
 import {
   rateLimitAsync,
   rateLimitResponse,
@@ -33,6 +35,19 @@ function scopeLabelForUser(user: {
     "—"
   );
 }
+
+const userSelect = {
+  id: true,
+  email: true,
+  fullName: true,
+  lastSeenAt: true,
+  lastLoginAt: true,
+  roles: { select: { name: true } },
+  managedDojo: { select: { name: true } },
+  managedBranch: { select: { name: true } },
+  managedProvince: { select: { name: true } },
+  member: { select: { dojo: { select: { name: true } } } },
+} as const;
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -77,52 +92,22 @@ export async function GET(request: Request) {
         : { lastSeenAt: { gte: onlineSince } };
 
   const users = await prisma.user.findMany({
-    where: {
-      AND: [scope, activityWhere],
-    },
-    select: {
-      id: true,
-      email: true,
-      fullName: true,
-      lastSeenAt: true,
-      lastLoginAt: true,
-      roles: { select: { name: true } },
-      managedDojo: { select: { name: true } },
-      managedBranch: { select: { name: true } },
-      managedProvince: { select: { name: true } },
-      member: { select: { dojo: { select: { name: true } } } },
-    },
+    where: { AND: [scope, activityWhere] },
+    select: userSelect,
     orderBy: [{ lastSeenAt: "desc" }, { lastLoginAt: "desc" }],
     take: 300,
   });
 
-  // Tanpa Redis, filter online mengandalkan lastSeenAt saja.
-  // Dengan Redis, perlu kandidat ekstra yang lastSeenAt sedikit lebih lama.
   let candidates = users;
   if (status === "online" || status === "all") {
     const wider = await prisma.user.findMany({
       where: {
         AND: [
           scope,
-          {
-            lastSeenAt: {
-              gte: new Date(now - ONLINE_THRESHOLD_MS * 2),
-            },
-          },
+          { lastSeenAt: { gte: new Date(now - ONLINE_THRESHOLD_MS * 2) } },
         ],
       },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        lastSeenAt: true,
-        lastLoginAt: true,
-        roles: { select: { name: true } },
-        managedDojo: { select: { name: true } },
-        managedBranch: { select: { name: true } },
-        managedProvince: { select: { name: true } },
-        member: { select: { dojo: { select: { name: true } } } },
-      },
+      select: userSelect,
       orderBy: [{ lastSeenAt: "desc" }],
       take: 300,
     });
@@ -132,6 +117,9 @@ export async function GET(request: Request) {
   }
 
   const redisOnline = await getRedisOnlineUserIds(candidates.map((u) => u.id));
+  const sessions = await loadCurrentSessionsByUserIds(
+    candidates.map((u) => u.id),
+  );
 
   let rows: PresenceListRow[] = candidates.map((user) => {
     const roles = user.roles.map((r) => r.name);
@@ -141,6 +129,7 @@ export async function GET(request: Request) {
       redisOnline.has(user.id),
       now,
     );
+    const sess = sessions.get(user.id) ?? null;
     return {
       id: user.id,
       email: user.email,
@@ -150,8 +139,32 @@ export async function GET(request: Request) {
       scopeLabel: scopeLabelForUser(user),
       online,
       lastSeenAt: user.lastSeenAt?.toISOString() ?? null,
-      lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+      lastLoginAt:
+        user.lastLoginAt?.toISOString() ??
+        sess?.startedAt?.toISOString() ??
+        null,
       isSelf: user.id === session.user.id,
+      session: sess
+        ? {
+            id: sess.id,
+            ip: sess.ip,
+            deviceType: sess.deviceType,
+            browser: sess.browser,
+            os: sess.os,
+            deviceLabel: deviceSummary(sess),
+            locationLabel: sess.locationLabel,
+            city: sess.city,
+            region: sess.region,
+            country: sess.country,
+            timezone: sess.timezone,
+            language: sess.language,
+            screen: sess.screen,
+            platform: sess.platform,
+            userAgent: sess.userAgent,
+            startedAt: sess.startedAt.toISOString(),
+            lastSeenAt: sess.lastSeenAt.toISOString(),
+          }
+        : null,
     };
   });
 
@@ -167,7 +180,20 @@ export async function GET(request: Request) {
 
   if (q) {
     rows = rows.filter((r) => {
-      const hay = `${r.fullName || ""} ${r.email} ${r.roleLabel} ${r.scopeLabel}`.toLowerCase();
+      const hay = [
+        r.fullName,
+        r.email,
+        r.roleLabel,
+        r.scopeLabel,
+        r.session?.ip,
+        r.session?.deviceLabel,
+        r.session?.locationLabel,
+        r.session?.browser,
+        r.session?.os,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
       return hay.includes(q);
     });
   }
@@ -187,7 +213,6 @@ export async function GET(request: Request) {
       now - new Date(r.lastLoginAt).getTime() < LOGIN_24H_MS,
   ).length;
 
-  // KPI akurat dari scope (bukan hanya baris terfilter q)
   const [kpiOnline, kpiLogin24h, kpiTotal] = await Promise.all([
     prisma.user.count({
       where: { AND: [scope, { lastSeenAt: { gte: onlineSince } }] },

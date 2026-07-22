@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { ExportCsvButton } from "@/components/admin/ExportCsvButton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,14 @@ import {
   formatRelativeId,
   type PresenceListRow,
 } from "@/lib/presence-constants";
-import { RefreshCw } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Globe2,
+  MonitorSmartphone,
+  Network,
+  RefreshCw,
+} from "lucide-react";
 
 type PresenceResponse = {
   generatedAt: string;
@@ -91,13 +98,12 @@ export function OnlinePresenceClient() {
   return (
     <div className="space-y-5">
       <div className="rounded-xl border border-border/70 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">Kehadiran operasional</p>
+        <p className="font-medium text-foreground">Kehadiran & jejak audit</p>
         <p className="mt-1">
           <span className="text-emerald-700 dark:text-emerald-400">Sedang aktif</span>{" "}
-          = membuka aplikasi dalam ±{thresholdMin} menit terakhir.{" "}
-          <span className="text-foreground/80">Tidak aktif</span> bukan berarti
-          akun tidak ada — hanya sedang tidak memakai portal. Status bisa
-          tertunda ±1–2 menit setelah tab ditutup.
+          = membuka aplikasi dalam ±{thresholdMin} menit. Setiap baris menampilkan
+          IP, perangkat, dan perkiraan lokasi (dari edge CDN bila tersedia).
+          Lokasi kota hanya akurat di production (Vercel/Cloudflare).
         </p>
       </div>
 
@@ -113,7 +119,7 @@ export function OnlinePresenceClient() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Nama, email, peran, ranting..."
+            placeholder="Nama, email, IP, perangkat, lokasi..."
           />
         </div>
         <div className="space-y-1">
@@ -148,7 +154,16 @@ export function OnlinePresenceClient() {
             "Wilayah",
             "Status",
             "Terakhir terlihat",
-            "Terakhir login",
+            "Login",
+            "IP",
+            "Perangkat",
+            "Browser",
+            "OS",
+            "Lokasi",
+            "Zona waktu",
+            "Bahasa",
+            "Layar",
+            "User-Agent",
           ]}
           rows={(data?.rows ?? []).map((r) => [
             r.fullName || "",
@@ -157,7 +172,16 @@ export function OnlinePresenceClient() {
             r.scopeLabel,
             r.online ? "Sedang aktif" : "Tidak aktif",
             r.lastSeenAt || "",
-            r.lastLoginAt || "",
+            r.lastLoginAt || r.session?.startedAt || "",
+            r.session?.ip || "",
+            r.session?.deviceType || "",
+            r.session?.browser || "",
+            r.session?.os || "",
+            r.session?.locationLabel || "",
+            r.session?.timezone || "",
+            r.session?.language || "",
+            r.session?.screen || "",
+            r.session?.userAgent || "",
           ])}
           label="Export CSV"
         />
@@ -171,16 +195,10 @@ export function OnlinePresenceClient() {
               ? "Memuat..."
               : "—"}
         </p>
-        <p>
-          {data
-            ? `Menampilkan ${data.rows.length} akun`
-            : null}
-        </p>
+        <p>{data ? `Menampilkan ${data.rows.length} akun` : null}</p>
       </div>
 
-      {error ? (
-        <p className="text-sm text-destructive">{error}</p>
-      ) : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       {!error && !loading && (data?.rows.length ?? 0) === 0 ? (
         <p className="rounded-xl border border-dashed p-6 text-center text-muted-foreground">
@@ -235,14 +253,16 @@ function KpiCard({
 }
 
 function PresenceRow({ row }: { row: PresenceListRow }) {
+  const [open, setOpen] = useState(false);
+  const sess = row.session;
+  const loginAt = row.lastLoginAt || sess?.startedAt || null;
+
   return (
     <div className="rounded-lg border p-3 text-sm">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 space-y-0.5">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium truncate">
-              {row.fullName || row.email}
-            </p>
+            <p className="font-medium truncate">{row.fullName || row.email}</p>
             {row.isSelf ? (
               <Badge variant="outline" className="text-[10px]">
                 Anda
@@ -256,10 +276,123 @@ function PresenceRow({ row }: { row: PresenceListRow }) {
         </div>
         <StatusBadge online={row.online} />
       </div>
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <span>Terlihat: {formatRelativeId(row.lastSeenAt)}</span>
-        <span>Login: {formatRelativeId(row.lastLoginAt)}</span>
+
+      <div className="mt-2 grid gap-1.5 text-xs text-muted-foreground sm:grid-cols-2">
+        <MetaLine
+          icon={<Network className="size-3.5 shrink-0" />}
+          label="IP"
+          value={sess?.ip || "—"}
+        />
+        <MetaLine
+          icon={<MonitorSmartphone className="size-3.5 shrink-0" />}
+          label="Perangkat"
+          value={sess?.deviceLabel || "—"}
+        />
+        <MetaLine
+          icon={<Globe2 className="size-3.5 shrink-0" />}
+          label="Lokasi"
+          value={sess?.locationLabel || sess?.timezone || "—"}
+        />
+        <p>
+          Terlihat {formatRelativeId(row.lastSeenAt)} · Login{" "}
+          {formatRelativeId(loginAt)}
+        </p>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-foreground/80 hover:text-foreground"
+      >
+        {open ? (
+          <ChevronDown className="size-3.5" />
+        ) : (
+          <ChevronRight className="size-3.5" />
+        )}
+        Detail audit
+      </button>
+
+      {open ? (
+        <div className="mt-2 space-y-1.5 rounded-lg bg-muted/40 px-3 py-2 text-xs">
+          <DetailRow
+            label="Waktu login"
+            value={
+              loginAt
+                ? new Date(loginAt).toLocaleString("id-ID", {
+                    dateStyle: "medium",
+                    timeStyle: "medium",
+                  })
+                : "—"
+            }
+          />
+          <DetailRow
+            label="Terakhir terlihat"
+            value={
+              row.lastSeenAt
+                ? new Date(row.lastSeenAt).toLocaleString("id-ID", {
+                    dateStyle: "medium",
+                    timeStyle: "medium",
+                  })
+                : "—"
+            }
+          />
+          <DetailRow label="IP" value={sess?.ip || "—"} />
+          <DetailRow label="Tipe perangkat" value={sess?.deviceType || "—"} />
+          <DetailRow label="Browser" value={sess?.browser || "—"} />
+          <DetailRow label="Sistem operasi" value={sess?.os || "—"} />
+          <DetailRow label="Platform" value={sess?.platform || "—"} />
+          <DetailRow label="Resolusi layar" value={sess?.screen || "—"} />
+          <DetailRow label="Kota" value={sess?.city || "—"} />
+          <DetailRow label="Wilayah/provinsi CDN" value={sess?.region || "—"} />
+          <DetailRow label="Negara" value={sess?.country || "—"} />
+          <DetailRow label="Zona waktu" value={sess?.timezone || "—"} />
+          <DetailRow label="Bahasa browser" value={sess?.language || "—"} />
+          <DetailRow
+            label="User-Agent"
+            value={sess?.userAgent || "—"}
+            mono
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MetaLine({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <p className="flex min-w-0 items-start gap-1.5">
+      <span className="mt-0.5 text-muted-foreground">{icon}</span>
+      <span className="min-w-0">
+        <span className="text-muted-foreground/80">{label}: </span>
+        <span className="break-all text-foreground/90">{value}</span>
+      </span>
+    </p>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  mono,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="grid gap-0.5 sm:grid-cols-[140px_1fr]">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={`break-all text-foreground/90 ${mono ? "font-mono text-[11px]" : ""}`}>
+        {value}
+      </span>
     </div>
   );
 }

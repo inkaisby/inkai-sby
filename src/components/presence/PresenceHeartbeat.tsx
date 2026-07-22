@@ -7,11 +7,31 @@ import {
   HEARTBEAT_INTERVAL_VISIBLE_MS,
 } from "@/lib/presence-constants";
 
+function clientHints() {
+  if (typeof window === "undefined") return {};
+  let timezone: string | undefined;
+  try {
+    timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    timezone = undefined;
+  }
+  return {
+    timezone,
+    language: navigator.language || undefined,
+    screen:
+      typeof screen !== "undefined"
+        ? `${screen.width}x${screen.height}`
+        : undefined,
+    platform: navigator.platform || undefined,
+  };
+}
+
 async function sendHeartbeat() {
   try {
     await fetch("/api/presence", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(clientHints()),
       keepalive: true,
     });
   } catch {

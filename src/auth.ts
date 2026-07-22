@@ -9,6 +9,7 @@ import {
 } from "@/lib/inkai-api/cookies";
 import { isMemberLoginBlocked } from "@/lib/security/member-status";
 import { clearPresence, markUserLogin } from "@/lib/presence";
+import { snapshotFromNextHeaders } from "@/lib/session-audit";
 
 declare module "next-auth" {
   interface User {
@@ -118,11 +119,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const cookieStore = await cookies();
         cookieStore.set(INKAI_TOKEN_COOKIE, token, getInkaiTokenCookieOptions());
 
+        const userId = user.id;
         // Non-blocking: gagal presence tidak boleh gagalkan login.
-        void markUserLogin(user.id);
+        void snapshotFromNextHeaders()
+          .then((snap) => markUserLogin(userId, snap))
+          .catch(() => markUserLogin(userId));
 
         return {
-          id: user.id,
+          id: userId,
           email: user.email,
           name: user.fullName || user.email,
           roles,

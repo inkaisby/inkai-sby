@@ -4,6 +4,7 @@ import {
   clearPresence,
   touchPresence,
 } from "@/lib/presence";
+import { snapshotFromRequest } from "@/lib/session-audit";
 import {
   rateLimitAsync,
   rateLimitResponse,
@@ -11,8 +12,15 @@ import {
 
 export const dynamic = "force-dynamic";
 
-/** Heartbeat kehadiran — auth wajib; path tidak disimpan (privasi). */
-export async function POST() {
+type HeartbeatBody = {
+  timezone?: string;
+  language?: string;
+  screen?: string;
+  platform?: string;
+};
+
+/** Heartbeat kehadiran + jejak perangkat (path halaman tidak disimpan). */
+export async function POST(request: Request) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) {
@@ -27,7 +35,21 @@ export async function POST() {
     return rateLimitResponse(limit.retryAfterSec ?? 30);
   }
 
-  await touchPresence(userId);
+  let body: HeartbeatBody = {};
+  try {
+    body = (await request.json()) as HeartbeatBody;
+  } catch {
+    body = {};
+  }
+
+  const snap = snapshotFromRequest(request, {
+    timezone: body.timezone,
+    language: body.language,
+    screen: body.screen,
+    platform: body.platform,
+  });
+
+  await touchPresence(userId, { snap });
   return NextResponse.json({ ok: true });
 }
 
