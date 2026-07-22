@@ -318,6 +318,7 @@ export function MembersTable({
   const [rankSavingId, setRankSavingId] = useState<string | null>(null);
   const [dojoSavingId, setDojoSavingId] = useState<string | null>(null);
   const [duesSaving, setDuesSaving] = useState(false);
+  const [duesExemptionSaving, setDuesExemptionSaving] = useState(false);
   const [duesDraft, setDuesDraft] = useState("");
   const [passwordResetting, setPasswordResetting] = useState(false);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(
@@ -555,6 +556,45 @@ export function MembersTable({
     }
   }
 
+  async function handleToggleDuesExemption(checked: boolean) {
+    if (!selectedId || !canEditDues) return;
+    setDuesExemptionSaving(true);
+    try {
+      const res = await fetch(`/api/admin/members/${selectedId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_dues_exemption",
+          allowEventWithoutDues: checked,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        allowEventWithoutDues?: boolean;
+      };
+      if (!res.ok) {
+        showError(data.error || "Gagal menyimpan pengecualian iuran");
+        return;
+      }
+      const saved = data.allowEventWithoutDues ?? checked;
+      setDetail((prev) =>
+        prev ? { ...prev, allowEventWithoutDues: saved } : prev,
+      );
+      showSuccess(
+        data.message ||
+          (saved
+            ? "Pengecualian iuran diaktifkan"
+            : "Pengecualian iuran dinonaktifkan"),
+      );
+      router.refresh();
+    } catch {
+      showError("Gagal menyimpan pengecualian iuran");
+    } finally {
+      setDuesExemptionSaving(false);
+    }
+  }
+
   async function handleResetPassword() {
     if (!selectedId || !canResetPassword) return;
     setPasswordResetting(true);
@@ -631,6 +671,7 @@ export function MembersTable({
 
   const unpaid = billings.filter((b) => b.status && b.status !== "PAID");
   const paidCount = billings.filter((b) => b.status === "PAID").length;
+  const duesExempt = Boolean(detail?.allowEventWithoutDues);
   const lifecycle = detail?.lifecycle as MemberLifecycleMeta | null | undefined;
   const impact = detail?.impact as MemberImpactSummary | null | undefined;
   const colCount = canBulk ? 11 : 10;
@@ -1139,6 +1180,42 @@ export function MembersTable({
                         )
                       }
                     />
+                    {canEditDues ? (
+                      <DetailRow
+                        label="Pengecualian"
+                        value={
+                          <label className="inline-flex cursor-pointer items-start gap-2 text-sm font-normal">
+                            <input
+                              type="checkbox"
+                              className="mt-0.5 h-4 w-4 shrink-0 accent-inkai-red"
+                              checked={duesExempt}
+                              disabled={duesExemptionSaving || loading}
+                              onChange={(e) =>
+                                void handleToggleDuesExemption(e.target.checked)
+                              }
+                              aria-label="Pengecualian iuran untuk daftar event"
+                            />
+                            <span className="leading-snug text-foreground/90">
+                              Tidak wajib lunas iuran untuk daftar event/UKT
+                              {duesExempt ? (
+                                <span className="mt-0.5 block text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                                  Aktif — gate iuran event dilewati
+                                </span>
+                              ) : null}
+                            </span>
+                          </label>
+                        }
+                      />
+                    ) : duesExempt ? (
+                      <DetailRow
+                        label="Pengecualian"
+                        value={
+                          <span className="text-emerald-700 dark:text-emerald-400">
+                            Tidak wajib lunas iuran (event/UKT)
+                          </span>
+                        }
+                      />
+                    ) : null}
                   </dl>
                 </section>
 

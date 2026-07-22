@@ -15,6 +15,7 @@ import {
   resolveUktRankColumns,
 } from "@/lib/belt";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
+import { fetchDuesExemptMemberIds } from "@/lib/member-local-fields";
 import {
   memberOrderBy,
   parseMemberSortKey,
@@ -1284,6 +1285,12 @@ export async function fetchUktDashboardData(
     ? buildBillingCountMap((billingsRes.data.data as Array<Record<string, unknown>>) ?? [])
     : new Map<string, number>();
 
+  const duesExemptMemberIds = await withPrismaFallback(
+    "ukt-dues-exemption",
+    () => fetchDuesExemptMemberIds(members.map((m) => m.id)),
+    new Set<string>(),
+  );
+
   const verificationCountByMember = pendingVerificationsRes.res.ok
     ? buildVerificationCountMap(
         (pendingVerificationsRes.data.data as Array<Record<string, unknown>>) ?? [],
@@ -1575,7 +1582,9 @@ export async function fetchUktDashboardData(
           ? Number(regBilling.baseFeeAmount)
           : null,
       ),
-      outstandingDues: billingCountByMember.get(m.id) ?? 0,
+      outstandingDues: duesExemptMemberIds.data?.has(m.id)
+        ? 0
+        : billingCountByMember.get(m.id) ?? 0,
       pendingVerifications: verificationCountByMember.get(m.id) ?? 0,
       attendanceCount: countByMember.get(m.id) ?? 0,
       // Belum absen di semester → 0% agar gate Syarat memblokir Daftar UKT

@@ -1,6 +1,7 @@
 import { inkaiFetch } from "@/lib/inkai-api/server";
 import { getBeltGroup } from "@/lib/belt";
 import { prisma } from "@/lib/prisma";
+import { isMemberDuesExempt } from "@/lib/member-local-fields";
 import {
   buildUktSemesterWindow,
   buildUktWaiverMap,
@@ -69,9 +70,11 @@ async function resolveMemberForUktRegister(
   | { ok: true; member: Record<string, unknown> }
   | { ok: false; error: string }
 > {
+  let member: Record<string, unknown> | null = null;
+
   const { res, data } = await inkaiFetch(`/v1/members/${memberId}`, {}, _token);
   if (res.ok) {
-    return { ok: true, member: (data.data as Record<string, unknown>) ?? {} };
+    member = (data.data as Record<string, unknown>) ?? {};
   }
 
   let local: {
@@ -82,6 +85,7 @@ async function resolveMemberForUktRegister(
     currentRank: string;
     birthCertificateUrl: string | null;
     bpjsCardUrl: string | null;
+    allowEventWithoutDues: boolean;
   } | null = null;
 
   try {
@@ -95,53 +99,74 @@ async function resolveMemberForUktRegister(
         currentRank: true,
         birthCertificateUrl: true,
         bpjsCardUrl: true,
+        allowEventWithoutDues: true,
       },
     });
   } catch (error) {
     console.error("[ukt-register] prisma member lookup failed", error);
   }
 
-  if (!local) {
+  if (!member && !local) {
     return { ok: false, error: "Anggota tidak ditemukan" };
   }
 
-  // Hapus peserta UKT tidak boleh mengarsipkan anggota — pulihkan di DB bersama.
-  if (local.isDeleted) {
-    const restoreStatus =
-      local.status === "INACTIVE" || local.status === "Inactive"
-        ? local.status
-        : "Active";
-    try {
-      await prisma.member.update({
-        where: { id: memberId },
-        data: { isDeleted: false, status: restoreStatus },
-      });
-      local = { ...local, isDeleted: false, status: restoreStatus };
-      console.warn(
-        "[ukt-register] restored soft-deleted member via Prisma",
-        memberId,
-      );
-    } catch (error) {
-      console.error("[ukt-register] restore soft-deleted member failed", error);
+  if (local) {
+    if (local.isDeleted) {
+      const restoreStatus =
+        local.status === "INACTIVE" || local.status === "Inactive"
+          ? local.status
+          : "Active";
+      try {
+        await prisma.member.update({
+          where: { id: memberId },
+          data: { isDeleted: false, status: restoreStatus },
+        });
+        local = { ...local, isDeleted: false, status: restoreStatus };
+        console.warn(
+          "[ukt-register] restored soft-deleted member via Prisma",
+          memberId,
+        );
+      } catch (error) {
+        console.error("[ukt-register] restore soft-deleted member failed", error);
+        return {
+          ok: false,
+          error:
+            "Anggota terarsip setelah hapus UKT. Minta cabang pulihkan di Kelola Anggota, lalu daftar ulang.",
+        };
+      }
+    }
+
+    if (!member) {
       return {
-        ok: false,
-        error:
-          "Anggota terarsip setelah hapus UKT. Minta cabang pulihkan di Kelola Anggota, lalu daftar ulang.",
+        ok: true,
+        member: {
+          id: local.id,
+          fullName: local.fullName,
+          currentRank: local.currentRank,
+          status: local.status,
+          birthCertificateUrl: local.birthCertificateUrl,
+          bpjsCardUrl: local.bpjsCardUrl,
+          allowEventWithoutDues: local.allowEventWithoutDues,
+        },
       };
     }
+
+    member = {
+      ...member,
+      birthCertificateUrl:
+        (member.birthCertificateUrl as string | null | undefined) ??
+        local.birthCertificateUrl,
+      bpjsCardUrl:
+        (member.bpjsCardUrl as string | null | undefined) ?? local.bpjsCardUrl,
+      allowEventWithoutDues: local.allowEventWithoutDues,
+    };
   }
 
-  return {
-    ok: true,
-    member: {
-      id: local.id,
-      fullName: local.fullName,
-      currentRank: local.currentRank,
-      status: local.status,
-      birthCertificateUrl: local.birthCertificateUrl,
-      bpjsCardUrl: local.bpjsCardUrl,
-    },
-  };
+  if (!member) {
+    return { ok: false, error: "Anggota tidak ditemukan" };
+  }
+
+  return { ok: true, member };
 }
 
 export function isInkaiScopeDeniedError(
@@ -384,7 +409,7 @@ export async function validateUktRegistrationEligibility(
   const registrationNotYetOpen = isUktRegistrationNotYetOpen(schedule);
 
   let outstandingDues = 0;
-  if (req.requireNoOutstandingDues) {
+  if (req.requireNoOutstandingDues && !isMemberDuesExempt(member)) {
     const billings = (billingsRes.data.data as Array<Record<string, unknown>>) ?? [];
     for (const b of billings) {
       if (String(b.memberId) !== memberId) continue;

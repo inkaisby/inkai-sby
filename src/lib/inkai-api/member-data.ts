@@ -1,4 +1,5 @@
 import { inkaiFetch } from "./server";
+import { overlayMemberLocalFields } from "@/lib/member-local-fields";
 
 async function safeCall<T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> {
   try {
@@ -13,7 +14,8 @@ export async function fetchMyMemberProfile(token: string) {
   return safeCall("profile", async () => {
     const { res, data } = await inkaiFetch("/v1/members/me", {}, token);
     if (!res.ok) return null;
-    return (data.data as Record<string, unknown>) ?? null;
+    const member = (data.data as Record<string, unknown>) ?? null;
+    return overlayMemberLocalFields(member);
   }, null);
 }
 

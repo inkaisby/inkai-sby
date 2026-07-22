@@ -4,6 +4,7 @@ import { writeAuditLog } from "@/lib/audit";
 import { fetchAdminMembers, fetchAdminMembersForDojoIds, fetchBillings } from "@/lib/inkai-api/admin-data";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { getOperationalDefaults } from "@/lib/org-settings";
+import { fetchDuesExemptMemberIds } from "@/lib/member-local-fields";
 import { prisma } from "@/lib/prisma";
 import { getPrimaryAdminRole } from "@/lib/rbac";
 import { getClientIp } from "@/lib/security/request";
@@ -91,8 +92,11 @@ export async function POST(request: Request) {
       .map((b) => String((b as { memberId?: string }).memberId ?? (b.member as { id?: string } | undefined)?.id ?? "")),
   );
 
+  const duesExemptIds = await fetchDuesExemptMemberIds(members.map((m) => m.id));
+
   const targets = members.filter((m) => {
     if (m.status && m.status !== "ACTIVE") return false;
+    if (duesExemptIds.has(m.id)) return false;
     return !existingKeys.has(m.id);
   });
 

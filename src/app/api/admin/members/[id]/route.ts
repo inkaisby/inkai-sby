@@ -130,6 +130,7 @@ export async function GET(_request: Request, context: RouteContext) {
         where: { id },
         select: {
           monthlyDuesAmount: true,
+          allowEventWithoutDues: true,
           birthCertificateUrl: true,
           bpjsCardUrl: true,
           bpjsCardNumber: true,
@@ -160,6 +161,7 @@ export async function GET(_request: Request, context: RouteContext) {
       birthCertificateUrl: localExtras.data.birthCertificateUrl,
       bpjsCardUrl: localExtras.data.bpjsCardUrl,
       bpjsCardNumber: localExtras.data.bpjsCardNumber,
+      allowEventWithoutDues: localExtras.data.allowEventWithoutDues,
       user: localUser
         ? {
             ...existingUser,
@@ -501,6 +503,62 @@ export async function PATCH(request: Request, context: RouteContext) {
       success: true,
       monthlyDuesAmount: amount,
       message: `Iuran/bln diperbarui: Rp ${amount.toLocaleString("id-ID")}`,
+    });
+  }
+
+  if (action === "set_dues_exemption") {
+    if (!canManageIuranByWilayah(roles)) {
+      return NextResponse.json(
+        { error: "Anda tidak berwenang mengubah pengecualian iuran anggota" },
+        { status: 403 },
+      );
+    }
+    const allowEventWithoutDues = parsed.data.allowEventWithoutDues;
+    if (allowEventWithoutDues == null) {
+      return NextResponse.json(
+        { error: "Status pengecualian iuran wajib diisi" },
+        { status: 400 },
+      );
+    }
+
+    const scoped = await prisma.member.findFirst({
+      where: {
+        AND: [{ id }, buildMemberFilter(authResult.user)],
+      },
+      select: {
+        id: true,
+        fullName: true,
+        allowEventWithoutDues: true,
+      },
+    });
+    if (!scoped) {
+      return NextResponse.json(
+        { error: "Anggota tidak ditemukan di cakupan Anda" },
+        { status: 404 },
+      );
+    }
+
+    await prisma.member.update({
+      where: { id },
+      data: { allowEventWithoutDues },
+    });
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "MEMBER_SET_DUES_EXEMPTION",
+      details: `Pengecualian iuran ${scoped.allowEventWithoutDues ? "aktif" : "nonaktif"} → ${allowEventWithoutDues ? "aktif" : "nonaktif"} for ${scoped.fullName} (${id})`,
+      ip,
+      userAgent,
+      token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      allowEventWithoutDues,
+      message: allowEventWithoutDues
+        ? "Pengecualian iuran diaktifkan — anggota boleh daftar event/UKT tanpa lunas iuran"
+        : "Pengecualian iuran dinonaktifkan",
     });
   }
 

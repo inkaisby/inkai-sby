@@ -232,7 +232,8 @@ export default async function MemberDashboard() {
     birthCertificateUrl: member?.birthCertificateUrl as string | undefined,
     bpjsCardUrl: member?.bpjsCardUrl as string | undefined,
   });
-  const iuranOk = unpaidMonthly === 0;
+  const iuranOk =
+    unpaidMonthly === 0 || Boolean(member?.allowEventWithoutDues);
 
   const checklistItems = buildMembershipChecklist({
     profileOk,
