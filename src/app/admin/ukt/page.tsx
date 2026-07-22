@@ -162,11 +162,8 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
 
   return (
     <>
-      <p className="mb-4 text-sm text-muted-foreground">
-        {ROLE_LABELS[primaryRole] || primaryRole} — Periode aktif & pendaftaran anggota
-      </p>
-
       <UktDashboard
+        headerNote={`${ROLE_LABELS[primaryRole] || primaryRole} — Periode aktif & pendaftaran anggota`}
         periods={periods}
         selectedPeriodId={selectedPeriodId}
         allRows={allRows}

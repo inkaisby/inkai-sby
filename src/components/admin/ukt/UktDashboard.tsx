@@ -240,6 +240,8 @@ type Props = {
   };
   /** Pendaftaran = periode aktif; archive = riwayat/arsip (sidebar). */
   viewMode?: UktAdminViewMode;
+  /** Teks lead di atas toolbar (ikut sticky saat scroll). */
+  headerNote?: string;
   /** Kebijakan syarat daftar dari Pengaturan UKT cabang. */
   registrationPolicy?: UktRegistrationPolicy;
 };
@@ -1456,6 +1458,10 @@ export function UktDashboard(props: Props) {
 
   return (
     <div className="space-y-6">
+      <div className="sticky top-16 z-30 -mx-4 space-y-3 border-b border-border/50 bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:-mx-6 sm:px-6">
+      {props.headerNote ? (
+        <p className="text-sm text-muted-foreground">{props.headerNote}</p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <Select
           value={props.semester}
@@ -1492,7 +1498,7 @@ export function UktDashboard(props: Props) {
       </div>
 
       {/* Period actions */}
-      <Card className="border-inkai-red/20 bg-gradient-to-r from-background to-muted/30">
+      <Card className="border-inkai-red/20 bg-gradient-to-r from-background to-muted/30 shadow-sm">
         <CardContent className="flex flex-wrap items-center gap-3 p-4 sm:gap-4">
           {showBackToCreate && (
             <Button
@@ -1672,6 +1678,7 @@ export function UktDashboard(props: Props) {
           </div>
         </CardContent>
       </Card>
+      </div>
 
       {isDojoAdmin && !props.selectedPeriodId && viewMode === "registration" && (
         <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">

@@ -149,11 +149,8 @@ async function UktArsipPageContent({ searchParams }: { searchParams: SearchParam
 
   return (
     <>
-      <p className="mb-4 text-sm text-muted-foreground">
-        {ROLE_LABELS[primaryRole] || primaryRole} — Riwayat periode UKT yang sudah diarsipkan
-      </p>
-
       <UktDashboard
+        headerNote={`${ROLE_LABELS[primaryRole] || primaryRole} — Riwayat periode UKT yang sudah diarsipkan`}
         periods={periods}
         selectedPeriodId={selectedPeriodId}
         allRows={allRows}
