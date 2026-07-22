@@ -7,6 +7,8 @@ import { canManageIuranByWilayah } from "@/lib/wilayah-rbac";
 import { adminBillingPatchSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
+import { deleteBillingHard } from "@/lib/billing-delete";
+import { canEditKyuBaru } from "@/lib/belt";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -258,5 +260,86 @@ export async function PATCH(request: Request, context: RouteContext) {
     success: true,
     status: data.action === "reject" ? "REJECTED" : "PAID",
     message,
+  });
+}
+
+export async function DELETE(request: Request, context: RouteContext) {
+  const authResult = await requireAdmin();
+  if ("error" in authResult) return authResult.error;
+  if (!authResult.token) {
+    return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
+
+  if (!canManageIuranByWilayah(authResult.user.roles)) {
+    return NextResponse.json(
+      { error: "Anda tidak berhak menghapus tagihan" },
+      { status: 403 },
+    );
+  }
+
+  const { id } = await context.params;
+  const url = new URL(request.url);
+  const force =
+    url.searchParams.get("force") === "1" ||
+    url.searchParams.get("force") === "true";
+
+  const scope = await assertBillingInScope(authResult.user, id);
+  if (!scope.ok) {
+    return NextResponse.json({ error: scope.error }, { status: 403 });
+  }
+
+  let status = scope.billing?.status ?? null;
+  if (!status) {
+    const { res, data } = await inkaiFetch(`/v1/billing/${id}`, {}, authResult.token);
+    if (res.ok) {
+      const billing = data.data as { status?: string } | undefined;
+      status = billing?.status ? String(billing.status) : null;
+    }
+  }
+
+  const isPaid =
+    status === "PAID" || status === "SUCCESS" || status === "APPROVED";
+  const isCabang = canEditKyuBaru(authResult.user.roles);
+
+  if ((force || isPaid) && !isCabang) {
+    return NextResponse.json(
+      { error: "Hanya admin cabang yang dapat menghapus tagihan yang sudah lunas" },
+      { status: 403 },
+    );
+  }
+
+  const result = await deleteBillingHard(authResult.token, id, {
+    continueOnFailure: false,
+  });
+
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error || "Gagal menghapus tagihan" },
+      { status: result.status || 400 },
+    );
+  }
+
+  try {
+    await prisma.billing.updateMany({
+      where: { id },
+      data: { isDeleted: true },
+    });
+  } catch {
+    /* ignore */
+  }
+
+  writeAuditLog({
+    userId: authResult.user.id,
+    email: authResult.user.email,
+    action: "BILLING_DELETE",
+    details: `Deleted billing ${id}${force || isPaid ? " [force]" : ""}`,
+    ip: getClientIp(request),
+    userAgent: request.headers.get("user-agent"),
+    token: authResult.token,
+  });
+
+  return NextResponse.json({
+    success: true,
+    message: "Tagihan berhasil dihapus",
   });
 }

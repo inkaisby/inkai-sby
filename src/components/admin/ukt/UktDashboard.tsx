@@ -339,6 +339,12 @@ export function UktDashboard(props: Props) {
     billingId?: string | null;
     force?: boolean;
   } | null>(null);
+  const [deleteBillingTarget, setDeleteBillingTarget] = useState<{
+    billingId: string;
+    memberId: string;
+    name: string;
+    billingStatus: string | null;
+  } | null>(null);
   const [showRegistrationDeadline, setShowRegistrationDeadline] = useState(false);
   const [registrationDeadlineDate, setRegistrationDeadlineDate] = useState("");
   const [registrationDeadlineTime, setRegistrationDeadlineTime] = useState("");
@@ -1169,6 +1175,41 @@ export function UktDashboard(props: Props) {
     } finally {
       if (memberId) setMemberPending(memberId, false);
       else setLoading(false);
+    }
+  };
+
+  const handleDeleteBilling = async () => {
+    if (!deleteBillingTarget) return;
+    const { billingId, memberId, billingStatus } = deleteBillingTarget;
+    if (isMemberPending(memberId)) return;
+    setMemberPending(memberId, true);
+    try {
+      const force =
+        billingStatus === "PAID" ||
+        billingStatus === "SUCCESS" ||
+        billingStatus === "APPROVED";
+      const qs = force ? "?force=1" : "";
+      const res = await fetch(`/api/admin/billing/${billingId}${qs}`, {
+        method: "DELETE",
+      });
+      const data = await parseApiJson<{ error?: string; message?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal menghapus tagihan");
+      patchRow(memberId, {
+        billingId: null,
+        billingStatus: null,
+        billingAmount: null,
+      });
+      toast.success(data.message || "Tagihan UKT berhasil dihapus");
+      setDeleteBillingTarget(null);
+      setSelectedMember((prev) =>
+        prev && prev.memberId === memberId
+          ? { ...prev, billingId: null, billingStatus: null, billingAmount: null }
+          : prev,
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal menghapus tagihan");
+    } finally {
+      setMemberPending(memberId, false);
     }
   };
 
@@ -2561,6 +2602,26 @@ export function UktDashboard(props: Props) {
                                 </SelectContent>
                               </Select>
                             )}
+                          {isCabang && row.billingId && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() =>
+                                setDeleteBillingTarget({
+                                  billingId: row.billingId!,
+                                  memberId: row.memberId,
+                                  name: row.fullName,
+                                  billingStatus: row.billingStatus,
+                                })
+                              }
+                              disabled={loading || isMemberPending(row.memberId)}
+                              title="Hapus tagihan UKT saja (pendaftaran tetap)"
+                            >
+                              <Wallet className="mr-0.5 h-3 w-3" />
+                              {isMemberPending(row.memberId) ? "…" : "Hapus tagihan"}
+                            </Button>
+                          )}
                           {(canCancelUktRegistration(row) && (isDojoAdmin || isCabang)) || canForceDeleteUktRegistration(row, isCabang) ? (
                             <Button
                               size="sm"
@@ -2695,6 +2756,23 @@ export function UktDashboard(props: Props) {
                 )}
               </div>
               <DialogFooter className="gap-2 sm:gap-0">
+                {isCabang && selectedMember.billingId && (
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      setDeleteBillingTarget({
+                        billingId: selectedMember.billingId!,
+                        memberId: selectedMember.memberId,
+                        name: selectedMember.fullName,
+                        billingStatus: selectedMember.billingStatus,
+                      })
+                    }
+                    disabled={loading || isMemberPending(selectedMember.memberId)}
+                  >
+                    <Wallet className="mr-1 h-4 w-4" />
+                    Hapus tagihan
+                  </Button>
+                )}
                 {selectedMember.registrationId && (
                   (canCancelUktRegistration(selectedMember) && (isDojoAdmin || isCabang)) ||
                   canForceDeleteUktRegistration(selectedMember, isCabang)
@@ -2793,6 +2871,47 @@ export function UktDashboard(props: Props) {
               disabled={loading}
             >
               Ya, Hapus
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!deleteBillingTarget}
+        onOpenChange={(o) => !o && setDeleteBillingTarget(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Hapus Tagihan UKT?</DialogTitle>
+            <DialogDescription>
+              Tagihan UKT untuk <strong>{deleteBillingTarget?.name}</strong> akan
+              dihapus.
+              {deleteBillingTarget?.billingStatus === "PAID" ||
+              deleteBillingTarget?.billingStatus === "SUCCESS"
+                ? " Tagihan ini sudah lunas — penghapusan paksa hanya untuk admin cabang."
+                : " Pendaftaran UKT peserta tetap ada."}{" "}
+              Tindakan ini tidak dapat dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteBillingTarget(null)}
+              disabled={loading}
+            >
+              Tutup
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleDeleteBilling()}
+              disabled={
+                loading ||
+                (deleteBillingTarget
+                  ? isMemberPending(deleteBillingTarget.memberId)
+                  : false)
+              }
+            >
+              Ya, Hapus Tagihan
             </Button>
           </DialogFooter>
         </DialogContent>

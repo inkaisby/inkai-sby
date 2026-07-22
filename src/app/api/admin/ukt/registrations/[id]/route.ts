@@ -18,6 +18,7 @@ import { getClientIp } from "@/lib/security/request";
 import { prisma } from "@/lib/prisma";
 import { uktExamResultKey } from "@/lib/ukt";
 import { notifyUktStatusChange } from "@/lib/ukt-notify";
+import { deleteBillingHard as deleteBillingHardShared } from "@/lib/billing-delete";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -595,62 +596,9 @@ export async function DELETE(request: Request, context: RouteContext) {
     error?: string;
     status?: number;
   }> {
-    const attempts = [
-      `/v1/billing/${targetBillingId}?force=true`,
-      `/v1/billing/${targetBillingId}?force=1`,
-      `/v1/billing/${targetBillingId}`,
-    ];
-
-    let lastError = "Gagal menghapus tagihan UKT terkait";
-    let lastStatus = 400;
-
-    for (const path of attempts) {
-      const { res, data } = await inkaiFetch(
-        path,
-        { method: "DELETE" },
-        authResult.token,
-      );
-      if (res.ok || res.status === 404) return { ok: true };
-      lastError = inkaiErrorMessage(data, lastError);
-      lastStatus = res.status;
-    }
-
-    // Soft-void lewat PATCH bila DELETE ditolak untuk tagihan lunas
-    const patchAttempts = [
-      { isDeleted: true },
-      { status: "CANCELLED", isDeleted: true },
-      { status: "REJECTED" },
-    ];
-    for (const body of patchAttempts) {
-      const { res } = await inkaiFetch(
-        `/v1/billing/${targetBillingId}`,
-        { method: "PATCH", body: JSON.stringify(body) },
-        authResult.token,
-      );
-      if (res.ok) {
-        const { res: delRes } = await inkaiFetch(
-          `/v1/billing/${targetBillingId}?force=true`,
-          { method: "DELETE" },
-          authResult.token,
-        );
-        if (delRes.ok || delRes.status === 404) return { ok: true };
-        // PATCH sukses sudah memutus tautan operasional — lanjut hapus registrasi
-        return { ok: true };
-      }
-    }
-
-    try {
-      await prisma.billing.updateMany({
-        where: { id: targetBillingId },
-        data: { isDeleted: true },
-      });
-    } catch (error) {
-      console.error("[UKT DELETE] local billing soft-delete failed", error);
-    }
-
-    // Saat force cabang: jangan blokir total — tetap coba hapus registrasi
-    if (force) return { ok: true };
-    return { ok: false, error: lastError, status: lastStatus };
+    return deleteBillingHardShared(authResult.token!, targetBillingId, {
+      continueOnFailure: force,
+    });
   }
 
   if (billingId) {
