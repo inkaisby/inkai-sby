@@ -77,6 +77,19 @@ export async function POST(request: Request) {
     if (!pwCheck.valid) {
       return NextResponse.json({ error: pwCheck.error }, { status: 400 });
     }
+    if (!d.adminEmail) {
+      return NextResponse.json(
+        { error: "Email login wajib diisi jika mengatur password" },
+        { status: 400 },
+      );
+    }
+  }
+
+  if (d.adminEmail && !d.adminPassword) {
+    return NextResponse.json(
+      { error: "Password wajib diisi jika membuat akun login sekaligus" },
+      { status: 400 },
+    );
   }
 
   const branchResolved = resolveBranchIdForCreate(
@@ -118,6 +131,8 @@ export async function POST(request: Request) {
     bankName: cleanOptional(d.bankName),
     bankAccountNumber: cleanOptional(d.bankAccountNumber),
     bankAccountName: cleanOptional(d.bankAccountName),
+    // Email admin disinkron ke Inkai; password hanya di Prisma (lihat ranting-credentials).
+    ...(d.adminEmail ? { adminEmail: d.adminEmail } : {}),
   };
 
   const { res, data } = await inkaiFetch(
@@ -293,6 +308,9 @@ export async function PATCH(request: Request) {
       : {}),
     ...(d.bankAccountName !== undefined
       ? { bankAccountName: cleanOptional(d.bankAccountName) }
+      : {}),
+    ...(canAdministerRantingAccounts(authResult.user) && d.adminEmail
+      ? { adminEmail: d.adminEmail }
       : {}),
   };
 

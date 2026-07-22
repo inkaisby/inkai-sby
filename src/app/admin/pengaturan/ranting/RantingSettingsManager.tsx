@@ -229,9 +229,12 @@ export function RantingSettingsManager({
           return;
         }
         if (!email) {
-          showError("Isi email login jika mengatur password");
+          showError("Email login wajib diisi jika mengatur password");
           return;
         }
+      } else if (email && mode === "create") {
+        showError("Password wajib diisi jika membuat akun login sekaligus");
+        return;
       }
     }
 
@@ -339,6 +342,10 @@ export function RantingSettingsManager({
         ? `Ubah Data: ${targetName || targetDojo?.name || ""}`
         : "";
 
+  const loginEmailFilled = form.adminEmail.trim().length > 0;
+  const loginPasswordFilled =
+    form.adminPassword.length > 0 || form.adminPasswordConfirm.length > 0;
+
   return (
     <div className="space-y-4">
       <CredentialsReveal
@@ -389,7 +396,7 @@ export function RantingSettingsManager({
 
           {!lockedBranchId && mode === "create" && (
             <div className="space-y-1.5 sm:col-span-2">
-              <Label>Cabang</Label>
+              <Label>Cabang *</Label>
               <select
                 value={form.branchId}
                 onChange={(e) => setField("branchId", e.target.value)}
@@ -415,7 +422,7 @@ export function RantingSettingsManager({
           )}
 
           <div className="space-y-1.5">
-            <Label>Nama Ranting</Label>
+            <Label>Nama Ranting *</Label>
             <Input
               value={form.name}
               onChange={(e) => setField("name", e.target.value)}
@@ -498,11 +505,14 @@ export function RantingSettingsManager({
                 <p className="text-xs text-muted-foreground">
                   {mode === "edit"
                     ? "Ubah email atau set password baru untuk akun PIC. Kosongkan password jika hanya mengubah data/email."
-                    : "Opsional: buat akun login sekaligus. Bisa juga ditambah nanti lewat tombol Akun."}
+                    : "Opsional: buat akun login sekaligus (email & password wajib berpasangan). Bisa juga ditambah nanti lewat tombol Akun."}
                 </p>
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="ranting-admin-email">Email (username login)</Label>
+                <Label htmlFor="ranting-admin-email">
+                  Email (username login)
+                  {loginPasswordFilled ? " *" : ""}
+                </Label>
                 <Input
                   id="ranting-admin-email"
                   type="email"
@@ -516,6 +526,7 @@ export function RantingSettingsManager({
                 <div className="flex items-center justify-between gap-2">
                   <Label htmlFor="ranting-admin-password">
                     {mode === "edit" ? "Password baru" : "Password"}
+                    {loginEmailFilled && mode === "create" ? " *" : ""}
                   </Label>
                   <Button
                     type="button"
@@ -542,6 +553,7 @@ export function RantingSettingsManager({
               <div className="space-y-1.5">
                 <Label htmlFor="ranting-admin-password-confirm">
                   Konfirmasi password
+                  {loginEmailFilled && mode === "create" ? " *" : ""}
                 </Label>
                 <Input
                   id="ranting-admin-password-confirm"
