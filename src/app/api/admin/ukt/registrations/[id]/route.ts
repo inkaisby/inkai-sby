@@ -211,6 +211,178 @@ async function applyKyuBaruToMember(opts: {
   };
 }
 
+/** Simpan sabuk target di registrasi saja (belum naikkan sabuk resmi anggota). */
+async function saveUktKyuBaruTarget(opts: {
+  registrationId: string;
+  newRank: string;
+  token: string;
+  memberIdHint?: string;
+  previousRankHint?: string;
+}): Promise<{
+  ok: boolean;
+  error?: string;
+  status?: number;
+  memberId?: string;
+  kyuLama?: string;
+  kyuBaru?: string;
+  registration?: Record<string, unknown>;
+}> {
+  const kyuBaru = formatRankLabel(opts.newRank) || opts.newRank.trim();
+  if (!kyuBaru) {
+    return { ok: false, error: "Kyu Baru tidak valid", status: 400 };
+  }
+
+  let memberId = opts.memberIdHint?.trim() || "";
+  let memberCurrentRank = "";
+  let existingRegistered: string | null = null;
+
+  const { res: getRes, data: getData } = await inkaiFetch(
+    `/v1/events/register/${opts.registrationId}`,
+    {},
+    opts.token,
+  );
+
+  if (getRes.ok) {
+    const reg = getData.data as Record<string, unknown>;
+    const member = reg.member as
+      | { id?: string; currentRank?: string }
+      | undefined;
+    if (!memberId) memberId = String(member?.id ?? reg.memberId ?? "");
+    memberCurrentRank = String(member?.currentRank ?? "");
+    existingRegistered =
+      typeof reg.registeredRank === "string" ? reg.registeredRank : null;
+  }
+
+  if (memberId && !memberCurrentRank) {
+    const { res: mRes, data: mData } = await inkaiFetch(
+      `/v1/members/${memberId}`,
+      {},
+      opts.token,
+    );
+    if (mRes.ok) {
+      const member = mData.data as { currentRank?: string };
+      memberCurrentRank = String(member?.currentRank ?? "");
+    }
+  }
+
+  const decoded = decodeUktRegisteredRank(existingRegistered);
+  const hintRaw = opts.previousRankHint?.trim() || "";
+  const hint = formatRankLabel(hintRaw) || hintRaw;
+  const fromMember =
+    formatRankLabel(memberCurrentRank) || memberCurrentRank;
+
+  let kyuLama =
+    fromMember && !ranksEqual(fromMember, kyuBaru) ? fromMember : "";
+  if (
+    !kyuLama &&
+    decoded.kyuLama &&
+    !isBlankUktRank(decoded.kyuLama) &&
+    !ranksEqual(decoded.kyuLama, kyuBaru)
+  ) {
+    kyuLama = decoded.kyuLama;
+  }
+  if (!kyuLama && hint && !ranksEqual(hint, kyuBaru) && !isBlankUktRank(hint)) {
+    kyuLama = hint;
+  }
+  if (!kyuLama) {
+    kyuLama = inferPreviousBeltRank(kyuBaru) || DEFAULT_MEMBER_RANK;
+  }
+
+  const registeredRank = encodeUktRegisteredRank(kyuLama, kyuBaru);
+  const { res, data: apiData } = await inkaiFetch(
+    `/v1/events/register/${opts.registrationId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        registeredRank,
+        status: "APPROVED",
+      }),
+    },
+    opts.token,
+  );
+
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: inkaiErrorMessage(apiData, "Gagal menyimpan Kyu Baru"),
+      status: res.status,
+    };
+  }
+
+  return {
+    ok: true,
+    memberId: memberId || undefined,
+    kyuLama,
+    kyuBaru,
+    registration: (apiData.data as Record<string, unknown>) ?? {},
+  };
+}
+
+function registrationHasPaidUktBilling(reg: Record<string, unknown>): boolean {
+  const member = reg.member as
+    | {
+        billings?: Array<{
+          id?: string;
+          status?: string;
+          registrationId?: string | null;
+          isDeleted?: boolean;
+        }>;
+      }
+    | undefined;
+  const regId = String(reg.id ?? "");
+  const billings = member?.billings ?? [];
+  return billings.some((b) => {
+    if (b.isDeleted === true) return false;
+    const rid = String(b.registrationId ?? "");
+    if (rid && rid !== regId) return false;
+    const st = String(b.status ?? "").toUpperCase();
+    return st === "PAID" || st === "SUCCESS" || st === "APPROVED";
+  });
+}
+
+async function assertUktRegistrationPaid(
+  token: string,
+  registrationId: string,
+  reg: Record<string, unknown>,
+): Promise<boolean> {
+  if (registrationHasPaidUktBilling(reg)) return true;
+
+  const local = await prisma.billing.findFirst({
+    where: {
+      registrationId,
+      isDeleted: false,
+      status: { in: ["PAID", "SUCCESS", "APPROVED"] },
+    },
+    select: { id: true },
+  });
+  if (local) return true;
+
+  const memberId = String(
+    (reg.member as { id?: string } | undefined)?.id ?? reg.memberId ?? "",
+  );
+  if (!memberId) return false;
+
+  const { res, data } = await inkaiFetch(
+    `/v1/billing?memberId=${encodeURIComponent(memberId)}&limit=50`,
+    {},
+    token,
+    { timeoutMs: 6_000, retries: 0 },
+  );
+  if (!res.ok) return false;
+  const list = (data.data as Array<Record<string, unknown>>) ?? [];
+  return list.some((b) => {
+    if (b.isDeleted === true) return false;
+    const rid = String(b.registrationId ?? "");
+    const st = String(b.status ?? "").toUpperCase();
+    if (!(st === "PAID" || st === "SUCCESS" || st === "APPROVED")) return false;
+    if (rid === registrationId) return true;
+    if (rid) return false;
+    const type = String(b.type ?? "").toUpperCase();
+    const desc = String(b.description ?? "").toUpperCase();
+    return type.includes("UKT") || type === "EVENT" || desc.includes("UKT");
+  });
+}
+
 export async function PATCH(request: Request, context: RouteContext) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
@@ -276,7 +448,52 @@ export async function PATCH(request: Request, context: RouteContext) {
       {},
       authResult.token,
     );
-    if (regRes.ok) {
+
+    let appliedKyu = false;
+    let kyuBaruLabel = "";
+
+    if (regRes.ok && data.examResult === "LULUS") {
+      const reg = regData.data as Record<string, unknown>;
+      const decoded = decodeUktRegisteredRank(
+        typeof reg.registeredRank === "string" ? reg.registeredRank : null,
+      );
+      const targetKyu = decoded.kyuBaru?.trim() || "";
+      if (targetKyu && !isBlankUktRank(targetKyu)) {
+        const applied = await applyKyuBaruToMember({
+          registrationId: id,
+          newRank: targetKyu,
+          token: authResult.token,
+          memberIdHint: data.memberId,
+          previousRankHint: decoded.kyuLama || data.previousRank,
+        });
+        if (applied.ok) {
+          appliedKyu = true;
+          kyuBaruLabel = applied.kyuBaru || targetKyu;
+          if (applied.memberId) {
+            await notifyUktStatusChange({
+              token: authResult.token,
+              memberId: applied.memberId,
+              memberName: String(
+                (applied.registration?.member as { fullName?: string } | undefined)
+                  ?.fullName ??
+                  (reg.member as { fullName?: string } | undefined)?.fullName ??
+                  "Anggota",
+              ),
+              periodTitle: String(
+                (applied.registration?.event as { title?: string } | undefined)
+                  ?.title ??
+                  (reg.event as { title?: string } | undefined)?.title ??
+                  "UKT",
+              ),
+              displayStatus: "selesai",
+              extra: `Sabuk resmi diperbarui ke ${kyuBaruLabel}.`,
+            });
+          }
+        }
+      }
+    }
+
+    if (!appliedKyu && regRes.ok) {
       const reg = regData.data as Record<string, unknown>;
       const member = reg.member as { id?: string; fullName?: string } | undefined;
       const event = reg.event as { title?: string } | undefined;
@@ -294,11 +511,20 @@ export async function PATCH(request: Request, context: RouteContext) {
           memberName: String(member?.fullName ?? "Anggota"),
           periodTitle: String(event?.title ?? "UKT"),
           displayStatus,
+          extra:
+            data.examResult === "LULUS"
+              ? "Isi Kyu Baru bila belum, agar status menjadi Selesai."
+              : undefined,
         });
       }
     }
 
-    return NextResponse.json({ success: true, examResult: data.examResult });
+    return NextResponse.json({
+      success: true,
+      examResult: data.examResult,
+      selesai: appliedKyu,
+      kyuBaru: appliedKyu ? kyuBaruLabel : undefined,
+    });
   }
 
   if (data.action === "submit_for_verification") {
@@ -533,11 +759,36 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
-  // Cabang mengisi Kyu Baru = lulus UKT → update sabuk resmi anggota
+  // Cabang mengisi Kyu Baru:
+  // - sebelum Lulus: simpan target di registrasi (Menunggu Ujian)
+  // - setelah Lulus: terapkan sabuk resmi → Selesai
   if (data.newRank) {
     if (!data.eventId) {
       return NextResponse.json(
         { error: "eventId wajib untuk mengisi sabuk target" },
+        { status: 400 },
+      );
+    }
+
+    const { res: getRes, data: getData } = await inkaiFetch(
+      `/v1/events/register/${id}`,
+      {},
+      authResult.token,
+    );
+    if (!getRes.ok) {
+      return NextResponse.json(
+        { error: inkaiErrorMessage(getData, "Pendaftaran tidak ditemukan") },
+        { status: getRes.status },
+      );
+    }
+    const reg = getData.data as Record<string, unknown>;
+    const paid = await assertUktRegistrationPaid(authResult.token, id, reg);
+    if (!paid) {
+      return NextResponse.json(
+        {
+          error:
+            "Kyu Baru hanya dapat diisi setelah pembayaran diverifikasi (Menunggu Ujian)",
+        },
         { status: 400 },
       );
     }
@@ -547,74 +798,97 @@ export async function PATCH(request: Request, context: RouteContext) {
       {},
       authResult.token,
     );
-    if (!settingRes.ok) {
-      return NextResponse.json(
-        {
-          error:
-            "Hasil ujian belum dicatat. Tandai peserta LULUS terlebih dahulu sebelum mengisi sabuk target.",
-        },
-        { status: 400 },
-      );
-    }
-    const val = (settingData.data as { value?: { result?: string } } | undefined)?.value;
-    const examResult = String(val?.result ?? "").toUpperCase();
-    if (examResult !== "LULUS") {
-      return NextResponse.json(
-        {
-          error:
-            "Sabuk target hanya dapat diisi setelah peserta ditandai Lulus ujian dan pembayaran lunas",
-        },
-        { status: 400 },
-      );
+    const examResult = settingRes.ok
+      ? String(
+          (settingData.data as { value?: { result?: string } } | undefined)?.value
+            ?.result ?? "",
+        ).toUpperCase()
+      : "";
+
+    if (examResult === "LULUS") {
+      const applied = await applyKyuBaruToMember({
+        registrationId: id,
+        newRank: data.newRank,
+        token: authResult.token,
+        memberIdHint: data.memberId,
+        previousRankHint: data.previousRank,
+      });
+
+      if (!applied.ok) {
+        return NextResponse.json(
+          { error: applied.error || "Gagal menerapkan Kyu Baru" },
+          { status: applied.status || 500 },
+        );
+      }
+
+      writeAuditLog({
+        userId: authResult.user.id,
+        email: authResult.user.email,
+        action: "UKT_KYU_BARU_APPLY",
+        details: `UKT ${id}: ${applied.kyuLama} → ${applied.kyuBaru} (member ${applied.memberId})`,
+        ip: getClientIp(request),
+        userAgent: request.headers.get("user-agent"),
+        token: authResult.token,
+      });
+
+      if (applied.memberId) {
+        await notifyUktStatusChange({
+          token: authResult.token,
+          memberId: applied.memberId,
+          memberName: String(
+            (applied.registration?.member as { fullName?: string } | undefined)
+              ?.fullName ?? "Anggota",
+          ),
+          periodTitle: String(
+            (applied.registration?.event as { title?: string } | undefined)
+              ?.title ?? "UKT",
+          ),
+          displayStatus: "selesai",
+          extra: `Sabuk resmi diperbarui ke ${applied.kyuBaru}.`,
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        registration: applied.registration,
+        kyuLama: applied.kyuLama,
+        kyuBaru: applied.kyuBaru,
+        selesai: true,
+        message: `Sabuk diperbarui: ${applied.kyuBaru}`,
+      });
     }
 
-    const applied = await applyKyuBaruToMember({
+    const saved = await saveUktKyuBaruTarget({
       registrationId: id,
       newRank: data.newRank,
       token: authResult.token,
       memberIdHint: data.memberId,
       previousRankHint: data.previousRank,
     });
-
-    if (!applied.ok) {
+    if (!saved.ok) {
       return NextResponse.json(
-        { error: applied.error || "Gagal menerapkan Kyu Baru" },
-        { status: applied.status || 500 },
+        { error: saved.error || "Gagal menyimpan Kyu Baru" },
+        { status: saved.status || 500 },
       );
     }
 
     writeAuditLog({
       userId: authResult.user.id,
       email: authResult.user.email,
-      action: "UKT_KYU_BARU_APPLY",
-      details: `UKT ${id}: ${applied.kyuLama} → ${applied.kyuBaru} (member ${applied.memberId})`,
+      action: "UKT_KYU_BARU_TARGET",
+      details: `UKT ${id}: target ${saved.kyuLama} → ${saved.kyuBaru} (menunggu Lulus)`,
       ip: getClientIp(request),
       userAgent: request.headers.get("user-agent"),
       token: authResult.token,
     });
 
-    if (applied.memberId) {
-      await notifyUktStatusChange({
-        token: authResult.token,
-        memberId: applied.memberId,
-        memberName: String(
-          (applied.registration?.member as { fullName?: string } | undefined)?.fullName ??
-            "Anggota",
-        ),
-        periodTitle: String(
-          (applied.registration?.event as { title?: string } | undefined)?.title ?? "UKT",
-        ),
-        displayStatus: "selesai",
-        extra: `Sabuk resmi diperbarui ke ${applied.kyuBaru}.`,
-      });
-    }
-
     return NextResponse.json({
       success: true,
-      registration: applied.registration,
-      kyuLama: applied.kyuLama,
-      kyuBaru: applied.kyuBaru,
-      message: `Sabuk diperbarui: ${applied.kyuBaru}`,
+      registration: saved.registration,
+      kyuLama: saved.kyuLama,
+      kyuBaru: saved.kyuBaru,
+      selesai: false,
+      message: `Kyu Baru disimpan. Tandai Lulus untuk menyelesaikan.`,
     });
   }
 

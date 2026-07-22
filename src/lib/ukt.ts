@@ -1087,9 +1087,10 @@ export function uktDisplayStatusLabel(status: UktDisplayStatus): string {
 
 export function canApplyUktKyuBaru(
   row: UktMemberRow,
-  examResult: UktExamResult | null = row.examResult,
+  _examResult: UktExamResult | null = row.examResult,
 ): boolean {
-  return isUktBillingPaid(row) && examResult === "LULUS";
+  // Alur cabang: Verifikasi → Menunggu Ujian → isi Kyu Baru → Lulus → Selesai
+  return isUktBillingPaid(row);
 }
 
 /**

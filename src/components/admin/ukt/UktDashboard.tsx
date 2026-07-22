@@ -1200,9 +1200,7 @@ export function UktDashboard(props: Props) {
   ) => {
     if (isMemberPending(row.memberId)) return;
     if (!canApplyUktKyuBaru(row)) {
-      toast.error(
-        "Isi Kyu Baru setelah pembayaran lunas dan hasil ujian Lulus",
-      );
+      toast.error("Isi Kyu Baru setelah pembayaran diverifikasi (Menunggu Ujian)");
       return;
     }
     setMemberPending(row.memberId, true);
@@ -1225,6 +1223,7 @@ export function UktDashboard(props: Props) {
         message?: string;
         kyuBaru?: string;
         kyuLama?: string;
+        selesai?: boolean;
       }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal memperbarui kyu");
       const nextBaru = data.kyuBaru || newRank;
@@ -1233,10 +1232,12 @@ export function UktDashboard(props: Props) {
       patchRow(row.memberId, {
         kyuBaru: nextBaru,
         kyuLama: nextLama,
-        examResult: "LULUS",
       });
       toast.success(
-        `Kyu Baru diisi — status Selesai: ${formatRankLabel(newRank)}`,
+        data.selesai
+          ? `Kyu Baru diterapkan — status Selesai: ${formatRankLabel(newRank)}`
+          : data.message ||
+              `Kyu Baru disimpan. Tandai Lulus untuk menyelesaikan.`,
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
@@ -1260,10 +1261,27 @@ export function UktDashboard(props: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId: props.selectedPeriodId, examResult }),
       });
-      const data = await parseApiJson<{ error?: string }>(res);
+      const data = await parseApiJson<{
+        error?: string;
+        selesai?: boolean;
+        kyuBaru?: string;
+      }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal menyimpan hasil ujian");
-      if (target) patchRow(target.memberId, { examResult });
-      toast.success(`Hasil ujian disimpan: ${examResult}`);
+      if (target) {
+        patchRow(target.memberId, {
+          examResult,
+          ...(data.selesai && data.kyuBaru
+            ? { kyuBaru: data.kyuBaru }
+            : {}),
+        });
+      }
+      toast.success(
+        data.selesai
+          ? `Lulus — status Selesai${data.kyuBaru ? `: ${formatRankLabel(data.kyuBaru)}` : ""}`
+          : examResult === "LULUS" && target && !target.kyuBaru?.trim()
+            ? "Lulus dicatat. Isi Kyu Baru untuk menyelesaikan."
+            : `Hasil ujian disimpan: ${examResult}`,
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
@@ -2492,10 +2510,10 @@ export function UktDashboard(props: Props) {
           <CardContent className="p-3 text-sm text-muted-foreground">
             Alur: ranting daftar (**Belum Bayar**) → ranting{" "}
             <b>Bayar UKT</b> (**Menunggu Verifikasi**) → cabang{" "}
-            <b>Verifikasi</b> (**Menunggu Ujian**) → hasil ujian{" "}
-            <b>Lulus</b> → isi <b>Kyu Baru</b> (**Selesai**). Batal dari ranting
-            (termasuk yang sudah lunas) akan memberi notifikasi ke cabang —
-            sesuaikan pengembalian uang di luar sistem bila perlu.
+            <b>Verifikasi</b> (**Menunggu Ujian**) → isi <b>Kyu Baru</b> → hasil
+            ujian <b>Lulus</b> (**Selesai**). Batal dari ranting (termasuk yang
+            sudah lunas) akan memberi notifikasi ke cabang — sesuaikan
+            pengembalian uang di luar sistem bila perlu.
           </CardContent>
         </Card>
       )}
@@ -2713,12 +2731,14 @@ export function UktDashboard(props: Props) {
                         }
                         title={
                           canApplyUktKyuBaru(row)
-                            ? "Isi Kyu Baru setelah lulus ujian"
-                            : "Tersedia setelah Verifikasi + Hasil Ujian Lulus"
+                            ? "Isi Kyu Baru saat Menunggu Ujian, lalu tandai Lulus"
+                            : "Tersedia setelah Verifikasi pembayaran"
                         }
                       >
                         <option value="">
-                          {canApplyUktKyuBaru(row) ? "— Pilih —" : "— Menunggu ujian —"}
+                          {canApplyUktKyuBaru(row)
+                            ? "— Pilih —"
+                            : "— Setelah verifikasi —"}
                         </option>
                         {BELT_RANK_OPTIONS.map((opt) => (
                           <option key={opt} value={opt}>
@@ -2728,9 +2748,7 @@ export function UktDashboard(props: Props) {
                       </select>
                     ) : (
                       <span className="text-sm">
-                        {isUktSelesai(row) && row.kyuBaru
-                          ? formatRankLabel(row.kyuBaru)
-                          : "-"}
+                        {row.kyuBaru ? formatRankLabel(row.kyuBaru) : "-"}
                       </span>
                     )}
                   </TableCell>
