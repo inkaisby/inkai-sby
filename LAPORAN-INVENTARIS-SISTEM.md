@@ -103,7 +103,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda) |
-| Kelola Anggota | Cari **autocomplete**; kolom **No**; **sort kolom** (NIA, Nama, Sabuk, Status, Dojo, Terdaftar — ikon naik/turun, server-side); KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV; arsip; Prisma scoped (+ **anggota luar Surabaya / ranting arsip** tetap terlihat); filter client-side; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50) |
+| Kelola Anggota | Cari **autocomplete**; kolom **No**; **sort kolom** (NIA, Nama, Sabuk, Status, Dojo, Terdaftar — ikon naik/turun, server-side); KPI status + **Dok. kurang** + **Tanpa NIA**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **Terdaftar**; **edit Iuran/bln**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV; arsip; Prisma scoped (+ **anggota luar Surabaya / ranting arsip** tetap terlihat); filter client-side; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50); detail: **username login dari Prisma** (bukan hint palsu); **Reset password** sementara (ranting/cabang) |
 | Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
 | UKT | Nav grup **Pendaftaran** (`/admin/ukt`) + **Arsip UKT** (`/admin/ukt/arsip`); periode aktif, daftar peserta, **sort kolom**, multi-select ranting, **filter Gabungan multi-ranting**, bayar→verifikasi cabang, sabuk target, nota, **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya); **toolbar atas sticky**; **ranting: Daftar/Batal/Bayar + toolbar Laporan WA & Cetak Nota**; cabang: **Hapus tagihan** terpisah dari hapus pendaftaran |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
@@ -194,7 +194,8 @@ Pusat / Nasional
 7. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran, **mengedit sabuk**, dan **memindahkan ranting** anggota (kolom Dojo inline di `/admin/anggota`, `set_dojo`). Ajuan pindah dari anggota tetap lewat verifikasi `DOJO_TRANSFER`.
 8. Anggota melengkapi profil & dokumen.
 9. **Nonaktifkan** (status `INACTIVE` / `SUSPENDED`) — ranting/cabang; wajib alasan + catatan; notifikasi ke anggota; login diblokir; NIA & riwayat tetap; dapat **aktifkan kembali**. Bulk nonaktif tersedia.
-10. **Hapus** = soft-delete (`isDeleted`) — cek dampak iuran/UKT; ranting & cabang dalam scope; aktif/ber-NIA wajib ketik nama. **Bulk hapus/arsip** dari floating bar (konfirmasi ketik `ARSIPKAN`). Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang; **bulk hapus permanen** di arsip (ketik `HAPUS`).
+10. **Reset password** di detail `/admin/anggota` (ranting/cabang): password tersimpan tidak ditampilkan; tombol **Reset password** membuat password sementara (pola `Nama####`), ditampilkan sekali untuk disalin.
+11. **Hapus** = soft-delete (`isDeleted`) — cek dampak iuran/UKT; ranting & cabang dalam scope; aktif/ber-NIA wajib ketik nama. **Bulk hapus/arsip** dari floating bar (konfirmasi ketik `ARSIPKAN`). Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang; **bulk hapus permanen** di arsip (ketik `HAPUS`).
 
 ### 9.2 Iuran
 1. Tagihan iuran bulanan muncul di sistem.
@@ -333,7 +334,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/auth/*                 Login, register (+ identitas/sabuk lengkap), check-duplicate, forgot/reset password
 /api/admin/members          POST create; GET list+KPI counts (filter cepat client-side)
 /api/admin/members/bulk-create  Input massal tambah anggota (maks 50)
-/api/admin/members/[id]     Detail + aksi (approve/NIA/set_rank/set_dojo/set_dues/dokumen/nonaktif/hapus/restore/merge)
+/api/admin/members/[id]     Detail + aksi (approve/NIA/set_rank/set_dojo/set_dues/dokumen/reset_password/nonaktif/hapus/restore/merge)
 /api/admin/members/bulk     Bulk nonaktif / approve / hapus-arsip (ARSIPKAN) / purge arsip (HAPUS) / restore
 /api/admin/members/archived Daftar arsip soft-delete
 /api/admin/billing/[id]     Edit tagihan, **submit_for_verification** (ranting→Menunggu Verifikasi), verifikasi/tandai lunas, **hapus** (ranting/cabang; force lunas = cabang; fallback Prisma bila API gagal)
@@ -561,6 +562,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Filter ranting UKT cabang: opsi **Gabungan** dari akun multi-ranting (mis. Gabungan GADING · CAKRA, MANYAR) |
 | 22 Juli 2026 | Fix UKT ranting multi: load anggota+registrasi semua managed dojo via Prisma; filter + kolom Ranting di UI ranting |
 | 22 Juli 2026 | Topbar admin: daftar email akun gabungan multi-ranting + pindah akun cepat (prefill Ganti Akun) |
+| 22 Juli 2026 | Fix detail anggota: overlay username/telepon dari Prisma; hapus hint password palsu (`nama+123`); tombol **Reset password** sementara (ranting/cabang, `PATCH reset_password`) |
 
 ---
 

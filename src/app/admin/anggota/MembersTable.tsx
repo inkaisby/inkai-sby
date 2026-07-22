@@ -134,16 +134,6 @@ function billingTypeLabel(type: string) {
   return type || "Tagihan";
 }
 
-/** Password referensi yang sering dipakai: nama depan huruf kecil + 123 → jonathan123 */
-function memberPasswordHint(fullName: string): string {
-  const first =
-    fullName
-      .split(/\s+/)
-      .find((p) => /[a-zA-Z]/.test(p))
-      ?.replace(/[^a-zA-Z]/g, "") || "inkai";
-  return `${first.toLowerCase()}123`;
-}
-
 function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="grid grid-cols-[7.5rem_1fr] gap-2 text-sm">
@@ -329,6 +319,10 @@ export function MembersTable({
   const [dojoSavingId, setDojoSavingId] = useState<string | null>(null);
   const [duesSaving, setDuesSaving] = useState(false);
   const [duesDraft, setDuesDraft] = useState("");
+  const [passwordResetting, setPasswordResetting] = useState(false);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(
+    null,
+  );
   const {
     selectedIds,
     pendingSelectedIds,
@@ -347,6 +341,7 @@ export function MembersTable({
   const canEditRank = canEditKyuBaru(userRoles);
   const canEditDojo = canEditKyuBaru(userRoles);
   const canEditDues = canManageIuranByWilayah(userRoles);
+  const canResetPassword = canToggleMemberActive(userRoles);
 
   useEffect(() => {
     setMembers(membersProp);
@@ -375,6 +370,7 @@ export function MembersTable({
     setSelectedId(member.id);
     setDupCandidates([]);
     setMergeTarget(null);
+    setTemporaryPassword(null);
     setDetail({
       id: member.id,
       fullName: member.fullName,
@@ -559,6 +555,49 @@ export function MembersTable({
     }
   }
 
+  async function handleResetPassword() {
+    if (!selectedId || !canResetPassword) return;
+    setPasswordResetting(true);
+    try {
+      const res = await fetch(`/api/admin/members/${selectedId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset_password" }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        temporaryPassword?: string;
+        email?: string;
+      };
+      if (!res.ok) {
+        showError(data.error || "Gagal reset password");
+        return;
+      }
+      if (data.temporaryPassword) {
+        setTemporaryPassword(data.temporaryPassword);
+      }
+      if (data.email) {
+        setDetail((prev) => {
+          if (!prev) return prev;
+          const prevUser =
+            prev.user && typeof prev.user === "object"
+              ? (prev.user as Record<string, unknown>)
+              : {};
+          return {
+            ...prev,
+            user: { ...prevUser, email: data.email },
+          };
+        });
+      }
+      showSuccess(data.message || "Password sementara dibuat");
+    } catch {
+      showError("Gagal reset password");
+    } finally {
+      setPasswordResetting(false);
+    }
+  }
+
   const dojo = detail?.dojo as
     | { name?: string; branch?: { name?: string } }
     | undefined;
@@ -588,11 +627,6 @@ export function MembersTable({
   const bpjsCardNumber =
     typeof detail?.bpjsCardNumber === "string" ? detail.bpjsCardNumber : null;
 
-  const passwordHint = fullName
-    ? memberPasswordHint(fullName)
-    : typeof detail?.suggestedPassword === "string"
-      ? detail.suggestedPassword
-      : "";
   const passwordAdminStyle = fullName ? passwordPatternHint(fullName) : "";
 
   const unpaid = billings.filter((b) => b.status && b.status !== "PAID");
@@ -891,6 +925,7 @@ export function MembersTable({
           if (!open) {
             setSelectedId(null);
             setDetail(null);
+            setTemporaryPassword(null);
           }
         }}
       >
@@ -1117,16 +1152,40 @@ export function MembersTable({
                       value={
                         user?.email ? (
                           <CopyableValue value={String(user.email)} />
+                        ) : loading ? (
+                          "…"
                         ) : (
-                          "-"
+                          "Belum ada akun"
                         )
                       }
                     />
                     <DetailRow
                       label="Password"
                       value={
-                        passwordHint ? (
-                          <CopyableValue value={passwordHint} />
+                        temporaryPassword ? (
+                          <CopyableValue value={temporaryPassword} />
+                        ) : user?.email ? (
+                          <span className="inline-flex flex-wrap items-center gap-2">
+                            <span className="text-muted-foreground font-normal">
+                              Tidak ditampilkan
+                            </span>
+                            {canResetPassword ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs"
+                                disabled={passwordResetting || loading}
+                                onClick={() => void handleResetPassword()}
+                              >
+                                {passwordResetting
+                                  ? "Mereset…"
+                                  : "Reset password"}
+                              </Button>
+                            ) : null}
+                          </span>
+                        ) : loading ? (
+                          "…"
                         ) : (
                           "-"
                         )
@@ -1134,12 +1193,10 @@ export function MembersTable({
                     />
                   </dl>
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    Password referensi (nama depan + 123). Bila anggota sudah
-                    mengubah password, gunakan reset password ranting.
-                    {passwordAdminStyle &&
-                    passwordAdminStyle !== passwordHint
-                      ? ` Pola admin: ${passwordAdminStyle}.`
-                      : null}
+                    Password tersimpan tidak bisa dibaca ulang. Reset membuat
+                    password sementara (pola {passwordAdminStyle || "Nama####"}
+                    ) — salin segera, lalu minta anggota ganti lewat profil /
+                    lupa password.
                   </p>
                 </section>
 

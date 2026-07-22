@@ -71,6 +71,7 @@ export const memberActionSchema = z.object({
     "set_dues",
     "set_documents",
     "set_dojo",
+    "reset_password",
     "deactivate",
     "activate",
     "delete",

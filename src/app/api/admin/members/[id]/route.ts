@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { requireAdmin } from "@/lib/admin-auth";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { canAssignNia, canEditKyuBaru, formatRankLabel } from "@/lib/belt";
@@ -121,47 +122,60 @@ export async function GET(_request: Request, context: RouteContext) {
     });
   }
 
-  const fullName = String(member.fullName || "");
-  const suggestedPassword = generateSimplePassword(fullName);
+  // Overlay dokumen + akun login dari Prisma lokal (Inkai sering tidak kirim nested user)
+  const localExtras = await withPrismaFallback(
+    "member-detail-local-extras",
+    () =>
+      prisma.member.findFirst({
+        where: { id },
+        select: {
+          monthlyDuesAmount: true,
+          birthCertificateUrl: true,
+          bpjsCardUrl: true,
+          bpjsCardNumber: true,
+          user: {
+            select: { email: true, phoneNumber: true, photoUrl: true },
+          },
+        },
+      }),
+    null,
+  );
 
-  // Pastikan monthlyDuesAmount tersedia (Inkai atau Prisma lokal)
   let monthlyDuesAmount =
     typeof member.monthlyDuesAmount === "number"
       ? member.monthlyDuesAmount
       : Number(member.monthlyDuesAmount);
   if (!Number.isFinite(monthlyDuesAmount)) {
-    const localDues = await withPrismaFallback(
-      "member-detail-dues",
-      () =>
-        prisma.member.findFirst({
-          where: { id },
-          select: { monthlyDuesAmount: true },
-        }),
-      null,
-    );
-    monthlyDuesAmount = localDues.data?.monthlyDuesAmount ?? 50_000;
+    monthlyDuesAmount = localExtras.data?.monthlyDuesAmount ?? 50_000;
   }
 
-  // Overlay dokumen dari Prisma lokal (sumber admin upload)
-  const localDocs = await withPrismaFallback(
-    "member-detail-docs",
-    () =>
-      prisma.member.findFirst({
-        where: { id },
-        select: {
-          birthCertificateUrl: true,
-          bpjsCardUrl: true,
-          bpjsCardNumber: true,
-        },
-      }),
-    null,
-  );
-  if (localDocs.data) {
+  if (localExtras.data) {
+    const existingUser =
+      member.user && typeof member.user === "object"
+        ? (member.user as Record<string, unknown>)
+        : {};
+    const localUser = localExtras.data.user;
     member = {
       ...member,
-      birthCertificateUrl: localDocs.data.birthCertificateUrl,
-      bpjsCardUrl: localDocs.data.bpjsCardUrl,
-      bpjsCardNumber: localDocs.data.bpjsCardNumber,
+      birthCertificateUrl: localExtras.data.birthCertificateUrl,
+      bpjsCardUrl: localExtras.data.bpjsCardUrl,
+      bpjsCardNumber: localExtras.data.bpjsCardNumber,
+      user: localUser
+        ? {
+            ...existingUser,
+            email:
+              (typeof existingUser.email === "string" && existingUser.email) ||
+              localUser.email,
+            phoneNumber:
+              (typeof existingUser.phoneNumber === "string" &&
+                existingUser.phoneNumber) ||
+              localUser.phoneNumber,
+            photoUrl:
+              (typeof existingUser.photoUrl === "string" &&
+                existingUser.photoUrl) ||
+              localUser.photoUrl,
+          }
+        : member.user ?? null,
     };
   }
 
@@ -170,7 +184,6 @@ export async function GET(_request: Request, context: RouteContext) {
       ...member,
       monthlyDuesAmount,
       billings,
-      suggestedPassword,
       lifecycle: lifecycleResult.data,
       impact: impactResult.data,
     },
@@ -488,6 +501,99 @@ export async function PATCH(request: Request, context: RouteContext) {
       success: true,
       monthlyDuesAmount: amount,
       message: `Iuran/bln diperbarui: Rp ${amount.toLocaleString("id-ID")}`,
+    });
+  }
+
+  if (action === "reset_password") {
+    if (!canToggleMemberActive(roles)) {
+      return NextResponse.json(
+        { error: "Anda tidak berwenang mereset password anggota" },
+        { status: 403 },
+      );
+    }
+
+    const scoped = await prisma.member.findFirst({
+      where: {
+        AND: [{ id }, buildMemberFilter(authResult.user)],
+      },
+      select: {
+        id: true,
+        fullName: true,
+        userId: true,
+        user: { select: { id: true, email: true } },
+      },
+    });
+    if (!scoped) {
+      return NextResponse.json(
+        { error: "Anggota tidak ditemukan di cakupan Anda" },
+        { status: 404 },
+      );
+    }
+    if (!scoped.userId || !scoped.user?.email) {
+      return NextResponse.json(
+        {
+          error:
+            "Anggota belum punya akun login. Minta anggota daftar mandiri atau gabungkan dengan data yang sudah berakun.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const temporaryPassword = generateSimplePassword(scoped.fullName);
+    const { res, data } = await inkaiFetch(
+      `/v1/members/${id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ password: temporaryPassword }),
+      },
+      token,
+    );
+
+    // Sinkron hash lokal (login memakai User.passwordHash yang sama)
+    try {
+      const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+      await prisma.user.update({
+        where: { id: scoped.userId },
+        data: { passwordHash },
+      });
+    } catch (err) {
+      console.error("[reset_password] prisma user update failed:", err);
+      if (!res.ok) {
+        return NextResponse.json(
+          {
+            error: inkaiErrorMessage(
+              data,
+              "Gagal mereset password anggota",
+            ),
+          },
+          { status: res.status },
+        );
+      }
+    }
+
+    if (!res.ok) {
+      // Hash lokal sudah diubah — login masih bisa lewat DB bersama
+      console.warn(
+        "[reset_password] Inkai PATCH gagal setelah update lokal:",
+        inkaiErrorMessage(data, "unknown"),
+      );
+    }
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "MEMBER_RESET_PASSWORD",
+      details: `Reset password for ${scoped.fullName} (${id}; ${scoped.user.email})`,
+      ip,
+      userAgent,
+      token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      email: scoped.user.email,
+      temporaryPassword,
+      message: `Password sementara dibuat untuk ${scoped.user.email}. Salin sekarang — tidak ditampilkan lagi.`,
     });
   }
 
