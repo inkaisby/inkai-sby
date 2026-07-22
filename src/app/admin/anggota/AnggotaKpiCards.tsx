@@ -90,7 +90,7 @@ export function AnggotaKpiCards({
 
   return (
     <>
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="-mx-3 mb-4 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-3 sm:overflow-visible sm:px-0 lg:grid-cols-4 xl:grid-cols-7">
         {items.map((kpi) => {
           const Icon = KPI_ICONS[kpi.icon] ?? Users;
           const active =
@@ -100,7 +100,7 @@ export function AnggotaKpiCards({
               key={kpi.key}
               type="button"
               onClick={() => go(kpi.href, kpi.key)}
-              className="block w-full text-left"
+              className="block w-[8.75rem] shrink-0 text-left sm:w-full sm:min-w-0"
             >
               <Card
                 className={`transition-all hover:shadow-md hover:ring-1 hover:ring-inkai-red/30 ${

@@ -9,6 +9,7 @@ import { ROLE_LABELS } from "@/lib/rbac";
 import { RantingSettingsManager } from "@/app/admin/pengaturan/ranting/RantingSettingsManager";
 import { AkunSayaForm } from "@/app/admin/pengaturan/akun/AkunSayaForm";
 import { SettingsLoadWarning } from "@/components/admin/pengaturan/SettingsLoadWarning";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Home, KeyRound } from "lucide-react";
 
@@ -203,12 +204,10 @@ export async function DojoPengaturanContent() {
 
   return (
     <div className="space-y-10">
-      <div>
-        <h2 className="text-2xl font-bold">Pengaturan</h2>
-        <p className="text-muted-foreground">
-          Kelola data ranting Anda dan akun login di satu tempat
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Pengaturan"
+        description="Kelola data ranting Anda dan akun login di satu tempat"
+      />
 
       <section className="space-y-4">
         <div className="flex items-center gap-2">

@@ -8,6 +8,7 @@ import { SettingsLoadWarning } from "@/components/admin/pengaturan/SettingsLoadW
 import { AkunSayaForm } from "./AkunSayaForm";
 import { KeyRound, Shield, User } from "lucide-react";
 import { redirect } from "next/navigation";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -49,10 +50,10 @@ async function PengaturanAkunContent() {
   if (dbUserResult.failed) {
     return (
       <>
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold">Akun Saya</h2>
-          <p className="text-muted-foreground">Profil akun admin yang sedang login</p>
-        </div>
+        <AdminPageHeader
+          title="Akun Saya"
+          description="Profil akun admin yang sedang login"
+        />
         <SettingsLoadWarning message="Profil akun sementara tidak bisa dimuat (database sibuk). Coba lagi sebentar." />
       </>
     );
@@ -69,12 +70,10 @@ async function PengaturanAkunContent() {
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Akun Saya</h2>
-        <p className="text-muted-foreground">
-          Kelola profil dan password akun admin yang sedang login
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Akun Saya"
+        description="Kelola profil dan password akun admin yang sedang login"
+      />
 
       <SettingsKpiGrid
         items={[

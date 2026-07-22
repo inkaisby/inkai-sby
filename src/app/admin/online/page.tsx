@@ -8,6 +8,7 @@ import {
 import { canViewAccountPresence } from "@/lib/presence-constants";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { OnlinePresenceClient } from "./OnlinePresenceClient";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +31,10 @@ async function AdminOnlineContent() {
 
   return (
     <>
-      <h2 className="mb-2 text-2xl font-bold">Kehadiran akun</h2>
-      <p className="mb-6 text-muted-foreground">
-        Lihat siapa yang sedang aktif di portal (cakupan wilayah Anda).
-      </p>
+      <AdminPageHeader
+        title="Kehadiran akun"
+        description="Lihat siapa yang sedang aktif di portal (cakupan wilayah Anda)."
+      />
       <OnlinePresenceClient />
     </>
   );

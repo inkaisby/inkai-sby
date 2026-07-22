@@ -25,12 +25,16 @@ export function MobileDashboardNav({
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2 lg:hidden">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-9 w-9 shrink-0 lg:hidden"
+          aria-label="Menu navigasi"
+        >
           <Menu className="h-4 w-4" />
-          Menu
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-72">
+      <SheetContent side="left" className="w-[min(18rem,88vw)]">
         <SheetTitle className="text-base font-bold">{title}</SheetTitle>
         <nav className="mt-6 flex flex-col gap-1">
           {links.map((item) => {

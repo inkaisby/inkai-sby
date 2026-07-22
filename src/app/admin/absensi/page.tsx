@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { ExportCsvButton } from "@/components/admin/ExportCsvButton";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
   UKT_SEMESTER_SESSION_TOTAL,
   computeSemesterAttendance,
@@ -158,59 +159,59 @@ async function AdminAbsensiContent({
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold">Laporan Absensi</h2>
-          <p className="text-muted-foreground">
+      <AdminPageHeader
+        title="Laporan Absensi"
+        description={
+          <>
             Kehadiran harian, yang belum absen, dan rekap semester (syarat UKT{" "}
             {UKT_SEMESTER_SESSION_TOTAL} sesi).
-          </p>
-        </div>
-        {view === "harian" ? (
-          <ExportCsvButton
-            filename={`absensi-${dateStr}.csv`}
-            headers={["Nama", "NIA", "Dojo", "Check-in", "Metode"]}
-            rows={logs.map((log) => {
-              const member = log.member as
-                | { fullName?: string; nia?: string }
-                | undefined;
-              const dojo = log.dojo as { name?: string } | undefined;
-              return [
-                member?.fullName ?? "",
-                member?.nia ?? "",
-                dojo?.name ?? "",
-                new Date(String(log.checkInAt)).toLocaleString("id-ID"),
-                String(log.method ?? ""),
-              ];
-            })}
-          />
-        ) : null}
-        {view === "belum" ? (
-          <ExportCsvButton
-            filename={`absensi-belum-${dateStr}.csv`}
-            headers={["Nama", "NIA", "Dojo"]}
-            rows={belumHadir
-              .filter((m) => filterName(m.fullName, m.nia))
-              .map((m) => [m.fullName, m.nia ?? "", m.dojo?.name ?? ""])}
-          />
-        ) : null}
-        {view === "rekap" ? (
-          <ExportCsvButton
-            filename={`absensi-rekap-${semester}-${year}.csv`}
-            headers={["Nama", "NIA", "Dojo", "Hadir", "Persen"]}
-            rows={rekapRows
-              .filter((m) => filterName(m.fullName, m.nia))
-              .map((m) => [m.fullName, m.nia ?? "", m.dojo, m.count, m.pct])}
-          />
-        ) : null}
-      </div>
+          </>
+        }
+        actions={
+          view === "harian" ? (
+            <ExportCsvButton
+              filename={`absensi-${dateStr}.csv`}
+              headers={["Nama", "NIA", "Dojo", "Check-in", "Metode"]}
+              rows={logs.map((log) => {
+                const member = log.member as
+                  | { fullName?: string; nia?: string }
+                  | undefined;
+                const dojo = log.dojo as { name?: string } | undefined;
+                return [
+                  member?.fullName ?? "",
+                  member?.nia ?? "",
+                  dojo?.name ?? "",
+                  new Date(String(log.checkInAt)).toLocaleString("id-ID"),
+                  String(log.method ?? ""),
+                ];
+              })}
+            />
+          ) : view === "belum" ? (
+            <ExportCsvButton
+              filename={`absensi-belum-${dateStr}.csv`}
+              headers={["Nama", "NIA", "Dojo"]}
+              rows={belumHadir
+                .filter((m) => filterName(m.fullName, m.nia))
+                .map((m) => [m.fullName, m.nia ?? "", m.dojo?.name ?? ""])}
+            />
+          ) : view === "rekap" ? (
+            <ExportCsvButton
+              filename={`absensi-rekap-${semester}-${year}.csv`}
+              headers={["Nama", "NIA", "Dojo", "Hadir", "Persen"]}
+              rows={rekapRows
+                .filter((m) => filterName(m.fullName, m.nia))
+                .map((m) => [m.fullName, m.nia ?? "", m.dojo, m.count, m.pct])}
+            />
+          ) : undefined
+        }
+      />
 
-      <div className="mb-4 flex flex-wrap gap-2">
+      <div className="mb-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
         {views.map((v) => (
           <Link
             key={v.id}
             href={`/admin/absensi?view=${v.id}&date=${dateStr}&semester=${semester}&year=${year}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-            className={`rounded-lg px-3 py-1.5 text-sm ${
+            className={`inline-flex min-h-10 items-center justify-center rounded-lg px-3 py-1.5 text-sm ${
               view === v.id
                 ? "bg-inkai-red text-white"
                 : "border hover:bg-muted"
@@ -221,20 +222,20 @@ async function AdminAbsensiContent({
         ))}
       </div>
 
-      <form className="mb-4 flex flex-wrap gap-2">
+      <form className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <input type="hidden" name="view" value={view} />
         <Input
           name="date"
           type="date"
           defaultValue={dateStr}
-          className="max-w-[180px]"
+          className="h-10 w-full sm:h-8 sm:max-w-[180px] sm:w-auto"
         />
         {view === "rekap" ? (
           <>
             <select
               name="semester"
               defaultValue={semester}
-              className="h-8 rounded-lg border px-2 text-sm"
+              className="h-10 w-full rounded-lg border px-2 text-sm sm:h-8 sm:w-auto"
             >
               <option value="I">Semester I</option>
               <option value="II">Semester II</option>
@@ -243,7 +244,7 @@ async function AdminAbsensiContent({
               name="year"
               type="number"
               defaultValue={year}
-              className="max-w-[100px]"
+              className="h-10 w-full sm:h-8 sm:max-w-[100px] sm:w-auto"
             />
           </>
         ) : null}
@@ -251,11 +252,11 @@ async function AdminAbsensiContent({
           name="q"
           placeholder="Cari nama / NIA..."
           defaultValue={q}
-          className="max-w-xs"
+          className="h-10 w-full sm:h-8 sm:max-w-xs sm:w-auto"
         />
         <button
           type="submit"
-          className="rounded-lg bg-inkai-red px-4 py-1.5 text-sm text-white"
+          className="h-10 rounded-lg bg-inkai-red px-4 text-sm text-white sm:h-8 sm:py-1.5"
         >
           Filter
         </button>

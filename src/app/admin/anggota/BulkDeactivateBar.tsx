@@ -158,12 +158,12 @@ export function BulkDeactivateBar({
 
   return (
     <>
-      <div className="fixed bottom-4 left-1/2 z-40 flex w-[min(100%-1.5rem,40rem)] -translate-x-1/2 flex-wrap items-center justify-between gap-3 rounded-xl border bg-background/95 px-4 py-3 shadow-lg backdrop-blur">
+      <div className="fixed bottom-4 left-1/2 z-40 flex w-[min(100%-1.5rem,40rem)] -translate-x-1/2 flex-col gap-2 rounded-xl border bg-background/95 px-3 py-3 shadow-lg backdrop-blur pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:px-4">
         <p className="text-sm">
           <span className="font-semibold tabular-nums">{selectedIds.length}</span>{" "}
           dipilih
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <Button
             type="button"
             size="sm"

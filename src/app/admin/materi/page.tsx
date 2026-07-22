@@ -5,6 +5,7 @@ import { canAccessAdmin } from "@/lib/rbac";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { MateriManager } from "./MateriManager";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +29,10 @@ async function Content() {
 
   return (
     <>
-      <h2 className="mb-2 text-2xl font-bold">Materi Digital</h2>
-      <p className="mb-6 text-muted-foreground">
-        Kelola materi yang tampil di dashboard anggota.
-      </p>
+      <AdminPageHeader
+        title="Materi Digital"
+        description="Kelola materi yang tampil di dashboard anggota."
+      />
       <MateriManager initialItems={result.data} />
     </>
   );

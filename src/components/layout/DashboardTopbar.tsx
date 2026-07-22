@@ -86,8 +86,8 @@ export function DashboardTopbar({
   const backHref = showAdmin ? resolveAdminBackHref(pathname) : null;
 
   return (
-    <header className="sticky top-0 z-40 flex min-h-16 items-center justify-between gap-2 border-b bg-background/95 px-4 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:px-6">
-      <div className="flex min-w-0 items-center gap-2">
+    <header className="sticky top-0 z-40 flex h-12 min-h-12 items-center justify-between gap-1.5 border-b bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:h-16 sm:min-h-16 sm:gap-2 sm:px-6 sm:py-1.5">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
         <MobileDashboardNav title={title} links={links} />
         {backHref ? (
           <Link
@@ -100,10 +100,10 @@ export function DashboardTopbar({
             <ArrowLeft size={18} />
           </Link>
         ) : null}
-        <h1 className="truncate text-base font-bold sm:text-lg">{pageTitle}</h1>
+        <h1 className="min-w-0 truncate text-sm font-bold sm:text-lg">{pageTitle}</h1>
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
+      <div className="flex shrink-0 items-center gap-0.5">
         <NotificationBell viewAllHref={notificationsHref} />
         <ThemeToggle />
         <UserMenu

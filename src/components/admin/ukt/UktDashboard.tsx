@@ -1779,7 +1779,7 @@ export function UktDashboard(props: Props) {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Sticky hanya semester/tahun — hindari sticky tinggi yang menutupi tabel di HP */}
-      <div className="sticky top-16 z-30 -mx-4 space-y-2 border-b border-border/50 bg-background/95 px-4 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:-mx-6 sm:space-y-3 sm:px-6 sm:py-3">
+      <div className="sticky top-12 z-30 -mx-3 space-y-2 border-b border-border/50 bg-background/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:top-16 sm:-mx-6 sm:space-y-3 sm:px-6 sm:py-3">
         {props.headerNote ? (
           <p className="hidden text-sm text-muted-foreground sm:block">{props.headerNote}</p>
         ) : null}

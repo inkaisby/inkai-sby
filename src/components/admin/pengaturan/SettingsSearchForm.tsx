@@ -102,8 +102,8 @@ export function SettingsSearchForm({
   };
 
   return (
-    <div className="mb-4 flex flex-wrap items-end gap-2">
-      <div className="min-w-[200px] flex-1 space-y-1">
+    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+      <div className="min-w-0 w-full space-y-1 sm:min-w-[200px] sm:flex-1 sm:max-w-md">
         <label className="text-xs text-muted-foreground">Pencarian</label>
         <Input
           ref={inputRef}
@@ -111,15 +111,16 @@ export function SettingsSearchForm({
           onChange={(e) => handleQueryChange(e.target.value)}
           placeholder={qPlaceholder}
           autoComplete="off"
+          className="h-10 sm:h-8"
         />
       </div>
       {filterName && filterOptions ? (
-        <div className="space-y-1">
+        <div className="w-full space-y-1 sm:w-auto">
           <label className="text-xs text-muted-foreground">{filterLabel}</label>
           <select
             value={filter}
             onChange={(e) => handleFilterChange(e.target.value)}
-            className="h-8 min-w-[140px] rounded-lg border px-2 text-sm"
+            className="h-10 w-full rounded-lg border px-2 text-sm sm:h-8 sm:min-w-[140px] sm:w-auto"
           >
             {filterOptions.map((opt) => (
               <option key={opt.value || "all"} value={opt.value}>

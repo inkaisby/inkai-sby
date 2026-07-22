@@ -8,6 +8,7 @@ import { settingsUsernameLoadWarning } from "@/lib/prisma-errors";
 import { getPrimaryAdminRole } from "@/lib/rbac";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { SettingsKpiGrid } from "@/components/admin/pengaturan/SettingsKpiGrid";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
   SettingsPagination,
   SettingsSearchForm,
@@ -102,12 +103,10 @@ async function PengaturanRantingContent({
   if (selfManagedOnly && !lockedDojoId) {
     return (
       <>
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold">Pengaturan Ranting & User</h2>
-          <p className="text-muted-foreground">
-            Akun Anda belum terhubung ke ranting.
-          </p>
-        </div>
+        <AdminPageHeader
+          title="Pengaturan Ranting & User"
+          description="Akun Anda belum terhubung ke ranting."
+        />
         <Card>
           <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
             <p>
@@ -287,14 +286,14 @@ async function PengaturanRantingContent({
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Pengaturan Ranting & User</h2>
-        <p className="text-muted-foreground">
-          {selfManagedOnly
+      <AdminPageHeader
+        title="Pengaturan Ranting & User"
+        description={
+          selfManagedOnly
             ? "Perbarui data ranting Anda (alamat, jadwal, rekening, dan kontak)."
-            : "Kelola data ranting dan akun admin ranting. User anggota biasa baru tampil di panel ini setelah dijadikan admin ranting atau ditautkan sebagai multi-akun."}
-        </p>
-      </div>
+            : "Kelola data ranting dan akun admin ranting. User anggota biasa baru tampil di panel ini setelah dijadikan admin ranting atau ditautkan sebagai multi-akun."
+        }
+      />
 
       {warning ? <SettingsLoadWarning message={warning} /> : null}
 

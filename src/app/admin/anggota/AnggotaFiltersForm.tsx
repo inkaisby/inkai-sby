@@ -42,7 +42,7 @@ const STATUS_OPTIONS = [
 ] as const;
 
 const selectClassName =
-  "h-8 min-w-[140px] rounded-lg border border-input bg-background px-2 text-sm text-foreground";
+  "h-10 w-full rounded-lg border border-input bg-background px-2 text-sm text-foreground sm:h-8 sm:min-w-[140px] sm:w-auto";
 
 export function AnggotaFiltersForm({
   q,
@@ -86,6 +86,7 @@ export function AnggotaFiltersForm({
     undefined,
   );
   const [isPending, startTransition] = useTransition();
+  const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
     if (document.activeElement === inputRef.current) return;
@@ -145,6 +146,11 @@ export function AnggotaFiltersForm({
       filters.inactiveMonths,
   );
 
+  const hasAdvanced =
+    Boolean(filters.docs) ||
+    Boolean(filters.nia) ||
+    Boolean(filters.inactiveMonths);
+
   const resetHref =
     pageSize && pageSize !== "25"
       ? `${pathname}?pageSize=${pageSize}`
@@ -152,113 +158,146 @@ export function AnggotaFiltersForm({
 
   return (
     <div
-      className={`mb-4 flex flex-wrap items-end gap-2 ${
-        isPending ? "opacity-70" : ""
-      }`}
+      className={`mb-4 space-y-2 ${isPending ? "opacity-70" : ""}`}
       aria-busy={isPending}
     >
-      <div className="min-w-[180px] flex-1 space-y-1">
-        <label className="text-xs text-muted-foreground">Pencarian</label>
-        <Input
-          ref={inputRef}
-          value={query}
-          onChange={(e) => handleQueryChange(e.target.value)}
-          placeholder="Cari nama / NIA..."
-          autoComplete="off"
-        />
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="min-w-0 w-full space-y-1 sm:min-w-[180px] sm:flex-1 sm:max-w-md">
+          <label className="text-xs text-muted-foreground">Pencarian</label>
+          <Input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => handleQueryChange(e.target.value)}
+            placeholder="Cari nama / NIA..."
+            autoComplete="off"
+            className="h-10 sm:h-8"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 sm:contents">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Status</label>
+            <select
+              value={filters.status}
+              onChange={(e) => handleFilterChange("status", e.target.value)}
+              className={selectClassName}
+            >
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value || "all"} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {showDojoFilter ? (
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Dojo / Ranting</label>
+              <select
+                value={filters.dojoId}
+                onChange={(e) => handleFilterChange("dojoId", e.target.value)}
+                className={selectClassName}
+              >
+                <option value="">Semua dojo</option>
+                {dojos.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          {hasFilters ? (
+            onNavigate ? (
+              <button
+                type="button"
+                onClick={() =>
+                  onNavigate(
+                    pageSize && pageSize !== "25" ? `?pageSize=${pageSize}` : "",
+                  )
+                }
+                className="inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm hover:bg-muted sm:h-8"
+              >
+                Reset
+              </button>
+            ) : (
+              <Link
+                href={resetHref}
+                className="inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm hover:bg-muted sm:h-8"
+              >
+                Reset
+              </Link>
+            )
+          ) : null}
+        </div>
       </div>
 
-      <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">Status</label>
-        <select
-          value={filters.status}
-          onChange={(e) => handleFilterChange("status", e.target.value)}
-          className={selectClassName}
+      <div className="flex items-center justify-between sm:hidden">
+        <button
+          type="button"
+          className="text-sm font-medium text-foreground"
+          onClick={() => setMoreOpen((v) => !v)}
         >
-          {STATUS_OPTIONS.map((opt) => (
-            <option key={opt.value || "all"} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          Filter lanjutan
+          {hasAdvanced ? (
+            <span className="ml-1 text-xs font-normal text-inkai-red">· aktif</span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          className="text-xs text-muted-foreground"
+          onClick={() => setMoreOpen((v) => !v)}
+        >
+          {moreOpen || hasAdvanced ? "Sembunyikan" : "Tampilkan"}
+        </button>
       </div>
 
-      {showDojoFilter ? (
+      <div
+        className={`grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end ${
+          moreOpen || hasAdvanced ? "" : "max-sm:hidden"
+        }`}
+      >
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Dojo / Ranting</label>
+          <label className="text-xs text-muted-foreground">Dokumen</label>
           <select
-            value={filters.dojoId}
-            onChange={(e) => handleFilterChange("dojoId", e.target.value)}
-            className={`${selectClassName} min-w-[160px]`}
+            value={filters.docs}
+            onChange={(e) => handleFilterChange("docs", e.target.value)}
+            className={selectClassName}
           >
-            <option value="">Semua dojo</option>
-            {dojos.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
+            <option value="">Semua dokumen</option>
+            <option value="incomplete">Belum lengkap</option>
           </select>
         </div>
-      ) : null}
 
-      <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">Dokumen</label>
-        <select
-          value={filters.docs}
-          onChange={(e) => handleFilterChange("docs", e.target.value)}
-          className={`${selectClassName} min-w-[160px]`}
-        >
-          <option value="">Semua dokumen</option>
-          <option value="incomplete">Belum lengkap</option>
-        </select>
-      </div>
-
-      <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">NIA</label>
-        <select
-          value={filters.nia}
-          onChange={(e) => handleFilterChange("nia", e.target.value)}
-          className={selectClassName}
-        >
-          <option value="">Semua NIA</option>
-          <option value="missing">Belum ada NIA</option>
-        </select>
-      </div>
-
-      <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">Nonaktif ≥</label>
-        <select
-          value={filters.inactiveMonths}
-          onChange={(e) =>
-            handleFilterChange("inactiveMonths", e.target.value)
-          }
-          className={`${selectClassName} min-w-[120px]`}
-        >
-          <option value="">Semua</option>
-          <option value="3">3 bulan</option>
-          <option value="6">6 bulan</option>
-          <option value="12">12 bulan</option>
-        </select>
-      </div>
-
-      {hasFilters ? (
-        onNavigate ? (
-          <button
-            type="button"
-            onClick={() => onNavigate(pageSize && pageSize !== "25" ? `?pageSize=${pageSize}` : "")}
-            className="inline-flex h-8 items-center rounded-lg border px-3 text-sm hover:bg-muted"
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">NIA</label>
+          <select
+            value={filters.nia}
+            onChange={(e) => handleFilterChange("nia", e.target.value)}
+            className={selectClassName}
           >
-            Reset
-          </button>
-        ) : (
-          <Link
-            href={resetHref}
-            className="inline-flex h-8 items-center rounded-lg border px-3 text-sm hover:bg-muted"
+            <option value="">Semua NIA</option>
+            <option value="missing">Belum ada NIA</option>
+          </select>
+        </div>
+
+        <div className="col-span-2 space-y-1 sm:col-span-1">
+          <label className="text-xs text-muted-foreground">Nonaktif ≥</label>
+          <select
+            value={filters.inactiveMonths}
+            onChange={(e) =>
+              handleFilterChange("inactiveMonths", e.target.value)
+            }
+            className={selectClassName}
           >
-            Reset
-          </Link>
-        )
-      ) : null}
+            <option value="">Semua</option>
+            <option value="3">3 bulan</option>
+            <option value="6">6 bulan</option>
+            <option value="12">12 bulan</option>
+          </select>
+        </div>
+      </div>
     </div>
   );
 }

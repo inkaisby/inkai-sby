@@ -9,6 +9,7 @@ import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { SettingsKpiGrid } from "@/components/admin/pengaturan/SettingsKpiGrid";
 import { SettingsLoadWarning } from "@/components/admin/pengaturan/SettingsLoadWarning";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
   SettingsPagination,
   SettingsSearchForm,
@@ -114,12 +115,10 @@ async function PengaturanGeofencingContent({
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Geofencing Absensi</h2>
-        <p className="text-muted-foreground">
-          Atur titik pusat dan radius maksimal absensi anggota per ranting
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Geofencing Absensi"
+        description="Atur titik pusat dan radius maksimal absensi anggota per ranting"
+      />
 
       {dojosResult.failed ? (
         <SettingsLoadWarning message="Data geofencing sementara tidak tersedia (database sibuk). Coba refresh sebentar lagi." />

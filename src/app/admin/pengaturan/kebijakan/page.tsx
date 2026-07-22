@@ -6,6 +6,7 @@ import {
   getOperationalDefaults,
 } from "@/lib/org-settings";
 import { KebijakanManager } from "./KebijakanManager";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +21,10 @@ export default async function KebijakanPage() {
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Profil & Kebijakan</h2>
-        <p className="text-muted-foreground">
-          Sumber kebenaran kontak sekretariat, rekening, dan default operasional
-          cabang.
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Profil & Kebijakan"
+        description="Sumber kebenaran kontak sekretariat, rekening, dan default operasional cabang."
+      />
       <KebijakanManager initialProfile={profile} initialDefaults={defaults} />
     </>
   );

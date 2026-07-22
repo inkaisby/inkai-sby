@@ -5,6 +5,7 @@ import { canAccessAdmin } from "@/lib/rbac";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { StoreManager } from "./StoreManager";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -43,10 +44,10 @@ async function Content() {
 
   return (
     <>
-      <h2 className="mb-2 text-2xl font-bold">Store</h2>
-      <p className="mb-6 text-muted-foreground">
-        Kelola produk dan pesanan anggota.
-      </p>
+      <AdminPageHeader
+        title="Store"
+        description="Kelola produk dan pesanan anggota."
+      />
       <StoreManager
         initialProducts={products.data}
         initialOrders={orders.data.map((o) => ({

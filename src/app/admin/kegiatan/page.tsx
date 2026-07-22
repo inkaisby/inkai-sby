@@ -12,6 +12,7 @@ import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { CreateEventForm } from "@/components/admin/CreateEventForm";
 import { EventAdminActions } from "@/components/admin/EventAdminActions";
 import { buildUktAdminUrlFromEvent } from "@/lib/ukt";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -35,13 +36,10 @@ async function AdminKegiatanContent() {
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Event & Kegiatan</h2>
-        <p className="text-muted-foreground">
-          Kelola event cabang (UKT, Gashuku, pertandingan, dll.) — {events.length}{" "}
-          kegiatan
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Event & Kegiatan"
+        description={`Kelola event cabang (UKT, Gashuku, pertandingan, dll.) — ${events.length} kegiatan`}
+      />
 
       <CreateEventForm canCreate={canCreate} />
 

@@ -30,6 +30,7 @@ import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import { buildDefaultUktAdminUrl } from "@/lib/ukt";
 import { canAccessAdminPath } from "@/lib/admin-page-access";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -190,28 +191,32 @@ async function AdminDashboardContent() {
 
   return (
     <>
-      <div className="mb-6">
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <h2 className="text-2xl font-bold">Beranda Admin</h2>
-          <Badge className="bg-inkai-red text-white hover:bg-inkai-red">
-            {ROLE_LABELS[primaryRole] || primaryRole}
-          </Badge>
-          {unreadNotifications > 0 && (
-            <Link href="/admin/notifikasi">
-              <Badge
-                variant="outline"
-                className="border-inkai-red text-inkai-red hover:bg-inkai-red/5"
-              >
-                {unreadNotifications} notifikasi baru
-              </Badge>
-            </Link>
-          )}
-        </div>
-        <p className="flex items-center gap-1 text-muted-foreground">
-          <MapPin className="h-4 w-4" />
-          Scope: {getAdminScopeLabel(user)}
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Beranda Admin"
+        description={
+          <>
+            <MapPin className="mr-1 inline h-4 w-4 align-text-bottom" />
+            Scope: {getAdminScopeLabel(user)}
+          </>
+        }
+        actions={
+          <>
+            <Badge className="w-fit bg-inkai-red text-white hover:bg-inkai-red">
+              {ROLE_LABELS[primaryRole] || primaryRole}
+            </Badge>
+            {unreadNotifications > 0 ? (
+              <Link href="/admin/notifikasi" className="w-fit">
+                <Badge
+                  variant="outline"
+                  className="border-inkai-red text-inkai-red hover:bg-inkai-red/5"
+                >
+                  {unreadNotifications} notifikasi baru
+                </Badge>
+              </Link>
+            ) : null}
+          </>
+        }
+      />
 
       <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {quickActions.map((action) => (

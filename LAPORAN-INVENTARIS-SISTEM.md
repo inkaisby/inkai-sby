@@ -312,7 +312,7 @@ Pusat / Nasional
 | Ketergantungan API | Ada | Halaman degrade jika API sibuk/timeout |
 | Email & Blob | Opsional | Perlu env production |
 | Keamanan P0–P2 | Diperkuat | Pesan IDOR ditutup; verifikasi fail-closed; rate limit Upstash opsional; CSRF admin ketat; password register; audit upload/broadcast/verifikasi |
-| Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI anggota 1× groupBy; absensi/UKT scoped; overlay nav non-blocking; pageSize maks 100; aksi iuran/verifikasi/UKT optimistic; pesan soft-reload; **UKT mobile: timer 1s (tanpa ms/rAF), sticky ringkas, filter grid, alur/jadwal collapsible** |
+| Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI anggota 1× groupBy; absensi/UKT scoped; overlay nav non-blocking; pageSize maks 100; aksi iuran/verifikasi/UKT optimistic; pesan soft-reload; **UKT mobile: timer 1s (tanpa ms/rAF), sticky ringkas**; **admin global: topbar h-12 + menu ikon, shell overflow-x-hidden, `AdminPageHeader`, filter/KPI/bulk-bar mobile** |
 
 | Index Prisma | Ditambah | Member/Billing/Attendance/Verification/Message — jalankan migrate/db push di production |
 | Pool DB Supabase | Diperkuat | Transaction `:6543`+`pgbouncer`; `connection_limit=5`/`pool_timeout=20`; soft-delete & **purge massal batch** (`deleteMany` per relasi); chunk purge 25 + jeda/retry; toast sibuk |
@@ -587,6 +587,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Perbaikan cabang: fallback PIC & `isHomeDojo` scope-aware di `listWilayahAccounts`; audit promote cabang `WILAYAH_ACCOUNT_PROMOTE_ADMIN_BRANCH`; copy UI tanpa contoh email spesifik |
 | 22 Juli 2026 | Dashboard dual-role: **ikon Panel Admin** (perisai) di header kanan sebelah logout + sub-halaman anggota; refresh klaim JWT dari DB (~30s) setelah promosi admin cabang/ranting |
 | 23 Juli 2026 | UKT admin mobile: hapus timer ms + rAF (tick 1s, pause tab hidden); sticky hanya semester; grid aksi/filter; jadwal & alur collapsible; hapus tombol Back redundant |
+| 23 Juli 2026 | Admin mobile global: topbar lebih pendek + Menu ikon; shell `overflow-x-hidden`; `AdminPageHeader` di semua halaman; filter Anggota/Settings/Iuran/Absensi/Online; KPI scroll; bulk-bar safe-area; IuranOps collapsible |
 
 ---
 

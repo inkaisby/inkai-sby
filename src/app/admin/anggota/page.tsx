@@ -26,6 +26,7 @@ import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { canEditKyuBaru } from "@/lib/belt";
 import { canSoftDeleteMembers } from "@/lib/wilayah-rbac";
 import { parseMemberSortKey, parseSortDir } from "@/lib/table-sort";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -100,20 +101,18 @@ async function AdminAnggotaContent({
   if (view === "archive") {
     return (
       <>
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-bold">Arsip Anggota</h2>
-            <p className="text-muted-foreground">
-              Soft-delete — pulihkan ke status Nonaktif bila perlu.
-            </p>
-          </div>
-          <Link
-            href="/admin/anggota"
-            className="inline-flex h-8 items-center rounded-lg border px-3 text-sm hover:bg-muted"
-          >
-            Kembali ke daftar
-          </Link>
-        </div>
+        <AdminPageHeader
+          title="Arsip Anggota"
+          description="Soft-delete — pulihkan ke status Nonaktif bila perlu."
+          actions={
+            <Link
+              href="/admin/anggota"
+              className="inline-flex h-10 items-center justify-center rounded-lg border px-3 text-sm hover:bg-muted sm:h-8 col-span-2 sm:col-span-1"
+            >
+              Kembali ke daftar
+            </Link>
+          }
+        />
         <ArchivedMembersPanel
           userRoles={user.roles}
           defaultDojoId={singleLockedDojo || dojoId}
@@ -183,23 +182,25 @@ async function AdminAnggotaContent({
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold">Kelola Anggota</h2>
-          {!result.ok && (
-            <p className="mt-2 text-sm text-destructive">
-              Gagal memuat data anggota.
-            </p>
-          )}
-        </div>
-        {isDojoAdmin && managedDojoOptions.length > 1 ? (
-          <DojoContextSwitcher
-            dojos={managedDojoOptions}
-            value={dojoId}
-            label="Kelola ranting"
-          />
-        ) : null}
-      </div>
+      <AdminPageHeader
+        title="Kelola Anggota"
+        description={
+          !result.ok ? (
+            <span className="text-destructive">Gagal memuat data anggota.</span>
+          ) : undefined
+        }
+        actions={
+          isDojoAdmin && managedDojoOptions.length > 1 ? (
+            <div className="col-span-2 sm:col-span-1">
+              <DojoContextSwitcher
+                dojos={managedDojoOptions}
+                value={dojoId}
+                label="Kelola ranting"
+              />
+            </div>
+          ) : undefined
+        }
+      />
 
       <AnggotaBrowser
         roleLabel={roleLabel}

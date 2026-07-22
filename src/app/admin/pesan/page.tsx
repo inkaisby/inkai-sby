@@ -5,6 +5,7 @@ import { buildDojoFilter, canAccessAdmin } from "@/lib/rbac";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { AdminPesanClient } from "./AdminPesanClient";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -34,10 +35,10 @@ async function Content() {
 
   return (
     <>
-      <h2 className="mb-2 text-2xl font-bold">Pesan Anggota</h2>
-      <p className="mb-6 text-muted-foreground">
-        Balas chat dari anggota, cari percakapan, atau kirim broadcast notifikasi.
-      </p>
+      <AdminPageHeader
+        title="Pesan Anggota"
+        description="Balas chat dari anggota, cari percakapan, atau kirim broadcast notifikasi."
+      />
       <AdminPesanClient dojos={dojosResult.data ?? []} />
     </>
   );

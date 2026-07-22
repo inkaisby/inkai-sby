@@ -66,7 +66,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
       {children}
       {pendingHref !== null && (
         <div
-          className="pointer-events-none fixed inset-x-0 top-16 z-50 h-0.5 overflow-hidden bg-muted"
+          className="pointer-events-none fixed inset-x-0 top-12 z-50 h-0.5 overflow-hidden bg-muted sm:top-16"
           aria-hidden
         >
           <div className="h-full w-1/3 animate-[navigation-progress_1s_ease-in-out_infinite] bg-inkai-red" />

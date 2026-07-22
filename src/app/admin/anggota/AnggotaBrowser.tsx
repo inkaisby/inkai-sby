@@ -373,7 +373,7 @@ export function AnggotaBrowser({
         applyFilters(patch);
       }}
     >
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
         <AnggotaAddButton
           dojos={dojos}
           defaultDojoId={defaultDojoId}
@@ -384,7 +384,7 @@ export function AnggotaBrowser({
         {canArchive ? (
           <Link
             href="/admin/anggota?view=archive"
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-sm hover:bg-muted"
+            className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border px-3 text-sm hover:bg-muted sm:h-8"
           >
             <Archive className="h-3.5 w-3.5" />
             Lihat arsip

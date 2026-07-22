@@ -7,6 +7,7 @@ import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { settingsUsernameLoadWarning } from "@/lib/prisma-errors";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { SettingsKpiGrid } from "@/components/admin/pengaturan/SettingsKpiGrid";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import {
   SettingsPagination,
   SettingsSearchForm,
@@ -201,12 +202,10 @@ async function PengaturanCabangContent({
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Pengaturan Cabang</h2>
-        <p className="text-muted-foreground">
-          Tambah dan ubah cabang; satu cabang boleh punya beberapa akun admin, termasuk akun dual-role anggota + admin cabang
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Pengaturan Cabang"
+        description="Tambah dan ubah cabang; satu cabang boleh punya beberapa akun admin, termasuk akun dual-role anggota + admin cabang"
+      />
 
       {warning ? <SettingsLoadWarning message={warning} /> : null}
 

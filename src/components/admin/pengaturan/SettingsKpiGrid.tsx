@@ -11,18 +11,21 @@ export type SettingsKpiItem = {
 export function SettingsKpiGrid({ items }: { items: SettingsKpiItem[] }) {
   return (
     <div
-      className={`mb-6 grid gap-3 ${
+      className={`-mx-3 mb-4 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:mb-6 sm:grid sm:gap-3 sm:overflow-visible sm:px-0 ${
         items.length >= 4
-          ? "grid-cols-2 lg:grid-cols-4"
+          ? "sm:grid-cols-2 lg:grid-cols-4"
           : items.length === 3
-            ? "grid-cols-1 sm:grid-cols-3"
-            : "grid-cols-1 sm:grid-cols-2"
+            ? "sm:grid-cols-3"
+            : "sm:grid-cols-2"
       }`}
     >
       {items.map((item) => {
         const Icon = item.icon;
         return (
-          <Card key={item.label}>
+          <Card
+            key={item.label}
+            className="w-[9.5rem] shrink-0 sm:w-full sm:min-w-0"
+          >
             <CardContent className="flex items-start justify-between gap-3 p-4">
               <div className="min-w-0">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

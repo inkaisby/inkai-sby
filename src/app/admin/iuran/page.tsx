@@ -13,6 +13,7 @@ import { IuranOpsBar } from "./IuranOpsBar";
 import { getOperationalDefaults } from "@/lib/org-settings";
 import { billingStatusLabel } from "@/lib/admin-labels";
 import { OptimisticHide } from "@/components/admin/OptimisticHide";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -114,24 +115,27 @@ async function AdminIuranContent({
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Iuran & Tagihan Anggota</h2>
-        <p className="text-muted-foreground">
-          Total lunas: Rp {stats.paid.toLocaleString("id-ID")} · Menunggu
-          verifikasi: {stats.waiting} · Belum bayar: {stats.pending}
-        </p>
-        {canEdit ? (
-          <p className="mt-1 text-sm text-muted-foreground">
-            Ketua ranting/cabang dapat <strong>mengedit</strong> nominal & jatuh
-            tempo, <strong>menandai lunas</strong> (tunai), serta menyetujui/menolak
-            bukti transfer.
-          </p>
-        ) : (
-          <p className="mt-1 text-sm text-muted-foreground">
-            Mode lihat saja — kelola iuran dilakukan oleh ranting/cabang.
-          </p>
-        )}
-      </div>
+      <AdminPageHeader
+        title="Iuran & Tagihan Anggota"
+        description={
+          <>
+            Total lunas: Rp {stats.paid.toLocaleString("id-ID")} · Menunggu
+            verifikasi: {stats.waiting} · Belum bayar: {stats.pending}
+            <br />
+            {canEdit ? (
+              <span>
+                Ketua ranting/cabang dapat <strong>mengedit</strong> nominal &amp;
+                jatuh tempo, <strong>menandai lunas</strong> (tunai), serta
+                menyetujui/menolak bukti transfer.
+              </span>
+            ) : (
+              <span>
+                Mode lihat saja — kelola iuran dilakukan oleh ranting/cabang.
+              </span>
+            )}
+          </>
+        }
+      />
 
       <IuranOpsBar
         canEdit={canEdit}
@@ -139,24 +143,24 @@ async function AdminIuranContent({
         billings={exportRows}
       />
 
-      <form className="mb-4 flex flex-wrap gap-2">
+      <form className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Input
           name="q"
           placeholder="Cari nama / NIA..."
           defaultValue={q}
-          className="max-w-xs"
+          className="h-10 w-full sm:h-8 sm:max-w-xs sm:w-auto"
         />
         <Input
           name="month"
           type="month"
           defaultValue={monthFilter}
-          className="max-w-[160px]"
+          className="h-10 w-full sm:h-8 sm:max-w-[160px] sm:w-auto"
           title="Filter bulan (jatuh tempo / keterangan)"
         />
         <select
           name="status"
           defaultValue={status}
-          className="h-8 rounded-lg border px-2 text-sm"
+          className="h-10 w-full rounded-lg border px-2 text-sm sm:h-8 sm:w-auto"
         >
           <option value="">Semua status</option>
           <option value="PENDING">Belum bayar</option>
@@ -166,7 +170,7 @@ async function AdminIuranContent({
         </select>
         <button
           type="submit"
-          className="rounded-lg bg-inkai-red px-4 py-1.5 text-sm text-white"
+          className="h-10 rounded-lg bg-inkai-red px-4 text-sm text-white sm:h-8 sm:py-1.5"
         >
           Filter
         </button>

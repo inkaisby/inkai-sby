@@ -9,6 +9,7 @@ import {
 import { fetchCarouselItems } from "@/lib/inkai-api/admin-data";
 import { CarouselManager } from "./CarouselManager";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ async function AdminCarouselContent() {
 
   return (
     <>
-      <h2 className="mb-6 text-2xl font-bold">Kelola Carousel Beranda</h2>
+      <AdminPageHeader title="Kelola Carousel Beranda" />
       <CarouselManager initialItems={items} />
     </>
   );

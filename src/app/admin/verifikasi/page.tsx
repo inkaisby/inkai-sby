@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { VerificationActions } from "./VerificationActions";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { OptimisticHide } from "@/components/admin/OptimisticHide";
 
 export const dynamic = "force-dynamic";
@@ -115,39 +116,41 @@ async function AdminVerifikasiContent({
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Antrian Verifikasi</h2>
-        <p className="text-muted-foreground">
-          {claims.length} pengajuan menunggu
-          {pendingType
-            ? ` (filter ${VERIFICATION_TYPE_LABELS[pendingType] || pendingType})`
-            : ""}{" "}
-          dari {claimsRaw.length} total
-        </p>
-        {pendingTypes.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-2">
+      <AdminPageHeader
+        title="Antrian Verifikasi"
+        description={
+          <>
+            {claims.length} pengajuan menunggu
+            {pendingType
+              ? ` (filter ${VERIFICATION_TYPE_LABELS[pendingType] || pendingType})`
+              : ""}{" "}
+            dari {claimsRaw.length} total
+          </>
+        }
+      />
+      {pendingTypes.length > 0 ? (
+        <div className="mb-6 flex flex-wrap gap-2">
+          <Link
+            href="/admin/verifikasi"
+            className={`rounded-lg px-3 py-1 text-xs ${
+              !pendingType ? "bg-inkai-red text-white" : "border"
+            }`}
+          >
+            Semua
+          </Link>
+          {pendingTypes.map((t) => (
             <Link
-              href="/admin/verifikasi"
+              key={t}
+              href={`/admin/verifikasi?pendingType=${encodeURIComponent(t)}`}
               className={`rounded-lg px-3 py-1 text-xs ${
-                !pendingType ? "bg-inkai-red text-white" : "border"
+                pendingType === t ? "bg-inkai-red text-white" : "border"
               }`}
             >
-              Semua
+              {VERIFICATION_TYPE_LABELS[t] || t}
             </Link>
-            {pendingTypes.map((t) => (
-              <Link
-                key={t}
-                href={`/admin/verifikasi?pendingType=${encodeURIComponent(t)}`}
-                className={`rounded-lg px-3 py-1 text-xs ${
-                  pendingType === t ? "bg-inkai-red text-white" : "border"
-                }`}
-              >
-                {VERIFICATION_TYPE_LABELS[t] || t}
-              </Link>
-            ))}
-          </div>
-        ) : null}
-      </div>
+          ))}
+        </div>
+      ) : null}
 
       {claims.length === 0 ? (
         <Card className="mb-10">

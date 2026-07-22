@@ -9,6 +9,7 @@ import {
 } from "@/lib/admin-page-access";
 import { fetchAuditLogs } from "@/lib/inkai-api/admin-data";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AuditLogsClient } from "./AuditLogsClient";
 
 export const dynamic = "force-dynamic";
@@ -47,10 +48,10 @@ async function AdminAuditContent() {
 
   return (
     <>
-      <h2 className="mb-2 text-2xl font-bold">Log Audit Keamanan</h2>
-      <p className="mb-6 text-muted-foreground">
-        Filter dan export jejak aksi sensitif (pusat).
-      </p>
+      <AdminPageHeader
+        title="Log Audit Keamanan"
+        description="Filter dan export jejak aksi sensitif (pusat)."
+      />
       <AuditLogsClient logs={logs} />
     </>
   );

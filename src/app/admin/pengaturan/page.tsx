@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { DojoPengaturanContent } from "./DojoPengaturanContent";
 import { WilayahPermissionsMatrix } from "@/components/admin/WilayahPermissionsMatrix";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -159,15 +160,10 @@ async function PengaturanHubContent() {
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="flex items-center gap-2 text-2xl font-bold">
-          <Settings className="h-6 w-6" />
-          Pengaturan
-        </h2>
-        <p className="text-muted-foreground">
-          Pusat kendali akun, wilayah, kebijakan, dan absensi
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Pengaturan"
+        description="Pusat kendali akun, wilayah, kebijakan, dan absensi"
+      />
 
       <SettingsKpiGrid
         items={[

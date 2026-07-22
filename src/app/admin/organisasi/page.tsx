@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Building2, Home, MapPin, Users } from "lucide-react";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { PengurusEditor } from "./PengurusEditor";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -53,12 +54,10 @@ async function AdminOrganisasiContent() {
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Organisasi & Ranting</h2>
-        <p className="text-muted-foreground">
-          Kelola susunan pengurus cabang (arsip periode, SK, sinkron ketua) dan struktur wilayah
-        </p>
-      </div>
+      <AdminPageHeader
+        title="Organisasi & Ranting"
+        description="Kelola susunan pengurus cabang (arsip periode, SK, sinkron ketua) dan struktur wilayah"
+      />
 
       <Tabs defaultValue="pengurus" className="gap-6">
         <TabsList className="h-auto w-full max-w-md rounded-xl bg-muted p-1">

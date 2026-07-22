@@ -26,7 +26,7 @@ function MainContent({ children }: { children: React.ReactNode }) {
   }, [isNavigating, overlayVisible]);
 
   return (
-    <main className="relative flex-1 p-4 sm:p-6">
+    <main className="relative min-w-0 flex-1 overflow-x-hidden p-3 sm:p-6">
       {overlayVisible && (
         <div
           className={`pointer-events-none absolute inset-0 z-10 flex items-start justify-center bg-background/40 pt-20 backdrop-blur-[1px] transition-opacity duration-200 ${

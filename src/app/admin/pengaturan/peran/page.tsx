@@ -6,6 +6,7 @@ import { inkaiFetch } from "@/lib/inkai-api/server";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { RolePermissionsManager } from "./RolePermissionsManager";
 import { WilayahPermissionsMatrix } from "@/components/admin/WilayahPermissionsMatrix";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -35,17 +36,22 @@ async function PengaturanPeranContent() {
 
   return (
     <>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold">Role & Hak Akses</h2>
-        <p className="text-muted-foreground">
-          Atur permission menu dan fitur per level pengurus
-        </p>
-        {!rolesRes.res.ok && (
-          <p className="mt-2 text-sm text-destructive">
-            Gagal memuat data role dari API.
-          </p>
-        )}
-      </div>
+      <AdminPageHeader
+        title="Role & Hak Akses"
+        description={
+          <>
+            Atur permission menu dan fitur per level pengurus
+            {!rolesRes.res.ok ? (
+              <>
+                <br />
+                <span className="text-destructive">
+                  Gagal memuat data role dari API.
+                </span>
+              </>
+            ) : null}
+          </>
+        }
+      />
 
       <div className="mb-8">
         <WilayahPermissionsMatrix />

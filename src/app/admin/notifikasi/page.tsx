@@ -6,6 +6,7 @@ import { extractDojoLabelFromNotificationText } from "@/lib/notification-display
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ async function AdminNotifikasiContent() {
 
   return (
     <>
-      <h2 className="mb-6 text-2xl font-bold">Notifikasi Admin</h2>
+      <AdminPageHeader title="Notifikasi Admin" />
       {notifications.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
