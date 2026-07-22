@@ -12,6 +12,7 @@ import {
   forceUnlinkBillingsInDb,
 } from "@/lib/billing-delete";
 import { canEditKyuBaru } from "@/lib/belt";
+import { notifyUktBranchAdmins } from "@/lib/ukt-period-notify";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -107,6 +108,133 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const data = parsed.data;
+
+  if (data.action === "submit_for_verification") {
+    if (
+      scope.billing?.status === "PAID" ||
+      scope.billing?.status === "SUCCESS" ||
+      scope.billing?.status === "APPROVED"
+    ) {
+      return NextResponse.json(
+        { error: "Tagihan sudah lunas — tidak perlu diajukan lagi" },
+        { status: 400 },
+      );
+    }
+
+    const note =
+      data.adminNotes?.trim() ||
+      "Diajukan ranting — menunggu verifikasi cabang";
+    const status = "WAITING_VERIFICATION";
+
+    let submitted = false;
+    const attempts: Array<{
+      path: string;
+      method: "PATCH" | "POST";
+      body: Record<string, unknown>;
+    }> = [
+      {
+        path: `/v1/billing/${id}/status`,
+        method: "PATCH",
+        body: { status, adminNotes: note },
+      },
+      {
+        path: `/v1/billing/${id}`,
+        method: "PATCH",
+        body: { status, adminNotes: note },
+      },
+      {
+        path: "/v1/billing/pay",
+        method: "POST",
+        body: {
+          billingId: id,
+          status,
+          paymentMethod: "CASH",
+          proofUrl: "—",
+          adminNotes: note,
+        },
+      },
+    ];
+
+    let lastError = "Gagal mengajukan verifikasi";
+    let lastStatus = 400;
+    for (const attempt of attempts) {
+      const { res, data: apiData } = await inkaiFetch(
+        attempt.path,
+        { method: attempt.method, body: JSON.stringify(attempt.body) },
+        authResult.token,
+      );
+      if (res.ok) {
+        submitted = true;
+        break;
+      }
+      lastError = inkaiErrorMessage(apiData, lastError);
+      lastStatus = res.status;
+      if (res.status !== 404 && res.status !== 405 && res.status !== 400) {
+        break;
+      }
+    }
+
+    if (!submitted) {
+      try {
+        const local = await prisma.billing.updateMany({
+          where: {
+            id,
+            isDeleted: false,
+            status: { notIn: ["PAID", "SUCCESS", "APPROVED"] },
+          },
+          data: { status },
+        });
+        if (local.count === 0) {
+          return NextResponse.json(
+            { error: lastError },
+            { status: lastStatus },
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: lastError },
+          { status: lastStatus },
+        );
+      }
+    }
+
+    const billingMeta = await prisma.billing.findFirst({
+      where: { id, isDeleted: false },
+      select: {
+        description: true,
+        member: { select: { fullName: true } },
+      },
+    });
+    if (billingMeta) {
+      const name = billingMeta.member?.fullName || "Peserta";
+      const desc = billingMeta.description?.trim() || "UKT";
+      void notifyUktBranchAdmins({
+        token: authResult.token,
+        title: "UKT — Menunggu verifikasi pembayaran",
+        content: `${name} — ${desc}. Ranting mengajukan Bayar UKT; mohon verifikasi di menu UKT.`,
+        actorEmail: authResult.user.email,
+        type: "INFO",
+      }).catch((err) =>
+        console.error("[BILLING submit_for_verification] notify cabang", err),
+      );
+    }
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "BILLING_SUBMIT_VERIFICATION",
+      details: `Submitted billing ${id} for cabang verification`,
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      token: authResult.token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      status,
+      message: "Diajukan ke cabang — menunggu verifikasi (belum lunas)",
+    });
+  }
 
   if (data.action === "update") {
     if (scope.billing?.status === "PAID") {

@@ -194,7 +194,9 @@ export const uktWaiverSchema = z.object({
 });
 
 export const uktRegistrationUpdateSchema = z.object({
-  action: z.enum(["approve", "reject", "update_kyu", "mark_paid"]).optional(),
+  action: z
+    .enum(["approve", "reject", "update_kyu", "mark_paid", "submit_for_verification"])
+    .optional(),
   categoryId: z.string().uuid().optional(),
   newRank: z.string().trim().min(2).max(64).optional(),
   /** Sabuk saat ini (Kyu Lama) dari baris UKT — untuk snapshot bila GET registrasi gagal */
@@ -637,6 +639,11 @@ export const memberBillingProofSchema = z.object({
 export const adminBillingPatchSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.enum(["approve", "reject", "mark_paid"]),
+    adminNotes: z.string().trim().max(500).optional(),
+  }),
+  z.object({
+    /** Ranting: ajukan pembayaran ke cabang (Menunggu Verifikasi), bukan lunas. */
+    action: z.literal("submit_for_verification"),
     adminNotes: z.string().trim().max(500).optional(),
   }),
   z.object({

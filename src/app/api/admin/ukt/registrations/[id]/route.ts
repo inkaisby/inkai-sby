@@ -301,6 +301,215 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ success: true, examResult: data.examResult });
   }
 
+  if (data.action === "submit_for_verification") {
+    const { res: getRes, data: getData } = await inkaiFetch(
+      `/v1/events/register/${id}`,
+      {},
+      authResult.token,
+    );
+    if (!getRes.ok) {
+      return NextResponse.json(
+        { error: inkaiErrorMessage(getData, "Pendaftaran tidak ditemukan") },
+        { status: getRes.status },
+      );
+    }
+
+    const registration = getData.data as Record<string, unknown>;
+    const member = registration.member as
+      | {
+          id?: string;
+          fullName?: string;
+          dojoId?: string;
+          billings?: Array<{
+            id: string;
+            status: string;
+            registrationId?: string | null;
+            isDeleted?: boolean;
+          }>;
+        }
+      | undefined;
+    const event = registration.event as { title?: string } | undefined;
+    const memberId = String(member?.id ?? registration.memberId ?? "");
+
+    if (role === "ADMIN_DOJO") {
+      const allowlist = getManagedDojoIdsFromUser(authResult.user);
+      const dojoId = String(member?.dojoId ?? "");
+      if (allowlist.length > 0 && dojoId && !allowlist.includes(dojoId)) {
+        return NextResponse.json(
+          { error: "Pendaftaran di luar ranting Anda" },
+          { status: 403 },
+        );
+      }
+    }
+
+    const unpaid = (status: string) =>
+      !["PAID", "SUCCESS", "APPROVED", "REJECTED", "CANCELLED"].includes(
+        String(status).toUpperCase(),
+      );
+
+    let billingId =
+      member?.billings?.find(
+        (b) =>
+          !b.isDeleted &&
+          b.registrationId === id &&
+          unpaid(b.status),
+      )?.id ||
+      member?.billings?.find((b) => !b.isDeleted && unpaid(b.status))?.id ||
+      null;
+
+    if (!billingId) {
+      const local = await prisma.billing.findFirst({
+        where: {
+          registrationId: id,
+          isDeleted: false,
+          status: { notIn: ["PAID", "SUCCESS", "APPROVED", "REJECTED"] },
+        },
+        select: { id: true },
+        orderBy: { createdAt: "desc" },
+      });
+      billingId = local?.id ?? null;
+    }
+
+    if (!billingId && memberId) {
+      const localByMember = await prisma.billing.findFirst({
+        where: {
+          memberId,
+          isDeleted: false,
+          OR: [{ registrationId: id }, { registrationId: null }],
+          status: { in: ["PENDING", "WAITING_VERIFICATION"] },
+          type: { in: ["EVENT", "UKT"] },
+        },
+        select: { id: true },
+        orderBy: { createdAt: "desc" },
+      });
+      billingId = localByMember?.id ?? null;
+    }
+
+    if (!billingId) {
+      return NextResponse.json(
+        {
+          error:
+            "Tagihan UKT belum tersedia. Hubungi admin cabang atau daftar ulang.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const status = "WAITING_VERIFICATION";
+    const note = "Diajukan ranting — menunggu verifikasi cabang";
+    let submitted = false;
+    const attempts: Array<{
+      path: string;
+      method: "PATCH" | "POST";
+      body: Record<string, unknown>;
+    }> = [
+      {
+        path: `/v1/billing/${billingId}/status`,
+        method: "PATCH",
+        body: { status, adminNotes: note },
+      },
+      {
+        path: `/v1/billing/${billingId}`,
+        method: "PATCH",
+        body: { status, adminNotes: note },
+      },
+      {
+        path: "/v1/billing/pay",
+        method: "POST",
+        body: {
+          billingId,
+          status,
+          paymentMethod: "CASH",
+          proofUrl: "—",
+          adminNotes: note,
+        },
+      },
+    ];
+
+    let lastError = "Gagal mengajukan verifikasi";
+    let lastStatus = 400;
+    for (const attempt of attempts) {
+      const { res, data: apiData } = await inkaiFetch(
+        attempt.path,
+        { method: attempt.method, body: JSON.stringify(attempt.body) },
+        authResult.token,
+      );
+      if (res.ok) {
+        submitted = true;
+        break;
+      }
+      lastError = inkaiErrorMessage(apiData, lastError);
+      lastStatus = res.status;
+      if (res.status !== 404 && res.status !== 405 && res.status !== 400) {
+        break;
+      }
+    }
+
+    if (!submitted) {
+      try {
+        const local = await prisma.billing.updateMany({
+          where: {
+            id: billingId,
+            isDeleted: false,
+            status: { notIn: ["PAID", "SUCCESS", "APPROVED"] },
+          },
+          data: { status },
+        });
+        if (local.count === 0) {
+          return NextResponse.json(
+            { error: lastError },
+            { status: lastStatus },
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: lastError },
+          { status: lastStatus },
+        );
+      }
+    }
+
+    const memberName = String(member?.fullName ?? "Anggota");
+    const periodTitle = String(event?.title ?? "UKT");
+    void notifyUktBranchAdmins({
+      token: authResult.token,
+      title: "UKT — Menunggu verifikasi pembayaran",
+      content: `${memberName} — ${periodTitle}. Ranting mengajukan Bayar UKT; mohon verifikasi di menu UKT.`,
+      actorEmail: authResult.user.email,
+      type: "INFO",
+    }).catch((err) =>
+      console.error("[UKT submit_for_verification] notify cabang", err),
+    );
+
+    void notifyUktStatusChange({
+      token: authResult.token,
+      memberId,
+      memberName,
+      periodTitle,
+      displayStatus: "menunggu_verifikasi",
+      extra: "Pembayaran diajukan ranting — menunggu verifikasi cabang.",
+    }).catch((err) =>
+      console.error("[UKT submit_for_verification] notify member", err),
+    );
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "UKT_SUBMIT_PAYMENT",
+      details: `Submitted UKT payment for verification (reg=${id}, billing=${billingId})`,
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      token: authResult.token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      billingId,
+      billingStatus: status,
+      message: "Diajukan ke cabang — menunggu verifikasi (belum lunas)",
+    });
+  }
+
   if (data.newRank && !isCabang) {
     return NextResponse.json(
       { error: "Kyu Baru hanya dapat diubah oleh admin cabang" },

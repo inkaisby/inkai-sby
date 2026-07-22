@@ -1213,6 +1213,12 @@ export function isUktBillingUnpaid(row: UktMemberRow): boolean {
   return true;
 }
 
+/** Ranting boleh ajukan Bayar UKT (Menunggu Verifikasi) — belum lunas & belum diajukan. */
+export function canRantingSubmitUktPayment(row: UktMemberRow): boolean {
+  if (!isUktBillingUnpaid(row)) return false;
+  return row.billingStatus !== "WAITING_VERIFICATION";
+}
+
 export function participantAmount(
   billingAmount: number | null,
   billingStatus: string | null,

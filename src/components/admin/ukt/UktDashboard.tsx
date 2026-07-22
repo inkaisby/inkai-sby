@@ -102,6 +102,7 @@ import {
   isRegistrationApproved,
   isNotaParticipant,
   isUktBillingUnpaid,
+  canRantingSubmitUktPayment,
   isUktSelesai,
   filterUktRowsByView,
   filterUktRowsByDisplayStatus,
@@ -1299,6 +1300,109 @@ export function UktDashboard(props: Props) {
     }
   };
 
+  /** Ranting: ajukan Bayar UKT → Menunggu Verifikasi (bukan lunas). */
+  const handleBayarUkt = async (
+    targets: UktMemberRow[],
+    opts?: { openNota?: boolean },
+  ) => {
+    const rows = targets.filter(
+      (r) => r.registrationId && canRantingSubmitUktPayment(r),
+    );
+    if (rows.length === 0) {
+      toast.error("Pilih peserta yang belum diajukan / belum lunas");
+      return;
+    }
+    setLoading(true);
+    let ok = 0;
+    const submittedIds: string[] = [];
+    const billingByMember = new Map<string, string>();
+    try {
+      const concurrency = 4;
+      for (let i = 0; i < rows.length; i += concurrency) {
+        const chunk = rows.slice(i, i + concurrency);
+        const results = await Promise.all(
+          chunk.map(async (row) => {
+            try {
+              if (row.billingId) {
+                const res = await fetch(`/api/admin/billing/${row.billingId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "submit_for_verification" }),
+                });
+                const data = await parseApiJson<{ error?: string }>(res);
+                if (!res.ok) throw new Error(data.error || "Gagal mengajukan");
+                return { memberId: row.memberId, billingId: row.billingId };
+              }
+              if (row.registrationId) {
+                const res = await fetch(
+                  `/api/admin/ukt/registrations/${row.registrationId}`,
+                  {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      action: "submit_for_verification",
+                    }),
+                  },
+                );
+                const data = await parseApiJson<{
+                  error?: string;
+                  billingId?: string;
+                }>(res);
+                if (!res.ok) throw new Error(data.error || "Gagal mengajukan");
+                return {
+                  memberId: row.memberId,
+                  billingId: data.billingId || null,
+                };
+              }
+            } catch (e) {
+              console.error("[handleBayarUkt]", e);
+              return null;
+            }
+            return null;
+          }),
+        );
+        for (const r of results) {
+          if (r) {
+            ok += 1;
+            submittedIds.push(r.memberId);
+            if (r.billingId) billingByMember.set(r.memberId, r.billingId);
+          }
+        }
+      }
+      if (submittedIds.length > 0) {
+        setRows((prev) =>
+          prev.map((r) =>
+            submittedIds.includes(r.memberId)
+              ? {
+                  ...r,
+                  billingStatus: "WAITING_VERIFICATION",
+                  billingId: billingByMember.get(r.memberId) ?? r.billingId,
+                }
+              : r,
+          ),
+        );
+      }
+      if (ok === 0) {
+        toast.error("Gagal mengajukan pembayaran ke cabang");
+        return;
+      }
+      toast.success(
+        ok === 1
+          ? "Diajukan ke cabang — menunggu verifikasi (belum lunas)"
+          : `${ok}/${rows.length} diajukan ke cabang — menunggu verifikasi`,
+      );
+      if (opts?.openNota !== false) {
+        openPrintNota(
+          true,
+          submittedIds.length > 0 ? submittedIds : undefined,
+        );
+      }
+      setSelectedIds(new Set());
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleBulkMarkPaid = async () => {
     if (periodLocked) {
       toast.error("Periode dikunci — verifikasi ditutup");
@@ -1870,9 +1974,17 @@ export function UktDashboard(props: Props) {
                 <Button
                   size="sm"
                   className="bg-inkai-red hover:bg-inkai-red/90"
-                  onClick={() => openPrintNota(true)}
-                  disabled={loading}
-                  title="Cetak nota / siap setor ke cabang (bukan langsung lunas)"
+                  onClick={() =>
+                    void handleBayarUkt(
+                      selectedRows.filter((r) => canRantingSubmitUktPayment(r)),
+                    )
+                  }
+                  disabled={
+                    loading ||
+                    selectedRows.filter((r) => canRantingSubmitUktPayment(r))
+                      .length === 0
+                  }
+                  title="Ajukan ke cabang untuk verifikasi (bukan lunas)"
                 >
                   <Banknote className="mr-1 h-4 w-4" />
                   Bayar UKT
@@ -2177,9 +2289,10 @@ export function UktDashboard(props: Props) {
               <b>Bayar UKT</b>.
             </p>
             <p>
-              <b>Bayar UKT</b> = cetak nota / siap setor ke cabang (bukan langsung
-              lunas). Cabang yang memverifikasi pembayaran, lalu mengisi hasil ujian
-              &amp; Kyu Baru.
+              <b>Bayar UKT</b> = ajukan ke cabang (
+              <b>Menunggu Verifikasi</b>), bukan lunas. Cabang yang
+              memverifikasi pembayaran, lalu mengisi hasil ujian &amp; Kyu
+              Baru.
             </p>
           </CardContent>
         </Card>
@@ -2188,7 +2301,8 @@ export function UktDashboard(props: Props) {
       {isCabang && (
         <Card className="border-muted">
           <CardContent className="p-3 text-sm text-muted-foreground">
-            Alur: ranting daftar (**Belum Bayar**) → nota/setor → cabang{" "}
+            Alur: ranting daftar (**Belum Bayar**) → ranting{" "}
+            <b>Bayar UKT</b> (**Menunggu Verifikasi**) → cabang{" "}
             <b>Verifikasi</b> (**Menunggu Ujian**) → hasil ujian → isi{" "}
             <b>Kyu Baru</b> (**Selesai**). Batal dari ranting (termasuk yang sudah
             lunas) akan memberi notifikasi ke cabang — sesuaikan pengembalian uang
@@ -2572,13 +2686,13 @@ export function UktDashboard(props: Props) {
                         })()
                       ) : (
                         <>
-                          {isDojoAdmin && isUktBillingUnpaid(row) && (
+                          {isDojoAdmin && canRantingSubmitUktPayment(row) && (
                             <Button
                               size="sm"
                               className="h-7 bg-inkai-red text-xs hover:bg-inkai-red/90"
-                              onClick={() => openPrintNota(true, [row.memberId])}
+                              onClick={() => void handleBayarUkt([row])}
                               disabled={loading || isMemberPending(row.memberId)}
-                              title="Cetak nota / siap setor ke cabang (bukan langsung lunas)"
+                              title="Ajukan ke cabang untuk verifikasi (bukan lunas)"
                             >
                               <Banknote className="mr-0.5 h-3 w-3" />
                               Bayar UKT
