@@ -552,6 +552,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Percepat Refresh UKT: snapshot registrasi/tagihan saja (bukan full dashboard), merge ke baris lokal |
 | 22 Juli 2026 | Fix status UKT: Verifikasi → Menunggu Ujian (bukan Selesai); Selesai hanya setelah Lulus + Kyu Baru |
 | 22 Juli 2026 | Alur cabang: Verifikasi → Menunggu Ujian → isi Kyu Baru → Lulus → Selesai |
+| 22 Juli 2026 | Fix isi Kyu Baru: jangan gagal bila GET Inkai 404 — fallback Prisma + cek lunas via billing |
 
 ---
 

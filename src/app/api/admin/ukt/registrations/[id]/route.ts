@@ -301,21 +301,41 @@ async function saveUktKyuBaruTarget(opts: {
     opts.token,
   );
 
-  if (!res.ok) {
+  if (res.ok) {
+    return {
+      ok: true,
+      memberId: memberId || undefined,
+      kyuLama,
+      kyuBaru,
+      registration: (apiData.data as Record<string, unknown>) ?? {},
+    };
+  }
+
+  // Fallback Prisma bila GET/PUT Inkai gagal (pendaftaran tetap ada di DB bersama)
+  try {
+    const updated = await prisma.eventRegistration.update({
+      where: { id: opts.registrationId },
+      data: { registeredRank, status: "APPROVED" },
+    });
+    return {
+      ok: true,
+      memberId: memberId || updated.memberId || undefined,
+      kyuLama,
+      kyuBaru,
+      registration: {
+        id: updated.id,
+        memberId: updated.memberId,
+        registeredRank: updated.registeredRank,
+        status: updated.status,
+      },
+    };
+  } catch {
     return {
       ok: false,
       error: inkaiErrorMessage(apiData, "Gagal menyimpan Kyu Baru"),
       status: res.status,
     };
   }
-
-  return {
-    ok: true,
-    memberId: memberId || undefined,
-    kyuLama,
-    kyuBaru,
-    registration: (apiData.data as Record<string, unknown>) ?? {},
-  };
 }
 
 function registrationHasPaidUktBilling(reg: Record<string, unknown>): boolean {
@@ -343,9 +363,10 @@ function registrationHasPaidUktBilling(reg: Record<string, unknown>): boolean {
 async function assertUktRegistrationPaid(
   token: string,
   registrationId: string,
-  reg: Record<string, unknown>,
+  reg?: Record<string, unknown> | null,
+  memberIdHint?: string,
 ): Promise<boolean> {
-  if (registrationHasPaidUktBilling(reg)) return true;
+  if (reg && registrationHasPaidUktBilling(reg)) return true;
 
   const local = await prisma.billing.findFirst({
     where: {
@@ -357,9 +378,28 @@ async function assertUktRegistrationPaid(
   });
   if (local) return true;
 
+  // Tagihan lunas tanpa registrationId ketat — cocokkan member
   const memberId = String(
-    (reg.member as { id?: string } | undefined)?.id ?? reg.memberId ?? "",
+    memberIdHint?.trim() ||
+      (reg?.member as { id?: string } | undefined)?.id ||
+      reg?.memberId ||
+      "",
   );
+  if (memberId) {
+    const localByMember = await prisma.billing.findFirst({
+      where: {
+        memberId,
+        isDeleted: false,
+        status: { in: ["PAID", "SUCCESS", "APPROVED"] },
+        OR: [{ registrationId }, { registrationId: null }],
+        type: { in: ["EVENT", "UKT"] },
+      },
+      select: { id: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (localByMember) return true;
+  }
+
   if (!memberId) return false;
 
   const { res, data } = await inkaiFetch(
@@ -774,15 +814,40 @@ export async function PATCH(request: Request, context: RouteContext) {
       `/v1/events/register/${id}`,
       {},
       authResult.token,
+      { timeoutMs: 6_000, retries: 0 },
     );
-    if (!getRes.ok) {
-      return NextResponse.json(
-        { error: inkaiErrorMessage(getData, "Pendaftaran tidak ditemukan") },
-        { status: getRes.status },
-      );
+    let reg = getRes.ok
+      ? ((getData.data as Record<string, unknown>) ?? null)
+      : null;
+
+    if (!reg) {
+      const localReg = await prisma.eventRegistration.findFirst({
+        where: { id },
+        select: {
+          id: true,
+          memberId: true,
+          registeredRank: true,
+          status: true,
+          eventId: true,
+        },
+      });
+      if (localReg) {
+        reg = {
+          id: localReg.id,
+          memberId: localReg.memberId,
+          registeredRank: localReg.registeredRank,
+          status: localReg.status,
+          eventId: localReg.eventId,
+        };
+      }
     }
-    const reg = getData.data as Record<string, unknown>;
-    const paid = await assertUktRegistrationPaid(authResult.token, id, reg);
+
+    const paid = await assertUktRegistrationPaid(
+      authResult.token,
+      id,
+      reg,
+      data.memberId,
+    );
     if (!paid) {
       return NextResponse.json(
         {
@@ -862,7 +927,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       registrationId: id,
       newRank: data.newRank,
       token: authResult.token,
-      memberIdHint: data.memberId,
+      memberIdHint: data.memberId || String(reg?.memberId ?? ""),
       previousRankHint: data.previousRank,
     });
     if (!saved.ok) {
