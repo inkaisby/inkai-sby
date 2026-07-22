@@ -99,14 +99,14 @@ async function applyKyuBaruToMember(opts: {
   const fromMember =
     formatRankLabel(memberCurrentRank) || memberCurrentRank;
 
-  // Kyu Lama dikunci: snapshot lama > hint UI (bila bukan kyu baru) > sabuk anggota (bila belum naik)
+  // Kyu Lama dikunci dari sabuk keanggotaan saat apply (bukan infer dari Kyu Baru)
   let kyuLama =
-    decoded.kyuLama && !isBlankUktRank(decoded.kyuLama) ? decoded.kyuLama : "";
+    fromMember && !ranksEqual(fromMember, kyuBaru) ? fromMember : "";
+  if (!kyuLama && decoded.kyuLama && !isBlankUktRank(decoded.kyuLama) && !ranksEqual(decoded.kyuLama, kyuBaru)) {
+    kyuLama = decoded.kyuLama;
+  }
   if (!kyuLama && hint && !ranksEqual(hint, kyuBaru) && !isBlankUktRank(hint)) {
     kyuLama = hint;
-  }
-  if (!kyuLama && fromMember && !ranksEqual(fromMember, kyuBaru)) {
-    kyuLama = fromMember;
   }
   if (!kyuLama) {
     kyuLama = inferPreviousBeltRank(kyuBaru) || DEFAULT_MEMBER_RANK;

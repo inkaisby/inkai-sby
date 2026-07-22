@@ -263,31 +263,43 @@ export function decodeUktRegisteredRank(
   };
 }
 
-/** Resolve kolom Kyu Lama / Baru untuk tabel UKT — Kyu Lama tidak ikut currentRank setelah naik. */
+/** Resolve kolom Kyu Lama / Baru untuk tabel UKT.
+ * Default: Kyu Lama = sabuk keanggotaan (`currentRank`).
+ * `lockSnapshot`: setelah UKT selesai (sabuk anggota sudah naik), kunci Kyu Lama dari snapshot registrasi.
+ */
 export function resolveUktRankColumns(
   registeredRank: string | null | undefined,
   memberCurrentRank: string | null | undefined,
   categoryName?: string | null,
+  opts?: { lockSnapshot?: boolean },
 ): { kyuLama: string; kyuBaru: string | null } {
   const decoded = decodeUktRegisteredRank(registeredRank);
   const current =
     formatRankLabel(memberCurrentRank) || (memberCurrentRank || "").trim();
+  const kyuBaru = decoded.kyuBaru || categoryName || null;
 
-  // Snapshot lengkap / lama-only
-  if (decoded.kyuLama && !isBlankUktRank(decoded.kyuLama)) {
+  if (
+    opts?.lockSnapshot &&
+    decoded.kyuLama &&
+    !isBlankUktRank(decoded.kyuLama) &&
+    !(kyuBaru && ranksEqual(decoded.kyuLama, kyuBaru))
+  ) {
     return {
       kyuLama: decoded.kyuLama,
-      kyuBaru: decoded.kyuBaru || categoryName || null,
+      kyuBaru,
     };
   }
 
-  const kyuBaru = decoded.kyuBaru || categoryName || null;
+  // Belum selesai / tidak lock: Kyu Lama mengikuti sabuk keanggotaan
+  if (!isBlankUktRank(current)) {
+    return { kyuLama: current, kyuBaru };
+  }
 
-  // Legacy / snapshot lama hilang: pakai sabuk anggota hanya jika belum sama dengan kyu baru
+  if (decoded.kyuLama && !isBlankUktRank(decoded.kyuLama)) {
+    return { kyuLama: decoded.kyuLama, kyuBaru };
+  }
+
   if (kyuBaru) {
-    if (!isBlankUktRank(current) && !ranksEqual(current, kyuBaru)) {
-      return { kyuLama: current, kyuBaru };
-    }
     const inferred = inferPreviousBeltRank(kyuBaru);
     return {
       kyuLama: inferred || "—",
@@ -296,20 +308,20 @@ export function resolveUktRankColumns(
   }
 
   return {
-    kyuLama: current || DEFAULT_MEMBER_RANK,
+    kyuLama: DEFAULT_MEMBER_RANK,
     kyuBaru: null,
   };
 }
 
-/** Tampilkan Kyu Lama di UI/export; infer dari Kyu Baru bila kosong. */
+/** Tampilkan Kyu Lama di UI/export — tanpa menebak dari Kyu Baru. */
 export function displayUktKyuLama(
   kyuLama: string | null | undefined,
-  kyuBaru: string | null | undefined,
+  _kyuBaru?: string | null | undefined,
 ): string {
   if (!isBlankUktRank(kyuLama)) {
     return formatRankLabel(kyuLama) || String(kyuLama).trim();
   }
-  return inferPreviousBeltRank(kyuBaru) || "";
+  return "";
 }
 
 /**

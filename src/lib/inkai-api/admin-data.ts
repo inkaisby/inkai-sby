@@ -8,7 +8,12 @@ import {
   type SessionUser,
 } from "@/lib/rbac";
 import { SITE_BRANCH_NAME } from "@/lib/site";
-import { resolveUktRankColumns } from "@/lib/belt";
+import {
+  decodeUktRegisteredRank,
+  formatRankLabel,
+  ranksEqual,
+  resolveUktRankColumns,
+} from "@/lib/belt";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import {
   memberOrderBy,
@@ -1326,10 +1331,29 @@ export async function fetchUktDashboardData(
     const category = reg?.category as { name?: string } | null | undefined;
     const memberUser = reg?.member as { user?: { photoUrl?: string } } | undefined;
     const memberData = (reg?.member as Record<string, unknown> | undefined) ?? m;
+    const registeredRank =
+      typeof reg?.registeredRank === "string" ? reg.registeredRank : null;
+    const decoded = decodeUktRegisteredRank(registeredRank);
+    const kyuBaruHint = decoded.kyuBaru || category?.name || null;
+    const billingStatus = regBilling?.status ? String(regBilling.status) : null;
+    const paid =
+      billingStatus === "PAID" ||
+      billingStatus === "SUCCESS" ||
+      String(reg?.status ?? "") === "PAID" ||
+      String(reg?.status ?? "") === "SUCCESS";
+    // Kunci snapshot Kyu Lama hanya setelah sabuk anggota sudah naik ke Kyu Baru (UKT selesai)
+    const lockSnapshot = Boolean(
+      paid &&
+        kyuBaruHint &&
+        ranksEqual(m.currentRank, kyuBaruHint) &&
+        decoded.kyuLama &&
+        !ranksEqual(decoded.kyuLama, kyuBaruHint),
+    );
     const { kyuLama, kyuBaru } = resolveUktRankColumns(
-      typeof reg?.registeredRank === "string" ? reg.registeredRank : null,
+      registeredRank,
       m.currentRank,
       category?.name,
+      { lockSnapshot },
     );
 
     return {
@@ -1344,13 +1368,14 @@ export async function fetchUktDashboardData(
       address: (memberData.address as string | null) ?? null,
       kyuLama,
       kyuBaru,
+      memberCurrentRank: formatRankLabel(m.currentRank) || m.currentRank || null,
       birthCertificateUrl: (memberData.birthCertificateUrl as string | null) ?? null,
       bpjsCardUrl: (memberData.bpjsCardUrl as string | null) ?? null,
       dojoName: m.dojo?.name ?? "—",
       dojoId: String((m as Record<string, unknown>).dojoId ?? ""),
       status: reg?.status ? String(reg.status) : "BELUM_DAFTAR",
       billingId: regBilling?.id ? String(regBilling.id) : null,
-      billingStatus: regBilling?.status ? String(regBilling.status) : null,
+      billingStatus,
       billingAmount: uktBaseFeeAmount(
         regBilling?.amount != null ? Number(regBilling.amount) : null,
         regBilling?.baseFeeAmount != null

@@ -209,7 +209,7 @@ Pusat / Nasional
 ### 9.3 UKT (Ujian Kenaikan Tingkat)
 1. **Cabang** membuat periode UKT per semester (Semester I = Jan–Jun, Semester II = Jul–Des); setiap semester = **event terpisah** dengan registrasi & pembayaran sendiri.
 2. URL admin: **Pendaftaran** `/admin/ukt?semester=I|II&year=YYYY&period=<eventId>` (periode aktif) dan **Arsip UKT** `/admin/ukt/arsip?...` (riwayat/terkunci). Dropdown semester/tahun memilih event yang cocok; bila belum ada periode aktif, tombol **Buat Periode** di Pendaftaran.
-3. **Ranting** mendaftarkan anggota (snapshot **Sabuk saat ini / Kyu Lama** dikunci per periode).
+3. **Ranting** mendaftarkan anggota (**Kyu Lama** = sabuk keanggotaan saat ini; setelah UKT selesai/sabuk naik, Kyu Lama dikunci dari snapshot registrasi).
 4. Pendaftaran UKT: gate operasional dikonfigurasi di **Pengaturan → UKT** (`/admin/pengaturan/ukt`): centang iuran / dokumen / absensi (+ ambang %), serta **berlaku untuk ranting / cabang**. Periode buka/tutup selalu berlaku. Cabang tetap bisa waiver per anggota.
 5. **Ranting** memilih peserta (multi-select) → **Nota Terpilih** / **Siap Bayar UKT** selaras baris terpilih.
 6. **Cabang** **memverifikasi pembayaran** (per baris / bulk), lalu mencatat **hasil ujian**: `LULUS` / `GAGAL` / `MENGULANG`.
@@ -223,7 +223,7 @@ Pusat / Nasional
 11b. **Rekonsiliasi setoran**: tabel di kartu setoran (Ranting, Peserta, Lunas, Total tagihan, Status setor, Keterangan) via `buildUktDepositReconciliation`.
 11c. **Cron H-3** (`/api/cron/ukt-reminders`, `vercel.json`): pengingat batas daftar & notifikasi jadwal ke ranting (idempoten lewat `notified*` di period-meta).
 11d. **Fokus periode aktif:** resolusi mengutamakan non-arsip; judul kanonis `UKT Semester {I|II}-{tahun}`; buat periode baru mengarsipkan term yang sudah tutup; sidebar **UKT → Pendaftaran / Arsip UKT** (bukan dropdown campuran); anggota hanya melihat periode aktif. Arsipkan dari Pendaftaran mengarahkan ke Arsip; buka arsip mengembalikan ke Pendaftaran. **Arsip UKT** hanya menampilkan peserta yang sudah mendaftar (tanpa pool “Belum Daftar”).
-12. Dashboard anggota menampilkan **kartu Status UKT** di beranda & Prestasi (termasuk **jadwal ujian + lokasi** bila diisi); admin cabang: **export daftar peserta** (Print/Save as PDF/CSV + pilih ranting + validasi data), **Laporan WA** ringkas, **hari-H** (roster hadir + hasil massal), **status setoran** ranting↔cabang, **arsip/kunci periode**, waiver, wizard, action bar. Cabang juga dapat **menghapus pendaftaran UKT beserta tagihan terkait, termasuk yang sudah lunas**, dengan dialog konfirmasi eksplisit. Bila API Inkai menolak karena tagihan lunas, server cabang memakai **fallback Prisma** (unlink/cancel billing + hapus `EventRegistration` di shared DB). Cabang dapat **menghapus tagihan UKT saja** (tombol **Hapus tagihan**, `DELETE /api/admin/billing/[id]`, fallback DB yang sama) tanpa menghapus pendaftaran.
+12. Dashboard anggota menampilkan **kartu Status UKT** di beranda & Prestasi (termasuk **jadwal ujian + lokasi** bila diisi); admin cabang: **export daftar peserta** (Print/Save as PDF/CSV + pilih ranting + validasi data; kolom **KYU** = sabuk keanggotaan), **Laporan WA** ringkas, **hari-H** (roster hadir + hasil massal), **status setoran** ranting↔cabang, **arsip/kunci periode**, waiver, wizard, action bar. Cabang juga dapat **menghapus pendaftaran UKT beserta tagihan terkait, termasuk yang sudah lunas**, dengan dialog konfirmasi eksplisit. Bila API Inkai menolak karena tagihan lunas, server cabang memakai **fallback Prisma** (unlink/cancel billing + hapus `EventRegistration` di shared DB). Cabang dapat **menghapus tagihan UKT saja** (tombol **Hapus tagihan**, `DELETE /api/admin/billing/[id]`, fallback DB yang sama) tanpa menghapus pendaftaran.
 13. Toolbar cabang: **Buat Periode**, Hari-H, Export, Laporan WA, Cetak Nota, Biaya Sabuk, Arsip (tombol terpisah).
 
 ### 9.4 Kegiatan & absensi
@@ -539,6 +539,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Percepat hapus UKT: timeout 5s, hapus tagihan paralel + unlink dulu, toast loading di UI |
 | 22 Juli 2026 | Force hapus UKT lunas: fallback Prisma (unlink billing + hapus EventRegistration); map billingId dari `/v1/billing` global |
 | 22 Juli 2026 | UKT: toolbar atas (semester + timer + aksi) sticky di bawah topbar admin |
+| 22 Juli 2026 | Kyu Lama UKT = sabuk keanggotaan; snapshot lama hanya dikunci setelah sabuk naik (selesai); kolom KYU di PDF/CSV ikut sama |
 
 ---
 

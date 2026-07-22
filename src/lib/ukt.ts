@@ -1,4 +1,4 @@
-import { formatMemberName, formatRankLabel, formatGenderLabel, getBeltGroup, shortRankLabel, inferPreviousBeltRank, displayUktKyuLama } from "@/lib/belt";
+import { formatMemberName, formatRankLabel, formatGenderLabel, getBeltGroup, shortRankLabel } from "@/lib/belt";
 
 export type UktSemester = "I" | "II";
 
@@ -494,6 +494,8 @@ export type UktMemberRow = {
   address: string | null;
   kyuLama: string;
   kyuBaru: string | null;
+  /** Sabuk resmi keanggotaan (`currentRank`) — sumber Kyu Lama sebelum UKT selesai. */
+  memberCurrentRank?: string | null;
   birthCertificateUrl: string | null;
   bpjsCardUrl: string | null;
   dojoName: string;
@@ -832,7 +834,8 @@ export function collectUktExportDataIssues(rows: UktMemberRow[]): UktExportDataI
     if (!r.nia?.trim()) missing.push("nia");
     if (!formatUktBirthPlaceDate(r.birthPlace, r.birthDate)) missing.push("ttl");
     if (!r.address?.trim()) missing.push("alamat");
-    if (!resolveUktExportKyuLamaNumber(r.kyuLama, r.kyuBaru)) missing.push("kyu");
+    if (!resolveUktExportKyuLamaNumber(r.kyuLama, r.kyuBaru, r.memberCurrentRank))
+      missing.push("kyu");
     if (!formatGenderLabel(r.gender)) missing.push("jk");
     if (missing.length > 0) {
       issues.push({
@@ -1443,12 +1446,15 @@ export function extractUktRankNumber(rankRaw: string | null | undefined): string
   return "";
 }
 
-/** Angka Kyu lama untuk export; fallback infer dari Kyu Baru bila snapshot hilang. */
+/** Angka Kyu lama untuk export PDF/CSV — dari sabuk keanggotaan / Kyu Lama, tanpa infer dari Kyu Baru. */
 export function resolveUktExportKyuLamaNumber(
   kyuLama: string | null | undefined,
-  kyuBaru: string | null | undefined,
+  _kyuBaru?: string | null | undefined,
+  memberCurrentRank?: string | null,
 ): string {
-  return extractUktRankNumber(displayUktKyuLama(kyuLama, kyuBaru));
+  const fromMember = extractUktRankNumber(memberCurrentRank);
+  if (fromMember) return fromMember;
+  return extractUktRankNumber(kyuLama);
 }
 
 export function formatUktBirthPlaceDate(
@@ -1491,17 +1497,23 @@ export function buildUktPesertaExportRows(rows: UktMemberRow[]): UktPesertaExpor
       return (a.fullName || "").localeCompare(b.fullName || "", "id");
     });
 
-  return sorted.map((r, i) => ({
-    no: i + 1,
-    nia: r.nia || "",
-    nama: formatMemberName(r.fullName),
-    tempatTanggalLahir: formatUktBirthPlaceDate(r.birthPlace, r.birthDate),
-    jenisKelamin: formatGenderLabel(r.gender),
-    alamat: (r.address || "").trim().toUpperCase(),
-    kyu: resolveUktExportKyuLamaNumber(r.kyuLama, r.kyuBaru),
-    kyuBaru: extractUktRankNumber(r.kyuBaru),
-    ranting: (r.dojoName || "").trim().toUpperCase(),
-  }));
+  return sorted.map((r, i) => {
+    // KYU di PDF/CSV = sabuk keanggotaan; setelah selesai kunci snapshot Kyu Lama
+    const kyuSource = isUktSelesai(r)
+      ? r.kyuLama
+      : r.memberCurrentRank || r.kyuLama;
+    return {
+      no: i + 1,
+      nia: r.nia || "",
+      nama: formatMemberName(r.fullName),
+      tempatTanggalLahir: formatUktBirthPlaceDate(r.birthPlace, r.birthDate),
+      jenisKelamin: formatGenderLabel(r.gender),
+      alamat: (r.address || "").trim().toUpperCase(),
+      kyu: extractUktRankNumber(kyuSource),
+      kyuBaru: extractUktRankNumber(r.kyuBaru),
+      ranting: (r.dojoName || "").trim().toUpperCase(),
+    };
+  });
 }
 
 export function buildUktPesertaTitle(semester: UktSemester, year: number): string {

@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { inkaiFetch } from "@/lib/inkai-api/server";
-import { resolveUktRankColumns } from "@/lib/belt";
+import {
+  decodeUktRegisteredRank,
+  formatRankLabel,
+  ranksEqual,
+  resolveUktRankColumns,
+} from "@/lib/belt";
 import {
   buildUktEventTitle,
   buildUktExamResultMap,
@@ -136,10 +141,29 @@ export async function GET() {
   const billings = (member?.billings as Array<Record<string, unknown>>) ?? [];
   const billing = billings.find((b) => b.registrationId === reg.id) ?? billings[0];
   const category = reg.category as { name?: string } | null | undefined;
+  const registeredRank =
+    typeof reg.registeredRank === "string" ? reg.registeredRank : null;
+  const decoded = decodeUktRegisteredRank(registeredRank);
+  const memberRank = member?.currentRank ? String(member.currentRank) : null;
+  const kyuBaruHint = decoded.kyuBaru || category?.name || null;
+  const billingStatus = billing?.status ? String(billing.status) : null;
+  const paid =
+    billingStatus === "PAID" ||
+    billingStatus === "SUCCESS" ||
+    String(reg.status ?? "") === "PAID" ||
+    String(reg.status ?? "") === "SUCCESS";
+  const lockSnapshot = Boolean(
+    paid &&
+      kyuBaruHint &&
+      ranksEqual(memberRank, kyuBaruHint) &&
+      decoded.kyuLama &&
+      !ranksEqual(decoded.kyuLama, kyuBaruHint),
+  );
   const { kyuLama, kyuBaru } = resolveUktRankColumns(
-    typeof reg.registeredRank === "string" ? reg.registeredRank : null,
-    member?.currentRank ? String(member.currentRank) : null,
+    registeredRank,
+    memberRank,
     category?.name,
+    { lockSnapshot },
   );
 
   const row: UktMemberRow = {
@@ -154,6 +178,7 @@ export async function GET() {
     address: null,
     kyuLama,
     kyuBaru,
+    memberCurrentRank: formatRankLabel(memberRank) || memberRank,
     birthCertificateUrl: null,
     bpjsCardUrl: null,
     dojoName: "—",
