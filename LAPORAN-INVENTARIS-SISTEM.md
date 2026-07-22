@@ -583,6 +583,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | Topbar akun gabungan: hanya tampilkan email yang berbagi kelola ranting (API `/account-peers`), bukan riwayat Ganti Akun dari localStorage |
 | 22 Juli 2026 | Pengaturan Ranting & User: UI diperjelas sebagai panel **akun admin ranting**; akun dual-role ditandai **Admin + Anggota**, anggota biasa tidak tampil sampai dijadikan admin ranting |
 | 22 Juli 2026 | Pengaturan Cabang: tambah alur **Jadikan admin cabang** untuk akun existing (contoh ketua cabang) tanpa akun baru; panel Akun Admin membedakan **Admin + Anggota** vs **Admin saja** |
+| 22 Juli 2026 | Hotfix build Vercel: `wilayah-accounts` — `memberId` via relasi Prisma `member`; hapus `adminGrantsRaw` dari response PATCH tanpa `delete` pada field wajib |
+| 22 Juli 2026 | Perbaikan cabang: fallback PIC & `isHomeDojo` scope-aware di `listWilayahAccounts`; audit promote cabang `WILAYAH_ACCOUNT_PROMOTE_ADMIN_BRANCH`; copy UI tanpa contoh email spesifik |
 
 ---
 

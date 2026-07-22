@@ -499,7 +499,7 @@ export function WilayahAccountsPanel({
         <div className="rounded-lg border border-inkai-red/20 bg-inkai-red/5 px-3 py-2 text-xs text-muted-foreground">
           Panel ini hanya menampilkan <span className="font-medium text-foreground">akun {adminLabel}</span>.
           Anggota biasa belum muncul di sini sampai dijadikan {adminLabel}.
-          Jika email seperti <span className="font-mono">jonathankandou@gmail.com</span> sudah ditambahkan lewat
+          Jika email anggota sudah ditambahkan lewat
           <span className="font-medium text-foreground"> {scope === "branch" ? "Jadikan admin cabang" : "Jadikan admin ranting"}</span>, akun itu akan tampil dengan badge
           <span className="font-medium text-foreground"> Admin + Anggota</span>.
         </div>
@@ -1100,7 +1100,7 @@ export function WilayahAccountsPanel({
                 type="email"
                 value={promoteEmail}
                 onChange={(e) => setPromoteEmail(e.target.value)}
-                placeholder="jonathankandou@gmail.com"
+                placeholder="anggota@email.com"
                 autoComplete="off"
               />
             </div>

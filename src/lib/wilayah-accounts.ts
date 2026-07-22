@@ -294,9 +294,12 @@ export async function listWilayahAccounts(opts: {
     effectivePrimary = null;
   }
   if (!effectivePrimary) {
-    const homeActive = users.find(
-      (u) => u.isActive && u.managedDojoId === opts.wilayahId,
-    );
+    const homeActive =
+      opts.scope === "dojo"
+        ? users.find(
+            (u) => u.isActive && u.managedDojoId === opts.wilayahId,
+          )
+        : users.find((u) => u.isActive);
     const firstActive = homeActive ?? users.find((u) => u.isActive) ?? users[0];
     effectivePrimary = firstActive?.id ?? null;
     if (effectivePrimary) {
@@ -313,7 +316,10 @@ export async function listWilayahAccounts(opts: {
         createdAt: u.createdAt.toISOString(),
         updatedAt: u.updatedAt.toISOString(),
         isPrimary: u.id === effectivePrimary,
-        isHomeDojo: u.managedDojoId === opts.wilayahId,
+        isHomeDojo:
+          opts.scope === "dojo"
+            ? u.managedDojoId === opts.wilayahId
+            : true,
         managedDojoIds,
         managedDojoCount: managedDojoIds.length,
         jabatan: meta.jabatanByUserId[u.id] ?? null,

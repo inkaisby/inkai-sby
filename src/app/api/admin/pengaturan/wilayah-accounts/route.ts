@@ -402,7 +402,10 @@ export async function PATCH(request: Request) {
       writeAuditLog({
         userId: authResult.user.id,
         email: authResult.user.email,
-        action: "WILAYAH_ACCOUNT_PROMOTE_ADMIN_DOJO",
+        action:
+          scope === "dojo"
+            ? "WILAYAH_ACCOUNT_PROMOTE_ADMIN_DOJO"
+            : "WILAYAH_ACCOUNT_PROMOTE_ADMIN_BRANCH",
         details: JSON.stringify({
           scope,
           wilayahId,

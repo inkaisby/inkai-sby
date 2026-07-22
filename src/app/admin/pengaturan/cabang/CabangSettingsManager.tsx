@@ -200,8 +200,8 @@ export function CabangSettingsManager({
 
       <div className="rounded-lg border border-inkai-red/20 bg-inkai-red/5 px-3 py-2 text-xs text-muted-foreground">
         Panel <span className="font-medium text-foreground">Akun Admin</span> hanya untuk pengurus yang punya akses admin cabang.
-        Ketua cabang yang sudah punya akun anggota, seperti <span className="font-mono">jonathankandou@gmail.com</span>,
-        bisa langsung ditambahkan lewat tombol <span className="font-medium text-foreground">Jadikan admin cabang</span>
+        Ketua cabang yang sudah punya akun anggota bisa langsung ditambahkan lewat tombol{" "}
+        <span className="font-medium text-foreground">Jadikan admin cabang</span>
         tanpa membuat akun baru.
       </div>
 
