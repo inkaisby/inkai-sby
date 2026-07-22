@@ -99,3 +99,73 @@ export async function deleteBillingsHard(
     ids.map((id) => deleteBillingHard(token, id, opts)),
   );
 }
+
+/**
+ * Putuskan & netralkan tagihan di shared DB (Payment → soft-cancel Billing).
+ * Dipakai saat API Inkai menolak hapus tagihan lunas.
+ */
+export async function forceUnlinkBillingsInDb(
+  billingIds: Iterable<string>,
+): Promise<{ ok: boolean; error?: string }> {
+  const ids = [...new Set([...billingIds].filter(Boolean))];
+  if (ids.length === 0) return { ok: true };
+
+  try {
+    await prisma.payment.deleteMany({
+      where: { billingId: { in: ids } },
+    });
+    await prisma.billing.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        registrationId: null,
+        isDeleted: true,
+        status: "CANCELLED",
+      },
+    });
+    return { ok: true };
+  } catch (error) {
+    console.error("[billing-delete] forceUnlinkBillingsInDb failed", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Gagal memutus tagihan di database",
+    };
+  }
+}
+
+/**
+ * Hapus pendaftaran event langsung di shared DB.
+ */
+export async function forceDeleteRegistrationInDb(
+  registrationId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const id = registrationId.trim();
+  if (!id) return { ok: false, error: "registrationId kosong" };
+
+  try {
+    // Putuskan semua billing yang masih tertaut ke registrasi ini
+    const linked = await prisma.billing.findMany({
+      where: { registrationId: id },
+      select: { id: true },
+      take: 50,
+    });
+    if (linked.length > 0) {
+      const unlink = await forceUnlinkBillingsInDb(linked.map((b) => b.id));
+      if (!unlink.ok) return unlink;
+    }
+
+    await prisma.eventRegistration.deleteMany({ where: { id } });
+    return { ok: true };
+  } catch (error) {
+    console.error("[billing-delete] forceDeleteRegistrationInDb failed", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Gagal menghapus pendaftaran di database",
+    };
+  }
+}

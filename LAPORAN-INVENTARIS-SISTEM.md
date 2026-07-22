@@ -223,7 +223,7 @@ Pusat / Nasional
 11b. **Rekonsiliasi setoran**: tabel di kartu setoran (Ranting, Peserta, Lunas, Total tagihan, Status setor, Keterangan) via `buildUktDepositReconciliation`.
 11c. **Cron H-3** (`/api/cron/ukt-reminders`, `vercel.json`): pengingat batas daftar & notifikasi jadwal ke ranting (idempoten lewat `notified*` di period-meta).
 11d. **Fokus periode aktif:** resolusi mengutamakan non-arsip; judul kanonis `UKT Semester {I|II}-{tahun}`; buat periode baru mengarsipkan term yang sudah tutup; sidebar **UKT → Pendaftaran / Arsip UKT** (bukan dropdown campuran); anggota hanya melihat periode aktif. Arsipkan dari Pendaftaran mengarahkan ke Arsip; buka arsip mengembalikan ke Pendaftaran. **Arsip UKT** hanya menampilkan peserta yang sudah mendaftar (tanpa pool “Belum Daftar”).
-12. Dashboard anggota menampilkan **kartu Status UKT** di beranda & Prestasi (termasuk **jadwal ujian + lokasi** bila diisi); admin cabang: **export daftar peserta** (Print/Save as PDF/CSV + pilih ranting + validasi data), **Laporan WA** ringkas, **hari-H** (roster hadir + hasil massal), **status setoran** ranting↔cabang, **arsip/kunci periode**, waiver, wizard, action bar. Cabang juga dapat **menghapus pendaftaran UKT beserta tagihan terkait, termasuk yang sudah lunas**, dengan dialog konfirmasi eksplisit. Cabang dapat **menghapus tagihan UKT saja** (tombol **Hapus tagihan**, `DELETE /api/admin/billing/[id]`) tanpa menghapus pendaftaran.
+12. Dashboard anggota menampilkan **kartu Status UKT** di beranda & Prestasi (termasuk **jadwal ujian + lokasi** bila diisi); admin cabang: **export daftar peserta** (Print/Save as PDF/CSV + pilih ranting + validasi data), **Laporan WA** ringkas, **hari-H** (roster hadir + hasil massal), **status setoran** ranting↔cabang, **arsip/kunci periode**, waiver, wizard, action bar. Cabang juga dapat **menghapus pendaftaran UKT beserta tagihan terkait, termasuk yang sudah lunas**, dengan dialog konfirmasi eksplisit. Bila API Inkai menolak karena tagihan lunas, server cabang memakai **fallback Prisma** (unlink/cancel billing + hapus `EventRegistration` di shared DB). Cabang dapat **menghapus tagihan UKT saja** (tombol **Hapus tagihan**, `DELETE /api/admin/billing/[id]`, fallback DB yang sama) tanpa menghapus pendaftaran.
 13. Toolbar cabang: **Buat Periode**, Hari-H, Export, Laporan WA, Cetak Nota, Biaya Sabuk, Arsip (tombol terpisah).
 
 ### 9.4 Kegiatan & absensi
@@ -336,8 +336,9 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/members/[id]     Detail + aksi (approve/NIA/set_rank/set_dojo/set_dues/dokumen/nonaktif/hapus/restore/merge)
 /api/admin/members/bulk     Bulk nonaktif / approve / hapus-arsip (ARSIPKAN) / purge arsip (HAPUS) / restore
 /api/admin/members/archived Daftar arsip soft-delete
-/api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas, **hapus** (ranting/cabang; force lunas = cabang)
+/api/admin/billing/[id]     Edit tagihan, verifikasi, tandai lunas, **hapus** (ranting/cabang; force lunas = cabang; fallback Prisma bila API gagal)
 /api/admin/billing/generate Buat tagihan iuran bulanan massal
+/api/admin/ukt/registrations/[id]  Update/hapus pendaftaran UKT (cabang force: API lalu fallback Prisma shared DB)
 /api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees (snapshot/global), Kyu, exam-day, deposit, period-meta, hapus pendaftaran + tagihan terkait
 /api/cron/ukt-reminders     Cron H-3 pengingat UKT (batas daftar / jadwal ranting)
 /api/admin/pengaturan/*     User, cabang, ranting, wilayah-accounts, roles, geofencing, akun, kebijakan (pejabat dokumen), **ukt** (syarat daftar)
@@ -536,6 +537,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | UKT: tombol **Hapus tagihan** (cabang) + `DELETE /api/admin/billing/[id]`; helper bersama `billing-delete.ts` |
 | 22 Juli 2026 | Fix hapus peserta lunas: cari semua tagihan UKT anggota (bukan hanya billingId UI), sapu lalu retry DELETE registrasi; mapping billing UI diperbaiki |
 | 22 Juli 2026 | Percepat hapus UKT: timeout 5s, hapus tagihan paralel + unlink dulu, toast loading di UI |
+| 22 Juli 2026 | Force hapus UKT lunas: fallback Prisma (unlink billing + hapus EventRegistration); map billingId dari `/v1/billing` global |
 
 ---
 

@@ -18,7 +18,11 @@ import { getClientIp } from "@/lib/security/request";
 import { prisma } from "@/lib/prisma";
 import { uktExamResultKey } from "@/lib/ukt";
 import { notifyUktStatusChange } from "@/lib/ukt-notify";
-import { deleteBillingsHard } from "@/lib/billing-delete";
+import {
+  deleteBillingsHard,
+  forceDeleteRegistrationInDb,
+  forceUnlinkBillingsInDb,
+} from "@/lib/billing-delete";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -621,7 +625,7 @@ export async function DELETE(request: Request, context: RouteContext) {
 
   let regResult = await tryDeleteRegistration();
 
-  const looksPaidBlock =
+  let looksPaidBlock =
     /tagihan.*lunas|sudah lunas|billing.*paid|paid.*billing/i.test(regResult.error);
 
   if (!regResult.ok && isCabang && looksPaidBlock && memberId) {
@@ -651,15 +655,45 @@ export async function DELETE(request: Request, context: RouteContext) {
     if (retryIds.size > 0) {
       await deleteBillingsHard(token, retryIds, { continueOnFailure: true });
       regResult = await tryDeleteRegistration();
+      looksPaidBlock =
+        /tagihan.*lunas|sudah lunas|billing.*paid|paid.*billing/i.test(
+          regResult.error,
+        );
     }
+  }
+
+  // Cabang force: API gagal (blokir lunas) → putuskan di shared DB
+  let usedDbForce = false;
+  if (!regResult.ok && isCabang && (looksPaidBlock || forceRequested || sawPaid)) {
+    if (billingIds.size > 0) {
+      const unlink = await forceUnlinkBillingsInDb(billingIds);
+      if (!unlink.ok) {
+        return NextResponse.json(
+          { error: unlink.error || "Gagal memutus tagihan di database" },
+          { status: 500 },
+        );
+      }
+    }
+    const dbDelete = await forceDeleteRegistrationInDb(id);
+    if (!dbDelete.ok) {
+      return NextResponse.json(
+        {
+          error:
+            dbDelete.error ||
+            "Gagal menghapus pendaftaran di database setelah API menolak",
+        },
+        { status: 500 },
+      );
+    }
+    usedDbForce = true;
+    regResult = { ok: true, error: "", status: 200 };
   }
 
   if (!regResult.ok) {
     return NextResponse.json(
       {
-        error: looksPaidBlock
-          ? "Masih ada tagihan lunas di Inkai yang menahan hapus. Coba Hapus tagihan dulu, atau hubungi admin sistem bila tombol tidak muncul."
-          : billingIds.size > 0
+        error:
+          billingIds.size > 0
             ? `Tagihan sudah diproses, tetapi pendaftaran gagal dihapus: ${regResult.error}`
             : regResult.error,
       },
@@ -667,7 +701,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 
-  if (billingIds.size > 0) {
+  if (billingIds.size > 0 && !usedDbForce) {
     try {
       await prisma.billing.updateMany({
         where: { id: { in: [...billingIds] } },
@@ -684,7 +718,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     action: "UKT_REGISTRATION_CANCEL",
     details: `Cancelled UKT registration (${id})${
       billingIds.size ? ` and deleted billings (${[...billingIds].join(",")})` : ""
-    }${force ? " [force]" : ""}`,
+    }${force ? " [force]" : ""}${usedDbForce ? " [db-force]" : ""}`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token,
@@ -693,7 +727,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   return NextResponse.json({
     success: true,
     message:
-      billingIds.size > 0
+      billingIds.size > 0 || usedDbForce
         ? "Pendaftaran dan tagihan UKT berhasil dihapus"
         : "Pendaftaran dibatalkan",
   });

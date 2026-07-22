@@ -1287,6 +1287,39 @@ export async function fetchUktDashboardData(
     }
   }
 
+  // Lengkapi billingMap dari daftar global /v1/billing (sering lebih lengkap dari nested member.billings)
+  if (billingsRes.res.ok) {
+    const globalBillings =
+      (billingsRes.data.data as Array<Record<string, unknown>>) ?? [];
+    for (const b of globalBillings) {
+      const rid = b.registrationId != null ? String(b.registrationId) : "";
+      if (!rid || billingMap.has(rid)) continue;
+      if (b.isDeleted === true) continue;
+      billingMap.set(rid, b);
+    }
+    // Untuk registrasi yang masih tanpa billing: cocokkan UKT by memberId
+    if (selectedPeriodId && eventDetail) {
+      const registrations =
+        (eventDetail.registrations as Array<Record<string, unknown>>) ?? [];
+      for (const reg of registrations) {
+        const regId = String(reg.id ?? "");
+        if (!regId || billingMap.has(regId)) continue;
+        const mid = String(
+          (reg.member as { id?: string } | undefined)?.id ?? reg.memberId ?? "",
+        );
+        if (!mid) continue;
+        const match = globalBillings.find((b) => {
+          if (b.isDeleted === true) return false;
+          if (String(b.memberId ?? "") !== mid) return false;
+          const type = String(b.type ?? "").toUpperCase();
+          const desc = String(b.description ?? "").toUpperCase();
+          return type.includes("UKT") || desc.includes("UKT");
+        });
+        if (match?.id) billingMap.set(regId, match);
+      }
+    }
+  }
+
   const allRows: UktMemberRow[] = members.map((m) => {
     const reg = regMap.get(m.id);
     const regBilling = reg ? billingMap.get(String(reg.id)) : null;

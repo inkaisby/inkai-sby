@@ -7,7 +7,10 @@ import { canManageIuranByWilayah } from "@/lib/wilayah-rbac";
 import { adminBillingPatchSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
-import { deleteBillingHard } from "@/lib/billing-delete";
+import {
+  deleteBillingHard,
+  forceUnlinkBillingsInDb,
+} from "@/lib/billing-delete";
 import { canEditKyuBaru } from "@/lib/belt";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -312,27 +315,41 @@ export async function DELETE(request: Request, context: RouteContext) {
     continueOnFailure: false,
   });
 
+  let usedDbForce = false;
   if (!result.ok) {
-    return NextResponse.json(
-      { error: result.error || "Gagal menghapus tagihan" },
-      { status: result.status || 400 },
-    );
-  }
-
-  try {
-    await prisma.billing.updateMany({
-      where: { id },
-      data: { isDeleted: true },
-    });
-  } catch {
-    /* ignore */
+    if (!isCabang) {
+      return NextResponse.json(
+        { error: result.error || "Gagal menghapus tagihan" },
+        { status: result.status || 400 },
+      );
+    }
+    // Cabang: API gagal (sering karena lunas) → putuskan di shared DB
+    const unlink = await forceUnlinkBillingsInDb([id]);
+    if (!unlink.ok) {
+      return NextResponse.json(
+        { error: unlink.error || result.error || "Gagal menghapus tagihan" },
+        { status: 500 },
+      );
+    }
+    usedDbForce = true;
+  } else {
+    try {
+      await prisma.billing.updateMany({
+        where: { id },
+        data: { isDeleted: true },
+      });
+    } catch {
+      /* ignore */
+    }
   }
 
   writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
     action: "BILLING_DELETE",
-    details: `Deleted billing ${id}${force || isPaid ? " [force]" : ""}`,
+    details: `Deleted billing ${id}${force || isPaid ? " [force]" : ""}${
+      usedDbForce ? " [db-force]" : ""
+    }`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token: authResult.token,
