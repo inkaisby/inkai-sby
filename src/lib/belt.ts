@@ -155,12 +155,12 @@ type MemberRankSource = {
   }> | null;
 };
 
-/** Sabuk tampilan kartu anggota — ambil yang paling tinggi dari currentRank, riwayat, dan UKT selesai. */
+/** Sabuk tampilan kartu anggota — mengikuti `currentRank` keanggotaan; fallback ke riwayat/UKT jika kosong. */
 export function resolveMemberDisplayRank(source: MemberRankSource): string {
-  const candidates: string[] = [];
-
   const current = formatRankLabel(source.currentRank);
-  if (current) candidates.push(current);
+  if (current) return current;
+
+  const candidates: string[] = [];
 
   for (const entry of source.ranks ?? []) {
     const rank = formatRankLabel(entry.rank);

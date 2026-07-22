@@ -572,6 +572,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Juli 2026 | **Kehadiran akun**: `/admin/online` untuk pusat & cabang; heartbeat + `lastLoginAt`/`lastSeenAt`; Redis opsional; clear saat logout; catatan privasi di profil/akun; tanpa force-logout |
 | 22 Juli 2026 | Kehadiran audit: tabel `UserSession` (IP, UA, browser/OS, lokasi CDN, timezone/layar); detail UI + export CSV; bootstrap sesi dari heartbeat |
 | 22 Juli 2026 | Fix WA PIC beranda anggota: multi-nomor di `Dojo.phoneNumber` (mis. `0852…/0896…`) tidak lagi di-concat; pakai nomor utama + bersihkan data JWON |
+| 22 Juli 2026 | Fix sabuk kartu anggota: `resolveMemberDisplayRank` mengikuti `currentRank` keanggotaan (selaras admin/verifikasi QR), bukan sabuk tertinggi dari riwayat/UKT |
 
 ---
 
