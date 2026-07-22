@@ -1138,8 +1138,11 @@ export function UktDashboard(props: Props) {
         rows.find((r) => r.registrationId === registrationId)?.billingId ||
         null;
       if (billingId) qs.set("billingId", billingId);
-      if (
-        cancelTarget?.force ||
+      if (memberId) qs.set("memberId", memberId);
+      // Cabang selalu force — tagihan lunas sering tidak punya billingId di UI
+      if (isCabang || cancelTarget?.force) {
+        qs.set("force", "1");
+      } else if (
         cancelRow?.billingStatus === "PAID" ||
         cancelRow?.status === "PAID"
       ) {
@@ -2853,11 +2856,13 @@ export function UktDashboard(props: Props) {
             <DialogDescription>
               Peserta <strong>{cancelTarget?.name}</strong> akan dihapus dari daftar UKT periode ini.
               {" "}
-              {cancelRow?.billingId
-                ? cancelRow.billingStatus === "PAID" || cancelRow.status === "PAID"
-                  ? "Tagihan UKT yang sudah lunas juga akan ikut dihapus."
-                  : "Tagihan UKT yang belum lunas juga akan ikut dihapus."
-                : "Jika ada tagihan UKT terkait, tagihan tersebut juga akan ikut dihapus."}{" "}
+              {isCabang
+                ? "Semua tagihan UKT terkait (termasuk yang sudah lunas) akan dicoba dihapus terlebih dahulu."
+                : cancelRow?.billingId
+                  ? cancelRow.billingStatus === "PAID" || cancelRow.status === "PAID"
+                    ? "Tagihan UKT yang sudah lunas juga akan ikut dihapus."
+                    : "Tagihan UKT yang belum lunas juga akan ikut dihapus."
+                  : "Jika ada tagihan UKT terkait, tagihan tersebut juga akan ikut dihapus."}{" "}
               Tindakan ini tidak dapat dibatalkan.
             </DialogDescription>
           </DialogHeader>

@@ -1273,8 +1273,17 @@ export async function fetchUktDashboardData(
       regMap.set(String((reg.member as { id?: string })?.id ?? reg.memberId), reg);
       const member = reg.member as Record<string, unknown> | undefined;
       const billings = (member?.billings as Array<Record<string, unknown>>) ?? [];
-      const billing = billings.find((b) => b.registrationId === reg.id) ?? billings[0];
-      if (billing?.registrationId) billingMap.set(String(billing.registrationId), billing);
+      const billing =
+        billings.find((b) => String(b.registrationId ?? "") === String(reg.id)) ??
+        billings.find((b) => {
+          const type = String(b.type ?? "").toUpperCase();
+          const desc = String(b.description ?? "").toUpperCase();
+          return type.includes("UKT") || desc.includes("UKT");
+        }) ??
+        billings[0];
+      if (billing?.id) {
+        billingMap.set(String(reg.id), billing);
+      }
     }
   }
 
