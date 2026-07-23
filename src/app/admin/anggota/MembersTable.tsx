@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
-import { Copy, Check, Eye, Pencil } from "lucide-react";
+import { Copy, Check, Eye, Pencil, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1592,6 +1593,16 @@ export function MembersTable({
                       })}
                     </ul>
                   )}
+                  {detail?.id ? (
+                    <Button asChild variant="outline" size="sm" className="h-8 gap-1.5">
+                      <Link
+                        href={`/admin/iuran?memberId=${encodeURIComponent(String(detail.id))}&tab=mutasi`}
+                      >
+                        <Wallet className="size-3.5" />
+                        Buka rekening iuran
+                      </Link>
+                    </Button>
+                  ) : null}
                 </section>
 
                 <section className="space-y-2.5">

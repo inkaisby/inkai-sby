@@ -2,22 +2,48 @@ import { Suspense } from "react";
 import { requireAdminSession } from "@/lib/admin-session";
 import { getPrimaryAdminRole } from "@/lib/rbac";
 import { canManageIuranByWilayah } from "@/lib/wilayah-rbac";
-import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
-import { fetchBillings } from "@/lib/inkai-api/admin-data";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { BillingActions } from "./BillingActions";
-import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
-import { IuranOpsBar } from "./IuranOpsBar";
+import {
+  getManagedDojoIdsFromUser,
+  resolveActiveDojoId,
+} from "@/lib/managed-dojos";
+import { fetchAdminDojosScopedCached } from "@/lib/inkai-api/admin-data";
 import { getOperationalDefaults } from "@/lib/org-settings";
-import { billingStatusLabel } from "@/lib/admin-labels";
-import { OptimisticHide } from "@/components/admin/OptimisticHide";
+import {
+  getIuranMemberLedgerIndex,
+  monthStatusLabel,
+  parsePeriod,
+} from "@/lib/iuran-ledger";
+import {
+  parsePage,
+  parsePageSize,
+} from "@/components/admin/pengaturan/SettingsTableToolbar";
+import { DojoContextSwitcher } from "@/components/admin/DojoContextSwitcher";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { Input } from "@/components/ui/input";
+import { IuranOpsBar } from "./IuranOpsBar";
+import { IuranLedgerClient } from "./IuranLedgerClient";
 
 export const dynamic = "force-dynamic";
 
-type SearchParams = Promise<{ status?: string; q?: string; month?: string }>;
+const PAGE_SIZE_OPTIONS = [25, 50, 100];
+
+type SearchParams = Promise<{
+  q?: string;
+  month?: string;
+  dojoId?: string;
+  filter?: string;
+  page?: string;
+  pageSize?: string;
+  sort?: string;
+  sortDir?: string;
+  memberId?: string;
+  tab?: string;
+}>;
+
+function formatRp(n: number) {
+  return `Rp ${Math.round(n).toLocaleString("id-ID")}`;
+}
 
 export default function AdminIuranPage({
   searchParams,
@@ -36,114 +62,124 @@ async function AdminIuranContent({
 }: {
   searchParams: SearchParams;
 }) {
-  const { token, user } = await requireAdminSession();
+  const { user } = await requireAdminSession();
   const params = await searchParams;
-  const status = params.status?.trim() || "";
   const q = params.q?.trim() || "";
-  const monthFilter = params.month?.trim() || "";
+  const filter = params.filter?.trim() || "all";
+  const sortRaw = params.sort?.trim() || "name";
+  const sort =
+    sortRaw === "arrears" || sortRaw === "status" || sortRaw === "name"
+      ? sortRaw
+      : "name";
+  const sortDir = params.sortDir === "desc" ? "desc" : "asc";
+  const page = parsePage(params.page);
+  const pageSize = parsePageSize(params.pageSize, PAGE_SIZE_OPTIONS, 25);
+  const period = parsePeriod(params.month);
   const canEdit = canManageIuranByWilayah(user.roles ?? []);
   const role = getPrimaryAdminRole(user.roles ?? []);
-  const managedDojoIds =
-    role === "ADMIN_DOJO" ? getManagedDojoIdsFromUser(user) : [];
-  const defaults = await getOperationalDefaults();
+  const isDojoAdmin = role === "ADMIN_DOJO";
+  const allowlist = getManagedDojoIdsFromUser(user);
+  const resolved = resolveActiveDojoId(user, params.dojoId);
+  const activeDojoId =
+    resolved.ok && isDojoAdmin
+      ? resolved.activeDojoId
+      : params.dojoId?.trim() || "";
+  const dojoId = isDojoAdmin
+    ? activeDojoId || ""
+    : params.dojoId?.trim() || "";
 
-  let billings = await fetchBillings(token, {
-    status: status || undefined,
-    limit: 250,
-  });
+  const [defaults, dojos, ledger] = await Promise.all([
+    getOperationalDefaults(),
+    fetchAdminDojosScopedCached(user),
+    getIuranMemberLedgerIndex(user, period, {
+      q,
+      dojoId: dojoId || undefined,
+      filter,
+      page,
+      pageSize,
+      sort,
+      sortDir,
+    }),
+  ]);
 
-  // Scope ketua ranting ke anggota dojo yang dikelola
-  if (role === "ADMIN_DOJO" && managedDojoIds.length > 0) {
-    billings = billings.filter((b) => {
-      const member = b.member as
-        | { dojo?: { id?: string }; dojoId?: string }
-        | undefined;
-      const dojoId = member?.dojo?.id ?? member?.dojoId;
-      if (!dojoId) return true;
-      return managedDojoIds.includes(dojoId);
-    });
-  }
+  const switcherDojos = isDojoAdmin
+    ? dojos.filter((d) => allowlist.includes(d.id))
+    : dojos;
 
-  if (monthFilter) {
-    billings = billings.filter((b) => {
-      const due = String(b.dueDate ?? "");
-      const desc = String(b.description ?? "");
-      return due.startsWith(monthFilter) || desc.includes(monthFilter);
-    });
-  }
+  const exportRows = ledger.exportRows.map((r) => ({
+    fullName: r.fullName,
+    nia: r.nia ?? "",
+    dojo: r.dojoName,
+    monthlyDues: r.monthlyDuesAmount,
+    monthStatus: monthStatusLabel(r.monthStatus),
+    arrears: r.arrearsAmount,
+    aging: r.aging === "none" ? "" : r.aging,
+    exemption: r.allowEventWithoutDues
+      ? "Ya — tidak wajib lunas iuran untuk daftar event/UKT atau lainnya"
+      : "Tidak",
+  }));
 
-  if (q) {
-    const lower = q.toLowerCase();
-    billings = billings.filter((b) => {
-      const member = b.member as { fullName?: string; nia?: string } | undefined;
-      return (
-        member?.fullName?.toLowerCase().includes(lower) ||
-        member?.nia?.toLowerCase().includes(lower)
-      );
-    });
-  }
+  const baseParams: Record<string, string> = {
+    ...(q ? { q } : {}),
+    month: period.key,
+    ...(filter !== "all" ? { filter } : {}),
+    ...(dojoId ? { dojoId } : {}),
+    ...(sort !== "name" ? { sort } : {}),
+    ...(sortDir !== "asc" ? { sortDir } : {}),
+    ...(params.memberId ? { memberId: params.memberId } : {}),
+    ...(params.tab ? { tab: params.tab } : {}),
+  };
 
-  const stats = billings.reduce<{ paid: number; waiting: number; pending: number }>(
-    (acc, b) => {
-      const amount = Number(b.amount ?? 0);
-      if (b.status === "PAID") acc.paid += amount;
-      else if (b.status === "WAITING_VERIFICATION") acc.waiting += 1;
-      else if (b.status === "PENDING") acc.pending += 1;
-      return acc;
-    },
-    { paid: 0, waiting: 0, pending: 0 },
-  );
-
-  const exportRows = billings.map((b) => {
-    const member = b.member as {
-      fullName?: string;
-      nia?: string;
-      dojo?: { name?: string };
-    } | undefined;
-    return {
-      id: String(b.id),
-      fullName: member?.fullName ?? "",
-      nia: member?.nia ?? "",
-      dojo: member?.dojo?.name ?? "",
-      type: String(b.type ?? ""),
-      amount: Number(b.amount ?? 0),
-      status: String(b.status ?? ""),
-      dueDate: new Date(String(b.dueDate)).toLocaleDateString("id-ID"),
-      description: b.description != null ? String(b.description) : "",
-    };
-  });
+  const { kpis } = ledger;
 
   return (
     <>
       <AdminPageHeader
-        title="Iuran & Tagihan Anggota"
+        title="Iuran Anggota"
         description={
           <>
-            Total lunas: Rp {stats.paid.toLocaleString("id-ID")} · Menunggu
-            verifikasi: {stats.waiting} · Belum bayar: {stats.pending}
+            Rekening koran iuran per anggota · Periode {period.key}
             <br />
             {canEdit ? (
               <span>
-                Ketua ranting/cabang dapat <strong>mengedit</strong> nominal &amp;
-                jatuh tempo, <strong>menandai lunas</strong> (tunai), serta
-                menyetujui/menolak bukti transfer.
+                Klik nama anggota untuk pengaturan, mutasi, dan pembayaran.
               </span>
             ) : (
-              <span>
-                Mode lihat saja — kelola iuran dilakukan oleh ranting/cabang.
-              </span>
+              <span>Mode lihat saja — kelola iuran oleh ranting/cabang.</span>
             )}
           </>
         }
+        actions={
+          switcherDojos.length > 1 ? (
+            <DojoContextSwitcher
+              dojos={switcherDojos.map((d) => ({ id: d.id, name: d.name }))}
+              value={dojoId}
+              label="Ranting"
+            />
+          ) : null
+        }
       />
+
+      <div className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+        <KpiChip label="Tunggakan" value={formatRp(kpis.arrearsAmount)} />
+        <KpiChip label="Belum bayar" value={String(kpis.pendingCount)} />
+        <KpiChip label="Menunggu verifikasi" value={String(kpis.waitingCount)} />
+        <KpiChip
+          label={`Lunas ${period.key}`}
+          value={`${formatRp(kpis.paidMonthAmount)} (${kpis.paidMonthCount})`}
+        />
+        <KpiChip label="Pengecualian" value={String(kpis.exemptCount)} />
+        <KpiChip label="Belum digenerate" value={String(kpis.noBillCount)} />
+      </div>
 
       <IuranOpsBar
         canEdit={canEdit}
         defaultAmount={defaults.monthlyDuesAmount}
-        billings={exportRows}
+        exportMode="members"
+        memberExportRows={exportRows}
       />
 
-      <form className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      <form className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
         <Input
           name="q"
           placeholder="Cari nama / NIA..."
@@ -153,21 +189,54 @@ async function AdminIuranContent({
         <Input
           name="month"
           type="month"
-          defaultValue={monthFilter}
+          defaultValue={period.key}
           className="h-10 w-full sm:h-8 sm:max-w-[160px] sm:w-auto"
-          title="Filter bulan (jatuh tempo / keterangan)"
+          title="Periode status bulan"
         />
+        {!isDojoAdmin || switcherDojos.length > 1 ? (
+          <select
+            name="dojoId"
+            defaultValue={dojoId}
+            className="h-10 w-full rounded-lg border px-2 text-sm sm:h-8 sm:w-auto"
+          >
+            <option value="">Semua ranting</option>
+            {switcherDojos.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <select
-          name="status"
-          defaultValue={status}
+          name="filter"
+          defaultValue={filter}
           className="h-10 w-full rounded-lg border px-2 text-sm sm:h-8 sm:w-auto"
         >
-          <option value="">Semua status</option>
-          <option value="PENDING">Belum bayar</option>
-          <option value="WAITING_VERIFICATION">Menunggu verifikasi</option>
-          <option value="PAID">Lunas</option>
-          <option value="REJECTED">Ditolak</option>
+          <option value="all">Semua anggota</option>
+          <option value="arrears">Ada tunggakan</option>
+          <option value="waiting">Menunggu verifikasi</option>
+          <option value="paid">Lunas bulan ini</option>
+          <option value="nobill">Belum digenerate</option>
+          <option value="exempt">Pengecualian</option>
         </select>
+        <select
+          name="sort"
+          defaultValue={sort}
+          className="h-10 w-full rounded-lg border px-2 text-sm sm:h-8 sm:w-auto"
+        >
+          <option value="name">Urut nama</option>
+          <option value="arrears">Urut tunggakan</option>
+          <option value="status">Urut status</option>
+        </select>
+        <select
+          name="sortDir"
+          defaultValue={sortDir}
+          className="h-10 w-full rounded-lg border px-2 text-sm sm:h-8 sm:w-auto"
+        >
+          <option value="asc">Naik</option>
+          <option value="desc">Turun</option>
+        </select>
+        <input type="hidden" name="pageSize" value={String(pageSize)} />
         <button
           type="submit"
           className="h-10 rounded-lg bg-inkai-red px-4 text-sm text-white sm:h-8 sm:py-1.5"
@@ -176,78 +245,28 @@ async function AdminIuranContent({
         </button>
       </form>
 
-      {billings.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
-            Tidak ada data iuran.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {billings.map((b) => {
-            const member = b.member as {
-              fullName?: string;
-              nia?: string;
-              dojo?: { name?: string };
-            } | undefined;
-            const payment = b.payment as { proofUrl?: string } | null | undefined;
-            return (
-              <OptimisticHide key={String(b.id)}>
-                <Card>
-                  <CardContent className="flex flex-wrap items-start justify-between gap-3 p-4">
-                    <div>
-                      <p className="font-medium">{member?.fullName ?? "—"}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {member?.nia || "—"} · {member?.dojo?.name ?? "—"} ·{" "}
-                        {String(b.type)}
-                      </p>
-                      {b.description != null && String(b.description) !== "" && (
-                        <p className="text-sm text-muted-foreground">
-                          {String(b.description)}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        Jatuh tempo:{" "}
-                        {new Date(String(b.dueDate)).toLocaleDateString("id-ID")}
-                      </p>
-                      {payment?.proofUrl && (
-                        <a
-                          href={payment.proofUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-inkai-red hover:underline"
-                        >
-                          Lihat bukti transfer
-                        </a>
-                      )}
-                    </div>
-                    <div className="flex min-w-[200px] flex-col items-end gap-2">
-                      <p className="font-bold">
-                        Rp {Number(b.amount).toLocaleString("id-ID")}
-                      </p>
-                      <Badge
-                        variant={b.status === "PAID" ? "default" : "secondary"}
-                      >
-                        {billingStatusLabel(String(b.status))}
-                      </Badge>
-                      <BillingActions
-                        billingId={String(b.id)}
-                        status={String(b.status)}
-                        amount={Number(b.amount)}
-                        dueDate={String(b.dueDate)}
-                        description={
-                          b.description != null ? String(b.description) : null
-                        }
-                        canEdit={canEdit}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              </OptimisticHide>
-            );
-          })}
-        </div>
-      )}
+      <IuranLedgerClient
+        rows={ledger.rows}
+        total={ledger.total}
+        page={page}
+        pageSize={pageSize}
+        canEdit={canEdit}
+        defaultDuesAmount={defaults.monthlyDuesAmount}
+        waitingQueue={ledger.waitingQueue}
+        baseParams={baseParams}
+        periodKey={period.key}
+        initialMemberId={params.memberId?.trim() || undefined}
+        initialTab={params.tab?.trim() || undefined}
+      />
     </>
+  );
+}
+
+function KpiChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-[132px] shrink-0 rounded-xl border bg-background px-3 py-2 sm:min-w-0">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="text-sm font-semibold tabular-nums">{value}</p>
+    </div>
   );
 }

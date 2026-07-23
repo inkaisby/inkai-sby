@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getPrimaryAdminRole, type SessionUser } from "@/lib/rbac";
 import { canManageIuranByWilayah } from "@/lib/wilayah-rbac";
 import { adminBillingPatchSchema } from "@/lib/security/schemas";
-import { writeAuditLog } from "@/lib/audit";
+import { formatBillingAuditDetails, writeBillingAudit } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
 import {
   deleteBillingHard,
@@ -219,11 +219,20 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    writeAuditLog({
+    writeBillingAudit({
       userId: authResult.user.id,
       email: authResult.user.email,
       action: "BILLING_SUBMIT_VERIFICATION",
-      details: `Submitted billing ${id} for cabang verification`,
+      memberId: scope.billing?.member?.id,
+      billingId: id,
+      billingAction: "submit_for_verification",
+      notes: note,
+      details: formatBillingAuditDetails({
+        memberId: scope.billing?.member?.id,
+        billingId: id,
+        billingAction: "submit_for_verification",
+        notes: note,
+      }),
       ip: getClientIp(request),
       userAgent: request.headers.get("user-agent"),
       token: authResult.token,
@@ -291,11 +300,23 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
-    writeAuditLog({
+    writeBillingAudit({
       userId: authResult.user.id,
       email: authResult.user.email,
       action: "BILLING_UPDATE",
-      details: `Updated billing ${id}: ${JSON.stringify(patch)}`,
+      memberId: scope.billing?.member?.id,
+      billingId: id,
+      billingAction: "update",
+      amount: data.amount ?? scope.billing?.amount,
+      details: formatBillingAuditDetails(
+        {
+          memberId: scope.billing?.member?.id,
+          billingId: id,
+          billingAction: "update",
+          amount: data.amount ?? scope.billing?.amount,
+        },
+        JSON.stringify(patch),
+      ),
       ip: getClientIp(request),
       userAgent: request.headers.get("user-agent"),
       token: authResult.token,
@@ -370,11 +391,22 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
-  writeAuditLog({
+  writeBillingAudit({
     userId: authResult.user.id,
     email: authResult.user.email,
     action: "BILLING_VERIFY",
-    details: `${data.action} billing ${id}`,
+    memberId: scope.billing?.member?.id,
+    billingId: id,
+    billingAction: data.action,
+    notes: data.adminNotes,
+    amount: scope.billing?.amount,
+    details: formatBillingAuditDetails({
+      memberId: scope.billing?.member?.id,
+      billingId: id,
+      billingAction: data.action,
+      notes: data.adminNotes,
+      amount: scope.billing?.amount,
+    }),
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token: authResult.token,
@@ -471,13 +503,21 @@ export async function DELETE(request: Request, context: RouteContext) {
     }
   }
 
-  writeAuditLog({
+  writeBillingAudit({
     userId: authResult.user.id,
     email: authResult.user.email,
     action: "BILLING_DELETE",
-    details: `Deleted billing ${id}${force || isPaid ? " [force]" : ""}${
-      usedDbForce ? " [db-force]" : ""
-    }`,
+    memberId: scope.billing?.member?.id,
+    billingId: id,
+    billingAction: "delete",
+    details: formatBillingAuditDetails(
+      {
+        memberId: scope.billing?.member?.id,
+        billingId: id,
+        billingAction: "delete",
+      },
+      `${force || isPaid ? "[force]" : ""}${usedDbForce ? " [db-force]" : ""}`,
+    ),
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token: authResult.token,

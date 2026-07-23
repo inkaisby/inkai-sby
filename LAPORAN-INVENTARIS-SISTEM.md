@@ -104,7 +104,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda); **dual-role: menu Dashboard Anggota** |
 | Kelola Anggota | Cari **autocomplete** (nama/NIA/**MSH**); kolom **No**; **sort kolom** (NIA, Nama, Sabuk, Status, Dojo, Terdaftar — ikon naik/turun, server-side); KPI status + **Dok. kurang** + **Tanpa NIA**; **ranting/cabang edit Nama** inline (`set_name`) + **Dokumen** (tombol Ubah di kolom / detail); **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **No. MSH** (Hitam/DAN — kolom + edit ranting/cabang `set_msh`); **Terdaftar**; **edit Iuran/bln**; **pengecualian iuran (event/UKT)**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV (+ No. MSH); arsip; Prisma scoped (+ **anggota luar Surabaya / ranting arsip** tetap terlihat); filter client-side; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50); detail: **username login dari Prisma** (bukan hint palsu); **Reset password** sementara (ranting/cabang) |
-| Iuran Anggota | Verifikasi + edit + lunas; **buat tagihan bulan**; filter bulan; label ID; **export CSV** |
+| Iuran Anggota | **Rekening koran per anggota** (tabel: No, Nama, NIA, Ranting, Iuran/bln, Status bulan, Tunggakan, Aging, **Pengecualian**); klik nama → Sheet **Pengaturan / Mutasi / Pembayaran**; strip antrian verifikasi; generate bulan; export rekap CSV; deep-link `?memberId=&tab=` |
 | UKT | Nav grup **Pendaftaran** (`/admin/ukt`) + **Arsip UKT** (`/admin/ukt/arsip`); periode aktif, daftar peserta, **sort kolom**, multi-select ranting, **filter Gabungan multi-ranting**, bayar→verifikasi cabang, sabuk target, nota, **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya); **toolbar atas sticky**; **ranting: Daftar/Batal/Bayar + toolbar Laporan WA & Cetak Nota**; cabang: **Hapus tagihan** terpisah dari hapus pendaftaran |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
 | Verifikasi | Antrian klaim + **filter tipe/aging**; riwayat |
@@ -205,12 +205,11 @@ Pusat / Nasional
 ### 9.2 Iuran
 1. Tagihan iuran bulanan muncul di sistem.
 2. Anggota melihat tagihan di `/dashboard/iuran` dan dapat **mengunggah bukti** pembayaran.
-3. **Ketua ranting / cabang** di `/admin/iuran` dapat:
-   - mengedit nominal, jatuh tempo, deskripsi (tagihan belum lunas);
-   - menandai lunas (tunai/setoran ranting) tanpa menunggu unggah bukti;
-   - menyetujui / menolak bukti transfer (+ catatan).
-4. **Iuran/bln per anggota** dapat diubah ranting/cabang di detail `/admin/anggota` (`PATCH set_dues`); generate tagihan bulanan memakai nominal per anggota bila ada, else default kebijakan.
-5. Status: `PENDING` → `WAITING_VERIFICATION` → `PAID` / ditolak.
+3. **Ketua ranting / cabang** di `/admin/iuran` melihat **daftar anggota** (rekening koran) scoped ranting/cabang, dengan rekap tunggakan, status bulan, aging, dan kolom **Pengecualian** (tidak wajib lunas iuran untuk daftar event/UKT atau lainnya).
+4. Klik nama anggota membuka Sheet rekening: **Pengaturan** (Iuran/bln + pengecualian), **Mutasi** (riwayat iuran bulanan saja, bukan UKT), **Pembayaran** (setujui/tolak/tandai lunas).
+5. Strip **Perlu aksi** menampilkan antrian `WAITING_VERIFICATION` dengan setujui cepat. **Bulk lunas tunai** (centang anggota → tandai lunas periode filter).
+6. **Iuran/bln per anggota** dapat diubah di Sheet Iuran atau detail `/admin/anggota` (`PATCH set_dues`); generate tagihan bulanan memakai nominal per anggota bila ada, else default kebijakan; anggota pengecualian di-skip generate.
+7. Status: `PENDING` → `WAITING_VERIFICATION` → `PAID` / ditolak. Aksi verifikasi/lunas/edit menulis **jejak aksi** (siapa/kapan/catatan) ke audit lokal + Inkai; tampil di Sheet Mutasi/Pembayaran.
 
 ### 9.3 UKT (Ujian Kenaikan Tingkat)
 1. **Cabang** membuat periode UKT per semester (Semester I = Jan–Jun, Semester II = Jul–Des); setiap semester = **event terpisah** dengan registrasi & pembayaran sendiri.
@@ -276,7 +275,7 @@ Pusat / Nasional
 |------|--------|----------------------------------|
 | Portal publik | Lengkap | Konten organisasi & kegiatan |
 | Dashboard anggota inti | Lengkap | Beranda asisten: checklist, jadwal dojo, absen hari ini, PIC, aksi kontekstual, agenda |
-| Admin anggota / iuran / UKT | Lengkap | Iuran: edit/lunas/verifikasi (ranting+cabang); anggota: nonaktif/aktif/hapus arsip + **edit sabuk (cabang)**; UKT pakai gate iuran+dokumen+absensi, hasil ujian, rekap ranting, nota tanpa kode unik |
+| Admin anggota / iuran / UKT | Lengkap | Iuran: **rekening koran** per anggota + Sheet pengaturan/mutasi/bayar + pengecualian event/UKT; anggota: nonaktif/aktif/hapus arsip + **edit sabuk (cabang)**; UKT pakai gate iuran+dokumen+absensi, hasil ujian, rekap ranting, nota tanpa kode unik |
 | Verifikasi kartu (publik) | Aktif | `/v/[id]` — scan QR kartu anggota |
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
 | Materi / Store / Pesan / Pindah / Piagam | Aktif | Pesan: partisipan wajib (tanpa IDOR/fallback all); unread + cari + broadcast; store/materi upload |
@@ -347,6 +346,8 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/members/archived Daftar arsip soft-delete
 /api/admin/billing/[id]     Edit tagihan, **submit_for_verification** (ranting→Menunggu Verifikasi), verifikasi/tandai lunas, **hapus** (ranting/cabang; force lunas = cabang; fallback Prisma bila API gagal)
 /api/admin/billing/generate Buat tagihan iuran bulanan massal
+/api/admin/billing/bulk-mark-paid  Lunas tunai massal per periode (memberIds + year/month)
+/api/admin/iuran/members/[id]  Detail rekening iuran anggota (profil + mutasi bulanan + summary tunggakan + jejak aksi; scoped RBAC)
 /api/admin/ukt/registrations/[id]  Update/hapus pendaftaran UKT (`submit_for_verification` / `mark_paid` / Kyu; cabang force hapus: API lalu fallback Prisma shared DB)
 /api/admin/ukt/table        Refresh cepat tabel UKT (snapshot registrasi/tagihan periode, merge ke rows lokal)
 /api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees (snapshot/global), Kyu, exam-day, deposit, period-meta, hapus pendaftaran + tagihan terkait
@@ -606,6 +607,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Juli 2026 | Tema default: **jam operasional** (05–17 terang, 18–04 gelap) menggantikan ikuti OS; siklus jadwal → terang → gelap; ikon Clock |
 | 23 Juli 2026 | No. MSH di Kelola Anggota (kolom + detail edit `set_msh`); notifikasi admin ranting/cabang saat MSH diisi/diubah (profil, pengajuan, admin) |
 | 23 Juli 2026 | Kelola Anggota: ranting/cabang edit **Nama** inline (`set_name`) + **Dokumen** (tombol Ubah di kolom) |
+| 23 Juli 2026 | Admin Iuran → **rekening koran**: tabel anggota (Iuran/bln, status bulan, tunggakan, aging, **Pengecualian** event/UKT); Sheet Pengaturan/Mutasi/Pembayaran; strip verifikasi; `GET /api/admin/iuran/members/[id]`; deep-link dari detail anggota |
+| 23 Juli 2026 | Iuran MVP gaps: filter tipe bulanan saja; aging + status Belum digenerate; **jejak aksi** lokal di Sheet; **bulk lunas tunai** `POST /api/admin/billing/bulk-mark-paid` |
 
 ---
 

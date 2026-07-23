@@ -6,17 +6,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { ExportCsvButton } from "@/components/admin/ExportCsvButton";
-import { billingStatusLabel } from "@/lib/admin-labels";
 import { Loader2, Wand2 } from "lucide-react";
+
+type MemberExportRow = {
+  fullName: string;
+  nia: string;
+  dojo: string;
+  monthlyDues: number;
+  monthStatus: string;
+  arrears: number;
+  aging: string;
+  exemption: string;
+};
 
 export function IuranOpsBar({
   canEdit,
   defaultAmount,
-  billings,
+  exportMode = "members",
+  memberExportRows = [],
+  billings = [],
 }: {
   canEdit: boolean;
   defaultAmount: number;
-  billings: Array<{
+  exportMode?: "members" | "billings";
+  memberExportRows?: MemberExportRow[];
+  billings?: Array<{
     id: string;
     fullName: string;
     nia: string;
@@ -84,29 +98,56 @@ export function IuranOpsBar({
             </p>
           </div>
           <div onClick={(e) => e.stopPropagation()}>
-            <ExportCsvButton
-              filename="iuran-export.csv"
-              headers={[
-                "Nama",
-                "NIA",
-                "Dojo",
-                "Tipe",
-                "Nominal",
-                "Status",
-                "Jatuh tempo",
-                "Keterangan",
-              ]}
-              rows={billings.map((b) => [
-                b.fullName,
-                b.nia,
-                b.dojo,
-                b.type,
-                b.amount,
-                billingStatusLabel(b.status),
-                b.dueDate,
-                b.description,
-              ])}
-            />
+            {exportMode === "members" ? (
+              <ExportCsvButton
+                filename="iuran-rekap-anggota.csv"
+                label="Export rekap"
+                headers={[
+                  "Nama",
+                  "NIA",
+                  "Ranting",
+                  "Iuran/bln",
+                  "Status bulan",
+                  "Tunggakan",
+                  "Aging",
+                  "Pengecualian",
+                ]}
+                rows={memberExportRows.map((b) => [
+                  b.fullName,
+                  b.nia,
+                  b.dojo,
+                  b.monthlyDues,
+                  b.monthStatus,
+                  b.arrears,
+                  b.aging,
+                  b.exemption,
+                ])}
+              />
+            ) : (
+              <ExportCsvButton
+                filename="iuran-export.csv"
+                headers={[
+                  "Nama",
+                  "NIA",
+                  "Dojo",
+                  "Tipe",
+                  "Nominal",
+                  "Status",
+                  "Jatuh tempo",
+                  "Keterangan",
+                ]}
+                rows={billings.map((b) => [
+                  b.fullName,
+                  b.nia,
+                  b.dojo,
+                  b.type,
+                  b.amount,
+                  b.status,
+                  b.dueDate,
+                  b.description,
+                ])}
+              />
+            )}
           </div>
         </div>
       </summary>
