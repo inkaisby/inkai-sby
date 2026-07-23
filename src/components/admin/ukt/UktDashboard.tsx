@@ -72,6 +72,7 @@ import { UktExportDialog } from "@/components/admin/ukt/UktExportDialog";
 import { UktExamDayDialog } from "@/components/admin/ukt/UktExamDayDialog";
 import { UktFloatingCountdown } from "@/components/admin/ukt/UktFloatingCountdown";
 import { UktSearchBar } from "@/components/admin/ukt/UktSearchBar";
+import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
 import { AddMemberDialog } from "@/components/admin/AddMemberDialog";
 import {
   BELT_RANK_OPTIONS,
@@ -2674,7 +2675,7 @@ export function UktDashboard(props: Props) {
                 />
               </TableHead>
               <TableHead className="w-10">No</TableHead>
-              <TableHead className="w-14">Foto</TableHead>
+              <TableHead className="hidden w-14 sm:table-cell">Foto</TableHead>
               <SortableTableHead
                 label="NIA"
                 sortKey="nia"
@@ -2819,7 +2820,7 @@ export function UktDashboard(props: Props) {
                   <TableCell className="text-muted-foreground">
                     {(safePage - 1) * localPageSize + idx + 1}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <MemberAvatarRing
                       fullName={row.fullName}
                       currentRank={row.kyuBaru || row.kyuLama}
@@ -2996,66 +2997,83 @@ export function UktDashboard(props: Props) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {!row.registrationId ? (
-                        (() => {
-                          const blockers = getUktRegistrationBlockersWithWaiver(
+                    {(() => {
+                      const moreItems: {
+                        label: string;
+                        onSelect: () => void;
+                        disabled?: boolean;
+                        destructive?: boolean;
+                        separatorBefore?: boolean;
+                      }[] = [];
+
+                      if (!row.registrationId) {
+                        const blockers = getUktRegistrationBlockersWithWaiver(
+                          row,
+                          {
+                            registrationOpen,
+                            registrationNotYetOpen,
+                            ...memberRequirementOpts,
+                          },
+                          row.registrationWaiver,
+                        );
+                        const blocked = blockers.length > 0;
+                        if (
+                          isCabang &&
+                          getUktRegistrationBlockersWithWaiver(
                             row,
                             {
                               registrationOpen,
                               registrationNotYetOpen,
-                              ...memberRequirementOpts,
+                              requireNoOutstandingDues:
+                                registrationPolicy.requireNoOutstandingDues,
+                              requireDocuments:
+                                registrationPolicy.requireDocuments,
+                              requireMinAttendance:
+                                registrationPolicy.requireMinAttendance,
+                              minAttendancePct:
+                                registrationPolicy.minAttendancePct,
                             },
                             row.registrationWaiver,
-                          );
-                          const blocked = blockers.length > 0;
-                          return (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
-                                onClick={() => handleRegister(row.memberId)}
-                                disabled={
-                                  isMemberPending(row.memberId) ||
-                                  !props.selectedPeriodId ||
-                                  periodLocked ||
-                                  blocked
-                                }
-                                title={
-                                  blocked
-                                    ? formatUktRegistrationBlockers(
-                                        blockers,
-                                        memberRequirementOpts.minAttendancePct,
-                                      )
-                                    : "Daftarkan ke UKT"
-                                }
-                              >
-                                {isMemberPending(row.memberId)
-                                  ? "Mendaftar…"
-                                  : "Daftar UKT"}
-                              </Button>
-                              {isCabang &&
-                                getUktRegistrationBlockersWithWaiver(
-                                  row,
-                                  {
-                                    registrationOpen,
-                                    registrationNotYetOpen,
-                                    requireNoOutstandingDues:
-                                      registrationPolicy.requireNoOutstandingDues,
-                                    requireDocuments:
-                                      registrationPolicy.requireDocuments,
-                                    requireMinAttendance:
-                                      registrationPolicy.requireMinAttendance,
-                                    minAttendancePct:
-                                      registrationPolicy.minAttendancePct,
-                                  },
-                                  row.registrationWaiver,
-                                ).length > 0 && (
+                          ).length > 0
+                        ) {
+                          moreItems.push({
+                            label: "Waiver",
+                            onSelect: () => openWaiverDialog(row),
+                            disabled: loading,
+                          });
+                        }
+                        return (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => handleRegister(row.memberId)}
+                              disabled={
+                                isMemberPending(row.memberId) ||
+                                !props.selectedPeriodId ||
+                                periodLocked ||
+                                blocked
+                              }
+                              title={
+                                blocked
+                                  ? formatUktRegistrationBlockers(
+                                      blockers,
+                                      memberRequirementOpts.minAttendancePct,
+                                    )
+                                  : "Daftarkan ke UKT"
+                              }
+                            >
+                              {isMemberPending(row.memberId)
+                                ? "Mendaftar…"
+                                : "Daftar UKT"}
+                            </Button>
+                            {moreItems.length > 0 ? (
+                              <>
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-7 text-xs"
+                                  className="hidden h-7 text-xs sm:inline-flex"
                                   onClick={() => openWaiverDialog(row)}
                                   disabled={loading}
                                   title="Berikan pengecualian syarat pendaftaran"
@@ -3063,12 +3081,61 @@ export function UktDashboard(props: Props) {
                                   <ShieldCheck className="mr-0.5 h-3 w-3" />
                                   Waiver
                                 </Button>
-                              )}
-                            </>
-                          );
-                        })()
-                      ) : (
-                        <>
+                                <span className="sm:hidden">
+                                  <AdminMoreActions
+                                    items={moreItems}
+                                    className="h-7 w-7 p-0"
+                                  />
+                                </span>
+                              </>
+                            ) : null}
+                          </div>
+                        );
+                      }
+
+                      if (isCabang && row.billingId) {
+                        moreItems.push({
+                          label: "Hapus tagihan",
+                          onSelect: () =>
+                            setDeleteBillingTarget({
+                              billingId: row.billingId!,
+                              memberId: row.memberId,
+                              name: row.fullName,
+                              billingStatus: row.billingStatus,
+                            }),
+                          disabled: loading || isMemberPending(row.memberId),
+                        });
+                      }
+                      if (
+                        ((canCancelUktRegistration(row) &&
+                          (isDojoAdmin || isCabang)) ||
+                          canForceCancelUktRegistration(
+                            row,
+                            canForcePaidCancel,
+                          )) &&
+                        !(isDojoAdmin && isUktSelesai(row))
+                      ) {
+                        moreItems.push({
+                          label: isDojoAdmin ? "Batal UKT" : "Hapus pendaftaran",
+                          onSelect: () =>
+                            setCancelTarget({
+                              id: row.registrationId!,
+                              name: row.fullName,
+                              memberId: row.memberId,
+                              billingId: row.billingId,
+                              force: canForceCancelUktRegistration(
+                                row,
+                                canForcePaidCancel,
+                              ),
+                            }),
+                          disabled: loading || isMemberPending(row.memberId),
+                          destructive: true,
+                          separatorBefore: moreItems.length > 0,
+                        });
+                      }
+
+                      return (
+                        <div className="flex flex-wrap items-center gap-1">
                           {isDojoAdmin && canRantingSubmitUktPayment(row) && (
                             <Button
                               size="sm"
@@ -3109,7 +3176,7 @@ export function UktDashboard(props: Props) {
                                   );
                                 }}
                               >
-                                <SelectTrigger className="h-7 w-[148px] text-xs">
+                                <SelectTrigger className="h-7 w-[min(100%,148px)] text-xs">
                                   <SelectValue placeholder="Hasil ujian" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -3137,63 +3204,78 @@ export function UktDashboard(props: Props) {
                               Selesai
                             </Button>
                           )}
-                          {isCabang && row.billingId && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() =>
-                                setDeleteBillingTarget({
-                                  billingId: row.billingId!,
-                                  memberId: row.memberId,
-                                  name: row.fullName,
-                                  billingStatus: row.billingStatus,
-                                })
-                              }
-                              disabled={loading || isMemberPending(row.memberId)}
-                              title="Hapus tagihan UKT saja (pendaftaran tetap)"
-                            >
-                              <Wallet className="mr-0.5 h-3 w-3" />
-                              {isMemberPending(row.memberId) ? "…" : "Hapus tagihan"}
-                            </Button>
-                          )}
-                          {((canCancelUktRegistration(row) &&
-                            (isDojoAdmin || isCabang)) ||
-                            canForceCancelUktRegistration(
-                              row,
-                              canForcePaidCancel,
-                            )) &&
-                          !(isDojoAdmin && isUktSelesai(row)) ? (
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              className="h-7 text-xs"
-                              onClick={() =>
-                                setCancelTarget({
-                                  id: row.registrationId!,
-                                  name: row.fullName,
-                                  memberId: row.memberId,
-                                  billingId: row.billingId,
-                                  force: canForceCancelUktRegistration(
-                                    row,
-                                    canForcePaidCancel,
-                                  ),
-                                })
-                              }
-                              disabled={loading || isMemberPending(row.memberId)}
-                              title={isDojoAdmin ? "Batalkan pendaftaran UKT" : "Hapus pendaftaran UKT"}
-                            >
-                              <Trash2 className="mr-0.5 h-3 w-3" />
-                              {isMemberPending(row.memberId)
-                                ? "…"
-                                : isDojoAdmin
-                                  ? "Batal UKT"
-                                  : "Hapus"}
-                            </Button>
+                          {/* Desktop: aksi sekunder inline */}
+                          <span className="hidden sm:contents">
+                            {isCabang && row.billingId && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() =>
+                                  setDeleteBillingTarget({
+                                    billingId: row.billingId!,
+                                    memberId: row.memberId,
+                                    name: row.fullName,
+                                    billingStatus: row.billingStatus,
+                                  })
+                                }
+                                disabled={loading || isMemberPending(row.memberId)}
+                                title="Hapus tagihan UKT saja (pendaftaran tetap)"
+                              >
+                                <Wallet className="mr-0.5 h-3 w-3" />
+                                {isMemberPending(row.memberId) ? "…" : "Hapus tagihan"}
+                              </Button>
+                            )}
+                            {((canCancelUktRegistration(row) &&
+                              (isDojoAdmin || isCabang)) ||
+                              canForceCancelUktRegistration(
+                                row,
+                                canForcePaidCancel,
+                              )) &&
+                            !(isDojoAdmin && isUktSelesai(row)) ? (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="h-7 text-xs"
+                                onClick={() =>
+                                  setCancelTarget({
+                                    id: row.registrationId!,
+                                    name: row.fullName,
+                                    memberId: row.memberId,
+                                    billingId: row.billingId,
+                                    force: canForceCancelUktRegistration(
+                                      row,
+                                      canForcePaidCancel,
+                                    ),
+                                  })
+                                }
+                                disabled={loading || isMemberPending(row.memberId)}
+                                title={
+                                  isDojoAdmin
+                                    ? "Batalkan pendaftaran UKT"
+                                    : "Hapus pendaftaran UKT"
+                                }
+                              >
+                                <Trash2 className="mr-0.5 h-3 w-3" />
+                                {isMemberPending(row.memberId)
+                                  ? "…"
+                                  : isDojoAdmin
+                                    ? "Batal UKT"
+                                    : "Hapus"}
+                              </Button>
+                            ) : null}
+                          </span>
+                          {moreItems.length > 0 ? (
+                            <span className="sm:hidden">
+                              <AdminMoreActions
+                                items={moreItems}
+                                className="h-7 w-7 p-0"
+                              />
+                            </span>
                           ) : null}
-                        </>
-                      )}
-                    </div>
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                 </TableRow>
                 );

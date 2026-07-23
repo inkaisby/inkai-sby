@@ -486,21 +486,7 @@ export function MemberActions({
               {nia?.trim() ? "Aktif" : "Aktif · tanpa NIA"}
             </span>
           )}
-          <div className="flex items-center gap-1">
-            {canToggle ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8"
-                disabled={loading}
-                onClick={() => setConfirmKind("deactivate")}
-              >
-                Nonaktifkan
-              </Button>
-            ) : null}
-            {lifecycleMenu}
-          </div>
+          {lifecycleMenu}
         </div>
         {confirmDialog}
       </>
@@ -511,22 +497,11 @@ export function MemberActions({
     return (
       <>
         <div className="flex items-center gap-1">
-          {canToggle ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 border-emerald-300 text-emerald-800 hover:bg-emerald-50"
-              disabled={loading}
-              onClick={() => setConfirmKind("activate")}
-            >
-              Aktifkan
-            </Button>
-          ) : (
+          {!canToggle ? (
             <span className="text-xs text-muted-foreground">
               {statusKey === "SUSPENDED" ? "Ditangguhkan" : "Nonaktif"}
             </span>
-          )}
+          ) : null}
           {lifecycleMenu}
         </div>
         {confirmDialog}

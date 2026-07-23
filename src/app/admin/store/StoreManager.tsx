@@ -7,11 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { FileUploadField } from "@/components/admin/FileUploadField";
+import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
 import {
   STORE_ORDER_STATUS_ACTIONS,
   storeOrderStatusLabel,
 } from "@/lib/admin-labels";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus } from "lucide-react";
 
 type Product = {
   id: string;
@@ -254,20 +255,20 @@ export function StoreManager({
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void toggleActive(p)}
-                    >
-                      {p.isActive ? "Nonaktifkan" : "Aktifkan"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => void removeProduct(p.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    <AdminMoreActions
+                      items={[
+                        {
+                          label: p.isActive ? "Nonaktifkan" : "Aktifkan",
+                          onSelect: () => void toggleActive(p),
+                        },
+                        {
+                          label: "Hapus",
+                          onSelect: () => void removeProduct(p.id),
+                          destructive: true,
+                          separatorBefore: true,
+                        },
+                      ]}
+                    />
                   </div>
                 </div>
               )}
@@ -298,7 +299,7 @@ export function StoreManager({
                     {storeOrderStatusLabel(o.status)}
                   </Badge>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1">
+                <div className="mt-2 grid grid-cols-2 gap-1 sm:flex sm:flex-wrap">
                   {STORE_ORDER_STATUS_ACTIONS.map((s) => (
                     <Button
                       key={s.value}

@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { FileUploadField } from "@/components/admin/FileUploadField";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 
 type Material = {
   id: string;
@@ -130,13 +131,19 @@ export function MateriManager({ initialItems }: { initialItems: Material[] }) {
                 Buka file
               </a>
             </div>
-            <div className="flex gap-1">
+            <div className="flex items-center gap-1">
               <Button size="sm" variant="outline" onClick={() => void togglePublish(m)}>
                 {m.isPublished ? "Sembunyikan" : "Publikasikan"}
               </Button>
-              <Button size="sm" variant="destructive" onClick={() => void remove(m.id)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <AdminMoreActions
+                items={[
+                  {
+                    label: "Hapus",
+                    onSelect: () => void remove(m.id),
+                    destructive: true,
+                  },
+                ]}
+              />
             </div>
           </div>
         ))}

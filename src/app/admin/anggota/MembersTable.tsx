@@ -694,7 +694,7 @@ export function MembersTable({
                 </TableHead>
               ) : null}
               <TableHead className="w-12 text-center">No</TableHead>
-              <TableHead className="w-12">Foto</TableHead>
+              <TableHead className="hidden w-12 sm:table-cell">Foto</TableHead>
               {onSort ? (
                 <>
                   <SortableTableHead
@@ -717,6 +717,7 @@ export function MembersTable({
                     activeKey={sortKey}
                     activeDir={sortDir}
                     onSort={onSort}
+                    className="hidden sm:table-cell"
                   />
                   <SortableTableHead
                     label="Status"
@@ -730,7 +731,7 @@ export function MembersTable({
                 <>
                   <TableHead>NIA</TableHead>
                   <TableHead>Nama</TableHead>
-                  <TableHead>Sabuk</TableHead>
+                  <TableHead className="hidden sm:table-cell">Sabuk</TableHead>
                   <TableHead>Status</TableHead>
                 </>
               )}
@@ -751,16 +752,18 @@ export function MembersTable({
                     activeKey={sortKey}
                     activeDir={sortDir}
                     onSort={onSort}
-                    className="whitespace-nowrap"
+                    className="hidden md:table-cell whitespace-nowrap"
                   />
                 </>
               ) : (
                 <>
                   <TableHead className="hidden sm:table-cell">Dojo</TableHead>
-                  <TableHead className="whitespace-nowrap">Terdaftar</TableHead>
+                  <TableHead className="hidden md:table-cell whitespace-nowrap">
+                    Terdaftar
+                  </TableHead>
                 </>
               )}
-              <TableHead>Aksi</TableHead>
+              <TableHead className="w-24 sm:w-auto">Aksi</TableHead>
             </TableRow>
           </TableHeader>          <TableBody>
             {members.length === 0 ? (
@@ -800,7 +803,7 @@ export function MembersTable({
                     <TableCell className="text-center tabular-nums text-muted-foreground text-sm">
                       {rowNo}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <MemberAvatarRing
                         fullName={m.fullName}
                         currentRank={m.currentRank}
@@ -823,7 +826,10 @@ export function MembersTable({
                     <TableCell className="font-medium text-inkai-red">
                       {formatMemberName(m.fullName)}
                     </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell
+                      className="hidden sm:table-cell"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {canEditRank ? (
                         <select
                           className="h-8 max-w-40 rounded border bg-background px-1 text-xs"
@@ -931,7 +937,7 @@ export function MembersTable({
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground tabular-nums">
+                    <TableCell className="hidden md:table-cell whitespace-nowrap text-xs text-muted-foreground tabular-nums">
                       {formatDateTime(m.createdAt)}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>

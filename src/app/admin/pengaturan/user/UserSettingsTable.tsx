@@ -26,9 +26,10 @@ import {
   CredentialsReveal,
   type CredentialPayload,
 } from "@/components/admin/pengaturan/CredentialsReveal";
+import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { generateSimplePassword } from "@/lib/security/password";
-import { Download, KeyRound, Pencil, Plus, UserCheck, UserX } from "lucide-react";
+import { Download, Plus } from "lucide-react";
 
 export type AdminUserRow = {
   id: string;
@@ -406,34 +407,26 @@ export function UserSettingsTable({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex flex-wrap justify-end gap-1">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={loading}
-                        onClick={() => openEdit(u)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={loading}
-                        onClick={() => openReset(u)}
-                      >
-                        <KeyRound className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={loading}
-                        onClick={() => void toggleActive(u)}
-                      >
-                        {u.isActive ? (
-                          <UserX className="h-3.5 w-3.5" />
-                        ) : (
-                          <UserCheck className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
+                      <AdminMoreActions
+                        items={[
+                          {
+                            label: "Ubah",
+                            onSelect: () => openEdit(u),
+                            disabled: loading,
+                          },
+                          {
+                            label: "Reset password",
+                            onSelect: () => openReset(u),
+                            disabled: loading,
+                          },
+                          {
+                            label: u.isActive ? "Nonaktifkan" : "Aktifkan",
+                            onSelect: () => void toggleActive(u),
+                            disabled: loading,
+                            destructive: u.isActive,
+                          },
+                        ]}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>

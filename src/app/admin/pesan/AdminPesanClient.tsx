@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { showError, showSuccess } from "@/lib/client-toast";
-import { Loader2, Megaphone, Search, Send } from "lucide-react";
+import { ArrowLeft, Loader2, Megaphone, Search, Send } from "lucide-react";
 
 type ConvListItem = {
   id: string;
@@ -175,14 +175,17 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- label uses meId/list
   }, [list, query, meId]);
 
+  const activeConv = activeId != null ? list.find((c) => c.id === activeId) : undefined;
+  const activeLabel = activeConv ? label(activeConv) : "";
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="gap-1.5"
+          className="h-10 w-full gap-1.5 sm:h-8 sm:w-auto"
           onClick={() => setShowBroadcast((v) => !v)}
         >
           <Megaphone className="h-3.5 w-3.5" />
@@ -194,7 +197,7 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
       </div>
 
       {showBroadcast ? (
-        <div className="space-y-3 rounded-xl border p-4">
+        <div className="space-y-3 rounded-xl border p-3 sm:p-4">
           <h3 className="text-sm font-semibold">Broadcast ke anggota</h3>
           <input
             value={bcTitle}
@@ -210,7 +213,7 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
             placeholder="Isi pengumuman..."
             maxLength={2000}
           />
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="radio"
@@ -232,7 +235,7 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
               <select
                 value={bcDojoId}
                 onChange={(e) => setBcDojoId(e.target.value)}
-                className="h-9 rounded-lg border px-2 text-sm"
+                className="h-10 w-full rounded-lg border px-2 text-sm sm:h-9 sm:w-auto"
               >
                 {dojos.map((d) => (
                   <option key={d.id} value={d.id}>
@@ -242,7 +245,7 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
               </select>
             ) : null}
           </div>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
             <Button
               type="button"
               className="bg-inkai-red hover:bg-inkai-red/90"
@@ -263,7 +266,12 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-        <div className="rounded-xl border">
+        {/* Inbox — di HP sembunyi saat thread terbuka */}
+        <div
+          className={`rounded-xl border ${
+            activeId ? "hidden lg:block" : "block"
+          }`}
+        >
           <div className="space-y-2 border-b p-3">
             <p className="text-sm font-semibold">Kotak Masuk</p>
             <div className="relative">
@@ -271,7 +279,7 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="h-9 w-full rounded-lg border pl-8 pr-3 text-sm"
+                className="h-10 w-full rounded-lg border pl-8 pr-3 text-sm sm:h-9"
                 placeholder="Cari nama / isi..."
               />
             </div>
@@ -285,7 +293,7 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
               {list.length === 0 ? "Belum ada pesan." : "Tidak ada hasil pencarian."}
             </p>
           ) : (
-            <div className="max-h-[520px] overflow-y-auto">
+            <div className="max-h-[min(70vh,520px)] overflow-y-auto">
               {filtered.map((c) => {
                 const unread = c.unreadCount ?? 0;
                 return (
@@ -321,14 +329,32 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
           )}
         </div>
 
-        <div className="flex min-h-[420px] flex-col rounded-xl border">
+        {/* Thread — di HP full-pane saat terbuka */}
+        <div
+          className={`flex min-h-[min(70vh,420px)] flex-col rounded-xl border lg:min-h-[420px] ${
+            activeId ? "block" : "hidden lg:flex"
+          }`}
+        >
           {!activeId ? (
             <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
               Pilih percakapan
             </div>
           ) : (
             <>
-              <div className="flex-1 space-y-2 overflow-y-auto p-4">
+              <div className="flex items-center gap-2 border-b px-2 py-2 sm:px-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0 lg:hidden"
+                  onClick={() => setActiveId(null)}
+                  aria-label="Kembali ke kotak masuk"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <p className="min-w-0 truncate text-sm font-semibold">{activeLabel}</p>
+              </div>
+              <div className="flex-1 space-y-2 overflow-y-auto p-3 sm:p-4">
                 {messages.map((m) => {
                   const mine = m.senderId === meId;
                   return (
@@ -337,17 +363,17 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
                       className={`flex ${mine ? "justify-end" : "justify-start"}`}
                     >
                       <div
-                        className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
+                        className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm sm:max-w-[75%] ${
                           mine ? "bg-inkai-red text-white" : "bg-muted"
                         }`}
                       >
-                        <p className="whitespace-pre-wrap">{m.content}</p>
+                        <p className="whitespace-pre-wrap break-words">{m.content}</p>
                       </div>
                     </div>
                   );
                 })}
               </div>
-              <div className="flex gap-2 border-t p-3">
+              <div className="flex gap-2 border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                 <input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
@@ -361,7 +387,7 @@ export function AdminPesanClient({ dojos = [] }: { dojos?: DojoOpt[] }) {
                   }}
                 />
                 <Button
-                  className="bg-inkai-red hover:bg-inkai-red/90"
+                  className="h-10 shrink-0 bg-inkai-red hover:bg-inkai-red/90"
                   disabled={sending || !text.trim()}
                   onClick={() => void send()}
                 >

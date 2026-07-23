@@ -21,6 +21,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { generateSimplePassword } from "@/lib/security/password";
 import {
@@ -670,38 +671,45 @@ export function RantingSettingsManager({
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex flex-wrap justify-end gap-1">
-                      {!selfManagedOnly && (
+                      {!selfManagedOnly ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={loading}
+                            onClick={() => setDetailDojoId(d.id)}
+                            className="gap-1"
+                          >
+                            <Users className="h-3.5 w-3.5" />
+                            Akun Admin
+                          </Button>
+                          <AdminMoreActions
+                            items={[
+                              {
+                                label: "Data",
+                                onSelect: () => openEdit(d),
+                                disabled: loading,
+                              },
+                              {
+                                label: "Arsip",
+                                onSelect: () => archiveDojo(d),
+                                disabled: loading,
+                                destructive: true,
+                                separatorBefore: true,
+                              },
+                            ]}
+                          />
+                        </>
+                      ) : (
                         <Button
                           size="sm"
                           variant="outline"
                           disabled={loading}
-                          onClick={() => setDetailDojoId(d.id)}
+                          onClick={() => openEdit(d)}
                           className="gap-1"
                         >
-                          <Users className="h-3.5 w-3.5" />
-                          Akun Admin
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={loading}
-                        onClick={() => openEdit(d)}
-                        className="gap-1"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        {selfManagedOnly ? "Ubah" : "Data"}
-                      </Button>
-                      {!selfManagedOnly && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={loading}
-                          onClick={() => archiveDojo(d)}
-                          className="gap-1 text-destructive"
-                        >
-                          <Archive className="h-3.5 w-3.5" />
-                          Arsip
+                          <Pencil className="h-3.5 w-3.5" />
+                          Ubah
                         </Button>
                       )}
                     </div>

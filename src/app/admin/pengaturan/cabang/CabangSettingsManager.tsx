@@ -14,8 +14,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
 import { showError, showSuccess } from "@/lib/client-toast";
-import { Archive, Star, Users } from "lucide-react";
+import { Star, Users } from "lucide-react";
 import { WilayahAccountsPanel } from "@/components/admin/pengaturan/WilayahAccountsPanel";
 import {
   Sheet,
@@ -271,7 +272,7 @@ export function CabangSettingsManager({
             <TableRow>
               <TableHead>Nama Cabang</TableHead>
               <TableHead className="hidden sm:table-cell">Provinsi</TableHead>
-              <TableHead>Ketua</TableHead>
+              <TableHead className="hidden sm:table-cell">Ketua</TableHead>
               <TableHead className="hidden md:table-cell">Kota</TableHead>
               <TableHead className="hidden lg:table-cell">Akun Admin</TableHead>
               <TableHead>Ranting</TableHead>
@@ -292,7 +293,9 @@ export function CabangSettingsManager({
                   <TableCell className="hidden sm:table-cell text-muted-foreground">
                     {b.provinceName || "—"}
                   </TableCell>
-                  <TableCell>{b.headName || "—"}</TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {b.headName || "—"}
+                  </TableCell>
                   <TableCell className="hidden md:table-cell text-muted-foreground">
                     {b.city || "—"}
                   </TableCell>
@@ -340,24 +343,22 @@ export function CabangSettingsManager({
                         <Users className="h-3.5 w-3.5" />
                         Akun Admin
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={loading}
-                        onClick={() => startEdit(b)}
-                      >
-                        Ubah
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={loading}
-                        onClick={() => archiveBranch(b)}
-                        className="gap-1 text-destructive"
-                      >
-                        <Archive className="h-3.5 w-3.5" />
-                        Arsip
-                      </Button>
+                      <AdminMoreActions
+                        items={[
+                          {
+                            label: "Ubah",
+                            onSelect: () => startEdit(b),
+                            disabled: loading,
+                          },
+                          {
+                            label: "Arsip",
+                            onSelect: () => archiveBranch(b),
+                            disabled: loading,
+                            destructive: true,
+                            separatorBefore: true,
+                          },
+                        ]}
+                      />
                     </div>
                   </TableCell>
                 </TableRow>

@@ -115,7 +115,7 @@ export function VerificationActions({
           placeholder="Password baru"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
-          className="h-8 max-w-sm"
+          className="h-8 w-full max-w-sm"
           autoComplete="new-password"
         />
         <Input
@@ -123,19 +123,19 @@ export function VerificationActions({
           placeholder="Konfirmasi password baru"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          className="h-8 max-w-sm"
+          className="h-8 w-full max-w-sm"
           autoComplete="new-password"
         />
         <Input
           placeholder="Catatan admin (opsional)"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="h-8 max-w-sm"
+          className="h-8 w-full max-w-sm"
         />
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button
             size="sm"
-            className="h-8 bg-green-600 hover:bg-green-700"
+            className="h-8 w-full bg-green-600 hover:bg-green-700 sm:w-auto"
             disabled={loading}
             onClick={handleResetPassword}
           >
@@ -144,7 +144,7 @@ export function VerificationActions({
           <Button
             size="sm"
             variant="destructive"
-            className="h-8"
+            className="h-8 w-full sm:w-auto"
             disabled={loading}
             onClick={() => handleAction("reject")}
           >
@@ -161,12 +161,12 @@ export function VerificationActions({
         placeholder="Catatan admin (opsional)"
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
-        className="h-8 max-w-sm"
+        className="h-8 w-full max-w-sm"
       />
-      <div className="flex gap-1">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <Button
           size="sm"
-          className="h-8 bg-green-600 hover:bg-green-700"
+          className="h-8 w-full bg-green-600 hover:bg-green-700 sm:w-auto"
           disabled={loading}
           onClick={() => handleAction("approve")}
         >
@@ -175,7 +175,7 @@ export function VerificationActions({
         <Button
           size="sm"
           variant="destructive"
-          className="h-8"
+          className="h-8 w-full sm:w-auto"
           disabled={loading}
           onClick={() => handleAction("reject")}
         >

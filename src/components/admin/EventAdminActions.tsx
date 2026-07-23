@@ -12,8 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
 import { showError, showSuccess } from "@/lib/client-toast";
-import { Pencil, Users } from "lucide-react";
+import { Users } from "lucide-react";
 
 type Registration = {
   id?: string;
@@ -114,7 +115,7 @@ export function EventAdminActions({
 
   return (
     <>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {!isUkt ? (
           <Button size="sm" variant="outline" className="gap-1" onClick={() => void openRoster()}>
             <Users className="h-3.5 w-3.5" />
@@ -122,26 +123,21 @@ export function EventAdminActions({
           </Button>
         ) : null}
         {canEdit && !isUkt ? (
-          <>
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1"
-              onClick={() => setEditOpen(true)}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Ubah
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-destructive"
-              disabled={busy}
-              onClick={() => void cancelEvent()}
-            >
-              Tutup
-            </Button>
-          </>
+          <AdminMoreActions
+            items={[
+              {
+                label: "Ubah",
+                onSelect: () => setEditOpen(true),
+              },
+              {
+                label: "Tutup",
+                onSelect: () => void cancelEvent(),
+                disabled: busy,
+                destructive: true,
+                separatorBefore: true,
+              },
+            ]}
+          />
         ) : null}
       </div>
 

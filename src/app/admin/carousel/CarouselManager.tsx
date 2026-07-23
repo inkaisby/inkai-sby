@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { FileUploadField } from "@/components/admin/FileUploadField";
 import { ArrowDown, ArrowUp } from "lucide-react";
@@ -159,7 +160,7 @@ export function CarouselManager({
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
                 variant="outline"
@@ -176,20 +177,20 @@ export function CarouselManager({
               >
                 <ArrowDown className="h-3.5 w-3.5" />
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void toggleActive(item.id, item.isActive)}
-              >
-                {item.isActive ? "Nonaktifkan" : "Aktifkan"}
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => void handleDelete(item.id)}
-              >
-                Hapus
-              </Button>
+              <AdminMoreActions
+                items={[
+                  {
+                    label: item.isActive ? "Nonaktifkan" : "Aktifkan",
+                    onSelect: () => void toggleActive(item.id, item.isActive),
+                  },
+                  {
+                    label: "Hapus",
+                    onSelect: () => void handleDelete(item.id),
+                    destructive: true,
+                    separatorBefore: true,
+                  },
+                ]}
+              />
             </div>
           </div>
         ))}

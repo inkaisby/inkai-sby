@@ -90,7 +90,7 @@ export function BillingActions({
   if (!canEdit) return null;
 
   return (
-    <div className="flex w-full max-w-xs flex-col items-end gap-2">
+    <div className="flex w-full max-w-none flex-col items-end gap-2 sm:max-w-xs">
       {unpaid && (
         <Button
           size="sm"
@@ -147,7 +147,7 @@ export function BillingActions({
         />
       )}
 
-      <div className="flex flex-wrap justify-end gap-1">
+      <div className="grid w-full grid-cols-2 gap-1 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
         {status === "WAITING_VERIFICATION" && (
           <>
             <Button
