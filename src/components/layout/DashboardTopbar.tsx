@@ -8,6 +8,7 @@ import { UserMenu } from "@/components/layout/AppShell";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { useNavigation } from "@/components/layout/NavigationProvider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { OpenEventsTopbar } from "@/components/layout/OpenEventsTopbar";
 import type { NavItem } from "@/lib/dashboard-nav";
 
 const ADMIN_TITLES: Record<string, string> = {
@@ -104,6 +105,8 @@ export function DashboardTopbar({
           {pageTitle}
         </h1>
       </div>
+
+      {showAdmin ? <OpenEventsTopbar /> : null}
 
       <div className="flex shrink-0 items-center gap-0.5 rounded-xl bg-muted/40 p-0.5 ring-1 ring-black/[0.03] dark:ring-white/5">
         <NotificationBell viewAllHref={notificationsHref} />
