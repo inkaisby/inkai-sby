@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+import { PublicPageHeader } from "@/components/layout/PublicPageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle, ShieldCheck, Terminal, Shield } from "lucide-react";
 
@@ -61,17 +61,11 @@ const topics = [
 export default function KeamananSiberPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 sm:py-16">
-      <Badge className="mb-4 bg-inkai-black/5 text-inkai-black hover:bg-inkai-black/5">
-        Keamanan Siber
-      </Badge>
-      <h1 className="mb-4 text-3xl font-bold sm:text-4xl">
-        Black Hat, White Hat & Hacker
-      </h1>
-      <p className="mb-10 max-w-2xl text-muted-foreground">
-        Platform digital INKAI Surabaya menyimpan data anggota, dojo, dan
-        kegiatan organisasi. Memahami peran hacker membantu kita waspada terhadap
-        ancaman dan menghargai praktik keamanan yang etis.
-      </p>
+      <PublicPageHeader
+        badge="Keamanan Siber"
+        title="Black Hat, White Hat & Hacker"
+        description="Platform digital INKAI Surabaya menyimpan data anggota, dojo, dan kegiatan organisasi. Memahami peran hacker membantu kita waspada terhadap ancaman dan menghargai praktik keamanan yang etis."
+      />
 
       <div className="space-y-6">
         {topics.map((topic) => (

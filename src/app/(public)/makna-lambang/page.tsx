@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import { Badge } from "@/components/ui/badge";
+import { PublicPageHeader } from "@/components/layout/PublicPageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const metadata: Metadata = {
@@ -39,16 +39,11 @@ const symbols = [
 export default function MaknaLambangPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
-      <Badge className="mb-4 bg-inkai-yellow/20 text-inkai-black hover:bg-inkai-yellow/20">
-        Makna Lambang
-      </Badge>
-      <h1 className="mb-4 text-3xl font-bold sm:text-4xl">
-        Makna Lambang INKAI
-      </h1>
-      <p className="mb-10 max-w-2xl text-muted-foreground">
-        Setiap elemen dalam lambang INKAI memiliki makna filosofis yang
-        mendalam, mencerminkan nilai-nilai budo karate.
-      </p>
+      <PublicPageHeader
+        badge="Makna Lambang"
+        title="Makna Lambang INKAI"
+        description="Setiap elemen dalam lambang INKAI memiliki makna filosofis yang mendalam, mencerminkan nilai-nilai budo karate."
+      />
 
       <div className="mb-12 flex justify-center">
         <Image

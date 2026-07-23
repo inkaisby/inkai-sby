@@ -31,7 +31,7 @@ export default function AuthShell({ children, title, subtitle }: AuthShellProps)
           </Link>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-background/95 p-6 shadow-2xl backdrop-blur-md sm:p-8">
+        <div className="rounded-2xl border border-white/15 bg-background/95 p-6 shadow-2xl shadow-black/30 backdrop-blur-md sm:p-8">
           {children}
         </div>
 

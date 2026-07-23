@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Badge } from "@/components/ui/badge";
+import { PublicPageHeader } from "@/components/layout/PublicPageHeader";
 
 export const metadata: Metadata = {
   title: "Sejarah",
@@ -8,12 +8,7 @@ export const metadata: Metadata = {
 export default function SejarahPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 sm:py-16">
-      <Badge className="mb-4 bg-inkai-red/10 text-inkai-red hover:bg-inkai-red/10">
-        Sejarah
-      </Badge>
-      <h1 className="mb-8 text-3xl font-bold sm:text-4xl">
-        Sejarah INKAI Surabaya
-      </h1>
+      <PublicPageHeader badge="Sejarah" title="Sejarah INKAI Surabaya" />
 
       <div className="prose prose-neutral max-w-none space-y-6 text-muted-foreground">
         <p className="text-lg leading-relaxed text-foreground">

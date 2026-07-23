@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getBranchDojosList } from "@/lib/public-data";
 import { SITE_BRANCH_NAME } from "@/lib/site";
-import { Badge } from "@/components/ui/badge";
+import { PublicPageHeader } from "@/components/layout/PublicPageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock, MapPin, Phone, User } from "lucide-react";
 
@@ -25,14 +25,11 @@ export default async function DojoListPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
-      <Badge className="mb-4 bg-inkai-red/10 text-inkai-red hover:bg-inkai-red/10">
-        Wilayah {SITE_BRANCH_NAME}
-      </Badge>
-      <h1 className="mb-4 text-3xl font-bold sm:text-4xl">Dojo / Ranting</h1>
-      <p className="mb-8 max-w-2xl text-muted-foreground">
-        Daftar lengkap dojo dan ranting di bawah INKAI Cabang {SITE_BRANCH_NAME}.
-        Pilih dojo untuk mendaftar atau melihat detail.
-      </p>
+      <PublicPageHeader
+        badge={`Wilayah ${SITE_BRANCH_NAME}`}
+        title="Dojo / Ranting"
+        description={`Daftar lengkap dojo dan ranting di bawah INKAI Cabang ${SITE_BRANCH_NAME}. Pilih dojo untuk mendaftar atau melihat detail.`}
+      />
 
       {dojos.length === 0 ? (
         <Card>

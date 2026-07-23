@@ -591,6 +591,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Juli 2026 | Admin aksi baris mobile: `AdminMoreActions` (user/ranting/cabang/event/store/materi/carousel/UKT); Verifikasi/Iuran tombol full-width; tabel Anggota/UKT sembunyikan Foto/Sabuk/Terdaftar di HP |
 | 23 Juli 2026 | Pesan admin mobile: inbox/thread single-pane (kembali ←); broadcast stack; safe-area composer |
 | 23 Juli 2026 | Polish visual admin: atmosfer `admin-surface`, topbar aksen merah–kuning, header dengan strip, sidebar/nav lebih halus, kartu/tabel lembut |
+| 23 Juli 2026 | Polish visual publik: `public-surface`, topbar/nav/footer elegan, hero grid lebih lembut, CTA & kartu beranda dirapikan |
+| 23 Juli 2026 | Halaman konten publik: header Badge+h1 diganti `PublicPageHeader` (sejarah, makna-lambang, visi-misi, kontak, berita, kegiatan, dojo, struktur, keamanan-siber) |
 
 ---
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+import { PublicPageHeader } from "@/components/layout/PublicPageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mail, MapPin, Phone, Clock, MessageCircle } from "lucide-react";
 import { SITE_CONTACT } from "@/lib/site";
@@ -13,14 +13,11 @@ export const metadata: Metadata = {
 export default function KontakPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 sm:py-16">
-      <Badge className="mb-4 bg-inkai-red/10 text-inkai-red hover:bg-inkai-red/10">
-        Kontak
-      </Badge>
-      <h1 className="mb-4 text-3xl font-bold sm:text-4xl">Hubungi INKAI Surabaya</h1>
-      <p className="mb-10 max-w-2xl text-muted-foreground">
-        Tim pengurus Cabang Surabaya siap membantu informasi pendaftaran, kegiatan,
-        dan administrasi keanggotaan.
-      </p>
+      <PublicPageHeader
+        badge="Kontak"
+        title="Hubungi INKAI Surabaya"
+        description="Tim pengurus Cabang Surabaya siap membantu informasi pendaftaran, kegiatan, dan administrasi keanggotaan."
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { getActiveNewsCarousel } from "@/lib/public-data";
-import { Badge } from "@/components/ui/badge";
+import { PublicPageHeader } from "@/components/layout/PublicPageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const metadata: Metadata = {
@@ -17,13 +17,11 @@ export default async function BeritaPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 sm:py-16">
-      <Badge className="mb-4 bg-inkai-red/10 text-inkai-red hover:bg-inkai-red/10">
-        Berita
-      </Badge>
-      <h1 className="mb-4 text-3xl font-bold">Berita & Artikel</h1>
-      <p className="mb-10 text-muted-foreground">
-        Informasi terbaru seputar kegiatan INKAI Surabaya.
-      </p>
+      <PublicPageHeader
+        badge="Berita"
+        title="Berita & Artikel"
+        description="Informasi terbaru seputar kegiatan INKAI Surabaya."
+      />
 
       {items.length === 0 ? (
         <Card>

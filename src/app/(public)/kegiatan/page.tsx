@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getUpcomingEvents } from "@/lib/public-data";
-import { Badge } from "@/components/ui/badge";
+import { PublicPageHeader } from "@/components/layout/PublicPageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "lucide-react";
 
@@ -17,13 +17,11 @@ export default async function KegiatanPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6 sm:py-16">
-      <Badge className="mb-4 bg-inkai-red/10 text-inkai-red hover:bg-inkai-red/10">
-        Kegiatan
-      </Badge>
-      <h1 className="mb-4 text-3xl font-bold">Kegiatan INKAI Surabaya</h1>
-      <p className="mb-10 text-muted-foreground">
-        Jadwal kegiatan, latihan bersama, dan kompetisi Cabang Surabaya.
-      </p>
+      <PublicPageHeader
+        badge="Kegiatan"
+        title="Kegiatan INKAI Surabaya"
+        description="Jadwal kegiatan, latihan bersama, dan kompetisi Cabang Surabaya."
+      />
 
       {events.length === 0 ? (
         <Card>

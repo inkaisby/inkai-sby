@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getBranchStructure } from "@/lib/public-data";
 import { getPengurusStruktur } from "@/lib/pengurus-settings";
-import { Badge } from "@/components/ui/badge";
+import { PublicPageHeader } from "@/components/layout/PublicPageHeader";
 import StrukturTabs from "@/components/struktur/StrukturTabs";
 
 export const metadata: Metadata = {
@@ -20,16 +20,11 @@ export default async function StrukturPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
-      <Badge className="mb-4 bg-inkai-black/5 text-inkai-black hover:bg-inkai-black/5">
-        Struktur Organisasi
-      </Badge>
-      <h1 className="mb-4 text-3xl font-bold sm:text-4xl">
-        Struktur Organisasi INKAI Surabaya
-      </h1>
-      <p className="mb-8 max-w-2xl text-muted-foreground">
-        Hierarki organisasi Cabang Surabaya di bawah INKAI Provinsi Jawa Timur,
-        dari tingkat cabang hingga dojo/ranting.
-      </p>
+      <PublicPageHeader
+        badge="Struktur Organisasi"
+        title="Struktur Organisasi INKAI Surabaya"
+        description="Hierarki organisasi Cabang Surabaya di bawah INKAI Provinsi Jawa Timur, dari tingkat cabang hingga dojo/ranting."
+      />
 
       <StrukturTabs branch={branch} pengurus={pengurus} />
     </div>

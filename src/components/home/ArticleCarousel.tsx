@@ -17,7 +17,7 @@ export default async function ArticleCarousel() {
   if (items.length === 0) return null;
 
   return (
-    <section className="py-16 sm:py-20">
+    <section className="relative py-16 sm:py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="mb-10 text-center">
           <Badge
@@ -26,9 +26,13 @@ export default async function ArticleCarousel() {
           >
             Artikel Terbaru
           </Badge>
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
             Berita & Kegiatan
           </h2>
+          <span
+            className="mx-auto mt-5 block h-px w-20 bg-gradient-to-r from-transparent via-inkai-red/40 to-transparent"
+            aria-hidden
+          />
         </div>
 
         <Carousel opts={{ align: "start", loop: true }} className="w-full">
@@ -38,7 +42,7 @@ export default async function ArticleCarousel() {
                 key={item.id}
                 className="pl-4 md:basis-1/2 lg:basis-1/3"
               >
-                <Card className="inkai-card-hover group overflow-hidden border shadow-sm">
+                <Card className="inkai-card-hover group overflow-hidden border-border/70 bg-card/90 shadow-sm backdrop-blur-sm">
                   <div className="relative h-52 overflow-hidden bg-gradient-to-br from-inkai-red/10 to-inkai-yellow/10">
                     <Image
                       src={item.imageUrl}
@@ -59,7 +63,7 @@ export default async function ArticleCarousel() {
                       })}
                     </p>
                     )}
-                    <h3 className="mb-4 line-clamp-2 font-semibold leading-snug group-hover:text-inkai-red transition-colors">
+                    <h3 className="mb-4 line-clamp-2 font-semibold leading-snug tracking-tight transition-colors group-hover:text-inkai-red">
                       {item.title}
                     </h3>
                     {item.targetUrl ? (
