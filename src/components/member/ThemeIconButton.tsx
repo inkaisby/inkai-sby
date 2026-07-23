@@ -14,12 +14,10 @@ function nextTheme(current: string | undefined): ThemeMode {
 
 function themeLabel(theme: string | undefined, resolved: string | undefined) {
   if (theme === "system") {
-    return resolved === "dark"
-      ? "Tema sistem (gelap) — ketuk untuk terang"
-      : "Tema sistem (terang) — ketuk untuk terang manual";
+    return `Tema otomatis · ${resolved === "dark" ? "gelap" : "terang"} — ketuk untuk atur manual`;
   }
   if (theme === "light") return "Mode terang — ketuk untuk gelap";
-  if (theme === "dark") return "Mode gelap — ketuk untuk ikuti sistem";
+  if (theme === "dark") return "Mode gelap — ketuk untuk otomatis";
   return "Ganti tema";
 }
 
