@@ -3,9 +3,9 @@
 /** Online bila aktivitas dalam 5 menit. */
 export const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
 /** Heartbeat saat tab terlihat. */
-export const HEARTBEAT_INTERVAL_VISIBLE_MS = 45_000;
+export const HEARTBEAT_INTERVAL_VISIBLE_MS = 90_000;
 /** Heartbeat saat tab tersembunyi (browser throttle). */
-export const HEARTBEAT_INTERVAL_HIDDEN_MS = 120_000;
+export const HEARTBEAT_INTERVAL_HIDDEN_MS = 180_000;
 /** TTL key Redis presence. */
 export const REDIS_PRESENCE_TTL_SEC = 120;
 /** Batasi write lastSeenAt ke DB (hindari spam pool). */

@@ -5,6 +5,7 @@ import {
   findSekretariatUserId,
   getOrCreateMemberConversation,
 } from "@/lib/messaging";
+import { loadMemberPesanInbox } from "@/lib/member-pesan";
 import { z } from "zod";
 
 const sendSchema = z.object({
@@ -13,54 +14,11 @@ const sendSchema = z.object({
 });
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const inbox = await loadMemberPesanInbox();
+  if (!inbox) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const member = session.user.memberId
-    ? await prisma.member.findUnique({
-        where: { id: session.user.memberId },
-        select: { dojoId: true, userId: true },
-      })
-    : null;
-
-  const userId = member?.userId || session.user.id;
-  const sekretariatId = await findSekretariatUserId(member?.dojoId);
-  if (!sekretariatId) {
-    return NextResponse.json({
-      conversation: null,
-      message: "Belum ada pengurus yang dapat dihubungi.",
-    });
-  }
-
-  if (sekretariatId === userId) {
-    return NextResponse.json({
-      conversation: null,
-      message: "Akun admin — gunakan panel admin untuk membalas pesan.",
-    });
-  }
-
-  const conversation = await getOrCreateMemberConversation(userId, sekretariatId);
-
-  const unreadCount = await prisma.message.count({
-    where: {
-      conversationId: conversation.id,
-      isRead: false,
-      senderId: { not: userId },
-    },
-  });
-
-  await prisma.message.updateMany({
-    where: {
-      conversationId: conversation.id,
-      senderId: { not: userId },
-      isRead: false,
-    },
-    data: { isRead: true },
-  });
-
-  return NextResponse.json({ conversation, meId: userId, unreadCount });
+  return NextResponse.json(inbox);
 }
 
 export async function POST(request: Request) {
@@ -102,7 +60,10 @@ export async function POST(request: Request) {
     },
   });
   if (!allowed) {
-    return NextResponse.json({ error: "Percakapan tidak ditemukan" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Percakapan tidak ditemukan" },
+      { status: 404 },
+    );
   }
 
   const message = await prisma.message.create({

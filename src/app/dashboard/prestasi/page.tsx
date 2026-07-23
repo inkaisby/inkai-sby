@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Award } from "lucide-react";
 import { fetchMyMemberProfile } from "@/lib/inkai-api/member-data";
 import { MemberPageHeader } from "@/components/member/MemberPageHeader";
-import { UktStatusCard } from "@/components/member/UktStatusCard";
+import { MemberUktStatus } from "@/components/member/MemberUktStatus";
 import { PiagamUploadClient } from "@/components/member/PiagamUploadClient";
 import {
   resolveUktDisplayStatus,
@@ -29,14 +29,29 @@ export default async function PrestasiPage({ searchParams }: Props) {
   const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
 
-  const member = await fetchMyMemberProfile(token);
-  if (!member?.id) redirect("/dashboard");
-
   const params = await searchParams;
   const tabParam = params.tab;
   const activeTab: Tab = TABS.includes(tabParam as Tab)
     ? (tabParam as Tab)
     : "Sabuk";
+
+  const [member, piagamClaims] = await Promise.all([
+    fetchMyMemberProfile(token),
+    withPrismaFallback(
+      "member-piagam",
+      () =>
+        prisma.verification.findMany({
+          where: {
+            memberId: session.user.memberId!,
+            type: "ACHIEVEMENT",
+          },
+          orderBy: { createdAt: "desc" },
+          take: 50,
+        }),
+      [],
+    ),
+  ]);
+  if (!member?.id) redirect("/dashboard");
 
   const ranks = (member.ranks as Array<Record<string, unknown>>) ?? [];
   const eventRegistrations =
@@ -64,20 +79,6 @@ export default async function PrestasiPage({ searchParams }: Props) {
     );
   });
 
-  const piagamClaims = await withPrismaFallback(
-    "member-piagam",
-    () =>
-      prisma.verification.findMany({
-        where: {
-          memberId: session.user.memberId!,
-          type: "ACHIEVEMENT",
-        },
-        orderBy: { createdAt: "desc" },
-        take: 50,
-      }),
-    [],
-  );
-
   return (
     <>
       <MemberPageHeader title="Prestasi & Sabuk" />
@@ -101,7 +102,7 @@ export default async function PrestasiPage({ searchParams }: Props) {
 
       {activeTab === "Sabuk" && (
         <>
-          <UktStatusCard />
+          <MemberUktStatus />
 
           <div className="mb-6 rounded-2xl border border-border/60 bg-card p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">

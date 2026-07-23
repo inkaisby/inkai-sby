@@ -14,7 +14,7 @@ export function MemberMobileShell({ children }: { children: React.ReactNode }) {
           paddingRight: "max(16px, env(safe-area-inset-right))",
         }}
       >
-        <div className="member-fade-in flex-1 pb-[100px]">{children}</div>
+        <div className="flex-1 pb-[100px]">{children}</div>
         <BottomNav />
         <MemberWelcomeGuide />
       </div>

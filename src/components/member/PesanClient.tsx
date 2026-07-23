@@ -19,12 +19,22 @@ type Conversation = {
   messages: Message[];
 };
 
-export function PesanClient() {
-  const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [meId, setMeId] = useState<string>("");
-  const [hint, setHint] = useState<string>("");
+export function PesanClient({
+  initial,
+}: {
+  initial?: {
+    conversation: Conversation | null;
+    meId: string;
+    message?: string;
+  } | null;
+}) {
+  const [conversation, setConversation] = useState<Conversation | null>(
+    initial?.conversation ?? null,
+  );
+  const [meId, setMeId] = useState<string>(initial?.meId || "");
+  const [hint, setHint] = useState<string>(initial?.message || "");
   const [text, setText] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initial);
   const [sending, setSending] = useState(false);
 
   async function load() {
@@ -45,8 +55,9 @@ export function PesanClient() {
   }
 
   useEffect(() => {
+    if (initial) return;
     void load();
-  }, []);
+  }, [initial]);
 
   async function send() {
     if (!text.trim()) return;

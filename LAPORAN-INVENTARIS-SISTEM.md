@@ -312,7 +312,7 @@ Pusat / Nasional
 | Ketergantungan API | Ada | Halaman degrade jika API sibuk/timeout |
 | Email & Blob | Opsional | Perlu env production |
 | Keamanan P0–P2 | Diperkuat | Pesan IDOR ditutup; verifikasi fail-closed; rate limit Upstash opsional; CSRF admin ketat; password register; audit upload/broadcast/verifikasi |
-| Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI/pageSize; **navigasi instan**: tanpa min-delay/overlay blur/`loading.tsx` full-page; progress bar tipis saja; animasi content-enter dimatikan |
+| Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI/pageSize; **navigasi instan**; **dashboard anggota: parallel TTFB, Suspense UKT, SSR pesan/store, tanpa fade/poll kartu** |
 
 | Index Prisma | Ditambah | Member/Billing/Attendance/Verification/Message — jalankan migrate/db push di production |
 | Pool DB Supabase | Diperkuat | Transaction `:6543`+`pgbouncer`; `connection_limit=5`/`pool_timeout=20`; soft-delete & **purge massal batch** (`deleteMany` per relasi); chunk purge 25 + jeda/retry; toast sibuk |
@@ -602,6 +602,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Juli 2026 | UKT timer: milidetik dikembalikan (hari–jam–menit–detik–ms via rAF); tetap pause saat tab tersembunyi |
 | 23 Juli 2026 | Profil anggota: tampil + edit foto, NIK, JK, TTL, alamat, telepon, Akte/BPJS; email/sabuk baca saja; API PATCH sync Inkai+Prisma |
 | 23 Juli 2026 | Profil: email/NIA/sabuk/MSH edit mandiri 1× lalu pengajuan `PROFILE_CHANGE`; kolom `mshNumber` + migrasi; Kartu Anggota tampilkan NIA + No. MSH (Hitam/DAN) |
+| 23 Juli 2026 | Perf dashboard anggota: parallel fetch beranda; Suspense UKT; tanpa poll kartu/fade; SSR pesan/store; cache profil; heartbeat 90s |
 
 ---
 

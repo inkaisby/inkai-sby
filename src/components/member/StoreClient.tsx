@@ -29,11 +29,15 @@ function formatRp(n: number) {
   return `Rp ${Math.round(n).toLocaleString("id-ID")}`;
 }
 
-export function StoreClient() {
+export function StoreClient({
+  initial,
+}: {
+  initial?: { products: Product[]; orders: Order[] } | null;
+}) {
   const router = useRouter();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<Product[]>(initial?.products ?? []);
+  const [orders, setOrders] = useState<Order[]>(initial?.orders ?? []);
+  const [loading, setLoading] = useState(!initial);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   async function load() {
@@ -53,8 +57,9 @@ export function StoreClient() {
   }
 
   useEffect(() => {
+    if (initial) return;
     void load();
-  }, []);
+  }, [initial]);
 
   async function orderProduct(productId: string) {
     setBusyId(productId);

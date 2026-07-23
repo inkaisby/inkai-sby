@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Shield } from "lucide-react";
 import { isBlackBeltRank } from "@/lib/belt";
 
@@ -13,15 +13,7 @@ interface MemberCardProps {
   qrValue?: string;
 }
 
-type ProfilePayload = {
-  nia?: string;
-  fullName?: string;
-  belt?: string | null;
-  dojo?: string;
-  mshNumber?: string | null;
-  isBlackBelt?: boolean;
-};
-
+/** Kartu anggota — data dari SSR; tanpa poll/refetch mount (hemat jaringan). */
 export function MemberCard({
   nia: initialNia,
   name: initialName,
@@ -44,44 +36,6 @@ export function MemberCard({
     setMshNumber(initialMsh?.trim() || "");
   }, [initialNia, initialName, initialDojo, initialBelt, initialMsh]);
 
-  const refreshCard = useCallback(async () => {
-    try {
-      const res = await fetch("/api/member/profile", { cache: "no-store" });
-      if (!res.ok) return;
-
-      const data = (await res.json()) as ProfilePayload;
-      if (data.fullName) setName(data.fullName);
-      if (data.nia) setNia(data.nia);
-      if (data.dojo) setDojo(data.dojo);
-      if (data.belt) setBelt(data.belt);
-      if (data.mshNumber != null) setMshNumber(data.mshNumber || "");
-      else if (data.isBlackBelt === false) setMshNumber("");
-    } catch {
-      // Tetap tampilkan data SSR awal jika refresh gagal.
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshCard();
-
-    const onVisible = () => {
-      if (document.visibilityState === "visible") refreshCard();
-    };
-
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", refreshCard);
-
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") refreshCard();
-    }, 60_000);
-
-    return () => {
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", refreshCard);
-      window.clearInterval(interval);
-    };
-  }, [refreshCard]);
-
   const qrSrc = qrValue
     ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(qrValue)}`
     : null;
@@ -89,7 +43,7 @@ export function MemberCard({
   const showMsh = isBlackBeltRank(belt) && Boolean(mshNumber);
 
   return (
-    <div className="member-fade-in relative min-h-[220px] w-full overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-card via-secondary/40 to-card shadow-[0_10px_30px_rgba(200,16,46,0.12)] dark:from-[#20222b] dark:via-[#292c37] dark:to-[#1b1c24] dark:shadow-[0_10px_30px_rgba(200,16,46,0.18)]">
+    <div className="relative min-h-[220px] w-full overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-card via-secondary/40 to-card shadow-[0_10px_30px_rgba(200,16,46,0.12)] dark:from-[#20222b] dark:via-[#292c37] dark:to-[#1b1c24] dark:shadow-[0_10px_30px_rgba(200,16,46,0.18)]">
       <Shield
         className="pointer-events-none absolute -right-5 -bottom-5 text-foreground/[0.03]"
         size={150}

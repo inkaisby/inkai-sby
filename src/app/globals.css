@@ -408,12 +408,15 @@
 }
 
 .member-fade-in {
-  animation: member-fade-up 0.35s ease-out both;
+  animation: none;
 }
 
 .member-stagger {
-  opacity: 0;
-  animation: member-fade-up 0.35s ease-out both;
+  animation: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Dinonaktifkan: animasi masuk memperlambat rasa pindah halaman anggota */
 }
 
 /* ——— Admin surface: lembut, elegan, aksen INKAI ——— */

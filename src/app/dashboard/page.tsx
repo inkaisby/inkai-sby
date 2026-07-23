@@ -21,7 +21,7 @@ import { getDojoDetail } from "@/lib/public-data";
 import { DashboardHomeHeader } from "@/components/member/DashboardHomeHeader";
 import { MemberCard } from "@/components/member/MemberCard";
 import { QuickActions } from "@/components/member/QuickActions";
-import { UktStatusCard } from "@/components/member/UktStatusCard";
+import { MemberUktStatus } from "@/components/member/MemberUktStatus";
 import {
   MembershipChecklist,
   buildMembershipChecklist,
@@ -123,33 +123,41 @@ export default async function MemberDashboard() {
 
   const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
-  const member = await fetchMyMemberProfile(token);
-  const userId = String(
-    (member?.userId as string | undefined) || session.user.id,
-  );
 
-  const [notifications, attendances, billings, registrations, upcomingEvents, unreadPesanResult] =
-    await Promise.all([
-      fetchMyNotifications(token, 50, session.user.id),
-      fetchMyAttendance(token, 100),
-      fetchMyBillings(token, 12),
-      member ? fetchMyEventRegistrations(token) : Promise.resolve([]),
-      fetchPublicUpcomingEvents(5),
-      withPrismaFallback(
-        "member-pesan-unread",
-        () =>
-          prisma.message.count({
-            where: {
-              isRead: false,
-              senderId: { not: userId },
-              conversation: {
-                participants: { some: { id: userId } },
-              },
+  // Parallel: profil + data sekunder (jangan waterfall)
+  const userId = String(session.user.id);
+  const [
+    member,
+    notifications,
+    attendances,
+    billings,
+    registrations,
+    upcomingEvents,
+    unreadPesanResult,
+  ] = await Promise.all([
+    fetchMyMemberProfile(token),
+    fetchMyNotifications(token, 15, session.user.id),
+    fetchMyAttendance(token, 48),
+    fetchMyBillings(token, 12),
+    fetchMyEventRegistrations(token),
+    fetchPublicUpcomingEvents(5),
+    withPrismaFallback(
+      "member-pesan-unread",
+      () =>
+        prisma.message.count({
+          where: {
+            isRead: false,
+            senderId: { not: userId },
+            conversation: {
+              participants: { some: { id: userId } },
             },
-          }),
-        0,
-      ),
-    ]);
+          },
+        }),
+      0,
+    ),
+  ]);
+
+  const unreadPesan = unreadPesanResult.data || 0;
 
   const attendanceStats = semesterAttendancePct(
     attendances.map((a) => ({ checkInAt: String(a.checkInAt) })),
@@ -162,7 +170,6 @@ export default async function MemberDashboard() {
     (b) => b.type === "MONTHLY_IURAN" && b.status !== "PAID",
   ).length;
   const unreadCount = notifications.filter((n) => !n.isRead).length;
-  const unreadPesan = unreadPesanResult.data || 0;
 
   const dojo = member?.dojo as
     | {
@@ -177,7 +184,16 @@ export default async function MemberDashboard() {
       }
     | undefined;
   const dojoId = String(member?.dojoId || dojo?.id || "");
-  const dojoDetail = dojoId ? await getDojoDetail(dojoId) : null;
+  // Skip round-trip jika profil Inkai sudah membawa detail dojo
+  const dojoHasDetail = Boolean(
+    dojo?.schedule ||
+      dojo?.tempatLatihan ||
+      dojo?.headName ||
+      dojo?.contactPerson ||
+      dojo?.phoneNumber,
+  );
+  const dojoDetail =
+    dojoId && !dojoHasDetail ? await getDojoDetail(dojoId) : null;
   const dojoLine = [
     dojoDetail?.name || dojo?.name,
     dojoDetail?.branch?.name || dojo?.branch?.name,
@@ -310,7 +326,7 @@ export default async function MemberDashboard() {
         </div>
       )}
 
-      {isActive && <UktStatusCard compact />}
+      {isActive && <MemberUktStatus compact />}
 
       {unpaidMonthly > 0 && isActive && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">

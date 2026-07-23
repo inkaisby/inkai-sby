@@ -9,11 +9,15 @@ import { formatRankLabel } from "@/lib/belt";
 import { formatUktRegistrationDeadline, type UktDisplayStatus } from "@/lib/ukt";
 
 type UktStatusPayload = {
-  period?: { title?: string; semester?: string; year?: number };
+  period?: {
+    title?: string;
+    semester?: string;
+    year?: number;
+  } | null;
   registered?: boolean;
   statusLabel?: string;
   displayStatus?: UktDisplayStatus;
-  kyuLama?: string;
+  kyuLama?: string | null;
   kyuBaru?: string | null;
   examAt?: string | null;
   examLocation?: string | null;
@@ -77,19 +81,38 @@ function nextStepHint(status?: UktDisplayStatus): { text: string; href: string; 
 
 type Props = {
   compact?: boolean;
+  /** SSR/Suspense — lewati fetch client jika sudah ada. */
+  initialData?: UktStatusPayload | null;
 };
 
-export function UktStatusCard({ compact = false }: Props) {
-  const [data, setData] = useState<UktStatusPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+export function UktStatusCard({ compact = false, initialData }: Props) {
+  const [data, setData] = useState<UktStatusPayload | null>(
+    initialData ?? null,
+  );
+  const [loading, setLoading] = useState(initialData === undefined);
 
   useEffect(() => {
+    if (initialData !== undefined) {
+      setData(initialData);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
     fetch("/api/member/ukt-status")
       .then((r) => r.json())
-      .then((json) => setData(json))
-      .catch(() => setData(null))
-      .finally(() => setLoading(false));
-  }, []);
+      .then((json) => {
+        if (!cancelled) setData(json);
+      })
+      .catch(() => {
+        if (!cancelled) setData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialData]);
 
   if (loading) {
     return (
