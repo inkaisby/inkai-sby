@@ -68,6 +68,7 @@ export const memberActionSchema = z.object({
     "reject",
     "set_nia",
     "set_msh",
+    "set_name",
     "set_rank",
     "set_dues",
     "set_dues_exemption",
@@ -80,6 +81,8 @@ export const memberActionSchema = z.object({
     "restore",
   ]),
   nia: z.string().trim().max(32).optional(),
+  /** Nama lengkap anggota (ranting/cabang). */
+  fullName: z.string().trim().min(2).max(100).optional(),
   /** No. MSH — sabuk Hitam/DAN (ranting/cabang). Kosong = hapus. */
   mshNumber: z.string().trim().max(32).optional().nullable(),
   /** Sabuk / Kyu resmi anggota (hanya cabang). */

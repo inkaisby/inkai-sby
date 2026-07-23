@@ -2,9 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { Copy, Check, Eye } from "lucide-react";
+import { Copy, Check, Eye, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -46,7 +53,6 @@ import {
   type MemberLifecycleMeta,
 } from "@/lib/member-lifecycle";
 import { canManageIuranByWilayah, canToggleMemberActive } from "@/lib/wilayah-rbac";
-import { Input } from "@/components/ui/input";
 import { MemberActions } from "./MemberActions";
 import { BulkDeactivateBar } from "./BulkDeactivateBar";
 import { usePersistedBulkSelection } from "./usePersistedBulkSelection";
@@ -185,15 +191,19 @@ function DocBadge({
 function DocumentsCell({
   birthCertificateUrl,
   bpjsCardUrl,
+  canEdit,
   onOpen,
+  onEdit,
 }: {
   birthCertificateUrl?: string | null;
   bpjsCardUrl?: string | null;
+  canEdit?: boolean;
   onOpen: (label: string, url: string) => void;
+  onEdit?: () => void;
 }) {
   return (
     <div
-      className="flex flex-wrap gap-1"
+      className="flex flex-wrap items-center gap-1"
       onClick={(e) => e.stopPropagation()}
     >
       <DocBadge
@@ -202,6 +212,19 @@ function DocumentsCell({
         onOpen={onOpen}
       />
       <DocBadge label="BPJS" url={bpjsCardUrl} onOpen={onOpen} />
+      {canEdit ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1 px-1.5 text-xs text-muted-foreground hover:text-inkai-red"
+          onClick={onEdit}
+          aria-label="Ubah dokumen"
+        >
+          <Pencil className="h-3 w-3" />
+          Ubah
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -324,6 +347,11 @@ export function MembersTable({
   const [duesDraft, setDuesDraft] = useState("");
   const [mshDraft, setMshDraft] = useState("");
   const [mshSaving, setMshSaving] = useState(false);
+  const [nameSavingId, setNameSavingId] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState("");
+  const [docsEditMember, setDocsEditMember] = useState<AdminMemberRow | null>(
+    null,
+  );
   const [passwordResetting, setPasswordResetting] = useState(false);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(
     null,
@@ -347,6 +375,9 @@ export function MembersTable({
   const canEditDojo = canEditKyuBaru(userRoles);
   const canEditDues = canManageIuranByWilayah(userRoles);
   const canEditMsh = canManageIuranByWilayah(userRoles);
+  /** Ranting & cabang: nama + dokumen anggota. */
+  const canEditName = canManageIuranByWilayah(userRoles);
+  const canEditDocuments = canManageIuranByWilayah(userRoles);
   const canResetPassword = canToggleMemberActive(userRoles);
 
   useEffect(() => {
@@ -391,6 +422,7 @@ export function MembersTable({
       _partial: true,
     });
     setMshDraft(member.mshNumber?.trim() || "");
+    setNameDraft(formatMemberName(member.fullName));
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/members/${member.id}`);
@@ -415,6 +447,9 @@ export function MembersTable({
             ? data.member.mshNumber
             : "";
         setMshDraft(msh.trim());
+        if (typeof data.member.fullName === "string") {
+          setNameDraft(formatMemberName(data.member.fullName));
+        }
       }
     } catch {
       showError("Gagal memuat detail anggota");
@@ -475,6 +510,50 @@ export function MembersTable({
       showError("Gagal memperbarui sabuk");
     } finally {
       setRankSavingId(null);
+    }
+  }
+
+  async function handleSetName(memberId: string, rawName: string) {
+    if (!canEditName) return;
+    const fullName = formatMemberName(rawName);
+    if (!fullName || fullName.length < 2) {
+      showError("Nama wajib diisi (min. 2 karakter)");
+      return;
+    }
+    const current = members.find((m) => m.id === memberId)?.fullName;
+    if (formatMemberName(current) === fullName) return;
+
+    setNameSavingId(memberId);
+    try {
+      const res = await fetch(`/api/admin/members/${memberId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_name", fullName }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        fullName?: string;
+      };
+      if (!res.ok) {
+        showError(data.error || "Gagal menyimpan nama");
+        return;
+      }
+      const next = data.fullName || fullName;
+      showSuccess(data.message || "Nama disimpan");
+      setMembers((prev) =>
+        prev.map((m) => (m.id === memberId ? { ...m, fullName: next } : m)),
+      );
+      if (selectedId === memberId && detail) {
+        setDetail({ ...detail, fullName: next });
+        setNameDraft(next);
+      }
+      onMembersChanged?.();
+      router.refresh();
+    } catch {
+      showError("Gagal menyimpan nama");
+    } finally {
+      setNameSavingId(null);
     }
   }
 
@@ -884,8 +963,29 @@ export function MembersTable({
                         ? m.mshNumber.trim()
                         : "—"}
                     </TableCell>
-                    <TableCell className="font-medium text-inkai-red">
-                      {formatMemberName(m.fullName)}
+                    <TableCell
+                      className="font-medium text-inkai-red"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {canEditName ? (
+                        <Input
+                          key={`${m.id}:${m.fullName}`}
+                          defaultValue={formatMemberName(m.fullName)}
+                          disabled={nameSavingId === m.id}
+                          className="h-8 min-w-[10rem] max-w-[16rem] border-inkai-red/20 font-medium uppercase text-inkai-red"
+                          aria-label={`Ubah nama ${m.fullName}`}
+                          onBlur={(e) => {
+                            void handleSetName(m.id, e.target.value);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.currentTarget.blur();
+                            }
+                          }}
+                        />
+                      ) : (
+                        formatMemberName(m.fullName)
+                      )}
                     </TableCell>
                     <TableCell
                       className="hidden sm:table-cell"
@@ -934,9 +1034,11 @@ export function MembersTable({
                         <DocumentsCell
                           birthCertificateUrl={m.birthCertificateUrl}
                           bpjsCardUrl={m.bpjsCardUrl}
+                          canEdit={canEditDocuments}
                           onOpen={(label, url) =>
                             setDocPreview({ title: label, url })
                           }
+                          onEdit={() => setDocsEditMember(m)}
                         />
                       </TableCell>
                     <TableCell
@@ -1138,6 +1240,43 @@ export function MembersTable({
                     Identitas
                   </h3>
                   <dl className="space-y-2">
+                    {canEditName ? (
+                      <DetailRow
+                        label="Nama"
+                        value={
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Input
+                              value={nameDraft}
+                              onChange={(e) =>
+                                setNameDraft(e.target.value.toUpperCase())
+                              }
+                              className="h-8 min-w-[12rem] flex-1 font-medium uppercase"
+                              disabled={
+                                nameSavingId === selectedId || loading
+                              }
+                            />
+                            <Button
+                              size="sm"
+                              className="h-8 bg-inkai-red"
+                              disabled={
+                                nameSavingId === selectedId ||
+                                loading ||
+                                !selectedId ||
+                                formatMemberName(nameDraft) ===
+                                  formatMemberName(fullName)
+                              }
+                              onClick={() => {
+                                if (selectedId) {
+                                  void handleSetName(selectedId, nameDraft);
+                                }
+                              }}
+                            >
+                              Simpan
+                            </Button>
+                          </div>
+                        }
+                      />
+                    ) : null}
                     <DetailRow
                       label="Sabuk"
                       value={
@@ -1478,6 +1617,20 @@ export function MembersTable({
                             }
                           : prev,
                       );
+                      if (selectedId) {
+                        setMembers((prev) =>
+                          prev.map((m) =>
+                            m.id === selectedId
+                              ? {
+                                  ...m,
+                                  birthCertificateUrl: next.birthCertificateUrl,
+                                  bpjsCardUrl: next.bpjsCardUrl,
+                                  bpjsCardNumber: next.bpjsCardNumber,
+                                }
+                              : m,
+                          ),
+                        );
+                      }
                       router.refresh();
                     }}
                   />
@@ -1626,6 +1779,67 @@ export function MembersTable({
           }
         }}
       />
+
+      <Dialog
+        open={!!docsEditMember}
+        onOpenChange={(open) => {
+          if (!open) setDocsEditMember(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Dokumen —{" "}
+              {docsEditMember
+                ? formatMemberName(docsEditMember.fullName)
+                : "Anggota"}
+            </DialogTitle>
+          </DialogHeader>
+          {docsEditMember ? (
+            <MemberDocumentsEditor
+              memberId={docsEditMember.id}
+              birthCertificateUrl={docsEditMember.birthCertificateUrl}
+              bpjsCardUrl={docsEditMember.bpjsCardUrl}
+              bpjsCardNumber={docsEditMember.bpjsCardNumber}
+              onPreview={(title, url) => setDocPreview({ title, url })}
+              onSaved={(next) => {
+                setMembers((prev) =>
+                  prev.map((m) =>
+                    m.id === docsEditMember.id
+                      ? {
+                          ...m,
+                          birthCertificateUrl: next.birthCertificateUrl,
+                          bpjsCardUrl: next.bpjsCardUrl,
+                          bpjsCardNumber: next.bpjsCardNumber,
+                        }
+                      : m,
+                  ),
+                );
+                setDocsEditMember((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        birthCertificateUrl: next.birthCertificateUrl,
+                        bpjsCardUrl: next.bpjsCardUrl,
+                        bpjsCardNumber: next.bpjsCardNumber,
+                      }
+                    : prev,
+                );
+                if (selectedId === docsEditMember.id && detail) {
+                  setDetail({
+                    ...detail,
+                    birthCertificateUrl: next.birthCertificateUrl,
+                    bpjsCardUrl: next.bpjsCardUrl,
+                    bpjsCardNumber: next.bpjsCardNumber,
+                  });
+                }
+                onMembersChanged?.();
+                router.refresh();
+              }}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <DocumentPreviewDialog
         open={Boolean(docPreview)}

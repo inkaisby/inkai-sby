@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { requireAdmin } from "@/lib/admin-auth";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
-import { canAssignNia, canEditKyuBaru, formatRankLabel } from "@/lib/belt";
+import { canAssignNia, canEditKyuBaru, formatMemberName, formatRankLabel } from "@/lib/belt";
 import { memberActionSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
@@ -368,6 +368,85 @@ export async function PATCH(request: Request, context: RouteContext) {
       success: true,
       member: { id, mshNumber: msh },
       message: msh ? "No. MSH berhasil disimpan" : "No. MSH dihapus",
+    });
+  }
+
+  if (action === "set_name") {
+    if (!canManageIuranByWilayah(roles)) {
+      return NextResponse.json(
+        { error: "Anda tidak berwenang mengubah nama anggota" },
+        { status: 403 },
+      );
+    }
+    const fullName = formatMemberName(parsed.data.fullName);
+    if (!fullName || fullName.length < 2) {
+      return NextResponse.json(
+        { error: "Nama wajib diisi (min. 2 karakter)" },
+        { status: 400 },
+      );
+    }
+
+    const scoped = await prisma.member.findFirst({
+      where: {
+        AND: [{ id }, buildMemberFilter(authResult.user)],
+      },
+      select: { id: true, fullName: true },
+    });
+    if (!scoped) {
+      return NextResponse.json(
+        { error: "Anggota tidak ditemukan di cakupan Anda" },
+        { status: 404 },
+      );
+    }
+
+    if (formatMemberName(scoped.fullName) === fullName) {
+      return NextResponse.json({
+        success: true,
+        member: { id, fullName },
+        message: "Nama tidak berubah",
+      });
+    }
+
+    const { res, data } = await inkaiFetch(
+      `/v1/members/${id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ fullName }),
+      },
+      token,
+    );
+
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: inkaiErrorMessage(data, "Gagal menyimpan nama") },
+        { status: res.status },
+      );
+    }
+
+    try {
+      await prisma.member.update({
+        where: { id },
+        data: { fullName },
+      });
+    } catch (err) {
+      console.error("[set_name] prisma update failed:", err);
+    }
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "MEMBER_SET_NAME",
+      details: `Rename ${scoped.fullName} → ${fullName} (${id})`,
+      ip,
+      userAgent,
+      token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      member: { id, fullName },
+      fullName,
+      message: "Nama berhasil disimpan",
     });
   }
 

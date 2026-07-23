@@ -209,6 +209,7 @@ const EDIT_PROFILE_ACTIONS = new Set([
   "set_dues",
   "set_dues_exemption",
   "set_msh",
+  "set_name",
 ]);
 
 const CRUD_ACTIONS = new Set([
