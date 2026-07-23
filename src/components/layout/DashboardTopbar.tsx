@@ -106,9 +106,8 @@ export function DashboardTopbar({
         </h1>
       </div>
 
-      {showAdmin ? <OpenEventsTopbar /> : null}
-
       <div className="flex shrink-0 items-center gap-0.5 rounded-xl bg-muted/40 p-0.5 ring-1 ring-black/[0.03] dark:ring-white/5">
+        {showAdmin ? <OpenEventsTopbar /> : null}
         <NotificationBell viewAllHref={notificationsHref} />
         <ThemeToggle />
         <UserMenu

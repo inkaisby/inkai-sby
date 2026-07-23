@@ -611,6 +611,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Juli 2026 | Admin Iuran → **rekening koran**: tabel anggota (Iuran/bln, status bulan, tunggakan, aging, **Pengecualian** event/UKT); Sheet Pengaturan/Mutasi/Pembayaran; strip verifikasi; `GET /api/admin/iuran/members/[id]`; deep-link dari detail anggota |
 | 23 Juli 2026 | Iuran MVP gaps: filter tipe bulanan saja; aging + status Belum digenerate; **jejak aksi** lokal di Sheet; **bulk lunas tunai** `POST /api/admin/billing/bulk-mark-paid` |
 | 23 Juli 2026 | Admin topbar: chip **Masih terbuka** (pulse live, shimmer, rotasi judul, panel daftar + sisa waktu); `GET /api/admin/open-events` |
+| 23 Juli 2026 | Topbar kegiatan terbuka: HP = ikon compact di cluster aksi (judul tidak terpotong); panel fixed + backdrop |
 
 ---
 
