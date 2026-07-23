@@ -17,7 +17,7 @@ function MainContent({
   return (
     <main
       data-admin-shell={showAdmin ? "true" : undefined}
-      className={`relative min-w-0 flex-1 overflow-x-hidden p-3 sm:p-6 ${
+      className={`relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-6 ${
         showAdmin ? "admin-surface" : ""
       }`}
     >
@@ -50,11 +50,11 @@ export function DashboardShell({
   return (
     <NavigationProvider>
       <div
-        className={`flex min-h-screen ${showAdmin ? "admin-app" : ""}`}
+        className={`flex h-svh overflow-hidden ${showAdmin ? "admin-app" : ""}`}
         data-admin={showAdmin ? "true" : undefined}
       >
         <AppSidebar title={title} links={links} />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <DashboardTopbar
             title={title}
             links={links}

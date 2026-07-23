@@ -273,8 +273,8 @@ export function AppSidebar({
   const pathname = usePathname();
 
   return (
-    <aside className="admin-sidebar hidden w-64 flex-shrink-0 border-r border-border/60 bg-gradient-to-b from-muted/40 via-background to-background lg:block">
-      <div className="flex h-16 items-center gap-2.5 border-b border-border/60 px-4">
+    <aside className="admin-sidebar hidden h-svh w-64 shrink-0 flex-col border-r border-border/60 bg-gradient-to-b from-muted/40 via-background to-background lg:flex">
+      <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border/60 px-4">
         <Image
           src="/logo-inkai.png"
           alt="INKAI"
@@ -289,7 +289,7 @@ export function AppSidebar({
           </p>
         </div>
       </div>
-      <nav className="p-3">
+      <nav className="min-h-0 flex-1 overflow-y-auto p-3">
         {links.map((item) => {
           if (isNavGroup(item)) {
             return (

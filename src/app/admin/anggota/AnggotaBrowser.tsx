@@ -82,6 +82,7 @@ function formatExportDateTime(value: string | null | undefined) {
 function anggotaExportRows(members: AdminMemberRow[]) {
   return members.map((m) => [
     m.nia ?? "",
+    m.mshNumber ?? "",
     m.fullName,
     m.status,
     m.currentRank,
@@ -394,6 +395,7 @@ export function AnggotaBrowser({
           filename="anggota-export.csv"
           headers={[
             "NIA",
+            "No. MSH",
             "Nama",
             "Status",
             "Sabuk",

@@ -168,7 +168,7 @@ export function AnggotaFiltersForm({
             ref={inputRef}
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
-            placeholder="Cari nama / NIA..."
+            placeholder="Cari nama / NIA / MSH..."
             autoComplete="off"
             className="h-10 sm:h-8"
           />

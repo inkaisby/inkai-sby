@@ -20,6 +20,7 @@ import {
   normalizeNia,
   normalizeSelfRank,
 } from "@/lib/member-profile-locks";
+import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
 
 function hasOwn(obj: object, key: string) {
   return Object.prototype.hasOwnProperty.call(obj, key);
@@ -117,6 +118,8 @@ export async function PATCH(request: Request) {
     select: {
       id: true,
       userId: true,
+      dojoId: true,
+      fullName: true,
       nia: true,
       mshNumber: true,
       currentRank: true,
@@ -124,6 +127,7 @@ export async function PATCH(request: Request) {
       niaSelfEditedAt: true,
       rankSelfEditedAt: true,
       mshSelfEditedAt: true,
+      dojo: { select: { name: true } },
       user: { select: { id: true, email: true } },
     },
   });
@@ -381,6 +385,26 @@ export async function PATCH(request: Request) {
     }
   } catch (err) {
     console.error("[member/profile PATCH] prisma sync failed:", err);
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(prismaMember, "mshNumber") &&
+    local.dojoId
+  ) {
+    const msh =
+      typeof prismaMember.mshNumber === "string"
+        ? prismaMember.mshNumber
+        : null;
+    const prev = local.mshNumber?.trim() || null;
+    void notifyAdminsAboutMemberMsh({
+      dojoId: local.dojoId,
+      token,
+      excludeUserId: session.user.id,
+      title: msh ? "Anggota mengisi No. MSH" : "Anggota menghapus No. MSH",
+      content: msh
+        ? `${local.fullName} (${local.dojo.name}): No. MSH ${msh}${prev ? ` (sebelumnya ${prev})` : ""}.`
+        : `${local.fullName} (${local.dojo.name}): No. MSH dihapus.`,
+    });
   }
 
   return NextResponse.json({

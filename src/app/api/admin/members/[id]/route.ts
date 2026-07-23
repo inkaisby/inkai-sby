@@ -27,6 +27,11 @@ import { buildMemberFilter, type SessionUser } from "@/lib/rbac";
 import { adminDojoGrantBlocksMemberAction } from "@/lib/admin-dojo-grants";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { assertDojoInScope } from "@/lib/pengaturan";
+import {
+  mshAllowedForRank,
+  normalizeMsh,
+} from "@/lib/member-profile-locks";
+import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -135,6 +140,7 @@ export async function GET(_request: Request, context: RouteContext) {
           birthCertificateUrl: true,
           bpjsCardUrl: true,
           bpjsCardNumber: true,
+          mshNumber: true,
           user: {
             select: { email: true, phoneNumber: true, photoUrl: true },
           },
@@ -163,6 +169,9 @@ export async function GET(_request: Request, context: RouteContext) {
       bpjsCardUrl: localExtras.data.bpjsCardUrl,
       bpjsCardNumber: localExtras.data.bpjsCardNumber,
       allowEventWithoutDues: localExtras.data.allowEventWithoutDues,
+      mshNumber:
+        localExtras.data.mshNumber ??
+        (typeof member.mshNumber === "string" ? member.mshNumber : null),
       user: localUser
         ? {
             ...existingUser,
@@ -262,6 +271,103 @@ export async function PATCH(request: Request, context: RouteContext) {
       success: true,
       member: data.data,
       message: "NIA berhasil disimpan",
+    });
+  }
+
+  if (action === "set_msh") {
+    if (!canManageIuranByWilayah(roles)) {
+      return NextResponse.json(
+        { error: "Anda tidak berwenang mengisi No. MSH anggota" },
+        { status: 403 },
+      );
+    }
+    const scoped = await prisma.member.findFirst({
+      where: {
+        AND: [{ id }, buildMemberFilter(authResult.user)],
+      },
+      select: {
+        id: true,
+        fullName: true,
+        currentRank: true,
+        mshNumber: true,
+        dojoId: true,
+        dojo: { select: { name: true } },
+      },
+    });
+    if (!scoped) {
+      return NextResponse.json(
+        { error: "Anggota tidak ditemukan di cakupan Anda" },
+        { status: 404 },
+      );
+    }
+    if (!mshAllowedForRank(scoped.currentRank)) {
+      return NextResponse.json(
+        { error: "No. MSH hanya untuk sabuk Hitam (DAN)" },
+        { status: 400 },
+      );
+    }
+
+    const msh =
+      parsed.data.mshNumber === null || parsed.data.mshNumber === ""
+        ? null
+        : normalizeMsh(parsed.data.mshNumber);
+    if (parsed.data.mshNumber != null && String(parsed.data.mshNumber).trim() && !msh) {
+      return NextResponse.json(
+        { error: "No. MSH tidak valid" },
+        { status: 400 },
+      );
+    }
+    if (msh) {
+      const clash = await prisma.member.findFirst({
+        where: { mshNumber: msh, id: { not: id }, isDeleted: false },
+        select: { fullName: true },
+      });
+      if (clash) {
+        return NextResponse.json(
+          { error: `No. MSH sudah dipakai anggota lain (${clash.fullName})` },
+          { status: 409 },
+        );
+      }
+    }
+
+    const prev = scoped.mshNumber?.trim() || null;
+    if (prev === msh) {
+      return NextResponse.json({
+        success: true,
+        member: { id, mshNumber: msh },
+        message: "No. MSH tidak berubah",
+      });
+    }
+
+    await prisma.member.update({
+      where: { id },
+      data: { mshNumber: msh },
+    });
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "MEMBER_SET_MSH",
+      details: `Set MSH ${msh ?? "(hapus)"} for member ${id} (was ${prev ?? "—"})`,
+      ip,
+      userAgent,
+      token,
+    });
+
+    void notifyAdminsAboutMemberMsh({
+      dojoId: scoped.dojoId,
+      token,
+      excludeUserId: authResult.user.id,
+      title: msh ? "No. MSH anggota diperbarui" : "No. MSH anggota dihapus",
+      content: msh
+        ? `${scoped.fullName} (${scoped.dojo.name}): No. MSH ${msh}${prev ? ` (sebelumnya ${prev})` : ""}.`
+        : `${scoped.fullName} (${scoped.dojo.name}): No. MSH dihapus (sebelumnya ${prev}).`,
+    });
+
+    return NextResponse.json({
+      success: true,
+      member: { id, mshNumber: msh },
+      message: msh ? "No. MSH berhasil disimpan" : "No. MSH dihapus",
     });
   }
 

@@ -53,6 +53,8 @@ export type AdminMemberRow = {
   id: string;
   fullName: string;
   nia: string | null;
+  /** No. MSH — khusus sabuk Hitam (DAN) */
+  mshNumber?: string | null;
   currentRank: string;
   status: string;
   dojoId?: string | null;
@@ -307,6 +309,12 @@ export async function fetchAdminMembersScoped(
                   },
                 },
                 { nia: { contains: search, mode: "insensitive" as const } },
+                {
+                  mshNumber: {
+                    contains: search,
+                    mode: "insensitive" as const,
+                  },
+                },
               ],
             },
           ]
@@ -323,6 +331,7 @@ export async function fetchAdminMembersScoped(
           id: true,
           fullName: true,
           nia: true,
+          mshNumber: true,
           currentRank: true,
           status: true,
           dojoId: true,
@@ -350,6 +359,7 @@ export async function fetchAdminMembersScoped(
       id: m.id,
       fullName: m.fullName,
       nia: m.nia,
+      mshNumber: m.mshNumber,
       currentRank: m.currentRank,
       status: m.status,
       dojoId: m.dojoId,

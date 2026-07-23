@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { memberProfileChangeSchema } from "@/lib/security/schemas";
+import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import {
   isFieldLocked,
   mshAllowedForRank,
@@ -10,6 +11,7 @@ import {
   normalizeNia,
   normalizeSelfRank,
 } from "@/lib/member-profile-locks";
+import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
 
 export async function GET() {
   const session = await auth();
@@ -46,6 +48,8 @@ export async function POST(request: Request) {
     where: { id: memberId },
     select: {
       id: true,
+      fullName: true,
+      dojoId: true,
       nia: true,
       mshNumber: true,
       currentRank: true,
@@ -53,6 +57,7 @@ export async function POST(request: Request) {
       niaSelfEditedAt: true,
       rankSelfEditedAt: true,
       mshSelfEditedAt: true,
+      dojo: { select: { name: true } },
       user: { select: { email: true } },
     },
   });
@@ -183,6 +188,19 @@ export async function POST(request: Request) {
       status: "PENDING",
     },
   });
+
+  if (requested.mshNumber && member.dojoId) {
+    const token = await getInkaiAccessToken();
+    if (token) {
+      void notifyAdminsAboutMemberMsh({
+        dojoId: member.dojoId,
+        token,
+        excludeUserId: session.user.id,
+        title: "Pengajuan ubah No. MSH",
+        content: `${member.fullName} (${member.dojo.name}) mengajukan No. MSH ${requested.mshNumber}${member.mshNumber ? ` (sekarang ${member.mshNumber})` : ""}. Verifikasi di menu Verifikasi.`,
+      });
+    }
+  }
 
   return NextResponse.json({
     ...created,

@@ -36,6 +36,7 @@ import {
   formatGenderLabel,
   formatMemberName,
   formatRankLabel,
+  isBlackBeltRank,
 } from "@/lib/belt";
 import { passwordPatternHint } from "@/lib/security/password";
 import {
@@ -45,6 +46,7 @@ import {
   type MemberLifecycleMeta,
 } from "@/lib/member-lifecycle";
 import { canManageIuranByWilayah, canToggleMemberActive } from "@/lib/wilayah-rbac";
+import { Input } from "@/components/ui/input";
 import { MemberActions } from "./MemberActions";
 import { BulkDeactivateBar } from "./BulkDeactivateBar";
 import { usePersistedBulkSelection } from "./usePersistedBulkSelection";
@@ -320,6 +322,8 @@ export function MembersTable({
   const [duesSaving, setDuesSaving] = useState(false);
   const [duesExemptionSaving, setDuesExemptionSaving] = useState(false);
   const [duesDraft, setDuesDraft] = useState("");
+  const [mshDraft, setMshDraft] = useState("");
+  const [mshSaving, setMshSaving] = useState(false);
   const [passwordResetting, setPasswordResetting] = useState(false);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(
     null,
@@ -342,6 +346,7 @@ export function MembersTable({
   const canEditRank = canEditKyuBaru(userRoles);
   const canEditDojo = canEditKyuBaru(userRoles);
   const canEditDues = canManageIuranByWilayah(userRoles);
+  const canEditMsh = canManageIuranByWilayah(userRoles);
   const canResetPassword = canToggleMemberActive(userRoles);
 
   useEffect(() => {
@@ -376,6 +381,7 @@ export function MembersTable({
       id: member.id,
       fullName: member.fullName,
       nia: member.nia,
+      mshNumber: member.mshNumber ?? null,
       currentRank: member.currentRank,
       status: member.status,
       dojo: member.dojo,
@@ -384,6 +390,7 @@ export function MembersTable({
       photoUrl: member.photoUrl ?? null,
       _partial: true,
     });
+    setMshDraft(member.mshNumber?.trim() || "");
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/members/${member.id}`);
@@ -403,6 +410,11 @@ export function MembersTable({
             ? String(Math.round(Number(dues)))
             : "50000",
         );
+        const msh =
+          typeof data.member.mshNumber === "string"
+            ? data.member.mshNumber
+            : "";
+        setMshDraft(msh.trim());
       }
     } catch {
       showError("Gagal memuat detail anggota");
@@ -463,6 +475,47 @@ export function MembersTable({
       showError("Gagal memperbarui sabuk");
     } finally {
       setRankSavingId(null);
+    }
+  }
+
+  async function handleSetMsh() {
+    if (!selectedId || !canEditMsh) return;
+    const next = mshDraft.trim();
+    setMshSaving(true);
+    try {
+      const res = await fetch(`/api/admin/members/${selectedId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_msh",
+          mshNumber: next || null,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        member?: { mshNumber?: string | null };
+      };
+      if (!res.ok) {
+        showError(data.error || "Gagal menyimpan No. MSH");
+        return;
+      }
+      const saved = data.member?.mshNumber ?? (next || null);
+      showSuccess(data.message || "No. MSH disimpan");
+      setMshDraft(saved?.trim() || "");
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.id === selectedId ? { ...m, mshNumber: saved } : m,
+        ),
+      );
+      if (detail) {
+        setDetail({ ...detail, mshNumber: saved });
+      }
+      router.refresh();
+    } catch {
+      showError("Gagal menyimpan No. MSH");
+    } finally {
+      setMshSaving(false);
     }
   }
 
@@ -672,6 +725,7 @@ export function MembersTable({
   const unpaid = billings.filter((b) => b.status && b.status !== "PAID");
   const paidCount = billings.filter((b) => b.status === "PAID").length;
   const duesExempt = Boolean(detail?.allowEventWithoutDues);
+  const showMshField = isBlackBeltRank(currentRank);
   const lifecycle = detail?.lifecycle as MemberLifecycleMeta | null | undefined;
   const impact = detail?.impact as MemberImpactSummary | null | undefined;
   const colCount = canBulk ? 11 : 10;
@@ -704,6 +758,7 @@ export function MembersTable({
                     activeDir={sortDir}
                     onSort={onSort}
                   />
+                  <TableHead className="hidden md:table-cell">No. MSH</TableHead>
                   <SortableTableHead
                     label="Nama"
                     sortKey="fullName"
@@ -730,6 +785,7 @@ export function MembersTable({
               ) : (
                 <>
                   <TableHead>NIA</TableHead>
+                  <TableHead className="hidden md:table-cell">No. MSH</TableHead>
                   <TableHead>Nama</TableHead>
                   <TableHead className="hidden sm:table-cell">Sabuk</TableHead>
                   <TableHead>Status</TableHead>
@@ -822,6 +878,11 @@ export function MembersTable({
                           Belum ada NIA
                         </Badge>
                       )}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell font-mono text-sm text-muted-foreground">
+                      {isBlackBeltRank(m.currentRank) && m.mshNumber?.trim()
+                        ? m.mshNumber.trim()
+                        : "—"}
                     </TableCell>
                     <TableCell className="font-medium text-inkai-red">
                       {formatMemberName(m.fullName)}
@@ -1006,6 +1067,22 @@ export function MembersTable({
                   </Badge>
                 )}
               </span>
+              {showMshField ? (
+                <span>
+                  No. MSH:{" "}
+                  {typeof detail?.mshNumber === "string" &&
+                  detail.mshNumber.trim() ? (
+                    detail.mshNumber.trim()
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="text-xs text-muted-foreground"
+                    >
+                      Belum diisi
+                    </Badge>
+                  )}
+                </span>
+              ) : null}
               {detail?.status ? (
                 <MemberStatusBadge status={String(detail.status)} />
               ) : null}
@@ -1107,6 +1184,39 @@ export function MembersTable({
                         )
                       }
                     />
+                    {showMshField ? (
+                      <DetailRow
+                        label="No. MSH"
+                        value={
+                          canEditMsh ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Input
+                                value={mshDraft}
+                                onChange={(e) => setMshDraft(e.target.value)}
+                                placeholder="Isi No. MSH"
+                                className="h-8 w-36 font-mono text-xs"
+                                disabled={mshSaving || loading}
+                              />
+                              <Button
+                                size="sm"
+                                className="h-8 bg-inkai-red"
+                                disabled={mshSaving || loading}
+                                onClick={() => void handleSetMsh()}
+                              >
+                                Simpan
+                              </Button>
+                            </div>
+                          ) : typeof detail.mshNumber === "string" &&
+                            detail.mshNumber.trim() ? (
+                            <span className="font-mono text-sm">
+                              {detail.mshNumber.trim()}
+                            </span>
+                          ) : (
+                            "—"
+                          )
+                        }
+                      />
+                    ) : null}
                     <DetailRow label="NIK" value={loading && !detail.nik ? "…" : str(detail.nik)} />
                     <DetailRow
                       label="Tempat lahir"
