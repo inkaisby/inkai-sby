@@ -353,7 +353,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/iuran/members/[id]  Detail rekening iuran anggota (profil + mutasi bulanan + summary tunggakan + jejak aksi; scoped RBAC)
 /api/admin/ukt/registrations/[id]  Update/hapus pendaftaran UKT (`submit_for_verification` / `mark_paid` / Kyu; cabang force hapus: API lalu fallback Prisma shared DB)
 /api/admin/ukt/table        Refresh cepat tabel UKT (snapshot registrasi/tagihan periode, merge ke rows lokal)
-/api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees (snapshot/global), Kyu, exam-day, deposit, period-meta, hapus pendaftaran + tagihan terkait; sync undangan publik `ukt-invite:{id}`
+/api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees (snapshot/global), Kyu, exam-day, deposit, period-meta, invite (siapkan snapshot), hapus pendaftaran + tagihan terkait; sync undangan publik `ukt-invite:{id}`
 /api/cron/ukt-reminders     Cron H-3 pengingat UKT (batas daftar / jadwal ranting)
 /api/admin/open-events       Daftar kegiatan dengan pendaftaran masih terbuka (topbar admin)
 /api/admin/account-peers   Email akun ranting gabungan (overlap managed dojos) untuk topbar ganti akun
@@ -619,6 +619,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Juli 2026 | Perf auth+UI paket: login 1× Inkai (tanpa `/validate` ganda) + kode error CredentialsSignin; logout/ganti akun tanpa double clearPresence; topbar foto+nama; notif `countOnly` poll 180s; OpenEvents tanpa shimmer/pulse infinite; topbar blur hanya desktop; UKT ms via DOM ref |
 | 23 Juli 2026 | **Undangan portal UKT**: `/undangan/ukt/[periodId]` (cover+musik+Home/Acara/Galeri/Peta auto/klik/scroll), snapshot `ukt-invite`, Salin/WA Undangan di toolbar, login `callbackUrl` ke `/admin/ukt` |
 | 23 Juli 2026 | Undangan UKT: ringanin UI — hapus animasi infinite/blur/noise, tunda mount konten+Maps, countdown via DOM ref, musik HTMLAudio saja, font `next/font` |
+| 23 Juli 2026 | Fix 404 undangan: fallback service token + persist snapshot; `POST /api/admin/ukt/invite` saat Salin/WA Undangan |
 
 ---
 

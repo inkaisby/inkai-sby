@@ -2,10 +2,13 @@ import { cache } from "react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getEventDetail } from "@/lib/public-data";
+import { inkaiFetch } from "@/lib/inkai-api/server";
 import {
   getUktRegistrationDeadline,
   isUktRegistrationOpen,
   parseUktEventTitle,
+  parseUktPeriodMetaValue,
+  uktPeriodMetaKey,
   type UktPeriodMeta,
   type UktSemester,
 } from "@/lib/ukt";
@@ -168,12 +171,58 @@ async function loadInviteFromDb(periodId: string): Promise<UktInvitePublic | nul
 }
 
 async function loadInviteFallback(periodId: string): Promise<UktInvitePublic | null> {
-  const event = await getEventDetail(periodId);
-  if (!event) return null;
+  // 1) Coba endpoint publik (tanpa token)
+  let event = await getEventDetail(periodId);
+  let meta: UktPeriodMeta = { archived: false, locked: false };
+
+  // 2) Fallback service token (periode sering tidak publik tanpa auth)
+  if (!event) {
+    const serviceToken =
+      process.env.INKAI_SERVICE_TOKEN?.trim() ||
+      process.env.CRON_INKAI_TOKEN?.trim() ||
+      "";
+    if (serviceToken) {
+      try {
+        const { res, data } = await inkaiFetch(
+          `/v1/events/${periodId}`,
+          {},
+          serviceToken,
+        );
+        if (res.ok) {
+          const raw = (data.data as Record<string, unknown> | undefined) ?? null;
+          if (raw) {
+            event = {
+              id: String(raw.id ?? periodId),
+              title: String(raw.title ?? ""),
+              description: (raw.description as string | null) ?? null,
+              startDate: String(raw.startDate ?? ""),
+              endDate: raw.endDate ? String(raw.endDate) : null,
+              location: (raw.location as string | null) ?? null,
+              categories: [],
+            };
+          }
+        }
+        const metaRes = await inkaiFetch(
+          `/v1/settings/${encodeURIComponent(uktPeriodMetaKey(periodId))}`,
+          {},
+          serviceToken,
+        );
+        if (metaRes.res.ok) {
+          meta = parseUktPeriodMetaValue(
+            (metaRes.data.data as { value?: unknown } | undefined)?.value ?? null,
+          );
+        }
+      } catch (error) {
+        console.error("[loadInviteFallback] service", periodId, error);
+      }
+    }
+  }
+
+  if (!event?.title) return null;
   const titleUpper = event.title.toUpperCase();
   if (!titleUpper.includes("UKT")) return null;
 
-  return buildUktInviteSnapshot({
+  const snapshot = buildUktInviteSnapshot({
     periodId: event.id,
     title: event.title,
     startDate: event.startDate,
@@ -181,11 +230,30 @@ async function loadInviteFallback(periodId: string): Promise<UktInvitePublic | n
     registrationCloseAt: null,
     location: event.location,
     meta: {
-      archived: false,
-      locked: false,
-      examLocation: event.location ?? undefined,
+      ...meta,
+      examLocation: meta.examLocation ?? event.location ?? undefined,
     },
   });
+
+  // Persist agar request berikutnya tidak 404 / tidak hit API lagi
+  try {
+    await syncUktInviteSnapshot({
+      periodId: event.id,
+      title: event.title,
+      startDate: event.startDate,
+      endDate: event.endDate,
+      registrationCloseAt: null,
+      location: event.location,
+      meta: {
+        ...meta,
+        examLocation: meta.examLocation ?? event.location ?? undefined,
+      },
+    });
+  } catch (error) {
+    console.error("[loadInviteFallback] sync", periodId, error);
+  }
+
+  return snapshot;
 }
 
 export const getUktInvitePublic = cache(async (periodId: string) => {
