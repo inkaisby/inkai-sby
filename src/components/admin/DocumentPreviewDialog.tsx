@@ -31,11 +31,14 @@ export function DocumentPreviewDialog({
   onOpenChange,
   title,
   url,
+  proxyScope = "admin",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   url: string | null;
+  /** Anggota: proxy `/api/member/document-file` (hanya milik sendiri). */
+  proxyScope?: "admin" | "member";
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [loading, setLoading] = useState(false);
@@ -65,7 +68,9 @@ export function DocumentPreviewDialog({
       setError(null);
       setSizeLabel("…");
       try {
-        const res = await fetch(documentProxyUrl(url!), { cache: "no-store" });
+        const res = await fetch(documentProxyUrl(url!, proxyScope), {
+          cache: "no-store",
+        });
         if (!res.ok) {
           const data = (await res.json().catch(() => ({}))) as {
             error?: string;
@@ -110,7 +115,7 @@ export function DocumentPreviewDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, url]);
+  }, [open, url, proxyScope]);
 
   function handlePrint() {
     if (!objectUrl) return;

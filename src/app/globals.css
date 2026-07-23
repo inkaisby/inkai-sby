@@ -147,6 +147,31 @@
   animation: inkai-dot 1.2s ease-in-out infinite;
 }
 
+/* Toast loading: logo INKAI di kiri, bukan spinner Sonner default */
+[data-sonner-toaster] [data-sonner-toast][data-type="loading"] [data-icon] {
+  width: auto;
+  height: auto;
+  margin: 0;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="loading"] [data-icon] > * {
+  position: static;
+  transform: none;
+  left: auto;
+  top: auto;
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-type="loading"] .sonner-loader {
+  display: none;
+}
+
+.inkai-toast-loading {
+  gap: 0.75rem;
+  padding-block: 0.85rem;
+  padding-inline: 1rem;
+  backdrop-filter: blur(8px);
+}
+
 @keyframes inkai-ring {
   from {
     transform: rotate(0deg);
@@ -462,8 +487,9 @@
   }
 }
 
+/* Dinonaktifkan: animasi masuk memperlambat rasa pindah halaman */
 .admin-content-enter {
-  animation: admin-content-enter 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -584,8 +610,9 @@
   }
 }
 
+/* Dinonaktifkan: animasi masuk memperlambat rasa pindah halaman */
 .public-content-enter {
-  animation: public-content-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

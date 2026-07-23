@@ -209,6 +209,8 @@ export default async function MemberDashboard() {
   const qrValue = memberId
     ? `${SITE_URL}/v/${member?.nia || memberId}`
     : undefined;
+  const mshNumber =
+    (member?.mshNumber as string | null | undefined)?.trim() || null;
 
   const semesterLabel = attendanceStats.isFirstSemester
     ? "I (Jan - Jun)"
@@ -340,6 +342,7 @@ export default async function MemberDashboard() {
           name={displayName}
           dojo={dojoLine || "—"}
           highestBelt={belt}
+          mshNumber={mshNumber}
           qrValue={qrValue}
         />
       ) : (

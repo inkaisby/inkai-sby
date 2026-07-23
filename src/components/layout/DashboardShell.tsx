@@ -3,11 +3,9 @@
 import { AppSidebar } from "@/components/layout/AppShell";
 import { AdminAccessGate } from "@/components/layout/AdminAccessGate";
 import { DashboardTopbar } from "@/components/layout/DashboardTopbar";
-import { NavigationProvider, useNavigation } from "@/components/layout/NavigationProvider";
-import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
+import { NavigationProvider } from "@/components/layout/NavigationProvider";
 import type { NavItem } from "@/lib/dashboard-nav";
 import type { AdminDojoGrants } from "@/lib/admin-dojo-grants";
-import { useEffect, useState } from "react";
 
 function MainContent({
   children,
@@ -16,21 +14,6 @@ function MainContent({
   children: React.ReactNode;
   showAdmin?: boolean;
 }) {
-  const { isNavigating } = useNavigation();
-  const [overlayVisible, setOverlayVisible] = useState(false);
-
-  useEffect(() => {
-    if (isNavigating) {
-      setOverlayVisible(true);
-      return;
-    }
-
-    if (!overlayVisible) return;
-
-    const timer = setTimeout(() => setOverlayVisible(false), 120);
-    return () => clearTimeout(timer);
-  }, [isNavigating, overlayVisible]);
-
   return (
     <main
       data-admin-shell={showAdmin ? "true" : undefined}
@@ -38,26 +21,7 @@ function MainContent({
         showAdmin ? "admin-surface" : ""
       }`}
     >
-      {overlayVisible && (
-        <div
-          className={`pointer-events-none absolute inset-0 z-10 flex items-start justify-center bg-background/40 pt-20 backdrop-blur-[1px] transition-opacity duration-200 ${
-            isNavigating ? "opacity-100" : "opacity-0"
-          }`}
-          aria-live="polite"
-          aria-label="Memuat halaman"
-        >
-          <div
-            className={`rounded-2xl border bg-background/90 px-10 py-8 shadow-lg backdrop-blur-sm transition-transform duration-200 ${
-              isNavigating ? "scale-100" : "scale-[0.98]"
-            }`}
-          >
-            <InkaiLogoLoader size="md" message="Memuat data..." />
-          </div>
-        </div>
-      )}
-      <div className={showAdmin ? "admin-content-enter relative z-[1]" : undefined}>
-        {children}
-      </div>
+      {children}
     </main>
   );
 }

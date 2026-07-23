@@ -13,18 +13,67 @@ export async function overlayMemberLocalFields(
       birthCertificateUrl: true,
       bpjsCardUrl: true,
       bpjsCardNumber: true,
+      nik: true,
+      gender: true,
+      birthPlace: true,
+      birthDate: true,
+      address: true,
+      nia: true,
+      mshNumber: true,
+      currentRank: true,
+      emailSelfEditedAt: true,
+      niaSelfEditedAt: true,
+      rankSelfEditedAt: true,
+      mshSelfEditedAt: true,
+      user: {
+        select: {
+          email: true,
+          phoneNumber: true,
+          photoUrl: true,
+        },
+      },
     },
   });
   if (!local) return member;
+
+  const inkaiUser = member.user as
+    | { email?: string; phoneNumber?: string; photoUrl?: string }
+    | undefined;
+
   return {
     ...member,
     allowEventWithoutDues: local.allowEventWithoutDues,
-    monthlyDuesAmount:
-      member.monthlyDuesAmount ?? local.monthlyDuesAmount,
+    monthlyDuesAmount: member.monthlyDuesAmount ?? local.monthlyDuesAmount,
     birthCertificateUrl:
       member.birthCertificateUrl ?? local.birthCertificateUrl,
     bpjsCardUrl: member.bpjsCardUrl ?? local.bpjsCardUrl,
     bpjsCardNumber: member.bpjsCardNumber ?? local.bpjsCardNumber,
+    nik: member.nik ?? local.nik,
+    gender: member.gender ?? local.gender,
+    birthPlace: member.birthPlace ?? local.birthPlace,
+    birthDate: member.birthDate ?? local.birthDate,
+    address: member.address ?? local.address,
+    nia: member.nia ?? local.nia,
+    mshNumber: local.mshNumber ?? (member.mshNumber as string | null) ?? null,
+    currentRank: member.currentRank ?? local.currentRank,
+    emailSelfEditedAt: local.emailSelfEditedAt,
+    niaSelfEditedAt: local.niaSelfEditedAt,
+    rankSelfEditedAt: local.rankSelfEditedAt,
+    mshSelfEditedAt: local.mshSelfEditedAt,
+    email:
+      inkaiUser?.email ??
+      local.user?.email ??
+      (typeof member.email === "string" ? member.email : null),
+    phoneNumber:
+      (typeof member.phoneNumber === "string" && member.phoneNumber) ||
+      inkaiUser?.phoneNumber ||
+      local.user?.phoneNumber ||
+      null,
+    photoUrl:
+      (typeof member.photoUrl === "string" && member.photoUrl) ||
+      inkaiUser?.photoUrl ||
+      local.user?.photoUrl ||
+      null,
   };
 }
 

@@ -20,7 +20,28 @@ export async function POST(request: Request) {
 
   const form = await request.formData();
   const file = form.get("file");
-  const folder = String(form.get("folder") || "iuran");
+  const folderRaw = String(form.get("folder") || "photo").toLowerCase();
+  const allowed = new Set([
+    "photo",
+    "akte",
+    "bpjs",
+    "iuran",
+    "piagam",
+    "members/akte",
+    "members/bpjs",
+  ]);
+  if (!allowed.has(folderRaw)) {
+    return NextResponse.json(
+      { error: "Folder unggah tidak diizinkan" },
+      { status: 400 },
+    );
+  }
+  const folder =
+    folderRaw === "members/akte"
+      ? "akte"
+      : folderRaw === "members/bpjs"
+        ? "bpjs"
+        : folderRaw;
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "File wajib diunggah" }, { status: 400 });

@@ -23,6 +23,8 @@ export function FileUploadField({
   hideUrl = false,
   /** Kompres otomatis ke ~150 KB sebelum unggah (dokumen Akte/BPJS). */
   compressToMaxBytes,
+  /** Default admin; anggota pakai `/api/member/upload`. */
+  uploadEndpoint = "/api/admin/upload",
 }: {
   label: string;
   value?: string;
@@ -34,6 +36,7 @@ export function FileUploadField({
   hint?: string;
   hideUrl?: boolean;
   compressToMaxBytes?: number;
+  uploadEndpoint?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -41,7 +44,10 @@ export function FileUploadField({
   const shouldCompress =
     compressToMaxBytes != null ||
     folder.startsWith("members/akte") ||
-    folder.startsWith("members/bpjs");
+    folder.startsWith("members/bpjs") ||
+    folder === "akte" ||
+    folder === "bpjs" ||
+    folder === "photo";
   const maxBytes = compressToMaxBytes ?? DOCUMENT_COMPRESS_MAX_BYTES;
 
   async function handleFile(file: File | null) {
@@ -55,7 +61,7 @@ export function FileUploadField({
       const body = new FormData();
       body.set("file", toUpload);
       body.set("folder", folder);
-      const res = await fetch("/api/admin/upload", { method: "POST", body });
+      const res = await fetch(uploadEndpoint, { method: "POST", body });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         showError(data.error || "Gagal upload");

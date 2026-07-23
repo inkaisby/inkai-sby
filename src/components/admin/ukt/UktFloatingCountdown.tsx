@@ -13,6 +13,7 @@ type Remaining = {
   hours: number;
   minutes: number;
   seconds: number;
+  ms: number;
   totalMs: number;
 };
 
@@ -31,17 +32,9 @@ function calcRemaining(targetMs: number, nowMs: number): Remaining | null {
     hours: Math.floor((diff % 86_400_000) / 3_600_000),
     minutes: Math.floor((diff % 3_600_000) / 60_000),
     seconds: Math.floor((diff % 60_000) / 1_000),
+    ms: Math.floor(diff % 1_000),
     totalMs: diff,
   };
-}
-
-function sameParts(a: Remaining, b: Remaining) {
-  return (
-    a.days === b.days &&
-    a.hours === b.hours &&
-    a.minutes === b.minutes &&
-    a.seconds === b.seconds
-  );
 }
 
 function Unit({
@@ -60,7 +53,9 @@ function Unit({
       <span
         className={cn(
           "rounded-md bg-background/80 px-1.5 py-1 font-mono text-lg font-semibold tabular-nums tracking-tight shadow-sm ring-1 ring-black/[0.04] sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-3xl",
-          wide ? "min-w-[2.5rem] sm:min-w-[3.25rem]" : "min-w-[2rem] sm:min-w-[2.75rem]",
+          wide
+            ? "min-w-[2.5rem] sm:min-w-[3.25rem]"
+            : "min-w-[2rem] sm:min-w-[2.75rem]",
           emergency ? "text-inkai-red ring-inkai-red/20" : "text-foreground",
         )}
       >
@@ -93,8 +88,8 @@ function Sep({ emergency }: { emergency?: boolean }) {
 }
 
 /**
- * Timer batas pendaftaran — tick 1 detik (bukan rAF/ms) agar tidak membebani UI HP.
- * Pause saat tab tersembunyi.
+ * Timer batas pendaftaran — hari/jam/menit/detik/ms via rAF.
+ * Pause saat tab tersembunyi agar tidak membebani HP.
  */
 export function UktFloatingCountdown({ targetIso, className }: Props) {
   const targetMs = new Date(targetIso).getTime();
@@ -105,14 +100,10 @@ export function UktFloatingCountdown({ targetIso, className }: Props) {
     hours: 0,
     minutes: 0,
     seconds: 0,
+    ms: 0,
     totalMs: 0,
   });
   const expiredRef = useRef(false);
-  const partsRef = useRef(parts);
-
-  useEffect(() => {
-    partsRef.current = parts;
-  }, [parts]);
 
   useEffect(() => {
     if (Number.isNaN(targetMs)) {
@@ -122,64 +113,48 @@ export function UktFloatingCountdown({ targetIso, className }: Props) {
     }
 
     setReady(true);
+    let raf = 0;
+    let running = false;
 
-    const apply = () => {
+    const stop = () => {
+      running = false;
+      if (raf) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
+    };
+
+    const tick = () => {
+      if (!running) return;
       const next = calcRemaining(targetMs, Date.now());
       if (!next) {
-        const zero: Remaining = {
+        setParts({
           days: 0,
           hours: 0,
           minutes: 0,
           seconds: 0,
+          ms: 0,
           totalMs: 0,
-        };
-        if (partsRef.current.totalMs !== 0) {
-          setParts(zero);
-        }
+        });
         if (!expiredRef.current) {
           expiredRef.current = true;
           setExpired(true);
         }
-        return false;
+        stop();
+        return;
       }
       if (expiredRef.current) {
         expiredRef.current = false;
         setExpired(false);
       }
-      // Hanya re-render bila digit berubah (hindari setState tiap tick kosong)
-      if (!sameParts(partsRef.current, next)) {
-        setParts(next);
-      } else {
-        // Perbarui totalMs diam-diam untuk ambang H-2 tanpa ganti digit
-        const crossedEmergency =
-          (partsRef.current.totalMs > H2_MS) !== (next.totalMs > H2_MS);
-        if (crossedEmergency) setParts(next);
-        else partsRef.current = next;
-      }
-      return true;
+      setParts(next);
+      raf = requestAnimationFrame(tick);
     };
-
-    apply();
-
-    let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const start = () => {
-      if (intervalId != null) return;
-      intervalId = setInterval(() => {
-        if (!apply()) {
-          if (intervalId != null) {
-            clearInterval(intervalId);
-            intervalId = null;
-          }
-        }
-      }, 1_000);
-    };
-
-    const stop = () => {
-      if (intervalId != null) {
-        clearInterval(intervalId);
-        intervalId = null;
-      }
+      if (running) return;
+      running = true;
+      raf = requestAnimationFrame(tick);
     };
 
     const onVisibility = () => {
@@ -187,7 +162,6 @@ export function UktFloatingCountdown({ targetIso, className }: Props) {
         stop();
         return;
       }
-      apply();
       start();
     };
 
@@ -229,10 +203,18 @@ export function UktFloatingCountdown({ targetIso, className }: Props) {
       <p
         className={cn(
           "mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] sm:mb-2.5",
-          expired ? "text-muted-foreground" : emergency ? "text-inkai-red" : "text-muted-foreground",
+          expired
+            ? "text-muted-foreground"
+            : emergency
+              ? "text-inkai-red"
+              : "text-muted-foreground",
         )}
       >
-        {expired ? "Pendaftaran ditutup" : emergency ? "H-2 · Batas hampir tutup" : "Batas pendaftaran"}
+        {expired
+          ? "Pendaftaran ditutup"
+          : emergency
+            ? "H-2 · Batas hampir tutup"
+            : "Batas pendaftaran"}
       </p>
 
       <div className="flex flex-wrap items-end justify-center gap-1 sm:gap-2.5">
@@ -248,6 +230,13 @@ export function UktFloatingCountdown({ targetIso, className }: Props) {
         <Unit value={pad(parts.minutes)} label="Menit" emergency={emergency} />
         <Sep emergency={emergency} />
         <Unit value={pad(parts.seconds)} label="Detik" emergency={emergency} />
+        <Sep emergency={emergency} />
+        <Unit
+          value={pad(parts.ms, 3)}
+          label="ms"
+          wide
+          emergency={emergency}
+        />
       </div>
     </div>
   );

@@ -32,6 +32,53 @@ async function applyDojoTransfer(claim: {
   }
 }
 
+async function applyProfileChange(claim: {
+  type: string;
+  memberId: string;
+  data: string;
+}) {
+  if (claim.type !== "PROFILE_CHANGE") return;
+  try {
+    const parsed = JSON.parse(claim.data) as {
+      requested?: {
+        email?: string;
+        nia?: string;
+        currentRank?: string;
+        mshNumber?: string;
+      };
+    };
+    const req = parsed.requested;
+    if (!req) return;
+
+    const memberData: Record<string, unknown> = {};
+    if (req.nia !== undefined) memberData.nia = req.nia;
+    if (req.currentRank !== undefined) memberData.currentRank = req.currentRank;
+    if (req.mshNumber !== undefined) memberData.mshNumber = req.mshNumber;
+
+    if (Object.keys(memberData).length > 0) {
+      await prisma.member.update({
+        where: { id: claim.memberId },
+        data: memberData,
+      });
+    }
+
+    if (req.email) {
+      const member = await prisma.member.findUnique({
+        where: { id: claim.memberId },
+        select: { userId: true },
+      });
+      if (member?.userId) {
+        await prisma.user.update({
+          where: { id: member.userId },
+          data: { email: req.email },
+        });
+      }
+    }
+  } catch {
+    // ignore malformed data
+  }
+}
+
 async function notifyVerificationResult(opts: {
   memberId: string;
   type: string;
@@ -119,6 +166,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   if (local && parsed.data.action === "approve") {
     await applyDojoTransfer(local);
+    await applyProfileChange(local);
     await prisma.verification
       .update({
         where: { id },

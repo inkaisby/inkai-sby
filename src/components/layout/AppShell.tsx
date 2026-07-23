@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { SidebarNavLink } from "@/components/layout/SidebarNavLink";
+import { useNavigation } from "@/components/layout/NavigationProvider";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ export function UserMenu({
   const [switchPrefill, setSwitchPrefill] = useState("");
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [peers, setPeers] = useState<PeerAccount[]>([]);
+  const { startNavigation } = useNavigation();
 
   const initials = name
     .split(" ")
@@ -189,20 +191,32 @@ export function UserMenu({
 
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Link href={showAdmin ? "/admin/notifikasi" : "/dashboard/notifikasi"}>
+            <Link
+              href={showAdmin ? "/admin/notifikasi" : "/dashboard/notifikasi"}
+              prefetch
+              onClick={() =>
+                startNavigation(
+                  showAdmin ? "/admin/notifikasi" : "/dashboard/notifikasi",
+                )
+              }
+            >
               <Bell className="mr-2 h-4 w-4" />
               Notifikasi
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/">
+            <Link href="/" prefetch onClick={() => startNavigation("/")}>
               <Home className="mr-2 h-4 w-4" />
               Beranda Publik
             </Link>
           </DropdownMenuItem>
           {!showAdmin && (
             <DropdownMenuItem asChild>
-              <Link href="/dashboard">
+              <Link
+                href="/dashboard"
+                prefetch
+                onClick={() => startNavigation("/dashboard")}
+              >
                 <User className="mr-2 h-4 w-4" />
                 Dashboard Anggota
               </Link>
@@ -210,7 +224,11 @@ export function UserMenu({
           )}
           {showAdmin && hasMemberPortal && (
             <DropdownMenuItem asChild>
-              <Link href="/dashboard">
+              <Link
+                href="/dashboard"
+                prefetch
+                onClick={() => startNavigation("/dashboard")}
+              >
                 <User className="mr-2 h-4 w-4" />
                 Dashboard Anggota
               </Link>

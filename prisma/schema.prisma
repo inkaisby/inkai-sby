@@ -161,6 +161,8 @@ model Member {
   userId                String?             @unique
   dojoId                String
   nia                   String?             @unique
+  /// Nomor MSH — khusus sabuk Hitam (DAN)
+  mshNumber             String?             @unique
   nik                   String?             @unique
   fullName              String
   gender                String?
@@ -179,6 +181,14 @@ model Member {
   bpjsCardUrl           String?
   bpjsCardNumber        String?
   bpjsOcrExtracted      Json?
+  /// Anggota sudah 1x mengubah email akun sendiri → selanjutnya pengajuan
+  emailSelfEditedAt     DateTime?
+  /// Anggota sudah 1x mengubah NIA sendiri → selanjutnya pengajuan
+  niaSelfEditedAt       DateTime?
+  /// Anggota sudah 1x mengubah sabuk sendiri → selanjutnya pengajuan
+  rankSelfEditedAt      DateTime?
+  /// Anggota sudah 1x mengubah No. MSH sendiri → selanjutnya pengajuan
+  mshSelfEditedAt       DateTime?
   attendances           Attendance[]
   billings              Billing[]
   eventRegistrations    EventRegistration[]

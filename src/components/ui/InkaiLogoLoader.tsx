@@ -2,7 +2,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 const SIZES = {
-  sm: { outer: 28, logo: 18, ring: "border" },
+  sm: { outer: 32, logo: 20, ring: "border" },
   md: { outer: 88, logo: 52, ring: "border-2" },
   lg: { outer: 120, logo: 72, ring: "border-2" },
 } as const;
@@ -59,7 +59,7 @@ export function InkaiLogoLoader({
         )}
         <div
           className={cn(
-            "relative z-10 overflow-hidden rounded-full bg-background shadow-md ring-1 ring-inkai-red/20",
+            "relative z-10 overflow-hidden rounded-full bg-background shadow-sm ring-1 ring-inkai-red/20",
             size === "sm" ? "p-0.5" : size === "md" ? "p-1.5" : "p-2",
           )}
         >

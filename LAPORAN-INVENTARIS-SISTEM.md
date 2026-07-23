@@ -82,14 +82,14 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Status | Fungsi |
 |-------|--------|--------|
 | Beranda | Aktif | Kartu anggota, **checklist keanggotaan + CTA**, dojo/jadwal/**absen hari ini**/PIC, aksi cepat kontekstual, UKT, agenda gabungan, badge pesan+notif; **dual-role: ikon Panel Admin** di header (sebelah logout) |
-| Profil | Aktif | Edit data pribadi (bukan Kyu/DAN) |
+| Profil | Aktif | Edit lengkap (foto, identitas, dokumen); **email/NIA/sabuk/MSH edit mandiri 1×** lalu pengajuan `PROFILE_CHANGE`; No. MSH (Hitam/DAN) di Kartu Anggota |
 | Absensi | Aktif | Riwayat + check-in GPS (kode QR opsional) |
 | Iuran | Aktif | Daftar tagihan + unggah bukti pembayaran |
 | Kegiatan | Aktif | Pendaftaran event (dengan gate kelengkapan) |
 | Materi Digital | Aktif | Katalog materi dari cabang (unduh/buka file) |
 | Store | Aktif | Katalog produk + pesan (stok) |
 | Prestasi & Sabuk | Aktif | Sabuk, unggah piagam, pelatihan |
-| Dokumen | Aktif | Akte kelahiran & BPJS |
+| Dokumen | Aktif | Ringkasan Akte/BPJS; unggah/edit via Profil |
 | Notifikasi | Aktif | Notifikasi **akun sendiri** saja (filter fan-out Inkai + sembunyikan notif ops admin) |
 | Pesan | Aktif | Chat dengan pengurus |
 | Pindah Dojo | Aktif | Ajuan pindah ranting → verifikasi |
@@ -312,7 +312,7 @@ Pusat / Nasional
 | Ketergantungan API | Ada | Halaman degrade jika API sibuk/timeout |
 | Email & Blob | Opsional | Perlu env production |
 | Keamanan P0–P2 | Diperkuat | Pesan IDOR ditutup; verifikasi fail-closed; rate limit Upstash opsional; CSRF admin ketat; password register; audit upload/broadcast/verifikasi |
-| Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI/overlay/pageSize; **mobile paket lengkap: topbar/`AdminPageHeader`/filter, `AdminMoreActions`, tabel kolom ringkas, pesan single-pane, UKT timer 1s** |
+| Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI/pageSize; **navigasi instan**: tanpa min-delay/overlay blur/`loading.tsx` full-page; progress bar tipis saja; animasi content-enter dimatikan |
 
 | Index Prisma | Ditambah | Member/Billing/Attendance/Verification/Message — jalankan migrate/db push di production |
 | Pool DB Supabase | Diperkuat | Transaction `:6543`+`pgbouncer`; `connection_limit=5`/`pool_timeout=20`; soft-delete & **purge massal batch** (`deleteMany` per relasi); chunk purge 25 + jeda/retry; toast sibuk |
@@ -359,7 +359,10 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/document-file    Proxy pratinjau dokumen anggota (modal + print)
 /api/admin/events           Buat event non-UKT (Cabang)
 /api/admin/events/[id]      Detail/roster + ubah/tutup event
-/api/member/profile          GET sabuk kartu (no-store) + PATCH profil
+/api/member/profile          GET sabuk kartu (no-store) + PATCH profil lengkap (identitas, foto, dokumen; email/NIA/sabuk/MSH 1×)
+/api/member/profile-change   Pengajuan ubah email/NIA/sabuk/MSH setelah terkunci (`PROFILE_CHANGE`)
+/api/member/upload           Unggah file anggota (foto/akte/bpjs + folder legacy iuran/piagam)
+/api/member/document-file    Proxy pratinjau dokumen anggota
 /api/member/ukt-status       Kartu status UKT periode aktif untuk anggota
 /api/admin/materi/*         CRUD materi digital
 /api/admin/store/*          Produk & status pesanan
@@ -594,6 +597,11 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Juli 2026 | Polish visual publik: `public-surface`, topbar/nav/footer elegan, hero grid lebih lembut, CTA & kartu beranda dirapikan |
 | 23 Juli 2026 | Halaman konten publik: header Badge+h1 diganti `PublicPageHeader` (sejarah, makna-lambang, visi-misi, kontak, berita, kegiatan, dojo, struktur, keamanan-siber) |
 | 23 Juli 2026 | Tema: default ikuti sistem OS; tombol siklus sistem → terang → gelap (ikon Monitor/Moon/Sun); `storageKey=inkai-theme` |
+| 23 Juli 2026 | Navigasi cepat: hapus min delay 180ms + overlay loader; matikan animasi content-enter; hapus `loading.tsx` admin/dashboard/publik agar konten lama tetap sampai halaman baru siap |
+| 23 Juli 2026 | Toast loading elegan: spinner Sonner diganti `InkaiLogoLoader` (logo + ring beranimasi) di Toaster global |
+| 23 Juli 2026 | UKT timer: milidetik dikembalikan (hari–jam–menit–detik–ms via rAF); tetap pause saat tab tersembunyi |
+| 23 Juli 2026 | Profil anggota: tampil + edit foto, NIK, JK, TTL, alamat, telepon, Akte/BPJS; email/sabuk baca saja; API PATCH sync Inkai+Prisma |
+| 23 Juli 2026 | Profil: email/NIA/sabuk/MSH edit mandiri 1× lalu pengajuan `PROFILE_CHANGE`; kolom `mshNumber` + migrasi; Kartu Anggota tampilkan NIA + No. MSH (Hitam/DAN) |
 
 ---
 

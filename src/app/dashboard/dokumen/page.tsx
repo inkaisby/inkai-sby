@@ -1,10 +1,12 @@
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { FileText, ExternalLink } from "lucide-react";
+import { FileText, ExternalLink, Pencil } from "lucide-react";
 import { fetchMyMemberProfile } from "@/lib/inkai-api/member-data";
 import { MemberPageHeader } from "@/components/member/MemberPageHeader";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +38,17 @@ export default async function DokumenPage() {
   return (
     <>
       <MemberPageHeader title="Dokumen" />
-      <p className="mb-5 text-sm text-muted-foreground">
-        Dokumen {String(member.fullName)}
-      </p>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          Dokumen {String(member.fullName)}
+        </p>
+        <Button asChild variant="outline" size="sm" className="gap-1.5">
+          <Link href="/dashboard/profil">
+            <Pencil className="h-3.5 w-3.5" />
+            Edit di Profil
+          </Link>
+        </Button>
+      </div>
 
       <div className="space-y-3">
         {docs.map((doc) => (
@@ -65,7 +75,12 @@ export default async function DokumenPage() {
                 Lihat dokumen <ExternalLink className="h-3 w-3" />
               </a>
             ) : (
-              <p className="text-sm text-muted-foreground">Belum diunggah</p>
+              <p className="text-sm text-muted-foreground">
+                Belum diunggah —{" "}
+                <Link href="/dashboard/profil" className="text-inkai-red hover:underline">
+                  lengkapi di Profil
+                </Link>
+              </p>
             )}
             {doc.extra && (
               <p className="mt-2 text-xs text-muted-foreground">{doc.extra}</p>

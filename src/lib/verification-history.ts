@@ -11,6 +11,7 @@ export const VERIFICATION_TYPE_LABELS: Record<string, string> = {
   ACHIEVEMENT: "Prestasi",
   MONTHLY_IURAN: "Iuran Bulanan",
   PASSWORD_RESET: "Reset Password",
+  PROFILE_CHANGE: "Ubah Profil (Email/NIA/Sabuk/MSH)",
 };
 
 export const VERIFICATION_HISTORY_TYPES = [
@@ -22,6 +23,7 @@ export const VERIFICATION_HISTORY_TYPES = [
   "DOCUMENT",
   "ACHIEVEMENT",
   "MONTHLY_IURAN",
+  "PROFILE_CHANGE",
 ] as const;
 
 export type VerificationHistoryRow = {

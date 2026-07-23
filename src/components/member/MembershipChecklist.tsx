@@ -100,7 +100,7 @@ export function buildMembershipChecklist(opts: {
       detail: opts.documentsOk
         ? "Akte & BPJS sudah ada"
         : "Akte kelahiran / BPJS belum lengkap",
-      href: "/dashboard/dokumen",
+      href: "/dashboard/profil",
       cta: "Lengkapi dokumen",
     },
     {

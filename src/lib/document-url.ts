@@ -30,6 +30,13 @@ export function formatFileSize(bytes: number | null | undefined): string {
   })} MB`;
 }
 
-export function documentProxyUrl(sourceUrl: string): string {
-  return `/api/admin/document-file?url=${encodeURIComponent(sourceUrl)}`;
+export function documentProxyUrl(
+  sourceUrl: string,
+  scope: "admin" | "member" = "admin",
+): string {
+  const base =
+    scope === "member"
+      ? "/api/member/document-file"
+      : "/api/admin/document-file";
+  return `${base}?url=${encodeURIComponent(sourceUrl)}`;
 }

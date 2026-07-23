@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Shield } from "lucide-react";
+import { isBlackBeltRank } from "@/lib/belt";
 
 interface MemberCardProps {
   nia: string;
   name: string;
   dojo: string;
   highestBelt?: string;
+  mshNumber?: string | null;
   qrValue?: string;
 }
 
@@ -16,6 +18,8 @@ type ProfilePayload = {
   fullName?: string;
   belt?: string | null;
   dojo?: string;
+  mshNumber?: string | null;
+  isBlackBelt?: boolean;
 };
 
 export function MemberCard({
@@ -23,19 +27,22 @@ export function MemberCard({
   name: initialName,
   dojo: initialDojo,
   highestBelt: initialBelt,
+  mshNumber: initialMsh,
   qrValue,
 }: MemberCardProps) {
   const [nia, setNia] = useState(initialNia);
   const [name, setName] = useState(initialName);
   const [dojo, setDojo] = useState(initialDojo);
   const [belt, setBelt] = useState(initialBelt?.trim() || "—");
+  const [mshNumber, setMshNumber] = useState(initialMsh?.trim() || "");
 
   useEffect(() => {
     setNia(initialNia);
     setName(initialName);
     setDojo(initialDojo);
     setBelt(initialBelt?.trim() || "—");
-  }, [initialNia, initialName, initialDojo, initialBelt]);
+    setMshNumber(initialMsh?.trim() || "");
+  }, [initialNia, initialName, initialDojo, initialBelt, initialMsh]);
 
   const refreshCard = useCallback(async () => {
     try {
@@ -47,6 +54,8 @@ export function MemberCard({
       if (data.nia) setNia(data.nia);
       if (data.dojo) setDojo(data.dojo);
       if (data.belt) setBelt(data.belt);
+      if (data.mshNumber != null) setMshNumber(data.mshNumber || "");
+      else if (data.isBlackBelt === false) setMshNumber("");
     } catch {
       // Tetap tampilkan data SSR awal jika refresh gagal.
     }
@@ -77,6 +86,8 @@ export function MemberCard({
     ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=8&data=${encodeURIComponent(qrValue)}`
     : null;
 
+  const showMsh = isBlackBeltRank(belt) && Boolean(mshNumber);
+
   return (
     <div className="member-fade-in relative min-h-[220px] w-full overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-card via-secondary/40 to-card shadow-[0_10px_30px_rgba(200,16,46,0.12)] dark:from-[#20222b] dark:via-[#292c37] dark:to-[#1b1c24] dark:shadow-[0_10px_30px_rgba(200,16,46,0.18)]">
       <Shield
@@ -105,8 +116,13 @@ export function MemberCard({
               {name}
             </h1>
             <h2 className="m-0 text-base font-bold tracking-wide text-inkai-red">
-              {nia}
+              NIA {nia}
             </h2>
+            {showMsh ? (
+              <p className="m-0 text-sm font-bold tracking-wide text-inkai-red/90">
+                No. MSH {mshNumber}
+              </p>
+            ) : null}
             <p className="m-0 mt-1 text-[13px] font-semibold text-foreground/80">
               {belt}
             </p>

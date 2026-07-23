@@ -47,6 +47,13 @@ export function shortRankLabel(rankRaw: string | null | undefined): string {
   return r;
 }
 
+/** Sabuk Hitam / DAN — wajib tampil No. MSH di kartu bila ada. */
+export function isBlackBeltRank(rankRaw: string | null | undefined): boolean {
+  const r = (rankRaw || "").trim().toLowerCase();
+  if (!r) return false;
+  return r.includes("hitam") || /\bdan\s*\d+/i.test(r);
+}
+
 /** Canonical display: "Putih (Kyu 10)", "Hitam (DAN 3)", … */
 export function formatRankLabel(rankRaw: string | null | undefined): string {
   const r = (rankRaw || "").trim();

@@ -657,6 +657,56 @@ export const memberBillingProofSchema = z.object({
   paymentMethod: z.string().trim().max(40).optional(),
 });
 
+/** PATCH profil anggota sendiri. Email/NIA/sabuk/MSH: edit mandiri maks. 1x. */
+export const memberSelfProfileSchema = z.object({
+  fullName: optionalBlankString(
+    z
+      .string()
+      .trim()
+      .min(2, "Nama minimal 2 karakter")
+      .max(100, "Nama terlalu panjang"),
+  ),
+  gender: optionalBlankString(z.enum(["L", "P"])),
+  birthPlace: optionalBlankString(z.string().trim().max(100)),
+  birthDate: optionalBlankString(z.string().trim().min(8).max(32)),
+  address: optionalBlankString(z.string().trim().max(300)),
+  phoneNumber: optionalBlankString(
+    z.string().trim().min(10, "Nomor telepon tidak valid").max(20),
+  ),
+  /** Kosong = hapus NIK; isi harus 16 digit. */
+  nik: z
+    .union([
+      z.literal(""),
+      z.null(),
+      z.string().trim().regex(/^\d{16}$/, "NIK harus 16 digit"),
+    ])
+    .optional(),
+  photoUrl: z.string().trim().max(2048).optional().nullable(),
+  birthCertificateUrl: z.string().trim().max(2048).optional().nullable(),
+  bpjsCardUrl: z.string().trim().max(2048).optional().nullable(),
+  bpjsCardNumber: z.string().trim().max(32).optional().nullable(),
+  /** Edit mandiri 1x — setelah terkunci lewat pengajuan. */
+  email: optionalBlankString(z.string().trim().toLowerCase().email().max(254)),
+  nia: optionalBlankString(z.string().trim().min(2).max(32)),
+  currentRank: optionalBlankString(z.string().trim().min(2).max(64)),
+  mshNumber: optionalBlankString(z.string().trim().min(2).max(32)),
+});
+
+/** Pengajuan perubahan email / NIA / sabuk / No. MSH setelah kunci 1x. */
+export const memberProfileChangeSchema = z
+  .object({
+    reason: z.string().trim().min(5, "Alasan minimal 5 karakter").max(500),
+    email: optionalBlankString(z.string().trim().toLowerCase().email().max(254)),
+    nia: optionalBlankString(z.string().trim().min(2).max(32)),
+    currentRank: optionalBlankString(z.string().trim().min(2).max(64)),
+    mshNumber: optionalBlankString(z.string().trim().min(2).max(32)),
+    proofUrl: z.string().url().optional().or(z.literal("")),
+  })
+  .refine(
+    (v) => Boolean(v.email || v.nia || v.currentRank || v.mshNumber),
+    { message: "Pilih minimal satu field yang diajukan perubahannya" },
+  );
+
 export const adminBillingPatchSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.enum(["approve", "reject", "mark_paid"]),

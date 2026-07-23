@@ -218,6 +218,35 @@ async function AdminVerifikasiContent({
                               if (claimType === "ACHIEVEMENT") {
                                 return `${parsed.title ?? "Piagam"}${parsed.notes ? `\n${parsed.notes}` : ""}`;
                               }
+                              if (claimType === "PROFILE_CHANGE") {
+                                const req = (parsed.requested || {}) as Record<
+                                  string,
+                                  string
+                                >;
+                                const cur = (parsed.current || {}) as Record<
+                                  string,
+                                  string | null
+                                >;
+                                const lines: string[] = [];
+                                if (req.email) {
+                                  lines.push(`Email: ${cur.email ?? "—"} → ${req.email}`);
+                                }
+                                if (req.nia) {
+                                  lines.push(`NIA: ${cur.nia ?? "—"} → ${req.nia}`);
+                                }
+                                if (req.currentRank) {
+                                  lines.push(
+                                    `Sabuk: ${cur.currentRank ?? "—"} → ${req.currentRank}`,
+                                  );
+                                }
+                                if (req.mshNumber) {
+                                  lines.push(
+                                    `No. MSH: ${cur.mshNumber ?? "—"} → ${req.mshNumber}`,
+                                  );
+                                }
+                                if (parsed.reason) lines.push(String(parsed.reason));
+                                return lines.join("\n");
+                              }
                               return JSON.stringify(parsed, null, 2);
                             } catch {
                               return String(c.data);
