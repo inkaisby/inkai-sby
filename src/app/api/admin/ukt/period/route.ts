@@ -24,6 +24,7 @@ import {
   saveUktPeriodMeta,
 } from "@/lib/ukt-period-meta-store";
 import { notifyUktDojoAdmins } from "@/lib/ukt-period-notify";
+import { syncInviteAfterPeriodChange } from "@/lib/ukt-invite-sync";
 
 async function resolveSurabayaBranchId(token: string) {
   const { res, data } = await inkaiFetch("/v1/org/provinces", {}, token);
@@ -274,6 +275,15 @@ export async function POST(request: Request) {
           by: authResult.user.email,
         });
         await saveUktPeriodMeta(authResult.token, old.id, archived);
+        await syncInviteAfterPeriodChange({
+          periodId: old.id,
+          title: old.title,
+          startDate: old.startDate,
+          endDate: old.endDate,
+          registrationCloseAt: old.registrationCloseAt,
+          location: examLocation ?? null,
+          meta: archived,
+        });
       }
     }
 
@@ -291,6 +301,16 @@ export async function POST(request: Request) {
       },
     );
     await saveUktPeriodMeta(authResult.token, event.id, meta);
+
+    await syncInviteAfterPeriodChange({
+      periodId: event.id,
+      title: uniqueTitle,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      registrationCloseAt: registrationCloseAt.toISOString(),
+      location: examLocation ?? null,
+      meta,
+    });
 
     if (notifyRanting) {
       const openLabel = formatUktRegistrationDeadline(registrationOpenAt.toISOString());
@@ -459,6 +479,52 @@ export async function PATCH(request: Request) {
     }
 
     await saveUktPeriodMeta(authResult.token, eventId, next);
+
+    const eventForInvite =
+      (eventResult as Record<string, unknown> | null) ?? existing;
+    await syncInviteAfterPeriodChange({
+      periodId: eventId,
+      title: String(eventForInvite.title ?? existing.title ?? "UKT"),
+      startDate: eventForInvite.startDate
+        ? String(eventForInvite.startDate)
+        : String(existing.startDate ?? ""),
+      endDate: eventForInvite.endDate
+        ? String(eventForInvite.endDate)
+        : existing.endDate
+          ? String(existing.endDate)
+          : null,
+      registrationCloseAt: eventForInvite.registrationCloseAt
+        ? String(eventForInvite.registrationCloseAt)
+        : registrationCloseAt ??
+          (existing.registrationCloseAt
+            ? String(existing.registrationCloseAt)
+            : null),
+      location: examLocation ?? (existing.location ? String(existing.location) : null),
+      meta: next,
+    });
+  } else if (title) {
+    const current = await loadUktPeriodMeta(authResult.token, eventId);
+    const eventForInvite =
+      (eventResult as Record<string, unknown> | null) ?? existing;
+    await syncInviteAfterPeriodChange({
+      periodId: eventId,
+      title: String(eventForInvite.title ?? existing.title ?? "UKT"),
+      startDate: eventForInvite.startDate
+        ? String(eventForInvite.startDate)
+        : String(existing.startDate ?? ""),
+      endDate: eventForInvite.endDate
+        ? String(eventForInvite.endDate)
+        : existing.endDate
+          ? String(existing.endDate)
+          : null,
+      registrationCloseAt: eventForInvite.registrationCloseAt
+        ? String(eventForInvite.registrationCloseAt)
+        : existing.registrationCloseAt
+          ? String(existing.registrationCloseAt)
+          : null,
+      location: existing.location ? String(existing.location) : null,
+      meta: current,
+    });
   }
 
   writeAuditLog({

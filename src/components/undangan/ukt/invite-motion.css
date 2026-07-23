@@ -1,0 +1,396 @@
+.invite-ukt {
+  --invite-bg0: #f7f4ef;
+  --invite-bg1: #f0ebe3;
+  --invite-ink: #1a1a1a;
+  --invite-muted: #5c5650;
+  --invite-red: #c8102e;
+  --invite-gold: #f5c518;
+  --invite-panel: #fffcf8;
+  --invite-font-display: var(--font-invite-display, Georgia, "Times New Roman", serif);
+  --invite-font-body: var(--font-invite-body, system-ui, sans-serif);
+  font-family: var(--invite-font-body);
+  color: var(--invite-ink);
+  background: var(--invite-bg0);
+  min-height: 100dvh;
+  position: relative;
+  overflow: hidden;
+  /* Isolasi paint dari sisa app (halaman full-screen terpisah) */
+  contain: layout style;
+}
+
+.invite-ukt * {
+  box-sizing: border-box;
+}
+
+.invite-ukt__atmosphere {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 255, 255, 0.85), transparent 60%),
+    linear-gradient(165deg, var(--invite-bg0) 0%, #fff 45%, var(--invite-bg1) 100%);
+}
+
+/* Motif sabuk ringan — tanpa mix-blend / noise filter (hemat GPU) */
+.invite-ukt__atmosphere::before {
+  content: "";
+  position: absolute;
+  inset: 12% 8% auto;
+  height: 4.5rem;
+  opacity: 0.07;
+  background: repeating-linear-gradient(
+    90deg,
+    #fff 0 12%,
+    #f5c518 12% 18%,
+    #2d6a4f 18% 24%,
+    #1d4e89 24% 30%,
+    #6b3f2a 30% 36%,
+    #1a1a1a 36% 42%,
+    transparent 42% 100%
+  );
+  border-radius: 999px;
+}
+
+.invite-ukt__belt-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 7rem;
+  margin: 0.85rem auto 0;
+}
+
+.invite-ukt__belt-lines span:first-child {
+  height: 3px;
+  background: var(--invite-red);
+  border-radius: 999px;
+}
+
+.invite-ukt__belt-lines span:last-child {
+  height: 2px;
+  background: var(--invite-gold);
+  border-radius: 999px;
+}
+
+.invite-ukt__display {
+  font-family: var(--invite-font-display);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+}
+
+.invite-ukt__cover {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 18%, rgba(255, 255, 255, 0.95), transparent 55%),
+    linear-gradient(180deg, var(--invite-bg0), var(--invite-bg1));
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.55s ease;
+  will-change: transform, opacity;
+}
+
+.invite-ukt__cover.is-open {
+  transform: translateY(-108%);
+  opacity: 0;
+  pointer-events: none;
+  will-change: auto;
+}
+
+.invite-ukt__cover-logo {
+  width: 5.5rem;
+  height: 5.5rem;
+  object-fit: contain;
+}
+
+.invite-ukt__open-btn {
+  margin-top: 1.75rem;
+  min-width: 12rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--invite-red);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.9rem 1.6rem;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(200, 16, 46, 0.22);
+}
+
+.invite-ukt__open-btn:active {
+  transform: scale(0.97);
+}
+
+.invite-ukt__shell {
+  position: relative;
+  z-index: 1;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.45s ease 0.08s, transform 0.45s ease 0.08s;
+}
+
+.invite-ukt__shell.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.invite-ukt__scroll {
+  flex: 1;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.invite-ukt__section {
+  min-height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem 1.1rem 5.5rem;
+  /* Skip layout/paint section di luar viewport */
+  content-visibility: auto;
+  contain-intrinsic-size: 100dvh;
+}
+
+.invite-ukt__panel {
+  width: min(100%, 28rem);
+  background: var(--invite-panel);
+  border: 1px solid rgba(26, 26, 26, 0.06);
+  border-radius: 1.25rem;
+  padding: 1.5rem 1.25rem;
+  box-shadow: 0 8px 24px rgba(26, 26, 26, 0.05);
+}
+
+.invite-ukt__section--gallery .invite-ukt__panel {
+  background: #fff;
+}
+
+.invite-ukt__section--map .invite-ukt__panel {
+  background: #fff;
+}
+
+.invite-ukt__tabs {
+  position: fixed;
+  left: 50%;
+  bottom: 0.85rem;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: min(100% - 1.5rem, 24rem);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.25rem;
+  padding: 0.35rem;
+  border-radius: 1rem;
+  background: #fff;
+  border: 1px solid rgba(26, 26, 26, 0.08);
+  box-shadow: 0 6px 20px rgba(26, 26, 26, 0.08);
+}
+
+.invite-ukt__tab {
+  position: relative;
+  border: none;
+  background: transparent;
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.25rem 0.65rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--invite-muted);
+  cursor: pointer;
+}
+
+.invite-ukt__tab.is-active {
+  color: var(--invite-red);
+  background: rgba(200, 16, 46, 0.08);
+}
+
+.invite-ukt__tab-progress {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 0.28rem;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(200, 16, 46, 0.15);
+  overflow: hidden;
+}
+
+.invite-ukt__tab-progress > i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--invite-red);
+  border-radius: inherit;
+}
+
+.invite-ukt__tab.is-active .invite-ukt__tab-progress > i {
+  animation: invite-tab-progress var(--invite-auto-ms, 8000ms) linear forwards;
+}
+
+.invite-ukt__sticky-actions {
+  position: fixed;
+  top: 0.85rem;
+  right: 0.85rem;
+  z-index: 35;
+  display: flex;
+  gap: 0.45rem;
+}
+
+.invite-ukt__icon-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(26, 26, 26, 0.1);
+  background: #fff;
+  color: var(--invite-ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(26, 26, 26, 0.06);
+}
+
+.invite-ukt__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 1.1rem;
+  border-radius: 999px;
+  background: var(--invite-red);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 0.85rem 1.2rem;
+  text-decoration: none;
+  box-shadow: 0 8px 20px rgba(200, 16, 46, 0.22);
+}
+
+.invite-ukt__cta:hover {
+  filter: brightness(1.04);
+}
+
+.invite-ukt__cta.is-disabled {
+  background: #9a9490;
+  box-shadow: none;
+  pointer-events: none;
+}
+
+.invite-ukt__countdown {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.45rem;
+  margin-top: 1rem;
+}
+
+.invite-ukt__countdown-cell {
+  text-align: center;
+  background: #fff;
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.2rem;
+  border: 1px solid rgba(26, 26, 26, 0.06);
+}
+
+.invite-ukt__countdown-cell strong {
+  display: block;
+  font-family: var(--invite-font-display);
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--invite-red);
+  font-variant-numeric: tabular-nums;
+}
+
+.invite-ukt__countdown-cell span {
+  font-size: 0.65rem;
+  color: var(--invite-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.invite-ukt__gallery {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.55rem;
+}
+
+.invite-ukt__gallery button {
+  border: none;
+  padding: 0;
+  background: transparent;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+  cursor: pointer;
+}
+
+.invite-ukt__gallery img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.invite-ukt__lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(26, 26, 26, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+}
+
+.invite-ukt__lightbox img {
+  max-width: min(100%, 28rem);
+  max-height: 80dvh;
+  border-radius: 0.75rem;
+}
+
+.invite-ukt__map {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 0;
+  border-radius: 0.85rem;
+  background: #eee;
+}
+
+.invite-ukt__hint {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  color: var(--invite-muted);
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+@keyframes invite-tab-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .invite-ukt__tab.is-active .invite-ukt__tab-progress > i {
+    animation: none !important;
+  }
+
+  .invite-ukt__cover,
+  .invite-ukt__shell {
+    transition: none !important;
+  }
+
+  .invite-ukt__scroll {
+    scroll-behavior: auto;
+  }
+}

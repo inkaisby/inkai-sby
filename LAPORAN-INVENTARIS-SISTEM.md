@@ -3,7 +3,7 @@
 **Aplikasi:** Portal web Institut Karate-Do Indonesia (INKAI) Cabang Surabaya  
 **Repository:** `inkai-sby`  
 **Platform:** Next.js (App Router) + Inkai API + PostgreSQL (Supabase/Prisma)  
-**Tanggal dokumen:** 20 Juli 2026  
+**Tanggal dokumen:** 23 Juli 2026  
 **Peran:** living context untuk pengurus & agent — baca sebelum develop; update bersamaan dengan perubahan kode. Nama file ini **tetap**.
 
 ---
@@ -74,6 +74,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/daftar` | Redirect ke form daftar |
 | `/lupa-password` | Ajuan reset password |
 | `/reset-password` | Set password baru |
+| `/undangan/ukt/[periodId]` | **Undangan portal UKT** (publik): cover buka + musik, section Home/Acara/Galeri/Peta (auto-play + klik tab + scroll), CTA login ke `/admin/ukt` |
 
 ---
 
@@ -105,7 +106,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda); **dual-role: menu Dashboard Anggota**; **topbar chip kegiatan Masih terbuka** (pulse + rotasi judul + panel) |
 | Kelola Anggota | Cari **autocomplete** (nama/NIA/**MSH**); kolom **No**; **sort kolom** (NIA, Nama, Sabuk, Status, Dojo, Terdaftar — ikon naik/turun, server-side); KPI status + **Dok. kurang** + **Tanpa NIA**; **ranting/cabang edit Nama** inline (`set_name`) + **Dokumen** (tombol Ubah di kolom / detail); **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **No. MSH** (Hitam/DAN — kolom + edit ranting/cabang `set_msh`); **Terdaftar**; **edit Iuran/bln**; **pengecualian iuran (event/UKT)**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV (+ No. MSH); arsip; Prisma scoped (+ **anggota luar Surabaya / ranting arsip** tetap terlihat); filter client-side; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50); detail: **username login dari Prisma** (bukan hint palsu); **Reset password** sementara (ranting/cabang) |
 | Iuran Anggota | **Rekening koran per anggota** (tabel: No, Nama, NIA, Ranting, Iuran/bln, Status bulan, Tunggakan, Aging, **Pengecualian**); klik nama → Sheet **Pengaturan / Mutasi / Pembayaran**; strip antrian verifikasi; generate bulan; export rekap CSV; deep-link `?memberId=&tab=` |
-| UKT | Nav grup **Pendaftaran** (`/admin/ukt`) + **Arsip UKT** (`/admin/ukt/arsip`); periode aktif, daftar peserta, **sort kolom**, multi-select ranting, **filter Gabungan multi-ranting**, bayar→verifikasi cabang, sabuk target, nota, **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya); **toolbar atas sticky**; **ranting: Daftar/Batal/Bayar + toolbar Laporan WA & Cetak Nota**; cabang: **Hapus tagihan** terpisah dari hapus pendaftaran |
+| UKT | Nav grup **Pendaftaran** (`/admin/ukt`) + **Arsip UKT** (`/admin/ukt/arsip`); periode aktif, daftar peserta, **sort kolom**, multi-select ranting, **filter Gabungan multi-ranting**, bayar→verifikasi cabang, sabuk target, nota, **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya); **toolbar atas sticky**; **ranting: Daftar/Batal/Bayar + toolbar Laporan WA, Salin/WA Undangan & Cetak Nota**; cabang: **Hapus tagihan** terpisah dari hapus pendaftaran; **undangan portal** `/undangan/ukt/[periodId]` |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
 | Verifikasi | Antrian klaim + **filter tipe/aging**; riwayat |
 | Event & Kegiatan | Buat + **ubah/tutup** event non-UKT + **roster pendaftar**; link UKT |
@@ -229,7 +230,8 @@ Pusat / Nasional
 11c. **Cron H-3** (`/api/cron/ukt-reminders`, `vercel.json`): pengingat batas daftar & notifikasi jadwal ke ranting (idempoten lewat `notified*` di period-meta).
 11d. **Fokus periode aktif:** resolusi mengutamakan non-arsip; judul kanonis `UKT Semester {I|II}-{tahun}`; buat periode baru mengarsipkan term yang sudah tutup; sidebar **UKT → Pendaftaran / Arsip UKT** (bukan dropdown campuran); anggota hanya melihat periode aktif. Arsipkan dari Pendaftaran mengarahkan ke Arsip; buka arsip mengembalikan ke Pendaftaran. **Arsip UKT** hanya menampilkan peserta yang sudah mendaftar (tanpa pool “Belum Daftar”).
 12. Dashboard anggota menampilkan **kartu Status UKT** di beranda & Prestasi (termasuk **jadwal ujian + lokasi** bila diisi); admin cabang: **export daftar peserta** (Print/Save as PDF/CSV + pilih ranting + validasi data; kolom **KYU** = sabuk keanggotaan), **Laporan WA** ringkas, **hari-H** (roster hadir + hasil massal), **status setoran** (cabang), **arsip/kunci periode**, waiver, wizard, action bar. Cabang & ranting dapat **membatalkan pendaftaran UKT beserta tagihan terkait, termasuk yang sudah lunas** (ranting: scope dojo + notifikasi cabang). Hapus hanya menyasar tagihan tertaut registrasi / UKT yatim (bukan semua iuran PAID anggota); bila API Inkai menolak karena tagihan lunas, server memakai **fallback Prisma**. Setelah hapus, anggota yang ikut ter-soft-delete dipulihkan agar bisa daftar UKT lain. Gate daftar memakai fallback Prisma bila GET anggota Inkai 404. Cabang dapat **menghapus tagihan UKT saja** (`DELETE /api/admin/billing/[id]`).
-13. Toolbar cabang: **Buat Periode**, Hari-H, Export, Laporan WA, Cetak Nota, Biaya Sabuk, Arsip (tombol terpisah). Toolbar ranting: **Laporan WA** + **Cetak Nota** (manual).
+13. Toolbar cabang: **Buat Periode**, Hari-H, Export, Laporan WA, **Salin Undangan** / **WA Undangan**, Cetak Nota, Biaya Sabuk, Arsip (tombol terpisah). Toolbar ranting: **Laporan WA** + **Salin/WA Undangan** + **Cetak Nota** (manual).
+14. **Undangan portal publik** `/undangan/ukt/[periodId]`: gaya undangan digital (elegan siang + motif sabuk); data jadwal/lokasi dari snapshot `AppSetting` `ukt-invite:{periodId}` (disinkron saat buat/ubah periode/meta); CTA **Daftarkan Anggota** → `/login?callbackUrl=/admin/ukt?period=…` (login menghormati `callbackUrl`).
 
 ### 9.4 Kegiatan & absensi
 - **Cabang** dapat membuat event non-UKT di `/admin/kegiatan` (Gashuku, pertandingan, dll.).
@@ -296,6 +298,7 @@ Pusat / Nasional
 | Eligibility UKT | Diterapkan | Gate periode tutup, iuran, dokumen, absensi semester minimum 75% |
 | Hasil ujian UKT | Aktif | Cabang tetapkan `LULUS` / `GAGAL` / `MENGULANG`; Kyu Baru **wajib** setelah LULUS |
 | Status UKT anggota | Aktif | `/api/member/ukt-status` + kartu status di beranda & Prestasi (CTA + jadwal ujian bila ada) |
+| Undangan portal UKT | Aktif | `/undangan/ukt/[periodId]` publik; snapshot `AppSetting` `ukt-invite:{id}`; Salin/WA Undangan di toolbar admin |
 | Filter/KPI UKT operasional | Aktif | Status UI selaras: Belum Bayar, Menunggu Verif/Ujian, Lulus, Selesai; kartu KPI **Gagal/Mengulang** memfilter kedua status |
 | Pengecualian UKT (waiver) | Aktif | Cabang kecualikan iuran/dokumen/absensi + catatan audit |
 | Kebijakan syarat UKT | Aktif | `/admin/pengaturan/ukt` — centang iuran/dokumen/absensi + enforce ranting/cabang (`AppSetting` `ukt.registration.policy`) |
@@ -350,7 +353,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/iuran/members/[id]  Detail rekening iuran anggota (profil + mutasi bulanan + summary tunggakan + jejak aksi; scoped RBAC)
 /api/admin/ukt/registrations/[id]  Update/hapus pendaftaran UKT (`submit_for_verification` / `mark_paid` / Kyu; cabang force hapus: API lalu fallback Prisma shared DB)
 /api/admin/ukt/table        Refresh cepat tabel UKT (snapshot registrasi/tagihan periode, merge ke rows lokal)
-/api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees (snapshot/global), Kyu, exam-day, deposit, period-meta, hapus pendaftaran + tagihan terkait
+/api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees (snapshot/global), Kyu, exam-day, deposit, period-meta, hapus pendaftaran + tagihan terkait; sync undangan publik `ukt-invite:{id}`
 /api/cron/ukt-reminders     Cron H-3 pengingat UKT (batas daftar / jadwal ranting)
 /api/admin/open-events       Daftar kegiatan dengan pendaftaran masih terbuka (topbar admin)
 /api/admin/account-peers   Email akun ranting gabungan (overlap managed dojos) untuk topbar ganti akun
@@ -614,6 +617,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Juli 2026 | Topbar kegiatan terbuka: HP = ikon compact di cluster aksi (judul tidak terpotong); panel fixed + backdrop |
 | 23 Juli 2026 | Transisi logo INKAI elegan (login/logout/ganti akun + perpindahan portal publik↔admin↔dashboard): overlay ringan tanpa blur, unmount saat idle, progress tipis untuk nav dalam shell; `NavigationProvider` global; hapus delay 750ms ganti akun |
 | 23 Juli 2026 | Perf auth+UI paket: login 1× Inkai (tanpa `/validate` ganda) + kode error CredentialsSignin; logout/ganti akun tanpa double clearPresence; topbar foto+nama; notif `countOnly` poll 180s; OpenEvents tanpa shimmer/pulse infinite; topbar blur hanya desktop; UKT ms via DOM ref |
+| 23 Juli 2026 | **Undangan portal UKT**: `/undangan/ukt/[periodId]` (cover+musik+Home/Acara/Galeri/Peta auto/klik/scroll), snapshot `ukt-invite`, Salin/WA Undangan di toolbar, login `callbackUrl` ke `/admin/ukt` |
+| 23 Juli 2026 | Undangan UKT: ringanin UI — hapus animasi infinite/blur/noise, tunda mount konten+Maps, countdown via DOM ref, musik HTMLAudio saja, font `next/font` |
 
 ---
 

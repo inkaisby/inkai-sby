@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
 import { canEditKyuBaru } from "@/lib/belt";
-import { inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { uktPeriodMetaSchema } from "@/lib/security/schemas";
 import { getClientIp } from "@/lib/security/request";
 import {
@@ -10,6 +10,7 @@ import {
   mergeUktPeriodMeta,
   saveUktPeriodMeta,
 } from "@/lib/ukt-period-meta-store";
+import { syncInviteAfterPeriodChange } from "@/lib/ukt-invite-sync";
 
 export async function PATCH(request: Request) {
   const authResult = await requireAdmin();
@@ -43,6 +44,26 @@ export async function PATCH(request: Request) {
       { error: inkaiErrorMessage(saved.errorData as Record<string, unknown>, "Gagal menyimpan meta periode") },
       { status: saved.status },
     );
+  }
+
+  const { res: eventRes, data: eventData } = await inkaiFetch(
+    `/v1/events/${eventId}`,
+    {},
+    authResult.token,
+  );
+  if (eventRes.ok) {
+    const event = (eventData.data as Record<string, unknown> | undefined) ?? {};
+    await syncInviteAfterPeriodChange({
+      periodId: eventId,
+      title: String(event.title ?? "UKT"),
+      startDate: event.startDate ? String(event.startDate) : null,
+      endDate: event.endDate ? String(event.endDate) : null,
+      registrationCloseAt: event.registrationCloseAt
+        ? String(event.registrationCloseAt)
+        : null,
+      location: event.location ? String(event.location) : null,
+      meta: next,
+    });
   }
 
   writeAuditLog({

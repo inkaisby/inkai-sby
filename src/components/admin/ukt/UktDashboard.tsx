@@ -30,6 +30,8 @@ import {
   Settings2,
   MoreHorizontal,
   RefreshCw,
+  Link2,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -74,6 +76,7 @@ import { UktFloatingCountdown } from "@/components/admin/ukt/UktFloatingCountdow
 import { UktSearchBar } from "@/components/admin/ukt/UktSearchBar";
 import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
 import { AddMemberDialog } from "@/components/admin/AddMemberDialog";
+import { buildUktInviteUrl } from "@/lib/ukt-invite";
 import {
   BELT_RANK_OPTIONS,
   canEditKyuBaru,
@@ -1741,6 +1744,37 @@ export function UktDashboard(props: Props) {
     toast.success("WhatsApp dibuka — pilih penerima lalu kirim laporan");
   };
 
+  const copyInviteLink = async () => {
+    if (!props.selectedPeriodId) {
+      toast.error("Pilih periode UKT terlebih dahulu");
+      return;
+    }
+    const url = buildUktInviteUrl(props.selectedPeriodId);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link undangan UKT disalin");
+    } catch {
+      toast.error("Gagal menyalin link");
+    }
+  };
+
+  const shareInviteWa = () => {
+    if (!props.selectedPeriodId) {
+      toast.error("Pilih periode UKT terlebih dahulu");
+      return;
+    }
+    const title = selectedPeriod?.title || periodTitle;
+    const url = buildUktInviteUrl(props.selectedPeriodId);
+    const text = `Undangan ${title}\n\nKepada Yth. Pengurus Ranting INKAI Surabaya,\nsilakan buka undangan & daftarkan anggota ranting:\n${url}`;
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    const opened = window.open(waUrl, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      toast.error("Popup diblokir — izinkan jendela baru untuk membuka WhatsApp");
+      return;
+    }
+    toast.success("WhatsApp dibuka — bagikan undangan UKT");
+  };
+
   const kpiCards = [
     {
       label: isArchiveView ? "Peserta" : "Total Anggota",
@@ -1920,6 +1954,26 @@ export function UktDashboard(props: Props) {
                   <MessageCircle className="mr-1 h-4 w-4" />
                   Laporan WA
                 </Button>
+                {props.selectedPeriodId && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => void copyInviteLink()}
+                      className={periodActionBtn}
+                    >
+                      <Link2 className="mr-1 h-4 w-4" />
+                      Salin Undangan
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={shareInviteWa}
+                      className={periodActionBtn}
+                    >
+                      <Share2 className="mr-1 h-4 w-4" />
+                      WA Undangan
+                    </Button>
+                  </>
+                )}
                 <Button
                   variant="outline"
                   onClick={() => openPrintNota(false)}
@@ -2003,6 +2057,22 @@ export function UktDashboard(props: Props) {
                 </Button>
                 <Button
                   variant="outline"
+                  onClick={() => void copyInviteLink()}
+                  className={periodActionBtn}
+                >
+                  <Link2 className="mr-1 h-4 w-4" />
+                  Salin Undangan
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={shareInviteWa}
+                  className={periodActionBtn}
+                >
+                  <Share2 className="mr-1 h-4 w-4" />
+                  WA Undangan
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={() => openPrintNota(false)}
                   className={periodActionBtn}
                 >
@@ -2021,6 +2091,26 @@ export function UktDashboard(props: Props) {
                   <MessageCircle className="mr-1 h-4 w-4" />
                   Laporan WA
                 </Button>
+                {props.selectedPeriodId && (
+                  <>
+                    <Button
+                      variant="outline"
+                      onClick={() => void copyInviteLink()}
+                      className={periodActionBtn}
+                    >
+                      <Link2 className="mr-1 h-4 w-4" />
+                      Salin Undangan
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={shareInviteWa}
+                      className={periodActionBtn}
+                    >
+                      <Share2 className="mr-1 h-4 w-4" />
+                      WA Undangan
+                    </Button>
+                  </>
+                )}
                 <Button
                   variant="outline"
                   onClick={() => openPrintNota(false)}

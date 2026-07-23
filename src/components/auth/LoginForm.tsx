@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { signIn, getSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,12 +21,20 @@ type LoginFormProps = {
 
 type LoginPhase = "idle" | "signing-in" | "entering";
 
-export default function LoginForm({
+function safeCallbackUrl(raw: string | null): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+}
+
+function LoginFormInner({
   idPrefix = "login",
   onSuccess,
   onForgotPassword,
 }: LoginFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = safeCallbackUrl(searchParams.get("callbackUrl"));
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -60,7 +68,7 @@ export default function LoginForm({
     const session = await getSession();
     const roles: string[] = session?.user?.roles || [];
     const memberId = session?.user?.memberId ?? null;
-    const destination = resolvePostLoginPath(roles, memberId);
+    const destination = callbackUrl ?? resolvePostLoginPath(roles, memberId);
 
     onSuccess?.();
     router.push(destination);
@@ -161,5 +169,13 @@ export default function LoginForm({
         </Button>
       </form>
     </>
+  );
+}
+
+export default function LoginForm(props: LoginFormProps) {
+  return (
+    <Suspense fallback={<div className="h-48 animate-pulse rounded-xl bg-muted" />}>
+      <LoginFormInner {...props} />
+    </Suspense>
   );
 }
