@@ -1744,44 +1744,63 @@ export function UktDashboard(props: Props) {
     toast.success("WhatsApp dibuka — pilih penerima lalu kirim laporan");
   };
 
+  const ensureInviteSnapshot = (eventId: string) => {
+    void fetch("/api/admin/ukt/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventId }),
+    }).catch(() => {
+      /* snapshot opsional — halaman publik punya fallback */
+    });
+  };
+
+  const copyTextRobust = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      try {
+        const el = document.createElement("textarea");
+        el.value = text;
+        el.setAttribute("readonly", "");
+        el.style.position = "fixed";
+        el.style.left = "-9999px";
+        document.body.appendChild(el);
+        el.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(el);
+        return ok;
+      } catch {
+        return false;
+      }
+    }
+  };
+
   const copyInviteLink = async () => {
     if (!props.selectedPeriodId) {
       toast.error("Pilih periode UKT terlebih dahulu");
       return;
     }
-    try {
-      const res = await fetch("/api/admin/ukt/invite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId: props.selectedPeriodId }),
-      });
-      const data = (await res.json()) as { error?: string; url?: string };
-      if (!res.ok) throw new Error(data.error || "Gagal menyiapkan undangan");
-      const url = data.url || buildUktInviteUrl(props.selectedPeriodId);
-      await navigator.clipboard.writeText(url);
+    // Salin dulu (masih dalam gesture klik) — jangan await API sebelum clipboard.
+    const url = buildUktInviteUrl(props.selectedPeriodId);
+    ensureInviteSnapshot(props.selectedPeriodId);
+    const ok = await copyTextRobust(url);
+    if (ok) {
       toast.success("Link undangan UKT disalin");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal menyalin link");
+    } else {
+      toast.error("Gagal menyalin — salin manual dari bilah alamat setelah buka link");
+      window.open(url, "_blank", "noopener,noreferrer");
     }
   };
 
-  const shareInviteWa = async () => {
+  const shareInviteWa = () => {
     if (!props.selectedPeriodId) {
       toast.error("Pilih periode UKT terlebih dahulu");
       return;
     }
-    let url = buildUktInviteUrl(props.selectedPeriodId);
-    try {
-      const res = await fetch("/api/admin/ukt/invite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId: props.selectedPeriodId }),
-      });
-      const data = (await res.json()) as { error?: string; url?: string };
-      if (res.ok && data.url) url = data.url;
-    } catch {
-      /* tetap bagikan URL lokal */
-    }
+    // window.open harus sinkron dengan klik (jangan await fetch dulu).
+    const url = buildUktInviteUrl(props.selectedPeriodId);
+    ensureInviteSnapshot(props.selectedPeriodId);
     const title = selectedPeriod?.title || periodTitle;
     const text = `Undangan ${title}\n\nKepada Yth. Pengurus Ranting INKAI Surabaya,\nsilakan buka undangan & daftarkan anggota ranting:\n${url}`;
     const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
