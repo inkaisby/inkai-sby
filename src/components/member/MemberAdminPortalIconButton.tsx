@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Shield } from "lucide-react";
 import { canChooseAdminPortal } from "@/lib/rbac";
+import { useNavigation } from "@/components/layout/NavigationProvider";
 import { cn } from "@/lib/utils";
 
 /** Tombol ikon baku untuk pindah ke portal admin (dual-role). */
@@ -13,6 +14,7 @@ export function MemberAdminPortalIconButton({
   className?: string;
 }) {
   const { data: session, status } = useSession();
+  const { startNavigation } = useNavigation();
 
   if (status !== "authenticated" || !session?.user) return null;
   if (!canChooseAdminPortal(session.user)) return null;
@@ -21,6 +23,7 @@ export function MemberAdminPortalIconButton({
     <Link
       href="/admin"
       prefetch
+      onClick={() => startNavigation("/admin")}
       className={cn(
         "flex h-10 w-10 items-center justify-center rounded-xl bg-inkai-red/10 text-inkai-red transition-colors hover:bg-inkai-red/15",
         className,

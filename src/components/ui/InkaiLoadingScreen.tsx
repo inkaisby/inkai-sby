@@ -13,9 +13,10 @@ export function InkaiLoadingScreen({
       className={cn(
         "flex flex-col items-center justify-center",
         fullscreen
-          ? "fixed inset-0 z-[200] bg-background/95 backdrop-blur-sm"
+          ? "inkai-transition-screen fixed inset-0 z-[200] bg-background/92"
           : "min-h-[40vh] py-16",
       )}
+      /* Tanpa backdrop-blur: lebih ringan di GPU, tetap elegan */
     >
       <InkaiLogoLoader size="lg" message={message} />
     </div>

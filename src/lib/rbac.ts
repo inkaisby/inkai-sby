@@ -52,6 +52,8 @@ export type SessionUser = {
   /** Ranting yang dikelola (primary + ekstra). Diisi lewat enrichSessionUser. */
   managedDojoIds?: string[];
   memberId?: string | null;
+  photoUrl?: string | null;
+  image?: string | null;
 };
 
 function dojoAllowlist(user: SessionUser): string[] {

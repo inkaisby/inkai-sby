@@ -6,6 +6,7 @@ export async function loadSessionClaimsFromDb(userId: string) {
     where: { id: userId, isDeleted: false, isActive: true },
     select: {
       fullName: true,
+      photoUrl: true,
       managedBranchId: true,
       managedProvinceId: true,
       managedDojoId: true,
@@ -16,6 +17,7 @@ export async function loadSessionClaimsFromDb(userId: string) {
   if (!user) return null;
   return {
     name: user.fullName ?? undefined,
+    photoUrl: user.photoUrl ?? null,
     roles: user.roles.map((r) => r.name),
     managedProvinceId: user.managedProvinceId,
     managedBranchId: user.managedBranchId,

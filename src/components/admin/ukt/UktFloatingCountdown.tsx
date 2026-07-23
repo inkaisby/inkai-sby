@@ -42,15 +42,18 @@ function Unit({
   label,
   emergency,
   wide,
+  valueRef,
 }: {
   value: string;
   label: string;
   emergency?: boolean;
   wide?: boolean;
+  valueRef?: React.RefObject<HTMLSpanElement | null>;
 }) {
   return (
     <div className="flex min-w-0 flex-col items-center gap-0.5 sm:gap-1">
       <span
+        ref={valueRef}
         className={cn(
           "rounded-md bg-background/80 px-1.5 py-1 font-mono text-lg font-semibold tabular-nums tracking-tight shadow-sm ring-1 ring-black/[0.04] sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-3xl",
           wide
@@ -88,8 +91,8 @@ function Sep({ emergency }: { emergency?: boolean }) {
 }
 
 /**
- * Timer batas pendaftaran — hari/jam/menit/detik/ms via rAF.
- * Pause saat tab tersembunyi agar tidak membebani HP.
+ * Timer batas pendaftaran — hari–detik via React state (~1 Hz),
+ * milidetik via DOM ref (tanpa setState per frame).
  */
 export function UktFloatingCountdown({ targetIso, className }: Props) {
   const targetMs = new Date(targetIso).getTime();
@@ -104,6 +107,9 @@ export function UktFloatingCountdown({ targetIso, className }: Props) {
     totalMs: 0,
   });
   const expiredRef = useRef(false);
+  const msRef = useRef<HTMLSpanElement>(null);
+  const lastSecondRef = useRef<number | null>(null);
+  const lastEmergencyRef = useRef(false);
 
   useEffect(() => {
     if (Number.isNaN(targetMs)) {
@@ -128,6 +134,7 @@ export function UktFloatingCountdown({ targetIso, className }: Props) {
       if (!running) return;
       const next = calcRemaining(targetMs, Date.now());
       if (!next) {
+        if (msRef.current) msRef.current.textContent = "000";
         setParts({
           days: 0,
           hours: 0,
@@ -143,11 +150,26 @@ export function UktFloatingCountdown({ targetIso, className }: Props) {
         stop();
         return;
       }
+
       if (expiredRef.current) {
         expiredRef.current = false;
         setExpired(false);
       }
-      setParts(next);
+
+      if (msRef.current) {
+        msRef.current.textContent = pad(next.ms, 3);
+      }
+
+      const emergency = next.totalMs <= H2_MS;
+      const secondChanged = lastSecondRef.current !== next.seconds;
+      const emergencyChanged = lastEmergencyRef.current !== emergency;
+
+      if (secondChanged || emergencyChanged || lastSecondRef.current === null) {
+        lastSecondRef.current = next.seconds;
+        lastEmergencyRef.current = emergency;
+        setParts(next);
+      }
+
       raf = requestAnimationFrame(tick);
     };
 
@@ -236,6 +258,7 @@ export function UktFloatingCountdown({ targetIso, className }: Props) {
           label="ms"
           wide
           emergency={emergency}
+          valueRef={msRef}
         />
       </div>
     </div>

@@ -56,6 +56,12 @@ export function OpenEventsTopbar() {
   useEffect(() => {
     if (events.length <= 1) return;
     const id = setInterval(() => {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "hidden"
+      ) {
+        return;
+      }
       setIndex((i) => (i + 1) % events.length);
     }, 3800);
     return () => clearInterval(id);

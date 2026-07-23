@@ -131,12 +131,14 @@
   border-top-color: var(--inkai-red);
   border-right-color: color-mix(in srgb, var(--inkai-red) 25%, transparent);
   animation: inkai-ring 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
 }
 
 .inkai-loader-ring-inner {
   border-bottom-color: color-mix(in srgb, var(--inkai-yellow) 70%, transparent);
   border-left-color: color-mix(in srgb, var(--inkai-yellow) 20%, transparent);
   animation: inkai-ring-reverse 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
 }
 
 .inkai-loader-logo {
@@ -145,6 +147,32 @@
 
 .inkai-loader-dot {
   animation: inkai-dot 1.2s ease-in-out infinite;
+}
+
+/* Overlay transisi portal/auth — fade singkat, tanpa blur GPU */
+.inkai-transition-screen {
+  animation: inkai-transition-in 0.2s ease-out;
+  contain: layout style paint;
+}
+
+@keyframes inkai-transition-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inkai-loader-ring-outer,
+  .inkai-loader-ring-inner,
+  .inkai-loader-logo,
+  .inkai-loader-dot,
+  .inkai-transition-screen {
+    animation: none;
+    will-change: auto;
+  }
 }
 
 /* Toast loading: logo INKAI di kiri, bukan spinner Sonner default */
@@ -454,8 +482,14 @@
     transparent 70%
   );
   background-size: 200% 100%;
-  animation: open-events-shimmer 4.5s linear infinite;
+  /* Shimmer hanya saat hover — tidak infinite di sticky topbar */
+  animation: none;
+  opacity: 0;
+}
+
+.open-events-chip:hover::before {
   opacity: 0.35;
+  animation: open-events-shimmer 1.2s linear 1;
 }
 
 .open-events-live {
@@ -474,7 +508,10 @@
   width: 100%;
   border-radius: 9999px;
   background: color-mix(in srgb, #10b981 45%, transparent);
-  animation: open-events-live-ring 1.8s ease-out infinite;
+  /* Titik live statis — tanpa ring pulse infinite */
+  animation: none;
+  opacity: 0.4;
+  transform: scale(1.25);
 }
 
 .open-events-live-dot {

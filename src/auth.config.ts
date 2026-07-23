@@ -15,6 +15,7 @@ export const authConfig = {
         token.managedDojoId = user.managedDojoId;
         token.memberId = user.memberId;
         token.name = user.name;
+        token.photoUrl = user.photoUrl ?? null;
       }
       return token;
     },
@@ -27,6 +28,9 @@ export const authConfig = {
         session.user.managedBranchId = token.managedBranchId as string | null;
         session.user.managedDojoId = token.managedDojoId as string | null;
         session.user.memberId = token.memberId as string | null;
+        const photo = (token.photoUrl as string | null | undefined) ?? null;
+        session.user.photoUrl = photo;
+        session.user.image = photo;
       }
       return session;
     },

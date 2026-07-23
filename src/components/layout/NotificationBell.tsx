@@ -16,6 +16,8 @@ type NotificationItem = {
   createdAt: string;
 };
 
+const POLL_MS = 180_000;
+
 export function NotificationBell({
   viewAllHref,
 }: {
@@ -26,6 +28,18 @@ export function NotificationBell({
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const itemsLoadedRef = useRef(false);
+
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications?countOnly=1");
+      if (!res.ok) return;
+      const data = await res.json();
+      setUnreadCount(data.unreadCount || 0);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -34,21 +48,25 @@ export function NotificationBell({
       const data = await res.json();
       setItems(data.notifications || []);
       setUnreadCount(data.unreadCount || 0);
+      itemsLoadedRef.current = true;
     } catch {
       /* ignore */
     }
   }, []);
 
   useEffect(() => {
-    void fetchNotifications();
+    void fetchUnreadCount();
     const interval = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "hidden"
+      ) {
         return;
       }
-      void fetchNotifications();
-    }, 120_000);
+      void fetchUnreadCount();
+    }, POLL_MS);
     return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  }, [fetchUnreadCount]);
 
   useEffect(() => {
     if (!open) return;
@@ -84,7 +102,7 @@ export function NotificationBell({
   async function markRead(id: string) {
     await fetch(`/api/notifications/${id}`, { method: "PATCH" });
     setItems((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)),
     );
     setUnreadCount((c) => Math.max(0, c - 1));
   }
@@ -123,7 +141,7 @@ export function NotificationBell({
           </div>
 
           <div className="max-h-80 overflow-y-auto">
-            {loading ? (
+            {loading && !itemsLoadedRef.current ? (
               <p className="p-4 text-center text-sm text-muted-foreground">
                 Memuat...
               </p>

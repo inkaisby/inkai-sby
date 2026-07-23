@@ -21,15 +21,18 @@ type NotifRow = {
   audience?: string;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await auth();
   const token = await getInkaiAccessToken();
   if (!session || !token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const countOnly = new URL(request.url).searchParams.get("countOnly") === "1";
+  const limit = countOnly ? 40 : 100;
+
   const { res, data } = await inkaiFetch(
-    "/v1/notifications/my?limit=100",
+    `/v1/notifications/my?limit=${limit}`,
     {},
     token,
   );
@@ -37,7 +40,7 @@ export async function GET() {
     return NextResponse.json({ error: "Gagal memuat notifikasi" }, { status: res.status });
   }
 
-  const raw = ((data.data as NotifRow[]) ?? []).slice(0, 100);
+  const raw = ((data.data as NotifRow[]) ?? []).slice(0, limit);
   const sessionUser = session.user as SessionUser;
 
   let filtered: NotifRow[];
@@ -48,14 +51,18 @@ export async function GET() {
     filtered = filterNotificationsForMemberInbox(sessionUser.id, raw);
   }
 
+  const unreadCount = filtered.filter((n) => !n.isRead).length;
+
+  if (countOnly) {
+    return NextResponse.json({ unreadCount, notifications: [] });
+  }
+
   const { items: list, stats } = withFilterStats(raw, filtered.slice(0, 50));
   if (stats.dropped > 0) {
     console.info(
       `[notifications] filtered dropped=${stats.dropped} input=${stats.input} output=${stats.output} user=${sessionUser.id}`,
     );
   }
-
-  const unreadCount = list.filter((n) => !n.isRead).length;
 
   return NextResponse.json({
     data: list,

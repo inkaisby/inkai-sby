@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PresenceHeartbeat } from "@/components/presence/PresenceHeartbeat";
+import { NavigationProvider } from "@/components/layout/NavigationProvider";
 import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
 import { resolveAppearance } from "@/lib/theme-schedule";
 
@@ -59,9 +60,11 @@ export default function Providers({
       refetchOnWindowFocus={false}
     >
       <ThemeProvider>
-        <PresenceHeartbeat />
-        {children}
-        <AppToaster />
+        <NavigationProvider>
+          <PresenceHeartbeat />
+          {children}
+          <AppToaster />
+        </NavigationProvider>
       </ThemeProvider>
     </SessionProvider>
   );

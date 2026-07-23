@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { signOut } from "next-auth/react";
-import { Loader2, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { clearPresenceBeforeLogout } from "@/components/presence/PresenceHeartbeat";
+import { AuthTransitionOverlay } from "@/components/auth/AuthTransitionOverlay";
 
 export function LogoutConfirmDialog({
   open,
@@ -26,8 +26,9 @@ export function LogoutConfirmDialog({
   async function handleConfirm() {
     if (loading) return;
     setLoading(true);
+    onOpenChange(false);
     try {
-      await clearPresenceBeforeLogout();
+      // Presence dibersihkan sekali di events.signOut (server) — tanpa double clear client.
       await signOut({ callbackUrl: "/" });
     } catch {
       setLoading(false);
@@ -35,57 +36,52 @@ export function LogoutConfirmDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (loading) return;
-        onOpenChange(next);
-      }}
-    >
-      <DialogContent showCloseButton={!loading} className="sm:max-w-md">
-        <DialogHeader className="items-center text-center sm:items-center">
-          <div className="mb-1 flex h-14 w-14 items-center justify-center rounded-2xl bg-inkai-red/10 text-inkai-red ring-1 ring-inkai-red/15">
-            <LogOut className="h-6 w-6" strokeWidth={2} />
-          </div>
-          <DialogTitle className="text-lg font-semibold">
-            Keluar dari akun?
-          </DialogTitle>
-          <DialogDescription className="text-center">
-            Sesi Anda akan diakhiri. Anda dapat masuk kembali kapan saja dengan
-            email dan password yang sama.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <AuthTransitionOverlay active={loading} message="Keluar dari akun..." />
 
-        <DialogFooter className="sm:justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            className="sm:min-w-28"
-            disabled={loading}
-            onClick={() => onOpenChange(false)}
-          >
-            Batal
-          </Button>
-          <Button
-            type="button"
-            className="bg-inkai-red text-white hover:bg-inkai-red/90 sm:min-w-28"
-            disabled={loading}
-            onClick={handleConfirm}
-          >
-            {loading ? (
-              <>
-                <Loader2 className="animate-spin" />
-                Keluar...
-              </>
-            ) : (
-              <>
-                <LogOut />
-                Ya, Keluar
-              </>
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (loading) return;
+          onOpenChange(next);
+        }}
+      >
+        <DialogContent showCloseButton={!loading} className="sm:max-w-md">
+          <DialogHeader className="items-center text-center sm:items-center">
+            <div className="mb-1 flex h-14 w-14 items-center justify-center rounded-2xl bg-inkai-red/10 text-inkai-red ring-1 ring-inkai-red/15">
+              <LogOut className="h-6 w-6" strokeWidth={2} />
+            </div>
+            <DialogTitle className="text-lg font-semibold">
+              Keluar dari akun?
+            </DialogTitle>
+            <DialogDescription className="text-center">
+              Sesi Anda akan diakhiri. Anda dapat masuk kembali kapan saja dengan
+              email dan password yang sama.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="sm:justify-center">
+            <Button
+              type="button"
+              variant="outline"
+              className="sm:min-w-28"
+              disabled={loading}
+              onClick={() => onOpenChange(false)}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              className="bg-inkai-red text-white hover:bg-inkai-red/90 sm:min-w-28"
+              disabled={loading}
+              onClick={handleConfirm}
+            >
+              <LogOut />
+              Ya, Keluar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

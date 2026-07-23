@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { resolvePostLoginPath } from "@/lib/rbac";
 import { AuthTransitionOverlay } from "@/components/auth/AuthTransitionOverlay";
+import { loginErrorMessage } from "@/lib/auth/login-errors";
 import { showError } from "@/lib/client-toast";
 
 type LoginFormProps = {
@@ -39,27 +40,7 @@ export default function LoginForm({
 
     const identifierValue = identifier.trim();
 
-    const precheck = await fetch("/api/auth/validate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        identifier: identifierValue,
-        password,
-      }),
-    });
-    const preData = await precheck.json().catch(() => ({}));
-
-    if (!precheck.ok) {
-      setPhase("idle");
-      const msg =
-        typeof preData.error === "string"
-          ? preData.error
-          : "Email/NIA atau password salah.";
-      setError(msg);
-      showError(msg);
-      return;
-    }
-
+    // Satu kali login ke Inkai lewat authorize — tanpa precheck /validate.
     const result = await signIn("credentials", {
       email: identifierValue,
       password,
@@ -68,8 +49,7 @@ export default function LoginForm({
 
     if (result?.error) {
       setPhase("idle");
-      const msg =
-        "Login gagal membuat sesi. Coba lagi — jika berulang, server autentikasi sedang bermasalah.";
+      const msg = loginErrorMessage(result.code);
       setError(msg);
       showError(msg);
       return;
@@ -83,8 +63,8 @@ export default function LoginForm({
     const destination = resolvePostLoginPath(roles, memberId);
 
     onSuccess?.();
-    router.refresh();
     router.push(destination);
+    router.refresh();
   }
 
   const loading = phase !== "idle";

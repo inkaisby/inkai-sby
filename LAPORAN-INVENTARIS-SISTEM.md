@@ -612,6 +612,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Juli 2026 | Iuran MVP gaps: filter tipe bulanan saja; aging + status Belum digenerate; **jejak aksi** lokal di Sheet; **bulk lunas tunai** `POST /api/admin/billing/bulk-mark-paid` |
 | 23 Juli 2026 | Admin topbar: chip **Masih terbuka** (pulse live, shimmer, rotasi judul, panel daftar + sisa waktu); `GET /api/admin/open-events` |
 | 23 Juli 2026 | Topbar kegiatan terbuka: HP = ikon compact di cluster aksi (judul tidak terpotong); panel fixed + backdrop |
+| 23 Juli 2026 | Transisi logo INKAI elegan (login/logout/ganti akun + perpindahan portal publik↔admin↔dashboard): overlay ringan tanpa blur, unmount saat idle, progress tipis untuk nav dalam shell; `NavigationProvider` global; hapus delay 750ms ganti akun |
+| 23 Juli 2026 | Perf auth+UI paket: login 1× Inkai (tanpa `/validate` ganda) + kode error CredentialsSignin; logout/ganti akun tanpa double clearPresence; topbar foto+nama; notif `countOnly` poll 180s; OpenEvents tanpa shimmer/pulse infinite; topbar blur hanya desktop; UKT ms via DOM ref |
 
 ---
 

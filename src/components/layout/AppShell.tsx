@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogoutConfirmDialog } from "@/components/auth/LogoutConfirmDialog";
 import { SwitchAccountModal } from "@/components/auth/SwitchAccountModal";
 import { SidebarNavGroup } from "@/components/layout/SidebarNavGroup";
@@ -34,11 +34,13 @@ type PeerAccount = {
 export function UserMenu({
   name,
   email,
+  photoUrl = null,
   showAdmin = false,
   hasMemberPortal = false,
 }: {
   name: string;
   email: string;
+  photoUrl?: string | null;
   showAdmin?: boolean;
   hasMemberPortal?: boolean;
 }) {
@@ -54,6 +56,8 @@ export function UserMenu({
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+  const displayName = name.trim() || email;
 
   useEffect(() => {
     if (email) rememberSwitchAccount(email);
@@ -117,13 +121,16 @@ export function UserMenu({
             className="h-auto max-w-[min(100vw-8rem,16rem)] gap-2 px-2 py-1.5"
           >
             <Avatar className="h-8 w-8 shrink-0">
+              {photoUrl ? (
+                <AvatarImage src={photoUrl} alt={displayName} />
+              ) : null}
               <AvatarFallback className="bg-inkai-red text-xs text-white">
-                {initials}
+                {initials || "?"}
               </AvatarFallback>
             </Avatar>
             <span className="hidden min-w-0 flex-col items-start text-left sm:flex">
               <span className="truncate text-xs font-semibold leading-tight">
-                {email || name}
+                {displayName}
               </span>
               {otherLinked.slice(0, 3).map((e) => (
                 <span
@@ -143,7 +150,7 @@ export function UserMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-72">
           <div className="px-2 py-1.5 text-sm">
-            <p className="font-medium">{name}</p>
+            <p className="font-medium">{displayName}</p>
             <p className="text-xs text-muted-foreground">{email}</p>
           </div>
 

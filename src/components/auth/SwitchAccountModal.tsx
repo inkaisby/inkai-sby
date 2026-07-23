@@ -16,19 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthTransitionOverlay } from "@/components/auth/AuthTransitionOverlay";
-import { useNavigation } from "@/components/layout/NavigationProvider";
 import { resolvePageForNewAccount } from "@/lib/auth/post-login-redirect";
+import { loginErrorMessage } from "@/lib/auth/login-errors";
 import { getPrimaryAdminRole, ROLE_LABELS } from "@/lib/rbac";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { rememberSwitchAccount } from "@/lib/switch-accounts-storage";
 
-const MIN_TRANSITION_MS = 750;
-
-type Phase = "idle" | "validating" | "switching" | "adapting";
-
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+type Phase = "idle" | "switching" | "adapting";
 
 export function SwitchAccountModal({
   open,
@@ -44,7 +38,6 @@ export function SwitchAccountModal({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { startNavigation } = useNavigation();
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -62,6 +55,8 @@ export function SwitchAccountModal({
 
   useEffect(() => {
     if (!open) {
+      // Jangan reset saat overlay ganti-akun sedang jalan (dialog sudah ditutup).
+      if (phase === "switching" || phase === "adapting") return;
       resetForm();
       return;
     }
@@ -72,7 +67,16 @@ export function SwitchAccountModal({
       setError("");
       setPhase("idle");
     }
-  }, [open, initialEmail, resetForm]);
+  }, [open, initialEmail, resetForm, phase]);
+
+  // Setelah navigasi selesai, bersihkan state overlay.
+  useEffect(() => {
+    if (phase === "adapting" || phase === "switching") {
+      resetForm();
+    }
+    // Hanya saat pathname berubah (bukan saat phase berubah).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on route change only
+  }, [pathname]);
 
   const overlayActive = phase === "switching" || phase === "adapting";
   const overlayMessage =
@@ -94,37 +98,12 @@ export function SwitchAccountModal({
       return;
     }
 
-    setPhase("validating");
+    setPhase("switching");
     setError("");
-
-    const startedAt = Date.now();
+    onOpenChange(false);
 
     try {
-      const validateRes = await fetch("/api/auth/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: trimmedId, password }),
-      });
-
-      if (!validateRes.ok) {
-        const payload = (await validateRes.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        const msg =
-          payload.error ||
-          "Email/NIA atau password salah. Akun baru perlu disetujui admin terlebih dahulu.";
-        setError(msg);
-        setPhase("idle");
-        return;
-      }
-
-      onOpenChange(false);
-      setPhase("switching");
-
-      const { clearPresenceBeforeLogout } = await import(
-        "@/components/presence/PresenceHeartbeat"
-      );
-      await clearPresenceBeforeLogout();
+      // Presence clear sekali di events.signOut — tanpa validate ganda ke Inkai.
       await signOut({ redirect: false });
 
       const result = await signIn("credentials", {
@@ -135,7 +114,7 @@ export function SwitchAccountModal({
 
       if (result?.error) {
         setPhase("idle");
-        const msg = "Gagal mengganti akun. Silakan login ulang.";
+        const msg = loginErrorMessage(result.code);
         showError(msg);
         router.push("/login");
         return;
@@ -157,23 +136,21 @@ export function SwitchAccountModal({
       const roleLabel = ROLE_LABELS[primaryRole] || primaryRole;
       const displayName = session?.user?.name || trimmedId;
 
-      if (targetPath !== fullCurrentPath) {
-        startNavigation(targetPath);
-        router.push(targetPath);
-      }
-
-      router.refresh();
-
-      const elapsed = Date.now() - startedAt;
-      await wait(Math.max(0, MIN_TRANSITION_MS - elapsed));
-
       showSuccess(`Berhasil ganti ke ${displayName} (${roleLabel})`);
       rememberSwitchAccount(trimmedId);
       if (currentEmail) rememberSwitchAccount(currentEmail);
-      resetForm();
+
+      if (targetPath !== fullCurrentPath) {
+        router.push(targetPath);
+        router.refresh();
+      } else {
+        router.refresh();
+        window.setTimeout(() => resetForm(), 350);
+      }
     } catch {
       setPhase("idle");
       showError("Terjadi kesalahan saat mengganti akun. Silakan coba lagi.");
+      onOpenChange(true);
     }
   }
 
@@ -262,10 +239,10 @@ export function SwitchAccountModal({
               className="h-11 w-full rounded-xl bg-inkai-red text-base font-semibold hover:bg-inkai-red/90"
               disabled={loading}
             >
-              {phase === "validating" ? (
+              {phase === "switching" || phase === "adapting" ? (
                 <>
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  Memverifikasi...
+                  {phase === "switching" ? "Mengganti..." : "Menyesuaikan..."}
                 </>
               ) : (
                 <>

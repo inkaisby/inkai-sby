@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { cookies } from "next/headers";
 import { authConfig } from "@/auth.config";
@@ -11,8 +11,16 @@ import { isMemberLoginBlocked } from "@/lib/security/member-status";
 import { clearPresence, markUserLogin } from "@/lib/presence";
 import { snapshotFromNextHeaders } from "@/lib/session-audit";
 import { loadSessionClaimsFromDb } from "@/lib/session-refresh";
+import { LOGIN_ERROR_CODE } from "@/lib/auth/login-errors";
+import { prisma } from "@/lib/prisma";
 
 const SESSION_CLAIMS_TTL_MS = 30_000;
+
+function throwLogin(code: string): never {
+  const err = new CredentialsSignin();
+  err.code = code;
+  throw err;
+}
 
 declare module "next-auth" {
   interface User {
@@ -22,6 +30,7 @@ declare module "next-auth" {
     managedDojoId?: string | null;
     memberId?: string | null;
     accessToken?: string;
+    photoUrl?: string | null;
   }
   interface Session {
     accessToken?: string;
@@ -34,6 +43,8 @@ declare module "next-auth" {
       managedBranchId?: string | null;
       managedDojoId?: string | null;
       memberId?: string | null;
+      photoUrl?: string | null;
+      image?: string | null;
     };
   }
 }
@@ -47,6 +58,7 @@ declare module "@auth/core/jwt" {
     memberId?: string | null;
     accessToken?: string;
     claimsUpdatedAt?: number;
+    photoUrl?: string | null;
   }
 }
 
@@ -54,12 +66,13 @@ type BackendUser = {
   id?: string;
   email?: string;
   fullName?: string;
+  photoUrl?: string | null;
   roles?: string[];
   managedProvinceId?: string | null;
   managedBranchId?: string | null;
   managedDojoId?: string | null;
   memberId?: string | null;
-  member?: { id?: string; status?: string };
+  member?: { id?: string; status?: string; photoUrl?: string | null };
 };
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -74,6 +87,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.managedDojoId = user.managedDojoId;
         token.memberId = user.memberId;
         token.name = user.name;
+        token.photoUrl = user.photoUrl ?? null;
         token.claimsUpdatedAt = Date.now();
         return token;
       }
@@ -96,6 +110,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.managedDojoId = claims.managedDojoId;
         token.memberId = claims.memberId;
         if (claims.name) token.name = claims.name;
+        token.photoUrl = claims.photoUrl ?? null;
       }
       token.claimsUpdatedAt = Date.now();
       return token;
@@ -109,6 +124,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.managedBranchId = token.managedBranchId as string | null;
         session.user.managedDojoId = token.managedDojoId as string | null;
         session.user.memberId = token.memberId as string | null;
+        const photo =
+          (token.photoUrl as string | null | undefined) ?? null;
+        session.user.photoUrl = photo;
+        session.user.image = photo;
       }
       return session;
     },
@@ -133,7 +152,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email || !credentials?.password) {
+          throwLogin(LOGIN_ERROR_CODE.credentials);
+        }
 
         const identifier = (credentials.email as string).trim();
 
@@ -152,36 +173,54 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             null,
           ));
         } catch {
-          return null;
+          throwLogin(LOGIN_ERROR_CODE.server_error);
         }
 
-        if (!res.ok) return null;
+        if (res.status >= 500) throwLogin(LOGIN_ERROR_CODE.server_error);
+        if (res.status === 429) throwLogin(LOGIN_ERROR_CODE.rate_limited);
+        if (res.status === 403) throwLogin(LOGIN_ERROR_CODE.disabled);
+        if (!res.ok) throwLogin(LOGIN_ERROR_CODE.credentials);
 
         const token = typeof data.token === "string" ? data.token : null;
         const payload = data.data as { user?: BackendUser } | undefined;
         const user = payload?.user;
-        if (!token || !user?.id || !user.email) return null;
+        if (!token || !user?.id || !user.email) {
+          throwLogin(LOGIN_ERROR_CODE.server_error);
+        }
 
         const roles = Array.isArray(user.roles) ? user.roles : [];
         const memberId = user.memberId ?? user.member?.id ?? null;
         const memberStatus = user.member?.status;
         if (isMemberLoginBlocked(memberStatus)) {
-          return null;
+          throwLogin(LOGIN_ERROR_CODE.blocked);
         }
 
         const cookieStore = await cookies();
         cookieStore.set(INKAI_TOKEN_COOKIE, token, getInkaiTokenCookieOptions());
 
         const userId = user.id;
-        // Non-blocking: gagal presence tidak boleh gagalkan login.
         void snapshotFromNextHeaders()
           .then((snap) => markUserLogin(userId, snap))
           .catch(() => markUserLogin(userId));
 
+        const local = await prisma.user
+          .findFirst({
+            where: { id: userId, isDeleted: false },
+            select: { photoUrl: true, fullName: true },
+          })
+          .catch(() => null);
+
+        const photoUrl =
+          local?.photoUrl ||
+          user.photoUrl ||
+          user.member?.photoUrl ||
+          null;
+
         return {
           id: userId,
           email: user.email,
-          name: user.fullName || user.email,
+          name: local?.fullName || user.fullName || user.email,
+          photoUrl,
           roles,
           managedProvinceId: user.managedProvinceId ?? null,
           managedBranchId: user.managedBranchId ?? null,

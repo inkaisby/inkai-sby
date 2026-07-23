@@ -28,6 +28,7 @@ export default async function AdminLayout({
         links={links}
         userName={session.user.name || session.user.email || "Admin"}
         userEmail={session.user.email || ""}
+        userPhotoUrl={session.user.photoUrl ?? session.user.image ?? null}
         roles={session.user.roles ?? []}
         adminDojoGrants={adminDojoGrants}
         showAdmin

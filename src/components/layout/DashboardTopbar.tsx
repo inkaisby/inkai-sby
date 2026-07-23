@@ -70,6 +70,7 @@ export function DashboardTopbar({
   links,
   userName,
   userEmail,
+  userPhotoUrl = null,
   showAdmin = false,
   hasMemberPortal = false,
 }: {
@@ -77,6 +78,7 @@ export function DashboardTopbar({
   links: NavItem[];
   userName: string;
   userEmail: string;
+  userPhotoUrl?: string | null;
   showAdmin?: boolean;
   hasMemberPortal?: boolean;
 }) {
@@ -87,7 +89,7 @@ export function DashboardTopbar({
   const backHref = showAdmin ? resolveAdminBackHref(pathname) : null;
 
   return (
-    <header className="admin-topbar sticky top-0 z-40 flex h-12 min-h-12 shrink-0 items-center justify-between gap-1.5 border-b border-border/60 bg-background/80 px-3 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 sm:h-16 sm:min-h-16 sm:gap-2 sm:px-6 sm:py-1.5">
+    <header className="admin-topbar sticky top-0 z-40 flex h-12 min-h-12 shrink-0 items-center justify-between gap-1.5 border-b border-border/60 bg-background/95 px-3 sm:h-16 sm:min-h-16 sm:gap-2 sm:bg-background/90 sm:px-6 sm:py-1.5 sm:backdrop-blur-md supports-[backdrop-filter]:sm:bg-background/75">
       <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
         <MobileDashboardNav title={title} links={links} />
         {backHref ? (
@@ -113,6 +115,7 @@ export function DashboardTopbar({
         <UserMenu
           name={userName}
           email={userEmail}
+          photoUrl={userPhotoUrl}
           showAdmin={showAdmin}
           hasMemberPortal={hasMemberPortal}
         />
