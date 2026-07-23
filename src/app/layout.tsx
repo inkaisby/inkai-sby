@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Providers from "@/components/Providers";
 import { SITE_URL } from "@/lib/site";
 import { auth } from "@/auth";
+import { THEME_INIT_SCRIPT } from "@/lib/theme-schedule";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -59,6 +61,11 @@ export default async function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
       <body>
+        <Script
+          id="inkai-theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
+        />
         <Providers session={session}>{children}</Providers>
       </body>
     </html>

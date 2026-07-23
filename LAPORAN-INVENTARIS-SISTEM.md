@@ -603,6 +603,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Juli 2026 | Profil anggota: tampil + edit foto, NIK, JK, TTL, alamat, telepon, Akte/BPJS; email/sabuk baca saja; API PATCH sync Inkai+Prisma |
 | 23 Juli 2026 | Profil: email/NIA/sabuk/MSH edit mandiri 1× lalu pengajuan `PROFILE_CHANGE`; kolom `mshNumber` + migrasi; Kartu Anggota tampilkan NIA + No. MSH (Hitam/DAN) |
 | 23 Juli 2026 | Perf dashboard anggota: parallel fetch beranda; Suspense UKT; tanpa poll kartu/fade; SSR pesan/store; cache profil; heartbeat 90s |
+| 23 Juli 2026 | Tema default: **jam operasional** (05–17 terang, 18–04 gelap) menggantikan ikuti OS; siklus jadwal → terang → gelap; ikon Clock |
 
 ---
 

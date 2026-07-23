@@ -2,42 +2,41 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Clock, Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-type ThemeMode = "system" | "light" | "dark";
-
-function nextTheme(current: string | undefined): ThemeMode {
-  if (current === "system") return "light";
-  if (current === "light") return "dark";
-  return "system";
-}
-
-function themeLabel(theme: string | undefined, resolved: string | undefined) {
-  if (theme === "system") {
-    return `Tema otomatis · ${resolved === "dark" ? "gelap" : "terang"} — ketuk untuk atur manual`;
-  }
-  if (theme === "light") return "Mode terang — ketuk untuk gelap";
-  if (theme === "dark") return "Mode gelap — ketuk untuk otomatis";
-  return "Ganti tema";
-}
+import {
+  nextThemeMode,
+  normalizeThemeMode,
+  resolveAppearance,
+  themeModeLabel,
+} from "@/lib/theme-schedule";
 
 export function ThemeToggle() {
-  const { theme, resolvedTheme, setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => setMounted(true), []);
+
+  // Perbarui ikon/label saat jadwal ganti siang↔malam
+  useEffect(() => {
+    if (normalizeThemeMode(theme) !== "schedule") return;
+    const id = window.setInterval(() => setTick((n) => n + 1), 60_000);
+    return () => window.clearInterval(id);
+  }, [theme]);
 
   if (!mounted) {
     return (
       <Button variant="ghost" size="icon" className="size-8" aria-label="Tema">
-        <Monitor className="size-4" />
+        <Clock className="size-4" />
       </Button>
     );
   }
 
-  const mode = (theme ?? "system") as ThemeMode;
-  const label = themeLabel(mode, resolvedTheme);
+  const mode = normalizeThemeMode(theme);
+  const appearance = resolveAppearance(theme);
+  void tick;
+  const label = themeModeLabel(mode, appearance);
 
   return (
     <Button
@@ -46,10 +45,10 @@ export function ThemeToggle() {
       className="size-8"
       aria-label={label}
       title={label}
-      onClick={() => setTheme(nextTheme(mode))}
+      onClick={() => setTheme(nextThemeMode(mode))}
     >
-      {mode === "system" ? (
-        <Monitor className="size-4" />
+      {mode === "schedule" ? (
+        <Clock className="size-4" />
       ) : mode === "dark" ? (
         <Sun className="size-4" />
       ) : (
