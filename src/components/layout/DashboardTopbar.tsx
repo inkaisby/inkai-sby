@@ -86,7 +86,7 @@ export function DashboardTopbar({
   const backHref = showAdmin ? resolveAdminBackHref(pathname) : null;
 
   return (
-    <header className="sticky top-0 z-40 flex h-12 min-h-12 items-center justify-between gap-1.5 border-b bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:h-16 sm:min-h-16 sm:gap-2 sm:px-6 sm:py-1.5">
+    <header className="admin-topbar sticky top-0 z-40 flex h-12 min-h-12 items-center justify-between gap-1.5 border-b border-border/60 bg-background/80 px-3 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 sm:h-16 sm:min-h-16 sm:gap-2 sm:px-6 sm:py-1.5">
       <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
         <MobileDashboardNav title={title} links={links} />
         {backHref ? (
@@ -94,16 +94,18 @@ export function DashboardTopbar({
             href={backHref}
             prefetch
             onClick={() => startNavigation(backHref)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted/80 text-foreground transition-colors hover:bg-muted"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted/60 text-foreground shadow-sm ring-1 ring-black/[0.04] transition-all hover:bg-muted hover:ring-inkai-red/15 dark:ring-white/10"
             aria-label="Kembali"
           >
             <ArrowLeft size={18} />
           </Link>
         ) : null}
-        <h1 className="min-w-0 truncate text-sm font-bold sm:text-lg">{pageTitle}</h1>
+        <h1 className="min-w-0 truncate text-sm font-semibold tracking-tight sm:text-lg">
+          {pageTitle}
+        </h1>
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div className="flex shrink-0 items-center gap-0.5 rounded-xl bg-muted/40 p-0.5 ring-1 ring-black/[0.03] dark:ring-white/5">
         <NotificationBell viewAllHref={notificationsHref} />
         <ThemeToggle />
         <UserMenu

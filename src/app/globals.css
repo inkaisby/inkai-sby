@@ -389,3 +389,135 @@
   opacity: 0;
   animation: member-fade-up 0.35s ease-out both;
 }
+
+/* ——— Admin surface: lembut, elegan, aksen INKAI ——— */
+.admin-surface {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(
+      ellipse 90% 55% at 100% -15%,
+      color-mix(in srgb, var(--inkai-red) 7%, transparent),
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 70% 45% at -5% 105%,
+      color-mix(in srgb, var(--inkai-yellow) 8%, transparent),
+      transparent 50%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--muted) 35%, transparent) 0%,
+      transparent 18rem
+    );
+}
+
+.dark .admin-surface {
+  background-image:
+    radial-gradient(
+      ellipse 90% 55% at 100% -15%,
+      color-mix(in srgb, var(--inkai-red) 12%, transparent),
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 70% 45% at -5% 105%,
+      color-mix(in srgb, var(--inkai-yellow) 6%, transparent),
+      transparent 50%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--muted) 40%, transparent) 0%,
+      transparent 18rem
+    );
+}
+
+.admin-topbar {
+  position: relative;
+}
+
+.admin-topbar::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--inkai-red) 55%, transparent),
+    color-mix(in srgb, var(--inkai-yellow) 45%, transparent) 42%,
+    transparent 78%
+  );
+  opacity: 0.85;
+}
+
+@keyframes admin-content-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.admin-content-enter {
+  animation: admin-content-enter 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-content-enter {
+    animation: none;
+  }
+}
+
+/* Kartu & tabel di area admin — lebih “halus” */
+[data-admin-shell="true"] [data-slot="card"] {
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--foreground) 4%, transparent),
+    0 8px 24px -16px color-mix(in srgb, var(--inkai-red) 12%, transparent);
+  transition:
+    box-shadow 0.25s ease,
+    transform 0.25s ease,
+    border-color 0.25s ease;
+}
+
+[data-admin-shell="true"] [data-slot="card"]:hover {
+  box-shadow:
+    0 2px 4px color-mix(in srgb, var(--foreground) 5%, transparent),
+    0 14px 32px -14px color-mix(in srgb, var(--inkai-red) 18%, transparent);
+}
+
+[data-admin-shell="true"] [data-slot="table-container"] {
+  border-radius: var(--radius-xl);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  box-shadow: 0 8px 28px -18px color-mix(in srgb, var(--foreground) 18%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+[data-admin-shell="true"] [data-slot="table-header"] {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--muted) 65%, transparent),
+    color-mix(in srgb, var(--muted) 25%, transparent)
+  );
+}
+
+[data-admin-shell="true"] [data-slot="table-head"] {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+[data-admin-shell="true"] [data-slot="table-row"]:hover {
+  background: color-mix(in srgb, var(--inkai-red) 3.5%, var(--muted) 40%);
+}
+
+[data-admin-shell="true"] input:focus-visible,
+[data-admin-shell="true"] select:focus-visible,
+[data-admin-shell="true"] textarea:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--inkai-red) 16%, transparent);
+}

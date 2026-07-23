@@ -19,19 +19,30 @@ export function AdminPageHeader({
   return (
     <div
       className={cn(
-        "mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between",
+        "admin-page-header mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between",
         className,
       )}
     >
       <div className="min-w-0">
-        <h2 className="hidden text-2xl font-bold sm:block">{title}</h2>
+        <div className="hidden items-start gap-3 sm:flex">
+          <span
+            className="mt-1.5 h-7 w-1 shrink-0 rounded-full bg-gradient-to-b from-inkai-red to-inkai-yellow/80"
+            aria-hidden
+          />
+          <div className="min-w-0">
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+              {title}
+            </h2>
+            {description ? (
+              <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-[0.95rem]">
+                {description}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        {/* Mobile: deskripsi saja, judul di topbar */}
         {description ? (
-          <p
-            className={cn(
-              "text-sm leading-relaxed text-muted-foreground",
-              "sm:mt-1 sm:text-base",
-            )}
-          >
+          <p className="text-sm leading-relaxed text-muted-foreground sm:hidden">
             {description}
           </p>
         ) : null}

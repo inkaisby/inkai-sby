@@ -255,16 +255,21 @@ export function AppSidebar({
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-64 flex-shrink-0 border-r bg-muted/30 lg:block">
-      <div className="flex h-16 items-center gap-2 border-b px-4">
+    <aside className="admin-sidebar hidden w-64 flex-shrink-0 border-r border-border/60 bg-gradient-to-b from-muted/40 via-background to-background lg:block">
+      <div className="flex h-16 items-center gap-2.5 border-b border-border/60 px-4">
         <Image
           src="/logo-inkai.png"
           alt="INKAI"
           width={36}
           height={36}
-          className="rounded-full"
+          className="rounded-full shadow-sm ring-2 ring-inkai-red/15"
         />
-        <p className="text-sm font-bold">{title}</p>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold tracking-tight">{title}</p>
+          <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            INKAI Surabaya
+          </p>
+        </div>
       </div>
       <nav className="p-3">
         {links.map((item) => {

@@ -590,6 +590,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Juli 2026 | Admin mobile global: topbar lebih pendek + Menu ikon; shell `overflow-x-hidden`; `AdminPageHeader` di semua halaman; filter Anggota/Settings/Iuran/Absensi/Online; KPI scroll; bulk-bar safe-area; IuranOps collapsible |
 | 23 Juli 2026 | Admin aksi baris mobile: `AdminMoreActions` (user/ranting/cabang/event/store/materi/carousel/UKT); Verifikasi/Iuran tombol full-width; tabel Anggota/UKT sembunyikan Foto/Sabuk/Terdaftar di HP |
 | 23 Juli 2026 | Pesan admin mobile: inbox/thread single-pane (kembali ←); broadcast stack; safe-area composer |
+| 23 Juli 2026 | Polish visual admin: atmosfer `admin-surface`, topbar aksen merah–kuning, header dengan strip, sidebar/nav lebih halus, kartu/tabel lembut |
 
 ---
 

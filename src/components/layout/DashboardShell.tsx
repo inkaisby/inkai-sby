@@ -1,6 +1,6 @@
 "use client";
 
-import { AppSidebar, UserMenu } from "@/components/layout/AppShell";
+import { AppSidebar } from "@/components/layout/AppShell";
 import { AdminAccessGate } from "@/components/layout/AdminAccessGate";
 import { DashboardTopbar } from "@/components/layout/DashboardTopbar";
 import { NavigationProvider, useNavigation } from "@/components/layout/NavigationProvider";
@@ -9,7 +9,13 @@ import type { NavItem } from "@/lib/dashboard-nav";
 import type { AdminDojoGrants } from "@/lib/admin-dojo-grants";
 import { useEffect, useState } from "react";
 
-function MainContent({ children }: { children: React.ReactNode }) {
+function MainContent({
+  children,
+  showAdmin,
+}: {
+  children: React.ReactNode;
+  showAdmin?: boolean;
+}) {
   const { isNavigating } = useNavigation();
   const [overlayVisible, setOverlayVisible] = useState(false);
 
@@ -26,7 +32,12 @@ function MainContent({ children }: { children: React.ReactNode }) {
   }, [isNavigating, overlayVisible]);
 
   return (
-    <main className="relative min-w-0 flex-1 overflow-x-hidden p-3 sm:p-6">
+    <main
+      data-admin-shell={showAdmin ? "true" : undefined}
+      className={`relative min-w-0 flex-1 overflow-x-hidden p-3 sm:p-6 ${
+        showAdmin ? "admin-surface" : ""
+      }`}
+    >
       {overlayVisible && (
         <div
           className={`pointer-events-none absolute inset-0 z-10 flex items-start justify-center bg-background/40 pt-20 backdrop-blur-[1px] transition-opacity duration-200 ${
@@ -44,7 +55,9 @@ function MainContent({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
-      {children}
+      <div className={showAdmin ? "admin-content-enter relative z-[1]" : undefined}>
+        {children}
+      </div>
     </main>
   );
 }
@@ -72,7 +85,10 @@ export function DashboardShell({
 }) {
   return (
     <NavigationProvider>
-      <div className="flex min-h-screen">
+      <div
+        className={`flex min-h-screen ${showAdmin ? "admin-app" : ""}`}
+        data-admin={showAdmin ? "true" : undefined}
+      >
         <AppSidebar title={title} links={links} />
         <div className="flex min-w-0 flex-1 flex-col">
           <DashboardTopbar
@@ -85,7 +101,7 @@ export function DashboardShell({
           />
           {showAdmin ? (
             <AdminAccessGate roles={roles} adminDojoGrants={adminDojoGrants}>
-              <MainContent>{children}</MainContent>
+              <MainContent showAdmin>{children}</MainContent>
             </AdminAccessGate>
           ) : (
             <MainContent>{children}</MainContent>

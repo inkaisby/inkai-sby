@@ -23,10 +23,10 @@ export function SidebarNavLink({
       href={href}
       prefetch
       onClick={() => startNavigation(href)}
-      className={`mb-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+      className={`mb-1 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200 ${
         isActive
-          ? "bg-inkai-red text-white"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          ? "bg-inkai-red text-white shadow-md shadow-inkai-red/25"
+          : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
       } ${isPending ? "opacity-80" : ""}`}
       aria-busy={isPending}
     >

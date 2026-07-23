@@ -28,14 +28,17 @@ export function MobileDashboardNav({
         <Button
           variant="outline"
           size="icon"
-          className="h-9 w-9 shrink-0 lg:hidden"
+          className="h-9 w-9 shrink-0 border-border/70 bg-background/80 shadow-sm ring-1 ring-black/[0.03] lg:hidden dark:ring-white/5"
           aria-label="Menu navigasi"
         >
           <Menu className="h-4 w-4" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-[min(18rem,88vw)]">
-        <SheetTitle className="text-base font-bold">{title}</SheetTitle>
+      <SheetContent side="left" className="w-[min(18rem,88vw)] border-border/60 bg-background/95 backdrop-blur-xl">
+        <SheetTitle className="flex items-center gap-2 text-base font-semibold tracking-tight">
+          <span className="h-5 w-1 rounded-full bg-gradient-to-b from-inkai-red to-inkai-yellow/80" aria-hidden />
+          {title}
+        </SheetTitle>
         <nav className="mt-6 flex flex-col gap-1">
           {links.map((item) => {
             if (isNavGroup(item)) {
