@@ -21,6 +21,7 @@ import {
   normalizeSelfRank,
 } from "@/lib/member-profile-locks";
 import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
+import { forbidIfImpersonating } from "@/lib/security/impersonation-guard";
 
 function hasOwn(obj: object, key: string) {
   return Object.prototype.hasOwnProperty.call(obj, key);
@@ -225,6 +226,9 @@ export async function PATCH(request: Request) {
 
   // --- Email / NIA / sabuk / MSH: edit mandiri maksimal 1x ---
   if (body.email !== undefined) {
+    const blocked = await forbidIfImpersonating();
+    if (blocked) return blocked;
+
     if (isFieldLocked(locks, "email")) {
       return NextResponse.json(
         {

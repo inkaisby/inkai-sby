@@ -5,6 +5,16 @@ import {
   fetchMemberLocalOverlay,
   overlayMemberLocalFields,
 } from "@/lib/member-local-fields";
+import { isCurrentlyImpersonating } from "@/lib/security/impersonation";
+
+/**
+ * Endpoint "/me" & "/my" Inkai selalu diresolusi dari token, yang selama
+ * mode ambil alih tetap milik aktor (lihat impersonation.ts). Jangan pernah
+ * kembalikan hasilnya sebagai data target — itu berarti membocorkan data
+ * pribadi aktor sekaligus menampilkan info palsu ke UI. Halaman pemanggil
+ * wajib menampilkan pesan jujur ("Tidak tersedia saat ambil alih"), bukan
+ * data ini.
+ */
 
 async function safeCall<T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> {
   try {
@@ -19,6 +29,7 @@ async function fetchMyMemberProfileUncached(
   token: string,
   memberIdHint?: string | null,
 ) {
+  if (await isCurrentlyImpersonating()) return null;
   return safeCall(
     "profile",
     async () => {
@@ -43,6 +54,7 @@ async function fetchMyMemberProfileUncached(
 export const fetchMyMemberProfile = cache(fetchMyMemberProfileUncached);
 
 export async function fetchMyBillings(token: string, limit = 50) {
+  if (await isCurrentlyImpersonating()) return [];
   return safeCall(
     "billings",
     async () => {
@@ -56,6 +68,7 @@ export async function fetchMyBillings(token: string, limit = 50) {
 }
 
 async function fetchMyAttendanceUncached(token: string, limit = 100) {
+  if (await isCurrentlyImpersonating()) return [];
   return safeCall(
     "attendance",
     async () => {
@@ -72,6 +85,7 @@ async function fetchMyAttendanceUncached(token: string, limit = 100) {
 export const fetchMyAttendance = cache(fetchMyAttendanceUncached);
 
 export async function fetchMyEventRegistrations(token: string) {
+  if (await isCurrentlyImpersonating()) return [];
   return safeCall(
     "registrations",
     async () => {
@@ -92,6 +106,7 @@ export async function fetchMyNotifications(
   limit = 100,
   userId?: string,
 ) {
+  if (await isCurrentlyImpersonating()) return [];
   return safeCall(
     "notifications",
     async () => {

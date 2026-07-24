@@ -52,6 +52,12 @@ export async function DELETE(request: Request, context: RouteContext) {
   if (!entry || !IURAN_TRAIL_ACTIONS.has(entry.action)) {
     return NextResponse.json({ error: "Jejak tidak ditemukan" }, { status: 404 });
   }
+  if (entry.action.startsWith("SECURITY_")) {
+    return NextResponse.json(
+      { error: "Log keamanan tidak dapat dihapus lewat jejak iuran" },
+      { status: 403 },
+    );
+  }
 
   const details = entry.details || "";
   if (!details.includes(`memberId=${memberId}`)) {

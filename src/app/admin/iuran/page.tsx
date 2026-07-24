@@ -88,36 +88,14 @@ async function AdminIuranContent({
     ? activeDojoId || ""
     : params.dojoId?.trim() || "";
 
-  const [defaults, dojos, ledger] = await Promise.all([
+  const [defaults, dojos] = await Promise.all([
     getOperationalDefaults(),
     fetchAdminDojosScopedCached(user),
-    getIuranMemberLedgerIndex(user, period, {
-      q,
-      dojoId: dojoId || undefined,
-      filter,
-      page,
-      pageSize,
-      sort,
-      sortDir,
-    }),
   ]);
 
   const switcherDojos = isDojoAdmin
     ? dojos.filter((d) => allowlist.includes(d.id))
     : dojos;
-
-  const exportRows = ledger.exportRows.map((r) => ({
-    fullName: r.fullName,
-    nia: r.nia ?? "",
-    dojo: r.dojoName,
-    monthlyDues: r.monthlyDuesAmount,
-    monthStatus: monthStatusLabel(r.monthStatus),
-    arrears: r.arrearsAmount,
-    aging: r.aging === "none" ? "" : r.aging,
-    exemption: r.allowEventWithoutDues
-      ? "Ya — tidak wajib lunas iuran untuk daftar event/UKT atau lainnya"
-      : "Tidak",
-  }));
 
   const baseParams: Record<string, string> = {
     ...(q ? { q } : {}),
@@ -129,8 +107,6 @@ async function AdminIuranContent({
     ...(params.memberId ? { memberId: params.memberId } : {}),
     ...(params.tab ? { tab: params.tab } : {}),
   };
-
-  const { kpis } = ledger;
 
   return (
     <>
@@ -158,25 +134,6 @@ async function AdminIuranContent({
             />
           ) : null
         }
-      />
-
-      <div className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-        <KpiChip label="Tunggakan" value={formatRp(kpis.arrearsAmount)} />
-        <KpiChip label="Belum bayar" value={String(kpis.pendingCount)} />
-        <KpiChip label="Menunggu verifikasi" value={String(kpis.waitingCount)} />
-        <KpiChip
-          label={`Lunas ${period.key}`}
-          value={`${formatRp(kpis.paidMonthAmount)} (${kpis.paidMonthCount})`}
-        />
-        <KpiChip label="Pengecualian" value={String(kpis.exemptCount)} />
-        <KpiChip label="Belum digenerate" value={String(kpis.noBillCount)} />
-      </div>
-
-      <IuranOpsBar
-        canEdit={canEdit}
-        defaultAmount={defaults.monthlyDuesAmount}
-        exportMode="members"
-        memberExportRows={exportRows}
       />
 
       <form className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
@@ -245,18 +202,119 @@ async function AdminIuranContent({
         </button>
       </form>
 
+      {/* KPI + tabel dipisah ke Suspense sendiri: header/form di atas tampil
+          instan, sementara agregasi ledger (query terberat) masih streaming. */}
+      <Suspense fallback={<AdminPageLoader rows={6} />}>
+        <IuranLedgerSection
+          user={user}
+          period={period}
+          q={q}
+          dojoId={dojoId}
+          filter={filter}
+          page={page}
+          pageSize={pageSize}
+          sort={sort}
+          sortDir={sortDir}
+          canEdit={canEdit}
+          defaultDuesAmount={defaults.monthlyDuesAmount}
+          baseParams={baseParams}
+          initialMemberId={params.memberId?.trim() || undefined}
+          initialTab={params.tab?.trim() || undefined}
+        />
+      </Suspense>
+    </>
+  );
+}
+
+async function IuranLedgerSection({
+  user,
+  period,
+  q,
+  dojoId,
+  filter,
+  page,
+  pageSize,
+  sort,
+  sortDir,
+  canEdit,
+  defaultDuesAmount,
+  baseParams,
+  initialMemberId,
+  initialTab,
+}: {
+  user: Awaited<ReturnType<typeof requireAdminSession>>["user"];
+  period: ReturnType<typeof parsePeriod>;
+  q: string;
+  dojoId: string;
+  filter: string;
+  page: number;
+  pageSize: number;
+  sort: "name" | "arrears" | "status";
+  sortDir: "asc" | "desc";
+  canEdit: boolean;
+  defaultDuesAmount: number;
+  baseParams: Record<string, string>;
+  initialMemberId?: string;
+  initialTab?: string;
+}) {
+  const ledger = await getIuranMemberLedgerIndex(user, period, {
+    q,
+    dojoId: dojoId || undefined,
+    filter,
+    page,
+    pageSize,
+    sort,
+    sortDir,
+  });
+
+  const exportRows = ledger.exportRows.map((r) => ({
+    fullName: r.fullName,
+    nia: r.nia ?? "",
+    dojo: r.dojoName,
+    monthlyDues: r.monthlyDuesAmount,
+    monthStatus: monthStatusLabel(r.monthStatus),
+    arrears: r.arrearsAmount,
+    aging: r.aging === "none" ? "" : r.aging,
+    exemption: r.allowEventWithoutDues
+      ? "Ya — tidak wajib lunas iuran untuk daftar event/UKT atau lainnya"
+      : "Tidak",
+  }));
+
+  const { kpis } = ledger;
+
+  return (
+    <>
+      <div className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+        <KpiChip label="Tunggakan" value={formatRp(kpis.arrearsAmount)} />
+        <KpiChip label="Belum bayar" value={String(kpis.pendingCount)} />
+        <KpiChip label="Menunggu verifikasi" value={String(kpis.waitingCount)} />
+        <KpiChip
+          label={`Lunas ${period.key}`}
+          value={`${formatRp(kpis.paidMonthAmount)} (${kpis.paidMonthCount})`}
+        />
+        <KpiChip label="Pengecualian" value={String(kpis.exemptCount)} />
+        <KpiChip label="Belum digenerate" value={String(kpis.noBillCount)} />
+      </div>
+
+      <IuranOpsBar
+        canEdit={canEdit}
+        defaultAmount={defaultDuesAmount}
+        exportMode="members"
+        memberExportRows={exportRows}
+      />
+
       <IuranLedgerClient
         rows={ledger.rows}
         total={ledger.total}
         page={page}
         pageSize={pageSize}
         canEdit={canEdit}
-        defaultDuesAmount={defaults.monthlyDuesAmount}
+        defaultDuesAmount={defaultDuesAmount}
         waitingQueue={ledger.waitingQueue}
         baseParams={baseParams}
         periodKey={period.key}
-        initialMemberId={params.memberId?.trim() || undefined}
-        initialTab={params.tab?.trim() || undefined}
+        initialMemberId={initialMemberId}
+        initialTab={initialTab}
       />
     </>
   );

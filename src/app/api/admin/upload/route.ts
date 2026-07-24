@@ -3,7 +3,15 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
 import { canEditPengurus, getPrimaryAdminRole } from "@/lib/rbac";
 import { getClientIp } from "@/lib/security/request";
-import { isBlobUploadConfigured, uploadAdminFile } from "@/lib/upload";
+import {
+  rateLimitAsync,
+  rateLimitResponse,
+} from "@/lib/security/rate-limit";
+import {
+  isBlobUploadConfigured,
+  uploadAdminFile,
+  UploadValidationError,
+} from "@/lib/upload";
 
 export async function GET() {
   const authResult = await requireAdmin();
@@ -16,6 +24,12 @@ export async function GET() {
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+
+  const rlKey = `admin-upload:${authResult.user.id}`;
+  const limit = await rateLimitAsync(rlKey, { max: 30, windowMs: 60_000 });
+  if (!limit.success) {
+    return rateLimitResponse(limit.retryAfterSec ?? 60, rlKey);
+  }
 
   const role = getPrimaryAdminRole(authResult.user.roles);
   const canUpload =
@@ -50,8 +64,13 @@ export async function POST(request: Request) {
       pathname: result.pathname,
     });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Gagal mengunggah file";
-    return NextResponse.json({ error: message }, { status: 400 });
+    if (error instanceof UploadValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    console.error("[admin upload] failed:", error);
+    return NextResponse.json(
+      { error: "Gagal mengunggah file" },
+      { status: 500 },
+    );
   }
 }

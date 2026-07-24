@@ -2,8 +2,19 @@
 
 import { BottomNav } from "@/components/member/BottomNav";
 import { MemberWelcomeGuide } from "@/components/member/MemberWelcomeGuide";
+import { ImpersonationBanner } from "@/components/security/ImpersonationBanner";
 
-export function MemberMobileShell({ children }: { children: React.ReactNode }) {
+export function MemberMobileShell({
+  children,
+  impersonating = false,
+  userName = "",
+  userEmail = "",
+}: {
+  children: React.ReactNode;
+  impersonating?: boolean;
+  userName?: string;
+  userEmail?: string;
+}) {
   return (
     <div className="min-h-dvh bg-[#dfe6ef] dark:bg-[#0b0c10]">
       <div
@@ -14,6 +25,9 @@ export function MemberMobileShell({ children }: { children: React.ReactNode }) {
           paddingRight: "max(16px, env(safe-area-inset-right))",
         }}
       >
+        {impersonating ? (
+          <ImpersonationBanner targetName={userName} targetEmail={userEmail} />
+        ) : null}
         <div className="flex-1 pb-[100px]">{children}</div>
         <BottomNav />
         <MemberWelcomeGuide />

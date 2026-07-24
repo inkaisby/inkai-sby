@@ -20,7 +20,15 @@ export default async function DashboardLayout({
       redirect("/admin");
     }
 
-    return <MemberMobileShell>{children}</MemberMobileShell>;
+    return (
+      <MemberMobileShell
+        impersonating={Boolean(session.impersonatorId)}
+        userName={session.user.name || session.user.email || ""}
+        userEmail={session.user.email || ""}
+      >
+        {children}
+      </MemberMobileShell>
+    );
   } catch (error) {
     // Next.js redirect() throws; rethrow those.
     if (

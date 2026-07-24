@@ -31,7 +31,10 @@ async function AdminAuditContent() {
   const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
 
-  const raw = await fetchAuditLogs(token, 100);
+  // Inkai API membatasi limit per-request (hard cap) — tidak ada pagination
+  // server-side di sana, jadi kita tarik batch lebih besar sekali lalu
+  // filter/paginate di client (lihat AuditLogsClient: preset Keamanan + pageSize).
+  const raw = await fetchAuditLogs(token, 300);
   const logs = raw.map((log) => ({
     id: String(log.id ?? `${log.createdAt}-${log.action}`),
     action: String(log.action ?? ""),

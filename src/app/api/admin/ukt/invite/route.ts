@@ -7,6 +7,11 @@ import {
   getUktInvitePublic,
   syncUktInviteSnapshot,
 } from "@/lib/ukt-invite";
+import { z } from "zod";
+
+const inviteSchema = z.object({
+  eventId: z.string().trim().min(1).max(128),
+});
 
 /**
  * Pastikan snapshot undangan publik ada untuk periode ini (periode lama / sebelum fitur).
@@ -19,13 +24,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => null)) as {
-    eventId?: string;
-  } | null;
-  const eventId = body?.eventId?.trim();
-  if (!eventId) {
+  const parsed = inviteSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
     return NextResponse.json({ error: "eventId wajib" }, { status: 400 });
   }
+  const eventId = parsed.data.eventId;
 
   const { res, data } = await inkaiFetch(`/v1/events/${eventId}`, {}, authResult.token);
   if (!res.ok) {

@@ -65,6 +65,8 @@ export function AdminAbsensiClient({
   const router = useRouter();
   const [view, setView] = useState<AbsensiView>(initialView);
   const [query, setQuery] = useState(q);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [isPending, startTransition] = useTransition();
 
   const semesterLabel = `Semester ${semester} ${year}`;
@@ -99,9 +101,36 @@ export function AdminAbsensiClient({
     [belumHadir, filterName],
   );
 
+  const activeTotal =
+    view === "progress"
+      ? filteredProgress.length
+      : view === "harian"
+        ? filteredDay.length
+        : filteredBelum.length;
+  const totalPages = Math.max(1, Math.ceil(activeTotal / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageSlice = <T,>(rows: T[]) =>
+    rows.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pagedProgress = useMemo(
+    () => pageSlice(filteredProgress),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pageSlice depends on safePage/pageSize
+    [filteredProgress, safePage, pageSize],
+  );
+  const pagedDay = useMemo(
+    () => pageSlice(filteredDay),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredDay, safePage, pageSize],
+  );
+  const pagedBelum = useMemo(
+    () => pageSlice(filteredBelum),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredBelum, safePage, pageSize],
+  );
+
   function switchView(next: AbsensiView) {
     if (next === view) return;
     setView(next);
+    setPage(1);
     const params = new URLSearchParams();
     params.set("view", next);
     params.set("date", dateStr);
@@ -261,8 +290,18 @@ export function AdminAbsensiClient({
             unik) · klik baris untuk detail · diurutkan dari % terendah
           </p>
           <AdminAbsensiProgressTable
-            rows={filteredProgress}
+            rows={pagedProgress}
             semesterLabel={semesterLabel}
+          />
+          <AbsensiPager
+            page={safePage}
+            pageSize={pageSize}
+            total={filteredProgress.length}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
           />
         </>
       ) : null}
@@ -276,7 +315,7 @@ export function AdminAbsensiClient({
           </Card>
         ) : (
           <div className="space-y-2">
-            {filteredDay.map((log) => (
+            {pagedDay.map((log) => (
               <Card key={log.id}>
                 <CardContent className="flex flex-wrap items-center justify-between gap-2 p-4 text-sm">
                   <div>
@@ -292,6 +331,16 @@ export function AdminAbsensiClient({
                 </CardContent>
               </Card>
             ))}
+            <AbsensiPager
+              page={safePage}
+              pageSize={pageSize}
+              total={filteredDay.length}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+            />
           </div>
         )
       ) : null}
@@ -310,7 +359,7 @@ export function AdminAbsensiClient({
             </Card>
           ) : (
             <div className="space-y-2">
-              {filteredBelum.map((m) => (
+              {pagedBelum.map((m) => (
                 <Card key={m.id}>
                   <CardContent className="flex flex-wrap items-center justify-between gap-2 p-4 text-sm">
                     <div>
@@ -323,9 +372,81 @@ export function AdminAbsensiClient({
                   </CardContent>
                 </Card>
               ))}
+              <AbsensiPager
+                page={safePage}
+                pageSize={pageSize}
+                total={filteredBelum.length}
+                onPageChange={setPage}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
             </div>
           )}
         </>
+      ) : null}
+    </div>
+  );
+}
+
+function AbsensiPager({
+  page,
+  pageSize,
+  total,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (p: number) => void;
+  onPageSizeChange: (size: number) => void;
+}) {
+  if (total === 0) return null;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
+  return (
+    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-sm text-muted-foreground">
+          Menampilkan {from}–{to} dari {total}
+        </p>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Per halaman</span>
+          <select
+            className="h-8 rounded-lg border bg-background px-2 text-sm text-foreground"
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+          >
+            {[25, 50, 100].map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {totalPages > 1 ? (
+        <div className="flex gap-1.5 text-sm">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => onPageChange(page - 1)}
+            className="rounded-lg border px-2.5 py-1 hover:bg-muted disabled:opacity-40"
+          >
+            Prev
+          </button>
+          <button
+            type="button"
+            disabled={page >= totalPages}
+            onClick={() => onPageChange(page + 1)}
+            className="rounded-lg border px-2.5 py-1 hover:bg-muted disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
       ) : null}
     </div>
   );

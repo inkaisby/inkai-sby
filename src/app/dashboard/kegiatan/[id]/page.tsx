@@ -8,6 +8,7 @@ import {
   fetchMyMemberProfile,
 } from "@/lib/inkai-api/member-data";
 import { getEventRegistrationGate } from "@/lib/memberCompleteness";
+import { ImpersonationDataNotice } from "@/components/member/ImpersonationDataNotice";
 import { EventRegisterClient } from "./EventRegisterClient";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,8 @@ export default async function MemberEventDetailPage({ params }: Props) {
   ]);
 
   if (!event) notFound();
+
+  const impersonating = Boolean(session.impersonatorId);
 
   const gateReason = getEventRegistrationGate({
     member: member
@@ -60,10 +63,17 @@ export default async function MemberEventDetailPage({ params }: Props) {
   });
 
   return (
-    <EventRegisterClient
-      event={event}
-      gateReason={gateReason}
-      alreadyRegistered={alreadyRegistered}
-    />
+    <>
+      {impersonating ? (
+        <div className="mb-4">
+          <ImpersonationDataNotice description="Kelayakan pendaftaran (profil, dokumen, iuran) tidak dapat diverifikasi dalam mode ambil alih, sehingga pendaftaran kegiatan diblokir sementara. Hentikan ambil alih untuk mendaftarkan anggota ini." />
+        </div>
+      ) : null}
+      <EventRegisterClient
+        event={event}
+        gateReason={gateReason}
+        alreadyRegistered={alreadyRegistered}
+      />
+    </>
   );
 }

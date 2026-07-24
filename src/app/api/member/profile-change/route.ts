@@ -12,6 +12,7 @@ import {
   normalizeSelfRank,
 } from "@/lib/member-profile-locks";
 import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
+import { forbidIfImpersonating } from "@/lib/security/impersonation-guard";
 
 export async function GET() {
   const session = await auth();
@@ -41,6 +42,11 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     const msg = parsed.error.issues[0]?.message || "Data tidak valid";
     return NextResponse.json({ error: msg }, { status: 400 });
+  }
+
+  if (parsed.data.email) {
+    const blocked = await forbidIfImpersonating();
+    if (blocked) return blocked;
   }
 
   const memberId = String(session.user.memberId);

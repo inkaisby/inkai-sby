@@ -10,6 +10,8 @@ import {
   resolveMemberDisplayRank,
 } from "@/lib/belt";
 import { isFieldLocked } from "@/lib/member-profile-locks";
+import { MemberPageHeader } from "@/components/member/MemberPageHeader";
+import { ImpersonationDataNotice } from "@/components/member/ImpersonationDataNotice";
 import ProfilPageClient from "./ProfilPageClient";
 
 export const dynamic = "force-dynamic";
@@ -38,8 +40,19 @@ export default async function ProfilPage() {
   const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
 
+  const impersonating = Boolean(session.impersonatorId);
   const member = await fetchMyMemberProfile(token);
-  if (!member?.id) redirect("/dashboard");
+  if (!member?.id) {
+    if (impersonating) {
+      return (
+        <>
+          <MemberPageHeader title="Profil" />
+          <ImpersonationDataNotice description="Profil anggota (data, dokumen, kunci field) tidak dapat ditampilkan atau diubah dalam mode ambil alih karena token API tetap milik akun pengurus, bukan akun target. Hentikan ambil alih untuk mengelola profil sebenarnya." />
+        </>
+      );
+    }
+    redirect("/dashboard");
+  }
 
   const dojo = member.dojo as
     | { name?: string; branch?: { name?: string } }

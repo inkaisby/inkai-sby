@@ -8,6 +8,10 @@ import { fetchDuesExemptMemberIds } from "@/lib/member-local-fields";
 import { prisma } from "@/lib/prisma";
 import { getPrimaryAdminRole } from "@/lib/rbac";
 import { getClientIp } from "@/lib/security/request";
+import {
+  rateLimitAsync,
+  rateLimitResponse,
+} from "@/lib/security/rate-limit";
 import { canManageIuranByWilayah } from "@/lib/wilayah-rbac";
 import { z } from "zod";
 
@@ -33,6 +37,13 @@ export async function POST(request: Request) {
   if (!authResult.token) {
     return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
   }
+
+  const rlKey = `billing:generate:${authResult.user.id}`;
+  const limit = await rateLimitAsync(rlKey, { max: 5, windowMs: 60_000 });
+  if (!limit.success) {
+    return rateLimitResponse(limit.retryAfterSec ?? 60, rlKey);
+  }
+
   if (!canManageIuranByWilayah(authResult.user.roles)) {
     return NextResponse.json(
       { error: "Anda tidak berwenang membuat tagihan iuran" },
@@ -156,13 +167,11 @@ export async function POST(request: Request) {
           });
           return { ok: true as const, name: m.fullName };
         } catch (e) {
+          console.error("[billing/generate] fallback create failed:", e);
           return {
             ok: false as const,
             name: m.fullName,
-            error: inkaiErrorMessage(
-              data,
-              e instanceof Error ? e.message : "gagal",
-            ),
+            error: inkaiErrorMessage(data, "Gagal membuat tagihan"),
           };
         }
       }),

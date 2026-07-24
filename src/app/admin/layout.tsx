@@ -33,6 +33,7 @@ export default async function AdminLayout({
         adminDojoGrants={adminDojoGrants}
         showAdmin
         hasMemberPortal={hasMemberPortal(session.user)}
+        impersonating={Boolean(session.impersonatorId)}
       >
         {children}
       </DashboardShell>

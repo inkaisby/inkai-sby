@@ -40,6 +40,7 @@ const userSelect = {
   id: true,
   email: true,
   fullName: true,
+  isActive: true,
   lastSeenAt: true,
   lastLoginAt: true,
   roles: { select: { name: true } },
@@ -66,7 +67,9 @@ export async function GET(request: Request) {
     return rateLimitResponse(limit.retryAfterSec ?? 30);
   }
 
-  const scope = buildPresenceScopeWhere(session.user);
+  const scope = buildPresenceScopeWhere(session.user, {
+    includeInactive: true,
+  });
   if (!scope) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -138,6 +141,7 @@ export async function GET(request: Request) {
       roleLabel: ROLE_LABELS[primary] || primary,
       scopeLabel: scopeLabelForUser(user),
       online,
+      isActive: user.isActive,
       lastSeenAt: user.lastSeenAt?.toISOString() ?? null,
       lastLoginAt:
         user.lastLoginAt?.toISOString() ??

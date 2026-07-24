@@ -117,7 +117,20 @@ export async function rateLimitAsync(
   }
 }
 
-export function rateLimitResponse(retryAfterSec: number) {
+/**
+ * 429 response. When `key` is given, fires a SECURITY_RATE_LIMIT event and
+ * bumps the abuse-strike counter without blocking the response (dynamic
+ * import avoids a circular dependency with security-events.ts).
+ */
+export function rateLimitResponse(retryAfterSec: number, key?: string) {
+  if (key) {
+    void import("@/lib/security/security-events").then(
+      ({ writeSecurityEvent, bumpSecurityStrike }) => {
+        writeSecurityEvent({ action: "SECURITY_RATE_LIMIT", details: `key=${key}` });
+        void bumpSecurityStrike(key);
+      },
+    );
+  }
   return new Response(
     JSON.stringify({
       error: "Terlalu banyak percobaan. Coba lagi nanti.",

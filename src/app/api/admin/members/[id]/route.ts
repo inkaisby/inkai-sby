@@ -32,8 +32,18 @@ import {
   normalizeMsh,
 } from "@/lib/member-profile-locks";
 import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
+import { writeSecurityEvent } from "@/lib/security/security-events";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+/** Fire-and-forget signal for anti-IDOR scope denials; no member data in details. */
+function logScopeDenied(userId: string | undefined, action: string) {
+  writeSecurityEvent({
+    action: "SECURITY_SCOPE_DENIED",
+    userId,
+    details: `path=/api/admin/members/[id] action=${action}`,
+  });
+}
 
 export const maxDuration = 30;
 
@@ -73,6 +83,27 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const { id } = await context.params;
+
+  // Fail-closed: anggota harus dalam cakupan wilayah admin (anti-IDOR).
+  const scopedLocal = await withPrismaFallback(
+    "member-detail-scope",
+    () =>
+      prisma.member.findFirst({
+        where: {
+          AND: [{ id }, buildMemberFilter(authResult.user, { anyDeleted: true })],
+        },
+        select: { id: true },
+      }),
+    null,
+  );
+  if (!scopedLocal.data) {
+    logScopeDenied(authResult.user.id, "get");
+    return NextResponse.json(
+      { error: "Anggota tidak ditemukan" },
+      { status: 404 },
+    );
+  }
+
   const billingQs = new URLSearchParams({ limit: "30", memberId: id });
 
   // Paralel: member + billing + metadata lokal (jangan waterfall).
@@ -133,7 +164,9 @@ export async function GET(_request: Request, context: RouteContext) {
     "member-detail-local-extras",
     () =>
       prisma.member.findFirst({
-        where: { id },
+        where: {
+          AND: [{ id }, buildMemberFilter(authResult.user, { anyDeleted: true })],
+        },
         select: {
           monthlyDuesAmount: true,
           allowEventWithoutDues: true,
@@ -241,6 +274,18 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "NIA wajib diisi" }, { status: 400 });
     }
 
+    const inScope = await prisma.member.findFirst({
+      where: { AND: [{ id }, buildMemberFilter(authResult.user)] },
+      select: { id: true },
+    });
+    if (!inScope) {
+      logScopeDenied(authResult.user.id, "set_nia");
+      return NextResponse.json(
+        { error: "Anggota tidak ditemukan atau di luar cakupan" },
+        { status: 404 },
+      );
+    }
+
     const { res, data } = await inkaiFetch(
       `/v1/members/${id}`,
       {
@@ -295,6 +340,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       },
     });
     if (!scoped) {
+      logScopeDenied(authResult.user.id, "set_msh");
       return NextResponse.json(
         { error: "Anggota tidak ditemukan di cakupan Anda" },
         { status: 404 },
@@ -393,6 +439,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       select: { id: true, fullName: true },
     });
     if (!scoped) {
+      logScopeDenied(authResult.user.id, "set_name");
       return NextResponse.json(
         { error: "Anggota tidak ditemukan di cakupan Anda" },
         { status: 404 },
@@ -553,6 +600,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       },
     });
     if (!scoped) {
+      logScopeDenied(authResult.user.id, "set_dojo");
       return NextResponse.json(
         { error: "Anggota tidak ditemukan di cakupan Anda" },
         { status: 404 },
@@ -651,6 +699,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       select: { id: true, fullName: true, monthlyDuesAmount: true },
     });
     if (!scoped) {
+      logScopeDenied(authResult.user.id, "set_dues");
       return NextResponse.json(
         { error: "Anggota tidak ditemukan di cakupan Anda" },
         { status: 404 },
@@ -725,6 +774,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       },
     });
     if (!scoped) {
+      logScopeDenied(authResult.user.id, "set_dues_exemption");
       return NextResponse.json(
         { error: "Anggota tidak ditemukan di cakupan Anda" },
         { status: 404 },
@@ -775,6 +825,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       },
     });
     if (!scoped) {
+      logScopeDenied(authResult.user.id, "reset_password");
       return NextResponse.json(
         { error: "Anggota tidak ditemukan di cakupan Anda" },
         { status: 404 },
@@ -881,6 +932,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       },
     });
     if (!scoped) {
+      logScopeDenied(authResult.user.id, "set_documents");
       return NextResponse.json(
         { error: "Anggota tidak ditemukan di cakupan Anda" },
         { status: 404 },

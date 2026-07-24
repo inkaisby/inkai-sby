@@ -3,6 +3,10 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { memberBulkActionSchema } from "@/lib/security/schemas";
 import { getClientIp } from "@/lib/security/request";
 import {
+  rateLimitAsync,
+  rateLimitResponse,
+} from "@/lib/security/rate-limit";
+import {
   canSoftDeleteMembers,
   canToggleMemberActive,
   isCabangAdmin,
@@ -23,6 +27,12 @@ export async function POST(request: Request) {
   if ("error" in authResult) return authResult.error;
   if (!authResult.token) {
     return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
+
+  const rlKey = `admin-members-bulk:${authResult.user.id}`;
+  const limit = await rateLimitAsync(rlKey, { max: 30, windowMs: 60_000 });
+  if (!limit.success) {
+    return rateLimitResponse(limit.retryAfterSec ?? 60, rlKey);
   }
 
   const parsed = memberBulkActionSchema.safeParse(await request.json());

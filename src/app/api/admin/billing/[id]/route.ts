@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { prisma } from "@/lib/prisma";
-import { getPrimaryAdminRole, type SessionUser } from "@/lib/rbac";
+import { buildMemberFilter, type SessionUser } from "@/lib/rbac";
 import { canManageIuranByWilayah } from "@/lib/wilayah-rbac";
 import { adminBillingPatchSchema } from "@/lib/security/schemas";
 import { formatBillingAuditDetails, writeBillingAudit } from "@/lib/audit";
@@ -13,11 +13,11 @@ import {
 } from "@/lib/billing-delete";
 import { canEditKyuBaru } from "@/lib/belt";
 import { notifyUktBranchAdmins } from "@/lib/ukt-period-notify";
+import { writeSecurityEvent } from "@/lib/security/security-events";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 async function assertBillingInScope(user: SessionUser, billingId: string) {
-  const role = getPrimaryAdminRole(user.roles);
   const billing = await prisma.billing.findFirst({
     where: { id: billingId, isDeleted: false },
     include: {
@@ -25,22 +25,27 @@ async function assertBillingInScope(user: SessionUser, billingId: string) {
     },
   });
 
-  // Jika tidak ada di DB lokal, biarkan API Inkai yang memutuskan scope
-  if (!billing) return { ok: true as const, billing: null };
+  // Fail-closed: tanpa baris lokal → deny (anti-IDOR via Inkai id tebakan).
+  if (!billing) {
+    return {
+      ok: false as const,
+      error: "Tagihan tidak ditemukan atau di luar cakupan",
+      billing: null,
+    };
+  }
 
-  if (role === "ADMIN_DOJO") {
-    const allowlist =
-      user.managedDojoIds && user.managedDojoIds.length > 0
-        ? user.managedDojoIds
-        : user.managedDojoId
-          ? [user.managedDojoId]
-          : [];
-    if (
-      allowlist.length > 0 &&
-      !allowlist.includes(billing.member.dojoId)
-    ) {
-      return { ok: false as const, error: "Tagihan di luar ranting Anda" };
-    }
+  const scopedMember = await prisma.member.findFirst({
+    where: {
+      AND: [{ id: billing.member.id }, buildMemberFilter(user)],
+    },
+    select: { id: true },
+  });
+  if (!scopedMember) {
+    return {
+      ok: false as const,
+      error: "Tagihan di luar cakupan wilayah Anda",
+      billing: null,
+    };
   }
 
   return { ok: true as const, billing };
@@ -104,6 +109,11 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const scope = await assertBillingInScope(authResult.user, id);
   if (!scope.ok) {
+    writeSecurityEvent({
+      action: "SECURITY_SCOPE_DENIED",
+      userId: authResult.user.id,
+      details: "path=/api/admin/billing/[id] action=PATCH",
+    });
     return NextResponse.json({ error: scope.error }, { status: 403 });
   }
 
@@ -448,10 +458,15 @@ export async function DELETE(request: Request, context: RouteContext) {
 
   const scope = await assertBillingInScope(authResult.user, id);
   if (!scope.ok) {
+    writeSecurityEvent({
+      action: "SECURITY_SCOPE_DENIED",
+      userId: authResult.user.id,
+      details: "path=/api/admin/billing/[id] action=DELETE",
+    });
     return NextResponse.json({ error: scope.error }, { status: 403 });
   }
 
-  let status = scope.billing?.status ?? null;
+  let status: string | null = scope.billing?.status ?? null;
   if (!status) {
     const { res, data } = await inkaiFetch(`/v1/billing/${id}`, {}, authResult.token);
     if (res.ok) {

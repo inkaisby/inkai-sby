@@ -12,9 +12,11 @@ export default async function PindahPage() {
   const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
 
+  const impersonating = Boolean(session.impersonatorId);
   const member = await fetchMyMemberProfile(token);
-  const dojoName =
-    (member?.dojo as { name?: string } | undefined)?.name || "—";
+  const dojoName = impersonating
+    ? "Tidak tersedia saat ambil alih"
+    : (member?.dojo as { name?: string } | undefined)?.name || "—";
 
   return <PindahDojoClient currentDojoName={dojoName} />;
 }

@@ -4,6 +4,7 @@ import { writeAuditLog } from "@/lib/audit";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { assertDojoInScope } from "@/lib/pengaturan";
 import { prisma } from "@/lib/prisma";
+import type { SessionUser } from "@/lib/rbac";
 import { getClientIp } from "@/lib/security/request";
 import { z } from "zod";
 
@@ -14,22 +15,42 @@ const schema = z.object({
   adminNotes: z.string().optional(),
 });
 
-async function applyDojoTransfer(claim: {
-  type: string;
-  memberId: string;
-  data: string;
-}) {
-  if (claim.type !== "DOJO_TRANSFER" && claim.type !== "TRANSFER") return;
+function parseTargetDojoId(data: string): string | null {
   try {
-    const parsed = JSON.parse(claim.data) as { targetDojoId?: string };
-    if (!parsed.targetDojoId) return;
-    await prisma.member.update({
-      where: { id: claim.memberId },
-      data: { dojoId: parsed.targetDojoId },
-    });
+    const parsed = JSON.parse(data) as { targetDojoId?: string };
+    return parsed.targetDojoId?.trim() || null;
   } catch {
-    // ignore malformed data
+    return null;
   }
+}
+
+async function applyDojoTransfer(
+  claim: {
+    type: string;
+    memberId: string;
+    data: string;
+  },
+  user: SessionUser,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (claim.type !== "DOJO_TRANSFER" && claim.type !== "TRANSFER") {
+    return { ok: true };
+  }
+  const targetDojoId = parseTargetDojoId(claim.data);
+  if (!targetDojoId) {
+    return { ok: false, error: "Ranting tujuan tidak valid" };
+  }
+  const target = await assertDojoInScope(user, targetDojoId);
+  if (!target || target.isDeleted) {
+    return {
+      ok: false,
+      error: "Ranting tujuan di luar cakupan atau tidak valid",
+    };
+  }
+  await prisma.member.update({
+    where: { id: claim.memberId },
+    data: { dojoId: targetDojoId },
+  });
+  return { ok: true };
 }
 
 async function applyProfileChange(claim: {
@@ -138,6 +159,28 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
+  // Destination dojo must be in scope before approving a transfer
+  if (
+    local &&
+    parsed.data.action === "approve" &&
+    (local.type === "DOJO_TRANSFER" || local.type === "TRANSFER")
+  ) {
+    const targetDojoId = parseTargetDojoId(local.data);
+    if (!targetDojoId) {
+      return NextResponse.json(
+        { error: "Ranting tujuan tidak valid" },
+        { status: 400 },
+      );
+    }
+    const target = await assertDojoInScope(authResult.user, targetDojoId);
+    if (!target || target.isDeleted) {
+      return NextResponse.json(
+        { error: "Ranting tujuan di luar cakupan atau tidak valid" },
+        { status: 403 },
+      );
+    }
+  }
+
   const { res, data } = await inkaiFetch(
     `/v1/verifications/${id}/process`,
     {
@@ -165,7 +208,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   if (local && parsed.data.action === "approve") {
-    await applyDojoTransfer(local);
+    const transfer = await applyDojoTransfer(local, authResult.user);
+    if (!transfer.ok) {
+      return NextResponse.json({ error: transfer.error }, { status: 403 });
+    }
     await applyProfileChange(local);
     await prisma.verification
       .update({

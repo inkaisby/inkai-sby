@@ -43,6 +43,7 @@ export type PresenceListRow = {
   roleLabel: string;
   scopeLabel: string;
   online: boolean;
+  isActive: boolean;
   lastSeenAt: string | null;
   lastLoginAt: string | null;
   isSelf: boolean;

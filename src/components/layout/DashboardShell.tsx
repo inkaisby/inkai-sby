@@ -3,6 +3,7 @@
 import { AppSidebar } from "@/components/layout/AppShell";
 import { AdminAccessGate } from "@/components/layout/AdminAccessGate";
 import { DashboardTopbar } from "@/components/layout/DashboardTopbar";
+import { ImpersonationBanner } from "@/components/security/ImpersonationBanner";
 import type { NavItem } from "@/lib/dashboard-nav";
 import type { AdminDojoGrants } from "@/lib/admin-dojo-grants";
 
@@ -35,6 +36,7 @@ export function DashboardShell({
   hasMemberPortal = false,
   roles = [],
   adminDojoGrants = null,
+  impersonating = false,
   children,
 }: {
   title: string;
@@ -46,6 +48,7 @@ export function DashboardShell({
   hasMemberPortal?: boolean;
   roles?: string[];
   adminDojoGrants?: AdminDojoGrants | null;
+  impersonating?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -55,6 +58,9 @@ export function DashboardShell({
     >
       <AppSidebar title={title} links={links} />
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {impersonating ? (
+          <ImpersonationBanner targetName={userName} targetEmail={userEmail} />
+        ) : null}
         <DashboardTopbar
           title={title}
           links={links}

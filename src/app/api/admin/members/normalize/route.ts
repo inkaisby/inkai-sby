@@ -9,6 +9,10 @@ import {
 } from "@/lib/belt";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
+import {
+  rateLimitAsync,
+  rateLimitResponse,
+} from "@/lib/security/rate-limit";
 
 /**
  * Normalisasi massal currentRank + gender anggota di cakupan admin.
@@ -20,6 +24,13 @@ export async function POST(request: Request) {
   if (!authResult.token) {
     return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
   }
+
+  const rlKey = `admin-members-normalize:${authResult.user.id}`;
+  const limit = await rateLimitAsync(rlKey, { max: 30, windowMs: 60_000 });
+  if (!limit.success) {
+    return rateLimitResponse(limit.retryAfterSec ?? 60, rlKey);
+  }
+
   if (!canEditKyuBaru(authResult.user.roles)) {
     return NextResponse.json(
       { error: "Hanya admin cabang yang dapat menjalankan normalisasi data" },

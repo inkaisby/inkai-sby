@@ -1,11 +1,11 @@
 import { Suspense } from "react";
+import nextDynamic from "next/dynamic";
 import { redirect } from "next/navigation";
 import {
   getPrimaryAdminRole,
   ROLE_LABELS,
 } from "@/lib/rbac";
 import { canCreateEventsByWilayah } from "@/lib/wilayah-rbac";
-import { UktDashboard } from "@/components/admin/ukt/UktDashboard";
 import {
   beltFeesFromTemplates,
   buildUktAdminUrl,
@@ -21,6 +21,13 @@ import { getUktRegistrationPolicy } from "@/lib/ukt-registration-policy";
 import { requireAdminSession } from "@/lib/admin-session";
 import { getManagedDojoIdsFromUser, loadUktDojoFilterGroups } from "@/lib/managed-dojos";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+
+// UktDashboard adalah client component besar (~180KB) — pisahkan jadi chunk
+// tersendiri agar tidak membengkakkan bundle JS utama halaman admin/ukt.
+const UktDashboard = nextDynamic(
+  () => import("@/components/admin/ukt/UktDashboard").then((m) => m.UktDashboard),
+  { ssr: true, loading: () => <AdminPageLoader rows={8} message="Memuat data UKT..." /> },
+);
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;

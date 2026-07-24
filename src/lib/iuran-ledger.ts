@@ -169,17 +169,6 @@ function isActiveMemberStatus(status: string) {
   return s === "ACTIVE" || s === "AKTIF";
 }
 
-function matchesPeriod(
-  dueDate: Date,
-  description: string | null | undefined,
-  key: string,
-) {
-  const due = dueDate.toISOString().slice(0, 7);
-  if (due === key) return true;
-  const desc = String(description ?? "");
-  return desc.includes(key) || desc.includes(`Iuran bulanan ${key}`);
-}
-
 function computeAging(
   unpaidDueDates: Date[],
   asOf: Date = new Date(),
@@ -292,79 +281,94 @@ export async function getIuranMemberLedgerIndex(
   });
 
   const memberIds = members.map((m) => m.id);
-  const billings =
+
+  // Rentang tanggal periode (utk match dueDate di level SQL, hindari load semua billing).
+  const periodStart = new Date(Date.UTC(period.year, period.month - 1, 1));
+  const periodEnd = new Date(Date.UTC(period.year, period.month, 1));
+  const periodOr = [
+    { dueDate: { gte: periodStart, lt: periodEnd } },
+    { description: { contains: period.key } },
+  ];
+  const billingScopeWhere = {
+    memberId: { in: memberIds },
+    isDeleted: false,
+    type: { in: [...MONTHLY_TYPES] },
+  };
+
+  // Dua query tersegmentasi (bukan dump seluruh riwayat billing):
+  // 1) seluruh baris BELUM LUNAS (tunggakan lintas periode, biasanya jauh lebih kecil
+  //    dari seluruh riwayat karena billing yang sudah lunas tidak ikut ter-load).
+  // 2) baris yang match periode aktif saja (semua status) untuk status bulan berjalan.
+  const [unpaidRows, periodRows] =
     memberIds.length === 0
-      ? []
-      : await prisma.billing.findMany({
-          where: {
-            memberId: { in: memberIds },
-            isDeleted: false,
-          },
-          select: {
-            id: true,
-            memberId: true,
-            type: true,
-            amount: true,
-            status: true,
-            description: true,
-            dueDate: true,
-            payment: {
-              select: { proofUrl: true, paidAt: true, paymentMethod: true },
+      ? [[], []]
+      : await Promise.all([
+          prisma.billing.findMany({
+            where: { ...billingScopeWhere, status: { in: [...UNPAID_STATUSES] } },
+            select: {
+              id: true,
+              memberId: true,
+              amount: true,
+              status: true,
+              description: true,
+              dueDate: true,
+              payment: {
+                select: { proofUrl: true, paidAt: true, paymentMethod: true },
+              },
             },
-          },
-        });
+          }),
+          prisma.billing.findMany({
+            where: { ...billingScopeWhere, OR: periodOr },
+            select: { memberId: true, status: true, amount: true },
+          }),
+        ]);
 
-  const monthlyByMember = new Map<
-    string,
-    Array<{
-      id: string;
-      amount: number;
-      status: string;
-      description: string | null;
-      dueDate: Date;
-      proofUrl: string | null;
-      paidAt: Date | null;
-      paymentMethod: string | null;
-    }>
-  >();
+  const unpaidByMember = new Map<string, typeof unpaidRows>();
+  for (const b of unpaidRows) {
+    const list = unpaidByMember.get(b.memberId) ?? [];
+    list.push(b);
+    unpaidByMember.set(b.memberId, list);
+  }
 
-  for (const b of billings) {
-    if (!isMonthlyDuesBilling(b.type, b.description)) continue;
-    const list = monthlyByMember.get(b.memberId) ?? [];
-    list.push({
-      id: b.id,
-      amount: b.amount,
-      status: b.status,
-      description: b.description,
-      dueDate: b.dueDate,
-      proofUrl: b.payment?.proofUrl ?? null,
-      paidAt: b.payment?.paidAt ?? null,
-      paymentMethod: b.payment?.paymentMethod ?? null,
-    });
-    monthlyByMember.set(b.memberId, list);
+  const periodByMember = new Map<string, typeof periodRows>();
+  for (const b of periodRows) {
+    const list = periodByMember.get(b.memberId) ?? [];
+    list.push(b);
+    periodByMember.set(b.memberId, list);
+  }
+
+  // KPI total dihitung langsung dari kedua hasil query di atas (sudah tersegmentasi
+  // di level SQL — bukan reduce atas seluruh riwayat billing).
+  let kpiArrears = 0;
+  let kpiPending = 0;
+  let kpiWaiting = 0;
+  for (const b of unpaidRows) {
+    kpiArrears += b.amount;
+    if (b.status === "PENDING") kpiPending += 1;
+    if (b.status === "WAITING_VERIFICATION") kpiWaiting += 1;
+  }
+  let kpiPaidAmount = 0;
+  let kpiPaidCount = 0;
+  for (const b of periodRows) {
+    if (PAID_STATUSES.has(b.status)) {
+      kpiPaidAmount += b.amount;
+      kpiPaidCount += 1;
+    }
   }
 
   const waitingQueue: WaitingQueueItem[] = [];
   const allRows: IuranLedgerMemberRow[] = [];
 
-  let kpiArrears = 0;
-  let kpiPending = 0;
-  let kpiWaiting = 0;
-  let kpiPaidAmount = 0;
-  let kpiPaidCount = 0;
   let kpiExempt = 0;
   let kpiNoBill = 0;
 
   for (const m of members) {
-    const list = monthlyByMember.get(m.id) ?? [];
-    const unpaid = list.filter((b) => UNPAID_STATUSES.has(b.status));
+    const unpaid = unpaidByMember.get(m.id) ?? [];
     const arrearsAmount = unpaid.reduce((s, b) => s + b.amount, 0);
     const waitingCount = unpaid.filter(
       (b) => b.status === "WAITING_VERIFICATION",
     ).length;
-    const monthBillings = list.filter((b) =>
-      matchesPeriod(b.dueDate, b.description, period.key),
-    );
+    const monthBillings = periodByMember.get(m.id) ?? [];
     const monthStatus = resolveMonthStatus({
       allowEventWithoutDues: m.allowEventWithoutDues,
       memberStatus: m.status,
@@ -387,24 +391,14 @@ export async function getIuranMemberLedgerIndex(
         amount: b.amount,
         dueDate: b.dueDate.toISOString(),
         description: b.description,
-        proofUrl: b.proofUrl,
-        paidAt: b.paidAt?.toISOString() ?? null,
-        paymentMethod: b.paymentMethod,
+        proofUrl: b.payment?.proofUrl ?? null,
+        paidAt: b.payment?.paidAt?.toISOString() ?? null,
+        paymentMethod: b.payment?.paymentMethod ?? null,
       });
     }
 
-    // KPI dihitung dari seluruh scope (sebelum filter daftar)
-    kpiArrears += arrearsAmount;
-    kpiPending += unpaid.filter((b) => b.status === "PENDING").length;
-    kpiWaiting += waitingCount;
     if (monthStatus === "EXEMPT") kpiExempt += 1;
     if (monthStatus === "NO_BILL") kpiNoBill += 1;
-    for (const b of monthBillings) {
-      if (PAID_STATUSES.has(b.status)) {
-        kpiPaidAmount += b.amount;
-        kpiPaidCount += 1;
-      }
-    }
 
     allRows.push({
       id: m.id,

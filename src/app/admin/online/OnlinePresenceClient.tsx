@@ -1,10 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { ExportCsvButton } from "@/components/admin/ExportCsvButton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  ImpersonationRiskModal,
+  type ImpersonationRiskModalSubmitInput,
+} from "@/components/security/ImpersonationRiskModal";
 import {
   formatRelativeId,
   type PresenceListRow,
@@ -26,14 +31,52 @@ type PresenceResponse = {
 };
 
 type StatusFilter = "online" | "login24h" | "all";
+type SecurityAction = "revoke" | "lock" | "unlock" | "impersonate";
+
+async function postPresenceAction(
+  path: string,
+  body: Record<string, string>,
+): Promise<{ ok: true; message?: string } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, error: json.error || "Aksi gagal" };
+    }
+    return { ok: true, message: json.message };
+  } catch {
+    return { ok: false, error: "Aksi gagal" };
+  }
+}
+
+function promptReason(actionLabel: string): string | null {
+  const reason = window.prompt(`Alasan ${actionLabel} (wajib):`);
+  if (reason == null) return null;
+  const trimmed = reason.trim();
+  if (trimmed.length < 3) {
+    window.alert("Alasan minimal 3 karakter.");
+    return null;
+  }
+  return trimmed;
+}
 
 export function OnlinePresenceClient() {
+  const router = useRouter();
   const [status, setStatus] = useState<StatusFilter>("online");
   const [query, setQuery] = useState("");
   const [data, setData] = useState<PresenceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [pending, startTransition] = useTransition();
+  const [actionBusyId, setActionBusyId] = useState<string | null>(null);
+  const [impersonateTarget, setImpersonateTarget] =
+    useState<PresenceListRow | null>(null);
+  const [impersonateSubmitting, setImpersonateSubmitting] = useState(false);
+  const [impersonateError, setImpersonateError] = useState<string | null>(null);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -86,6 +129,72 @@ export function OnlinePresenceClient() {
     };
   }, [load]);
 
+  const runSecurityAction = useCallback(
+    async (row: PresenceListRow, kind: SecurityAction) => {
+      if (row.isSelf) return;
+
+      if (kind === "impersonate") {
+        setImpersonateError(null);
+        setImpersonateTarget(row);
+        return;
+      }
+
+      const labels = {
+        revoke: "mencabut sesi",
+        lock: "mengunci akun",
+        unlock: "membuka kunci akun",
+      } as const;
+      const reason = promptReason(labels[kind]);
+      if (!reason) return;
+      if (
+        !window.confirm(
+          `${labels[kind][0].toUpperCase()}${labels[kind].slice(1)} ${row.fullName || row.email}?`,
+        )
+      ) {
+        return;
+      }
+
+      setActionBusyId(row.id);
+      const path =
+        kind === "revoke"
+          ? "/api/admin/presence/revoke"
+          : kind === "lock"
+            ? "/api/admin/presence/lock"
+            : "/api/admin/presence/unlock";
+      const result = await postPresenceAction(path, { userId: row.id, reason });
+      setActionBusyId(null);
+      if (!result.ok) {
+        window.alert(result.error);
+        return;
+      }
+      void load({ silent: true });
+    },
+    [load, router],
+  );
+
+  const submitImpersonate = useCallback(
+    async (input: ImpersonationRiskModalSubmitInput) => {
+      if (!impersonateTarget) return;
+      setImpersonateSubmitting(true);
+      setImpersonateError(null);
+      const result = await postPresenceAction("/api/admin/impersonate/start", {
+        targetUserId: impersonateTarget.id,
+        reason: input.reason,
+        password: input.password,
+        confirmPhrase: input.confirmPhrase,
+      });
+      setImpersonateSubmitting(false);
+      if (!result.ok) {
+        setImpersonateError(result.error);
+        return;
+      }
+      setImpersonateTarget(null);
+      router.refresh();
+      router.push("/admin");
+    },
+    [impersonateTarget, router],
+  );
+
   const groups = useMemo(() => {
     const rows = data?.rows ?? [];
     const map = new Map<string, PresenceListRow[]>();
@@ -118,7 +227,8 @@ export function OnlinePresenceClient() {
           <span className="text-emerald-700 dark:text-emerald-400">Sedang aktif</span>{" "}
           = membuka aplikasi dalam ±{thresholdMin} menit. Setiap baris menampilkan
           IP, perangkat, dan perkiraan lokasi (dari edge CDN bila tersedia).
-          Lokasi kota hanya akurat di production (Vercel/Cloudflare).
+          Lokasi kota hanya akurat di production (Vercel/Cloudflare). Cabut sesi /
+          kunci / ambil alih tersedia untuk pusat & cabang.
         </p>
       </details>
 
@@ -177,6 +287,7 @@ export function OnlinePresenceClient() {
                 "Peran",
                 "Wilayah",
                 "Status",
+                "Aktif",
                 "Terakhir terlihat",
                 "Login",
                 "IP",
@@ -195,6 +306,7 @@ export function OnlinePresenceClient() {
                 r.roleLabel,
                 r.scopeLabel,
                 r.online ? "Sedang aktif" : "Tidak aktif",
+                r.isActive === false ? "Terkunci" : "Ya",
                 r.lastSeenAt || "",
                 r.lastLoginAt || r.session?.startedAt || "",
                 r.session?.ip || "",
@@ -245,12 +357,32 @@ export function OnlinePresenceClient() {
             </h3>
             <div className="space-y-2">
               {rows.map((row) => (
-                <PresenceRow key={row.id} row={row} />
+                <PresenceRow
+                  key={row.id}
+                  row={row}
+                  busy={actionBusyId === row.id}
+                  onAction={(kind) => void runSecurityAction(row, kind)}
+                />
               ))}
             </div>
           </section>
         ))}
       </div>
+
+      <ImpersonationRiskModal
+        open={Boolean(impersonateTarget)}
+        onOpenChange={(next) => {
+          if (!next) {
+            setImpersonateTarget(null);
+            setImpersonateError(null);
+          }
+        }}
+        targetName={impersonateTarget?.fullName || ""}
+        targetEmail={impersonateTarget?.email || ""}
+        submitting={impersonateSubmitting}
+        errorMessage={impersonateError}
+        onSubmit={(input) => void submitImpersonate(input)}
+      />
     </div>
   );
 }
@@ -278,10 +410,19 @@ function KpiCard({
   );
 }
 
-function PresenceRow({ row }: { row: PresenceListRow }) {
+function PresenceRow({
+  row,
+  busy,
+  onAction,
+}: {
+  row: PresenceListRow;
+  busy?: boolean;
+  onAction: (kind: SecurityAction) => void;
+}) {
   const [open, setOpen] = useState(false);
   const sess = row.session;
   const loginAt = row.lastLoginAt || sess?.startedAt || null;
+  const locked = row.isActive === false;
 
   return (
     <div className="rounded-lg border p-3 text-sm">
@@ -292,6 +433,11 @@ function PresenceRow({ row }: { row: PresenceListRow }) {
             {row.isSelf ? (
               <Badge variant="outline" className="text-[10px]">
                 Anda
+              </Badge>
+            ) : null}
+            {locked ? (
+              <Badge variant="destructive" className="text-[10px]">
+                Terkunci
               </Badge>
             ) : null}
             <Badge variant="secondary" className="text-[10px]">
@@ -324,6 +470,54 @@ function PresenceRow({ row }: { row: PresenceListRow }) {
           {formatRelativeId(loginAt)}
         </p>
       </div>
+
+      {!row.isSelf ? (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs"
+            disabled={busy || locked}
+            onClick={() => onAction("revoke")}
+          >
+            Cabut sesi
+          </Button>
+          {locked ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs"
+              disabled={busy}
+              onClick={() => onAction("unlock")}
+            >
+              Buka kunci
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs text-destructive"
+              disabled={busy}
+              onClick={() => onAction("lock")}
+            >
+              Kunci
+            </Button>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-8 text-xs"
+            disabled={busy || locked}
+            onClick={() => onAction("impersonate")}
+          >
+            Ambil alih
+          </Button>
+        </div>
+      ) : null}
 
       <button
         type="button"

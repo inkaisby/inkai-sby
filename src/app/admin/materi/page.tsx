@@ -23,7 +23,7 @@ async function Content() {
 
   const result = await withPrismaFallback(
     "admin-materi-page",
-    () => prisma.digitalMaterial.findMany({ orderBy: { createdAt: "desc" } }),
+    () => prisma.digitalMaterial.findMany({ orderBy: { createdAt: "desc" }, take: 200 }),
     [],
   );
 

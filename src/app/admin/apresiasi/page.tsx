@@ -33,6 +33,18 @@ async function AdminApresiasiContent() {
 
   const rows = await prisma.appreciationEntry.findMany({
     orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+    take: 200,
+    select: {
+      id: true,
+      kind: true,
+      name: true,
+      title: true,
+      summary: true,
+      photoUrl: true,
+      eventDate: true,
+      order: true,
+      isActive: true,
+    },
   });
 
   const items: AppreciationAdminItem[] = rows.map((r) => ({

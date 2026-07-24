@@ -254,6 +254,8 @@ model Billing {
 
   @@index([memberId, status, isDeleted])
   @@index([status, dueDate])
+  @@index([registrationId])
+  @@index([memberId, isDeleted, type])
 }
 
 model Payment {
@@ -287,6 +289,9 @@ model Event {
   registrations       EventRegistration[]
   verifications       Verification[]
   attendances         Attendance[]
+
+  @@index([isDeleted, endDate])
+  @@index([isDeleted, registrationCloseAt])
 }
 
 model EventCategory {
@@ -313,6 +318,7 @@ model EventRegistration {
   member             Member         @relation(fields: [memberId], references: [id])
 
   @@unique([eventId, memberId])
+  @@index([eventId, status])
 }
 
 model Product {
@@ -465,6 +471,8 @@ model AppreciationEntry {
   order     Int              @default(0)
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
+
+  @@index([isActive, kind, order])
 }
 
 model RankFeeTemplate {
@@ -486,4 +494,6 @@ model AuditLog {
   location  String?
   createdAt DateTime @default(now())
   user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([action, createdAt])
 }

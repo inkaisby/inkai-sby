@@ -5,6 +5,10 @@ import { buildMemberFilter } from "@/lib/rbac";
 import { notifyUser } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { getClientIp } from "@/lib/security/request";
+import {
+  rateLimitAsync,
+  rateLimitResponse,
+} from "@/lib/security/rate-limit";
 import { z } from "zod";
 
 const broadcastSchema = z.object({
@@ -19,6 +23,12 @@ const CHUNK = 25;
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+
+  const rlKey = `admin-broadcast:${authResult.user.id}`;
+  const limit = await rateLimitAsync(rlKey, { max: 30, windowMs: 60_000 });
+  if (!limit.success) {
+    return rateLimitResponse(limit.retryAfterSec ?? 60, rlKey);
+  }
 
   const parsed = broadcastSchema.safeParse(await request.json());
   if (!parsed.success) {

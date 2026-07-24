@@ -11,6 +11,7 @@ import {
 } from "@/lib/security/schemas";
 import { validatePassword } from "@/lib/security/password";
 import { findEmailConflict } from "@/lib/pengaturan";
+import { forbidIfImpersonating } from "@/lib/security/impersonation-guard";
 
 export async function GET() {
   const authResult = await requireAdmin();
@@ -56,6 +57,9 @@ export async function PATCH(request: Request) {
   const action = typeof body.action === "string" ? body.action : "profile";
 
   if (action === "password") {
+    const blocked = await forbidIfImpersonating();
+    if (blocked) return blocked;
+
     const parsed = akunPasswordSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -117,6 +121,9 @@ export async function PATCH(request: Request) {
     nextEmail !== authResult.user.email.trim().toLowerCase();
 
   if (emailChanged) {
+    const blocked = await forbidIfImpersonating();
+    if (blocked) return blocked;
+
     const conflict = await findEmailConflict(nextEmail, authResult.user.id);
     if (conflict) {
       return NextResponse.json(

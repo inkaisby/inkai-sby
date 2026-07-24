@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
+import { forbidUnlessAdminPath } from "@/lib/security/admin-path-guard";
 import { z } from "zod";
 
 const materialSchema = z.object({
@@ -14,6 +15,12 @@ const materialSchema = z.object({
 export async function GET() {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  const denied = forbidUnlessAdminPath(
+    authResult.user.roles ?? [],
+    "/admin/materi",
+    authResult.adminDojoGrants,
+  );
+  if (denied) return denied;
 
   const result = await withPrismaFallback(
     "admin-materials",
@@ -30,6 +37,12 @@ export async function GET() {
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
+  const denied = forbidUnlessAdminPath(
+    authResult.user.roles ?? [],
+    "/admin/materi",
+    authResult.adminDojoGrants,
+  );
+  if (denied) return denied;
 
   const parsed = materialSchema.safeParse(await request.json());
   if (!parsed.success) {

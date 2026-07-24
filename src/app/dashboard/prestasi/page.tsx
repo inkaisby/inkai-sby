@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Award } from "lucide-react";
 import { fetchMyMemberProfile } from "@/lib/inkai-api/member-data";
 import { MemberPageHeader } from "@/components/member/MemberPageHeader";
+import { ImpersonationDataNotice } from "@/components/member/ImpersonationDataNotice";
 import { MemberUktStatus } from "@/components/member/MemberUktStatus";
 import { PiagamUploadClient } from "@/components/member/PiagamUploadClient";
 import {
@@ -35,6 +36,7 @@ export default async function PrestasiPage({ searchParams }: Props) {
     ? (tabParam as Tab)
     : "Sabuk";
 
+  const impersonating = Boolean(session.impersonatorId);
   const [member, piagamClaims] = await Promise.all([
     fetchMyMemberProfile(token),
     withPrismaFallback(
@@ -51,7 +53,17 @@ export default async function PrestasiPage({ searchParams }: Props) {
       [],
     ),
   ]);
-  if (!member?.id) redirect("/dashboard");
+  if (!member?.id) {
+    if (impersonating) {
+      return (
+        <>
+          <MemberPageHeader title="Prestasi & Sabuk" />
+          <ImpersonationDataNotice />
+        </>
+      );
+    }
+    redirect("/dashboard");
+  }
 
   const ranks = (member.ranks as Array<Record<string, unknown>>) ?? [];
   const eventRegistrations =

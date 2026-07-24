@@ -19,6 +19,7 @@ import {
   buildMembershipChecklist,
 } from "@/components/member/MembershipChecklist";
 import { DojoTodayCard } from "@/components/member/DojoTodayCard";
+import { ImpersonationDataNotice } from "@/components/member/ImpersonationDataNotice";
 import { formatMemberName, formatRankLabel, resolveMemberDisplayRank } from "@/lib/belt";
 import {
   isDocumentComplete,
@@ -43,6 +44,8 @@ export default async function MemberDashboard() {
   ]);
   if (!session) redirect("/login");
   if (!token) redirect("/login");
+
+  const impersonating = Boolean(session.impersonatorId);
 
   // Critical path only — agenda/events tidak di-fetch di beranda
   const userId = String(session.user.id);
@@ -250,6 +253,8 @@ export default async function MemberDashboard() {
           mshNumber={mshNumber}
           qrValue={qrValue}
         />
+      ) : impersonating ? (
+        <ImpersonationDataNotice />
       ) : (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
           Data anggota belum tersedia. Hubungi admin cabang/dojo Anda.

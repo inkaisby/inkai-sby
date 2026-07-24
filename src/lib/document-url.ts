@@ -9,8 +9,7 @@ export function isAllowedMemberDocumentUrl(raw: string): boolean {
       host.endsWith(".public.blob.vercel-storage.com") ||
       host.endsWith(".supabase.co") ||
       host.endsWith(".supabase.in") ||
-      host === "inkai-ecosystem.vercel.app" ||
-      host.endsWith(".vercel.app")
+      host === "inkai-ecosystem.vercel.app"
     );
   } catch {
     return false;

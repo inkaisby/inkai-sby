@@ -317,13 +317,14 @@ export async function getRedisOnlineUserIds(
 /** Scope user yang boleh dilihat penonton presence. */
 export function buildPresenceScopeWhere(
   viewer: SessionUser,
+  opts?: { includeInactive?: boolean },
 ): Prisma.UserWhereInput | null {
   if (!canViewAccountPresence(viewer.roles)) return null;
 
   const role = getPrimaryAdminRole(viewer.roles);
   const base: Prisma.UserWhereInput = {
     isDeleted: false,
-    isActive: true,
+    ...(opts?.includeInactive ? {} : { isActive: true }),
   };
 
   if (

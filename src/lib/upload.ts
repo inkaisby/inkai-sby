@@ -9,12 +9,84 @@ const ALLOWED = new Set([
   "application/pdf",
 ]);
 
-export function assertUploadableFile(file: File) {
+/** Thrown for user-facing validation issues — safe to echo to the client. */
+export class UploadValidationError extends Error {}
+
+type SignatureCheck = { mime: string; check: (bytes: Uint8Array) => boolean };
+
+const SIGNATURES: SignatureCheck[] = [
+  {
+    mime: "image/jpeg",
+    check: (b) => b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  },
+  {
+    mime: "image/png",
+    check: (b) =>
+      b.length >= 8 &&
+      b[0] === 0x89 &&
+      b[1] === 0x50 &&
+      b[2] === 0x4e &&
+      b[3] === 0x47 &&
+      b[4] === 0x0d &&
+      b[5] === 0x0a &&
+      b[6] === 0x1a &&
+      b[7] === 0x0a,
+  },
+  {
+    mime: "image/webp",
+    check: (b) =>
+      b.length >= 12 &&
+      b[0] === 0x52 && // R
+      b[1] === 0x49 && // I
+      b[2] === 0x46 && // F
+      b[3] === 0x46 && // F
+      b[8] === 0x57 && // W
+      b[9] === 0x45 && // E
+      b[10] === 0x42 && // B
+      b[11] === 0x50, // P
+  },
+  {
+    mime: "image/gif",
+    check: (b) =>
+      b.length >= 6 &&
+      b[0] === 0x47 && // G
+      b[1] === 0x49 && // I
+      b[2] === 0x46 && // F
+      b[3] === 0x38 && // 8
+      (b[4] === 0x37 || b[4] === 0x39) && // 7 or 9
+      b[5] === 0x61, // a
+  },
+  {
+    mime: "application/pdf",
+    check: (b) =>
+      b.length >= 5 &&
+      b[0] === 0x25 && // %
+      b[1] === 0x50 && // P
+      b[2] === 0x44 && // D
+      b[3] === 0x46 && // F
+      b[4] === 0x2d, // -
+  },
+];
+
+/** Sniff the real file type from its magic bytes; null if unrecognized. */
+function detectMimeFromBytes(bytes: Uint8Array): string | null {
+  return SIGNATURES.find((sig) => sig.check(bytes))?.mime ?? null;
+}
+
+export async function assertUploadableFile(file: File) {
   if (!ALLOWED.has(file.type)) {
-    throw new Error("Format file tidak didukung (gambar atau PDF)");
+    throw new UploadValidationError("Format file tidak didukung (gambar atau PDF)");
   }
   if (file.size > MAX_BYTES) {
-    throw new Error("Ukuran file maksimal 8 MB");
+    throw new UploadValidationError("Ukuran file maksimal 8 MB");
+  }
+
+  const header = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const detected = detectMimeFromBytes(header);
+  if (!detected || detected !== file.type) {
+    throw new UploadValidationError(
+      "Isi file tidak sesuai format yang diklaim (gagal verifikasi header file)",
+    );
   }
 }
 
@@ -39,10 +111,10 @@ export async function uploadAdminFile(
   file: File,
   folder = "pengurus",
 ): Promise<{ url: string; pathname: string }> {
-  assertUploadableFile(file);
+  await assertUploadableFile(file);
 
   if (!isBlobUploadConfigured()) {
-    throw new Error(
+    throw new UploadValidationError(
       "Upload belum dikonfigurasi. Set BLOB_READ_WRITE_TOKEN di environment, atau tempel URL manual.",
     );
   }

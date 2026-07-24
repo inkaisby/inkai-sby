@@ -127,7 +127,7 @@ export function AnggotaFiltersForm({
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       navigate(value, filters);
-    }, 250);
+    }, 300);
   };
 
   const handleFilterChange = (key: keyof typeof filters, value: string) => {

@@ -24,6 +24,15 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/api/admin")
   ) {
     if (!assertSameOrigin(request)) {
+      // Fire-and-forget; jangan await di critical path proxy
+      void import("@/lib/security/security-events").then(({ writeSecurityEvent, bumpSecurityStrike }) => {
+        writeSecurityEvent({
+          action: "SECURITY_CSRF_REJECT",
+          ip,
+          details: `path=${pathname}`,
+        });
+        void bumpSecurityStrike(`csrf:${ip}`, { max: 15, windowMs: 10 * 60_000 });
+      });
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }

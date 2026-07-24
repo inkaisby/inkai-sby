@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { FileText, ExternalLink, Pencil } from "lucide-react";
 import { fetchMyMemberProfile } from "@/lib/inkai-api/member-data";
 import { MemberPageHeader } from "@/components/member/MemberPageHeader";
+import { ImpersonationDataNotice } from "@/components/member/ImpersonationDataNotice";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +17,19 @@ export default async function DokumenPage() {
   const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
 
+  const impersonating = Boolean(session.impersonatorId);
   const member = await fetchMyMemberProfile(token);
-  if (!member?.id) redirect("/dashboard");
+  if (!member?.id) {
+    if (impersonating) {
+      return (
+        <>
+          <MemberPageHeader title="Dokumen" />
+          <ImpersonationDataNotice />
+        </>
+      );
+    }
+    redirect("/dashboard");
+  }
 
   const docs = [
     {

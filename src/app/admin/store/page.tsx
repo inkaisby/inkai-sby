@@ -24,7 +24,7 @@ async function Content() {
   const [products, orders] = await Promise.all([
     withPrismaFallback(
       "admin-store-products",
-      () => prisma.product.findMany({ orderBy: { createdAt: "desc" } }),
+      () => prisma.product.findMany({ orderBy: { createdAt: "desc" }, take: 200 }),
       [],
     ),
     withPrismaFallback(
