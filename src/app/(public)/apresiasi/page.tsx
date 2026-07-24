@@ -157,7 +157,12 @@ export default async function ApresiasiPage({ searchParams }: Props) {
                         aria-hidden
                       />
                       {item.photoUrl ? (
-                        <div className="relative size-16 shrink-0 overflow-hidden rounded-full ring-1 ring-border/60 sm:size-20">
+                        <Link
+                          href={path}
+                          prefetch
+                          className="relative size-16 shrink-0 overflow-hidden rounded-full ring-1 ring-border/60 transition-opacity hover:opacity-90 sm:size-20"
+                          aria-label={`Buka ${item.name}`}
+                        >
                           <Image
                             src={item.photoUrl}
                             alt={item.name}
@@ -166,18 +171,21 @@ export default async function ApresiasiPage({ searchParams }: Props) {
                             sizes="80px"
                             unoptimized
                           />
-                        </div>
+                        </Link>
                       ) : (
-                        <div
+                        <Link
+                          href={path}
+                          prefetch
+                          aria-label={`Buka ${item.name}`}
                           className={cn(
-                            "flex size-16 shrink-0 items-center justify-center rounded-full text-lg font-semibold sm:size-20",
+                            "flex size-16 shrink-0 items-center justify-center rounded-full text-lg font-semibold transition-opacity hover:opacity-90 sm:size-20",
                             isKenangan
                               ? "bg-foreground/10 text-foreground/70"
                               : "bg-inkai-red/10 text-inkai-red",
                           )}
                         >
                           {item.name.slice(0, 1).toUpperCase()}
-                        </div>
+                        </Link>
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="mb-1.5 flex flex-wrap items-center gap-2">
