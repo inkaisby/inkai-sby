@@ -20,8 +20,6 @@ import {
   type UktRegistrationBlocker,
 } from "@/lib/ukt";
 import { fetchSettingsByPrefix } from "@/lib/inkai-api/admin-data";
-import { loadUktPeriodMeta } from "@/lib/ukt-period-meta-store";
-import { validateUktRegistrationEligibility } from "@/lib/ukt-register";
 import { loadUktSelfRegistrationMeta } from "@/lib/ukt-self-registration";
 import { prisma } from "@/lib/prisma";
 
@@ -52,7 +50,11 @@ function filterUktEvents(events: Array<Record<string, unknown>>) {
   return events.filter((e) => String(e.title).toUpperCase().includes("UKT"));
 }
 
-/** Status UKT periode aktif untuk kartu anggota (shared API + RSC). */
+/**
+ * Status UKT periode aktif untuk kartu anggota.
+ * Dioptimasi: parallel I/O, Prisma-first untuk mandiri, gate eligibility
+ * ditunda ke klik daftar (bukan di setiap load kartu).
+ */
 export async function getMemberUktStatus(
   token: string,
   memberId: string,
@@ -61,35 +63,40 @@ export async function getMemberUktStatus(
   const year = new Date().getFullYear();
   const activeSemester = currentSemester();
 
-  const { res, data } = await inkaiFetch("/v1/events?limit=200", {}, token);
-  if (!res.ok) {
+  // Parallel: daftar event + meta periode (hindari waterfall)
+  const [eventsResult, metaRows] = await Promise.all([
+    inkaiFetch("/v1/events?limit=200", {}, token, {
+      timeoutMs: 8_000,
+      retries: 0,
+    }),
+    fetchSettingsByPrefix(token, "ukt-period-meta:"),
+  ]);
+
+  if (!eventsResult.res.ok) {
     return { period: null, statusLabel: undefined };
   }
 
-  let periods: UktPeriodOption[] = filterUktEvents(
-    (data.data as Array<Record<string, unknown>>) ?? [],
-  ).map((p) => ({
-    id: String(p.id),
-    title: String(p.title),
-    startDate: String(p.startDate),
-    endDate: String(p.endDate),
-    registrationCloseAt: p.registrationCloseAt
-      ? String(p.registrationCloseAt)
-      : null,
-    createdAt: p.createdAt ? String(p.createdAt) : undefined,
-  }));
-
-  const metaRows = await fetchSettingsByPrefix(token, "ukt-period-meta:");
   const metaById = new Map(
     metaRows.map((row) => [
       row.key.slice("ukt-period-meta:".length),
       parseUktPeriodMetaValue(row.value),
     ]),
   );
-  periods = periods.map((p) => {
-    const meta = metaById.get(p.id);
+
+  let periods: UktPeriodOption[] = filterUktEvents(
+    (eventsResult.data.data as Array<Record<string, unknown>>) ?? [],
+  ).map((p) => {
+    const id = String(p.id);
+    const meta = metaById.get(id);
     return {
-      ...p,
+      id,
+      title: String(p.title),
+      startDate: String(p.startDate),
+      endDate: String(p.endDate),
+      registrationCloseAt: p.registrationCloseAt
+        ? String(p.registrationCloseAt)
+        : null,
+      createdAt: p.createdAt ? String(p.createdAt) : undefined,
       archived: meta?.archived === true,
       locked: meta?.locked === true,
     };
@@ -124,64 +131,85 @@ export async function getMemberUktStatus(
     };
   }
 
-  const periodMeta =
-    metaById.get(match.id) ?? (await loadUktPeriodMeta(token, match.id));
+  const periodMeta = metaById.get(match.id) ?? parseUktPeriodMetaValue(null);
   const examPayload = {
     examAt: periodMeta.examAt ?? null,
     examLocation: periodMeta.examLocation ?? null,
   };
 
-  const selfMeta = await loadUktSelfRegistrationMeta(match.id, memberId);
+  // Parallel Prisma: registrasi lokal + meta mandiri (cepat, tanpa Inkai)
+  const [selfMeta, localReg] = await Promise.all([
+    loadUktSelfRegistrationMeta(match.id, memberId),
+    prisma.eventRegistration.findFirst({
+      where: {
+        eventId: match.id,
+        memberId,
+        status: { notIn: ["CANCELLED"] },
+      },
+      select: {
+        id: true,
+        status: true,
+        registeredRank: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
-  // Prefer Prisma registration (self-reg PENDING often not on Inkai yet)
-  const localReg = await prisma.eventRegistration.findFirst({
-    where: {
-      eventId: match.id,
+  // Fast path: PENDING mandiri — cukup Prisma, tanpa event detail / eligibility / exam
+  if (localReg && localReg.status === "PENDING") {
+    const decoded = decodeUktRegisteredRank(
+      typeof localReg.registeredRank === "string"
+        ? localReg.registeredRank
+        : null,
+    );
+    const row: UktMemberRow = {
       memberId,
-      status: { notIn: ["CANCELLED"] },
-    },
-    select: {
-      id: true,
-      status: true,
-      registeredRank: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const { res: detailRes, data: detailData } = await inkaiFetch(
-    `/v1/events/${match.id}`,
-    {},
-    token,
-  );
-
-  let reg: Record<string, unknown> | null = null;
-  if (detailRes.ok) {
-    const event = detailData.data as Record<string, unknown>;
-    const registrations =
-      (event.registrations as Array<Record<string, unknown>>) ?? [];
-    reg =
-      registrations.find(
-        (r) =>
-          String((r.member as { id?: string })?.id ?? r.memberId) === memberId,
-      ) ?? null;
-  }
-
-  if (localReg && (!reg || localReg.status === "PENDING")) {
-    reg = {
-      id: localReg.id,
-      status: localReg.status,
-      registeredRank: localReg.registeredRank,
-      memberId,
+      registrationId: localReg.id,
+      photoUrl: null,
+      nia: null,
+      fullName: memberName ?? "",
+      birthPlace: null,
+      birthDate: null,
+      gender: null,
+      address: null,
+      kyuLama: decoded.kyuLama || "",
+      kyuBaru: decoded.kyuBaru,
+      birthCertificateUrl: null,
+      bpjsCardUrl: null,
+      dojoName: "—",
+      dojoId: "",
+      status: "PENDING",
+      billingId: null,
+      billingStatus: null,
+      billingAmount: null,
+      outstandingDues: 0,
+      pendingVerifications: 0,
+      attendanceCount: 0,
+      attendancePct: null,
+      examResult: null,
+      examPresent: null,
+      selfRegistration: true,
+      memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,
+    };
+    const displayStatus = resolveUktDisplayStatus(row);
+    return {
+      period: match,
+      registered: true,
+      registrationId: localReg.id,
+      kyuLama: row.kyuLama || null,
+      kyuBaru: row.kyuBaru ?? null,
+      displayStatus,
+      statusLabel: uktDisplayStatusLabel(displayStatus),
+      examResult: null,
+      memberPaymentConfirmedAt: row.memberPaymentConfirmedAt ?? null,
+      canSelfRegister: false,
+      blockers: [],
+      ...examPayload,
     };
   }
 
-  if (!reg || String(reg.status) === "CANCELLED") {
-    const eligibility = await validateUktRegistrationEligibility(
-      token,
-      match.id,
-      memberId,
-      { primaryRole: "MEMBER" },
-    );
+  // Belum daftar: jangan panggil eligibility berat di load kartu — gate di POST daftar
+  if (!localReg) {
     return {
       period: match,
       registered: false,
@@ -189,51 +217,47 @@ export async function getMemberUktStatus(
         ? "Periode diarsipkan"
         : "Belum terdaftar",
       displayStatus: "belum_daftar",
-      canSelfRegister: eligibility.ok,
-      blockers: eligibility.ok ? [] : eligibility.blockers,
+      canSelfRegister: !periodMeta.archived && !periodMeta.locked,
+      blockers: [],
       ...examPayload,
     };
   }
 
-  const examSettings = await fetchSettingsByPrefix(
-    token,
-    `ukt-exam-result:${match.id}:`,
-  );
-  const examMap = buildUktExamResultMap(examSettings, match.id);
-  const member = (reg.member as Record<string, unknown> | undefined) ?? {};
-  const billings = (member?.billings as Array<Record<string, unknown>>) ?? [];
-  let billing =
-    billings.find((b) => b.registrationId === reg!.id) ?? billings[0] ?? null;
-
-  if (!billing) {
-    const localBilling = await prisma.billing.findFirst({
+  // Terdaftar APPROVED+: billing Prisma + exam result (parallel), tanpa dump semua registrasi Inkai
+  const [localBilling, examSettings, memberLocal] = await Promise.all([
+    prisma.billing.findFirst({
       where: {
-        registrationId: String(reg.id),
+        registrationId: localReg.id,
         isDeleted: false,
       },
-      select: { id: true, status: true, amount: true },
-    });
-    if (localBilling) {
-      billing = {
-        id: localBilling.id,
-        status: localBilling.status,
-        amount: localBilling.amount,
-      };
-    }
-  }
+      select: { id: true, status: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    fetchSettingsByPrefix(token, `ukt-exam-result:${match.id}:`),
+    prisma.member.findFirst({
+      where: { id: memberId },
+      select: { fullName: true, currentRank: true },
+    }),
+  ]);
 
-  const category = reg.category as { name?: string } | null | undefined;
+  const examMap = buildUktExamResultMap(examSettings, match.id);
   const registeredRank =
-    typeof reg.registeredRank === "string" ? reg.registeredRank : null;
+    typeof localReg.registeredRank === "string"
+      ? localReg.registeredRank
+      : null;
   const decoded = decodeUktRegisteredRank(registeredRank);
-  const memberRank = member?.currentRank ? String(member.currentRank) : null;
-  const kyuBaruHint = decoded.kyuBaru || category?.name || null;
-  const billingStatus = billing?.status ? String(billing.status) : null;
+  const memberRank = memberLocal?.currentRank
+    ? String(memberLocal.currentRank)
+    : null;
+  const kyuBaruHint = decoded.kyuBaru || null;
+  const billingStatus = localBilling?.status
+    ? String(localBilling.status)
+    : null;
   const paid =
     billingStatus === "PAID" ||
     billingStatus === "SUCCESS" ||
-    String(reg.status ?? "") === "PAID" ||
-    String(reg.status ?? "") === "SUCCESS";
+    localReg.status === "PAID" ||
+    localReg.status === "SUCCESS";
   const lockSnapshot = Boolean(
     paid &&
       kyuBaruHint &&
@@ -244,16 +268,16 @@ export async function getMemberUktStatus(
   const { kyuLama, kyuBaru } = resolveUktRankColumns(
     registeredRank,
     memberRank,
-    category?.name,
+    null,
     { lockSnapshot },
   );
 
   const row: UktMemberRow = {
     memberId,
-    registrationId: String(reg.id),
+    registrationId: localReg.id,
     photoUrl: null,
     nia: null,
-    fullName: String(member?.fullName ?? memberName ?? ""),
+    fullName: String(memberLocal?.fullName ?? memberName ?? ""),
     birthPlace: null,
     birthDate: null,
     gender: null,
@@ -265,16 +289,15 @@ export async function getMemberUktStatus(
     bpjsCardUrl: null,
     dojoName: "—",
     dojoId: "",
-    status: String(reg.status ?? ""),
-    billingId: billing?.id ? String(billing.id) : null,
-    billingStatus: billing?.status ? String(billing.status) : null,
-    // Jangan kirim nominal ke kartu anggota
+    status: localReg.status,
+    billingId: localBilling?.id ?? null,
+    billingStatus,
     billingAmount: null,
     outstandingDues: 0,
     pendingVerifications: 0,
     attendanceCount: 0,
     attendancePct: null,
-    examResult: examMap.get(String(reg.id)) ?? null,
+    examResult: examMap.get(localReg.id) ?? null,
     examPresent: null,
     selfRegistration: Boolean(selfMeta),
     memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,

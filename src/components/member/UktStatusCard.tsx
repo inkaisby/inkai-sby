@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Award, ChevronRight, Loader2, Wallet } from "lucide-react";
@@ -159,17 +159,22 @@ export function UktStatusCard({ compact = false, initialData }: Props) {
     initialData ?? null,
   );
   const [loading, setLoading] = useState(initialData === undefined);
-  const [pending, startTransition] = useTransition();
+  const [actionBusy, setActionBusy] = useState(false);
   const [gateBlockers, setGateBlockers] = useState<UktRegistrationBlocker[] | null>(
     null,
   );
 
+  // Sync dari RSC/Suspense tanpa refetch client ganda
   useEffect(() => {
     if (initialData !== undefined) {
       setData(initialData);
       setLoading(false);
-      return;
     }
+  }, [initialData]);
+
+  // Hanya fetch bila dipasang tanpa SSR payload
+  useEffect(() => {
+    if (initialData !== undefined) return;
     let cancelled = false;
     fetch("/api/member/ukt-status")
       .then((r) => r.json())
@@ -187,58 +192,82 @@ export function UktStatusCard({ compact = false, initialData }: Props) {
     };
   }, [initialData]);
 
-  function refreshStatus() {
-    startTransition(() => {
-      router.refresh();
-      fetch("/api/member/ukt-status")
-        .then((r) => r.json())
-        .then((json) => setData(json))
-        .catch(() => undefined);
-    });
-  }
-
   async function handleRegister() {
-    if (!data?.period?.id) return;
-    if (data.blockers && data.blockers.length > 0) {
-      setGateBlockers(data.blockers);
-      return;
-    }
-    const res = await fetch("/api/member/ukt/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ eventId: data.period.id }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      if (Array.isArray(json.blockers) && json.blockers.length > 0) {
-        setGateBlockers(json.blockers as UktRegistrationBlocker[]);
+    if (!data?.period?.id || actionBusy) return;
+    setActionBusy(true);
+    try {
+      const res = await fetch("/api/member/ukt/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId: data.period.id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (Array.isArray(json.blockers) && json.blockers.length > 0) {
+          setGateBlockers(json.blockers as UktRegistrationBlocker[]);
+          return;
+        }
+        showError(json.error || "Gagal mendaftar UKT");
         return;
       }
-      showError(json.error || "Gagal mendaftar UKT");
-      return;
+      // Optimistic UI — tanpa menunggu refetch ganda
+      const nextStatus =
+        (json.displayStatus as UktDisplayStatus) || "menunggu_terima_ranting";
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              registered: true,
+              displayStatus: nextStatus,
+              statusLabel:
+                nextStatus === "belum_bayar"
+                  ? "Belum Bayar"
+                  : "Menunggu Terima Ranting",
+              canSelfRegister: false,
+              blockers: [],
+            }
+          : prev,
+      );
+      showSuccess(
+        json.alreadyRegistered
+          ? "Anda sudah terdaftar pada periode ini"
+          : "Pengajuan UKT terkirim",
+      );
+      router.refresh();
+    } finally {
+      setActionBusy(false);
     }
-    showSuccess(
-      json.alreadyRegistered
-        ? "Anda sudah terdaftar pada periode ini"
-        : "Pengajuan UKT terkirim",
-    );
-    refreshStatus();
   }
 
   async function handleConfirmPayment() {
-    if (!data?.period?.id) return;
-    const res = await fetch("/api/member/ukt/confirm-payment", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ eventId: data.period.id }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      showError(json.error || "Gagal konfirmasi pembayaran");
-      return;
+    if (!data?.period?.id || actionBusy) return;
+    setActionBusy(true);
+    try {
+      const res = await fetch("/api/member/ukt/confirm-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId: data.period.id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError(json.error || "Gagal konfirmasi pembayaran");
+        return;
+      }
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              displayStatus: "menunggu_konfirmasi_ranting",
+              statusLabel: "Menunggu Konfirmasi Ranting",
+              memberPaymentConfirmedAt: new Date().toISOString(),
+            }
+          : prev,
+      );
+      showSuccess("Konfirmasi terkirim — menunggu ketua ranting");
+      router.refresh();
+    } finally {
+      setActionBusy(false);
     }
-    showSuccess("Konfirmasi terkirim — menunggu ketua ranting");
-    refreshStatus();
   }
 
   if (loading) {
@@ -299,10 +328,10 @@ export function UktStatusCard({ compact = false, initialData }: Props) {
             <Button
               size="sm"
               className="h-8 bg-inkai-red hover:bg-inkai-red/90"
-              disabled={pending}
+              disabled={actionBusy}
               onClick={() => void handleRegister()}
             >
-              {pending ? (
+              {actionBusy ? (
                 <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
               ) : null}
               Daftar UKT sekarang
@@ -312,10 +341,10 @@ export function UktStatusCard({ compact = false, initialData }: Props) {
             <Button
               size="sm"
               className="h-8 bg-inkai-red hover:bg-inkai-red/90"
-              disabled={pending}
+              disabled={actionBusy}
               onClick={() => void handleConfirmPayment()}
             >
-              {pending ? (
+              {actionBusy ? (
                 <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
               ) : null}
               Konfirmasi sudah bayar

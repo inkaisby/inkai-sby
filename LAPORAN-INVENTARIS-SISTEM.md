@@ -626,6 +626,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Juli 2026 | Undangan UKT: ringanin UI — hapus animasi infinite/blur/noise, tunda mount konten+Maps, countdown via DOM ref, musik HTMLAudio saja, font `next/font` |
 | 23 Juli 2026 | Fix 404 undangan: fallback service token + persist snapshot; `POST /api/admin/ukt/invite` saat Salin/WA Undangan |
 | 24 Juli 2026 | **UKT daftar mandiri:** anggota Daftar UKT sekarang + gate syarat + konfirmasi bayar; ranting Terima/Tolak → cabang Verifikasi; anti-bocor nominal di iuran anggota; unique `(eventId,memberId)`; API `POST /api/member/ukt/register` + `confirm-payment` |
+| 24 Juli 2026 | Perf kartu UKT anggota: parallel fetch; Prisma-first (tanpa dump registrasi Inkai); gate eligibility ditunda ke klik daftar; optimistic UI tanpa refetch ganda |
 
 ---
 
