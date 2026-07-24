@@ -17,7 +17,8 @@ type Props = {
 
 /**
  * Floating chip kegiatan terbuka/berlangsung di beranda publik.
- * Tidak render jika kosong atau di-dismiss sesi.
+ * HP: FAB ikon + count (kelas float agar tidak kena hide admin topbar).
+ * Desktop: pill penuh.
  */
 export function OpenEventsFloatingChip({ initialEvents }: Props) {
   const [events, setEvents] = useState(initialEvents);
@@ -92,9 +93,10 @@ export function OpenEventsFloatingChip({ initialEvents }: Props) {
   return (
     <div
       ref={containerRef}
-      className="pointer-events-none fixed right-3 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 sm:right-5 sm:bottom-5"
+      className="pointer-events-none fixed right-3 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-[60] sm:right-5 sm:bottom-5"
     >
       <div className="pointer-events-auto relative">
+        {/* Mobile: FAB compact */}
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
@@ -102,7 +104,26 @@ export function OpenEventsFloatingChip({ initialEvents }: Props) {
           aria-haspopup="dialog"
           aria-label={`Kegiatan masih terbuka: ${count}`}
           className={cn(
-            "open-events-chip flex max-w-[min(92vw,320px)] items-center gap-2 shadow-lg",
+            "open-events-icon-btn relative flex h-12 w-12 items-center justify-center rounded-full border border-inkai-red/25 bg-background shadow-lg sm:hidden",
+            open && "open-events-icon-btn--open",
+          )}
+        >
+          <span className="open-events-live open-events-live--sm absolute top-1.5 left-1.5" aria-hidden>
+            <span className="open-events-live-dot" />
+          </span>
+          <CalendarDays className="size-5 text-inkai-red" aria-hidden />
+          <span className="open-events-count open-events-count--float">{count}</span>
+        </button>
+
+        {/* Desktop: pill */}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-label={`Kegiatan masih terbuka: ${count}`}
+          className={cn(
+            "open-events-chip open-events-chip--float hidden max-w-[min(92vw,320px)] items-center gap-2 shadow-lg sm:flex",
             open && "open-events-chip--open",
           )}
         >
@@ -134,13 +155,13 @@ export function OpenEventsFloatingChip({ initialEvents }: Props) {
             <button
               type="button"
               aria-label="Tutup"
-              className="fixed inset-0 z-40 bg-black/20 sm:bg-transparent"
+              className="fixed inset-0 z-[55] bg-black/25 sm:bg-black/10"
               onClick={() => setOpen(false)}
             />
             <div
               role="dialog"
               aria-label="Kegiatan masih terbuka"
-              className="open-events-panel absolute right-0 bottom-[calc(100%+0.5rem)] z-50 w-[min(100vw-1.5rem,360px)] overflow-hidden"
+              className="open-events-panel absolute right-0 bottom-[calc(100%+0.5rem)] z-[65] w-[min(100vw-1.5rem,360px)] overflow-hidden"
             >
               <div className="mb-2 flex items-center justify-between gap-2 px-0.5">
                 <p className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">

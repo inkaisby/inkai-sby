@@ -588,7 +588,7 @@
 }
 
 @media (max-width: 639px) {
-  .open-events-chip {
+  .open-events-chip:not(.open-events-chip--float) {
     display: none;
   }
 }
