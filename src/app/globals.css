@@ -593,6 +593,10 @@
   }
 }
 
+.open-events-chip--float {
+  display: flex;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .open-events-chip::before,
   .open-events-live::before,
