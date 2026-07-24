@@ -255,6 +255,8 @@ type Props = {
   viewMode?: UktAdminViewMode;
   /** Teks lead di atas toolbar (ikut sticky saat scroll). */
   headerNote?: string;
+  /** Toolbar semester/tahun sudah di shell halaman — sembunyikan sticky duplikat. */
+  hideStickyTermBar?: boolean;
   /** Kebijakan syarat daftar dari Pengaturan UKT cabang. */
   registrationPolicy?: UktRegistrationPolicy;
 };
@@ -1927,7 +1929,8 @@ export function UktDashboard(props: Props) {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Sticky hanya semester/tahun — hindari sticky tinggi yang menutupi tabel di HP */}
+      {/* Sticky semester/tahun — disembunyikan bila shell halaman sudah punya UktTermNav */}
+      {!props.hideStickyTermBar ? (
       <div className="sticky top-12 z-30 -mx-3 space-y-2 border-b border-border/50 bg-background/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:top-16 sm:-mx-6 sm:space-y-3 sm:px-6 sm:py-3">
         {props.headerNote ? (
           <p className="hidden text-sm text-muted-foreground sm:block">{props.headerNote}</p>
@@ -1967,6 +1970,7 @@ export function UktDashboard(props: Props) {
           />
         </div>
       </div>
+      ) : null}
 
       {/* Period actions — di luar sticky agar tidak memakan viewport HP */}
       <Card className="border-inkai-red/20 bg-gradient-to-r from-background to-muted/30 shadow-sm">

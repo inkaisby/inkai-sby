@@ -21,9 +21,10 @@ import { getUktRegistrationPolicy } from "@/lib/ukt-registration-policy";
 import { requireAdminSession } from "@/lib/admin-session";
 import { getManagedDojoIdsFromUser, loadUktDojoFilterGroups } from "@/lib/managed-dojos";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { UktTermNav } from "@/components/admin/ukt/UktTermNav";
 
-// UktDashboard adalah client component besar (~180KB) — pisahkan jadi chunk
-// tersendiri agar tidak membengkakkan bundle JS utama halaman admin/ukt.
+// UktDashboard besar — chunk terpisah; loading hanya di zona data (bawah shell).
 const UktDashboard = nextDynamic(
   () => import("@/components/admin/ukt/UktDashboard").then((m) => m.UktDashboard),
   { ssr: true, loading: () => <AdminPageLoader rows={8} message="Memuat data UKT..." /> },
@@ -48,20 +49,94 @@ type SearchParams = Promise<{
   create?: string;
 }>;
 
-async function UktPageContent({ searchParams }: { searchParams: SearchParams }) {
-  const { user, token } = await requireAdminSession();
-
-  const params = await searchParams;
+function parseTerm(params: {
+  semester?: string;
+  year?: string;
+}): { semester: UktSemester; year: number } {
   const semester = (
     params.semester === "II" ? "II" : params.semester === "I" ? "I" : currentSemester()
   ) as UktSemester;
   const year = Math.min(
     2100,
-    Math.max(2020, parseInt(params.year || String(new Date().getFullYear()), 10) || new Date().getFullYear()),
+    Math.max(
+      2020,
+      parseInt(params.year || String(new Date().getFullYear()), 10) ||
+        new Date().getFullYear(),
+    ),
   );
-  const createMode = params.create === "1";
+  return { semester, year };
+}
 
+/**
+ * Shell ringan: header + semester/tahun tampil dulu (setelah sesi).
+ * Data berat (KPI/tabel) streaming di Suspense di bawah — pola sama /admin/iuran.
+ */
+async function UktPageShell({ searchParams }: { searchParams: SearchParams }) {
+  const { user, token } = await requireAdminSession();
+  const params = await searchParams;
+  const { semester, year } = parseTerm(params);
+  const createMode = params.create === "1";
   const primaryRole = getPrimaryAdminRole(user.roles);
+  const canCreatePeriod = canCreateEventsByWilayah(user.roles);
+
+  return (
+    <>
+      <AdminPageHeader
+        title="Pendaftaran UKT"
+        description={`${ROLE_LABELS[primaryRole] || primaryRole} — Periode aktif & pendaftaran anggota`}
+      />
+      <UktTermNav
+        semester={semester}
+        year={year}
+        createMode={createMode}
+        basePath="/admin/ukt"
+      />
+      <Suspense
+        fallback={<AdminPageLoader rows={8} message="Memuat data UKT..." />}
+      >
+        <UktDashboardSection
+          user={user}
+          token={token}
+          semester={semester}
+          year={year}
+          createMode={createMode}
+          periodFromUrl={createMode ? null : params.period || null}
+          canCreatePeriod={canCreatePeriod}
+          primaryRole={primaryRole}
+          urlSemester={params.semester}
+          urlYear={params.year}
+          urlCreate={params.create}
+        />
+      </Suspense>
+    </>
+  );
+}
+
+async function UktDashboardSection({
+  user,
+  token,
+  semester,
+  year,
+  createMode,
+  periodFromUrl,
+  canCreatePeriod,
+  primaryRole,
+  urlSemester,
+  urlYear,
+  urlCreate,
+}: {
+  user: Awaited<ReturnType<typeof requireAdminSession>>["user"];
+  token: string;
+  semester: UktSemester;
+  year: number;
+  createMode: boolean;
+  periodFromUrl: string | null;
+  canCreatePeriod: boolean;
+  primaryRole: ReturnType<typeof getPrimaryAdminRole>;
+  urlSemester?: string;
+  urlYear?: string;
+  urlCreate?: string;
+}) {
   let dbError: string | null = null;
 
   let periods: {
@@ -75,7 +150,7 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
     locked?: boolean;
   }[] = [];
   let dojos: { id: string; name: string }[] = [];
-  let selectedPeriodId: string | null = createMode ? null : params.period || null;
+  let selectedPeriodId: string | null = createMode ? null : periodFromUrl;
   let allRows: Awaited<ReturnType<typeof fetchUktDashboardData>>["allRows"] = [];
   let beltFees = beltFeesFromTemplates([]);
   let komisiRanting = 0;
@@ -86,31 +161,37 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
   let registrationPolicy: Awaited<
     ReturnType<typeof getUktRegistrationPolicy>
   > | null = null;
+  let dojoGroups: Awaited<ReturnType<typeof loadUktDojoFilterGroups>> = [];
 
   try {
-    const [profile, policy, data] = await Promise.all([
+    const [profile, policy, data, dojoGroupsResult] = await Promise.all([
       getBranchOrgProfile(),
       getUktRegistrationPolicy(),
       fetchUktDashboardData(token, user, {
-        periodFromUrl: createMode ? null : params.period || null,
+        periodFromUrl,
         semester,
         year,
         forceNoPeriod: createMode,
         viewMode: "registration",
       }),
+      primaryRole === "ADMIN_DOJO"
+        ? Promise.resolve(
+            [] as Awaited<ReturnType<typeof loadUktDojoFilterGroups>>,
+          )
+        : loadUktDojoFilterGroups(user),
     ]);
     orgProfile = profile;
     registrationPolicy = policy;
     periods = data.periods;
     dojos = data.dojos;
     selectedPeriodId = createMode ? null : data.selectedPeriodId;
+    dojoGroups = dojoGroupsResult;
 
-    // Bookmark / deep-link periode arsip → menu Arsip UKT
-    if (!createMode && params.period) {
-      const fromUrl = periods.find((p) => p.id === params.period);
+    if (!createMode && periodFromUrl) {
+      const fromUrl = periods.find((p) => p.id === periodFromUrl);
       if (fromUrl && !isUktPeriodActiveView(fromUrl)) {
         redirect(
-          buildUktAdminUrl(semester, year, params.period, {
+          buildUktAdminUrl(semester, year, periodFromUrl, {
             basePath: "/admin/ukt/arsip",
           }),
         );
@@ -119,19 +200,19 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
 
     if (createMode) {
       const urlNeedsSync =
-        params.semester !== semester ||
-        params.year !== String(year) ||
-        Boolean(params.period) ||
-        params.create !== "1";
+        urlSemester !== semester ||
+        urlYear !== String(year) ||
+        Boolean(periodFromUrl) ||
+        urlCreate !== "1";
       if (urlNeedsSync) {
         redirect(buildUktAdminUrl(semester, year, null, { create: true }));
       }
     } else {
       const canonicalPeriod = data.selectedPeriodId;
       const urlNeedsSync =
-        params.semester !== semester ||
-        params.year !== String(year) ||
-        (params.period ?? "") !== (canonicalPeriod ?? "");
+        urlSemester !== semester ||
+        urlYear !== String(year) ||
+        (periodFromUrl ?? "") !== (canonicalPeriod ?? "");
       if (urlNeedsSync) {
         redirect(buildUktAdminUrl(semester, year, canonicalPeriod));
       }
@@ -156,61 +237,63 @@ async function UktPageContent({ searchParams }: { searchParams: SearchParams }) 
       : "";
   const loginDojoId =
     primaryRole === "ADMIN_DOJO"
-      ? (user.managedDojoId && managedDojoIds.includes(user.managedDojoId)
-          ? user.managedDojoId
-          : managedDojoIds[0] || user.managedDojoId || "")
+      ? user.managedDojoId && managedDojoIds.includes(user.managedDojoId)
+        ? user.managedDojoId
+        : managedDojoIds[0] || user.managedDojoId || ""
       : "";
-  const loginDojoName =
-    loginDojoId
-      ? dojos.find((d) => d.id === loginDojoId)?.name || ""
-      : "";
-
-  const dojoGroups =
-    primaryRole === "ADMIN_DOJO"
-      ? []
-      : await loadUktDojoFilterGroups(user);
-
-  const canCreatePeriod = canCreateEventsByWilayah(user.roles);
+  const loginDojoName = loginDojoId
+    ? dojos.find((d) => d.id === loginDojoId)?.name || ""
+    : "";
 
   return (
-    <>
-      <UktDashboard
-        headerNote={`${ROLE_LABELS[primaryRole] || primaryRole} — Periode aktif & pendaftaran anggota`}
-        periods={periods}
-        selectedPeriodId={selectedPeriodId}
-        allRows={allRows}
-        dojos={dojos}
-        dojoGroups={dojoGroups}
-        userRoles={user.roles}
-        primaryRole={primaryRole}
-        semester={semester}
-        year={year}
-        canCreatePeriod={canCreatePeriod}
-        createMode={createMode}
-        dbError={dbError}
-        defaultDojoFilter={autoDojoId}
-        loginDojoName={loginDojoName}
-        beltFees={beltFees}
-        komisiRanting={komisiRanting}
-        feesFromSnapshot={feesFromSnapshot}
-        depositMap={depositMap}
-        periodMeta={periodMeta}
-        viewMode="registration"
-        registrationPolicy={registrationPolicy ?? undefined}
-        orgProfile={{
-          address: orgProfile?.address,
-          bidangUjianName: orgProfile?.bidangUjianName,
-          bendaharaCabangName: orgProfile?.bendaharaCabangName,
-        }}
-      />
-    </>
+    <UktDashboard
+      hideStickyTermBar
+      headerNote={`${ROLE_LABELS[primaryRole] || primaryRole} — Periode aktif & pendaftaran anggota`}
+      periods={periods}
+      selectedPeriodId={selectedPeriodId}
+      allRows={allRows}
+      dojos={dojos}
+      dojoGroups={dojoGroups}
+      userRoles={user.roles}
+      primaryRole={primaryRole}
+      semester={semester}
+      year={year}
+      canCreatePeriod={canCreatePeriod}
+      createMode={createMode}
+      dbError={dbError}
+      defaultDojoFilter={autoDojoId}
+      loginDojoName={loginDojoName}
+      beltFees={beltFees}
+      komisiRanting={komisiRanting}
+      feesFromSnapshot={feesFromSnapshot}
+      depositMap={depositMap}
+      periodMeta={periodMeta}
+      viewMode="registration"
+      registrationPolicy={registrationPolicy ?? undefined}
+      orgProfile={{
+        address: orgProfile?.address,
+        bidangUjianName: orgProfile?.bidangUjianName,
+        bendaharaCabangName: orgProfile?.bendaharaCabangName,
+      }}
+    />
   );
 }
 
-export default function AdminUktPage({ searchParams }: { searchParams: SearchParams }) {
+export default function AdminUktPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
   return (
-    <Suspense fallback={<AdminPageLoader rows={8} message="Memuat data UKT..." />}>
-      <UktPageContent searchParams={searchParams} />
+    <Suspense
+      fallback={
+        <>
+          <AdminPageHeader title="Pendaftaran UKT" />
+          <AdminPageLoader rows={4} message="Memuat UKT..." />
+        </>
+      }
+    >
+      <UktPageShell searchParams={searchParams} />
     </Suspense>
   );
 }
