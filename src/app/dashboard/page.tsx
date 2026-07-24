@@ -27,41 +27,14 @@ import {
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { SITE_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
+import {
+  attendanceProgressLabel,
+  isCheckedInOnJakartaDay,
+  semesterAttendanceStats,
+  UKT_MIN_ATTENDANCE_PCT,
+} from "@/lib/ukt";
 
 export const dynamic = "force-dynamic";
-
-function semesterAttendancePct(attendances: Array<{ checkInAt: string }>) {
-  const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-  const isFirstSemester = currentMonth < 6;
-
-  const count = attendances.filter((h) => {
-    const d = new Date(h.checkInAt);
-    const isFirst = d.getMonth() < 6;
-    return isFirst === isFirstSemester && d.getFullYear() === currentYear;
-  }).length;
-
-  const totalSessions = 48;
-  const pct =
-    totalSessions > 0
-      ? Math.min(100, Math.round((count / totalSessions) * 1000) / 10)
-      : 0;
-
-  return { count, totalSessions, pct, isFirstSemester };
-}
-
-function isCheckedInToday(attendances: Array<{ checkInAt: string }>) {
-  const now = new Date();
-  return attendances.some((a) => {
-    const d = new Date(a.checkInAt);
-    return (
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate()
-    );
-  });
-}
 
 export default async function MemberDashboard() {
   const [session, token] = await Promise.all([
@@ -99,13 +72,14 @@ export default async function MemberDashboard() {
 
   const unreadPesan = unreadPesanResult.data || 0;
 
-  const attendanceStats = semesterAttendancePct(
+  const attendanceStats = semesterAttendanceStats(
     attendances.map((a) => ({ checkInAt: String(a.checkInAt) })),
   );
   const attendanceRows = attendances.map((a) => ({
     checkInAt: String(a.checkInAt),
   }));
-  const checkedInToday = isCheckedInToday(attendanceRows);
+  const checkedInToday = isCheckedInOnJakartaDay(attendanceRows);
+  const progress = attendanceProgressLabel(attendanceStats.pct);
   const unpaidMonthly = billings.filter(
     (b) => b.type === "MONTHLY_IURAN" && b.status !== "PAID",
   ).length;
@@ -171,7 +145,7 @@ export default async function MemberDashboard() {
   const semesterLabel = attendanceStats.isFirstSemester
     ? "I (Jan - Jun)"
     : "II (Jul - Des)";
-  const eligible = attendanceStats.pct >= 75;
+  const eligible = attendanceStats.pct >= UKT_MIN_ATTENDANCE_PCT;
   const isActive =
     member?.status === "Active" || member?.status === "ACTIVE";
   const isPending = member?.status === "PENDING";
@@ -312,7 +286,11 @@ export default async function MemberDashboard() {
               <p
                 className={cn(
                   "text-[26px] font-black leading-none",
-                  eligible ? "text-emerald-500" : "text-inkai-red",
+                  progress.tone === "green"
+                    ? "text-emerald-500"
+                    : progress.tone === "amber"
+                      ? "text-amber-600"
+                      : "text-inkai-red",
                 )}
               >
                 {attendanceStats.pct}%
@@ -325,7 +303,11 @@ export default async function MemberDashboard() {
                 <div
                   className={cn(
                     "h-full rounded-full transition-all",
-                    eligible ? "bg-emerald-500" : "bg-inkai-red",
+                    progress.tone === "green"
+                      ? "bg-emerald-500"
+                      : progress.tone === "amber"
+                        ? "bg-amber-500"
+                        : "bg-inkai-red",
                   )}
                   style={{
                     width: `${Math.min(100, Math.max(4, attendanceStats.pct))}%`,
@@ -337,15 +319,17 @@ export default async function MemberDashboard() {
               <span
                 className={cn(
                   "inline-block rounded-full px-3 py-1 text-[10px] font-bold tracking-wide uppercase",
-                  eligible
+                  progress.tone === "green"
                     ? "bg-emerald-500/15 text-emerald-600"
-                    : "bg-inkai-red/10 text-inkai-red",
+                    : progress.tone === "amber"
+                      ? "bg-amber-500/15 text-amber-700"
+                      : "bg-inkai-red/10 text-inkai-red",
                 )}
               >
-                {eligible ? "LAYAK UJIAN" : "TETAP SEMANGAT"}
+                {progress.label}
               </span>
               <p className="mt-1 text-[10px] text-muted-foreground">
-                Min. 75%
+                Min. {UKT_MIN_ATTENDANCE_PCT}%
               </p>
             </div>
           </div>

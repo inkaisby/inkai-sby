@@ -55,7 +55,7 @@ export async function fetchMyBillings(token: string, limit = 50) {
   );
 }
 
-export async function fetchMyAttendance(token: string, limit = 100) {
+async function fetchMyAttendanceUncached(token: string, limit = 100) {
   return safeCall(
     "attendance",
     async () => {
@@ -67,6 +67,9 @@ export async function fetchMyAttendance(token: string, limit = 100) {
     [],
   );
 }
+
+/** Dedup per request (dashboard + absensi). */
+export const fetchMyAttendance = cache(fetchMyAttendanceUncached);
 
 export async function fetchMyEventRegistrations(token: string) {
   return safeCall(

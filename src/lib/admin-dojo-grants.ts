@@ -52,6 +52,7 @@ export const ADMIN_DOJO_GRANT_PRESETS = [
         "/admin",
         "/admin/anggota",
         "/admin/verifikasi",
+        "/admin/absensi",
         "/admin/pesan",
         "/admin/notifikasi",
         "/admin/pengaturan",
@@ -75,6 +76,28 @@ export const ADMIN_DOJO_GRANT_PRESETS = [
   },
 ] as const;
 
+const ABSENSI_PATH = "/admin/absensi";
+
+/** Default lama sebelum Absensi masuk opsi sidebar (untuk soft-backfill). */
+const LEGACY_DEFAULT_WITHOUT_ABSENSI = DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS.filter(
+  (p) => p !== ABSENSI_PATH,
+);
+
+function samePathSet(a: string[], b: string[]) {
+  if (a.length !== b.length) return false;
+  const set = new Set(a);
+  return b.every((p) => set.has(p));
+}
+
+/** Grant full-default lama tanpa Absensi → tambah Absensi; uncentang sengaja tidak dipaksa. */
+function softBackfillAbsensi(paths: string[]): string[] {
+  if (paths.includes(ABSENSI_PATH)) return paths;
+  if (samePathSet(paths, LEGACY_DEFAULT_WITHOUT_ABSENSI)) {
+    return [...paths, ABSENSI_PATH];
+  }
+  return paths;
+}
+
 function normalizeSidebarPaths(paths: unknown): string[] {
   if (!Array.isArray(paths)) return [...DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS];
   const allowed = new Set<string>(DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS);
@@ -84,7 +107,8 @@ function normalizeSidebarPaths(paths: unknown): string[] {
       out.push(p);
     }
   }
-  return out.length ? out : ["/admin"];
+  const normalized = out.length ? out : ["/admin"];
+  return softBackfillAbsensi(normalized);
 }
 
 export function parseAdminDojoGrants(raw: unknown): AdminDojoGrants | null {

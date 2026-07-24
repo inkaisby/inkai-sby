@@ -583,6 +583,74 @@ export function applyUktRegistrationSnapshotToRows(
 export const UKT_MIN_ATTENDANCE_PCT = 75;
 export const UKT_SEMESTER_SESSION_TOTAL = 48;
 
+/** Hari kalender Asia/Jakarta sebagai YYYY-MM-DD. */
+export function jakartaDayKey(date: Date = new Date()): string {
+  return date.toLocaleDateString("en-CA", { timeZone: "Asia/Jakarta" });
+}
+
+export type AttendanceProgressTone = "red" | "amber" | "green";
+
+export type AttendanceProgressLabel = {
+  label: string;
+  tone: AttendanceProgressTone;
+};
+
+/** Badge progres kehadiran semester (UI anggota & admin). */
+export function attendanceProgressLabel(pct: number): AttendanceProgressLabel {
+  const n = Number.isFinite(pct) ? Math.max(0, pct) : 0;
+  if (n <= 0) return { label: "MULAI LATIHAN", tone: "red" };
+  if (n < 25) return { label: "TINGKATKAN LATIHAN", tone: "red" };
+  if (n < 50) return { label: "TERUS BERLATIH", tone: "amber" };
+  if (n < UKT_MIN_ATTENDANCE_PCT) return { label: "HAMPIR LAYAK", tone: "amber" };
+  return { label: "LAYAK UJIAN", tone: "green" };
+}
+
+/** Hitung % semester dari daftar check-in (hari unik / 48). */
+export function semesterAttendanceStats(
+  attendances: Array<{ checkInAt: string }>,
+  now: Date = new Date(),
+): {
+  count: number;
+  totalSessions: number;
+  pct: number;
+  isFirstSemester: boolean;
+} {
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const isFirstSemester = currentMonth < 6;
+  const days = new Set<string>();
+  for (const h of attendances) {
+    const d = new Date(h.checkInAt);
+    if (Number.isNaN(d.getTime())) continue;
+    const isFirst = d.getMonth() < 6;
+    if (isFirst === isFirstSemester && d.getFullYear() === currentYear) {
+      days.add(jakartaDayKey(d));
+    }
+  }
+  const count = days.size;
+  const pct =
+    UKT_SEMESTER_SESSION_TOTAL > 0
+      ? Math.min(100, Math.round((count / UKT_SEMESTER_SESSION_TOTAL) * 1000) / 10)
+      : 0;
+  return {
+    count,
+    totalSessions: UKT_SEMESTER_SESSION_TOTAL,
+    pct,
+    isFirstSemester,
+  };
+}
+
+export function isCheckedInOnJakartaDay(
+  attendances: Array<{ checkInAt: string }>,
+  dayKey: string = jakartaDayKey(),
+): boolean {
+  return attendances.some((a) => {
+    const d = new Date(a.checkInAt);
+    if (Number.isNaN(d.getTime())) return false;
+    return jakartaDayKey(d) === dayKey;
+  });
+}
+
 export type UktRegistrationBlocker =
   | "PERIODE_TUTUP"
   | "PERIODE_BELUM_BUKA"
@@ -947,23 +1015,35 @@ export function computeSemesterAttendance(
   const { semesterStart, semesterEnd } = buildUktSemesterWindow(semester, year);
   const startMs = semesterStart.getTime();
   const endMs = semesterEnd.getTime();
-  const countByMember = new Map<string, number>();
+  /** memberId → set of YYYY-MM-DD (Asia/Jakarta) */
+  const daysByMember = new Map<string, Set<string>>();
 
   for (const row of attendances) {
     const memberId = row.memberId?.trim();
     if (!memberId) continue;
     const t = new Date(row.checkInAt).getTime();
     if (Number.isNaN(t) || t < startMs || t > endMs) continue;
-    countByMember.set(memberId, (countByMember.get(memberId) ?? 0) + 1);
+    const day = jakartaDayKey(new Date(row.checkInAt));
+    let set = daysByMember.get(memberId);
+    if (!set) {
+      set = new Set();
+      daysByMember.set(memberId, set);
+    }
+    set.add(day);
   }
 
+  const countByMember = new Map<string, number>();
   const pctByMember = new Map<string, number>();
-  for (const [memberId, count] of countByMember) {
-    const pct = Math.min(
-      100,
-      Math.round((count / UKT_SEMESTER_SESSION_TOTAL) * 1000) / 10,
+  for (const [memberId, days] of daysByMember) {
+    const count = days.size;
+    countByMember.set(memberId, count);
+    pctByMember.set(
+      memberId,
+      Math.min(
+        100,
+        Math.round((count / UKT_SEMESTER_SESSION_TOTAL) * 1000) / 10,
+      ),
     );
-    pctByMember.set(memberId, pct);
   }
 
   return { countByMember, pctByMember };

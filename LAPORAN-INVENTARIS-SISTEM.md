@@ -84,7 +84,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 |-------|--------|--------|
 | Beranda | Aktif | Kartu anggota, **checklist keanggotaan + CTA**, dojo/jadwal/**absen hari ini**/PIC, aksi cepat kontekstual, UKT, badge pesan+notif; **header sticky**; kegiatan via menu (bukan agenda di beranda); **dual-role: ikon Panel Admin** di header (sebelah logout) |
 | Profil | Aktif | Edit lengkap (foto, identitas, dokumen); **email/NIA/sabuk/MSH edit mandiri 1×** lalu pengajuan `PROFILE_CHANGE`; No. MSH (Hitam/DAN) di Kartu Anggota |
-| Absensi | Aktif | Riwayat + check-in GPS (kode QR opsional) |
+| Absensi | Aktif | Streaming UI; check-in GPS multi-lokasi (auto geofence + override); biometrik HP opsional (WebAuthn); QR collapsible; riwayat; 1×/hari |
 | Iuran | Aktif | Daftar tagihan + **lapor setor** (tanggal; nominal = tagihan; periode berjalan/**bulan sebelumnya**; tanpa unggah bukti TF) |
 | Kegiatan | Aktif | Pendaftaran event (dengan gate kelengkapan); UKT lewat kartu Status UKT (daftar mandiri) |
 | Materi Digital | Aktif | Katalog materi dari cabang (unduh/buka file) |
@@ -113,7 +113,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Materi Digital | CRUD + **upload Blob** + **publish/draft** |
 | Store | CRUD produk (**edit/stok/aktif**) + status pesanan berlabel ID |
 | Pesan | Inbox + unread badge, cari, balas, **broadcast notifikasi** |
-| Absensi | Harian + **belum hadir** + **rekap semester %** + export |
+| Absensi | **Progress** semua anggota (tabel klik → Sheet detail) + harian + belum hadir + export; soft-backfill menu ranting |
 | Carousel Beranda | Upload gambar + aktif + **urutkan** |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
 | Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; tanpa force-logout; ranting tidak akses |
@@ -238,8 +238,10 @@ Pusat / Nasional
 ### 9.4 Kegiatan & absensi
 - **Cabang** dapat membuat event non-UKT di `/admin/kegiatan` (Gashuku, pertandingan, dll.).
 - Anggota mendaftar event jika profil/dokumen/iuran memenuhi syarat.
-- Anggota check-in absensi via GPS di `/dashboard/absensi` (kode QR opsional); geofence ranting.
-- Admin melihat laporan harian; mengatur koordinat & radius di Geofencing.
+- Anggota check-in di `/dashboard/absensi`: GPS otomatis ke dojo ber-geofence terdekat; override “Bukan di sini?”; QR opsional; biometrik HP (WebAuthn) opsional + GPS tetap wajib; maks **1×/hari** (Asia/Jakarta).
+- % kehadiran semester = **hari unik** / 48; badge progres bertahap (MULAI LATIHAN … LAYAK UJIAN); min UKT 75%.
+- Notifikasi inbox setelah check-in sukses (anggota + admin ranting dojo).
+- Admin `/admin/absensi`: tabel Progress (klik → detail riwayat), Harian, Belum hadir; geofencing di Pengaturan.
 
 ### 9.5 Materi, store, pesan, pindah dojo, piagam
 - **Materi Digital** — admin unggah/kelola; anggota membuka file.
@@ -286,8 +288,8 @@ Pusat / Nasional
 | RBAC wilayah | Diterapkan | Matriks tampil di Pengaturan & Role; multi-akun per cabang/ranting + PIC; **preset permission** |
 | Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC, serah terima; **email/password PIC** di form Ubah Data ranting (cabang); admin ranting ubah email/password di **Akun Saya** (email bisa diedit); geofence + **pratinjau peta OSM**; degradasi username login: klasifikasi pool vs error lain, KPI/filter aman saat DB gagal; **multi-ranting per akun** (`AppSetting` + context switcher); **promote akun existing ke admin cabang** (dual-role anggota + admin cabang) + badge tipe akun; arsip cabang **hapus permanen** (`permanent` pada DELETE cabang) |
 | Lapor setor iuran (anggota) | Aktif | `/dashboard/iuran` + `PATCH /api/member/billing/[id]` (tgl + nominal = tagihan; tanpa bukti TF) |
-| Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` + `/api/member/attendance/checkin` |
-| Absensi admin | Aktif | Harian, belum hadir, rekap semester %, export CSV |
+| Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` streaming + GPS multi-lokasi + biometrik + `/api/member/attendance/checkin` |
+| Absensi admin | Aktif | Progress tabel+Sheet detail, harian, belum hadir, export CSV |
 | Iuran generate bulan | Aktif | `POST /api/admin/billing/generate` + UI Iuran |
 | Nav admin | Campuran | Top-level: Iuran, Event, Absensi; **UKT** sebagai grup (Pendaftaran + Arsip UKT); grup: Keanggotaan / Konten / Sistem + badge unread pesan |
 | Deteksi duplikat anggota | Aktif | Keras: NIK / NIA / nama+TTL (termasuk arsip untuk NIK/NIA); lunak: nama; admin create melepas NIA/NIK arsip bila hanya bentrok nomor; blok create admin & daftar publik; UI peringatan |
@@ -387,7 +389,9 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/member/piagam          Unggah piagam
 /api/member/billing/[id]    Lapor setor iuran (paidAt + amount; ownership check; Prisma + Inkai)
 /api/member/billing/report-period  Lapor setor per periode YYYY-MM (bulan berjalan/sebelumnya; buat tagihan bila perlu)
-/api/member/attendance/checkin  Check-in absensi GPS
+/api/member/attendance/checkin  Check-in absensi GPS (+ resolve geofence, 1×/hari, notif)
+/api/member/attendance/locations  Daftar dojo/event override (tanpa koordinat)
+/api/member/attendance/webauthn/*  Register/verify biometrik absensi (WebAuthn)
 /api/notifications/*        Notifikasi (anggota: akun sendiri; admin ranting: ranting+ops cabang; tanpa notif pribadi anggota)
 /api/dojos                  Daftar dojo publik
 Inkai API `/v1/members/verify/[id]`  Verifikasi kartu anggota (publik, via halaman `/v/[id]`)
@@ -636,6 +640,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | Ranting **catat setor periode** di Sheet Iuran (`POST …/report-setor`, helper `iuran-setor-period`); mutasi+jejak; status menunggu Setujui |
 | 24 Juli 2026 | Beranda anggota: hapus section Agenda (bug undefined); slim critical fetch; sticky header; cache token + overlay profil paralel |
 | 24 Juli 2026 | Tambah Anggota: field **No. MSH** opsional (Sabuk); persist Prisma + unique/Hitam-DAN + notif admin |
+| 24 Juli 2026 | Absensi: streaming UI anggota; GPS multi-lokasi + geofence server; biometrik WebAuthn; 1×/hari + % hari unik; label progres; admin tabel Progress+Sheet; notif check-in; soft-backfill menu Absensi ranting |
 
 ---
 

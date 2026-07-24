@@ -13,10 +13,13 @@ import { Input } from "@/components/ui/input";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { ExportCsvButton } from "@/components/admin/ExportCsvButton";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminAbsensiProgressTable } from "@/components/admin/AdminAbsensiProgressTable";
 import {
   UKT_SEMESTER_SESSION_TOTAL,
+  attendanceProgressLabel,
   computeSemesterAttendance,
   currentSemester,
+  jakartaDayKey,
   type UktSemester,
 } from "@/lib/ukt";
 import Link from "next/link";
@@ -52,28 +55,49 @@ async function AdminAbsensiContent({
 
   const params = await searchParams;
   const q = params.q?.trim() || "";
-  const today = new Date().toISOString().slice(0, 10);
+  const today = jakartaDayKey();
   const dateStr = params.date?.trim() || today;
-  const view = params.view?.trim() || "harian";
+  const rawView = params.view?.trim() || "progress";
+  const view =
+    rawView === "rekap"
+      ? "progress"
+      : rawView === "harian" || rawView === "belum" || rawView === "progress"
+        ? rawView
+        : "progress";
   const year = Number(params.year) || new Date().getFullYear();
   const semester = (
-    params.semester === "II" ? "II" : params.semester === "I" ? "I" : currentSemester()
+    params.semester === "II"
+      ? "II"
+      : params.semester === "I"
+        ? "I"
+        : currentSemester()
   ) as UktSemester;
 
   const role = getPrimaryAdminRole(user.roles ?? []);
   const managedDojoIds =
     role === "ADMIN_DOJO" ? getManagedDojoIdsFromUser(user) : [];
 
+  const needMembers = view === "belum" || view === "progress";
+  const needSemester = view === "progress" || view === "belum";
+
   const [dayLogs, semesterLogs, membersResult] = await Promise.all([
     fetchAttendanceLogs(token, { date: dateStr, limit: 300 }),
-    view === "rekap" || view === "belum"
+    needSemester
       ? fetchAttendanceLogs(token, {
           from: new Date(year, semester === "II" ? 6 : 0, 1).toISOString(),
-          to: new Date(year, semester === "II" ? 12 : 6, 0, 23, 59, 59, 999).toISOString(),
+          to: new Date(
+            year,
+            semester === "II" ? 12 : 6,
+            0,
+            23,
+            59,
+            59,
+            999,
+          ).toISOString(),
           limit: 800,
         })
       : Promise.resolve([] as Array<Record<string, unknown>>),
-    view === "belum" || view === "rekap"
+    needMembers
       ? role === "ADMIN_DOJO"
         ? fetchAdminMembersForDojoIds(token, managedDojoIds, {
             status: "ACTIVE",
@@ -95,7 +119,9 @@ async function AdminAbsensiContent({
   if (q && view === "harian") {
     const lower = q.toLowerCase();
     logs = logs.filter((log) => {
-      const member = log.member as { fullName?: string; nia?: string } | undefined;
+      const member = log.member as
+        | { fullName?: string; nia?: string }
+        | undefined;
       return (
         member?.fullName?.toLowerCase().includes(lower) ||
         member?.nia?.toLowerCase().includes(lower)
@@ -126,20 +152,31 @@ async function AdminAbsensiContent({
     year,
   );
 
-  const rekapRows = members
-    .map((m) => ({
-      id: m.id,
-      fullName: m.fullName,
-      nia: m.nia,
-      dojo: m.dojo?.name ?? "—",
-      count: countByMember.get(m.id) ?? 0,
-      pct: pctByMember.get(m.id) ?? 0,
-    }))
-    .sort((a, b) => a.pct - b.pct);
-
-  if (q && (view === "rekap" || view === "belum")) {
-    const lower = q.toLowerCase();
-    // filter applied below in render via filtered lists
+  const logsByMember = new Map<
+    string,
+    Array<{
+      id: string;
+      checkInAt: string;
+      method?: string;
+      dojoName?: string;
+      eventTitle?: string | null;
+    }>
+  >();
+  for (const log of semesterLogs) {
+    const mid = String(
+      (log.member as { id?: string } | undefined)?.id ?? log.memberId ?? "",
+    );
+    if (!mid) continue;
+    const list = logsByMember.get(mid) ?? [];
+    list.push({
+      id: String(log.id),
+      checkInAt: String(log.checkInAt),
+      method: log.method ? String(log.method) : undefined,
+      dojoName: (log.dojo as { name?: string } | undefined)?.name,
+      eventTitle:
+        (log.event as { title?: string } | null | undefined)?.title ?? null,
+    });
+    logsByMember.set(mid, list);
   }
 
   const filterName = (name: string, nia: string | null) => {
@@ -151,11 +188,29 @@ async function AdminAbsensiContent({
     );
   };
 
+  const progressRows = members
+    .filter((m) => filterName(m.fullName, m.nia))
+    .map((m) => ({
+      id: m.id,
+      fullName: m.fullName,
+      nia: m.nia,
+      dojo: m.dojo?.name ?? "—",
+      count: countByMember.get(m.id) ?? 0,
+      pct: pctByMember.get(m.id) ?? 0,
+      logs: (logsByMember.get(m.id) ?? []).sort(
+        (a, b) =>
+          new Date(b.checkInAt).getTime() - new Date(a.checkInAt).getTime(),
+      ),
+    }))
+    .sort((a, b) => a.pct - b.pct);
+
   const views = [
+    { id: "progress", label: "Progress" },
     { id: "harian", label: "Harian" },
     { id: "belum", label: "Belum hadir hari ini" },
-    { id: "rekap", label: "Rekap semester" },
   ] as const;
+
+  const semesterLabel = `Semester ${semester} ${year}`;
 
   return (
     <>
@@ -163,8 +218,8 @@ async function AdminAbsensiContent({
         title="Laporan Absensi"
         description={
           <>
-            Kehadiran harian, yang belum absen, dan rekap semester (syarat UKT{" "}
-            {UKT_SEMESTER_SESSION_TOTAL} sesi).
+            Progress kehadiran anggota, absensi harian, dan yang belum hadir
+            (syarat UKT {UKT_SEMESTER_SESSION_TOTAL} sesi).
           </>
         }
         actions={
@@ -194,13 +249,18 @@ async function AdminAbsensiContent({
                 .filter((m) => filterName(m.fullName, m.nia))
                 .map((m) => [m.fullName, m.nia ?? "", m.dojo?.name ?? ""])}
             />
-          ) : view === "rekap" ? (
+          ) : view === "progress" ? (
             <ExportCsvButton
-              filename={`absensi-rekap-${semester}-${year}.csv`}
-              headers={["Nama", "NIA", "Dojo", "Hadir", "Persen"]}
-              rows={rekapRows
-                .filter((m) => filterName(m.fullName, m.nia))
-                .map((m) => [m.fullName, m.nia ?? "", m.dojo, m.count, m.pct])}
+              filename={`absensi-progress-${semester}-${year}.csv`}
+              headers={["Nama", "NIA", "Dojo", "Hadir", "Persen", "Status"]}
+              rows={progressRows.map((m) => [
+                m.fullName,
+                m.nia ?? "",
+                m.dojo,
+                m.count,
+                m.pct,
+                attendanceProgressLabel(m.pct).label,
+              ])}
             />
           ) : undefined
         }
@@ -224,13 +284,15 @@ async function AdminAbsensiContent({
 
       <form className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <input type="hidden" name="view" value={view} />
-        <Input
-          name="date"
-          type="date"
-          defaultValue={dateStr}
-          className="h-10 w-full sm:h-8 sm:max-w-[180px] sm:w-auto"
-        />
-        {view === "rekap" ? (
+        {view !== "progress" ? (
+          <Input
+            name="date"
+            type="date"
+            defaultValue={dateStr}
+            className="h-10 w-full sm:h-8 sm:max-w-[180px] sm:w-auto"
+          />
+        ) : null}
+        {view === "progress" ? (
           <>
             <select
               name="semester"
@@ -261,6 +323,19 @@ async function AdminAbsensiContent({
           Filter
         </button>
       </form>
+
+      {view === "progress" ? (
+        <>
+          <p className="mb-3 text-sm text-muted-foreground">
+            {semesterLabel} · target {UKT_SEMESTER_SESSION_TOTAL} sesi (hari
+            unik) · klik baris untuk detail · diurutkan dari % terendah
+          </p>
+          <AdminAbsensiProgressTable
+            rows={progressRows}
+            semesterLabel={semesterLabel}
+          />
+        </>
+      ) : null}
 
       {view === "harian" ? (
         logs.length === 0 ? (
@@ -326,52 +401,6 @@ async function AdminAbsensiContent({
                         </p>
                       </div>
                       <Badge variant="outline">Belum hadir</Badge>
-                    </CardContent>
-                  </Card>
-                ))}
-            </div>
-          )}
-        </>
-      ) : null}
-
-      {view === "rekap" ? (
-        <>
-          <p className="mb-3 text-sm text-muted-foreground">
-            Semester {semester} {year} · target {UKT_SEMESTER_SESSION_TOTAL}{" "}
-            sesi · diurutkan dari % terendah
-          </p>
-          {rekapRows.filter((m) => filterName(m.fullName, m.nia)).length ===
-          0 ? (
-            <Card>
-              <CardContent className="p-8 text-center text-muted-foreground">
-                Belum ada data rekap.
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {rekapRows
-                .filter((m) => filterName(m.fullName, m.nia))
-                .map((m) => (
-                  <Card key={m.id}>
-                    <CardContent className="flex flex-wrap items-center justify-between gap-2 p-4 text-sm">
-                      <div>
-                        <p className="font-medium">{m.fullName}</p>
-                        <p className="text-muted-foreground">
-                          {m.nia || "—"} · {m.dojo}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <Badge
-                          variant={m.pct >= 75 ? "default" : "outline"}
-                          className={
-                            m.pct < 75
-                              ? "border-amber-500 text-amber-700"
-                              : undefined
-                          }
-                        >
-                          {m.pct}% · {m.count}/{UKT_SEMESTER_SESSION_TOTAL}
-                        </Badge>
-                      </div>
                     </CardContent>
                   </Card>
                 ))}
