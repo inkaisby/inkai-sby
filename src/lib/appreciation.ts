@@ -96,3 +96,42 @@ export function formatAppreciationDate(iso: string | null): string | null {
     year: "numeric",
   });
 }
+
+/** Slug URL-friendly dari nama tokoh (untuk ?tokoh=). */
+export function appreciationSlug(name: string): string {
+  return name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+export function appreciationKindQuery(
+  kind: AppreciationKind,
+): "kenangan" | "prestasi" {
+  return kind === "KENANGAN" ? "kenangan" : "prestasi";
+}
+
+/** Path relatif yang bisa di-paste, mis. /apresiasi?jenis=kenangan&tokoh=sensei-maria-… */
+export function appreciationPublicPath(item: {
+  kind: AppreciationKind;
+  name: string;
+}): string {
+  const jenis = appreciationKindQuery(item.kind);
+  const tokoh = appreciationSlug(item.name);
+  const params = new URLSearchParams({ jenis });
+  if (tokoh) params.set("tokoh", tokoh);
+  return `/apresiasi?${params.toString()}`;
+}
+
+export function findAppreciationByTokoh(
+  items: AppreciationPublic[],
+  tokoh: string | undefined,
+): AppreciationPublic | null {
+  if (!tokoh) return null;
+  const needle = appreciationSlug(tokoh);
+  if (!needle) return null;
+  return items.find((i) => appreciationSlug(i.name) === needle) ?? null;
+}

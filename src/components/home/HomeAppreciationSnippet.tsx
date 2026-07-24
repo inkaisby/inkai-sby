@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   appreciationKindLabel,
+  appreciationPublicPath,
   listHomeAppreciationSnippet,
 } from "@/lib/appreciation";
 
@@ -37,7 +38,7 @@ export default async function HomeAppreciationSnippet() {
           {items.map((item) => (
             <li key={item.id}>
               <Link
-                href="/apresiasi"
+                href={appreciationPublicPath(item)}
                 prefetch
                 className="group flex items-center gap-3 rounded-2xl border border-border/70 bg-card/80 px-4 py-3 transition-colors hover:border-inkai-red/30"
               >

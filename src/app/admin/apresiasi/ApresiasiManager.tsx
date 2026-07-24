@@ -16,6 +16,7 @@ import {
 import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
 import { FileUploadField } from "@/components/admin/FileUploadField";
 import { showError, showSuccess } from "@/lib/client-toast";
+import { appreciationPublicPath } from "@/lib/appreciation";
 import {
   polishAppreciationSummary,
   summaryHintForKind,
@@ -259,6 +260,16 @@ export function ApresiasiManager({
     }
   }
 
+  async function copyPublicLink(item: AppreciationAdminItem) {
+    try {
+      const url = `${window.location.origin}${appreciationPublicPath(item)}`;
+      await navigator.clipboard.writeText(url);
+      showSuccess("Tautan publik disalin");
+    } catch {
+      showError("Gagal menyalin tautan");
+    }
+  }
+
   return (
     <div className="space-y-8">
       <section className="overflow-hidden rounded-xl border border-border/80 bg-card">
@@ -456,6 +467,10 @@ export function ApresiasiManager({
                         {
                           label: "Ubah",
                           onSelect: () => openEdit(item),
+                        },
+                        {
+                          label: "Salin tautan",
+                          onSelect: () => void copyPublicLink(item),
                         },
                         {
                           label: item.isActive ? "Nonaktifkan" : "Aktifkan",

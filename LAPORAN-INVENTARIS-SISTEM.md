@@ -65,7 +65,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/struktur/print` | Versi cetak struktur |
 | `/kegiatan` | Daftar kegiatan (+ badge **Masih terbuka** / **Berlangsung**; UKT terbuka → undangan) |
 | `/kegiatan/[id]` | Detail kegiatan |
-| `/apresiasi` | Kenangan (in memoriam) & prestasi kurasi admin; filter tab |
+| `/apresiasi` | Kenangan & prestasi; filter `?jenis=`; deep-link pasteable `?jenis=kenangan&tokoh=slug-nama` |
 | `/dojo` | Daftar dojo/ranting Cabang Surabaya (detail lengkap, tanpa jumlah anggota) |
 | `/dojo/[id]` | Profil ranting/dojo |
 | `/v/[id]` | Verifikasi kartu anggota (scan QR — UUID atau NIA) |
@@ -680,6 +680,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | **UKT streaming UI:** `/admin/ukt` & `/admin/ukt/arsip` — header + `UktTermNav` (semester/tahun) di luar Suspense data; KPI/tabel `UktDashboard` streaming menyusul (pola `/admin/iuran`); `hideStickyTermBar` anti-duplikat; dojo groups parallel dengan fetch dashboard |
 | 24 Juli 2026 | Floating chip **Masih terbuka** di layout publik `(public)` — tampil di semua tab/halaman publik, bukan hanya beranda |
 | 24 Juli 2026 | **Apresiasi:** UI **Ubah** (dialog PATCH) + Hapus; tombol **Rapikan teks** + polish server (`polish-summary.ts`); tip/placeholder copy Kenangan vs Prestasi; `/apresiasi` CSS-light (aksen jenis, `whitespace-pre-line`, empty state) |
+| 24 Juli 2026 | **Apresiasi deep-link:** URL pasteable `?jenis=kenangan&tokoh=…` (scroll+highlight, OG metadata nama tokoh); Salin tautan di publik & admin; cuplikan beranda ke permalink entri |
 
 ---
 
