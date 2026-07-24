@@ -2921,6 +2921,13 @@ export function UktDashboard(props: Props) {
         </div>
       </div>
 
+      {!isArchiveView ? (
+        <p className="text-xs text-muted-foreground">
+          Tabel = peserta terdaftar. Untuk <b>Belum Daftar</b>, ketik nama di
+          kotak cari → pilih saran → baris muncul → <b>Daftar UKT</b>.
+        </p>
+      ) : null}
+
       {isDojoAdmin && (
         <details
           className="rounded-xl border border-muted bg-card open:pb-0"
@@ -3109,9 +3116,17 @@ export function UktDashboard(props: Props) {
             {displayRows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={20} className="py-12 text-center text-muted-foreground">
-                  {rows.length === 0 && !props.dbError
-                    ? "Belum ada anggota. Tambahkan anggota untuk memulai pendaftaran UKT."
-                    : "Tidak ada data sesuai filter."}
+                  {props.dbError
+                    ? "Gagal memuat data. Coba Muat Ulang."
+                    : isArchiveView
+                      ? rows.length === 0
+                        ? "Belum ada peserta di arsip periode ini."
+                        : "Tidak ada data sesuai filter."
+                      : rows.length === 0
+                        ? "Belum ada peserta terdaftar. Ketik nama di kotak cari di atas, pilih saran, lalu Daftar UKT."
+                        : localQ.trim()
+                          ? "Tidak ada peserta cocok. Pilih saran pencarian (Belum daftar) untuk memuat anggota ke tabel."
+                          : "Tidak ada data sesuai filter. Ketik nama di kotak cari untuk daftarkan anggota baru."}
                 </TableCell>
               </TableRow>
             ) : (
