@@ -7,12 +7,24 @@ import { cn } from "@/lib/utils";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import type { UktMemberRow } from "@/lib/ukt";
 
+type RemoteSuggestion = {
+  id: string;
+  fullName: string;
+  nia: string | null;
+  dojoName?: string;
+  currentRank?: string;
+};
+
 type Props = {
   allRows: UktMemberRow[];
   value: string;
   onChange: (q: string) => void;
   placeholder?: string;
   showRegistrationStatus?: boolean;
+  /** Aktifkan suggest API untuk Belum Daftar (registrants-first). */
+  enableRemoteSuggest?: boolean;
+  dojoFilter?: string;
+  onSelectRemote?: (member: RemoteSuggestion) => void;
 };
 
 function matchQuery(row: UktMemberRow, q: string) {
@@ -29,12 +41,18 @@ export function UktSearchBar({
   onChange,
   placeholder = "Cari nama atau NIA…",
   showRegistrationStatus = false,
+  enableRemoteSuggest = false,
+  dojoFilter = "",
+  onSelectRemote,
 }: Props) {
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [remote, setRemote] = useState<RemoteSuggestion[]>([]);
+  const [remoteLoading, setRemoteLoading] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const remoteDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -52,10 +70,64 @@ export function UktSearchBar({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const suggestions = useMemo(() => {
+  const localSuggestions = useMemo(() => {
     if (query.trim().length < 2) return [];
     return allRows.filter((r) => matchQuery(r, query.trim())).slice(0, 8);
   }, [allRows, query]);
+
+  const localIds = useMemo(
+    () => new Set(localSuggestions.map((r) => r.memberId)),
+    [localSuggestions],
+  );
+
+  const remoteOnly = useMemo(
+    () => remote.filter((r) => !localIds.has(r.id)).slice(0, 6),
+    [remote, localIds],
+  );
+
+  type CombinedItem =
+    | { kind: "local"; row: UktMemberRow }
+    | { kind: "remote"; member: RemoteSuggestion };
+
+  const suggestions: CombinedItem[] = useMemo(() => {
+    const items: CombinedItem[] = localSuggestions.map((row) => ({
+      kind: "local" as const,
+      row,
+    }));
+    for (const m of remoteOnly) {
+      items.push({ kind: "remote", member: m });
+    }
+    return items.slice(0, 10);
+  }, [localSuggestions, remoteOnly]);
+
+  useEffect(() => {
+    if (!enableRemoteSuggest) {
+      setRemote([]);
+      return;
+    }
+    const q = query.trim();
+    if (q.length < 2) {
+      setRemote([]);
+      return;
+    }
+    clearTimeout(remoteDebounceRef.current);
+    remoteDebounceRef.current = setTimeout(() => {
+      setRemoteLoading(true);
+      const params = new URLSearchParams({ q });
+      if (dojoFilter) params.set("dojo", dojoFilter);
+      void fetch(`/api/admin/ukt/suggest?${params}`)
+        .then(async (res) => {
+          const data = (await res.json()) as {
+            suggestions?: RemoteSuggestion[];
+          };
+          if (res.ok) setRemote(data.suggestions ?? []);
+          else setRemote([]);
+        })
+        .catch(() => setRemote([]))
+        .finally(() => setRemoteLoading(false));
+    }, 220);
+    return () => clearTimeout(remoteDebounceRef.current);
+  }, [query, enableRemoteSuggest, dojoFilter]);
 
   const applySearch = useCallback(
     (q: string) => {
@@ -73,6 +145,15 @@ export function UktSearchBar({
     setOpen(v.trim().length >= 2);
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => onChange(v.trim()), 180);
+  };
+
+  const pickItem = (item: CombinedItem) => {
+    if (item.kind === "local") {
+      applySearch(item.row.fullName);
+      return;
+    }
+    onSelectRemote?.(item.member);
+    applySearch(item.member.fullName);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -95,7 +176,7 @@ export function UktSearchBar({
       e.preventDefault();
       clearTimeout(debounceRef.current);
       if (activeIndex >= 0) {
-        applySearch(suggestions[activeIndex].fullName);
+        pickItem(suggestions[activeIndex]);
       } else {
         applySearch(query);
       }
@@ -109,6 +190,7 @@ export function UktSearchBar({
     clearTimeout(debounceRef.current);
     setQuery("");
     setOpen(false);
+    setRemote([]);
     onChange("");
     inputRef.current?.focus();
   };
@@ -120,74 +202,77 @@ export function UktSearchBar({
         ref={inputRef}
         value={query}
         onChange={(e) => handleInputChange(e.target.value)}
+        onFocus={() => query.trim().length >= 2 && setOpen(true)}
         onKeyDown={handleKeyDown}
-        onFocus={() => {
-          if (suggestions.length > 0) setOpen(true);
-        }}
         placeholder={placeholder}
-        className="pr-8 pl-8"
-        autoComplete="off"
-        role="combobox"
-        aria-expanded={open}
+        className="h-9 pr-8 pl-9 text-sm"
         aria-autocomplete="list"
+        aria-expanded={open}
+        autoComplete="off"
       />
-      {query && (
+      {query ? (
         <button
           type="button"
           onClick={handleClear}
-          className="absolute top-1/2 right-2 z-10 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
           aria-label="Hapus pencarian"
         >
           <X className="h-3.5 w-3.5" />
         </button>
-      )}
-
-      {open && suggestions.length > 0 && (
+      ) : null}
+      {open && (suggestions.length > 0 || remoteLoading) ? (
         <ul
-          className="absolute top-full right-0 left-0 z-50 mt-1 max-h-64 overflow-y-auto rounded-lg border bg-popover py-1 shadow-md ring-1 ring-foreground/10"
+          className="absolute z-40 mt-1 max-h-64 w-full overflow-auto rounded-md border border-border bg-popover py-1 text-sm shadow-md"
           role="listbox"
         >
-          {suggestions.map((s, i) => (
-            <li key={s.memberId} role="option" aria-selected={i === activeIndex}>
-              <button
-                type="button"
-                className={cn(
-                  "flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-muted",
-                  i === activeIndex && "bg-muted",
-                )}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => applySearch(s.fullName)}
-                onMouseEnter={() => setActiveIndex(i)}
-              >
-                <span className="min-w-0 flex-1 truncate font-medium">
-                  {formatMemberName(s.fullName)}
-                </span>
-                <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                  {s.nia || "—"}
-                </span>
-                <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
-                  {formatRankLabel(s.kyuLama) || "—"}
-                </span>
-                <span className="hidden shrink-0 text-xs text-muted-foreground md:inline">
-                  {s.dojoName}
-                </span>
-                {showRegistrationStatus && (
-                  <span
-                    className={cn(
-                      "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                      s.registrationId
-                        ? "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400"
-                        : "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400",
-                    )}
-                  >
-                    {s.registrationId ? "Terdaftar" : "Belum daftar"}
+          {remoteLoading && suggestions.length === 0 ? (
+            <li className="px-3 py-2 text-muted-foreground">Mencari…</li>
+          ) : null}
+          {suggestions.map((item, idx) => {
+            const key =
+              item.kind === "local" ? item.row.memberId : `r-${item.member.id}`;
+            const name =
+              item.kind === "local"
+                ? formatMemberName(item.row.fullName)
+                : formatMemberName(item.member.fullName);
+            const nia =
+              item.kind === "local" ? item.row.nia : item.member.nia;
+            const registered =
+              item.kind === "local" ? Boolean(item.row.registrationId) : false;
+            const rank =
+              item.kind === "local"
+                ? item.row.memberCurrentRank || item.row.kyuLama
+                : formatRankLabel(item.member.currentRank || "") ||
+                  item.member.currentRank;
+            return (
+              <li key={key} role="option" aria-selected={idx === activeIndex}>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-muted",
+                    idx === activeIndex && "bg-muted",
+                  )}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => pickItem(item)}
+                >
+                  <span className="font-medium">{name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {[nia, rank, item.kind === "remote" ? item.member.dojoName : null]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    {showRegistrationStatus ? (
+                      <>
+                        {" · "}
+                        {registered ? "Terdaftar" : "Belum daftar"}
+                      </>
+                    ) : null}
                   </span>
-                )}
-              </button>
-            </li>
-          ))}
+                </button>
+              </li>
+            );
+          })}
         </ul>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -1072,13 +1072,15 @@ export async function fetchUktDashboardData(
           : []
       : [];
 
-  const isArchive = viewMode === "archive";
+  const skipMemberPool = true;
 
-  // Ranting (termasuk multi): selalu Prisma agar semua managed dojo ikut,
-  // bukan hanya ranting utama yang terlihat token Inkai.
-  // Archive: UI hanya menampilkan peserta terdaftar → skip pool anggota penuh
-  // (250/500) untuk TTFB ringan; diisi lewat registrasi-first merge di bawah.
-  const membersPromise = isArchive
+  // Fail-closed: ranting tanpa allowlist tidak boleh melihat peserta lintas ranting.
+  const rantingAllowlistEmpty =
+    primaryRole === "ADMIN_DOJO" && dojoAllowlist.length === 0;
+
+  // Ranting (termasuk multi): peserta diisi lewat registrasi-first merge Prisma.
+  // Archive & registration: skip pool anggota penuh (250/500).
+  const membersPromise = skipMemberPool
     ? Promise.resolve({
         ok: true as const,
         members: [] as AdminMemberRow[],
@@ -1101,8 +1103,8 @@ export async function fetchUktDashboardData(
             dojoId: dojoAllowlist[0],
           });
 
-  // Placeholder resolved result untuk fetch yang di-skip saat archive
-  // (hindari RTT tambahan untuk data yang tidak dipakai UI arsip).
+  // Placeholder resolved result untuk fetch yang di-skip
+  // (hindari RTT tambahan untuk data yang tidak dipakai UI peserta-first).
   const skippedFetch: Promise<{ res: Response; data: Record<string, unknown> }> =
     Promise.resolve({
       res: { ok: false } as unknown as Response,
@@ -1131,11 +1133,12 @@ export async function fetchUktDashboardData(
     membersPromise,
     inkaiFetch("/v1/events/rank-fee-templates", {}, token),
     fetchUktKomisiRanting(token, UKT_KOMISI_SETTING_KEY, DEFAULT_KOMISI_RANTING),
-    // Archive: billing global & verifikasi pending tidak dipakai UI arsip —
-    // billingMap diisi dari Prisma by registrationId (lihat merge di bawah).
-    isArchive ? skippedFetch : inkaiFetch("/v1/billing?limit=250", {}, token),
-    isArchive ? skippedFetch : inkaiFetch("/v1/verifications/pending", {}, token),
-    isArchive
+    // Peserta-first: billingMap diisi Prisma by registrationId (lihat merge).
+    skipMemberPool ? skippedFetch : inkaiFetch("/v1/billing?limit=250", {}, token),
+    skipMemberPool
+      ? skippedFetch
+      : inkaiFetch("/v1/verifications/pending", {}, token),
+    skipMemberPool
       ? Promise.resolve([] as Array<Record<string, unknown>>)
       : fetchAttendanceLogs(token, {
           from: attendanceFrom,
@@ -1411,10 +1414,21 @@ export async function fetchUktDashboardData(
   const regMap = new Map<string, Record<string, unknown>>();
   const billingMap = new Map<string, Record<string, unknown>>();
 
-  if (selectedPeriodId && eventDetail) {
+  if (selectedPeriodId && eventDetail && !rantingAllowlistEmpty) {
     const registrations = (eventDetail.registrations as Array<Record<string, unknown>>) ?? [];
     for (const reg of registrations) {
-      regMap.set(String((reg.member as { id?: string })?.id ?? reg.memberId), reg);
+      const regStatus = String(reg.status ?? "").toUpperCase();
+      // Tolak/batal: jangan ghost sebagai Belum Bayar
+      if (regStatus === "CANCELLED" || regStatus === "REJECTED") continue;
+      const mid = String((reg.member as { id?: string })?.id ?? reg.memberId ?? "");
+      if (!mid) continue;
+      if (dojoAllowlist.length > 0) {
+        const memberDojoId = String(
+          (reg.member as { dojoId?: string } | undefined)?.dojoId ?? "",
+        );
+        if (memberDojoId && !dojoAllowlist.includes(memberDojoId)) continue;
+      }
+      regMap.set(mid, reg);
       const member = reg.member as Record<string, unknown> | undefined;
       const billings = (member?.billings as Array<Record<string, unknown>>) ?? [];
       // Hanya tagihan yang tertaut ke registrasi ini — jangan ambil UKT lama (sering PAID)
@@ -1477,6 +1491,7 @@ export async function fetchUktDashboardData(
         prisma.eventRegistration.findMany({
           where: {
             eventId: selectedPeriodId,
+            status: { notIn: ["CANCELLED", "REJECTED"] },
             member: {
               isDeleted: false,
               dojoId: { in: dojoAllowlist },
@@ -1640,7 +1655,7 @@ export async function fetchUktDashboardData(
   }
 
   // Lengkapi registrasi PENDING (daftar mandiri) dari Prisma — termasuk cabang
-  if (selectedPeriodId) {
+  if (selectedPeriodId && !rantingAllowlistEmpty) {
     const prismaSelfRegs = await withPrismaFallback(
       "ukt-self-regs",
       () =>
@@ -1648,7 +1663,12 @@ export async function fetchUktDashboardData(
           where: {
             eventId: selectedPeriodId,
             status: { in: ["PENDING", "APPROVED"] },
-            member: { isDeleted: false },
+            member: {
+              isDeleted: false,
+              ...(dojoAllowlist.length > 0
+                ? { dojoId: { in: dojoAllowlist } }
+                : {}),
+            },
           },
           select: {
             id: true,
@@ -1992,6 +2012,7 @@ export async function fetchUktTableRefreshSnapshot(
         prisma.eventRegistration.findMany({
           where: {
             eventId: periodId,
+            status: { notIn: ["CANCELLED", "REJECTED"] },
             member: { isDeleted: false, dojoId: { in: dojoAllowlist } },
           },
           select: {
@@ -1999,7 +2020,17 @@ export async function fetchUktTableRefreshSnapshot(
             status: true,
             registeredRank: true,
             memberId: true,
-            member: { select: { id: true, currentRank: true } },
+            member: {
+              select: {
+                id: true,
+                currentRank: true,
+                fullName: true,
+                nia: true,
+                dojoId: true,
+                dojo: { select: { name: true } },
+                user: { select: { photoUrl: true } },
+              },
+            },
           },
           take: 500,
         }),
@@ -2008,7 +2039,15 @@ export async function fetchUktTableRefreshSnapshot(
         status: string;
         registeredRank: string | null;
         memberId: string;
-        member: { id: string; currentRank: string };
+        member: {
+          id: string;
+          currentRank: string;
+          fullName: string;
+          nia: string | null;
+          dojoId: string;
+          dojo: { name: string } | null;
+          user: { photoUrl: string | null } | null;
+        };
       }>,
     );
     for (const reg of prismaRegs.data ?? []) {
@@ -2022,12 +2061,21 @@ export async function fetchUktTableRefreshSnapshot(
         member: {
           id: reg.member.id,
           currentRank: reg.member.currentRank,
+          fullName: reg.member.fullName,
+          nia: reg.member.nia,
+          dojoId: reg.member.dojoId,
+          dojoName: reg.member.dojo?.name,
+          photoUrl: reg.member.user?.photoUrl,
         },
       });
     }
   }
 
+  const selfRegMetaMap = await loadUktSelfRegistrationMetaMap(periodId);
+
   for (const reg of registrations) {
+    const regStatus = String(reg.status ?? "").toUpperCase();
+    if (regStatus === "CANCELLED" || regStatus === "REJECTED") continue;
     const member = reg.member as Record<string, unknown> | undefined;
     const billings = (member?.billings as Array<Record<string, unknown>>) ?? [];
     const billing = billings.find(
@@ -2114,6 +2162,8 @@ export async function fetchUktTableRefreshSnapshot(
 
   const participants: UktRegistrationSnapshotItem[] = [];
   for (const reg of registrations) {
+    const regStatus = String(reg.status ?? "").toUpperCase();
+    if (regStatus === "CANCELLED" || regStatus === "REJECTED") continue;
     const memberId = String(
       (reg.member as { id?: string } | undefined)?.id ?? reg.memberId ?? "",
     );
@@ -2121,7 +2171,15 @@ export async function fetchUktTableRefreshSnapshot(
     if (!memberId || !registrationId) continue;
 
     const member = reg.member as
-      | { currentRank?: string; billings?: unknown }
+      | {
+          currentRank?: string;
+          billings?: unknown;
+          fullName?: string;
+          nia?: string | null;
+          dojoId?: string;
+          dojoName?: string;
+          photoUrl?: string | null;
+        }
       | undefined;
     const category = reg.category as { name?: string } | null | undefined;
     const registeredRank =
@@ -2147,6 +2205,8 @@ export async function fetchUktTableRefreshSnapshot(
       { lockSnapshot },
     );
 
+    const selfMeta = selfRegMetaMap.get(memberId);
+
     participants.push({
       memberId,
       registrationId,
@@ -2164,6 +2224,14 @@ export async function fetchUktTableRefreshSnapshot(
       examResult: examResultMap.get(registrationId) ?? null,
       examPresent: examAttendanceMap.get(registrationId) ?? null,
       registrationWaiver: waiverMap.get(memberId) ?? null,
+      selfRegistration: Boolean(selfMeta),
+      memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,
+      fullName: member?.fullName,
+      nia: member?.nia ?? null,
+      dojoId: member?.dojoId ?? null,
+      dojoName: member?.dojoName ?? null,
+      photoUrl: member?.photoUrl ?? null,
+      memberCurrentRank: formatRankLabel(memberRank) || memberRank || null,
     });
   }
 

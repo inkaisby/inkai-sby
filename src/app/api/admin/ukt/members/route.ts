@@ -6,6 +6,10 @@ import { createAdminMember } from "@/lib/admin-member-create";
 import { prisma } from "@/lib/prisma";
 import { buildMemberFilter, getPrimaryAdminRole } from "@/lib/rbac";
 import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
+import { formatRankLabel } from "@/lib/belt";
+import { parseUktEventTitle } from "@/lib/ukt";
+import { validateUktRegistrationEligibility } from "@/lib/ukt-register";
+import { fetchDuesExemptMemberIds } from "@/lib/member-local-fields";
 
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
@@ -61,13 +65,115 @@ export async function GET(request: Request) {
   // Verifikasi anggota berada dalam cakupan RBAC sebelum meneruskan ke Inkai (anti-IDOR).
   const scopedMember = await prisma.member.findFirst({
     where: { AND: [{ id: memberId }, buildMemberFilter(authResult.user)] },
-    select: { id: true },
+    select: {
+      id: true,
+      fullName: true,
+      nia: true,
+      currentRank: true,
+      dojoId: true,
+      birthPlace: true,
+      birthDate: true,
+      gender: true,
+      address: true,
+      birthCertificateUrl: true,
+      bpjsCardUrl: true,
+      dojo: { select: { name: true } },
+      user: { select: { photoUrl: true } },
+    },
   });
   if (!scopedMember) {
     return NextResponse.json(
       { error: "Anggota tidak ditemukan atau di luar cakupan" },
       { status: 403 },
     );
+  }
+
+  const periodId = searchParams.get("periodId")?.trim() || null;
+
+  // Hydrate Belum Daftar untuk registrants-first UI (gate fields per anggota).
+  if (periodId) {
+    const event = await prisma.event.findFirst({
+      where: { id: periodId, isDeleted: false },
+      select: { id: true, title: true },
+    });
+    if (!event) {
+      return NextResponse.json({ error: "Periode UKT tidak ditemukan" }, { status: 404 });
+    }
+
+    const parsedTitle = parseUktEventTitle(event.title);
+    const eligibility = await validateUktRegistrationEligibility(
+      authResult.token,
+      periodId,
+      memberId,
+      { primaryRole },
+    );
+
+    const exempt = await fetchDuesExemptMemberIds([memberId]);
+    const blockers = eligibility.ok ? [] : eligibility.blockers;
+    const hasDocs =
+      Boolean(scopedMember.birthCertificateUrl?.trim()) &&
+      Boolean(scopedMember.bpjsCardUrl?.trim());
+
+    // Estimasi absensi/iuran dari blocker bila tidak lolos; 0 jika lolos gate.
+    let outstandingDues = 0;
+    let attendancePct = 0;
+    let attendanceCount = 0;
+    if (!eligibility.ok) {
+      if (blockers.includes("IURAN_TUNGGAKAN") && !exempt.has(memberId)) {
+        outstandingDues = 1;
+      }
+      if (blockers.includes("ABSENSI_KURANG")) {
+        attendancePct = 0;
+      }
+    } else if (parsedTitle) {
+      // Lolos absensi → set ke ambang agar UI tidak memblokir palsu
+      attendancePct = 75;
+      attendanceCount = 36;
+    }
+    if (exempt.has(memberId)) outstandingDues = 0;
+
+    const uktRow = {
+      memberId: scopedMember.id,
+      registrationId: null as string | null,
+      photoUrl: scopedMember.user?.photoUrl ?? null,
+      nia: scopedMember.nia,
+      fullName: scopedMember.fullName,
+      birthPlace: scopedMember.birthPlace,
+      birthDate: scopedMember.birthDate?.toISOString() ?? null,
+      gender: scopedMember.gender,
+      address: scopedMember.address,
+      kyuLama:
+        formatRankLabel(scopedMember.currentRank) ||
+        scopedMember.currentRank ||
+        null,
+      kyuBaru: null as string | null,
+      memberCurrentRank:
+        formatRankLabel(scopedMember.currentRank) ||
+        scopedMember.currentRank ||
+        null,
+      birthCertificateUrl: scopedMember.birthCertificateUrl,
+      bpjsCardUrl: scopedMember.bpjsCardUrl,
+      dojoName: scopedMember.dojo?.name ?? "—",
+      dojoId: scopedMember.dojoId,
+      status: "BELUM_DAFTAR",
+      billingId: null as string | null,
+      billingStatus: null as string | null,
+      billingAmount: null as number | null,
+      outstandingDues,
+      pendingVerifications: 0,
+      attendanceCount,
+      attendancePct,
+      examResult: null,
+      examPresent: null,
+      registrationWaiver: null,
+      selfRegistration: false,
+      memberPaymentConfirmedAt: null,
+      hydrateOk: eligibility.ok,
+      hydrateBlockers: blockers,
+      hydrateHasDocs: hasDocs,
+    };
+
+    return NextResponse.json({ uktRow });
   }
 
   const { res, data } = await inkaiFetch(`/v1/members/${memberId}`, {}, authResult.token);

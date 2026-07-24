@@ -657,8 +657,12 @@ export function UktDashboard(props: Props) {
 
   const scopedRows = useMemo(() => {
     let list = rows;
-    // Arsip: hanya peserta yang sudah daftar (bukan pool seluruh anggota)
-    if (isArchiveView) list = list.filter((r) => Boolean(r.registrationId));
+    // Registrants-first: default hanya peserta; Belum Daftar stub via search hydrate.
+    list = list.filter(
+      (r) =>
+        Boolean(r.registrationId) ||
+        Boolean(localQ.trim() && r.status === "BELUM_DAFTAR"),
+    );
     if (effectiveDojoIds) {
       list = list.filter((r) => effectiveDojoIds.includes(r.dojoId));
     }
@@ -672,25 +676,18 @@ export function UktDashboard(props: Props) {
       );
     }
     return list;
-  }, [rows, isArchiveView, effectiveDojoIds, localStatus, localQ]);
+  }, [rows, effectiveDojoIds, localStatus, localQ]);
 
-  /** KPI & rekap tidak ikut filter status/cari — selalu dari pool periode (+ranting). */
+  /** KPI & rekap tidak ikut filter status/cari — selalu dari peserta periode (+ranting). */
   const kpiSourceRows = useMemo(() => {
-    let list = rows;
-    if (isArchiveView) list = list.filter((r) => Boolean(r.registrationId));
+    let list = rows.filter((r) => Boolean(r.registrationId));
     if (effectiveDojoIds) {
       list = list.filter((r) => effectiveDojoIds.includes(r.dojoId));
     }
     return list;
-  }, [rows, isArchiveView, effectiveDojoIds]);
+  }, [rows, effectiveDojoIds]);
 
-  const archiveSearchRows = useMemo(
-    () =>
-      isArchiveView
-        ? rows.filter((r) => Boolean(r.registrationId))
-        : rows,
-    [rows, isArchiveView],
-  );
+  const archiveSearchRows = useMemo(() => rows, [rows]);
 
   const kpi = useMemo(
     () => computeUktOperationalKpi(kpiSourceRows),
@@ -1358,6 +1355,10 @@ export function UktDashboard(props: Props) {
   };
 
   const handleCancelRegistration = async (registrationId: string) => {
+    if (periodLocked) {
+      toast.error("Periode dikunci — pembatalan ditutup");
+      return;
+    }
     const target = cancelTarget;
     const memberId =
       target?.memberId ||
@@ -1482,6 +1483,10 @@ export function UktDashboard(props: Props) {
   };
 
   const handleMarkPaid = async (row: UktMemberRow) => {
+    if (periodLocked) {
+      toast.error("Periode dikunci — verifikasi ditutup");
+      return;
+    }
     if (!row.registrationId) return;
     if (isMemberPending(row.memberId)) return;
     setMemberPending(row.memberId, true);
@@ -1517,6 +1522,10 @@ export function UktDashboard(props: Props) {
 
   /** Ranting: Terima daftar mandiri + bayar → teruskan ke cabang. */
   const handleAcceptSelfRegistration = async (row: UktMemberRow) => {
+    if (periodLocked) {
+      toast.error("Periode dikunci — tidak dapat menerima pendaftaran");
+      return;
+    }
     if (!row.registrationId) return;
     setMemberPending(row.memberId, true);
     try {
@@ -1550,6 +1559,10 @@ export function UktDashboard(props: Props) {
   };
 
   const handleRejectSelfRegistration = async (row: UktMemberRow) => {
+    if (periodLocked) {
+      toast.error("Periode dikunci — tidak dapat menolak pendaftaran");
+      return;
+    }
     if (!row.registrationId) return;
     if (
       !window.confirm(
@@ -1596,6 +1609,10 @@ export function UktDashboard(props: Props) {
     targets: UktMemberRow[],
     opts?: { openNota?: boolean },
   ) => {
+    if (periodLocked) {
+      toast.error("Periode dikunci — pengajuan bayar ditutup");
+      return;
+    }
     const rows = targets.filter(
       (r) => r.registrationId && canRantingSubmitUktPayment(r),
     );
@@ -1898,23 +1915,12 @@ export function UktDashboard(props: Props) {
 
   const kpiCards = [
     {
-      label: isArchiveView ? "Peserta" : "Total Anggota",
-      value: isArchiveView ? kpi.total : kpi.allMembers,
+      label: "Peserta",
+      value: kpi.total,
       icon: Users,
       color: "text-blue-600",
-      filter: isArchiveView ? "registered" : "all",
+      filter: "registered",
     },
-    ...(!isArchiveView
-      ? [
-          {
-            label: "Belum Daftar",
-            value: kpi.belumDaftar,
-            icon: UserPlus,
-            color: "text-amber-600",
-            filter: "unregistered",
-          },
-        ]
-      : []),
     { label: "Menunggu Terima", value: kpi.menungguTerima, icon: Clock, color: "text-orange-600", filter: "menunggu_terima_ranting" },
     { label: "Belum Bayar", value: kpi.belumBayar, icon: Clock, color: "text-yellow-600", filter: "belum_bayar" },
     { label: "Menunggu Verif.", value: kpi.menungguVerifikasi, icon: Wallet, color: "text-purple-600", filter: "menunggu_verifikasi" },
@@ -2690,11 +2696,53 @@ export function UktDashboard(props: Props) {
               setLocalPage(1);
             }}
             placeholder={
-              !isArchiveView && localView === "registered"
-                ? "Cari nama untuk daftarkan peserta UKT…"
+              !isArchiveView
+                ? "Cari nama untuk daftarkan / temukan peserta…"
                 : "Cari nama atau NIA…"
             }
-            showRegistrationStatus={!isArchiveView && localView === "registered"}
+            showRegistrationStatus={!isArchiveView}
+            enableRemoteSuggest={!isArchiveView}
+            dojoFilter={
+              effectiveDojoIds?.length === 1 ? effectiveDojoIds[0] : ""
+            }
+            onSelectRemote={(member) => {
+              if (!props.selectedPeriodId) {
+                toast.error("Pilih periode UKT dulu");
+                return;
+              }
+              if (rows.some((r) => r.memberId === member.id)) return;
+              void (async () => {
+                const toastId = toast.loading("Memuat syarat UKT…");
+                try {
+                  const params = new URLSearchParams({
+                    memberId: member.id,
+                    periodId: props.selectedPeriodId!,
+                  });
+                  const res = await fetch(
+                    `/api/admin/ukt/members?${params.toString()}`,
+                  );
+                  const data = await parseApiJson<{
+                    error?: string;
+                    uktRow?: UktMemberRow;
+                  }>(res);
+                  if (!res.ok || !data.uktRow) {
+                    throw new Error(data.error || "Gagal memuat anggota");
+                  }
+                  setRows((prev) => {
+                    if (prev.some((r) => r.memberId === data.uktRow!.memberId)) {
+                      return prev;
+                    }
+                    return [...prev, data.uktRow!];
+                  });
+                  toast.success("Anggota siap didaftarkan UKT", { id: toastId });
+                } catch (e) {
+                  toast.error(
+                    e instanceof Error ? e.message : "Gagal memuat anggota",
+                    { id: toastId },
+                  );
+                }
+              })();
+            }}
           />
         </div>
 
@@ -2868,9 +2916,10 @@ export function UktDashboard(props: Props) {
             Alur: ranting daftar (<b>Belum Bayar</b>) → ranting{" "}
             <b>Bayar UKT</b> (<b>Menunggu Verifikasi</b>) → cabang{" "}
             <b>Verifikasi</b> (<b>Menunggu Ujian</b>) → isi <b>Kyu Baru</b>{" "}
-            (<b>Selesai</b>, otomatis Lulus. Batal dari ranting (termasuk yang
-            sudah lunas) akan memberi notifikasi ke cabang — sesuaikan
-            pengembalian uang di luar sistem bila perlu.
+            (<b>Selesai</b>, otomatis Lulus). Jalur mandiri: anggota daftar →
+            ranting <b>Terima</b> dulu (bukan Verifikasi cabang). Batal dari
+            ranting (termasuk yang sudah lunas) akan memberi notifikasi ke
+            cabang — sesuaikan pengembalian uang di luar sistem bila perlu.
           </div>
         </details>
       )}
@@ -3365,7 +3414,9 @@ export function UktDashboard(props: Props) {
                                     void handleAcceptSelfRegistration(row)
                                   }
                                   disabled={
-                                    loading || isMemberPending(row.memberId)
+                                    loading ||
+                                    periodLocked ||
+                                    isMemberPending(row.memberId)
                                   }
                                   title="Terima pendaftaran mandiri dan konfirmasi pembayaran — teruskan ke cabang"
                                 >
@@ -3380,7 +3431,9 @@ export function UktDashboard(props: Props) {
                                     void handleRejectSelfRegistration(row)
                                   }
                                   disabled={
-                                    loading || isMemberPending(row.memberId)
+                                    loading ||
+                                    periodLocked ||
+                                    isMemberPending(row.memberId)
                                   }
                                   title="Tolak pengajuan mandiri"
                                 >
@@ -3393,7 +3446,11 @@ export function UktDashboard(props: Props) {
                               size="sm"
                               className="h-7 bg-inkai-red text-xs hover:bg-inkai-red/90"
                               onClick={() => void handleBayarUkt([row])}
-                              disabled={loading || isMemberPending(row.memberId)}
+                              disabled={
+                                loading ||
+                                periodLocked ||
+                                isMemberPending(row.memberId)
+                              }
                               title="Ajukan ke cabang untuk verifikasi (bukan lunas)"
                             >
                               <Banknote className="mr-0.5 h-3 w-3" />
@@ -3406,7 +3463,11 @@ export function UktDashboard(props: Props) {
                               variant="outline"
                               className="h-7 text-xs"
                               onClick={() => void handleMarkPaid(row)}
-                              disabled={loading || isMemberPending(row.memberId)}
+                              disabled={
+                                loading ||
+                                periodLocked ||
+                                isMemberPending(row.memberId)
+                              }
                               title="Verifikasi pembayaran UKT"
                             >
                               <CheckCircle2 className="mr-0.5 h-3 w-3" />

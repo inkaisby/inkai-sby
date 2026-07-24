@@ -535,18 +535,28 @@ export type UktRegistrationSnapshotItem = {
   examResult: UktExamResult | null;
   examPresent: boolean | null;
   registrationWaiver: UktRegistrationWaiver | null;
+  selfRegistration?: boolean;
+  memberPaymentConfirmedAt?: string | null;
+  /** Identity untuk append peserta baru (registrants-first). */
+  fullName?: string;
+  nia?: string | null;
+  dojoId?: string | null;
+  dojoName?: string | null;
+  photoUrl?: string | null;
+  memberCurrentRank?: string | null;
 };
 
 /**
- * Gabungkan snapshot registrasi ke pool anggota yang sudah ada di UI.
- * Anggota yang hilang dari snapshot → Belum Daftar (tanpa refetch pool).
+ * Gabungkan snapshot registrasi ke baris yang sudah ada di UI.
+ * Anggota yang hilang dari snapshot → Belum Daftar (pertahankan stub).
+ * Peserta baru di snapshot yang belum ada di rows → di-append.
  */
 export function applyUktRegistrationSnapshotToRows(
   rows: UktMemberRow[],
   participants: UktRegistrationSnapshotItem[],
 ): UktMemberRow[] {
   const byMember = new Map(participants.map((p) => [p.memberId, p]));
-  return rows.map((r) => {
+  const mapped = rows.map((r) => {
     const p = byMember.get(r.memberId);
     if (!p) {
       if (!r.registrationId) return r;
@@ -561,6 +571,8 @@ export function applyUktRegistrationSnapshotToRows(
         examPresent: null,
         kyuBaru: null,
         registrationWaiver: null,
+        selfRegistration: false,
+        memberPaymentConfirmedAt: null,
       };
     }
     return {
@@ -575,8 +587,51 @@ export function applyUktRegistrationSnapshotToRows(
       registrationWaiver: p.registrationWaiver,
       kyuLama: p.kyuLama?.trim() ? p.kyuLama : r.kyuLama,
       kyuBaru: p.kyuBaru,
+      selfRegistration: p.selfRegistration ?? r.selfRegistration,
+      memberPaymentConfirmedAt:
+        p.memberPaymentConfirmedAt !== undefined
+          ? p.memberPaymentConfirmedAt
+          : r.memberPaymentConfirmedAt,
     };
   });
+
+  const known = new Set(mapped.map((r) => r.memberId));
+  const appended: UktMemberRow[] = [];
+  for (const p of participants) {
+    if (known.has(p.memberId)) continue;
+    appended.push({
+      memberId: p.memberId,
+      registrationId: p.registrationId,
+      photoUrl: p.photoUrl ?? null,
+      nia: p.nia ?? null,
+      fullName: p.fullName || "Peserta",
+      birthPlace: null,
+      birthDate: null,
+      gender: null,
+      address: null,
+      kyuLama: p.kyuLama?.trim() || "—",
+      kyuBaru: p.kyuBaru,
+      memberCurrentRank: p.memberCurrentRank ?? null,
+      birthCertificateUrl: null,
+      bpjsCardUrl: null,
+      dojoName: p.dojoName || "—",
+      dojoId: p.dojoId || "",
+      status: p.status,
+      billingId: p.billingId,
+      billingStatus: p.billingStatus,
+      billingAmount: p.billingAmount,
+      outstandingDues: 0,
+      pendingVerifications: 0,
+      attendanceCount: 0,
+      attendancePct: 0,
+      examResult: p.examResult,
+      examPresent: p.examPresent,
+      registrationWaiver: p.registrationWaiver,
+      selfRegistration: p.selfRegistration ?? false,
+      memberPaymentConfirmedAt: p.memberPaymentConfirmedAt ?? null,
+    });
+  }
+  return appended.length > 0 ? [...mapped, ...appended] : mapped;
 }
 
 /** Minimum kehadiran latihan per semester agar boleh daftar UKT (48 sesi = 100%). */
