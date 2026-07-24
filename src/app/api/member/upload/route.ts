@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
-import { isBlobUploadConfigured, uploadAdminFile } from "@/lib/upload";
+import { isUploadConfigured, uploadAdminFile } from "@/lib/upload";
 
 export async function GET() {
   const session = await auth();
   if (!session?.user.memberId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return NextResponse.json({ configured: isBlobUploadConfigured() });
+  return NextResponse.json({ configured: isUploadConfigured() });
 }
 
 export async function POST(request: Request) {

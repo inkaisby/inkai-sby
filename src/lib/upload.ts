@@ -1,4 +1,5 @@
 import { put } from "@vercel/blob";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
 const ALLOWED = new Set([
@@ -8,6 +9,9 @@ const ALLOWED = new Set([
   "image/gif",
   "application/pdf",
 ]);
+
+/** Bucket publik Supabase untuk carousel, apresiasi, foto, dll. */
+const SUPABASE_PUBLIC_BUCKET = "portal-public";
 
 /** Thrown for user-facing validation issues — safe to echo to the client. */
 export class UploadValidationError extends Error {}
@@ -94,6 +98,35 @@ export function isBlobUploadConfigured() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN?.trim());
 }
 
+export function isSupabaseUploadConfigured() {
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
+    process.env.SUPABASE_URL?.trim();
+  const key =
+    process.env.SUPABASE_SECRET_KEY?.trim() ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  return Boolean(url && key);
+}
+
+export function isUploadConfigured() {
+  return isBlobUploadConfigured() || isSupabaseUploadConfigured();
+}
+
+function getSupabaseAdmin(): SupabaseClient {
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ||
+    process.env.SUPABASE_URL?.trim();
+  const key =
+    process.env.SUPABASE_SECRET_KEY?.trim() ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url || !key) {
+    throw new UploadValidationError("Supabase upload belum dikonfigurasi");
+  }
+  return createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
 /** Only allow safe folder segments under inkai-sby/. */
 export function sanitizeUploadFolder(folder: string | undefined | null): string {
   const raw = (folder || "pengurus").trim().toLowerCase();
@@ -107,15 +140,50 @@ export function sanitizeUploadFolder(folder: string | undefined | null): string 
   return cleaned || "pengurus";
 }
 
+async function uploadViaVercelBlob(
+  file: File,
+  key: string,
+): Promise<{ url: string; pathname: string }> {
+  const blob = await put(key, file, {
+    access: "public",
+    token: process.env.BLOB_READ_WRITE_TOKEN,
+    contentType: file.type,
+  });
+  return { url: blob.url, pathname: blob.pathname };
+}
+
+async function uploadViaSupabase(
+  file: File,
+  key: string,
+): Promise<{ url: string; pathname: string }> {
+  const supabase = getSupabaseAdmin();
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const { error } = await supabase.storage
+    .from(SUPABASE_PUBLIC_BUCKET)
+    .upload(key, bytes, {
+      contentType: file.type,
+      upsert: false,
+    });
+  if (error) {
+    throw new UploadValidationError(
+      error.message || "Gagal mengunggah ke Supabase Storage",
+    );
+  }
+  const { data } = supabase.storage
+    .from(SUPABASE_PUBLIC_BUCKET)
+    .getPublicUrl(key);
+  return { url: data.publicUrl, pathname: key };
+}
+
 export async function uploadAdminFile(
   file: File,
   folder = "pengurus",
 ): Promise<{ url: string; pathname: string }> {
   await assertUploadableFile(file);
 
-  if (!isBlobUploadConfigured()) {
+  if (!isUploadConfigured()) {
     throw new UploadValidationError(
-      "Upload belum dikonfigurasi. Set BLOB_READ_WRITE_TOKEN di environment, atau tempel URL manual.",
+      "Upload belum dikonfigurasi. Set SUPABASE_SECRET_KEY (atau BLOB_READ_WRITE_TOKEN), atau tempel URL manual di kolom.",
     );
   }
 
@@ -123,14 +191,10 @@ export async function uploadAdminFile(
   const safeName = file.name.replace(/[^\w.\-]+/g, "_").slice(0, 80);
   const key = `inkai-sby/${safeFolder}/${Date.now()}-${safeName}`;
 
-  // Public Blob for QR/carousel compatibility; folder is sanitized against path traversal.
-  const blob = await put(key, file, {
-    access: "public",
-    token: process.env.BLOB_READ_WRITE_TOKEN,
-    contentType: file.type,
-  });
-
-  return { url: blob.url, pathname: blob.pathname };
+  if (isBlobUploadConfigured()) {
+    return uploadViaVercelBlob(file, key);
+  }
+  return uploadViaSupabase(file, key);
 }
 
 /** Alias generik (admin & anggota). */

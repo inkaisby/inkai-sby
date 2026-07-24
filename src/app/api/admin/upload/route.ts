@@ -8,7 +8,7 @@ import {
   rateLimitResponse,
 } from "@/lib/security/rate-limit";
 import {
-  isBlobUploadConfigured,
+  isUploadConfigured,
   uploadAdminFile,
   UploadValidationError,
 } from "@/lib/upload";
@@ -17,7 +17,7 @@ export async function GET() {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
   return NextResponse.json({
-    configured: isBlobUploadConfigured(),
+    configured: isUploadConfigured(),
   });
 }
 

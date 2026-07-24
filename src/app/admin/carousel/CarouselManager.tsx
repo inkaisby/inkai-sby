@@ -124,6 +124,7 @@ export function CarouselManager({
             onChange={setImageUrl}
             folder="carousel"
             accept="image/*"
+            hint="Unggah gambar atau tempel URL publik (https://…)."
           />
         </div>
         <div className="space-y-2 sm:col-span-2">
