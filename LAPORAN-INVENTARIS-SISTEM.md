@@ -191,7 +191,7 @@ Pusat / Nasional
 ## 9. Alur bisnis yang sudah berjalan
 
 ### 9.1 Keanggotaan
-1. Calon anggota daftar via `/login?tab=daftar` — form **Identitas lengkap wajib** (nama, JK, tempat/tgl lahir, alamat, **NIK 16 digit**, telepon; **NIA tetap opsional**), **Sabuk**, **Akun**, **Dojo**. **Tambah Anggota** oleh ranting/cabang: NIK/NIA boleh kosong. **Input Massal**: tabel NIA, Nama, **Tempat & Tgl Lahir** digabung, JK (teks), Alamat, Kyu, Ranting + **isi semua ranting** & **isi semua Kyu/DAN**; paste Excel/CSV (format lama dengan NIK/Telepon tetap didukung); simpan per chunk dengan **progress %**; maks 50 (`POST /api/admin/members/bulk-create`). Field teks identitas **huruf besar**; **tanggal lahir** bisa paste (mis. `28 Februari 2011` / `Surabaya, 28 Maret 2015`).
+1. Calon anggota daftar via `/login?tab=daftar` — form **Identitas lengkap wajib** (nama, JK, tempat/tgl lahir, alamat, **NIK 16 digit**, telepon; **NIA tetap opsional**), **Sabuk**, **Akun**, **Dojo**. **Tambah Anggota** oleh ranting/cabang: NIK/NIA boleh kosong; **No. MSH opsional** (khusus Hitam/DAN, section Sabuk) disimpan ke Prisma saat create. **Input Massal**: tabel NIA, Nama, **Tempat & Tgl Lahir** digabung, JK (teks), Alamat, Kyu, Ranting + **isi semua ranting** & **isi semua Kyu/DAN**; paste Excel/CSV (format lama dengan NIK/Telepon tetap didukung); simpan per chunk dengan **progress %**; maks 50 (`POST /api/admin/members/bulk-create`). Field teks identitas **huruf besar**; **tanggal lahir** bisa paste (mis. `28 Februari 2011` / `Surabaya, 28 Maret 2015`).
 2. `POST /api/auth/register` dan `POST /api/admin/members` meneruskan semua field anggota (termasuk NIA jika diisi) ke Inkai API.
 3. Status menunggu verifikasi (publik) atau aktif langsung (admin/ranting).
 4. **Deteksi duplikat** sebelum simpan: **keras** jika NIK, NIA, atau nama tepat + tanggal lahir sama (cakupan Cabang Surabaya); **lunak** jika nama mirip. Blok `POST /api/admin/members` & `POST /api/auth/register` (409); UI peringatan di form tambah anggota & daftar publik.
@@ -635,6 +635,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | Iuran anggota: lapor setor **periode sebelumnya** (`POST /api/member/billing/report-period`, maks 24 bln) + toast loading logo INKAI |
 | 24 Juli 2026 | Ranting **catat setor periode** di Sheet Iuran (`POST …/report-setor`, helper `iuran-setor-period`); mutasi+jejak; status menunggu Setujui |
 | 24 Juli 2026 | Beranda anggota: hapus section Agenda (bug undefined); slim critical fetch; sticky header; cache token + overlay profil paralel |
+| 24 Juli 2026 | Tambah Anggota: field **No. MSH** opsional (Sabuk); persist Prisma + unique/Hitam-DAN + notif admin |
 
 ---
 

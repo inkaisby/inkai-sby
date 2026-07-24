@@ -257,6 +257,14 @@ export const uktMemberCreateSchema = z.object({
       .min(2, "NIA minimal 2 karakter")
       .max(32, "NIA maksimal 32 karakter"),
   ),
+  /** Opsional — khusus sabuk Hitam/DAN; disimpan di Prisma lokal. */
+  mshNumber: optionalBlankString(
+    z
+      .string()
+      .trim()
+      .min(2, "No. MSH minimal 2 karakter")
+      .max(32, "No. MSH maksimal 32 karakter"),
+  ),
 });
 
 /** Alias semantik untuk create anggota dari Kelola Anggota / UKT */

@@ -39,6 +39,7 @@ const emptyMemberFields = (): MemberFormFields => ({
   nia: "",
   phoneNumber: "",
   currentRank: DEFAULT_MEMBER_RANK,
+  mshNumber: "",
 });
 
 export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps) {

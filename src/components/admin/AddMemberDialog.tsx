@@ -37,6 +37,7 @@ const emptyForm = (
   nia: "",
   phoneNumber: "",
   currentRank,
+  mshNumber: "",
   dojoId,
 });
 
@@ -150,6 +151,9 @@ export function AddMemberDialog({
           nia: form.nia.trim() ? form.nia.trim().toUpperCase() : undefined,
           phoneNumber: form.phoneNumber.trim() || undefined,
           currentRank: form.currentRank || DEFAULT_MEMBER_RANK,
+          mshNumber: form.mshNumber.trim()
+            ? form.mshNumber.replace(/\s+/g, "").trim().toUpperCase()
+            : undefined,
           dojoId: form.dojoId || defaultDojoId || undefined,
         }),
       });
@@ -209,7 +213,12 @@ export function AddMemberDialog({
             duplicateBlocked={duplicateBlocked}
           />
 
-          <MemberBeltSection idPrefix="add-member" form={form} onChange={setField} />
+          <MemberBeltSection
+            idPrefix="add-member"
+            form={form}
+            onChange={setField}
+            showMsh
+          />
         </div>
 
         <DialogFooter>

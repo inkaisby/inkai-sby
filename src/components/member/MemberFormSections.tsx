@@ -15,6 +15,8 @@ export type MemberFormFields = {
   nia: string;
   phoneNumber: string;
   currentRank: string;
+  /** No. MSH — opsional, khusus Hitam/DAN (admin tambah anggota). */
+  mshNumber: string;
 };
 
 export type MemberFormSuggestion = {
@@ -113,6 +115,10 @@ export function validateMemberFormFields(
   const nia = form.nia.trim();
   if (nia && (nia.length < 2 || nia.length > 32)) {
     return "NIA harus 2–32 karakter jika diisi";
+  }
+  const msh = form.mshNumber.replace(/\s+/g, "").trim();
+  if (msh && (msh.length < 2 || msh.length > 32)) {
+    return "No. MSH harus 2–32 karakter jika diisi";
   }
   if (form.phoneNumber && form.phoneNumber.trim().length < 10) {
     return "Nomor telepon tidak valid";
@@ -339,7 +345,11 @@ export function MemberBeltSection({
   idPrefix,
   form,
   onChange,
-}: Pick<MemberFormSectionProps, "idPrefix" | "form" | "onChange">) {
+  showMsh = false,
+}: Pick<MemberFormSectionProps, "idPrefix" | "form" | "onChange"> & {
+  /** Tampilkan No. MSH (admin Tambah Anggota). */
+  showMsh?: boolean;
+}) {
   return (
     <section className="space-y-3">
       <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -360,6 +370,28 @@ export function MemberBeltSection({
           ))}
         </select>
       </div>
+      {showMsh ? (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-msh`}>No. MSH (opsional)</Label>
+          <Input
+            id={`${idPrefix}-msh`}
+            className={upperInputClassName}
+            placeholder="KHUSUS SABUK HITAM / DAN"
+            maxLength={32}
+            value={form.mshNumber}
+            onChange={(e) =>
+              onChange(
+                "mshNumber",
+                e.target.value.replace(/\s+/g, "").toUpperCase(),
+              )
+            }
+            autoCapitalize="characters"
+          />
+          <p className="text-xs text-muted-foreground">
+            Boleh dikosongkan. No. MSH hanya untuk sabuk Hitam (DAN).
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }

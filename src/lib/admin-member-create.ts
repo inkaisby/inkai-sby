@@ -15,6 +15,11 @@ import type { uktMemberCreateSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
 import {
+  mshAllowedForRank,
+  normalizeMsh,
+} from "@/lib/member-profile-locks";
+import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
+import {
   activeHardDuplicates,
   archivedIdentityConflicts,
   enrichNiaConflictError,
@@ -92,6 +97,33 @@ export async function createAdminMember(opts: {
   const nik = /^\d{16}$/.test(nikRaw) ? nikRaw : undefined;
   const nia = input.nia?.trim() || undefined;
   const phoneNumber = input.phoneNumber?.trim() || undefined;
+  const mshRaw = input.mshNumber?.trim() || "";
+  const msh = mshRaw ? normalizeMsh(mshRaw) : null;
+  if (mshRaw && !msh) {
+    return NextResponse.json(
+      { error: "No. MSH tidak valid" },
+      { status: 400 },
+    );
+  }
+  if (msh) {
+    if (!mshAllowedForRank(currentRank)) {
+      return NextResponse.json(
+        { error: "No. MSH hanya untuk sabuk Hitam (DAN)" },
+        { status: 400 },
+      );
+    }
+    const { prisma } = await import("@/lib/prisma");
+    const clash = await prisma.member.findFirst({
+      where: { mshNumber: msh, isDeleted: false },
+      select: { fullName: true },
+    });
+    if (clash) {
+      return NextResponse.json(
+        { error: `No. MSH sudah dipakai anggota lain (${clash.fullName})` },
+        { status: 409 },
+      );
+    }
+  }
 
   const duplicates = await findMemberDuplicates({
     fullName: input.fullName,
@@ -202,6 +234,8 @@ export async function createAdminMember(opts: {
               input,
               currentRank,
               nia,
+              msh,
+              dojoId: String(dojoId),
               auditAction: opts.auditAction,
             });
           }
@@ -240,6 +274,8 @@ export async function createAdminMember(opts: {
     input,
     currentRank,
     nia,
+    msh,
+    dojoId: String(dojoId),
     auditAction: opts.auditAction,
   });
 }
@@ -254,6 +290,8 @@ async function finalizeCreatedMember(opts: {
   input: CreateInput;
   currentRank: string;
   nia: string | undefined;
+  msh: string | null;
+  dojoId: string;
   auditAction?: string;
 }) {
   const {
@@ -266,6 +304,8 @@ async function finalizeCreatedMember(opts: {
     input,
     currentRank,
     nia,
+    msh,
+    dojoId,
   } = opts;
   const memberId = typeof member?.id === "string" ? member.id : null;
 
@@ -285,12 +325,25 @@ async function finalizeCreatedMember(opts: {
             : null,
           gender: input.gender || null,
           birthDate: input.birthDate ? new Date(input.birthDate) : null,
+          ...(msh ? { mshNumber: msh } : {}),
         },
       });
       if (phoneNumber && typeof member.userId === "string") {
         await prisma.user.update({
           where: { id: member.userId },
           data: { phoneNumber },
+        });
+      }
+      if (msh) {
+        const fullName = String(member.fullName ?? input.fullName);
+        const dojoName =
+          (member.dojo as { name?: string } | undefined)?.name || "Ranting";
+        void notifyAdminsAboutMemberMsh({
+          dojoId,
+          token,
+          excludeUserId: user.id,
+          title: "No. MSH anggota baru",
+          content: `${fullName} (${dojoName}): No. MSH ${msh} (saat tambah anggota).`,
         });
       }
     } catch (err) {
@@ -302,7 +355,7 @@ async function finalizeCreatedMember(opts: {
     userId: user.id,
     email: user.email,
     action: opts.auditAction || "MEMBER_CREATE",
-    details: `Created member ${member.fullName} (${currentRank})${nia ? ` NIA ${nia}` : ""}`,
+    details: `Created member ${member.fullName} (${currentRank})${nia ? ` NIA ${nia}` : ""}${msh ? ` MSH ${msh}` : ""}`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token,
