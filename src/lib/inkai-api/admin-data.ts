@@ -978,9 +978,6 @@ export async function resolveUktAdminPeriodId(
     viewMode?: UktAdminViewMode;
   },
 ): Promise<{ selectedPeriodId: string | null }> {
-  // #region agent log
-  const __lightT0 = Date.now();
-  // #endregion
   const {
     periodFromUrl = null,
     semester,
@@ -1039,42 +1036,6 @@ export async function resolveUktAdminPeriodId(
     }
   }
 
-  // #region agent log
-  try {
-    const payload = {
-      sessionId: "f0acf0",
-      runId: `ukt-light-${__lightT0}`,
-      hypothesisId: "A",
-      location: "admin-data.ts:resolveUktAdminPeriodId",
-      message: "UKT light period resolve",
-      data: {
-        ms: Date.now() - __lightT0,
-        periodFromUrl: periodFromUrl ?? null,
-        selectedPeriodId,
-        semester,
-        year,
-      },
-      timestamp: Date.now(),
-    };
-    fetch("http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "f0acf0",
-      },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require("fs").appendFileSync(
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require("path").join(process.cwd(), ".cursor", "debug-f0acf0.log"),
-      JSON.stringify(payload) + "\n",
-    );
-  } catch {
-    /* ignore */
-  }
-  // #endregion
-
   return { selectedPeriodId };
 }
 
@@ -1091,39 +1052,6 @@ export async function fetchUktDashboardData(
     viewMode?: UktAdminViewMode;
   },
 ) {
-  // #region agent log
-  const __uktDbgT0 = Date.now();
-  const __uktDbgRun = `ukt-load-${__uktDbgT0}`;
-  const __uktDbgLog = (hypothesisId: string, location: string, message: string, data: Record<string, unknown>) => {
-    const payload = {
-      sessionId: "f0acf0",
-      runId: __uktDbgRun,
-      hypothesisId,
-      location,
-      message,
-      data,
-      timestamp: Date.now(),
-    };
-    fetch("http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "f0acf0",
-      },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require("fs").appendFileSync(
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        require("path").join(process.cwd(), ".cursor", "debug-f0acf0.log"),
-        JSON.stringify(payload) + "\n",
-      );
-    } catch {
-      /* ignore */
-    }
-  };
-  // #endregion
   const {
     periodFromUrl = null,
     semester,
@@ -1239,17 +1167,6 @@ export async function fetchUktDashboardData(
     // Meta arsip semua periode — paralel agar tidak menambah 1 RTT serial
     fetchSettingsByPrefix(token, "ukt-period-meta:"),
   ]);
-  // #region agent log
-  const __uktDbgWave1Ms = Date.now() - __uktDbgT0;
-  __uktDbgLog("B", "admin-data.ts:fetchUktDashboardData:wave1", "UKT wave1 done", {
-    ms: __uktDbgWave1Ms,
-    viewMode,
-    periodFromUrl: periodFromUrl ?? null,
-    memberCount: membersResult.ok ? membersResult.members.length : -1,
-    isArchive,
-    primaryRole,
-  });
-  // #endregion
 
   let dojos: Array<{ id: string; name: string }> = dojosRaw;
   if (dojoAllowlist.length > 0) {
@@ -1332,9 +1249,6 @@ export async function fetchUktDashboardData(
   let periodMetaValue = periodMetaInitial;
 
   if (selectedPeriodId && selectedPeriodId !== periodFromUrl) {
-    // #region agent log
-    const __uktDbgWave2T0 = Date.now();
-    // #endregion
     const [detail, exams, waivers, attendance, deposits, metaRes] =
       await Promise.all([
         fetchEventDetail(token, selectedPeriodId),
@@ -1356,13 +1270,6 @@ export async function fetchUktDashboardData(
     periodMetaValue = metaRes.res.ok
       ? ((metaRes.data.data as { value?: unknown })?.value ?? null)
       : null;
-    // #region agent log
-    __uktDbgLog("C", "admin-data.ts:fetchUktDashboardData:wave2", "UKT wave2 ran", {
-      ms: Date.now() - __uktDbgWave2T0,
-      periodFromUrl: periodFromUrl ?? null,
-      selectedPeriodId,
-    });
-    // #endregion
   }
 
   // Sinkronkan tanggal/batas pendaftaran dari detail event agar kartu "Atur" akurat.
@@ -2005,20 +1912,6 @@ export async function fetchUktDashboardData(
         selfRegMetaMap.get(m.id)?.memberPaymentConfirmedAt ?? null,
     };
   });
-
-  // #region agent log
-  __uktDbgLog("D", "admin-data.ts:fetchUktDashboardData:done", "UKT fetch total", {
-    totalMs: Date.now() - __uktDbgT0,
-    wave1Ms: __uktDbgWave1Ms,
-    postWave1Ms: Date.now() - __uktDbgT0 - __uktDbgWave1Ms,
-    rowCount: allRows.length,
-    selectedPeriodId,
-    periodFromUrl: periodFromUrl ?? null,
-    wave2Needed: Boolean(
-      selectedPeriodId && selectedPeriodId !== periodFromUrl,
-    ),
-  });
-  // #endregion
 
   return {
     periods,
