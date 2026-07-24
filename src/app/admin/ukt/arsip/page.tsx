@@ -19,14 +19,14 @@ import { fetchUktDashboardData } from "@/lib/inkai-api/admin-data";
 import { getBranchOrgProfile } from "@/lib/org-settings";
 import { getUktRegistrationPolicy } from "@/lib/ukt-registration-policy";
 import { requireAdminSession } from "@/lib/admin-session";
-import { getManagedDojoIdsFromUser, loadUktDojoFilterGroups } from "@/lib/managed-dojos";
+import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { UktTermNav } from "@/components/admin/ukt/UktTermNav";
 
 const UktDashboard = nextDynamic(
   () => import("@/components/admin/ukt/UktDashboard").then((m) => m.UktDashboard),
-  { ssr: true, loading: () => <AdminPageLoader rows={8} message="Memuat arsip UKT..." /> },
+  { ssr: false, loading: () => <AdminPageLoader rows={8} message="Memuat arsip UKT..." /> },
 );
 
 export const dynamic = "force-dynamic";
@@ -212,8 +212,7 @@ async function UktArsipDashboardSection({
     ? dojos.find((d) => d.id === loginDojoId)?.name || ""
     : "";
 
-  const dojoGroups =
-    primaryRole === "ADMIN_DOJO" ? [] : await loadUktDojoFilterGroups(user);
+  const dojoGroups: [] = [];
 
   return (
     <UktDashboard

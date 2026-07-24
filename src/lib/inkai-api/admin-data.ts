@@ -24,6 +24,7 @@ import {
 } from "@/lib/table-sort";
 import {
   beltFeesFromTemplates,
+  DEFAULT_BELT_FEES,
   DEFAULT_KOMISI_RANTING,
   UKT_KOMISI_SETTING_KEY,
   uktBaseFeeAmount,
@@ -40,7 +41,6 @@ import {
   buildUktWaiverMap,
   parseUktPeriodMetaValue,
   parseUktEventTitle,
-  uktPeriodMetaKey,
   type UktExamResult,
   type UktMemberRow,
   type UktPeriodMeta,
@@ -859,8 +859,35 @@ export async function fetchUktPeriods(token: string) {
   return filterUktEvents((data.data as Array<Record<string, unknown>>) ?? []);
 }
 
-export async function fetchEventDetail(token: string, eventId: string) {
-  const { res, data } = await inkaiFetch(`/v1/events/${eventId}`, {}, token);
+/** Opsi Inkai ketat untuk load dashboard UKT (hindari retry 12s×2). */
+const UKT_DASH_INKAI = { timeoutMs: 8_000, retries: 0 } as const;
+
+function countActiveUktRegistrations(
+  eventDetail: Record<string, unknown> | null | undefined,
+): number {
+  const registrations =
+    (eventDetail?.registrations as Array<Record<string, unknown>> | undefined) ??
+    [];
+  let n = 0;
+  for (const reg of registrations) {
+    const st = String(reg.status ?? "").toUpperCase();
+    if (st === "CANCELLED" || st === "REJECTED") continue;
+    n += 1;
+  }
+  return n;
+}
+
+export async function fetchEventDetail(
+  token: string,
+  eventId: string,
+  options?: { timeoutMs?: number; retries?: number },
+) {
+  const { res, data } = await inkaiFetch(
+    `/v1/events/${eventId}`,
+    {},
+    token,
+    options,
+  );
   if (!res.ok) return null;
   return (data.data as Record<string, unknown>) ?? null;
 }
@@ -899,19 +926,34 @@ function upsertPeriodOption(
   return periods.map((p, i) => (i === idx ? { ...p, ...next } : p));
 }
 
-export async function fetchUktKomisiRanting(token: string, key: string, fallback: number) {
-  const { res, data } = await inkaiFetch(`/v1/settings/${encodeURIComponent(key)}`, {}, token);
+export async function fetchUktKomisiRanting(
+  token: string,
+  key: string,
+  fallback: number,
+  options?: { timeoutMs?: number; retries?: number },
+) {
+  const { res, data } = await inkaiFetch(
+    `/v1/settings/${encodeURIComponent(key)}`,
+    {},
+    token,
+    options,
+  );
   if (!res.ok) return fallback;
   const value = (data.data as { value?: unknown } | undefined)?.value;
   if (typeof value === "number" && Number.isFinite(value)) return Math.round(value);
   return fallback;
 }
 
-export async function fetchSettingsByPrefix(token: string, prefix: string) {
+export async function fetchSettingsByPrefix(
+  token: string,
+  prefix: string,
+  options?: { timeoutMs?: number; retries?: number },
+) {
   const { res, data } = await inkaiFetch(
     `/v1/settings?prefix=${encodeURIComponent(prefix)}`,
     {},
     token,
+    options,
   );
   if (!res.ok) return [];
   return (data.data as Array<{ key: string; value: unknown }>) ?? [];
@@ -1111,82 +1153,36 @@ export async function fetchUktDashboardData(
       data: {},
     });
 
-  const [
-    eventsRes,
-    dojosRaw,
-    membersResult,
-    feesRes,
-    komisiRanting,
-    billingsRes,
-    pendingVerificationsRes,
-    attendanceRes,
-    eventDetailInitial,
-    examSettingsInitial,
-    waiverSettingsInitial,
-    examAttendanceInitial,
-    depositSettingsInitial,
-    periodMetaInitial,
-    periodMetaRowsAll,
-  ] = await Promise.all([
-    inkaiFetch("/v1/events?limit=200", {}, token),
-    fetchAdminDojos(token),
-    membersPromise,
-    inkaiFetch("/v1/events/rank-fee-templates", {}, token),
-    fetchUktKomisiRanting(token, UKT_KOMISI_SETTING_KEY, DEFAULT_KOMISI_RANTING),
-    // Peserta-first: billingMap diisi Prisma by registrationId (lihat merge).
-    skipMemberPool ? skippedFetch : inkaiFetch("/v1/billing?limit=250", {}, token),
-    skipMemberPool
-      ? skippedFetch
-      : inkaiFetch("/v1/verifications/pending", {}, token),
-    skipMemberPool
-      ? Promise.resolve([] as Array<Record<string, unknown>>)
-      : fetchAttendanceLogs(token, {
-          from: attendanceFrom,
-          to: attendanceTo,
-          limit: 800,
-        }),
-    periodFromUrl ? fetchEventDetail(token, periodFromUrl) : Promise.resolve(null),
-    periodFromUrl
-      ? fetchSettingsByPrefix(token, `ukt-exam-result:${periodFromUrl}:`)
-      : Promise.resolve([]),
-    periodFromUrl
-      ? fetchSettingsByPrefix(token, `ukt-registration-waiver:${periodFromUrl}:`)
-      : Promise.resolve([]),
-    periodFromUrl
-      ? fetchSettingsByPrefix(token, `ukt-exam-attendance:${periodFromUrl}:`)
-      : Promise.resolve([]),
-    periodFromUrl
-      ? fetchSettingsByPrefix(token, `ukt-deposit:${periodFromUrl}:`)
-      : Promise.resolve([]),
-    periodFromUrl
-      ? inkaiFetch(
-          `/v1/settings/${encodeURIComponent(uktPeriodMetaKey(periodFromUrl))}`,
-          {},
-          token,
-        ).then(({ res, data }) =>
-          res.ok ? ((data.data as { value?: unknown })?.value ?? null) : null,
-        )
-      : Promise.resolve(null),
-    // Meta arsip semua periode — paralel agar tidak menambah 1 RTT serial
-    fetchSettingsByPrefix(token, "ukt-period-meta:"),
-  ]);
+  // Wave 1: events + dojos Prisma + period-meta prefix + event detail URL.
+  // Prefix exam/waiver/deposit + fees global ditunda sampai tahu periode kosong /
+  // snapshot biaya tersedia (hemat RTT saat 0 peserta).
+  const [eventsRes, dojosScoped, membersResult, eventDetailInitial, periodMetaRowsAll] =
+    await Promise.all([
+      inkaiFetch("/v1/events?limit=200", {}, token, UKT_DASH_INKAI),
+      fetchAdminDojosScopedCached(user),
+      membersPromise,
+      periodFromUrl
+        ? fetchEventDetail(token, periodFromUrl, UKT_DASH_INKAI)
+        : Promise.resolve(null),
+      fetchSettingsByPrefix(token, "ukt-period-meta:", UKT_DASH_INKAI),
+    ]);
 
-  let dojos: Array<{ id: string; name: string }> = dojosRaw;
+  let dojos: Array<{ id: string; name: string }> = dojosScoped;
   if (dojoAllowlist.length > 0) {
-    const localDojos = await withPrismaFallback(
-      "ukt-dojos-allowlist",
-      () =>
-        prisma.dojo.findMany({
-          where: { id: { in: dojoAllowlist }, isDeleted: false },
-          select: { id: true, name: true },
-          orderBy: { name: "asc" },
-        }),
-      [] as Array<{ id: string; name: string }>,
-    );
-    dojos =
-      (localDojos.data?.length ?? 0) > 0
-        ? (localDojos.data as Array<{ id: string; name: string }>)
-        : dojosRaw.filter((d) => dojoAllowlist.includes(d.id));
+    dojos = dojosScoped.filter((d) => dojoAllowlist.includes(d.id));
+    if (dojos.length === 0) {
+      const localDojos = await withPrismaFallback(
+        "ukt-dojos-allowlist",
+        () =>
+          prisma.dojo.findMany({
+            where: { id: { in: dojoAllowlist }, isDeleted: false },
+            select: { id: true, name: true },
+            orderBy: { name: "asc" },
+          }),
+        [] as Array<{ id: string; name: string }>,
+      );
+      dojos = localDojos.data ?? [];
+    }
   }
 
   let periods = eventsRes.res.ok
@@ -1244,35 +1240,13 @@ export async function fetchUktDashboardData(
       selectedPeriodId = null;
     }
   }
-  let eventDetail = eventDetailInitial;
-  let examSettings = examSettingsInitial;
-  let waiverSettings = waiverSettingsInitial;
-  let examAttendanceSettings = examAttendanceInitial;
-  let depositSettings = depositSettingsInitial;
-  let periodMetaValue = periodMetaInitial;
 
+  let eventDetail = eventDetailInitial;
+
+  // Wave 2 hanya bila periode terpilih beda dari URL — hanya detail event
+  // (meta ambil dari prefix map; jangan refetch 6 settings).
   if (selectedPeriodId && selectedPeriodId !== periodFromUrl) {
-    const [detail, exams, waivers, attendance, deposits, metaRes] =
-      await Promise.all([
-        fetchEventDetail(token, selectedPeriodId),
-        fetchSettingsByPrefix(token, `ukt-exam-result:${selectedPeriodId}:`),
-        fetchSettingsByPrefix(token, `ukt-registration-waiver:${selectedPeriodId}:`),
-        fetchSettingsByPrefix(token, `ukt-exam-attendance:${selectedPeriodId}:`),
-        fetchSettingsByPrefix(token, `ukt-deposit:${selectedPeriodId}:`),
-        inkaiFetch(
-          `/v1/settings/${encodeURIComponent(uktPeriodMetaKey(selectedPeriodId))}`,
-          {},
-          token,
-        ),
-      ]);
-    eventDetail = detail;
-    examSettings = exams;
-    waiverSettings = waivers;
-    examAttendanceSettings = attendance;
-    depositSettings = deposits;
-    periodMetaValue = metaRes.res.ok
-      ? ((metaRes.data.data as { value?: unknown })?.value ?? null)
-      : null;
+    eventDetail = await fetchEventDetail(token, selectedPeriodId, UKT_DASH_INKAI);
   }
 
   // Sinkronkan tanggal/batas pendaftaran dari detail event agar kartu "Atur" akurat.
@@ -1284,6 +1258,133 @@ export async function fetchUktDashboardData(
       locked: prev?.locked,
     });
   }
+
+  // Meta dari prefix saja (tanpa GET per-id ganda).
+  let periodMeta: UktPeriodMeta = selectedPeriodId
+    ? (metaByPeriodId.get(selectedPeriodId) ?? {
+        archived: false,
+        locked: false,
+      })
+    : { archived: false, locked: false };
+
+  // Backfill registrationOpenAt in-memory saja.
+  if (selectedPeriodId && !periodMeta.registrationOpenAt) {
+    const selected = periods.find((p) => p.id === selectedPeriodId);
+    const parsedTitle = selected ? parseUktEventTitle(selected.title) : null;
+    if (parsedTitle) {
+      const { registrationOpenAt } = buildUktEventDates(
+        parsedTitle.semester,
+        parsedTitle.year,
+      );
+      periodMeta = {
+        ...periodMeta,
+        registrationOpenAt: registrationOpenAt.toISOString(),
+      };
+    }
+  }
+
+  const feesProbe = resolveUktPeriodFees(
+    DEFAULT_BELT_FEES,
+    DEFAULT_KOMISI_RANTING,
+    periodMeta,
+  );
+  const needGlobalFees = !feesProbe.fromSnapshot;
+
+  // Periode kosong? Inkai regs + hitungan Prisma cepat (daftar mandiri PENDING).
+  const inkaiRegCount = countActiveUktRegistrations(eventDetail);
+  let prismaRegCount = 0;
+  if (selectedPeriodId && !rantingAllowlistEmpty) {
+    const counted = await withPrismaFallback(
+      "ukt-regs-count",
+      () =>
+        prisma.eventRegistration.count({
+          where: {
+            eventId: selectedPeriodId,
+            status: { in: ["PENDING", "APPROVED"] },
+            member: {
+              isDeleted: false,
+              ...(dojoAllowlist.length > 0
+                ? { dojoId: { in: dojoAllowlist } }
+                : {}),
+            },
+          },
+        }),
+      0,
+    );
+    prismaRegCount = counted.data ?? 0;
+  }
+  const periodEmpty =
+    !selectedPeriodId ||
+    rantingAllowlistEmpty ||
+    (inkaiRegCount === 0 && prismaRegCount === 0);
+
+  const [
+    feesRes,
+    komisiRanting,
+    billingsRes,
+    pendingVerificationsRes,
+    attendanceRes,
+    examSettings,
+    waiverSettings,
+    examAttendanceSettings,
+    depositSettings,
+  ] = await Promise.all([
+    needGlobalFees
+      ? inkaiFetch(
+          "/v1/events/rank-fee-templates",
+          {},
+          token,
+          UKT_DASH_INKAI,
+        )
+      : skippedFetch,
+    needGlobalFees
+      ? fetchUktKomisiRanting(
+          token,
+          UKT_KOMISI_SETTING_KEY,
+          DEFAULT_KOMISI_RANTING,
+          UKT_DASH_INKAI,
+        )
+      : Promise.resolve(DEFAULT_KOMISI_RANTING),
+    skipMemberPool ? skippedFetch : inkaiFetch("/v1/billing?limit=250", {}, token),
+    skipMemberPool
+      ? skippedFetch
+      : inkaiFetch("/v1/verifications/pending", {}, token),
+    skipMemberPool
+      ? Promise.resolve([] as Array<Record<string, unknown>>)
+      : fetchAttendanceLogs(token, {
+          from: attendanceFrom,
+          to: attendanceTo,
+          limit: 800,
+        }),
+    periodEmpty || !selectedPeriodId
+      ? Promise.resolve([] as Array<{ key: string; value: unknown }>)
+      : fetchSettingsByPrefix(
+          token,
+          `ukt-exam-result:${selectedPeriodId}:`,
+          UKT_DASH_INKAI,
+        ),
+    periodEmpty || !selectedPeriodId
+      ? Promise.resolve([] as Array<{ key: string; value: unknown }>)
+      : fetchSettingsByPrefix(
+          token,
+          `ukt-registration-waiver:${selectedPeriodId}:`,
+          UKT_DASH_INKAI,
+        ),
+    periodEmpty || !selectedPeriodId
+      ? Promise.resolve([] as Array<{ key: string; value: unknown }>)
+      : fetchSettingsByPrefix(
+          token,
+          `ukt-exam-attendance:${selectedPeriodId}:`,
+          UKT_DASH_INKAI,
+        ),
+    periodEmpty || !selectedPeriodId
+      ? Promise.resolve([] as Array<{ key: string; value: unknown }>)
+      : fetchSettingsByPrefix(
+          token,
+          `ukt-deposit:${selectedPeriodId}:`,
+          UKT_DASH_INKAI,
+        ),
+  ]);
 
   const attendanceLogs = attendanceRes.map((log) => {
     const member = log.member as { id?: string } | undefined;
@@ -1311,26 +1412,6 @@ export async function fetchUktDashboardData(
         (feesRes.data.data as Array<{ rankName: string; fee: number }>) ?? [],
       )
     : beltFeesFromTemplates([]);
-
-  // Backfill registrationOpenAt untuk periode lama (awal semester dari judul) —
-  // hanya in-memory untuk tampilan UI (kartu "Atur" dsb). Persist ke settings
-  // TIDAK dilakukan di sini (GET tidak boleh menulis); persist dilakukan di
-  // alur cabang create/patch periode saja.
-  let periodMeta: UktPeriodMeta = parseUktPeriodMetaValue(periodMetaValue);
-  if (selectedPeriodId && !periodMeta.registrationOpenAt) {
-    const selected = periods.find((p) => p.id === selectedPeriodId);
-    const parsedTitle = selected ? parseUktEventTitle(selected.title) : null;
-    if (parsedTitle) {
-      const { registrationOpenAt } = buildUktEventDates(
-        parsedTitle.semester,
-        parsedTitle.year,
-      );
-      periodMeta = {
-        ...periodMeta,
-        registrationOpenAt: registrationOpenAt.toISOString(),
-      };
-    }
-  }
 
   const resolvedFees = resolveUktPeriodFees(
     beltFeesGlobal,
@@ -1483,8 +1564,8 @@ export async function fetchUktDashboardData(
   }
 
   // Ranting multi: Inkai sering hanya kirim registrasi ranting utama.
-  // Lengkapi dari Prisma agar peserta ranting lain di allowlist ikut tampil.
-  if (selectedPeriodId && dojoAllowlist.length > 0) {
+  // Lengkapi dari Prisma — skip total jika periode kosong.
+  if (selectedPeriodId && dojoAllowlist.length > 0 && !periodEmpty) {
     const prismaRegs = await withPrismaFallback(
       "ukt-regs-allowlist",
       () =>
@@ -1654,8 +1735,8 @@ export async function fetchUktDashboardData(
     }
   }
 
-  // Lengkapi registrasi PENDING (daftar mandiri) dari Prisma — termasuk cabang
-  if (selectedPeriodId && !rantingAllowlistEmpty) {
+  // Lengkapi registrasi PENDING (daftar mandiri) dari Prisma — skip bila kosong.
+  if (selectedPeriodId && !rantingAllowlistEmpty && !periodEmpty) {
     const prismaSelfRegs = await withPrismaFallback(
       "ukt-self-regs",
       () =>
@@ -1859,9 +1940,10 @@ export async function fetchUktDashboardData(
     year,
   );
 
-  const selfRegMetaMap = selectedPeriodId
-    ? await loadUktSelfRegistrationMetaMap(selectedPeriodId)
-    : new Map();
+  const selfRegMetaMap =
+    selectedPeriodId && !periodEmpty
+      ? await loadUktSelfRegistrationMetaMap(selectedPeriodId)
+      : new Map();
 
   const allRows: UktMemberRow[] = members.map((m) => {
     const reg = regMap.get(m.id);

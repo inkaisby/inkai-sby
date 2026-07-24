@@ -69,14 +69,36 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
-import { UktPrintModal } from "@/components/admin/ukt/UktPrintModal";
-import { UktExportDialog } from "@/components/admin/ukt/UktExportDialog";
-import { UktExamDayDialog } from "@/components/admin/ukt/UktExamDayDialog";
 import { UktFloatingCountdown } from "@/components/admin/ukt/UktFloatingCountdown";
 import { UktSearchBar } from "@/components/admin/ukt/UktSearchBar";
 import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
-import { AddMemberDialog } from "@/components/admin/AddMemberDialog";
+import dynamic from "next/dynamic";
 import { buildUktInviteUrl } from "@/lib/ukt-invite";
+
+const UktPrintModal = dynamic(
+  () =>
+    import("@/components/admin/ukt/UktPrintModal").then((m) => m.UktPrintModal),
+  { ssr: false },
+);
+const UktExportDialog = dynamic(
+  () =>
+    import("@/components/admin/ukt/UktExportDialog").then(
+      (m) => m.UktExportDialog,
+    ),
+  { ssr: false },
+);
+const UktExamDayDialog = dynamic(
+  () =>
+    import("@/components/admin/ukt/UktExamDayDialog").then(
+      (m) => m.UktExamDayDialog,
+    ),
+  { ssr: false },
+);
+const AddMemberDialog = dynamic(
+  () =>
+    import("@/components/admin/AddMemberDialog").then((m) => m.AddMemberDialog),
+  { ssr: false },
+);
 import {
   BELT_RANK_OPTIONS,
   canEditKyuBaru,
@@ -380,6 +402,9 @@ export function UktDashboard(props: Props) {
   const [jadwalOpen, setJadwalOpen] = useState(true);
   const [showExport, setShowExport] = useState(false);
   const [showExamDay, setShowExamDay] = useState(false);
+  const [dojoGroups, setDojoGroups] = useState<UktDojoFilterGroup[]>(
+    () => props.dojoGroups ?? [],
+  );
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState(0);
   const [wizardOpenDate, setWizardOpenDate] = useState("");
@@ -400,6 +425,27 @@ export function UktDashboard(props: Props) {
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
   const canForcePaidCancel = isCabang || isDojoAdmin;
   const periodLocked = Boolean(props.periodMeta?.locked || props.periodMeta?.archived);
+
+  // Filter gabungan multi-ranting: lazy di luar critical path SSR.
+  useEffect(() => {
+    if (isDojoAdmin) return;
+    if ((props.dojoGroups?.length ?? 0) > 0) {
+      setDojoGroups(props.dojoGroups ?? []);
+      return;
+    }
+    let cancelled = false;
+    void fetch("/api/admin/ukt/dojo-groups")
+      .then(async (res) => {
+        const data = await parseApiJson<{ groups?: UktDojoFilterGroup[] }>(res);
+        if (!res.ok || cancelled) return;
+        setDojoGroups(data.groups ?? []);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isDojoAdmin, props.dojoGroups]);
+
   const [depositMap, setDepositMap] = useState(props.depositMap ?? {});
   const periodOfficers = resolveUktPeriodOfficers(props.periodMeta, props.orgProfile);
   const [tableRefreshing, setTableRefreshing] = useState(false);
@@ -447,7 +493,7 @@ export function UktDashboard(props: Props) {
       : localDojo;
     const parsed = parseUktDojoFilterValue(raw);
     if (raw.startsWith("group:")) {
-      const group = (props.dojoGroups ?? []).find((g) => g.value === raw);
+      const group = dojoGroups.find((g) => g.value === raw);
       if (group) {
         return {
           ids: group.dojoIds,
@@ -461,7 +507,7 @@ export function UktDashboard(props: Props) {
     isMultiDojoAdmin,
     props.defaultDojoFilter,
     localDojo,
-    props.dojoGroups,
+    dojoGroups,
   ]);
 
   const effectiveDojoIds = dojoFilterParsed.ids;
@@ -2957,7 +3003,7 @@ export function UktDashboard(props: Props) {
                   {isDojoAdmin ? "Semua ranting dikelola" : "Semua ranting"}
                 </SelectItem>
                 {!isDojoAdmin &&
-                  (props.dojoGroups ?? []).map((g) => (
+                  dojoGroups.map((g) => (
                     <SelectItem key={g.value} value={g.value} title={g.label}>
                       {g.shortLabel}
                     </SelectItem>
@@ -4038,17 +4084,19 @@ export function UktDashboard(props: Props) {
       </Dialog>
 
       {/* Add member modal */}
-      <AddMemberDialog
-        open={showAddMember}
-        onOpenChange={setShowAddMember}
-        dojos={props.dojos}
-        defaultDojoId={effectiveDojo}
-        lockDojo={isDojoAdmin}
-        apiPath="/api/admin/ukt/members"
-      />
+      {showAddMember ? (
+        <AddMemberDialog
+          open={showAddMember}
+          onOpenChange={setShowAddMember}
+          dojos={props.dojos}
+          defaultDojoId={effectiveDojo}
+          lockDojo={isDojoAdmin}
+          apiPath="/api/admin/ukt/members"
+        />
+      ) : null}
 
       {/* Print modal */}
-      {showPrint && (
+      {showPrint ? (
         <UktPrintModal
           open={showPrint}
           onClose={() => {
@@ -4081,29 +4129,33 @@ export function UktDashboard(props: Props) {
             ...periodOfficers,
           }}
         />
-      )}
+      ) : null}
 
-      <UktExportDialog
-        open={showExport}
-        onOpenChange={setShowExport}
-        rows={rows}
-        dojos={props.dojos}
-        semester={props.semester}
-        year={props.year}
-        initialDojoId={effectiveDojo || undefined}
-        bidangUjianName={props.orgProfile?.bidangUjianName}
-        sekretariatAddress={props.orgProfile?.address}
-      />
+      {showExport ? (
+        <UktExportDialog
+          open={showExport}
+          onOpenChange={setShowExport}
+          rows={rows}
+          dojos={props.dojos}
+          semester={props.semester}
+          year={props.year}
+          initialDojoId={effectiveDojo || undefined}
+          bidangUjianName={props.orgProfile?.bidangUjianName}
+          sekretariatAddress={props.orgProfile?.address}
+        />
+      ) : null}
 
-      <UktExamDayDialog
-        open={showExamDay}
-        onOpenChange={setShowExamDay}
-        eventId={props.selectedPeriodId || ""}
-        rows={rows}
-        dojos={props.dojos}
-        initialDojoId={effectiveDojo || undefined}
-        locked={periodLocked}
-      />
+      {showExamDay ? (
+        <UktExamDayDialog
+          open={showExamDay}
+          onOpenChange={setShowExamDay}
+          eventId={props.selectedPeriodId || ""}
+          rows={rows}
+          dojos={props.dojos}
+          initialDojoId={effectiveDojo || undefined}
+          locked={periodLocked}
+        />
+      ) : null}
 
       <Dialog open={showRegistrationDeadline} onOpenChange={setShowRegistrationDeadline}>
         <DialogContent className="max-w-md gap-4">

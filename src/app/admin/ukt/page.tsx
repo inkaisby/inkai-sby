@@ -19,15 +19,15 @@ import { fetchUktDashboardData, resolveUktAdminPeriodId } from "@/lib/inkai-api/
 import { getBranchOrgProfile } from "@/lib/org-settings";
 import { getUktRegistrationPolicy } from "@/lib/ukt-registration-policy";
 import { requireAdminSession } from "@/lib/admin-session";
-import { getManagedDojoIdsFromUser, loadUktDojoFilterGroups } from "@/lib/managed-dojos";
+import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { UktTermNav } from "@/components/admin/ukt/UktTermNav";
 
-// UktDashboard besar — chunk terpisah; loading hanya di zona data (bawah shell).
+// UktDashboard besar — client-only agar shell SSR tetap ringan.
 const UktDashboard = nextDynamic(
   () => import("@/components/admin/ukt/UktDashboard").then((m) => m.UktDashboard),
-  { ssr: true, loading: () => <AdminPageLoader rows={8} message="Memuat data UKT..." /> },
+  { ssr: false, loading: () => <AdminPageLoader rows={8} message="Memuat data UKT..." /> },
 );
 
 export const dynamic = "force-dynamic";
@@ -161,7 +161,8 @@ async function UktDashboardSection({
   let registrationPolicy: Awaited<
     ReturnType<typeof getUktRegistrationPolicy>
   > | null = null;
-  let dojoGroups: Awaited<ReturnType<typeof loadUktDojoFilterGroups>> = [];
+  // dojoGroups cabang di-hydrate client (GET /api/admin/ukt/dojo-groups).
+  const dojoGroups: [] = [];
 
   try {
     // Sync URL canonical SEBELUM fetch berat (hindari double full load).
@@ -198,7 +199,7 @@ async function UktDashboardSection({
       }
     }
 
-    const [profile, policy, data, dojoGroupsResult] = await Promise.all([
+    const [profile, policy, data] = await Promise.all([
       getBranchOrgProfile(),
       getUktRegistrationPolicy(),
       fetchUktDashboardData(token, user, {
@@ -208,18 +209,12 @@ async function UktDashboardSection({
         forceNoPeriod: createMode,
         viewMode: "registration",
       }),
-      primaryRole === "ADMIN_DOJO"
-        ? Promise.resolve(
-            [] as Awaited<ReturnType<typeof loadUktDojoFilterGroups>>,
-          )
-        : loadUktDojoFilterGroups(user),
     ]);
     orgProfile = profile;
     registrationPolicy = policy;
     periods = data.periods;
     dojos = data.dojos;
     selectedPeriodId = createMode ? null : data.selectedPeriodId;
-    dojoGroups = dojoGroupsResult;
 
     if (!createMode && periodFromUrl) {
       const fromUrl = periods.find((p) => p.id === periodFromUrl);
