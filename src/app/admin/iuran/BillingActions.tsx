@@ -4,8 +4,9 @@ import { useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { showError, showSuccess } from "@/lib/client-toast";
-import { Loader2, Pencil } from "lucide-react";
+import { showError, showSuccess, showLoading } from "@/lib/client-toast";
+import { Pencil } from "lucide-react";
+import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
 import { useOptimisticHide } from "@/components/admin/OptimisticHide";
 
 type Props = {
@@ -17,6 +18,8 @@ type Props = {
   canEdit: boolean;
 };
 
+type BusyAction = "approve" | "reject" | "mark_paid" | "update" | null;
+
 export function BillingActions({
   billingId,
   status,
@@ -27,7 +30,7 @@ export function BillingActions({
 }: Props) {
   const router = useRouter();
   const hideCard = useOptimisticHide();
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<BusyAction>(null);
   const [editing, setEditing] = useState(false);
   const [notes, setNotes] = useState("");
   const [editAmount, setEditAmount] = useState(String(Math.round(amount)));
@@ -35,14 +38,27 @@ export function BillingActions({
     dueDate ? new Date(dueDate).toISOString().slice(0, 10) : "",
   );
   const [editDesc, setEditDesc] = useState(description || "");
+  const loading = busy != null;
 
   const unpaid =
     status === "PENDING" ||
     status === "WAITING_VERIFICATION" ||
     status === "REJECTED";
 
-  async function patch(body: Record<string, unknown>) {
-    setLoading(true);
+  async function patch(
+    body: Record<string, unknown>,
+    action: NonNullable<BusyAction>,
+  ) {
+    const loadingMsg =
+      action === "approve"
+        ? "Menyetujui setor…"
+        : action === "reject"
+          ? "Menolak setor…"
+          : action === "mark_paid"
+            ? "Menandai lunas…"
+            : "Menyimpan perubahan…";
+    const toastId = showLoading(loadingMsg);
+    setBusy(action);
     try {
       const res = await fetch(`/api/admin/billing/${billingId}`, {
         method: "PATCH",
@@ -51,13 +67,12 @@ export function BillingActions({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showError(data.error || "Gagal memproses iuran");
+        showError(data.error || "Gagal memproses iuran", { id: toastId });
         return;
       }
-      showSuccess(data.message || "Berhasil disimpan");
+      showSuccess(data.message || "Berhasil disimpan", { id: toastId });
       setEditing(false);
       setNotes("");
-      const action = String(body.action ?? "");
       if (
         action === "approve" ||
         action === "reject" ||
@@ -66,8 +81,10 @@ export function BillingActions({
         hideCard?.();
       }
       startTransition(() => router.refresh());
+    } catch {
+      showError("Gagal memproses iuran", { id: toastId });
     } finally {
-      setLoading(false);
+      setBusy(null);
     }
   }
 
@@ -77,14 +94,26 @@ export function BillingActions({
       showError("Nominal tidak valid");
       return;
     }
-    await patch({
-      action: "update",
-      amount: amountNum,
-      dueDate: editDue
-        ? new Date(`${editDue}T00:00:00`).toISOString()
-        : undefined,
-      description: editDesc.trim() || null,
-    });
+    await patch(
+      {
+        action: "update",
+        amount: amountNum,
+        dueDate: editDue
+          ? new Date(`${editDue}T00:00:00`).toISOString()
+          : undefined,
+        description: editDesc.trim() || null,
+      },
+      "update",
+    );
+  }
+
+  function busyLabel(action: NonNullable<BusyAction>, label: string) {
+    if (busy === action) {
+      return (
+        <InkaiLogoLoader size="sm" showDots={false} className="shrink-0" />
+      );
+    }
+    return label;
   }
 
   if (!canEdit) return null;
@@ -133,7 +162,7 @@ export function BillingActions({
             disabled={loading}
             onClick={() => void saveEdit()}
           >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Simpan perubahan"}
+            {busyLabel("update", "Simpan perubahan")}
           </Button>
         </div>
       )}
@@ -144,6 +173,7 @@ export function BillingActions({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           className="h-8 w-full"
+          disabled={loading}
         />
       )}
 
@@ -152,30 +182,36 @@ export function BillingActions({
           <>
             <Button
               size="sm"
-              className="h-7 bg-green-600 hover:bg-green-700"
+              className="h-7 min-w-[4.5rem] bg-green-600 hover:bg-green-700"
               disabled={loading}
               onClick={() =>
-                void patch({
-                  action: "approve",
-                  ...(notes.trim() ? { adminNotes: notes.trim() } : {}),
-                })
+                void patch(
+                  {
+                    action: "approve",
+                    ...(notes.trim() ? { adminNotes: notes.trim() } : {}),
+                  },
+                  "approve",
+                )
               }
             >
-              Setujui
+              {busyLabel("approve", "Setujui")}
             </Button>
             <Button
               size="sm"
               variant="destructive"
-              className="h-7"
+              className="h-7 min-w-[4.5rem]"
               disabled={loading}
               onClick={() =>
-                void patch({
-                  action: "reject",
-                  ...(notes.trim() ? { adminNotes: notes.trim() } : {}),
-                })
+                void patch(
+                  {
+                    action: "reject",
+                    ...(notes.trim() ? { adminNotes: notes.trim() } : {}),
+                  },
+                  "reject",
+                )
               }
             >
-              Tolak
+              {busyLabel("reject", "Tolak")}
             </Button>
           </>
         )}
@@ -183,16 +219,19 @@ export function BillingActions({
         {(status === "PENDING" || status === "REJECTED") && (
           <Button
             size="sm"
-            className="h-7 bg-emerald-700 hover:bg-emerald-800"
+            className="h-7 min-w-[5.5rem] bg-emerald-700 hover:bg-emerald-800"
             disabled={loading}
             onClick={() =>
-              void patch({
-                action: "mark_paid",
-                ...(notes.trim() ? { adminNotes: notes.trim() } : {}),
-              })
+              void patch(
+                {
+                  action: "mark_paid",
+                  ...(notes.trim() ? { adminNotes: notes.trim() } : {}),
+                },
+                "mark_paid",
+              )
             }
           >
-            Tandai Lunas
+            {busyLabel("mark_paid", "Tandai Lunas")}
           </Button>
         )}
 
@@ -200,16 +239,19 @@ export function BillingActions({
           <Button
             size="sm"
             variant="outline"
-            className="h-7"
+            className="h-7 min-w-[5.5rem]"
             disabled={loading}
             onClick={() =>
-              void patch({
-                action: "mark_paid",
-                ...(notes.trim() ? { adminNotes: notes.trim() } : {}),
-              })
+              void patch(
+                {
+                  action: "mark_paid",
+                  ...(notes.trim() ? { adminNotes: notes.trim() } : {}),
+                },
+                "mark_paid",
+              )
             }
           >
-            Lunas (tunai)
+            {busyLabel("mark_paid", "Lunas (tunai)")}
           </Button>
         )}
       </div>

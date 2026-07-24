@@ -19,8 +19,9 @@ import {
   type ArrearsAging,
   type IuranLedgerBilling,
 } from "@/lib/iuran-ledger";
-import { showError, showSuccess } from "@/lib/client-toast";
-import { Loader2 } from "lucide-react";
+import { showError, showSuccess, showLoading } from "@/lib/client-toast";
+import { Loader2, Trash2 } from "lucide-react";
+import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
 import { BillingActions } from "./BillingActions";
 
 export type IuranSheetTab = "pengaturan" | "mutasi" | "pembayaran";
@@ -431,7 +432,23 @@ export function MemberIuranSheet({
                   Menampilkan {detail.billings.length} dari {detail.total}{" "}
                   mutasi iuran bulanan (UKT/event tidak disertakan).
                 </p>
-                <AuditTrailList entries={detail.auditTrail ?? []} />
+                <AuditTrailList
+                  entries={detail.auditTrail ?? []}
+                  memberId={detail.member.id}
+                  canEdit={canEdit}
+                  onDeleted={(id) =>
+                    setDetail((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            auditTrail: (prev.auditTrail ?? []).filter(
+                              (e) => e.id !== id,
+                            ),
+                          }
+                        : prev,
+                    )
+                  }
+                />
               </TabsContent>
 
               <TabsContent value="pembayaran" className="space-y-3">
@@ -498,7 +515,23 @@ export function MemberIuranSheet({
                     </div>
                   ))
                 )}
-                <AuditTrailList entries={detail.auditTrail ?? []} />
+                <AuditTrailList
+                  entries={detail.auditTrail ?? []}
+                  memberId={detail.member.id}
+                  canEdit={canEdit}
+                  onDeleted={(id) =>
+                    setDetail((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            auditTrail: (prev.auditTrail ?? []).filter(
+                              (e) => e.id !== id,
+                            ),
+                          }
+                        : prev,
+                    )
+                  }
+                />
               </TabsContent>
             </Tabs>
           </div>
@@ -514,9 +547,43 @@ export function MemberIuranSheet({
 
 function AuditTrailList({
   entries,
+  memberId,
+  canEdit,
+  onDeleted,
 }: {
   entries: NonNullable<LedgerDetail["auditTrail"]>;
+  memberId: string;
+  canEdit: boolean;
+  onDeleted: (id: string) => void;
 }) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function deleteEntry(id: string) {
+    if (!canEdit || deletingId) return;
+    const ok = window.confirm("Hapus jejak aksi ini dari rekening anggota?");
+    if (!ok) return;
+
+    const toastId = showLoading("Menghapus jejak aksi…");
+    setDeletingId(id);
+    try {
+      const res = await fetch(
+        `/api/admin/iuran/audit/${id}?memberId=${encodeURIComponent(memberId)}`,
+        { method: "DELETE" },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError(data.error || "Gagal menghapus jejak", { id: toastId });
+        return;
+      }
+      onDeleted(id);
+      showSuccess(data.message || "Jejak aksi dihapus", { id: toastId });
+    } catch {
+      showError("Gagal menghapus jejak", { id: toastId });
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   if (entries.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-3">
@@ -537,16 +604,45 @@ function AuditTrailList({
       <ul className="max-h-40 space-y-2 overflow-y-auto rounded-lg border p-2 text-xs">
         {entries.map((e) => {
           const notes = extractNotes(e.details);
+          const busy = deletingId === e.id;
           return (
-            <li key={e.id} className="border-b border-border/60 pb-2 last:border-0 last:pb-0">
-              <p className="font-medium">
-                {auditActionLabel(e.action, e.details)}
-              </p>
-              <p className="text-muted-foreground">
-                {e.email || "—"} · {formatDateTime(e.createdAt)}
-              </p>
-              {notes ? (
-                <p className="mt-0.5 text-muted-foreground">Catatan: {notes}</p>
+            <li
+              key={e.id}
+              className="flex items-start gap-2 border-b border-border/60 pb-2 last:border-0 last:pb-0"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">
+                  {auditActionLabel(e.action, e.details)}
+                </p>
+                <p className="text-muted-foreground">
+                  {e.email || "—"} · {formatDateTime(e.createdAt)}
+                </p>
+                {notes ? (
+                  <p className="mt-0.5 text-muted-foreground">
+                    Catatan: {notes}
+                  </p>
+                ) : null}
+              </div>
+              {canEdit ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-destructive"
+                  disabled={deletingId != null}
+                  aria-label="Hapus jejak aksi"
+                  onClick={() => void deleteEntry(e.id)}
+                >
+                  {busy ? (
+                    <InkaiLogoLoader
+                      size="sm"
+                      showDots={false}
+                      className="shrink-0"
+                    />
+                  ) : (
+                    <Trash2 className="size-3.5" />
+                  )}
+                </Button>
               ) : null}
             </li>
           );

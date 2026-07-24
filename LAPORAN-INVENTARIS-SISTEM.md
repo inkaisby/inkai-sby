@@ -85,7 +85,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Beranda | Aktif | Kartu anggota, **checklist keanggotaan + CTA**, dojo/jadwal/**absen hari ini**/PIC, aksi cepat kontekstual, UKT, agenda gabungan, badge pesan+notif; **dual-role: ikon Panel Admin** di header (sebelah logout) |
 | Profil | Aktif | Edit lengkap (foto, identitas, dokumen); **email/NIA/sabuk/MSH edit mandiri 1×** lalu pengajuan `PROFILE_CHANGE`; No. MSH (Hitam/DAN) di Kartu Anggota |
 | Absensi | Aktif | Riwayat + check-in GPS (kode QR opsional) |
-| Iuran | Aktif | Daftar tagihan + **lapor setor** (tanggal; nominal = tagihan; tanpa unggah bukti TF) |
+| Iuran | Aktif | Daftar tagihan + **lapor setor** (tanggal; nominal = tagihan; periode berjalan/**bulan sebelumnya**; tanpa unggah bukti TF) |
 | Kegiatan | Aktif | Pendaftaran event (dengan gate kelengkapan); UKT lewat kartu Status UKT (daftar mandiri) |
 | Materi Digital | Aktif | Katalog materi dari cabang (unduh/buka file) |
 | Store | Aktif | Katalog produk + pesan (stok) |
@@ -205,9 +205,9 @@ Pusat / Nasional
 
 ### 9.2 Iuran
 1. Tagihan iuran bulanan muncul di sistem (nominal dari **Iuran/bln** per anggota saat generate).
-2. Anggota melihat tagihan di `/dashboard/iuran`, **menyetor manual ke ranting** (bukti fisik offline), lalu **melaporkan tanggal bayar** (nominal readonly = tagihan; **tanpa unggah** bukti TF). Status → `WAITING_VERIFICATION`.
+2. Anggota melihat tagihan di `/dashboard/iuran`, **menyetor manual ke ranting** (bukti fisik offline), lalu **melaporkan tanggal bayar** untuk tagihan yang ada **atau periode bulan sebelumnya** (maks. 24 bulan; nominal = Iuran/bln; tagihan dibuat otomatis bila belum digenerate). **Tanpa unggah** bukti TF. Status → `WAITING_VERIFICATION`.
 3. **Ketua ranting / cabang** di `/admin/iuran` melihat **daftar anggota** (rekening koran) scoped ranting/cabang, dengan rekap tunggakan, status bulan, aging, dan kolom **Pengecualian** (tidak wajib lunas iuran untuk daftar event/UKT atau lainnya).
-4. Klik nama anggota membuka Sheet rekening: **Pengaturan** (Iuran/bln + pengecualian), **Mutasi** (riwayat iuran bulanan; Debit/Kredit; metode + **tgl setor**), **Pembayaran** (setujui/tolak/tandai lunas laporan setor).
+4. Klik nama anggota membuka Sheet rekening: **Pengaturan** (Iuran/bln + pengecualian), **Mutasi** (riwayat iuran bulanan; Debit/Kredit; metode + **tgl setor**), **Pembayaran** (setujui/tolak/tandai lunas laporan setor). Ranting/cabang dapat **hapus jejak aksi** lokal di Sheet.
 5. Strip **Perlu aksi** menampilkan antrian `WAITING_VERIFICATION` (tgl setor) dengan setujui cepat. **Bulk lunas tunai** (centang anggota → tandai lunas periode filter) tetap ada jika anggota lupa lapor.
 6. **Iuran/bln per anggota** dapat diubah di Sheet Iuran atau detail `/admin/anggota` (`PATCH set_dues`); generate tagihan bulanan memakai nominal per anggota bila ada, else default kebijakan; anggota pengecualian di-skip generate.
 7. Status: `PENDING` → `WAITING_VERIFICATION` (lapor setor anggota) → `PAID` / ditolak. `Payment.paidAt` dari tanggal laporan anggota **dipertahankan** saat approve. Aksi lapor/verifikasi/lunas/edit menulis **jejak aksi** ke audit lokal + Inkai; tampil di Sheet Mutasi/Pembayaran.
@@ -353,6 +353,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/billing/generate Buat tagihan iuran bulanan massal
 /api/admin/billing/bulk-mark-paid  Lunas tunai massal per periode (memberIds + year/month)
 /api/admin/iuran/members/[id]  Detail rekening iuran anggota (profil + mutasi bulanan + summary tunggakan + jejak aksi; scoped RBAC)
+/api/admin/iuran/audit/[id]    DELETE jejak aksi lokal rekening iuran (ranting/cabang, scoped member)
 /api/admin/ukt/registrations/[id]  Update/hapus pendaftaran UKT (`submit_for_verification` / `mark_paid` / Kyu; cabang force hapus: API lalu fallback Prisma shared DB)
 /api/admin/ukt/table        Refresh cepat tabel UKT (snapshot registrasi/tagihan periode, merge ke rows lokal)
 /api/admin/ukt/*            Periode, register, waiver, nota, hasil ujian, fees (snapshot/global), Kyu, exam-day, deposit, period-meta, invite (siapkan snapshot), hapus pendaftaran + tagihan terkait; sync undangan publik `ukt-invite:{id}`
@@ -384,6 +385,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/member/pindah          Ajuan pindah dojo
 /api/member/piagam          Unggah piagam
 /api/member/billing/[id]    Lapor setor iuran (paidAt + amount; ownership check; Prisma + Inkai)
+/api/member/billing/report-period  Lapor setor per periode YYYY-MM (bulan berjalan/sebelumnya; buat tagihan bila perlu)
 /api/member/attendance/checkin  Check-in absensi GPS
 /api/notifications/*        Notifikasi (anggota: akun sendiri; admin ranting: ranting+ops cabang; tanpa notif pribadi anggota)
 /api/dojos                  Daftar dojo publik
@@ -628,6 +630,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | **UKT daftar mandiri:** anggota Daftar UKT sekarang + gate syarat + konfirmasi bayar; ranting Terima/Tolak → cabang Verifikasi; anti-bocor nominal di iuran anggota; unique `(eventId,memberId)`; API `POST /api/member/ukt/register` + `confirm-payment` |
 | 24 Juli 2026 | Perf kartu UKT anggota: parallel fetch; Prisma-first (tanpa dump registrasi Inkai); gate eligibility ditunda ke klik daftar; optimistic UI tanpa refetch ganda |
 | 24 Juli 2026 | **Iuran setor ranting:** anggota lapor tanggal bayar (nominal = tagihan, tanpa unggah bukti); ranting konfirmasi di Sheet/antrian; preserve `paidAt`; Mutasi/Pembayaran tampil tgl setor |
+| 24 Juli 2026 | Iuran Sheet: ranting/cabang **hapus jejak aksi** lokal (`DELETE /api/admin/iuran/audit/[id]`) + toast loading logo INKAI pada aksi verifikasi/hapus |
+| 24 Juli 2026 | Iuran anggota: lapor setor **periode sebelumnya** (`POST /api/member/billing/report-period`, maks 24 bln) + toast loading logo INKAI |
 
 ---
 

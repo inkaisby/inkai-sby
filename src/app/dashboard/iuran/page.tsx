@@ -6,6 +6,7 @@ import { MemberPageHeader } from "@/components/member/MemberPageHeader";
 import { IuranListClient } from "@/components/member/IuranListClient";
 import { prisma } from "@/lib/prisma";
 import { isMonthlyDuesBilling } from "@/lib/iuran-ledger";
+import { getOperationalDefaults } from "@/lib/org-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default async function IuranPage() {
   if (!token) redirect("/login");
 
   const memberId = session.user.memberId;
-  const [inkaiBillings, localBillings] = await Promise.all([
+  const [inkaiBillings, localBillings, member, defaults] = await Promise.all([
     fetchMyBillings(token, 50),
     prisma.billing.findMany({
       where: { memberId, isDeleted: false },
@@ -38,7 +39,19 @@ export default async function IuranPage() {
         },
       },
     }),
+    prisma.member.findFirst({
+      where: { id: memberId, isDeleted: false },
+      select: { monthlyDuesAmount: true },
+    }),
+    getOperationalDefaults(),
   ]);
+
+  const monthlyDuesAmount =
+    member &&
+    Number.isFinite(member.monthlyDuesAmount) &&
+    member.monthlyDuesAmount > 0
+      ? member.monthlyDuesAmount
+      : defaults.monthlyDuesAmount;
 
   const localById = new Map(localBillings.map((b) => [b.id, b]));
   const inkaiIds = new Set(
@@ -66,14 +79,14 @@ export default async function IuranPage() {
       id,
       type: b.type != null ? String(b.type) : local?.type,
       description:
-        b.description != null ? String(b.description) : local?.description ?? null,
+        b.description != null
+          ? String(b.description)
+          : (local?.description ?? null),
       dueDate:
-        b.dueDate != null
-          ? String(b.dueDate)
-          : local?.dueDate.toISOString(),
+        b.dueDate != null ? String(b.dueDate) : local?.dueDate.toISOString(),
       amount: Number(b.amount ?? local?.amount ?? 0),
-      // Prisma menang untuk status/payment setelah laporan setor lokal
-      status: local?.status ?? (b.status != null ? String(b.status) : undefined),
+      status:
+        local?.status ?? (b.status != null ? String(b.status) : undefined),
       payment: local?.payment
         ? {
             proofUrl: local.payment.proofUrl,
@@ -109,10 +122,13 @@ export default async function IuranPage() {
       <MemberPageHeader title="Iuran & Tagihan" />
       <p className="mb-4 text-sm text-muted-foreground">
         Setor iuran secara manual ke pengurus ranting, lalu laporkan tanggal
-        bayar di sini. Bukti fisik diserahkan ke ranting — tidak perlu unggah.
-        Pengurus akan mengonfirmasi.
+        bayar di sini — termasuk bulan sebelumnya. Bukti fisik diserahkan ke
+        ranting; pengurus akan mengonfirmasi.
       </p>
-      <IuranListClient billings={merged} />
+      <IuranListClient
+        billings={merged}
+        monthlyDuesAmount={monthlyDuesAmount}
+      />
     </>
   );
 }

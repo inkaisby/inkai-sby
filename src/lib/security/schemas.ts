@@ -675,6 +675,17 @@ export const memberBillingPaymentReportSchema = z.object({
   paymentMethod: z.string().trim().max(40).optional(),
 });
 
+/** Laporan setor untuk periode bulanan (boleh bulan sebelumnya). */
+export const memberBillingPeriodReportSchema = z.object({
+  period: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, "Periode tidak valid"),
+  paidAt: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal bayar tidak valid"),
+  paymentMethod: z.string().trim().max(40).optional(),
+});
+
 /** PATCH profil anggota sendiri. Email/NIA/sabuk/MSH: edit mandiri maks. 1x. */
 export const memberSelfProfileSchema = z.object({
   fullName: optionalBlankString(

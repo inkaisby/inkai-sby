@@ -15,8 +15,8 @@ import {
   type MonthStatus,
   type WaitingQueueItem,
 } from "@/lib/iuran-ledger";
-import { showError, showSuccess } from "@/lib/client-toast";
-import { Loader2 } from "lucide-react";
+import { showError, showSuccess, showLoading } from "@/lib/client-toast";
+import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
 import {
   MemberIuranSheet,
   type IuranSheetTab,
@@ -174,6 +174,7 @@ export function IuranLedgerClient({
     );
     if (!ok) return;
 
+    const toastId = showLoading(`Menandai lunas ${ids.length} anggota…`);
     setBulkBusy(true);
     try {
       const res = await fetch("/api/admin/billing/bulk-mark-paid", {
@@ -188,18 +189,21 @@ export function IuranLedgerClient({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showError(data.error || "Gagal lunas massal");
+        showError(data.error || "Gagal lunas massal", { id: toastId });
         return;
       }
-      showSuccess(data.message || "Berhasil");
+      showSuccess(data.message || "Berhasil", { id: toastId });
       setSelected(new Set());
       startTransition(() => router.refresh());
+    } catch {
+      showError("Gagal lunas massal", { id: toastId });
     } finally {
       setBulkBusy(false);
     }
   }
 
   async function quickApprove(billingId: string) {
+    const toastId = showLoading("Menyetujui setor…");
     setApprovingId(billingId);
     try {
       const res = await fetch(`/api/admin/billing/${billingId}`, {
@@ -209,11 +213,13 @@ export function IuranLedgerClient({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showError(data.error || "Gagal menyetujui");
+        showError(data.error || "Gagal menyetujui", { id: toastId });
         return;
       }
-      showSuccess(data.message || "Bukti disetujui");
+      showSuccess(data.message || "Setor disetujui", { id: toastId });
       startTransition(() => router.refresh());
+    } catch {
+      showError("Gagal menyetujui", { id: toastId });
     } finally {
       setApprovingId(null);
     }
@@ -301,7 +307,11 @@ export function IuranLedgerClient({
                           onClick={() => void quickApprove(item.billingId)}
                         >
                           {approvingId === item.billingId ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <InkaiLogoLoader
+                              size="sm"
+                              showDots={false}
+                              className="shrink-0"
+                            />
                           ) : (
                             "Setujui"
                           )}
@@ -329,7 +339,11 @@ export function IuranLedgerClient({
             onClick={() => void bulkMarkPaid()}
           >
             {bulkBusy ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <InkaiLogoLoader
+                size="sm"
+                showDots={false}
+                className="shrink-0"
+              />
             ) : (
               `Tandai lunas tunai (${periodKey})`
             )}
