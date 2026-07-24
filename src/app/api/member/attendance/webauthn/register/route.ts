@@ -15,6 +15,11 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
+  if (url.searchParams.get("peek") === "1") {
+    const existing = await loadAttendanceWebAuthnCredential(session.user.id);
+    return NextResponse.json({ registered: Boolean(existing) });
+  }
+
   const host =
     request.headers.get("x-forwarded-host") ||
     request.headers.get("host") ||

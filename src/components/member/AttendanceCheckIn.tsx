@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,7 @@ export function AttendanceCheckIn({
   homeDojoName?: string | null;
 }) {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [loading, setLoading] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [qrPayload, setQrPayload] = useState("");
@@ -49,13 +50,20 @@ export function AttendanceCheckIn({
   const [bioBusy, setBioBusy] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && window.PublicKeyCredential) {
-      setBioSupported(true);
-      void fetch("/api/member/attendance/webauthn/register")
+    if (typeof window === "undefined" || !window.PublicKeyCredential) return;
+    setBioSupported(true);
+    const run = () => {
+      void fetch("/api/member/attendance/webauthn/register?peek=1")
         .then((r) => r.json())
         .then((d) => setBioRegistered(Boolean(d.registered)))
         .catch(() => undefined);
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(run, { timeout: 2000 });
+      return () => window.cancelIdleCallback(id);
     }
+    const t = window.setTimeout(run, 400);
+    return () => window.clearTimeout(t);
   }, []);
 
   async function loadLocations() {
@@ -202,7 +210,9 @@ export function AttendanceCheckIn({
       setSelectedDojoId(null);
       setSelectedEventId(null);
       setOverrideOpen(false);
-      router.refresh();
+      startTransition(() => {
+        router.refresh();
+      });
     } catch (error) {
       const message =
         error instanceof GeolocationPositionError

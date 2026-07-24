@@ -113,7 +113,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Materi Digital | CRUD + **upload Blob** + **publish/draft** |
 | Store | CRUD produk (**edit/stok/aktif**) + status pesanan berlabel ID |
 | Pesan | Inbox + unread badge, cari, balas, **broadcast notifikasi** |
-| Absensi | **Progress** semua anggota (tabel klik → Sheet detail) + harian + belum hadir + export; soft-backfill menu ranting |
+| Absensi | **Progress** tabel klik→Sheet + harian + belum hadir; **tab client instan** (tanpa delay navigasi); export; soft-backfill menu ranting |
 | Carousel Beranda | Upload gambar + aktif + **urutkan** |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
 | Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; tanpa force-logout; ranting tidak akses |
@@ -641,6 +641,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | Beranda anggota: hapus section Agenda (bug undefined); slim critical fetch; sticky header; cache token + overlay profil paralel |
 | 24 Juli 2026 | Tambah Anggota: field **No. MSH** opsional (Sabuk); persist Prisma + unique/Hitam-DAN + notif admin |
 | 24 Juli 2026 | Absensi: streaming UI anggota; GPS multi-lokasi + geofence server; biometrik WebAuthn; 1×/hari + % hari unik; label progres; admin tabel Progress+Sheet; notif check-in; soft-backfill menu Absensi ranting |
+| 24 Juli 2026 | Absensi admin: tab Progress/Harian/Belum **client-side instan** (tanpa RSC reload); payload log dibatasi; peek biometrik ringan |
 
 ---
 
