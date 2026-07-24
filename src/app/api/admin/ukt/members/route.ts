@@ -173,6 +173,20 @@ export async function GET(request: Request) {
       hydrateHasDocs: hasDocs,
     };
 
+    // #region agent log
+    console.info("[ukt-dbg f0acf0]", {
+      hypothesisId: "B",
+      location: "members/route.ts:hydrate",
+      message: "hydrate uktRow",
+      data: {
+        role: primaryRole,
+        eligibilityOk: eligibility.ok,
+        blockerCount: blockers.length,
+        hasDojo: Boolean(scopedMember.dojoId),
+      },
+    });
+    // #endregion
+
     return NextResponse.json({ uktRow });
   }
 

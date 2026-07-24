@@ -39,9 +39,25 @@ export async function GET(request: Request) {
     // Fail-closed: tanpa ranting terkelola atau di luar allowlist → tidak ada saran.
     const allowlist = getManagedDojoIdsFromUser(authResult.user);
     if (allowlist.length === 0) {
+      // #region agent log
+      console.info("[ukt-dbg f0acf0]", {
+        hypothesisId: "A",
+        location: "suggest/route.ts:empty-allowlist",
+        message: "suggest empty allowlist",
+        data: { role: primaryRole, qLen: q.length },
+      });
+      // #endregion
       return NextResponse.json({ suggestions: [] });
     }
     if (dojoId && !allowlist.includes(dojoId)) {
+      // #region agent log
+      console.info("[ukt-dbg f0acf0]", {
+        hypothesisId: "A",
+        location: "suggest/route.ts:dojo-denied",
+        message: "suggest dojo outside allowlist",
+        data: { role: primaryRole, qLen: q.length, hasDojo: Boolean(dojoId) },
+      });
+      // #endregion
       return NextResponse.json({ suggestions: [] });
     }
     const scopedDojoIds = dojoId ? [dojoId] : allowlist;
@@ -70,6 +86,20 @@ export async function GET(request: Request) {
       orderBy: { fullName: "asc" },
     });
 
+    // #region agent log
+    console.info("[ukt-dbg f0acf0]", {
+      hypothesisId: "A",
+      location: "suggest/route.ts:prisma",
+      message: "suggest prisma result",
+      data: {
+        role: primaryRole,
+        qLen: q.length,
+        count: members.length,
+        source: "prisma",
+      },
+    });
+    // #endregion
+
     return NextResponse.json({
       suggestions: members.map((m) => ({
         id: m.id,
@@ -88,10 +118,31 @@ export async function GET(request: Request) {
 
   const { res, data } = await inkaiFetch(`/v1/members?${qs}`, {}, authResult.token);
   if (!res.ok) {
+    // #region agent log
+    console.info("[ukt-dbg f0acf0]", {
+      hypothesisId: "A",
+      location: "suggest/route.ts:inkai-fail",
+      message: "suggest inkai failed",
+      data: { role: primaryRole, qLen: q.length, status: res.status },
+    });
+    // #endregion
     return NextResponse.json({ suggestions: [] });
   }
 
   const members = (data.data as Array<Record<string, unknown>>) ?? [];
+  // #region agent log
+  console.info("[ukt-dbg f0acf0]", {
+    hypothesisId: "A",
+    location: "suggest/route.ts:inkai-ok",
+    message: "suggest inkai result",
+    data: {
+      role: primaryRole,
+      qLen: q.length,
+      count: members.length,
+      source: "inkai",
+    },
+  });
+  // #endregion
   return NextResponse.json({
     suggestions: members.map((m) => ({
       id: m.id,

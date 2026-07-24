@@ -120,7 +120,34 @@ export function UktSearchBar({
           const data = (await res.json()) as {
             suggestions?: RemoteSuggestion[];
           };
-          if (res.ok) setRemote(data.suggestions ?? []);
+          const list = res.ok ? (data.suggestions ?? []) : [];
+          // #region agent log
+          fetch(
+            "http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Debug-Session-Id": "f0acf0",
+              },
+              body: JSON.stringify({
+                sessionId: "f0acf0",
+                hypothesisId: "A",
+                location: "UktSearchBar.tsx:suggest",
+                message: "client suggest response",
+                data: {
+                  ok: res.ok,
+                  status: res.status,
+                  count: list.length,
+                  qLen: q.length,
+                  hasDojoFilter: Boolean(dojoFilter),
+                },
+                timestamp: Date.now(),
+              }),
+            },
+          ).catch(() => {});
+          // #endregion
+          if (res.ok) setRemote(list);
           else setRemote([]);
         })
         .catch(() => setRemote([]))

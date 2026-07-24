@@ -2726,13 +2726,67 @@ export function UktDashboard(props: Props) {
                     uktRow?: UktMemberRow;
                   }>(res);
                   if (!res.ok || !data.uktRow) {
+                    // #region agent log
+                    fetch(
+                      "http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f",
+                      {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          "X-Debug-Session-Id": "f0acf0",
+                        },
+                        body: JSON.stringify({
+                          sessionId: "f0acf0",
+                          hypothesisId: "B",
+                          location: "UktDashboard.tsx:hydrate-fail",
+                          message: "hydrate failed",
+                          data: {
+                            status: res.status,
+                            hasError: Boolean(data.error),
+                          },
+                          timestamp: Date.now(),
+                        }),
+                      },
+                    ).catch(() => {});
+                    // #endregion
                     throw new Error(data.error || "Gagal memuat anggota");
                   }
+                  const row = data.uktRow;
+                  const hiddenByDojo = Boolean(
+                    effectiveDojoIds &&
+                      !effectiveDojoIds.includes(row.dojoId),
+                  );
+                  // #region agent log
+                  fetch(
+                    "http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f",
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        "X-Debug-Session-Id": "f0acf0",
+                      },
+                      body: JSON.stringify({
+                        sessionId: "f0acf0",
+                        hypothesisId: "C",
+                        location: "UktDashboard.tsx:hydrate-ok",
+                        message: "hydrate ok before setRows",
+                        data: {
+                          localView,
+                          localQLen: localQ.trim().length,
+                          hiddenByDojo,
+                          hasDojoFilter: Boolean(effectiveDojoIds),
+                          status: row.status,
+                        },
+                        timestamp: Date.now(),
+                      }),
+                    },
+                  ).catch(() => {});
+                  // #endregion
                   setRows((prev) => {
-                    if (prev.some((r) => r.memberId === data.uktRow!.memberId)) {
+                    if (prev.some((r) => r.memberId === row.memberId)) {
                       return prev;
                     }
-                    return [...prev, data.uktRow!];
+                    return [...prev, row];
                   });
                   toast.success("Anggota siap didaftarkan UKT", { id: toastId });
                 } catch (e) {
