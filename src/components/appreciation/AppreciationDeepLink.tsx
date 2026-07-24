@@ -22,29 +22,6 @@ export function AppreciationScrollTarget({
   useEffect(() => {
     if (!targetId) return;
     const el = document.getElementById(`apresiasi-${targetId}`);
-    // #region agent log
-    fetch("http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "b14776",
-      },
-      body: JSON.stringify({
-        sessionId: "b14776",
-        runId: "post-fix",
-        hypothesisId: "A",
-        location: "AppreciationDeepLink.tsx:ScrollTarget",
-        message: "scrollIntoView attempted",
-        data: {
-          targetId,
-          elFound: !!el,
-          href: typeof window !== "undefined" ? window.location.href : "",
-          search: typeof window !== "undefined" ? window.location.search : "",
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     if (!el) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.scrollIntoView({
@@ -58,45 +35,16 @@ export function AppreciationScrollTarget({
 
 /** Thumbnail: buka lightbox foto (bukan navigasi ?tokoh=). */
 export function AppreciationPhotoLink({
-  path: _path,
   name,
   photoUrl,
   isKenangan,
 }: {
-  path: string;
+  path?: string;
   name: string;
   photoUrl: string | null;
   isKenangan: boolean;
 }) {
   const [open, setOpen] = useState(false);
-
-  function onPhotoClick() {
-    // #region agent log
-    fetch("http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Debug-Session-Id": "b14776",
-      },
-      body: JSON.stringify({
-        sessionId: "b14776",
-        runId: "post-fix",
-        hypothesisId: "D",
-        location: "AppreciationDeepLink.tsx:PhotoLink.click",
-        message: "photo clicked — open lightbox",
-        data: {
-          hasPhoto: !!photoUrl,
-          currentHref: window.location.href,
-          currentSearch: window.location.search,
-          scrollY: window.scrollY,
-          willOpenLightbox: !!photoUrl,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-    if (photoUrl) setOpen(true);
-  }
 
   if (!photoUrl) {
     return (
@@ -118,7 +66,7 @@ export function AppreciationPhotoLink({
     <>
       <button
         type="button"
-        onClick={onPhotoClick}
+        onClick={() => setOpen(true)}
         className="relative size-16 shrink-0 overflow-hidden rounded-full ring-1 ring-border/60 transition-opacity hover:opacity-90 sm:size-20"
         aria-label={`Lihat foto ${name}`}
       >
