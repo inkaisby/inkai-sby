@@ -1,23 +1,23 @@
 {
-  "version": "1",
+  "version": "2",
   "enabled": true,
   "title": "Panduan singkat",
-  "subtitle": "Beberapa hal yang membantu Anda mulai menggunakan dashboard anggota INKAI Surabaya.",
+  "subtitle": "Beberapa hal penting untuk mulai memakai dashboard anggota INKAI Surabaya.",
   "items": [
     {
-      "heading": "Dashboard",
-      "text": "Di beranda Anda melihat kartu anggota, pintasan fitur, dan informasi event."
+      "heading": "Pendaftaran & profil",
+      "text": "Lengkapi profil dan dokumen (Akte, BPJS) agar bisa mendaftar kegiatan dan UKT."
     },
     {
-      "heading": "Profil & kelengkapan data",
-      "text": "Lengkapi profil dan dokumen yang diminta agar bisa mendaftar kegiatan."
+      "heading": "Iuran & absensi",
+      "text": "Setor iuran ke ranting lalu laporkan di menu Iuran. Absensi memakai GPS di dojo."
     },
     {
-      "heading": "Notifikasi & pesan",
-      "text": "Periksa ikon lonceng dan menu pesan untuk pengumuman dari pengurus."
+      "heading": "UKT & menu lain",
+      "text": "Daftar UKT dari kartu Status UKT di beranda. Aksi cepat membuka Absensi, Iuran, Event, dan lainnya."
     }
   ],
-  "footer": "Anda bisa membaca panduan ini lagi lewat ikon panduan di beranda.",
+  "footer": "Buka halaman Panduan untuk langkah lengkap dan video tutorial.",
   "primaryCtaLabel": "Mengerti, jangan tampilkan lagi",
   "fullGuideLinkLabel": "Buka halaman panduan",
   "fullGuidePath": "/dashboard/panduan"

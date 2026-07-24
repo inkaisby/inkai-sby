@@ -1,0 +1,72 @@
+{
+  "version": "1",
+  "title": "Tutorial anggota",
+  "subtitle": "Panduan langkah demi langkah: pendaftaran, menu dashboard, UKT, iuran, dan absensi.",
+  "sections": [
+    {
+      "id": "pendaftaran",
+      "title": "Pendaftaran anggota",
+      "summary": "Daftar mandiri dari situs, lengkapi data, lalu menunggu verifikasi pengurus sebelum bisa login.",
+      "youtubeUrl": "",
+      "steps": [
+        "Buka halaman Daftar (menu Daftar atau /login dengan tab daftar).",
+        "Isi Identitas: nama, jenis kelamin, tempat dan tanggal lahir, alamat, NIK 16 digit, telepon. NIA boleh kosong.",
+        "Pilih sabuk (Kyu/DAN) saat ini.",
+        "Buat akun: email dan kata sandi (minimal 8 karakter).",
+        "Pilih dojo atau ranting Cabang Surabaya.",
+        "Kirim formulir. Status Anda menunggu verifikasi pengurus — login baru tersedia setelah disetujui."
+      ]
+    },
+    {
+      "id": "menu",
+      "title": "Menu dashboard",
+      "summary": "Setelah login, gunakan beranda, aksi cepat, dan panduan untuk mengakses fitur utama.",
+      "youtubeUrl": "",
+      "steps": [
+        "Masuk ke beranda dashboard: kartu anggota, checklist kelengkapan, dan info dojo.",
+        "Header: ikon Panduan, Pesan, dan Notifikasi.",
+        "Aksi cepat: Absensi, Iuran, Event, Pesan, Sabuk, serta Dokumen atau Materi.",
+        "Buka Lainnya untuk Store, Piagam, Pelatihan, Pindah Dojo, Riwayat, dan lainnya.",
+        "Tab bawah Profil untuk mengubah data diri. Buka Panduan kapan saja untuk membaca ulang langkah ini."
+      ]
+    },
+    {
+      "id": "ukt",
+      "title": "Daftar UKT",
+      "summary": "Daftar ujian kenaikan tingkat dari kartu Status UKT. Biaya dikonfirmasi ranting — nominal tidak ditampilkan di dashboard anggota.",
+      "youtubeUrl": "",
+      "steps": [
+        "Di beranda, buka kartu Status UKT (atau Prestasi → Sabuk) saat periode UKT aktif.",
+        "Pastikan syarat terpenuhi: iuran, dokumen Akte dan BPJS, serta absensi sesuai kebijakan.",
+        "Ketuk Daftar UKT sekarang. Jika syarat kurang, ikuti checklist dan tautan perbaikan.",
+        "Status menjadi Menunggu Terima Ranting. Bayar secara offline ke ranting Anda.",
+        "Setelah membayar, ketuk Konfirmasi sudah bayar. Ranting akan menerima atau menolak; cabang memverifikasi hingga menunggu ujian."
+      ]
+    },
+    {
+      "id": "iuran",
+      "title": "Iuran",
+      "summary": "Setor iuran ke ranting, lalu laporkan tanggal bayar di aplikasi tanpa unggah bukti transfer.",
+      "youtubeUrl": "",
+      "steps": [
+        "Setor iuran secara manual atau offline ke pengurus ranting (bukti fisik).",
+        "Buka menu Iuran di dashboard.",
+        "Laporkan setor: pilih periode bulan (berjalan atau sebelumnya) dan tanggal pembayaran, atau laporkan per baris tagihan.",
+        "Status berubah Menunggu verifikasi hingga pengurus menyetujui atau menolak."
+      ]
+    },
+    {
+      "id": "absensi",
+      "title": "Absensi",
+      "summary": "Check-in latihan dengan GPS di dojo. Opsional memakai kode QR atau biometrik. Satu kali per hari.",
+      "youtubeUrl": "",
+      "steps": [
+        "Buka menu Absensi saat berada di lokasi latihan.",
+        "Opsional: pilih dojo atau event jika bukan lokasi default, atau tempel kode QR.",
+        "Opsional: aktifkan absen biometrik; lokasi GPS tetap diperlukan.",
+        "Ketuk Absen dengan lokasi dan izinkan akses lokasi.",
+        "Periksa riwayat kehadiran. Absensi hanya sekali per hari."
+      ]
+    }
+  ]
+}

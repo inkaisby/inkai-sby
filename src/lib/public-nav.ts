@@ -1,5 +1,6 @@
 export const publicNavLinks = [
   { href: "/", label: "Beranda", matchPrefix: false },
+  { href: "/tutorial", label: "Tutorial", matchPrefix: false },
   { href: "/sejarah", label: "Sejarah", matchPrefix: false },
   { href: "/struktur", label: "Struktur", matchPrefix: false },
   { href: "/dojo", label: "Dojo / Ranting", matchPrefix: true },

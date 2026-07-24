@@ -57,6 +57,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Route | Fungsi |
 |-------|--------|
 | `/` | Beranda, carousel berita, CTA login/daftar |
+| `/tutorial` | **Tutorial anggota** (langkah + slot embed YouTube): pendaftaran, menu dashboard, UKT, iuran, absensi; CTA Daftar/Masuk; nav header **Tutorial** |
 | `/sejarah` | Sejarah organisasi |
 | `/makna-lambang` | Filosofi lambang |
 | `/visi-misi` | Visi & misi |
@@ -94,7 +95,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Notifikasi | Aktif | Notifikasi **akun sendiri** saja (filter fan-out Inkai + sembunyikan notif ops admin) |
 | Pesan | Aktif | Chat dengan pengurus |
 | Pindah Dojo | Aktif | Ajuan pindah ranting → verifikasi |
-| Panduan | Aktif | Panduan penggunaan |
+| Panduan | Aktif | Langkah lengkap + slot video (`guide/member-tutorials.json`); welcome singkat di beranda |
 | Riwayat | Aktif | Kegiatan yang sudah lewat |
 
 ---
@@ -642,6 +643,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | Tambah Anggota: field **No. MSH** opsional (Sabuk); persist Prisma + unique/Hitam-DAN + notif admin |
 | 24 Juli 2026 | Absensi: streaming UI anggota; GPS multi-lokasi + geofence server; biometrik WebAuthn; 1×/hari + % hari unik; label progres; admin tabel Progress+Sheet; notif check-in; soft-backfill menu Absensi ranting |
 | 24 Juli 2026 | Absensi admin: tab Progress/Harian/Belum **client-side instan** (tanpa RSC reload); payload log dibatasi; peek biometrik ringan |
+| 24 Juli 2026 | **Tutorial:** skrip video anggota+pengurus (`guide/tutorials/`); `/tutorial` publik (tab nav) + `/dashboard/panduan` langkah+embed YouTube; welcome v2 |
 
 ---
 
