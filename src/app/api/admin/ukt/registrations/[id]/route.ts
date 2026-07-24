@@ -16,8 +16,10 @@ import {
 import { uktRegistrationUpdateSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import { prisma } from "@/lib/prisma";
 import { uktExamResultKey } from "@/lib/ukt";
+import { assertUktPeriodMutable } from "@/lib/ukt-period-meta-store";
 import { notifyUktStatusChange } from "@/lib/ukt-notify";
 import { notifyUktBranchAdmins } from "@/lib/ukt-period-notify";
 import {
@@ -34,6 +36,41 @@ import {
 } from "@/lib/ukt-self-registration";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+/** Cari eventId sebuah registrasi UKT (Prisma dulu, lalu Inkai) untuk gate periode. */
+async function resolveEventIdForRegistration(
+  token: string,
+  registrationId: string,
+  hintEventId?: string | null,
+): Promise<string | null> {
+  if (hintEventId) return hintEventId;
+  try {
+    const local = await prisma.eventRegistration.findFirst({
+      where: { id: registrationId },
+      select: { eventId: true },
+    });
+    if (local?.eventId) return local.eventId;
+  } catch (error) {
+    console.error("[UKT] resolveEventIdForRegistration prisma lookup failed", error);
+  }
+  try {
+    const { res, data } = await inkaiFetch(
+      `/v1/events/register/${registrationId}`,
+      {},
+      token,
+      { timeoutMs: 5_000, retries: 0 },
+    );
+    if (res.ok) {
+      const reg = data.data as Record<string, unknown>;
+      const event = reg.event as { id?: string } | undefined;
+      const eventId = String(event?.id ?? reg.eventId ?? "");
+      if (eventId) return eventId;
+    }
+  } catch (error) {
+    console.error("[UKT] resolveEventIdForRegistration inkai lookup failed", error);
+  }
+  return null;
+}
 
 function mapActionToStatus(data: {
   action?: string;
@@ -437,6 +474,12 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
   }
 
+  const rlKey = `ukt:registrations-patch:${authResult.user.id}`;
+  const limited = await rateLimitAsync(rlKey, { max: 30, windowMs: 60_000 });
+  if (!limited.success) {
+    return rateLimitResponse(limited.retryAfterSec ?? 60, rlKey);
+  }
+
   const { id } = await context.params;
   const body = await request.json();
   const parsed = uktRegistrationUpdateSchema.safeParse(body);
@@ -447,6 +490,24 @@ export async function PATCH(request: Request, context: RouteContext) {
   const data = parsed.data;
   const role = getPrimaryAdminRole(authResult.user.roles);
   const isCabang = canEditKyuBaru(authResult.user.roles);
+
+  const eventIdForAssert = await resolveEventIdForRegistration(
+    authResult.token,
+    id,
+    data.eventId,
+  );
+  if (eventIdForAssert) {
+    const periodMutable = await assertUktPeriodMutable(
+      authResult.token,
+      eventIdForAssert,
+    );
+    if (!periodMutable.ok) {
+      return NextResponse.json(
+        { error: periodMutable.error },
+        { status: periodMutable.status },
+      );
+    }
+  }
 
   if (data.examResult) {
     if (!isCabang) {
@@ -602,9 +663,14 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (role === "ADMIN_DOJO") {
       const allowlist = getManagedDojoIdsFromUser(authResult.user);
+      if (allowlist.length === 0) {
+        return NextResponse.json(
+          { error: "Ranting tidak terkonfigurasi" },
+          { status: 403 },
+        );
+      }
       if (
-        allowlist.length > 0 &&
-        localReg.member.dojoId &&
+        !localReg.member.dojoId ||
         !allowlist.includes(localReg.member.dojoId)
       ) {
         return NextResponse.json(
@@ -767,9 +833,14 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (role === "ADMIN_DOJO") {
       const allowlist = getManagedDojoIdsFromUser(authResult.user);
+      if (allowlist.length === 0) {
+        return NextResponse.json(
+          { error: "Ranting tidak terkonfigurasi" },
+          { status: 403 },
+        );
+      }
       if (
-        allowlist.length > 0 &&
-        localReg.member.dojoId &&
+        !localReg.member.dojoId ||
         !allowlist.includes(localReg.member.dojoId)
       ) {
         return NextResponse.json(
@@ -866,8 +937,14 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (role === "ADMIN_DOJO") {
       const allowlist = getManagedDojoIdsFromUser(authResult.user);
+      if (allowlist.length === 0) {
+        return NextResponse.json(
+          { error: "Ranting tidak terkonfigurasi" },
+          { status: 403 },
+        );
+      }
       const dojoId = String(member?.dojoId ?? "");
-      if (allowlist.length > 0 && dojoId && !allowlist.includes(dojoId)) {
+      if (!dojoId || !allowlist.includes(dojoId)) {
         return NextResponse.json(
           { error: "Pendaftaran di luar ranting Anda" },
           { status: 403 },
@@ -1283,13 +1360,21 @@ export async function DELETE(request: Request, context: RouteContext) {
     url.searchParams.get("force") === "1" ||
     url.searchParams.get("force") === "true";
 
+  const rlKey = `ukt:registrations-delete:${authResult.user.id}`;
+  const limited = await rateLimitAsync(rlKey, { max: 30, windowMs: 60_000 });
+  if (!limited.success) {
+    return rateLimitResponse(limited.retryAfterSec ?? 60, rlKey);
+  }
+
+  // Anti-IDOR: billingId dari klien TIDAK langsung dipercaya — hanya dipakai
+  // bila sudah muncul di billingIds yang terverifikasi tertaut registrasi ini.
   const billingIds = new Set<string>();
-  if (billingIdFromClient) billingIds.add(billingIdFromClient);
 
   let memberId = memberIdFromClient || "";
   let memberDojoId = "";
   let memberName = "";
   let periodTitle = "UKT";
+  let eventIdForAssert: string | null = null;
   let sawPaid = false;
 
   type BillingRow = {
@@ -1335,8 +1420,11 @@ export async function DELETE(request: Request, context: RouteContext) {
       member?.dojoId ?? member?.dojo?.id ?? registration.dojoId ?? "",
     );
     memberName = String(member?.fullName ?? "Anggota");
-    const event = registration.event as { title?: string } | undefined;
+    const event = registration.event as { id?: string; title?: string } | undefined;
     periodTitle = String(event?.title ?? "UKT");
+    eventIdForAssert =
+      String(event?.id ?? (registration as { eventId?: string }).eventId ?? "") ||
+      null;
     for (const b of member?.billings ?? []) {
       const rid = String(b.registrationId ?? "");
       if (rid === id || (!rid && isUktish(b))) {
@@ -1347,25 +1435,50 @@ export async function DELETE(request: Request, context: RouteContext) {
 
   if (isDojo) {
     const allowlist = getManagedDojoIdsFromUser(authResult.user);
-    if (allowlist.length > 0) {
-      if (!memberDojoId && memberId) {
-        try {
-          const local = await prisma.member.findFirst({
-            where: { id: memberId, isDeleted: false },
-            select: { dojoId: true, fullName: true },
-          });
-          if (local?.dojoId) memberDojoId = local.dojoId;
-          if (local?.fullName) memberName = local.fullName;
-        } catch {
-          /* ignore */
-        }
+    if (allowlist.length === 0) {
+      return NextResponse.json(
+        { error: "Ranting tidak terkonfigurasi" },
+        { status: 403 },
+      );
+    }
+    if (!memberDojoId && memberId) {
+      try {
+        const local = await prisma.member.findFirst({
+          where: { id: memberId, isDeleted: false },
+          select: { dojoId: true, fullName: true },
+        });
+        if (local?.dojoId) memberDojoId = local.dojoId;
+        if (local?.fullName) memberName = local.fullName;
+      } catch {
+        /* ignore */
       }
-      if (memberDojoId && !allowlist.includes(memberDojoId)) {
-        return NextResponse.json(
-          { error: "Peserta di luar ranting Anda" },
-          { status: 403 },
-        );
-      }
+    }
+    if (!memberDojoId || !allowlist.includes(memberDojoId)) {
+      return NextResponse.json(
+        { error: "Peserta di luar ranting Anda" },
+        { status: 403 },
+      );
+    }
+  }
+
+  if (!eventIdForAssert) {
+    try {
+      const localReg = await prisma.eventRegistration.findFirst({
+        where: { id },
+        select: { eventId: true },
+      });
+      eventIdForAssert = localReg?.eventId ?? null;
+    } catch (error) {
+      console.error("[UKT DELETE] eventId lookup failed", error);
+    }
+  }
+  if (eventIdForAssert) {
+    const periodMutable = await assertUktPeriodMutable(token, eventIdForAssert);
+    if (!periodMutable.ok) {
+      return NextResponse.json(
+        { error: periodMutable.error },
+        { status: periodMutable.status },
+      );
     }
   }
 
@@ -1391,15 +1504,13 @@ export async function DELETE(request: Request, context: RouteContext) {
   }
 
   try {
-    // Hanya tagihan tertaut registrasi ini / ID dari klien — jangan hapus semua
-    // tagihan PAID anggota (iuran bulanan dll.) yang bisa merusak status anggota.
+    // Hanya tagihan tertaut registrasi ini — jangan percaya billingId dari
+    // klien (anti-IDOR) dan jangan hapus semua tagihan PAID anggota (iuran
+    // bulanan dll.) yang bisa merusak status anggota.
     const locals = await prisma.billing.findMany({
       where: {
         isDeleted: false,
-        OR: [
-          { registrationId: id },
-          ...(billingIdFromClient ? [{ id: billingIdFromClient }] : []),
-        ],
+        registrationId: id,
       },
       select: { id: true, status: true, type: true, description: true },
       take: 50,
@@ -1557,6 +1668,21 @@ export async function DELETE(request: Request, context: RouteContext) {
     }
   }
 
+  // Anti-IDOR diagnostic: client billingId yang tidak cocok tagihan terverifikasi
+  // (tertaut registrasi ini) dicatat, bukan dipakai untuk hapus.
+  const clientBillingIdUnverified =
+    Boolean(billingIdFromClient) && !billingIds.has(billingIdFromClient as string);
+  if (clientBillingIdUnverified) {
+    void import("@/lib/security/security-events").then(({ writeSecurityEvent }) => {
+      writeSecurityEvent({
+        action: "SECURITY_UKT_BILLING_ID_MISMATCH",
+        userId: authResult.user.id,
+        email: authResult.user.email,
+        details: `registration=${id} claimedBillingId=${billingIdFromClient}`,
+      });
+    });
+  }
+
   writeAuditLog({
     userId: authResult.user.id,
     email: authResult.user.email,
@@ -1565,7 +1691,7 @@ export async function DELETE(request: Request, context: RouteContext) {
       billingIds.size ? ` and deleted billings (${[...billingIds].join(",")})` : ""
     }${force ? " [force]" : ""}${usedDbForce ? " [db-force]" : ""}${
       isDojo ? " [ranting]" : ""
-    }`,
+    }${clientBillingIdUnverified ? " [client billingId diabaikan]" : ""}`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token,

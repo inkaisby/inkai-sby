@@ -997,10 +997,20 @@ export async function fetchUktDashboardData(
           : []
       : [];
 
+  const isArchive = viewMode === "archive";
+
   // Ranting (termasuk multi): selalu Prisma agar semua managed dojo ikut,
   // bukan hanya ranting utama yang terlihat token Inkai.
-  const membersPromise =
-    primaryRole === "ADMIN_DOJO" && dojoAllowlist.length > 0
+  // Archive: UI hanya menampilkan peserta terdaftar → skip pool anggota penuh
+  // (250/500) untuk TTFB ringan; diisi lewat registrasi-first merge di bawah.
+  const membersPromise = isArchive
+    ? Promise.resolve({
+        ok: true as const,
+        members: [] as AdminMemberRow[],
+        total: 0,
+        page: 1,
+      })
+    : primaryRole === "ADMIN_DOJO" && dojoAllowlist.length > 0
       ? fetchAdminMembersForDojoIds(token, dojoAllowlist, {
           limit: 500,
           page: 1,
@@ -1015,6 +1025,14 @@ export async function fetchUktDashboardData(
             page: 1,
             dojoId: dojoAllowlist[0],
           });
+
+  // Placeholder resolved result untuk fetch yang di-skip saat archive
+  // (hindari RTT tambahan untuk data yang tidak dipakai UI arsip).
+  const skippedFetch: Promise<{ res: Response; data: Record<string, unknown> }> =
+    Promise.resolve({
+      res: { ok: false } as unknown as Response,
+      data: {},
+    });
 
   const [
     eventsRes,
@@ -1038,13 +1056,17 @@ export async function fetchUktDashboardData(
     membersPromise,
     inkaiFetch("/v1/events/rank-fee-templates", {}, token),
     fetchUktKomisiRanting(token, UKT_KOMISI_SETTING_KEY, DEFAULT_KOMISI_RANTING),
-    inkaiFetch("/v1/billing?limit=250", {}, token),
-    inkaiFetch("/v1/verifications/pending", {}, token),
-    fetchAttendanceLogs(token, {
-      from: attendanceFrom,
-      to: attendanceTo,
-      limit: 800,
-    }),
+    // Archive: billing global & verifikasi pending tidak dipakai UI arsip —
+    // billingMap diisi dari Prisma by registrationId (lihat merge di bawah).
+    isArchive ? skippedFetch : inkaiFetch("/v1/billing?limit=250", {}, token),
+    isArchive ? skippedFetch : inkaiFetch("/v1/verifications/pending", {}, token),
+    isArchive
+      ? Promise.resolve([] as Array<Record<string, unknown>>)
+      : fetchAttendanceLogs(token, {
+          from: attendanceFrom,
+          to: attendanceTo,
+          limit: 800,
+        }),
     periodFromUrl ? fetchEventDetail(token, periodFromUrl) : Promise.resolve(null),
     periodFromUrl
       ? fetchSettingsByPrefix(token, `ukt-exam-result:${periodFromUrl}:`)
@@ -1192,11 +1214,8 @@ export async function fetchUktDashboardData(
       memberId: String(member?.id ?? log.memberId ?? ""),
     };
   });
-  const { countByMember, pctByMember } = computeSemesterAttendance(
-    attendanceLogs,
-    semester,
-    year,
-  );
+  // computeSemesterAttendance dijalankan di bawah setelah `members` final
+  // (pool + registrasi-first merge) — hanya proses log milik member relevan.
   const examResultMap = selectedPeriodId
     ? buildUktExamResultMap(examSettings, selectedPeriodId)
     : new Map<string, UktExamResult>();
@@ -1215,7 +1234,10 @@ export async function fetchUktDashboardData(
       )
     : beltFeesFromTemplates([]);
 
-  // Backfill registrationOpenAt untuk periode lama (awal semester dari judul).
+  // Backfill registrationOpenAt untuk periode lama (awal semester dari judul) —
+  // hanya in-memory untuk tampilan UI (kartu "Atur" dsb). Persist ke settings
+  // TIDAK dilakukan di sini (GET tidak boleh menulis); persist dilakukan di
+  // alur cabang create/patch periode saja.
   let periodMeta: UktPeriodMeta = parseUktPeriodMetaValue(periodMetaValue);
   if (selectedPeriodId && !periodMeta.registrationOpenAt) {
     const selected = periods.find((p) => p.id === selectedPeriodId);
@@ -1229,15 +1251,6 @@ export async function fetchUktDashboardData(
         ...periodMeta,
         registrationOpenAt: registrationOpenAt.toISOString(),
       };
-      // Persist soft (jangan blok halaman jika gagal)
-      void inkaiFetch(
-        `/v1/settings/${encodeURIComponent(uktPeriodMetaKey(selectedPeriodId))}`,
-        {
-          method: "PUT",
-          body: JSON.stringify({ value: periodMeta }),
-        },
-        token,
-      );
     }
   }
 
@@ -1583,6 +1596,159 @@ export async function fetchUktDashboardData(
       });
     }
   }
+
+  // Lengkapi billingMap by registrationId dari Prisma untuk semua registrasi
+  // yang belum tertaut — termasuk cabang (dojoAllowlist kosong), dan wajib saat
+  // archive (billing global di-skip di atas). Lebih murah & akurat daripada
+  // bergantung ke /v1/billing?limit=250 yang bisa miss di cabang besar.
+  if (selectedPeriodId) {
+    const regIdsNeedingBilling = Array.from(regMap.values())
+      .map((r) => String(r.id ?? ""))
+      .filter((id) => id && !billingMap.has(id))
+      .slice(0, 800);
+    if (regIdsNeedingBilling.length > 0) {
+      const localBillings = await withPrismaFallback(
+        "ukt-billings-regmap",
+        () =>
+          prisma.billing.findMany({
+            where: {
+              registrationId: { in: regIdsNeedingBilling },
+              isDeleted: false,
+            },
+            select: {
+              id: true,
+              status: true,
+              amount: true,
+              baseFeeAmount: true,
+              registrationId: true,
+            },
+            take: 800,
+          }),
+        [] as Array<{
+          id: string;
+          status: string;
+          amount: number;
+          baseFeeAmount: number | null;
+          registrationId: string | null;
+        }>,
+      );
+      for (const b of localBillings.data ?? []) {
+        const rid = b.registrationId ? String(b.registrationId) : "";
+        if (!rid || billingMap.has(rid)) continue;
+        billingMap.set(rid, {
+          id: b.id,
+          status: b.status,
+          amount: b.amount,
+          baseFeeAmount: b.baseFeeAmount,
+          registrationId: rid,
+        });
+      }
+    }
+  }
+
+  // Registrasi-first merge: peserta yang sudah terdaftar (ada di regMap) tapi
+  // tidak ikut pool anggota (limit 250/500, atau kosong saat archive) tetap
+  // harus tampil — ambil langsung per memberId dari Prisma agar tidak "hilang"
+  // dari tabel UKT hanya karena limit pool. Berlaku untuk cabang & ranting.
+  // RBAC: untuk ranting (dojoAllowlist terisi) tetap dibatasi ke dojo yang
+  // dikelola — cegah peserta dojo lain "bocor" lewat regMap bersama.
+  if (selectedPeriodId && regMap.size > 0) {
+    const existingMemberIds = new Set(members.map((m) => m.id));
+    const missingRegMemberIds = Array.from(regMap.keys())
+      .filter((id) => id && !existingMemberIds.has(id))
+      .slice(0, 800);
+    if (missingRegMemberIds.length > 0) {
+      const missingMembers = await withPrismaFallback(
+        "ukt-regs-missing-members",
+        () =>
+          prisma.member.findMany({
+            where: {
+              id: { in: missingRegMemberIds },
+              isDeleted: false,
+              ...(dojoAllowlist.length > 0
+                ? { dojoId: { in: dojoAllowlist } }
+                : {}),
+            },
+            select: {
+              id: true,
+              fullName: true,
+              nia: true,
+              currentRank: true,
+              status: true,
+              dojoId: true,
+              birthCertificateUrl: true,
+              bpjsCardUrl: true,
+              bpjsCardNumber: true,
+              monthlyDuesAmount: true,
+              createdAt: true,
+              dojo: {
+                select: {
+                  name: true,
+                  isDeleted: true,
+                  branch: { select: { name: true } },
+                },
+              },
+              user: { select: { photoUrl: true } },
+            },
+            take: 800,
+          }),
+        [] as Array<{
+          id: string;
+          fullName: string;
+          nia: string | null;
+          currentRank: string;
+          status: string;
+          dojoId: string;
+          birthCertificateUrl: string | null;
+          bpjsCardUrl: string | null;
+          bpjsCardNumber: string | null;
+          monthlyDuesAmount: number;
+          createdAt: Date;
+          dojo: {
+            name: string;
+            isDeleted: boolean;
+            branch: { name: string } | null;
+          };
+          user: { photoUrl: string | null } | null;
+        }>,
+      );
+      for (const m of missingMembers.data ?? []) {
+        if (existingMemberIds.has(m.id)) continue;
+        existingMemberIds.add(m.id);
+        members.push({
+          id: m.id,
+          fullName: m.fullName,
+          nia: m.nia,
+          currentRank: m.currentRank,
+          status: m.status,
+          dojoId: m.dojoId,
+          dojo: {
+            name: m.dojo.name,
+            isDeleted: m.dojo.isDeleted,
+            branch: m.dojo.branch ? { name: m.dojo.branch.name } : undefined,
+          },
+          birthCertificateUrl: m.birthCertificateUrl,
+          bpjsCardUrl: m.bpjsCardUrl,
+          bpjsCardNumber: m.bpjsCardNumber,
+          photoUrl: m.user?.photoUrl ?? null,
+          createdAt: m.createdAt.toISOString(),
+          monthlyDuesAmount: m.monthlyDuesAmount,
+        });
+      }
+    }
+  }
+
+  // Hitung absensi hanya untuk member final (pool + hasil registrasi-first
+  // merge) — hindari memproses log milik member yang tidak akan dirender.
+  const relevantMemberIds = new Set(members.map((m) => m.id));
+  const relevantAttendanceLogs = attendanceLogs.filter((log) =>
+    relevantMemberIds.has(log.memberId),
+  );
+  const { countByMember, pctByMember } = computeSemesterAttendance(
+    relevantAttendanceLogs,
+    semester,
+    year,
+  );
 
   const selfRegMetaMap = selectedPeriodId
     ? await loadUktSelfRegistrationMetaMap(selectedPeriodId)

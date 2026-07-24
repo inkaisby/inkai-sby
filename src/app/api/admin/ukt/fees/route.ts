@@ -14,8 +14,9 @@ import {
 import { uktBeltFeesSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import {
-  loadUktPeriodMeta,
+  assertUktPeriodMutable,
   mergeUktPeriodMeta,
   saveUktPeriodMeta,
 } from "@/lib/ukt-period-meta-store";
@@ -63,6 +64,12 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Hanya admin cabang yang dapat mengubah pengaturan UKT" }, { status: 403 });
   }
 
+  const rlKey = `ukt:fees:${authResult.user.id}`;
+  const limited = await rateLimitAsync(rlKey, { max: 20, windowMs: 60_000 });
+  if (!limited.success) {
+    return rateLimitResponse(limited.retryAfterSec ?? 60, rlKey);
+  }
+
   const body = await request.json();
   const parsed = uktBeltFeesSchema.safeParse(body);
   if (!parsed.success) {
@@ -83,7 +90,15 @@ export async function PUT(request: Request) {
   const shouldUpdateGlobal = updateGlobal ?? !eventId;
 
   if (eventId) {
-    const current = await loadUktPeriodMeta(authResult.token, eventId);
+    const periodMutable = await assertUktPeriodMutable(authResult.token, eventId);
+    if (!periodMutable.ok) {
+      return NextResponse.json(
+        { error: periodMutable.error },
+        { status: periodMutable.status },
+      );
+    }
+
+    const current = periodMutable.meta;
     const next = mergeUktPeriodMeta(current, {
       beltFees: fees,
       komisiRanting,

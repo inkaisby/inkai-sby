@@ -5,7 +5,9 @@ import { canEditKyuBaru } from "@/lib/belt";
 import { uktWaiverSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import { uktRegistrationWaiverKey } from "@/lib/ukt";
+import { assertUktPeriodMutable } from "@/lib/ukt-period-meta-store";
 import { notifyUktMember } from "@/lib/ukt-notify";
 
 export async function POST(request: Request) {
@@ -22,6 +24,12 @@ export async function POST(request: Request) {
     );
   }
 
+  const rlKey = `ukt:waiver:${authResult.user.id}`;
+  const limited = await rateLimitAsync(rlKey, { max: 20, windowMs: 60_000 });
+  if (!limited.success) {
+    return rateLimitResponse(limited.retryAfterSec ?? 60, rlKey);
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = uktWaiverSchema.safeParse(body);
   if (!parsed.success) {
@@ -29,6 +37,15 @@ export async function POST(request: Request) {
   }
 
   const { eventId, memberId, blockers, note } = parsed.data;
+
+  const periodMutable = await assertUktPeriodMutable(authResult.token, eventId);
+  if (!periodMutable.ok) {
+    return NextResponse.json(
+      { error: periodMutable.error },
+      { status: periodMutable.status },
+    );
+  }
+
   const key = uktRegistrationWaiverKey(eventId, memberId);
   const value = {
     blockers,

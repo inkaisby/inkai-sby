@@ -10,6 +10,7 @@ import { canRegisterMembersToEvents } from "@/lib/wilayah-rbac";
 import { uktRegisterSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import { getPrimaryAdminRole } from "@/lib/rbac";
 import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { prisma } from "@/lib/prisma";
@@ -19,6 +20,7 @@ import {
   resolveUktRegisterFeeAmount,
   validateUktRegistrationEligibility,
 } from "@/lib/ukt-register";
+import { assertUktPeriodMutable } from "@/lib/ukt-period-meta-store";
 import { notifyUktStatusChange } from "@/lib/ukt-notify";
 import { notifyUktBranchAdmins } from "@/lib/ukt-period-notify";
 
@@ -99,6 +101,12 @@ export async function POST(request: Request) {
       );
     }
 
+    const rlKey = `ukt:register:${authResult.user.id}`;
+    const limited = await rateLimitAsync(rlKey, { max: 20, windowMs: 60_000 });
+    if (!limited.success) {
+      return rateLimitResponse(limited.retryAfterSec ?? 60, rlKey);
+    }
+
     const body = await request.json().catch(() => null);
     if (!body) {
       return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
@@ -110,6 +118,14 @@ export async function POST(request: Request) {
     }
 
     const { eventId, memberId } = parsed.data;
+
+    const periodMutable = await assertUktPeriodMutable(authResult.token, eventId);
+    if (!periodMutable.ok) {
+      return NextResponse.json(
+        { error: periodMutable.error },
+        { status: periodMutable.status },
+      );
+    }
 
     const primaryRole = getPrimaryAdminRole(authResult.user.roles);
     const eligibility = await validateUktRegistrationEligibility(

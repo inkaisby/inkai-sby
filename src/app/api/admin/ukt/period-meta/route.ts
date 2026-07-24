@@ -5,6 +5,7 @@ import { canEditKyuBaru } from "@/lib/belt";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
 import { uktPeriodMetaSchema } from "@/lib/security/schemas";
 import { getClientIp } from "@/lib/security/request";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import {
   loadUktPeriodMeta,
   mergeUktPeriodMeta,
@@ -23,6 +24,12 @@ export async function PATCH(request: Request) {
       { error: "Hanya admin cabang yang dapat mengubah meta periode" },
       { status: 403 },
     );
+  }
+
+  const rlKey = `ukt:period-meta:${authResult.user.id}`;
+  const limited = await rateLimitAsync(rlKey, { max: 20, windowMs: 60_000 });
+  if (!limited.success) {
+    return rateLimitResponse(limited.retryAfterSec ?? 60, rlKey);
   }
 
   const body = await request.json();

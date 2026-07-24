@@ -416,6 +416,15 @@ export async function validateUktRegistrationEligibility(
       ? ((metaRes.data.data as { value?: unknown })?.value ?? null)
       : null,
   );
+
+  if (periodMeta.archived || periodMeta.locked) {
+    return {
+      ok: false,
+      error: "Periode UKT sudah diarsipkan/dikunci",
+      blockers: [],
+    };
+  }
+
   const schedule = {
     startDate: String(event.startDate),
     endDate: String(event.endDate),

@@ -1313,8 +1313,8 @@ export function UktDashboard(props: Props) {
     if (!props.selectedPeriodId) return;
     const target = rows.find((r) => r.registrationId === registrationId);
     if (target && isMemberPending(target.memberId)) return;
+    // Aksi ini selalu spesifik satu anggota — cukup pendingMemberIds, jangan kunci seluruh toolbar.
     if (target) setMemberPending(target.memberId, true);
-    else setLoading(true);
     try {
       const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
         method: "PATCH",
@@ -1346,7 +1346,6 @@ export function UktDashboard(props: Props) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
       if (target) setMemberPending(target.memberId, false);
-      else setLoading(false);
     }
   };
 
@@ -1356,8 +1355,8 @@ export function UktDashboard(props: Props) {
       target?.memberId ||
       rows.find((r) => r.registrationId === registrationId)?.memberId;
     if (memberId && isMemberPending(memberId)) return;
+    // Aksi ini selalu spesifik satu anggota — cukup pendingMemberIds, jangan kunci seluruh toolbar.
     if (memberId) setMemberPending(memberId, true);
-    else setLoading(true);
     const billingId =
       target?.billingId ||
       rows.find((r) => r.registrationId === registrationId)?.billingId ||
@@ -1397,7 +1396,6 @@ export function UktDashboard(props: Props) {
       });
     } finally {
       if (memberId) setMemberPending(memberId, false);
-      else setLoading(false);
     }
   };
 
@@ -2531,7 +2529,7 @@ export function UktDashboard(props: Props) {
               <div>
                 <p className="text-sm font-semibold">Status setoran UKT</p>
                 <p className="text-xs text-muted-foreground">
-                  Ranting menandai sudah setor; cabang konfirmasi diterima.
+                  Cabang mencatat status setoran ranting (diterima / reset).
                 </p>
               </div>
             </div>

@@ -21,6 +21,30 @@ export async function loadUktPeriodMeta(
   );
 }
 
+/**
+ * Tolak mutasi (daftar, deposit, fee, waiver, hari-H) bila periode UKT sudah
+ * diarsipkan/dikunci. Terima `meta` opsional agar caller yang sudah punya
+ * hasil `loadUktPeriodMeta` tidak perlu fetch ulang.
+ */
+export async function assertUktPeriodMutable(
+  token: string,
+  eventId: string,
+  meta?: UktPeriodMeta,
+): Promise<
+  | { ok: true; meta: UktPeriodMeta }
+  | { ok: false; status: 403; error: string }
+> {
+  const resolved = meta ?? (await loadUktPeriodMeta(token, eventId));
+  if (resolved.archived || resolved.locked) {
+    return {
+      ok: false,
+      status: 403,
+      error: "Periode UKT sudah diarsipkan/dikunci — tidak dapat diubah",
+    };
+  }
+  return { ok: true, meta: resolved };
+}
+
 export async function saveUktPeriodMeta(
   token: string,
   eventId: string,

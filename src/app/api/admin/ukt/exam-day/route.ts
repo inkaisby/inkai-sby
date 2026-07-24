@@ -10,6 +10,8 @@ import {
 } from "@/lib/ukt";
 import { uktExamDaySchema } from "@/lib/security/schemas";
 import { getClientIp } from "@/lib/security/request";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
+import { assertUktPeriodMutable } from "@/lib/ukt-period-meta-store";
 
 export async function PATCH(request: Request) {
   const authResult = await requireAdmin();
@@ -24,6 +26,12 @@ export async function PATCH(request: Request) {
     );
   }
 
+  const rlKey = `ukt:exam-day:${authResult.user.id}`;
+  const limited = await rateLimitAsync(rlKey, { max: 20, windowMs: 60_000 });
+  if (!limited.success) {
+    return rateLimitResponse(limited.retryAfterSec ?? 60, rlKey);
+  }
+
   const body = await request.json();
   const parsed = uktExamDaySchema.safeParse(body);
   if (!parsed.success) {
@@ -36,6 +44,14 @@ export async function PATCH(request: Request) {
     absentRegistrationIds = [],
     examResults = [],
   } = parsed.data;
+
+  const periodMutable = await assertUktPeriodMutable(authResult.token, eventId);
+  if (!periodMutable.ok) {
+    return NextResponse.json(
+      { error: periodMutable.error },
+      { status: periodMutable.status },
+    );
+  }
 
   const stamp = {
     at: new Date().toISOString(),

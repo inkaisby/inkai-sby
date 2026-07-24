@@ -2,17 +2,32 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
 import { canEditKyuBaru } from "@/lib/belt";
-import { getPrimaryAdminRole } from "@/lib/rbac";
 import { inkaiErrorMessage, inkaiFetch } from "@/lib/inkai-api/server";
 import { uktDepositKey } from "@/lib/ukt";
 import { uktDepositSchema } from "@/lib/security/schemas";
 import { getClientIp } from "@/lib/security/request";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
+import { assertUktPeriodMutable } from "@/lib/ukt-period-meta-store";
 
 export async function PATCH(request: Request) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
   if (!authResult.token) {
     return NextResponse.json({ error: "Token tidak tersedia" }, { status: 401 });
+  }
+
+  const isCabang = canEditKyuBaru(authResult.user.roles);
+  if (!isCabang) {
+    return NextResponse.json(
+      { error: "Hanya admin cabang yang dapat mengubah status setoran" },
+      { status: 403 },
+    );
+  }
+
+  const rlKey = `ukt:deposit:${authResult.user.id}`;
+  const limited = await rateLimitAsync(rlKey, { max: 20, windowMs: 60_000 });
+  if (!limited.success) {
+    return rateLimitResponse(limited.retryAfterSec ?? 60, rlKey);
   }
 
   const body = await request.json();
@@ -22,32 +37,13 @@ export async function PATCH(request: Request) {
   }
 
   const { eventId, dojoId, status, note } = parsed.data;
-  const isCabang = canEditKyuBaru(authResult.user.roles);
-  const isDojo = getPrimaryAdminRole(authResult.user.roles) === "ADMIN_DOJO";
 
-  if (!isCabang && !isDojo) {
-    return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
-  }
-
-  if (isDojo) {
-    const allowlist =
-      authResult.user.managedDojoIds && authResult.user.managedDojoIds.length > 0
-        ? authResult.user.managedDojoIds
-        : authResult.user.managedDojoId
-          ? [authResult.user.managedDojoId]
-          : [];
-    if (!allowlist.includes(dojoId)) {
-      return NextResponse.json(
-        { error: "Hanya ranting yang Anda kelola yang boleh diubah" },
-        { status: 403 },
-      );
-    }
-    if (status === "RECEIVED") {
-      return NextResponse.json(
-        { error: "Hanya cabang yang dapat menandai setoran diterima" },
-        { status: 403 },
-      );
-    }
+  const periodMutable = await assertUktPeriodMutable(authResult.token, eventId);
+  if (!periodMutable.ok) {
+    return NextResponse.json(
+      { error: periodMutable.error },
+      { status: periodMutable.status },
+    );
   }
 
   const key = uktDepositKey(eventId, dojoId);
