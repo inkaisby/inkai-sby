@@ -154,23 +154,27 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
 
     setLoading(true);
 
+    const msh = memberFields.mshNumber.replace(/\s+/g, "").trim();
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: memberFields.fullName.trim(),
-          email,
-          password,
-          dojoId,
-          nik: memberFields.nik.trim(),
-          nia: memberFields.nia.trim() || undefined,
-          phoneNumber: memberFields.phoneNumber.trim(),
-          gender: memberFields.gender,
-          birthPlace: memberFields.birthPlace.trim(),
-          birthDate: memberFields.birthDate,
-          address: memberFields.address.trim(),
-          currentRank: memberFields.currentRank || DEFAULT_MEMBER_RANK,
-        }),
+      body: JSON.stringify({
+        name: memberFields.fullName.trim().toUpperCase(),
+        email,
+        password,
+        dojoId,
+        nik: memberFields.nik.trim(),
+        nia: memberFields.nia.trim()
+          ? memberFields.nia.trim().toUpperCase()
+          : undefined,
+        phoneNumber: memberFields.phoneNumber.trim().toUpperCase(),
+        gender: memberFields.gender,
+        birthPlace: memberFields.birthPlace.trim().toUpperCase(),
+        birthDate: memberFields.birthDate,
+        address: memberFields.address.trim().toUpperCase(),
+        currentRank: memberFields.currentRank || DEFAULT_MEMBER_RANK,
+        mshNumber: msh || undefined,
+      }),
     });
 
     const data = await res.json();
@@ -192,6 +196,35 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <section className="space-y-3">
+        <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          Dojo
+        </h3>
+
+        <div className="space-y-2">
+          <Label>Dojo / Ranting (Cabang Surabaya) *</Label>
+          <Select
+            value={dojoId}
+            onValueChange={setDojoId}
+            disabled={dojosLoading}
+            required
+          >
+            <SelectTrigger>
+              <SelectValue
+                placeholder={dojosLoading ? "Memuat dojo..." : "Pilih dojo/ranting"}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {dojos.map((d) => (
+                <SelectItem key={d.id} value={d.id}>
+                  {d.nama}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </section>
+
       <MemberIdentitySection
         idPrefix="register"
         form={memberFields}
@@ -268,35 +301,6 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
         <p className="text-xs text-muted-foreground">
           Minimal 8 karakter, kombinasi huruf dan angka.
         </p>
-      </section>
-
-      <section className="space-y-3">
-        <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          Dojo
-        </h3>
-
-        <div className="space-y-2">
-          <Label>Dojo / Ranting (Cabang Surabaya)</Label>
-          <Select
-            value={dojoId}
-            onValueChange={setDojoId}
-            disabled={dojosLoading}
-            required
-          >
-            <SelectTrigger>
-              <SelectValue
-                placeholder={dojosLoading ? "Memuat dojo..." : "Pilih dojo/ranting"}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {dojos.map((d) => (
-                <SelectItem key={d.id} value={d.id}>
-                  {d.nama}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
       </section>
 
       {error && (

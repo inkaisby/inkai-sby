@@ -3,6 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BELT_RANK_OPTIONS } from "@/lib/belt";
+import { mshAllowedForRank } from "@/lib/member-profile-locks";
 import { parseFlexibleBirthDate } from "@/lib/parse-birth-date";
 
 export type MemberFormFields = {
@@ -15,7 +16,7 @@ export type MemberFormFields = {
   nia: string;
   phoneNumber: string;
   currentRank: string;
-  /** No. MSH — opsional, khusus Hitam/DAN (admin tambah anggota). */
+  /** No. MSH — opsional, khusus Hitam/DAN. */
   mshNumber: string;
 };
 
@@ -49,8 +50,6 @@ type MemberFormSectionProps = {
   requireCompleteIdentity?: boolean;
   /** Jika true, ada duplikat keras — UI merah + petunjuk blok. */
   duplicateBlocked?: boolean;
-  /** Tampilkan No. MSH di bawah NIA (admin Tambah Anggota). */
-  showMsh?: boolean;
 };
 
 const selectClassName =
@@ -71,6 +70,18 @@ function reasonLabel(reasons?: string[]) {
     NAME: "nama",
   };
   return reasons.map((r) => map[r] ?? r).join(", ");
+}
+
+function validateMshForForm(form: MemberFormFields): string | null {
+  const msh = form.mshNumber.replace(/\s+/g, "").trim();
+  if (!msh) return null;
+  if (msh.length < 2 || msh.length > 32) {
+    return "No. MSH harus 2–32 karakter jika diisi";
+  }
+  if (!mshAllowedForRank(form.currentRank)) {
+    return "No. MSH hanya untuk sabuk Hitam (DAN)";
+  }
+  return null;
 }
 
 export function validateMemberFormFields(
@@ -108,7 +119,7 @@ export function validateMemberFormFields(
     if (nia && (nia.length < 2 || nia.length > 32)) {
       return "NIA harus 2–32 karakter jika diisi";
     }
-    return null;
+    return validateMshForForm(form);
   }
 
   if (form.nik && !/^\d{16}$/.test(form.nik.trim())) {
@@ -118,10 +129,8 @@ export function validateMemberFormFields(
   if (nia && (nia.length < 2 || nia.length > 32)) {
     return "NIA harus 2–32 karakter jika diisi";
   }
-  const msh = form.mshNumber.replace(/\s+/g, "").trim();
-  if (msh && (msh.length < 2 || msh.length > 32)) {
-    return "No. MSH harus 2–32 karakter jika diisi";
-  }
+  const mshErr = validateMshForForm(form);
+  if (mshErr) return mshErr;
   if (form.phoneNumber && form.phoneNumber.trim().length < 10) {
     return "Nomor telepon tidak valid";
   }
@@ -136,7 +145,6 @@ export function MemberIdentitySection({
   fullNameRequired = true,
   requireCompleteIdentity = false,
   duplicateBlocked = false,
-  showMsh = false,
 }: MemberFormSectionProps) {
   const hasHard = duplicateBlocked || suggestions.some((s) => s.severity === "hard");
   const hasArchivedIdOnly =
@@ -325,29 +333,6 @@ export function MemberIdentitySection({
         </p>
       </div>
 
-      {showMsh ? (
-        <div className="space-y-1.5">
-          <Label htmlFor={`${idPrefix}-msh`}>No. MSH (opsional)</Label>
-          <Input
-            id={`${idPrefix}-msh`}
-            className={upperInputClassName}
-            placeholder="KHUSUS SABUK HITAM / DAN"
-            maxLength={32}
-            value={form.mshNumber}
-            onChange={(e) =>
-              onChange(
-                "mshNumber",
-                e.target.value.replace(/\s+/g, "").toUpperCase(),
-              )
-            }
-            autoCapitalize="characters"
-          />
-          <p className="text-xs text-muted-foreground">
-            Boleh dikosongkan. No. MSH hanya untuk sabuk Hitam (DAN).
-          </p>
-        </div>
-      ) : null}
-
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-phone`}>
           Telepon{req ? " *" : ""}
@@ -372,6 +357,8 @@ export function MemberBeltSection({
   form,
   onChange,
 }: Pick<MemberFormSectionProps, "idPrefix" | "form" | "onChange">) {
+  const showMsh = mshAllowedForRank(form.currentRank);
+
   return (
     <section className="space-y-3">
       <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -383,7 +370,13 @@ export function MemberBeltSection({
           id={`${idPrefix}-rank`}
           className={selectClassName}
           value={form.currentRank}
-          onChange={(e) => onChange("currentRank", e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value;
+            onChange("currentRank", next);
+            if (!mshAllowedForRank(next) && form.mshNumber) {
+              onChange("mshNumber", "");
+            }
+          }}
         >
           {BELT_RANK_OPTIONS.map((rank) => (
             <option key={rank} value={rank}>
@@ -392,6 +385,29 @@ export function MemberBeltSection({
           ))}
         </select>
       </div>
+
+      {showMsh ? (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-msh`}>No. MSH (opsional)</Label>
+          <Input
+            id={`${idPrefix}-msh`}
+            className={upperInputClassName}
+            placeholder="KHUSUS SABUK HITAM / DAN"
+            maxLength={32}
+            value={form.mshNumber}
+            onChange={(e) =>
+              onChange(
+                "mshNumber",
+                e.target.value.replace(/\s+/g, "").toUpperCase(),
+              )
+            }
+            autoCapitalize="characters"
+          />
+          <p className="text-xs text-muted-foreground">
+            Boleh dikosongkan. No. MSH hanya untuk sabuk Hitam (DAN).
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }

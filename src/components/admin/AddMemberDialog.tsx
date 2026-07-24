@@ -180,8 +180,9 @@ export function AddMemberDialog({
           <DialogDescription>
             Ranting/cabang dapat menambahkan anggota baru (status aktif
             langsung). <strong>NIK dan NIA opsional</strong> — boleh dikosongkan
-            dan dilengkapi nanti. Jika anggota sudah daftar mandiri, gunakan{" "}
-            <strong>Gabungkan</strong> di detail Kelola Anggota.
+            dan dilengkapi nanti. <strong>No. MSH</strong> muncul di section
+            Sabuk jika tingkatan Hitam/DAN. Jika anggota sudah daftar mandiri,
+            gunakan <strong>Gabungkan</strong> di detail Kelola Anggota.
           </DialogDescription>
         </DialogHeader>
 
@@ -211,7 +212,6 @@ export function AddMemberDialog({
             onChange={setField}
             suggestions={suggestions}
             duplicateBlocked={duplicateBlocked}
-            showMsh
           />
 
           <MemberBeltSection

@@ -71,7 +71,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/v/[id]` | Verifikasi kartu anggota (scan QR — UUID atau NIA) |
 | `/kontak` | Kontak sekretariat |
 | `/keamanan-siber` | Kebijakan keamanan siber |
-| `/login` | Login & registrasi (form selaras admin: identitas, sabuk, akun, dojo); **dual-role** (admin + anggota terhubung) default masuk `/dashboard`, pilih **Panel Admin** manual |
+| `/login` | Login & registrasi (form selaras admin: **Dojo → Identitas → Sabuk → Akun**; No. MSH opsional di Sabuk jika Hitam/DAN); **dual-role** (admin + anggota terhubung) default masuk `/dashboard`, pilih **Panel Admin** manual |
 | `/daftar` | Redirect ke form daftar |
 | `/lupa-password` | Ajuan reset password |
 | `/reset-password` | Set password baru |
@@ -194,7 +194,7 @@ Pusat / Nasional
 ## 9. Alur bisnis yang sudah berjalan
 
 ### 9.1 Keanggotaan
-1. Calon anggota daftar via `/login?tab=daftar` — form **Identitas lengkap wajib** (nama, JK, tempat/tgl lahir, alamat, **NIK 16 digit**, telepon; **NIA tetap opsional**), **Sabuk**, **Akun**, **Dojo**. **Tambah Anggota** oleh ranting/cabang: NIK/NIA boleh kosong; **No. MSH opsional** (khusus Hitam/DAN, section Sabuk) disimpan ke Prisma saat create. **Input Massal**: tabel NIA, Nama, **Tempat & Tgl Lahir** digabung, JK (teks), Alamat, Kyu, Ranting + **isi semua ranting** & **isi semua Kyu/DAN**; paste Excel/CSV (format lama dengan NIK/Telepon tetap didukung); simpan per chunk dengan **progress %**; maks 50 (`POST /api/admin/members/bulk-create`). Field teks identitas **huruf besar**; **tanggal lahir** bisa paste (mis. `28 Februari 2011` / `Surabaya, 28 Maret 2015`).
+1. Calon anggota daftar via `/login?tab=daftar` — urutan **Dojo → Identitas lengkap wajib** (nama, JK, tempat/tgl lahir, alamat, **NIK 16 digit**, telepon; **NIA tetap opsional**) → **Sabuk** (**No. MSH opsional** hanya Hitam/DAN) → **Akun**. **Tambah Anggota** oleh ranting/cabang: NIK/NIA boleh kosong; **No. MSH opsional** (khusus Hitam/DAN, section Sabuk) disimpan ke Prisma saat create / daftar mandiri. **Input Massal**: tabel NIA, Nama, **Tempat & Tgl Lahir** digabung, JK (teks), Alamat, Kyu, Ranting + **isi semua ranting** & **isi semua Kyu/DAN**; paste Excel/CSV (format lama dengan NIK/Telepon tetap didukung); simpan per chunk dengan **progress %**; maks 50 (`POST /api/admin/members/bulk-create`). Field teks identitas **huruf besar**; **tanggal lahir** bisa paste (mis. `28 Februari 2011` / `Surabaya, 28 Maret 2015`).
 2. `POST /api/auth/register` dan `POST /api/admin/members` meneruskan semua field anggota (termasuk NIA jika diisi) ke Inkai API.
 3. Status menunggu verifikasi (publik) atau aktif langsung (admin/ranting).
 4. **Deteksi duplikat** sebelum simpan: **keras** jika NIK, NIA, atau nama tepat + tanggal lahir sama (cakupan Cabang Surabaya); **lunak** jika nama mirip. Blok `POST /api/admin/members` & `POST /api/auth/register` (409); UI peringatan di form tambah anggota & daftar publik.
@@ -649,6 +649,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | Absensi admin: tab Progress/Harian/Belum **client-side instan** (tanpa RSC reload); payload log dibatasi; peek biometrik ringan |
 | 24 Juli 2026 | **Tutorial:** skrip video anggota+pengurus (`guide/tutorials/`); `/tutorial` publik (tab nav) + `/dashboard/panduan` langkah+embed YouTube; welcome v2 |
 | 24 Juli 2026 | Beranda publik: floating chip **Masih terbuka**; hapus `/berita` (redirect `/`); modul **Apresiasi** (Kenangan/Prestasi) + admin CRUD + cuplikan beranda; badge kegiatan; `loading.tsx` publik |
+| 24 Juli 2026 | Form daftar `/login?tab=daftar` selaras Tambah Anggota: urutan Dojo→Identitas→Sabuk→Akun; No. MSH di Sabuk (hanya Hitam/DAN); persist Prisma + notif admin; tutorial urutan diperbarui |
 
 ---
 

@@ -51,6 +51,14 @@ export const registerSchema = z.object({
       .min(2, "NIA minimal 2 karakter")
       .max(32, "NIA maksimal 32 karakter"),
   ),
+  /** No. MSH opsional — hanya Hitam/DAN (divalidasi di API). */
+  mshNumber: optionalBlankString(
+    z
+      .string()
+      .trim()
+      .min(2, "No. MSH minimal 2 karakter")
+      .max(32, "No. MSH maksimal 32 karakter"),
+  ),
 });
 
 export const forgotPasswordSchema = z.object({

@@ -4,7 +4,8 @@ import { notifyUser } from "@/lib/notifications";
 /** Beritahu admin ranting (dojo) + cabang tentang perubahan No. MSH anggota. */
 export async function notifyAdminsAboutMemberMsh(opts: {
   dojoId: string;
-  token: string;
+  /** Jika ada: kirim via Inkai. Jika tidak: tulis Notification lokal saja. */
+  token?: string | null;
   title: string;
   content: string;
   excludeUserId?: string;
@@ -48,19 +49,31 @@ export async function notifyAdminsAboutMemberMsh(opts: {
       ),
     ];
 
-    await Promise.allSettled(
-      ids.map((userId) =>
-        notifyUser({
+    if (opts.token) {
+      await Promise.allSettled(
+        ids.map((userId) =>
+          notifyUser({
+            userId,
+            title: opts.title,
+            content: opts.content,
+            type: "INFO",
+            token: opts.token!,
+            audience: "ADMIN",
+            email: false,
+          }),
+        ),
+      );
+    } else if (ids.length > 0) {
+      await prisma.notification.createMany({
+        data: ids.map((userId) => ({
           userId,
           title: opts.title,
           content: opts.content,
           type: "INFO",
-          token: opts.token,
           audience: "ADMIN",
-          email: false,
-        }),
-      ),
-    );
+        })),
+      });
+    }
     return ids.length;
   } catch (error) {
     console.error("[notifyAdminsAboutMemberMsh]", error);
