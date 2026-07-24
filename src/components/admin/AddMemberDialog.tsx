@@ -182,16 +182,6 @@ export function AddMemberDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <MemberIdentitySection
-            idPrefix="add-member"
-            form={form}
-            onChange={setField}
-            suggestions={suggestions}
-            duplicateBlocked={duplicateBlocked}
-          />
-
-          <MemberBeltSection idPrefix="add-member" form={form} onChange={setField} />
-
           {!lockDojo && dojos.length > 0 ? (
             <div className="space-y-1.5">
               <Label htmlFor="add-member-dojo">Dojo / Ranting</Label>
@@ -210,6 +200,16 @@ export function AddMemberDialog({
               </select>
             </div>
           ) : null}
+
+          <MemberIdentitySection
+            idPrefix="add-member"
+            form={form}
+            onChange={setField}
+            suggestions={suggestions}
+            duplicateBlocked={duplicateBlocked}
+          />
+
+          <MemberBeltSection idPrefix="add-member" form={form} onChange={setField} />
         </div>
 
         <DialogFooter>

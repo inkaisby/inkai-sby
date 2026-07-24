@@ -346,7 +346,7 @@ export function MemberBeltSection({
         Sabuk
       </h3>
       <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-rank`}>Kyu saat ini (Kyu Lama)</Label>
+        <Label htmlFor={`${idPrefix}-rank`}>Tingkatan Kyu / DAN</Label>
         <select
           id={`${idPrefix}-rank`}
           className={selectClassName}
