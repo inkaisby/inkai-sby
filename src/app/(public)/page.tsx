@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import ArticleCarousel from "@/components/home/ArticleCarousel";
 import ArticleCarouselSkeleton from "@/components/home/ArticleCarouselSkeleton";
 import HomeAppreciationSnippet from "@/components/home/HomeAppreciationSnippet";
-import HomeOpenEventsChip from "@/components/home/HomeOpenEventsChip";
 import HomeHeroCTA from "@/components/home/HomeHeroCTA";
 import SurabayaHeroMark from "@/components/home/SurabayaHeroMark";
 
@@ -171,10 +170,6 @@ export default function HomePage() {
           </blockquote>
         </div>
       </section>
-
-      <Suspense fallback={null}>
-        <HomeOpenEventsChip />
-      </Suspense>
     </>
   );
 }

@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import PublicHeader from "@/components/layout/PublicHeader";
 import PublicFooter from "@/components/layout/PublicFooter";
 import { LoginModalProvider } from "@/components/auth/LoginModal";
+import HomeOpenEventsChip from "@/components/home/HomeOpenEventsChip";
 
 export default function PublicLayout({
   children,
@@ -15,6 +17,9 @@ export default function PublicLayout({
           <div className="public-content-enter relative z-[1]">{children}</div>
         </main>
         <PublicFooter />
+        <Suspense fallback={null}>
+          <HomeOpenEventsChip />
+        </Suspense>
       </div>
     </LoginModalProvider>
   );

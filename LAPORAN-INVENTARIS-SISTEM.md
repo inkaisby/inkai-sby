@@ -56,7 +56,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Route | Fungsi |
 |-------|--------|
-| `/` | Beranda, carousel berita, **cuplikan Apresiasi**, **floating chip kegiatan terbuka**, CTA login/daftar |
+| `/` | Beranda, carousel berita, **cuplikan Apresiasi**, CTA login/daftar; **floating chip kegiatan terbuka** di seluruh layout publik |
 | `/tutorial` | **Tutorial anggota** (langkah + slot embed YouTube): pendaftaran, menu dashboard, UKT, iuran, absensi; CTA Daftar/Masuk; nav header **Tutorial** |
 | `/sejarah` | Sejarah organisasi |
 | `/makna-lambang` | Filosofi lambang |
