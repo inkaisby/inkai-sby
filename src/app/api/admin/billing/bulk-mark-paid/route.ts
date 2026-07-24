@@ -33,8 +33,8 @@ async function markPaidLocal(billingId: string) {
     await prisma.payment.update({
       where: { billingId },
       data: {
-        paymentMethod: "CASH",
-        paidAt: new Date(),
+        paymentMethod: existing.paymentMethod || "CASH",
+        paidAt: existing.paidAt ?? new Date(),
         proofUrl: existing.proofUrl || "—",
       },
     });

@@ -343,52 +343,52 @@ export async function PATCH(request: Request, context: RouteContext) {
     data.adminNotes,
   );
 
-  if (!result.ok) {
-    // Fallback lokal: tandai lunas / tolak di DB
-    if (scope.billing) {
-      try {
-        const nextStatus =
-          data.action === "reject" ? "REJECTED" : "PAID";
-        await prisma.billing.update({
-          where: { id },
-          data: { status: nextStatus },
+  const nextStatus = data.action === "reject" ? "REJECTED" : "PAID";
+
+  // Sinkron Prisma (ledger admin) — preserve paidAt laporan anggota bila ada
+  if (scope.billing) {
+    try {
+      await prisma.billing.update({
+        where: { id },
+        data: { status: nextStatus },
+      });
+      if (nextStatus === "PAID") {
+        const existing = await prisma.payment.findUnique({
+          where: { billingId: id },
         });
-        if (nextStatus === "PAID") {
-          const existing = await prisma.payment.findUnique({
+        if (existing) {
+          await prisma.payment.update({
             where: { billingId: id },
+            data: {
+              paymentMethod: existing.paymentMethod || "CASH",
+              paidAt: existing.paidAt ?? new Date(),
+              proofUrl: existing.proofUrl || "—",
+            },
           });
-          if (existing) {
-            await prisma.payment.update({
-              where: { billingId: id },
-              data: {
-                paymentMethod: "CASH",
-                paidAt: new Date(),
-                proofUrl: existing.proofUrl || "—",
-              },
-            });
-          } else {
-            await prisma.payment.create({
-              data: {
-                billingId: id,
-                paymentMethod: "CASH",
-                paidAt: new Date(),
-                proofUrl: "—",
-              },
-            });
-          }
+        } else {
+          await prisma.payment.create({
+            data: {
+              billingId: id,
+              paymentMethod: "CASH",
+              paidAt: new Date(),
+              proofUrl: "—",
+            },
+          });
         }
-      } catch {
+      }
+    } catch {
+      if (!result.ok) {
         return NextResponse.json(
           { error: result.error },
           { status: result.status },
         );
       }
-    } else {
-      return NextResponse.json(
-        { error: result.error },
-        { status: result.status },
-      );
     }
+  } else if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error },
+      { status: result.status },
+    );
   }
 
   writeBillingAudit({

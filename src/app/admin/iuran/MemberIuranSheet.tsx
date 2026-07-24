@@ -75,16 +75,30 @@ function formatDateTime(iso: string) {
   }
 }
 
+function paymentMethodLabel(method: string | null | undefined) {
+  if (!method) return "—";
+  if (method === "SETOR_RANTING") return "Setor ranting";
+  if (method === "CASH") return "Tunai";
+  if (method === "TRANSFER") return "Transfer";
+  return method;
+}
+
 function auditActionLabel(action: string, details: string | null) {
   const d = details || "";
+  if (
+    action === "BILLING_MEMBER_REPORT" ||
+    d.includes("member_report_setor")
+  ) {
+    return "Lapor setor anggota";
+  }
   if (d.includes("billingAction=mark_paid") || d.includes("mark_paid")) {
     return "Tandai lunas";
   }
   if (d.includes("billingAction=approve") || /\bapprove\b/.test(d)) {
-    return "Setujui bukti";
+    return "Setujui setor";
   }
   if (d.includes("billingAction=reject") || /\breject\b/.test(d)) {
-    return "Tolak bukti";
+    return "Tolak setor";
   }
   if (action === "BILLING_UPDATE") return "Edit tagihan";
   if (action === "BILLING_SUBMIT_VERIFICATION") return "Ajukan verifikasi";
@@ -375,8 +389,12 @@ export function MemberIuranSheet({
                                 </Badge>
                               </td>
                               <td className="px-2 py-2 text-xs">
-                                {b.payment?.paymentMethod || "—"}
-                                {b.payment?.proofUrl ? (
+                                {paymentMethodLabel(b.payment?.paymentMethod)}
+                                {b.payment?.paidAt ? (
+                                  <> · Tgl setor {formatDate(b.payment.paidAt)}</>
+                                ) : null}
+                                {b.payment?.proofUrl &&
+                                b.payment.proofUrl !== "—" ? (
                                   <>
                                     {" · "}
                                     <a
@@ -435,18 +453,33 @@ export function MemberIuranSheet({
                           <p className="text-xs text-muted-foreground">
                             JT {formatDate(b.dueDate)} · {formatRp(b.amount)}
                           </p>
-                          {b.payment?.proofUrl ? (
-                            <a
-                              href={b.payment.proofUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-inkai-red hover:underline"
-                            >
-                              Lihat bukti transfer
-                            </a>
+                          {b.payment?.paidAt ||
+                          b.payment?.paymentMethod ||
+                          (b.payment?.proofUrl &&
+                            b.payment.proofUrl !== "—") ? (
+                            <p className="text-xs text-muted-foreground">
+                              {paymentMethodLabel(b.payment?.paymentMethod)}
+                              {b.payment?.paidAt
+                                ? ` · Tgl setor ${formatDate(b.payment.paidAt)}`
+                                : ""}
+                              {b.payment?.proofUrl &&
+                              b.payment.proofUrl !== "—" ? (
+                                <>
+                                  {" · "}
+                                  <a
+                                    href={b.payment.proofUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-inkai-red hover:underline"
+                                  >
+                                    Bukti
+                                  </a>
+                                </>
+                              ) : null}
+                            </p>
                           ) : (
                             <p className="text-xs text-muted-foreground">
-                              Belum ada bukti unggahan
+                              Belum ada laporan setor dari anggota
                             </p>
                           )}
                         </div>
@@ -489,8 +522,8 @@ function AuditTrailList({
       <div className="rounded-lg border border-dashed p-3">
         <p className="text-xs font-medium text-muted-foreground">Jejak aksi</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Belum ada jejak lokal. Aksi setujui/tolak/lunas berikutnya akan
-          tercatat di sini (siapa, kapan, catatan).
+          Belum ada jejak lokal. Lapor setor / setujui / tolak / lunas
+          berikutnya akan tercatat di sini (siapa, kapan, catatan).
         </p>
       </div>
     );

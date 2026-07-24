@@ -66,6 +66,8 @@ export type WaitingQueueItem = {
   dueDate: string;
   description: string | null;
   proofUrl: string | null;
+  paidAt: string | null;
+  paymentMethod: string | null;
 };
 
 export type IuranLedgerIndexResult = {
@@ -306,7 +308,9 @@ export async function getIuranMemberLedgerIndex(
             status: true,
             description: true,
             dueDate: true,
-            payment: { select: { proofUrl: true } },
+            payment: {
+              select: { proofUrl: true, paidAt: true, paymentMethod: true },
+            },
           },
         });
 
@@ -319,6 +323,8 @@ export async function getIuranMemberLedgerIndex(
       description: string | null;
       dueDate: Date;
       proofUrl: string | null;
+      paidAt: Date | null;
+      paymentMethod: string | null;
     }>
   >();
 
@@ -332,6 +338,8 @@ export async function getIuranMemberLedgerIndex(
       description: b.description,
       dueDate: b.dueDate,
       proofUrl: b.payment?.proofUrl ?? null,
+      paidAt: b.payment?.paidAt ?? null,
+      paymentMethod: b.payment?.paymentMethod ?? null,
     });
     monthlyByMember.set(b.memberId, list);
   }
@@ -380,6 +388,8 @@ export async function getIuranMemberLedgerIndex(
         dueDate: b.dueDate.toISOString(),
         description: b.description,
         proofUrl: b.proofUrl,
+        paidAt: b.paidAt?.toISOString() ?? null,
+        paymentMethod: b.paymentMethod,
       });
     }
 
@@ -542,6 +552,7 @@ export async function getIuranMemberLedgerDetail(
           "BILLING_UPDATE",
           "BILLING_SUBMIT_VERIFICATION",
           "BILLING_GENERATE_MONTHLY",
+          "BILLING_MEMBER_REPORT",
         ],
       },
       OR: auditOr,

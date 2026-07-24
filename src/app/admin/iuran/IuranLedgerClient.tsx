@@ -256,16 +256,31 @@ export function IuranLedgerClient({
                         {formatRp(item.amount)}
                         {item.description ? ` · ${item.description}` : ""}
                       </p>
-                      {item.proofUrl ? (
-                        <a
-                          href={item.proofUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-inkai-red hover:underline"
-                        >
-                          Lihat bukti
-                        </a>
-                      ) : null}
+                      <p className="text-xs text-muted-foreground">
+                        {item.paymentMethod === "SETOR_RANTING"
+                          ? "Setor ranting"
+                          : item.paymentMethod === "CASH"
+                            ? "Tunai"
+                            : item.paymentMethod === "TRANSFER"
+                              ? "Transfer"
+                              : item.paymentMethod || "Menunggu verifikasi"}
+                        {item.paidAt
+                          ? ` · Tgl setor ${new Date(item.paidAt).toLocaleDateString("id-ID")}`
+                          : ""}
+                        {item.proofUrl && item.proofUrl !== "—" ? (
+                          <>
+                            {" · "}
+                            <a
+                              href={item.proofUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-inkai-red hover:underline"
+                            >
+                              Bukti
+                            </a>
+                          </>
+                        ) : null}
+                      </p>
                     </div>
                     <div className="flex flex-wrap gap-1">
                       <Button

@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { showError, showSuccess } from "@/lib/client-toast";
-import { ExternalLink, Loader2, Upload } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 type BillingItem = {
   id: string;
@@ -14,7 +15,11 @@ type BillingItem = {
   dueDate?: string;
   amount?: number;
   status?: string;
-  payment?: { proofUrl?: string | null } | null;
+  payment?: {
+    proofUrl?: string | null;
+    paidAt?: string | null;
+    paymentMethod?: string | null;
+  } | null;
 };
 
 function statusLabel(status: string) {
@@ -27,7 +32,9 @@ function statusLabel(status: string) {
 }
 
 function typeLabel(type: string) {
-  if (type === "MONTHLY_IURAN") return "Iuran bulanan";
+  if (type === "MONTHLY_IURAN" || type === "MONTHLY" || type === "IURAN") {
+    return "Iuran bulanan";
+  }
   if (type === "EVENT" || type === "UKT") return "UKT / Event";
   return type || "Tagihan";
 }
@@ -38,45 +45,53 @@ function isUktBilling(b: BillingItem): boolean {
   return type.includes("UKT") || type === "EVENT" || desc.includes("UKT");
 }
 
+function todayYmd() {
+  const n = new Date();
+  const y = n.getFullYear();
+  const m = String(n.getMonth() + 1).padStart(2, "0");
+  const d = String(n.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function formatPaidAt(iso: string | null | undefined) {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleDateString("id-ID");
+  } catch {
+    return null;
+  }
+}
+
 export function IuranListClient({ billings }: { billings: BillingItem[] }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
-  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [dates, setDates] = useState<Record<string, string>>({});
 
-  async function submitProof(billingId: string, file: File) {
+  async function submitReport(billingId: string, amount: number) {
+    const paidAt = dates[billingId] || todayYmd();
     setBusyId(billingId);
     try {
-      const form = new FormData();
-      form.set("file", file);
-      form.set("folder", "iuran");
-      const up = await fetch("/api/member/upload", { method: "POST", body: form });
-      const upData = await up.json().catch(() => ({}));
-      if (!up.ok) {
-        showError(upData.error || "Gagal mengunggah bukti");
-        return;
-      }
-
       const res = await fetch(`/api/member/billing/${billingId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          proofUrl: upData.url,
-          paymentMethod: "TRANSFER",
+          paidAt,
+          amount,
+          paymentMethod: "SETOR_RANTING",
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showError(data.error || "Gagal mengirim bukti");
+        showError(data.error || "Gagal mengirim laporan setor");
         return;
       }
-      showSuccess(data.message || "Bukti terkirim");
+      showSuccess(data.message || "Laporan setor terkirim");
       router.refresh();
     } finally {
       setBusyId(null);
     }
   }
 
-  // Tagihan UKT tidak ditampilkan di daftar iuran anggota (anti-bocor nominal)
   const visible = billings.filter((b) => !isUktBilling(b));
 
   if (visible.length === 0) {
@@ -91,9 +106,12 @@ export function IuranListClient({ billings }: { billings: BillingItem[] }) {
     <div className="space-y-3">
       {visible.map((b) => {
         const st = statusLabel(String(b.status || ""));
-        const canUpload =
+        const canReport =
           b.status === "PENDING" || b.status === "REJECTED";
-        const proofUrl = b.payment?.proofUrl;
+        const amount = Number(b.amount || 0);
+        const reportedAt = formatPaidAt(b.payment?.paidAt);
+        const dateValue = dates[b.id] ?? todayYmd();
+
         return (
           <div
             key={b.id}
@@ -114,7 +132,7 @@ export function IuranListClient({ billings }: { billings: BillingItem[] }) {
               </div>
               <div className="text-right">
                 <p className="font-bold">
-                  Rp {Number(b.amount || 0).toLocaleString("id-ID")}
+                  Rp {amount.toLocaleString("id-ID")}
                 </p>
                 <Badge
                   variant={b.status === "PAID" ? "default" : "secondary"}
@@ -125,51 +143,51 @@ export function IuranListClient({ billings }: { billings: BillingItem[] }) {
               </div>
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {proofUrl ? (
-                <a
-                  href={proofUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-sm text-inkai-red hover:underline"
-                >
-                  Lihat bukti <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              ) : null}
+            {b.status === "WAITING_VERIFICATION" && reportedAt ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Dilaporkan setor {reportedAt} — menunggu konfirmasi ranting
+              </p>
+            ) : null}
 
-              {canUpload ? (
-                <>
-                  <input
-                    ref={(el) => {
-                      inputRefs.current[b.id] = el;
-                    }}
-                    type="file"
-                    accept="image/*,application/pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      e.target.value = "";
-                      if (file) void submitProof(b.id, file);
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    disabled={busyId === b.id}
-                    onClick={() => inputRefs.current[b.id]?.click()}
+            {canReport ? (
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                <div className="space-y-1">
+                  <label
+                    htmlFor={`paidAt-${b.id}`}
+                    className="text-xs text-muted-foreground"
                   >
-                    {busyId === b.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Upload className="h-3.5 w-3.5" />
-                    )}
-                    Unggah bukti bayar
-                  </Button>
-                </>
-              ) : null}
-            </div>
+                    Tanggal bayar
+                  </label>
+                  <Input
+                    id={`paidAt-${b.id}`}
+                    type="date"
+                    className="h-9 w-[160px]"
+                    max={todayYmd()}
+                    value={dateValue}
+                    disabled={busyId === b.id}
+                    onChange={(e) =>
+                      setDates((prev) => ({ ...prev, [b.id]: e.target.value }))
+                    }
+                  />
+                </div>
+                <p className="pb-2 text-xs text-muted-foreground">
+                  Nominal: Rp {amount.toLocaleString("id-ID")} (sesuai tagihan)
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-9 bg-inkai-red hover:bg-inkai-red/90"
+                  disabled={busyId === b.id || !dateValue}
+                  onClick={() => void submitReport(b.id, amount)}
+                >
+                  {busyId === b.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    "Laporkan setor ke ranting"
+                  )}
+                </Button>
+              </div>
+            ) : null}
           </div>
         );
       })}

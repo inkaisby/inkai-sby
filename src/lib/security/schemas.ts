@@ -666,8 +666,12 @@ export const wilayahAccountPatchSchema = z
     }
   });
 
-export const memberBillingProofSchema = z.object({
-  proofUrl: z.string().url("URL bukti tidak valid"),
+/** Laporan setor iuran anggota (tanpa unggah bukti TF). */
+export const memberBillingPaymentReportSchema = z.object({
+  paidAt: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal bayar tidak valid"),
+  amount: z.coerce.number().positive("Nominal tidak valid"),
   paymentMethod: z.string().trim().max(40).optional(),
 });
 
