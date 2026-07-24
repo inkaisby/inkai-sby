@@ -15,7 +15,7 @@ import {
   type UktPeriodMeta,
   type UktSemester,
 } from "@/lib/ukt";
-import { fetchUktDashboardData } from "@/lib/inkai-api/admin-data";
+import { fetchUktDashboardData, resolveUktAdminPeriodId } from "@/lib/inkai-api/admin-data";
 import { getBranchOrgProfile } from "@/lib/org-settings";
 import { getUktRegistrationPolicy } from "@/lib/ukt-registration-policy";
 import { requireAdminSession } from "@/lib/admin-session";
@@ -164,6 +164,100 @@ async function UktDashboardSection({
   let dojoGroups: Awaited<ReturnType<typeof loadUktDojoFilterGroups>> = [];
 
   try {
+    // #region agent log
+    const __pageDbgT0 = Date.now();
+    const __pageDbgRun = `ukt-page-${__pageDbgT0}`;
+    const __pageDbgLog = (
+      hypothesisId: string,
+      location: string,
+      message: string,
+      data: Record<string, unknown>,
+    ) => {
+      const payload = {
+        sessionId: "f0acf0",
+        runId: __pageDbgRun,
+        hypothesisId,
+        location,
+        message,
+        data,
+        timestamp: Date.now(),
+      };
+      fetch(
+        "http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Debug-Session-Id": "f0acf0",
+          },
+          body: JSON.stringify(payload),
+        },
+      ).catch(() => {});
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require("fs").appendFileSync(
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
+          require("path").join(process.cwd(), ".cursor", "debug-f0acf0.log"),
+          JSON.stringify(payload) + "\n",
+        );
+      } catch {
+        /* ignore */
+      }
+    };
+    // #endregion
+
+    // Perf A1: sync URL canonical SEBELUM fetch berat (hindari double full load).
+    // Evidence: production GET /admin/ukt 307 setelah kerja penuh.
+    if (!createMode) {
+      const urlLooksComplete =
+        urlSemester === semester &&
+        urlYear === String(year) &&
+        Boolean(periodFromUrl);
+      if (!urlLooksComplete) {
+        const light = await resolveUktAdminPeriodId(token, {
+          periodFromUrl,
+          semester,
+          year,
+          forceNoPeriod: false,
+          viewMode: "registration",
+        });
+        const canonicalPeriod = light.selectedPeriodId;
+        const urlNeedsSync =
+          urlSemester !== semester ||
+          urlYear !== String(year) ||
+          (periodFromUrl ?? "") !== (canonicalPeriod ?? "");
+        // #region agent log
+        __pageDbgLog(
+          "A",
+          "admin/ukt/page.tsx:light-redirect",
+          urlNeedsSync
+            ? "UKT light resolve → redirect before heavy fetch"
+            : "UKT light resolve — URL already synced",
+          {
+            lightMs: Date.now() - __pageDbgT0,
+            urlNeedsSync,
+            periodFromUrl: periodFromUrl ?? null,
+            canonicalPeriod: canonicalPeriod ?? null,
+            semester,
+            year,
+          },
+        );
+        // #endregion
+        if (urlNeedsSync) {
+          redirect(buildUktAdminUrl(semester, year, canonicalPeriod));
+        }
+      }
+    } else {
+      const urlNeedsSync =
+        urlSemester !== semester ||
+        urlYear !== String(year) ||
+        Boolean(periodFromUrl) ||
+        urlCreate !== "1";
+      if (urlNeedsSync) {
+        redirect(buildUktAdminUrl(semester, year, null, { create: true }));
+      }
+    }
+
     const [profile, policy, data, dojoGroupsResult] = await Promise.all([
       getBranchOrgProfile(),
       getUktRegistrationPolicy(),
@@ -180,6 +274,9 @@ async function UktDashboardSection({
           )
         : loadUktDojoFilterGroups(user),
     ]);
+    // #region agent log
+    const __pageDbgFetchMs = Date.now() - __pageDbgT0;
+    // #endregion
     orgProfile = profile;
     registrationPolicy = policy;
     periods = data.periods;
@@ -190,6 +287,19 @@ async function UktDashboardSection({
     if (!createMode && periodFromUrl) {
       const fromUrl = periods.find((p) => p.id === periodFromUrl);
       if (fromUrl && !isUktPeriodActiveView(fromUrl)) {
+        // #region agent log
+        __pageDbgLog(
+          "A",
+          "admin/ukt/page.tsx:redirect-arsip",
+          "UKT redirect arsip after full fetch",
+          {
+            fetchMs: __pageDbgFetchMs,
+            periodFromUrl,
+            semester,
+            year,
+          },
+        );
+        // #endregion
         redirect(
           buildUktAdminUrl(semester, year, periodFromUrl, {
             basePath: "/admin/ukt/arsip",
@@ -198,21 +308,33 @@ async function UktDashboardSection({
       }
     }
 
-    if (createMode) {
-      const urlNeedsSync =
-        urlSemester !== semester ||
-        urlYear !== String(year) ||
-        Boolean(periodFromUrl) ||
-        urlCreate !== "1";
-      if (urlNeedsSync) {
-        redirect(buildUktAdminUrl(semester, year, null, { create: true }));
-      }
-    } else {
+    if (!createMode) {
       const canonicalPeriod = data.selectedPeriodId;
       const urlNeedsSync =
         urlSemester !== semester ||
         urlYear !== String(year) ||
         (periodFromUrl ?? "") !== (canonicalPeriod ?? "");
+      // #region agent log
+      __pageDbgLog(
+        "A",
+        "admin/ukt/page.tsx:after-fetch",
+        urlNeedsSync
+          ? "UKT will redirect canonical after full fetch"
+          : "UKT URL already canonical — no redirect",
+        {
+          fetchMs: __pageDbgFetchMs,
+          urlNeedsSync,
+          periodFromUrl: periodFromUrl ?? null,
+          canonicalPeriod: canonicalPeriod ?? null,
+          urlSemester: urlSemester ?? null,
+          urlYear: urlYear ?? null,
+          semester,
+          year,
+          rowCount: data.allRows?.length ?? 0,
+          runIdTag: "post-fix",
+        },
+      );
+      // #endregion
       if (urlNeedsSync) {
         redirect(buildUktAdminUrl(semester, year, canonicalPeriod));
       }

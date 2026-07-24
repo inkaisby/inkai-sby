@@ -964,6 +964,120 @@ function buildVerificationCountMap(verifications: Array<Record<string, unknown>>
   return counts;
 }
 
+/**
+ * Resolve periode UKT ringan (events + period-meta saja) untuk redirect URL
+ * canonical sebelum fetch berat (members/attendance/billing).
+ */
+export async function resolveUktAdminPeriodId(
+  token: string,
+  opts: {
+    periodFromUrl?: string | null;
+    semester: UktSemester;
+    year: number;
+    forceNoPeriod?: boolean;
+    viewMode?: UktAdminViewMode;
+  },
+): Promise<{ selectedPeriodId: string | null }> {
+  // #region agent log
+  const __lightT0 = Date.now();
+  // #endregion
+  const {
+    periodFromUrl = null,
+    semester,
+    year,
+    forceNoPeriod = false,
+    viewMode = "registration",
+  } = opts;
+
+  if (forceNoPeriod) {
+    return { selectedPeriodId: null };
+  }
+
+  const [eventsRes, periodMetaRowsAll] = await Promise.all([
+    inkaiFetch("/v1/events?limit=200", {}, token, {
+      timeoutMs: 8_000,
+      retries: 0,
+    }),
+    fetchSettingsByPrefix(token, "ukt-period-meta:"),
+  ]);
+
+  let periods = eventsRes.res.ok
+    ? filterUktEvents(
+        (eventsRes.data.data as Array<Record<string, unknown>>) ?? [],
+      ).map((p) => periodOptionFromEvent(p))
+    : [];
+
+  const metaByPeriodId = new Map<string, UktPeriodMeta>();
+  for (const row of periodMetaRowsAll) {
+    const id = row.key.slice("ukt-period-meta:".length);
+    if (id) metaByPeriodId.set(id, parseUktPeriodMetaValue(row.value));
+  }
+  periods = periods.map((p) => {
+    const meta = metaByPeriodId.get(p.id);
+    return {
+      ...p,
+      archived: meta?.archived === true,
+      locked: meta?.locked === true,
+    };
+  });
+
+  let selectedPeriodId = resolveUktSelectedPeriodId(
+    periods,
+    semester,
+    year,
+    periodFromUrl,
+    viewMode,
+  );
+
+  if (selectedPeriodId && viewMode === "registration") {
+    const selected = periods.find((p) => p.id === selectedPeriodId);
+    const hasActive = findUktPeriodsForTerm(periods, semester, year).some(
+      (p) => !p.archived && !p.locked,
+    );
+    if (selected && (selected.archived || selected.locked) && !hasActive) {
+      selectedPeriodId = null;
+    }
+  }
+
+  // #region agent log
+  try {
+    const payload = {
+      sessionId: "f0acf0",
+      runId: `ukt-light-${__lightT0}`,
+      hypothesisId: "A",
+      location: "admin-data.ts:resolveUktAdminPeriodId",
+      message: "UKT light period resolve",
+      data: {
+        ms: Date.now() - __lightT0,
+        periodFromUrl: periodFromUrl ?? null,
+        selectedPeriodId,
+        semester,
+        year,
+      },
+      timestamp: Date.now(),
+    };
+    fetch("http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "f0acf0",
+      },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require("fs").appendFileSync(
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require("path").join(process.cwd(), ".cursor", "debug-f0acf0.log"),
+      JSON.stringify(payload) + "\n",
+    );
+  } catch {
+    /* ignore */
+  }
+  // #endregion
+
+  return { selectedPeriodId };
+}
+
 export async function fetchUktDashboardData(
   token: string,
   user: SessionUser,
@@ -977,6 +1091,39 @@ export async function fetchUktDashboardData(
     viewMode?: UktAdminViewMode;
   },
 ) {
+  // #region agent log
+  const __uktDbgT0 = Date.now();
+  const __uktDbgRun = `ukt-load-${__uktDbgT0}`;
+  const __uktDbgLog = (hypothesisId: string, location: string, message: string, data: Record<string, unknown>) => {
+    const payload = {
+      sessionId: "f0acf0",
+      runId: __uktDbgRun,
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    };
+    fetch("http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "f0acf0",
+      },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require("fs").appendFileSync(
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require("path").join(process.cwd(), ".cursor", "debug-f0acf0.log"),
+        JSON.stringify(payload) + "\n",
+      );
+    } catch {
+      /* ignore */
+    }
+  };
+  // #endregion
   const {
     periodFromUrl = null,
     semester,
@@ -1092,6 +1239,17 @@ export async function fetchUktDashboardData(
     // Meta arsip semua periode — paralel agar tidak menambah 1 RTT serial
     fetchSettingsByPrefix(token, "ukt-period-meta:"),
   ]);
+  // #region agent log
+  const __uktDbgWave1Ms = Date.now() - __uktDbgT0;
+  __uktDbgLog("B", "admin-data.ts:fetchUktDashboardData:wave1", "UKT wave1 done", {
+    ms: __uktDbgWave1Ms,
+    viewMode,
+    periodFromUrl: periodFromUrl ?? null,
+    memberCount: membersResult.ok ? membersResult.members.length : -1,
+    isArchive,
+    primaryRole,
+  });
+  // #endregion
 
   let dojos: Array<{ id: string; name: string }> = dojosRaw;
   if (dojoAllowlist.length > 0) {
@@ -1174,6 +1332,9 @@ export async function fetchUktDashboardData(
   let periodMetaValue = periodMetaInitial;
 
   if (selectedPeriodId && selectedPeriodId !== periodFromUrl) {
+    // #region agent log
+    const __uktDbgWave2T0 = Date.now();
+    // #endregion
     const [detail, exams, waivers, attendance, deposits, metaRes] =
       await Promise.all([
         fetchEventDetail(token, selectedPeriodId),
@@ -1195,6 +1356,13 @@ export async function fetchUktDashboardData(
     periodMetaValue = metaRes.res.ok
       ? ((metaRes.data.data as { value?: unknown })?.value ?? null)
       : null;
+    // #region agent log
+    __uktDbgLog("C", "admin-data.ts:fetchUktDashboardData:wave2", "UKT wave2 ran", {
+      ms: Date.now() - __uktDbgWave2T0,
+      periodFromUrl: periodFromUrl ?? null,
+      selectedPeriodId,
+    });
+    // #endregion
   }
 
   // Sinkronkan tanggal/batas pendaftaran dari detail event agar kartu "Atur" akurat.
@@ -1272,25 +1440,43 @@ export async function fetchUktDashboardData(
     .filter((m) => !m.birthCertificateUrl?.trim() || !m.bpjsCardUrl?.trim())
     .map((m) => m.id)
     .filter(Boolean);
-  if (docMissingIds.length > 0) {
-    const localDocs = await withPrismaFallback(
-      "ukt-member-docs",
-      () =>
-        prisma.member.findMany({
-          where: { id: { in: docMissingIds } },
-          select: {
-            id: true,
-            birthCertificateUrl: true,
-            bpjsCardUrl: true,
-          },
+
+  // Perf A3: docs + dues exemption paralel (independen).
+  const [localDocsResult, duesExemptResult] = await Promise.all([
+    docMissingIds.length > 0
+      ? withPrismaFallback(
+          "ukt-member-docs",
+          () =>
+            prisma.member.findMany({
+              where: { id: { in: docMissingIds } },
+              select: {
+                id: true,
+                birthCertificateUrl: true,
+                bpjsCardUrl: true,
+              },
+            }),
+          [] as Array<{
+            id: string;
+            birthCertificateUrl: string | null;
+            bpjsCardUrl: string | null;
+          }>,
+        )
+      : Promise.resolve({
+          data: [] as Array<{
+            id: string;
+            birthCertificateUrl: string | null;
+            bpjsCardUrl: string | null;
+          }>,
         }),
-      [] as Array<{
-        id: string;
-        birthCertificateUrl: string | null;
-        bpjsCardUrl: string | null;
-      }>,
-    );
-    const docsById = new Map((localDocs.data ?? []).map((r) => [r.id, r]));
+    withPrismaFallback(
+      "ukt-dues-exemption",
+      () => fetchDuesExemptMemberIds(members.map((m) => m.id)),
+      new Set<string>(),
+    ),
+  ]);
+
+  if ((localDocsResult.data?.length ?? 0) > 0) {
+    const docsById = new Map((localDocsResult.data ?? []).map((r) => [r.id, r]));
     for (const m of members) {
       const docs = docsById.get(m.id);
       if (!docs) continue;
@@ -1307,11 +1493,7 @@ export async function fetchUktDashboardData(
     ? buildBillingCountMap((billingsRes.data.data as Array<Record<string, unknown>>) ?? [])
     : new Map<string, number>();
 
-  const duesExemptMemberIds = await withPrismaFallback(
-    "ukt-dues-exemption",
-    () => fetchDuesExemptMemberIds(members.map((m) => m.id)),
-    new Set<string>(),
-  );
+  const duesExemptMemberIds = duesExemptResult;
 
   const verificationCountByMember = pendingVerificationsRes.res.ok
     ? buildVerificationCountMap(
@@ -1823,6 +2005,20 @@ export async function fetchUktDashboardData(
         selfRegMetaMap.get(m.id)?.memberPaymentConfirmedAt ?? null,
     };
   });
+
+  // #region agent log
+  __uktDbgLog("D", "admin-data.ts:fetchUktDashboardData:done", "UKT fetch total", {
+    totalMs: Date.now() - __uktDbgT0,
+    wave1Ms: __uktDbgWave1Ms,
+    postWave1Ms: Date.now() - __uktDbgT0 - __uktDbgWave1Ms,
+    rowCount: allRows.length,
+    selectedPeriodId,
+    periodFromUrl: periodFromUrl ?? null,
+    wave2Needed: Boolean(
+      selectedPeriodId && selectedPeriodId !== periodFromUrl,
+    ),
+  });
+  // #endregion
 
   return {
     periods,

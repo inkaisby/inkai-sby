@@ -1390,6 +1390,21 @@ export function canRantingSubmitUktPayment(row: UktMemberRow): boolean {
   return row.billingStatus !== "WAITING_VERIFICATION";
 }
 
+/**
+ * Cabang boleh Verifikasi pembayaran UKT — bukan daftar mandiri PENDING
+ * (harus lewat Terima ranting dulu).
+ */
+export function canCabangVerifyUktPayment(row: UktMemberRow): boolean {
+  if (!isUktBillingUnpaid(row)) return false;
+  if (
+    isUktSelfRegistrationPendingStatus(row.status) &&
+    (row.selfRegistration === true || !row.billingId)
+  ) {
+    return false;
+  }
+  return Boolean(row.billingId);
+}
+
 export function participantAmount(
   billingAmount: number | null,
   billingStatus: string | null,

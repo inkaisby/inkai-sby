@@ -14,6 +14,8 @@ import {
 import { canEditKyuBaru } from "@/lib/belt";
 import { notifyUktBranchAdmins } from "@/lib/ukt-period-notify";
 import { writeSecurityEvent } from "@/lib/security/security-events";
+import { assertUktPeriodMutable } from "@/lib/ukt-period-meta-store";
+import { isUktEventBilling } from "@/lib/ukt-self-registration";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -49,6 +51,42 @@ async function assertBillingInScope(user: SessionUser, billingId: string) {
   }
 
   return { ok: true as const, billing };
+}
+
+/** Gate periode UKT untuk mutasi tagihan yang tertaut registrasi/event UKT. */
+async function assertUktLinkedBillingMutable(
+  token: string,
+  billing: {
+    registrationId: string | null;
+    type: string;
+    description: string | null;
+  },
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  let eventId: string | null = null;
+  if (billing.registrationId) {
+    try {
+      const reg = await prisma.eventRegistration.findFirst({
+        where: { id: billing.registrationId },
+        select: { eventId: true },
+      });
+      eventId = reg?.eventId ?? null;
+    } catch (error) {
+      console.error("[BILLING] UKT eventId lookup failed", error);
+    }
+  }
+  if (!eventId && isUktEventBilling(billing)) {
+    return {
+      ok: false,
+      status: 403,
+      error: "Tagihan UKT terkunci atau periode tidak dapat diverifikasi",
+    };
+  }
+  if (!eventId) return { ok: true };
+  const period = await assertUktPeriodMutable(token, eventId);
+  if (!period.ok) {
+    return { ok: false, status: period.status, error: period.error };
+  }
+  return { ok: true };
 }
 
 async function verifyBilling(
@@ -118,6 +156,25 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   const data = parsed.data;
+
+  if (
+    data.action === "submit_for_verification" ||
+    data.action === "approve" ||
+    data.action === "mark_paid" ||
+    data.action === "reject"
+  ) {
+    const uktGate = await assertUktLinkedBillingMutable(authResult.token, {
+      registrationId: scope.billing?.registrationId ?? null,
+      type: scope.billing?.type ?? "",
+      description: scope.billing?.description ?? null,
+    });
+    if (!uktGate.ok) {
+      return NextResponse.json(
+        { error: uktGate.error },
+        { status: uktGate.status },
+      );
+    }
+  }
 
   if (data.action === "submit_for_verification") {
     if (

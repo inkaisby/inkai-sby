@@ -43,33 +43,47 @@ async function resolveEventIdForRegistration(
   registrationId: string,
   hintEventId?: string | null,
 ): Promise<string | null> {
-  if (hintEventId) return hintEventId;
+  let resolved: string | null = null;
   try {
     const local = await prisma.eventRegistration.findFirst({
       where: { id: registrationId },
       select: { eventId: true },
     });
-    if (local?.eventId) return local.eventId;
+    if (local?.eventId) resolved = local.eventId;
   } catch (error) {
     console.error("[UKT] resolveEventIdForRegistration prisma lookup failed", error);
   }
-  try {
-    const { res, data } = await inkaiFetch(
-      `/v1/events/register/${registrationId}`,
-      {},
-      token,
-      { timeoutMs: 5_000, retries: 0 },
-    );
-    if (res.ok) {
-      const reg = data.data as Record<string, unknown>;
-      const event = reg.event as { id?: string } | undefined;
-      const eventId = String(event?.id ?? reg.eventId ?? "");
-      if (eventId) return eventId;
+  if (!resolved) {
+    try {
+      const { res, data } = await inkaiFetch(
+        `/v1/events/register/${registrationId}`,
+        {},
+        token,
+        { timeoutMs: 5_000, retries: 0 },
+      );
+      if (res.ok) {
+        const reg = data.data as Record<string, unknown>;
+        const event = reg.event as { id?: string } | undefined;
+        const eventId = String(event?.id ?? reg.eventId ?? "");
+        if (eventId) resolved = eventId;
+      }
+    } catch (error) {
+      console.error("[UKT] resolveEventIdForRegistration inkai lookup failed", error);
     }
-  } catch (error) {
-    console.error("[UKT] resolveEventIdForRegistration inkai lookup failed", error);
   }
-  return null;
+  if (
+    resolved &&
+    hintEventId &&
+    String(hintEventId) !== String(resolved)
+  ) {
+    void import("@/lib/security/security-events").then(({ writeSecurityEvent }) => {
+      writeSecurityEvent({
+        action: "SECURITY_UKT_EVENT_ID_MISMATCH",
+        details: `registrationId=${registrationId} hint=${hintEventId} resolved=${resolved}`,
+      });
+    });
+  }
+  return resolved;
 }
 
 function mapActionToStatus(data: {
@@ -496,7 +510,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     id,
     data.eventId,
   );
-  if (eventIdForAssert) {
+  if (!eventIdForAssert) {
+    return NextResponse.json(
+      { error: "Periode UKT tidak dapat diverifikasi untuk pendaftaran ini" },
+      { status: 400 },
+    );
+  }
+  {
     const periodMutable = await assertUktPeriodMutable(
       authResult.token,
       eventIdForAssert,
@@ -903,6 +923,35 @@ export async function PATCH(request: Request, context: RouteContext) {
     }).catch((err) => console.error("[UKT reject self] notify member", err));
 
     return NextResponse.json({ success: true });
+  }
+
+  if (data.action === "mark_paid") {
+    const localReg = await prisma.eventRegistration.findFirst({
+      where: { id },
+      select: { status: true, memberId: true, eventId: true },
+    });
+    if (localReg) {
+      const selfMeta = await loadUktSelfRegistrationMeta(
+        localReg.eventId,
+        localReg.memberId,
+      );
+      const linkedBilling = await prisma.billing.findFirst({
+        where: { registrationId: id, isDeleted: false },
+        select: { id: true },
+      });
+      const pendingSelf =
+        String(localReg.status).toUpperCase() === "PENDING" &&
+        (Boolean(selfMeta) || !linkedBilling);
+      if (pendingSelf) {
+        return NextResponse.json(
+          {
+            error:
+              "Daftar mandiri harus diterima ranting (Terima) sebelum verifikasi cabang",
+          },
+          { status: 400 },
+        );
+      }
+    }
   }
 
   if (data.action === "submit_for_verification") {
@@ -1462,17 +1511,12 @@ export async function DELETE(request: Request, context: RouteContext) {
   }
 
   if (!eventIdForAssert) {
-    try {
-      const localReg = await prisma.eventRegistration.findFirst({
-        where: { id },
-        select: { eventId: true },
-      });
-      eventIdForAssert = localReg?.eventId ?? null;
-    } catch (error) {
-      console.error("[UKT DELETE] eventId lookup failed", error);
-    }
+    return NextResponse.json(
+      { error: "Periode UKT tidak dapat diverifikasi untuk pendaftaran ini" },
+      { status: 400 },
+    );
   }
-  if (eventIdForAssert) {
+  {
     const periodMutable = await assertUktPeriodMutable(token, eventIdForAssert);
     if (!periodMutable.ok) {
       return NextResponse.json(

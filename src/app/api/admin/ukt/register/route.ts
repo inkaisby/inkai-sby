@@ -71,6 +71,10 @@ async function loadScopedMemberForRegister(
 ) {
   const allowlist =
     primaryRole === "ADMIN_DOJO" ? getManagedDojoIdsFromUser(user) : [];
+  // Fail-closed: ranting tanpa allowlist tidak boleh daftar anggota mana pun
+  if (primaryRole === "ADMIN_DOJO" && allowlist.length === 0) {
+    return null;
+  }
   return prisma.member.findFirst({
     where: {
       id: memberId,

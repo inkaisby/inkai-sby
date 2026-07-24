@@ -113,6 +113,7 @@ import {
   isNotaParticipant,
   isUktBillingUnpaid,
   canRantingSubmitUktPayment,
+  canCabangVerifyUktPayment,
   isUktSelesai,
   filterUktRowsByView,
   filterUktRowsByDisplayStatus,
@@ -744,7 +745,10 @@ export function UktDashboard(props: Props) {
   const selectableRows = useMemo(
     () =>
       filteredRows.filter(
-        (r) => r.registrationId && isNotaParticipant(r.status) && isUktBillingUnpaid(r),
+        (r) =>
+          r.registrationId &&
+          isNotaParticipant(r.status) &&
+          canCabangVerifyUktPayment(r),
       ),
     [filteredRows],
   );
@@ -850,7 +854,9 @@ export function UktDashboard(props: Props) {
   };
 
   const selectedUnpaidCount = useMemo(
-    () => selectedRows.filter((r) => r.registrationId && isUktBillingUnpaid(r)).length,
+    () =>
+      selectedRows.filter((r) => r.registrationId && canCabangVerifyUktPayment(r))
+        .length,
     [selectedRows],
   );
 
@@ -1695,7 +1701,7 @@ export function UktDashboard(props: Props) {
       return;
     }
     const targets = selectedRows.filter(
-      (r) => r.registrationId && isUktBillingUnpaid(r),
+      (r) => r.registrationId && canCabangVerifyUktPayment(r),
     );
     if (targets.length === 0) {
       toast.error("Pilih peserta yang belum lunas");
@@ -3394,7 +3400,7 @@ export function UktDashboard(props: Props) {
                               Bayar UKT
                             </Button>
                           )}
-                          {isCabang && isUktBillingUnpaid(row) && (
+                          {isCabang && canCabangVerifyUktPayment(row) && (
                             <Button
                               size="sm"
                               variant="outline"
