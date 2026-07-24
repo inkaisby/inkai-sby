@@ -1,8 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +22,29 @@ export function AppreciationScrollTarget({
   useEffect(() => {
     if (!targetId) return;
     const el = document.getElementById(`apresiasi-${targetId}`);
+    // #region agent log
+    fetch("http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "b14776",
+      },
+      body: JSON.stringify({
+        sessionId: "b14776",
+        runId: "post-fix",
+        hypothesisId: "A",
+        location: "AppreciationDeepLink.tsx:ScrollTarget",
+        message: "scrollIntoView attempted",
+        data: {
+          targetId,
+          elFound: !!el,
+          href: typeof window !== "undefined" ? window.location.href : "",
+          search: typeof window !== "undefined" ? window.location.search : "",
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     if (!el) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.scrollIntoView({
@@ -24,6 +54,107 @@ export function AppreciationScrollTarget({
   }, [targetId]);
 
   return null;
+}
+
+/** Thumbnail: buka lightbox foto (bukan navigasi ?tokoh=). */
+export function AppreciationPhotoLink({
+  path: _path,
+  name,
+  photoUrl,
+  isKenangan,
+}: {
+  path: string;
+  name: string;
+  photoUrl: string | null;
+  isKenangan: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+
+  function onPhotoClick() {
+    // #region agent log
+    fetch("http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Debug-Session-Id": "b14776",
+      },
+      body: JSON.stringify({
+        sessionId: "b14776",
+        runId: "post-fix",
+        hypothesisId: "D",
+        location: "AppreciationDeepLink.tsx:PhotoLink.click",
+        message: "photo clicked — open lightbox",
+        data: {
+          hasPhoto: !!photoUrl,
+          currentHref: window.location.href,
+          currentSearch: window.location.search,
+          scrollY: window.scrollY,
+          willOpenLightbox: !!photoUrl,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+    if (photoUrl) setOpen(true);
+  }
+
+  if (!photoUrl) {
+    return (
+      <div
+        className={cn(
+          "flex size-16 shrink-0 items-center justify-center rounded-full text-lg font-semibold sm:size-20",
+          isKenangan
+            ? "bg-foreground/10 text-foreground/70"
+            : "bg-inkai-red/10 text-inkai-red",
+        )}
+        aria-hidden
+      >
+        {name.slice(0, 1).toUpperCase()}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onPhotoClick}
+        className="relative size-16 shrink-0 overflow-hidden rounded-full ring-1 ring-border/60 transition-opacity hover:opacity-90 sm:size-20"
+        aria-label={`Lihat foto ${name}`}
+      >
+        <Image
+          src={photoUrl}
+          alt={name}
+          fill
+          className="object-cover"
+          sizes="80px"
+          unoptimized
+        />
+      </button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
+          className="max-w-[min(92vw,36rem)] gap-3 border-0 bg-black/95 p-3 text-white sm:max-w-[min(92vw,36rem)]"
+          showCloseButton
+        >
+          <DialogHeader className="sr-only">
+            <DialogTitle>{name}</DialogTitle>
+          </DialogHeader>
+          <div className="relative mx-auto aspect-square w-full max-h-[75vh] overflow-hidden rounded-lg">
+            <Image
+              src={photoUrl}
+              alt={name}
+              fill
+              className="object-contain"
+              sizes="(max-width: 768px) 92vw, 36rem"
+              unoptimized
+              priority
+            />
+          </div>
+          <p className="truncate text-center text-sm text-white/80">{name}</p>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 export function AppreciationCopyLink({

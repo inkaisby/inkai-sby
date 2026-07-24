@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import type { AppreciationKind } from "@prisma/client";
 import {
   AppreciationCopyLink,
+  AppreciationPhotoLink,
   AppreciationScrollTarget,
 } from "@/components/appreciation/AppreciationDeepLink";
 import { PublicPageHeader } from "@/components/layout/PublicPageHeader";
@@ -156,37 +156,12 @@ export default async function ApresiasiPage({ searchParams }: Props) {
                         )}
                         aria-hidden
                       />
-                      {item.photoUrl ? (
-                        <Link
-                          href={path}
-                          prefetch
-                          className="relative size-16 shrink-0 overflow-hidden rounded-full ring-1 ring-border/60 transition-opacity hover:opacity-90 sm:size-20"
-                          aria-label={`Buka ${item.name}`}
-                        >
-                          <Image
-                            src={item.photoUrl}
-                            alt={item.name}
-                            fill
-                            className="object-cover"
-                            sizes="80px"
-                            unoptimized
-                          />
-                        </Link>
-                      ) : (
-                        <Link
-                          href={path}
-                          prefetch
-                          aria-label={`Buka ${item.name}`}
-                          className={cn(
-                            "flex size-16 shrink-0 items-center justify-center rounded-full text-lg font-semibold transition-opacity hover:opacity-90 sm:size-20",
-                            isKenangan
-                              ? "bg-foreground/10 text-foreground/70"
-                              : "bg-inkai-red/10 text-inkai-red",
-                          )}
-                        >
-                          {item.name.slice(0, 1).toUpperCase()}
-                        </Link>
-                      )}
+                      <AppreciationPhotoLink
+                        path={path}
+                        name={item.name}
+                        photoUrl={item.photoUrl}
+                        isKenangan={isKenangan}
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="mb-1.5 flex flex-wrap items-center gap-2">
                           <Badge
