@@ -82,7 +82,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Modul | Status | Fungsi |
 |-------|--------|--------|
-| Beranda | Aktif | Kartu anggota, **checklist keanggotaan + CTA**, dojo/jadwal/**absen hari ini**/PIC, aksi cepat kontekstual, UKT, agenda gabungan, badge pesan+notif; **dual-role: ikon Panel Admin** di header (sebelah logout) |
+| Beranda | Aktif | Kartu anggota, **checklist keanggotaan + CTA**, dojo/jadwal/**absen hari ini**/PIC, aksi cepat kontekstual, UKT, badge pesan+notif; **header sticky**; kegiatan via menu (bukan agenda di beranda); **dual-role: ikon Panel Admin** di header (sebelah logout) |
 | Profil | Aktif | Edit lengkap (foto, identitas, dokumen); **email/NIA/sabuk/MSH edit mandiri 1×** lalu pengajuan `PROFILE_CHANGE`; No. MSH (Hitam/DAN) di Kartu Anggota |
 | Absensi | Aktif | Riwayat + check-in GPS (kode QR opsional) |
 | Iuran | Aktif | Daftar tagihan + **lapor setor** (tanggal; nominal = tagihan; periode berjalan/**bulan sebelumnya**; tanpa unggah bukti TF) |
@@ -278,7 +278,7 @@ Pusat / Nasional
 | Area | Status | Catatan untuk laporan / rencana |
 |------|--------|----------------------------------|
 | Portal publik | Lengkap | Konten organisasi & kegiatan |
-| Dashboard anggota inti | Lengkap | Beranda asisten: checklist, jadwal dojo, absen hari ini, PIC, aksi kontekstual, agenda |
+| Dashboard anggota inti | Lengkap | Beranda asisten: checklist, jadwal dojo, absen hari ini, PIC, aksi kontekstual; kegiatan via `/dashboard/kegiatan` |
 | Admin anggota / iuran / UKT | Lengkap | Iuran: **rekening koran** per anggota + Sheet pengaturan/mutasi/bayar + pengecualian event/UKT; anggota: nonaktif/aktif/hapus arsip + **edit sabuk (cabang)**; UKT pakai gate iuran+dokumen+absensi, hasil ujian, rekap ranting, nota tanpa kode unik |
 | Verifikasi kartu (publik) | Aktif | `/v/[id]` — scan QR kartu anggota |
 | Event non-UKT | Aktif | Buat event di `/admin/kegiatan` (Cabang) |
@@ -316,7 +316,7 @@ Pusat / Nasional
 | Ketergantungan API | Ada | Halaman degrade jika API sibuk/timeout |
 | Email & Blob | Opsional | Perlu env production |
 | Keamanan P0–P2 | Diperkuat | Pesan IDOR ditutup; verifikasi fail-closed; rate limit Upstash opsional; CSRF admin ketat; password register; audit upload/broadcast/verifikasi |
-| Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI/pageSize; **navigasi instan**; **dashboard anggota: parallel TTFB, Suspense UKT, SSR pesan/store, tanpa fade/poll kartu** |
+| Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI/pageSize; **navigasi instan**; **dashboard anggota: slim critical path (tanpa agenda), sticky header, cache token, Suspense UKT** |
 
 | Index Prisma | Ditambah | Member/Billing/Attendance/Verification/Message — jalankan migrate/db push di production |
 | Pool DB Supabase | Diperkuat | Transaction `:6543`+`pgbouncer`; `connection_limit=5`/`pool_timeout=20`; soft-delete & **purge massal batch** (`deleteMany` per relasi); chunk purge 25 + jeda/retry; toast sibuk |
@@ -634,6 +634,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | Iuran Sheet: ranting/cabang **hapus jejak aksi** lokal (`DELETE /api/admin/iuran/audit/[id]`) + toast loading logo INKAI pada aksi verifikasi/hapus |
 | 24 Juli 2026 | Iuran anggota: lapor setor **periode sebelumnya** (`POST /api/member/billing/report-period`, maks 24 bln) + toast loading logo INKAI |
 | 24 Juli 2026 | Ranting **catat setor periode** di Sheet Iuran (`POST …/report-setor`, helper `iuran-setor-period`); mutasi+jejak; status menunggu Setujui |
+| 24 Juli 2026 | Beranda anggota: hapus section Agenda (bug undefined); slim critical fetch; sticky header; cache token + overlay profil paralel |
 
 ---
 

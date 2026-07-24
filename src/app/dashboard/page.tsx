@@ -2,20 +2,12 @@ import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import {
-  Award,
-  Bell,
-  ChevronRight,
-  Trophy,
-  Wallet,
-} from "lucide-react";
+import { Bell, Wallet } from "lucide-react";
 import {
   fetchMyAttendance,
   fetchMyBillings,
-  fetchMyEventRegistrations,
   fetchMyMemberProfile,
   fetchMyNotifications,
-  fetchPublicUpcomingEvents,
 } from "@/lib/inkai-api/member-data";
 import { getDojoDetail } from "@/lib/public-data";
 import { DashboardHomeHeader } from "@/components/member/DashboardHomeHeader";
@@ -71,91 +63,39 @@ function isCheckedInToday(attendances: Array<{ checkInAt: string }>) {
   });
 }
 
-function registrationBadge(status: string | undefined) {
-  if (!status) return null;
-  switch (status) {
-    case "PAID":
-      return { label: "LUNAS", className: "bg-emerald-500/15 text-emerald-600" };
-    case "SUCCESS":
-    case "APPROVED":
-      return {
-        label: "DISETUJUI",
-        className: "bg-emerald-500/15 text-emerald-600",
-      };
-    case "PENDING":
-      return { label: "PENDING", className: "bg-amber-500/15 text-amber-600" };
-    case "REJECTED":
-      return { label: "DITOLAK", className: "bg-red-500/15 text-red-600" };
-    default:
-      return { label: status, className: "bg-muted text-muted-foreground" };
-  }
-}
-
-function isMyEventStillVisible(event: {
-  startDate?: string;
-  endDate?: string;
-}): boolean {
-  const now = Date.now();
-  if (event.endDate) {
-    return new Date(event.endDate).getTime() >= now;
-  }
-  if (event.startDate) {
-    const start = new Date(event.startDate);
-    const today = new Date();
-    const todayStart = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate(),
-    );
-    const eventDayStart = new Date(
-      start.getFullYear(),
-      start.getMonth(),
-      start.getDate(),
-    );
-    return eventDayStart.getTime() >= todayStart.getTime();
-  }
-  return true;
-}
-
 export default async function MemberDashboard() {
-  const session = await auth();
+  const [session, token] = await Promise.all([
+    auth(),
+    getInkaiAccessToken(),
+  ]);
   if (!session) redirect("/login");
-
-  const token = await getInkaiAccessToken();
   if (!token) redirect("/login");
 
-  // Parallel: profil + data sekunder (jangan waterfall)
+  // Critical path only — agenda/events tidak di-fetch di beranda
   const userId = String(session.user.id);
-  const [
-    member,
-    notifications,
-    attendances,
-    billings,
-    registrations,
-    upcomingEvents,
-    unreadPesanResult,
-  ] = await Promise.all([
-    fetchMyMemberProfile(token),
-    fetchMyNotifications(token, 15, session.user.id),
-    fetchMyAttendance(token, 48),
-    fetchMyBillings(token, 12),
-    fetchMyEventRegistrations(token),
-    fetchPublicUpcomingEvents(5),
-    withPrismaFallback(
-      "member-pesan-unread",
-      () =>
-        prisma.message.count({
-          where: {
-            isRead: false,
-            senderId: { not: userId },
-            conversation: {
-              participants: { some: { id: userId } },
+  const memberIdHint =
+    typeof session.user.memberId === "string" ? session.user.memberId : null;
+  const [member, notifications, attendances, billings, unreadPesanResult] =
+    await Promise.all([
+      fetchMyMemberProfile(token, memberIdHint),
+      fetchMyNotifications(token, 15, session.user.id),
+      fetchMyAttendance(token, 48),
+      fetchMyBillings(token, 12),
+      withPrismaFallback(
+        "member-pesan-unread",
+        () =>
+          prisma.message.count({
+            where: {
+              isRead: false,
+              senderId: { not: userId },
+              conversation: {
+                participants: { some: { id: userId } },
+              },
             },
-          },
-        }),
-      0,
-    ),
-  ]);
+          }),
+        0,
+      ),
+    ]);
 
   const unreadPesan = unreadPesanResult.data || 0;
 
@@ -262,46 +202,21 @@ export default async function MemberDashboard() {
     unpaidCount: unpaidMonthly,
   });
 
-  const myEventIds = new Set(
-    registrations
-      .map((r) => {
-        const event = r.event as { id?: string } | undefined;
-        return event?.id ? String(event.id) : null;
-      })
-      .filter(Boolean) as string[],
-  );
-
-  const visibleMyEvents = registrations
-    .filter((r) => {
-      const event = r.event as
-        | { startDate?: string; endDate?: string }
-        | undefined;
-      return event ? isMyEventStillVisible(event) : true;
-    })
-    .slice(0, 4);
-
-  const upcomingOther = upcomingEvents
-    .filter((e) => !myEventIds.has(String(e.id)))
-    .slice(0, 3);
-
   const roleLabel = isPending
     ? "Menunggu Verifikasi"
     : isActive
       ? "Anggota Aktif"
       : "Anggota";
 
-  const schedule =
-    dojoDetail?.schedule || dojo?.schedule || null;
-  const tempat =
-    dojoDetail?.tempatLatihan || dojo?.tempatLatihan || null;
+  const schedule = dojoDetail?.schedule || dojo?.schedule || null;
+  const tempat = dojoDetail?.tempatLatihan || dojo?.tempatLatihan || null;
   const picName =
     dojoDetail?.headName ||
     dojoDetail?.contactPerson ||
     dojo?.headName ||
     dojo?.contactPerson ||
     null;
-  const phone =
-    dojoDetail?.phoneNumber || dojo?.phoneNumber || null;
+  const phone = dojoDetail?.phoneNumber || dojo?.phoneNumber || null;
 
   return (
     <div className="flex flex-col gap-7 py-1">
@@ -348,7 +263,7 @@ export default async function MemberDashboard() {
       {member ? (
         <MembershipChecklist
           items={checklistItems}
-          readyLabel="Siap ikut ujian & kegiatan — pantau UKT dan event di bawah."
+          readyLabel="Siap ikut ujian & kegiatan — pantau Status UKT dan menu Kegiatan."
         />
       ) : null}
 
@@ -444,163 +359,6 @@ export default async function MemberDashboard() {
           documentsIncomplete={!documentsOk}
           unreadPesan={unreadPesan}
         />
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-extrabold">Agenda</h2>
-          <Link
-            href="/dashboard/kegiatan"
-            className="text-xs font-semibold text-inkai-red"
-          >
-            Lihat Semua
-          </Link>
-        </div>
-
-        {visibleMyEvents.length === 0 && upcomingOther.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            Belum ada agenda terdekat
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {visibleMyEvents.length > 0 ? (
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Kegiatan saya
-              </p>
-            ) : null}
-            {visibleMyEvents.map((r) => {
-              const event = r.event as
-                | {
-                    id?: string;
-                    title?: string;
-                    startDate?: string;
-                    location?: string;
-                    branch?: { name?: string; city?: string };
-                  }
-                | undefined;
-              const badge = registrationBadge(String(r.status));
-              const isUKT =
-                (event?.title ?? "").toUpperCase().includes("UKT") ||
-                (event?.title ?? "").toUpperCase().includes("UJIAN");
-              const meta = [
-                event?.startDate
-                  ? new Date(event.startDate).toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })
-                  : null,
-                event?.branch?.name ||
-                  event?.branch?.city ||
-                  event?.location ||
-                  null,
-              ]
-                .filter(Boolean)
-                .join(" | ");
-
-              return (
-                <Link
-                  key={String(r.id)}
-                  href={
-                    event?.id
-                      ? `/dashboard/kegiatan/${event.id}`
-                      : "/dashboard/kegiatan"
-                  }
-                  className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card/80 p-3.5 transition-colors hover:bg-muted/40"
-                >
-                  <div
-                    className={cn(
-                      "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
-                      isUKT
-                        ? "bg-blue-500/10 text-blue-500"
-                        : "bg-inkai-red/10 text-inkai-red",
-                    )}
-                  >
-                    {isUKT ? <Award size={20} /> : <Trophy size={20} />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-extrabold">
-                      {event?.title ?? "—"}
-                    </p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {meta || "—"}
-                    </p>
-                    {badge ? (
-                      <span
-                        className={cn(
-                          "mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase",
-                          badge.className,
-                        )}
-                      >
-                        {badge.label}
-                      </span>
-                    ) : null}
-                  </div>
-                  <ChevronRight
-                    size={16}
-                    className="shrink-0 text-muted-foreground"
-                  />
-                </Link>
-              );
-            })}
-
-            {upcomingOther.length > 0 ? (
-              <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Event terbuka
-              </p>
-            ) : null}
-            {upcomingOther.map((e) => {
-              const title = String(e.title ?? "");
-              const isUKT =
-                title.toUpperCase().includes("UKT") ||
-                title.toUpperCase().includes("UJIAN");
-              const branch = e.branch as
-                | { name?: string; city?: string }
-                | undefined;
-              const meta = [
-                e.startDate
-                  ? new Date(String(e.startDate)).toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })
-                  : null,
-                branch?.name || branch?.city || (e.location as string) || null,
-              ]
-                .filter(Boolean)
-                .join(" | ");
-
-              return (
-                <Link
-                  key={String(e.id)}
-                  href={`/dashboard/kegiatan/${e.id}`}
-                  className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card/80 p-3.5 transition-colors hover:bg-muted/40"
-                >
-                  <div
-                    className={cn(
-                      "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl",
-                      isUKT
-                        ? "bg-blue-500/10 text-blue-500"
-                        : "bg-inkai-red/10 text-inkai-red",
-                    )}
-                  >
-                    {isUKT ? <Award size={20} /> : <Trophy size={20} />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-extrabold">{title}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {meta || "—"}
-                    </p>
-                  </div>
-                  <ChevronRight
-                    size={16}
-                    className="shrink-0 text-muted-foreground"
-                  />
-                </Link>
-              );
-            })}
-          </div>
-        )}
       </section>
     </div>
   );

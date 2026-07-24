@@ -38,7 +38,7 @@ export function DashboardHomeHeader({
 
   return (
     <>
-    <header className="flex items-center justify-between gap-3 pt-4 pb-1">
+    <header className="sticky top-0 z-40 -mx-1 flex items-center justify-between gap-3 border-b border-border/40 bg-background/95 px-1 pt-4 pb-2 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
       <div className="flex min-w-0 items-center gap-3">
         <Avatar className="h-10 w-10 ring-2 ring-inkai-red ring-offset-2 ring-offset-background">
           {photoUrl ? <AvatarImage src={photoUrl} alt={name} /> : null}

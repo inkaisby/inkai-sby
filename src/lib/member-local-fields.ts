@@ -1,41 +1,71 @@
 import { prisma } from "@/lib/prisma";
 
-/** Field keanggotaan yang disimpan di Prisma lokal (bukan Inkai API). */
-export async function overlayMemberLocalFields(
-  member: Record<string, unknown> | null,
-): Promise<Record<string, unknown> | null> {
-  if (!member?.id) return member;
-  const local = await prisma.member.findUnique({
-    where: { id: String(member.id) },
+const MEMBER_LOCAL_SELECT = {
+  allowEventWithoutDues: true,
+  monthlyDuesAmount: true,
+  birthCertificateUrl: true,
+  bpjsCardUrl: true,
+  bpjsCardNumber: true,
+  nik: true,
+  gender: true,
+  birthPlace: true,
+  birthDate: true,
+  address: true,
+  nia: true,
+  mshNumber: true,
+  currentRank: true,
+  emailSelfEditedAt: true,
+  niaSelfEditedAt: true,
+  rankSelfEditedAt: true,
+  mshSelfEditedAt: true,
+  user: {
     select: {
-      allowEventWithoutDues: true,
-      monthlyDuesAmount: true,
-      birthCertificateUrl: true,
-      bpjsCardUrl: true,
-      bpjsCardNumber: true,
-      nik: true,
-      gender: true,
-      birthPlace: true,
-      birthDate: true,
-      address: true,
-      nia: true,
-      mshNumber: true,
-      currentRank: true,
-      emailSelfEditedAt: true,
-      niaSelfEditedAt: true,
-      rankSelfEditedAt: true,
-      mshSelfEditedAt: true,
-      user: {
-        select: {
-          email: true,
-          phoneNumber: true,
-          photoUrl: true,
-        },
-      },
+      email: true,
+      phoneNumber: true,
+      photoUrl: true,
     },
-  });
-  if (!local) return member;
+  },
+} as const;
 
+export type MemberLocalOverlay = {
+  allowEventWithoutDues: boolean;
+  monthlyDuesAmount: number;
+  birthCertificateUrl: string | null;
+  bpjsCardUrl: string | null;
+  bpjsCardNumber: string | null;
+  nik: string | null;
+  gender: string | null;
+  birthPlace: string | null;
+  birthDate: Date | null;
+  address: string | null;
+  nia: string | null;
+  mshNumber: string | null;
+  currentRank: string;
+  emailSelfEditedAt: Date | null;
+  niaSelfEditedAt: Date | null;
+  rankSelfEditedAt: Date | null;
+  mshSelfEditedAt: Date | null;
+  user: {
+    email: string | null;
+    phoneNumber: string | null;
+    photoUrl: string | null;
+  } | null;
+};
+
+/** Prefetch lokal paralel dengan Inkai `/me` bila memberId sudah diketahui di session. */
+export async function fetchMemberLocalOverlay(
+  memberId: string,
+): Promise<MemberLocalOverlay | null> {
+  return prisma.member.findUnique({
+    where: { id: memberId },
+    select: MEMBER_LOCAL_SELECT,
+  });
+}
+
+export function applyMemberLocalOverlay(
+  member: Record<string, unknown>,
+  local: MemberLocalOverlay,
+): Record<string, unknown> {
   const inkaiUser = member.user as
     | { email?: string; phoneNumber?: string; photoUrl?: string }
     | undefined;
@@ -75,6 +105,16 @@ export async function overlayMemberLocalFields(
       local.user?.photoUrl ||
       null,
   };
+}
+
+/** Field keanggotaan yang disimpan di Prisma lokal (bukan Inkai API). */
+export async function overlayMemberLocalFields(
+  member: Record<string, unknown> | null,
+): Promise<Record<string, unknown> | null> {
+  if (!member?.id) return member;
+  const local = await fetchMemberLocalOverlay(String(member.id));
+  if (!local) return member;
+  return applyMemberLocalOverlay(member, local);
 }
 
 export async function fetchDuesExemptMemberIds(

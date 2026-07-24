@@ -1,6 +1,10 @@
 import { cache } from "react";
 import { inkaiFetch } from "./server";
-import { overlayMemberLocalFields } from "@/lib/member-local-fields";
+import {
+  applyMemberLocalOverlay,
+  fetchMemberLocalOverlay,
+  overlayMemberLocalFields,
+} from "@/lib/member-local-fields";
 
 async function safeCall<T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> {
   try {
@@ -11,13 +15,24 @@ async function safeCall<T>(label: string, fn: () => Promise<T>, fallback: T): Pr
   }
 }
 
-async function fetchMyMemberProfileUncached(token: string) {
+async function fetchMyMemberProfileUncached(
+  token: string,
+  memberIdHint?: string | null,
+) {
   return safeCall(
     "profile",
     async () => {
-      const { res, data } = await inkaiFetch("/v1/members/me", {}, token);
+      const hint = memberIdHint?.trim() || "";
+      const [{ res, data }, localPrefetch] = await Promise.all([
+        inkaiFetch("/v1/members/me", {}, token),
+        hint ? fetchMemberLocalOverlay(hint) : Promise.resolve(null),
+      ]);
       if (!res.ok) return null;
       const member = (data.data as Record<string, unknown>) ?? null;
+      if (!member) return null;
+      if (localPrefetch && String(member.id ?? "") === hint) {
+        return applyMemberLocalOverlay(member, localPrefetch);
+      }
       return overlayMemberLocalFields(member);
     },
     null,

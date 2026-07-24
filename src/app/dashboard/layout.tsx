@@ -10,9 +10,11 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   try {
-    const session = await auth();
+    const [session, token] = await Promise.all([
+      auth(),
+      getInkaiAccessToken(),
+    ]);
     if (!session) redirect("/login");
-    const token = await getInkaiAccessToken();
     if (!token) redirect("/login");
     if (canAccessAdmin(session.user) && !hasMemberPortal(session.user)) {
       redirect("/admin");

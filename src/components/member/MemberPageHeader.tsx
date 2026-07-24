@@ -15,7 +15,7 @@ export function MemberPageHeader({
   rightSlot?: React.ReactNode;
 }) {
   return (
-    <header className="relative mb-5 flex items-center justify-between gap-2 pt-3">
+    <header className="sticky top-0 z-40 -mx-1 mb-5 flex items-center justify-between gap-2 border-b border-border/40 bg-background/95 px-1 pt-3 pb-2 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
       <div className="z-[1] flex items-center gap-1.5">
         <Link
           href={backHref}
