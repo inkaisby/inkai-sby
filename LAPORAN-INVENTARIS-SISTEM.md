@@ -56,16 +56,16 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Route | Fungsi |
 |-------|--------|
-| `/` | Beranda, carousel berita, CTA login/daftar |
+| `/` | Beranda, carousel berita, **cuplikan Apresiasi**, **floating chip kegiatan terbuka**, CTA login/daftar |
 | `/tutorial` | **Tutorial anggota** (langkah + slot embed YouTube): pendaftaran, menu dashboard, UKT, iuran, absensi; CTA Daftar/Masuk; nav header **Tutorial** |
 | `/sejarah` | Sejarah organisasi |
 | `/makna-lambang` | Filosofi lambang |
 | `/visi-misi` | Visi & misi |
 | `/struktur` | Struktur cabang–ranting & pengurus |
 | `/struktur/print` | Versi cetak struktur |
-| `/kegiatan` | Daftar kegiatan |
+| `/kegiatan` | Daftar kegiatan (+ badge **Masih terbuka** / **Berlangsung**; UKT terbuka → undangan) |
 | `/kegiatan/[id]` | Detail kegiatan |
-| `/berita` | Berita dari carousel |
+| `/apresiasi` | Kenangan (in memoriam) & prestasi kurasi admin; filter tab |
 | `/dojo` | Daftar dojo/ranting Cabang Surabaya (detail lengkap, tanpa jumlah anggota) |
 | `/dojo/[id]` | Profil ranting/dojo |
 | `/v/[id]` | Verifikasi kartu anggota (scan QR — UUID atau NIA) |
@@ -116,12 +116,13 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Pesan | Inbox + unread badge, cari, balas, **broadcast notifikasi** |
 | Absensi | **Progress** tabel klik→Sheet + harian + belum hadir; **tab client instan** (tanpa delay navigasi); export; soft-backfill menu ranting |
 | Carousel Beranda | Upload gambar + aktif + **urutkan** |
+| Apresiasi | CRUD kenangan & prestasi publik (`AppreciationEntry`); cabang saja |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
 | Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; tanpa force-logout; ranting tidak akses |
 | Notifikasi | Inbox admin (ada di nav); **ranting: rantingnya + ops cabang**; field `audience`; tanpa notif pribadi anggota; cabang lihat semua ranting |
 | Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; panel Akun: **Jadikan admin ranting** (email anggota existing → dual-role) + **centang hak akses** (edit profil, CRUD, menu sidebar); **Pengaturan Cabang** mendukung **Jadikan admin cabang** dari akun existing (mis. ketua cabang) tanpa akun baru + badge **Admin + Anggota / Admin saja**; admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, **Pengaturan UKT (syarat daftar)**, peran (**preset**), geofencing (**pratinjau peta**), akun; **arsip cabang: Pulihkan + Hapus permanen** (ditolak jika masih ada anggota / cabang SURABAYA) |
 
-**Batasan admin ranting:** tanpa Organisasi, Carousel, Audit, **Kehadiran akun**, serta sebagian submenu pengaturan tingkat cabang/pusat.
+**Batasan admin ranting:** tanpa Organisasi, Carousel, **Apresiasi**, Audit, **Kehadiran akun**, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
 ---
 
@@ -179,6 +180,7 @@ Pusat / Nasional
 | `Verification` | Klaim verifikasi admin |
 | `Notification` | Notifikasi |
 | `NewsCarousel` | Konten beranda |
+| `AppreciationEntry` | Kenangan & prestasi publik (lokal) |
 | `Product` / `StoreOrder` / `StoreOrderItem` | Katalog store & pesanan anggota |
 | `DigitalMaterial` | Materi digital |
 | `Conversation` / `Message` | Pesan anggota–pengurus |
@@ -253,6 +255,7 @@ Pusat / Nasional
 
 ### 9.6 Konten & organisasi
 - Carousel beranda dikelola admin.
+- Apresiasi (kenangan/prestasi) dikelola cabang di `/admin/apresiasi`; tampil di `/apresiasi` + cuplikan beranda.
 - Struktur & pengurus dikelola di modul Organisasi (terbatas role).
 
 ### 9.7 Verifikasi kartu anggota (publik)
@@ -280,7 +283,7 @@ Pusat / Nasional
 
 | Area | Status | Catatan untuk laporan / rencana |
 |------|--------|----------------------------------|
-| Portal publik | Lengkap | Konten organisasi & kegiatan |
+| Portal publik | Lengkap | Konten organisasi, kegiatan terbuka (chip), apresiasi, carousel |
 | Dashboard anggota inti | Lengkap | Beranda asisten: checklist, jadwal dojo, absen hari ini, PIC, aksi kontekstual; kegiatan via `/dashboard/kegiatan` |
 | Admin anggota / iuran / UKT | Lengkap | Iuran: **rekening koran** per anggota + Sheet pengaturan/mutasi/bayar + pengecualian event/UKT; anggota: nonaktif/aktif/hapus arsip + **edit sabuk (cabang)**; UKT pakai gate iuran+dokumen+absensi, hasil ujian, rekap ranting, nota tanpa kode unik |
 | Verifikasi kartu (publik) | Aktif | `/v/[id]` — scan QR kartu anggota |
@@ -367,6 +370,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/pengaturan/*     User, cabang, ranting, wilayah-accounts, roles, geofencing, akun, kebijakan (pejabat dokumen), **ukt** (syarat daftar)
 /api/admin/verifications/*  Proses klaim
 /api/admin/carousel/*       Carousel beranda
+/api/admin/apresiasi/*      CRUD apresiasi publik (cabang)
 /api/admin/upload           Upload ke Blob
 /api/admin/document-file    Proxy pratinjau dokumen anggota (modal + print)
 /api/admin/events           Buat event non-UKT (Cabang)
@@ -644,6 +648,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | Absensi: streaming UI anggota; GPS multi-lokasi + geofence server; biometrik WebAuthn; 1×/hari + % hari unik; label progres; admin tabel Progress+Sheet; notif check-in; soft-backfill menu Absensi ranting |
 | 24 Juli 2026 | Absensi admin: tab Progress/Harian/Belum **client-side instan** (tanpa RSC reload); payload log dibatasi; peek biometrik ringan |
 | 24 Juli 2026 | **Tutorial:** skrip video anggota+pengurus (`guide/tutorials/`); `/tutorial` publik (tab nav) + `/dashboard/panduan` langkah+embed YouTube; welcome v2 |
+| 24 Juli 2026 | Beranda publik: floating chip **Masih terbuka**; hapus `/berita` (redirect `/`); modul **Apresiasi** (Kenangan/Prestasi) + admin CRUD + cuplikan beranda; badge kegiatan; `loading.tsx` publik |
 
 ---
 

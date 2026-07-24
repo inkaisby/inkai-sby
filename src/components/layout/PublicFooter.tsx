@@ -46,8 +46,8 @@ export default function PublicFooter() {
               <Link href="/kegiatan" prefetch className="transition-colors hover:text-white">
                 Kegiatan
               </Link>
-              <Link href="/berita" prefetch className="transition-colors hover:text-white">
-                Berita
+              <Link href="/apresiasi" prefetch className="transition-colors hover:text-white">
+                Apresiasi
               </Link>
               <Link href="/kontak" prefetch className="transition-colors hover:text-white">
                 Kontak

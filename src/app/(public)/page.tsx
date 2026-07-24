@@ -5,6 +5,8 @@ import { BookOpen, Shield, Users, Target, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import ArticleCarousel from "@/components/home/ArticleCarousel";
 import ArticleCarouselSkeleton from "@/components/home/ArticleCarouselSkeleton";
+import HomeAppreciationSnippet from "@/components/home/HomeAppreciationSnippet";
+import HomeOpenEventsChip from "@/components/home/HomeOpenEventsChip";
 import HomeHeroCTA from "@/components/home/HomeHeroCTA";
 import SurabayaHeroMark from "@/components/home/SurabayaHeroMark";
 
@@ -40,6 +42,19 @@ const features = [
     accent: "from-inkai-red/15 to-inkai-red/5 text-inkai-red",
   },
 ];
+
+function AppreciationSkeleton() {
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6" aria-hidden>
+      <div className="mx-auto mb-8 h-8 w-48 animate-pulse rounded bg-muted" />
+      <div className="grid gap-4 sm:grid-cols-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div key={i} className="h-20 animate-pulse rounded-2xl bg-muted/50" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function HomePage() {
   return (
@@ -139,6 +154,10 @@ export default function HomePage() {
         <ArticleCarousel />
       </Suspense>
 
+      <Suspense fallback={<AppreciationSkeleton />}>
+        <HomeAppreciationSnippet />
+      </Suspense>
+
       <section className="relative overflow-hidden bg-inkai-black py-20 text-white sm:py-24">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(245,197,24,0.1)_0%,transparent_70%)]" />
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-inkai-yellow/40 to-transparent" />
@@ -152,6 +171,10 @@ export default function HomePage() {
           </blockquote>
         </div>
       </section>
+
+      <Suspense fallback={null}>
+        <HomeOpenEventsChip />
+      </Suspense>
     </>
   );
 }

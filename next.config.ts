@@ -49,6 +49,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [{ source: "/berita", destination: "/", permanent: true }];
+  },
   async headers() {
     return [
       {

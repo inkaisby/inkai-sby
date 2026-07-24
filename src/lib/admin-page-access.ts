@@ -21,6 +21,7 @@ const DOJO_ALLOWED_PREFIXES = [
 const DOJO_BLOCKED_EXACT = new Set([
   "/admin/organisasi",
   "/admin/carousel",
+  "/admin/apresiasi",
   "/admin/audit",
   "/admin/online",
 ]);

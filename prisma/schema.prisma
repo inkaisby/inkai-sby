@@ -448,6 +448,25 @@ model NewsCarousel {
   updatedAt DateTime @updatedAt
 }
 
+enum AppreciationKind {
+  KENANGAN
+  PRESTASI
+}
+
+model AppreciationEntry {
+  id        String           @id @default(uuid())
+  kind      AppreciationKind
+  name      String
+  title     String?
+  summary   String           @db.Text
+  photoUrl  String?
+  eventDate DateTime?
+  isActive  Boolean          @default(true)
+  order     Int              @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+}
+
 model RankFeeTemplate {
   id        String   @id @default(uuid())
   rankName  String   @unique

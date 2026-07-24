@@ -92,6 +92,7 @@ export const ADMIN_LINKS: NavItem[] = [
       { href: "/admin/store", label: "Store" },
       { href: "/admin/pesan", label: "Pesan" },
       { href: "/admin/carousel", label: "Carousel Beranda" },
+      { href: "/admin/apresiasi", label: "Apresiasi" },
       { href: "/admin/notifikasi", label: "Notifikasi" },
     ],
   },

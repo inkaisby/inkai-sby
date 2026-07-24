@@ -5,7 +5,7 @@ export const publicNavLinks = [
   { href: "/struktur", label: "Struktur", matchPrefix: false },
   { href: "/dojo", label: "Dojo / Ranting", matchPrefix: true },
   { href: "/kegiatan", label: "Kegiatan", matchPrefix: false },
-  { href: "/berita", label: "Berita", matchPrefix: false },
+  { href: "/apresiasi", label: "Apresiasi", matchPrefix: false },
   { href: "/kontak", label: "Kontak", matchPrefix: false },
 ] as const;
 

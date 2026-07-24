@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { buildUktAdminUrlFromEvent } from "@/lib/ukt";
 
@@ -13,6 +14,20 @@ export type OpenEventSummary = {
   href: string;
   closesAt: string;
   remainingMs: number;
+};
+
+export type PublicOpenEventSummary = {
+  id: string;
+  title: string;
+  location: string | null;
+  startDate: string;
+  endDate: string;
+  closesAt: string;
+  remainingMs: number;
+  registrationOpen: boolean;
+  ongoing: boolean;
+  isUkt: boolean;
+  href: string;
 };
 
 function isUktTitle(title: string) {
@@ -43,6 +58,15 @@ export function isEventRegistrationOpen(
   const { opensAt, closesAt } = getEventRegistrationWindow(event);
   if (opensAt && now.getTime() < opensAt.getTime()) return false;
   return now.getTime() <= closesAt.getTime();
+}
+
+/** Kegiatan sedang berlangsung: sekarang ∈ [startDate, endDate]. */
+export function isEventOngoing(
+  event: { startDate: Date; endDate: Date },
+  now = new Date(),
+) {
+  const t = now.getTime();
+  return t >= event.startDate.getTime() && t <= event.endDate.getTime();
 }
 
 export function formatRemainingShort(ms: number): string {
@@ -105,4 +129,95 @@ export async function listOpenEventsForAdmin(
 
   open.sort((a, b) => a.remainingMs - b.remainingMs);
   return open.slice(0, limit);
+}
+
+async function listOpenOrOngoingEventsForPublicUncached(
+  limit = 5,
+): Promise<PublicOpenEventSummary[]> {
+  const now = new Date();
+  const rows = await prisma.event.findMany({
+    where: {
+      isDeleted: false,
+      endDate: { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
+    },
+    orderBy: [{ registrationCloseAt: "asc" }, { endDate: "asc" }],
+    take: 80,
+    select: {
+      id: true,
+      title: true,
+      location: true,
+      startDate: true,
+      endDate: true,
+      registrationCloseAt: true,
+    },
+  });
+
+  const out: PublicOpenEventSummary[] = [];
+  for (const e of rows) {
+    const registrationOpen = isEventRegistrationOpen(e, now);
+    const ongoing = isEventOngoing(e, now);
+    if (!registrationOpen && !ongoing) continue;
+    const { closesAt } = getEventRegistrationWindow(e);
+    const remainingMs = Math.max(0, closesAt.getTime() - now.getTime());
+    const isUkt = isUktTitle(e.title);
+    out.push({
+      id: e.id,
+      title: e.title,
+      location: e.location,
+      startDate: e.startDate.toISOString(),
+      endDate: e.endDate.toISOString(),
+      closesAt: closesAt.toISOString(),
+      remainingMs,
+      registrationOpen,
+      ongoing,
+      isUkt,
+      href: isUkt ? `/undangan/ukt/${e.id}` : `/kegiatan/${e.id}`,
+    });
+  }
+
+  out.sort((a, b) => {
+    if (a.registrationOpen !== b.registrationOpen) {
+      return a.registrationOpen ? -1 : 1;
+    }
+    return a.remainingMs - b.remainingMs;
+  });
+  return out.slice(0, limit);
+}
+
+export const listOpenOrOngoingEventsForPublic = unstable_cache(
+  listOpenOrOngoingEventsForPublicUncached,
+  ["public-open-or-ongoing-events"],
+  { revalidate: 60, tags: ["events"] },
+);
+
+/** Status open/ongoing untuk set id (badge list publik). */
+export async function getPublicEventStatusMap(
+  ids: string[],
+): Promise<
+  Map<string, { registrationOpen: boolean; ongoing: boolean; isUkt: boolean }>
+> {
+  const map = new Map<
+    string,
+    { registrationOpen: boolean; ongoing: boolean; isUkt: boolean }
+  >();
+  if (ids.length === 0) return map;
+  const now = new Date();
+  const rows = await prisma.event.findMany({
+    where: { id: { in: ids }, isDeleted: false },
+    select: {
+      id: true,
+      title: true,
+      startDate: true,
+      endDate: true,
+      registrationCloseAt: true,
+    },
+  });
+  for (const e of rows) {
+    map.set(e.id, {
+      registrationOpen: isEventRegistrationOpen(e, now),
+      ongoing: isEventOngoing(e, now),
+      isUkt: isUktTitle(e.title),
+    });
+  }
+  return map;
 }
