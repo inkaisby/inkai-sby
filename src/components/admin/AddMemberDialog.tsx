@@ -211,13 +211,13 @@ export function AddMemberDialog({
             onChange={setField}
             suggestions={suggestions}
             duplicateBlocked={duplicateBlocked}
+            showMsh
           />
 
           <MemberBeltSection
             idPrefix="add-member"
             form={form}
             onChange={setField}
-            showMsh
           />
         </div>
 

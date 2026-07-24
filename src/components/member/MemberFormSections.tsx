@@ -49,6 +49,8 @@ type MemberFormSectionProps = {
   requireCompleteIdentity?: boolean;
   /** Jika true, ada duplikat keras — UI merah + petunjuk blok. */
   duplicateBlocked?: boolean;
+  /** Tampilkan No. MSH di bawah NIA (admin Tambah Anggota). */
+  showMsh?: boolean;
 };
 
 const selectClassName =
@@ -134,6 +136,7 @@ export function MemberIdentitySection({
   fullNameRequired = true,
   requireCompleteIdentity = false,
   duplicateBlocked = false,
+  showMsh = false,
 }: MemberFormSectionProps) {
   const hasHard = duplicateBlocked || suggestions.some((s) => s.severity === "hard");
   const hasArchivedIdOnly =
@@ -322,6 +325,29 @@ export function MemberIdentitySection({
         </p>
       </div>
 
+      {showMsh ? (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-msh`}>No. MSH (opsional)</Label>
+          <Input
+            id={`${idPrefix}-msh`}
+            className={upperInputClassName}
+            placeholder="KHUSUS SABUK HITAM / DAN"
+            maxLength={32}
+            value={form.mshNumber}
+            onChange={(e) =>
+              onChange(
+                "mshNumber",
+                e.target.value.replace(/\s+/g, "").toUpperCase(),
+              )
+            }
+            autoCapitalize="characters"
+          />
+          <p className="text-xs text-muted-foreground">
+            Boleh dikosongkan. No. MSH hanya untuk sabuk Hitam (DAN).
+          </p>
+        </div>
+      ) : null}
+
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-phone`}>
           Telepon{req ? " *" : ""}
@@ -345,11 +371,7 @@ export function MemberBeltSection({
   idPrefix,
   form,
   onChange,
-  showMsh = false,
-}: Pick<MemberFormSectionProps, "idPrefix" | "form" | "onChange"> & {
-  /** Tampilkan No. MSH (admin Tambah Anggota). */
-  showMsh?: boolean;
-}) {
+}: Pick<MemberFormSectionProps, "idPrefix" | "form" | "onChange">) {
   return (
     <section className="space-y-3">
       <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -370,28 +392,6 @@ export function MemberBeltSection({
           ))}
         </select>
       </div>
-      {showMsh ? (
-        <div className="space-y-1.5">
-          <Label htmlFor={`${idPrefix}-msh`}>No. MSH (opsional)</Label>
-          <Input
-            id={`${idPrefix}-msh`}
-            className={upperInputClassName}
-            placeholder="KHUSUS SABUK HITAM / DAN"
-            maxLength={32}
-            value={form.mshNumber}
-            onChange={(e) =>
-              onChange(
-                "mshNumber",
-                e.target.value.replace(/\s+/g, "").toUpperCase(),
-              )
-            }
-            autoCapitalize="characters"
-          />
-          <p className="text-xs text-muted-foreground">
-            Boleh dikosongkan. No. MSH hanya untuk sabuk Hitam (DAN).
-          </p>
-        </div>
-      ) : null}
     </section>
   );
 }
