@@ -311,6 +311,8 @@ model EventRegistration {
   category           EventCategory? @relation(fields: [categoryId], references: [id])
   event              Event          @relation(fields: [eventId], references: [id])
   member             Member         @relation(fields: [memberId], references: [id])
+
+  @@unique([eventId, memberId])
 }
 
 model Product {

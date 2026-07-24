@@ -16,6 +16,7 @@ import {
 } from "@/lib/belt";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { fetchDuesExemptMemberIds } from "@/lib/member-local-fields";
+import { loadUktSelfRegistrationMetaMap } from "@/lib/ukt-self-registration";
 import {
   memberOrderBy,
   parseMemberSortKey,
@@ -1538,6 +1539,57 @@ export async function fetchUktDashboardData(
     }
   }
 
+  // Lengkapi registrasi PENDING (daftar mandiri) dari Prisma — termasuk cabang
+  if (selectedPeriodId) {
+    const prismaSelfRegs = await withPrismaFallback(
+      "ukt-self-regs",
+      () =>
+        prisma.eventRegistration.findMany({
+          where: {
+            eventId: selectedPeriodId,
+            status: { in: ["PENDING", "APPROVED"] },
+            member: { isDeleted: false },
+          },
+          select: {
+            id: true,
+            status: true,
+            registeredRank: true,
+            memberId: true,
+          },
+          take: 800,
+        }),
+      [] as Array<{
+        id: string;
+        status: string;
+        registeredRank: string | null;
+        memberId: string;
+      }>,
+    );
+    for (const reg of prismaSelfRegs.data ?? []) {
+      if (regMap.has(reg.memberId)) {
+        const existing = regMap.get(reg.memberId)!;
+        // Prefer Prisma PENDING jika Inkai belum sync
+        if (
+          String(existing.status ?? "") !== "PENDING" &&
+          reg.status === "PENDING"
+        ) {
+          existing.status = reg.status;
+        }
+        continue;
+      }
+      regMap.set(reg.memberId, {
+        id: reg.id,
+        status: reg.status,
+        registeredRank: reg.registeredRank,
+        memberId: reg.memberId,
+      });
+    }
+  }
+
+  const selfRegMetaMap = selectedPeriodId
+    ? await loadUktSelfRegistrationMetaMap(selectedPeriodId)
+    : new Map();
+
   const allRows: UktMemberRow[] = members.map((m) => {
     const reg = regMap.get(m.id);
     const regBilling = reg ? billingMap.get(String(reg.id)) : null;
@@ -1602,6 +1654,9 @@ export async function fetchUktDashboardData(
       examResult: reg?.id ? examResultMap.get(String(reg.id)) ?? null : null,
       examPresent: reg?.id ? examAttendanceMap.get(String(reg.id)) ?? null : null,
       registrationWaiver: waiverMap.get(m.id) ?? null,
+      selfRegistration: selfRegMetaMap.has(m.id),
+      memberPaymentConfirmedAt:
+        selfRegMetaMap.get(m.id)?.memberPaymentConfirmedAt ?? null,
     };
   });
 

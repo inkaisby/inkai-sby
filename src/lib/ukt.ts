@@ -474,10 +474,14 @@ export function countNotaBeltGroups(
   return result;
 }
 
-export const APPROVED_STATUSES = new Set(["APPROVED", "SUCCESS", "PAID", "PENDING"]);
+export const APPROVED_STATUSES = new Set(["APPROVED", "SUCCESS", "PAID"]);
 
 export function isRegistrationApproved(status: string): boolean {
-  return APPROVED_STATUSES.has(status);
+  return APPROVED_STATUSES.has(String(status ?? "").toUpperCase());
+}
+
+export function isUktSelfRegistrationPendingStatus(status: string): boolean {
+  return String(status ?? "").toUpperCase() === "PENDING";
 }
 
 export type UktExamResult = "PENDING" | "LULUS" | "GAGAL" | "MENGULANG";
@@ -511,6 +515,10 @@ export type UktMemberRow = {
   examResult: UktExamResult | null;
   /** Hadir di tempat ujian (hari-H); null = belum dicatat. */
   examPresent: boolean | null;
+  /** Pendaftaran mandiri anggota (menunggu Terima ranting). */
+  selfRegistration?: boolean;
+  /** Anggota sudah konfirmasi bayar ke ranting (flag saja). */
+  memberPaymentConfirmedAt?: string | null;
   registrationWaiver?: UktRegistrationWaiver | null;
 };
 
@@ -586,6 +594,8 @@ export type UktDisplayStatus =
   | "belum_daftar"
   | "terdaftar"
   | "belum_bayar"
+  | "menunggu_terima_ranting"
+  | "menunggu_konfirmasi_ranting"
   | "menunggu_verifikasi"
   | "lunas"
   | "menunggu_ujian"
@@ -1057,6 +1067,15 @@ export function resolveUktDisplayStatus(
   if (examResult === "MENGULANG") return "mengulang";
   if (isUktSelesai(row)) return "selesai";
 
+  // Daftar mandiri: PENDING tanpa tagihan / belum diterima ranting
+  const selfPending =
+    isUktSelfRegistrationPendingStatus(row.status) &&
+    (row.selfRegistration === true || !row.billingId);
+  if (selfPending) {
+    if (row.memberPaymentConfirmedAt) return "menunggu_konfirmasi_ranting";
+    return "menunggu_terima_ranting";
+  }
+
   const paid = isUktBillingPaid(row);
 
   if (paid && examResult === "LULUS" && row.kyuBaru?.trim()) return "selesai";
@@ -1073,6 +1092,8 @@ export function uktDisplayStatusLabel(status: UktDisplayStatus): string {
     belum_daftar: "Belum Daftar",
     terdaftar: "Terdaftar",
     belum_bayar: "Belum Bayar",
+    menunggu_terima_ranting: "Menunggu Terima Ranting",
+    menunggu_konfirmasi_ranting: "Menunggu Konfirmasi Ranting",
     menunggu_verifikasi: "Menunggu Verifikasi",
     lunas: "Lunas",
     menunggu_ujian: "Menunggu Ujian",
@@ -1278,6 +1299,14 @@ export function isUktBillingUnpaid(row: UktMemberRow): boolean {
 /** Ranting boleh ajukan Bayar UKT (Menunggu Verifikasi) — belum lunas & belum diajukan. */
 export function canRantingSubmitUktPayment(row: UktMemberRow): boolean {
   if (!isUktBillingUnpaid(row)) return false;
+  // Daftar mandiri PENDING: pakai Terima, bukan Bayar UKT
+  if (
+    isUktSelfRegistrationPendingStatus(row.status) &&
+    (row.selfRegistration === true || !row.billingId)
+  ) {
+    return false;
+  }
+  if (!row.billingId) return false;
   return row.billingStatus !== "WAITING_VERIFICATION";
 }
 
@@ -1347,6 +1376,8 @@ export function filterUktRowsByView(rows: UktMemberRow[], viewFilter: string): U
     "belum_daftar",
     "terdaftar",
     "belum_bayar",
+    "menunggu_terima_ranting",
+    "menunggu_konfirmasi_ranting",
     "menunggu_verifikasi",
     "lunas",
     "menunggu_ujian",
@@ -1365,6 +1396,8 @@ export function filterUktRowsByView(rows: UktMemberRow[], viewFilter: string): U
 export const UKT_DISPLAY_FILTER_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "all", label: "Semua status" },
   { value: "belum_daftar", label: "Belum Daftar" },
+  { value: "menunggu_terima_ranting", label: "Menunggu Terima Ranting" },
+  { value: "menunggu_konfirmasi_ranting", label: "Menunggu Konfirmasi Ranting" },
   { value: "belum_bayar", label: "Belum Bayar" },
   { value: "menunggu_verifikasi", label: "Menunggu Verifikasi" },
   { value: "menunggu_ujian", label: "Menunggu Ujian" },
@@ -1380,10 +1413,25 @@ export function filterUktRowsByDisplayStatus(
   status: string,
 ): UktMemberRow[] {
   if (!status || status === "all") return rows;
+  if (status === "menunggu_terima_ranting") {
+    return rows.filter((r) => {
+      const s = resolveUktDisplayStatus(r);
+      return (
+        s === "menunggu_terima_ranting" || s === "menunggu_konfirmasi_ranting"
+      );
+    });
+  }
+  if (status === "gagal_mengulang") {
+    return rows.filter((r) => {
+      const s = resolveUktDisplayStatus(r);
+      return s === "gagal" || s === "mengulang";
+    });
+  }
   return rows.filter((r) => resolveUktDisplayStatus(r) === status);
 }
 
 export type UktOperationalKpi = UktKpiStats & {
+  menungguTerima: number;
   belumBayar: number;
   menungguVerifikasi: number;
   menungguUjian: number;
@@ -1398,6 +1446,10 @@ export function computeUktOperationalKpi(rows: UktMemberRow[]): UktOperationalKp
   const tagged = rows.map((r) => resolveUktDisplayStatus(r));
   return {
     ...base,
+    menungguTerima: tagged.filter(
+      (s) =>
+        s === "menunggu_terima_ranting" || s === "menunggu_konfirmasi_ranting",
+    ).length,
     belumBayar: tagged.filter((s) => s === "belum_bayar").length,
     menungguVerifikasi: tagged.filter((s) => s === "menunggu_verifikasi").length,
     menungguUjian: tagged.filter((s) => s === "menunggu_ujian").length,

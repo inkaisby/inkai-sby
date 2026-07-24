@@ -205,7 +205,15 @@ export const uktWaiverSchema = z.object({
 
 export const uktRegistrationUpdateSchema = z.object({
   action: z
-    .enum(["approve", "reject", "update_kyu", "mark_paid", "submit_for_verification"])
+    .enum([
+      "approve",
+      "reject",
+      "update_kyu",
+      "mark_paid",
+      "submit_for_verification",
+      "accept_self_registration",
+      "reject_self_registration",
+    ])
     .optional(),
   categoryId: z.string().uuid().optional(),
   newRank: z.string().trim().min(2).max(64).optional(),

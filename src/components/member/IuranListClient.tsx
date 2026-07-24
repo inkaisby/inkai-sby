@@ -32,6 +32,12 @@ function typeLabel(type: string) {
   return type || "Tagihan";
 }
 
+function isUktBilling(b: BillingItem): boolean {
+  const type = String(b.type || "").toUpperCase();
+  const desc = String(b.description || "").toUpperCase();
+  return type.includes("UKT") || type === "EVENT" || desc.includes("UKT");
+}
+
 export function IuranListClient({ billings }: { billings: BillingItem[] }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -70,7 +76,10 @@ export function IuranListClient({ billings }: { billings: BillingItem[] }) {
     }
   }
 
-  if (billings.length === 0) {
+  // Tagihan UKT tidak ditampilkan di daftar iuran anggota (anti-bocor nominal)
+  const visible = billings.filter((b) => !isUktBilling(b));
+
+  if (visible.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
         Tidak ada tagihan iuran.
@@ -80,7 +89,7 @@ export function IuranListClient({ billings }: { billings: BillingItem[] }) {
 
   return (
     <div className="space-y-3">
-      {billings.map((b) => {
+      {visible.map((b) => {
         const st = statusLabel(String(b.status || ""));
         const canUpload =
           b.status === "PENDING" || b.status === "REJECTED";

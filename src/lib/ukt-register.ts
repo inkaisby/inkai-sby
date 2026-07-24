@@ -210,6 +210,13 @@ export async function forceRegisterUktInDb(opts: {
       select: { id: true, status: true },
     });
     if (existing && existing.status !== "REJECTED" && existing.status !== "CANCELLED") {
+      if (existing.status === "PENDING") {
+        return {
+          ok: false,
+          error:
+            "Anggota sudah mengajukan daftar mandiri — gunakan tombol Terima di baris tersebut",
+        };
+      }
       return {
         ok: false,
         error: "Anggota sudah terdaftar pada periode UKT ini",
@@ -332,7 +339,14 @@ export async function validateUktRegistrationEligibility(
   opts?: {
     primaryRole?: string;
   },
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; blockers: [] }
+  | {
+      ok: false;
+      error: string;
+      blockers: import("@/lib/ukt").UktRegistrationBlocker[];
+    }
+> {
   const primaryRole = opts?.primaryRole ?? "ADMIN_BRANCH";
   const policy = await getUktRegistrationPolicy();
   const req = resolveUktMemberRequirementFlags(policy, primaryRole);
@@ -373,10 +387,14 @@ export async function validateUktRegistrationEligibility(
   ]);
 
   if (!eventRes.ok) {
-    return { ok: false, error: "Periode UKT tidak ditemukan" };
+    return {
+      ok: false,
+      error: "Periode UKT tidak ditemukan",
+      blockers: ["PERIODE_TUTUP"],
+    };
   }
   if (!memberResolved.ok) {
-    return { ok: false, error: memberResolved.error };
+    return { ok: false, error: memberResolved.error, blockers: [] };
   }
 
   let billingsRes = billingsScoped;
@@ -387,6 +405,7 @@ export async function validateUktRegistrationEligibility(
     return {
       ok: false,
       error: "Gagal memverifikasi status iuran. Coba lagi.",
+      blockers: [],
     };
   }
 
@@ -414,6 +433,12 @@ export async function validateUktRegistrationEligibility(
     for (const b of billings) {
       if (String(b.memberId) !== memberId) continue;
       const status = String(b.status ?? "");
+      const type = String(b.type ?? "").toUpperCase();
+      const desc = String(b.description ?? "").toUpperCase();
+      // Jangan hitung tagihan UKT/event sebagai tunggakan iuran bulanan
+      if (type.includes("UKT") || type === "EVENT" || desc.includes("UKT")) {
+        continue;
+      }
       if (status === "PENDING" || status === "WAITING_VERIFICATION") {
         outstandingDues++;
       }
@@ -432,6 +457,7 @@ export async function validateUktRegistrationEligibility(
       return {
         ok: false,
         error: "Gagal memverifikasi kehadiran semester. Coba lagi.",
+        blockers: [],
       };
     }
     attendancePct = attendance.pct;
@@ -474,6 +500,7 @@ export async function validateUktRegistrationEligibility(
     return {
       ok: false,
       error: formatUktRegistrationBlockers(blockers, req.minAttendancePct),
+      blockers,
     };
   }
 
@@ -483,14 +510,191 @@ export async function validateUktRegistrationEligibility(
       return {
         ok: false,
         error: `Pendaftaran belum dibuka${openAt ? ` (mulai ${openAt.toLocaleString("id-ID")})` : ""}`,
+        blockers: ["PERIODE_BELUM_BUKA"],
       };
     }
     const deadline = getUktRegistrationDeadline(schedule);
     return {
       ok: false,
       error: `Batas pendaftaran sudah lewat (${deadline.toLocaleString("id-ID")})`,
+      blockers: ["PERIODE_TUTUP"],
     };
   }
 
-  return { ok: true };
+  return { ok: true, blockers: [] };
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2002"
+  );
+}
+
+/** Daftar UKT mandiri: PENDING, tanpa billing (anti-bocor nominal). */
+export async function forceRegisterUktPendingInDb(opts: {
+  eventId: string;
+  memberId: string;
+  registeredByUserId: string;
+  kyuLamaSnapshot: string;
+}): Promise<
+  | {
+      ok: true;
+      registrationId: string;
+      memberName: string;
+      alreadyRegistered: boolean;
+      status: string;
+    }
+  | { ok: false; error: string }
+> {
+  try {
+    const existing = await prisma.eventRegistration.findFirst({
+      where: { eventId: opts.eventId, memberId: opts.memberId },
+      select: { id: true, status: true },
+    });
+    if (existing && existing.status !== "REJECTED" && existing.status !== "CANCELLED") {
+      return {
+        ok: true,
+        registrationId: existing.id,
+        memberName: "",
+        alreadyRegistered: true,
+        status: existing.status,
+      };
+    }
+
+    const member = await prisma.member.findFirst({
+      where: { id: opts.memberId, isDeleted: false },
+      select: { fullName: true },
+    });
+    if (!member) {
+      return { ok: false, error: "Anggota tidak ditemukan" };
+    }
+
+    const event = await prisma.event.findFirst({
+      where: { id: opts.eventId, isDeleted: false },
+      select: { id: true },
+    });
+    if (!event) {
+      return { ok: false, error: "Periode UKT tidak ditemukan" };
+    }
+
+    try {
+      const registration = existing
+        ? await prisma.eventRegistration.update({
+            where: { id: existing.id },
+            data: {
+              status: "PENDING",
+              registeredRank: opts.kyuLamaSnapshot,
+              registeredByUserId: opts.registeredByUserId,
+            },
+          })
+        : await prisma.eventRegistration.create({
+            data: {
+              eventId: opts.eventId,
+              memberId: opts.memberId,
+              registeredByUserId: opts.registeredByUserId,
+              status: "PENDING",
+              registeredRank: opts.kyuLamaSnapshot,
+            },
+          });
+
+      return {
+        ok: true,
+        registrationId: registration.id,
+        memberName: member.fullName,
+        alreadyRegistered: false,
+        status: "PENDING",
+      };
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        const again = await prisma.eventRegistration.findFirst({
+          where: { eventId: opts.eventId, memberId: opts.memberId },
+          select: { id: true, status: true },
+        });
+        if (again) {
+          return {
+            ok: true,
+            registrationId: again.id,
+            memberName: member.fullName,
+            alreadyRegistered: true,
+            status: again.status,
+          };
+        }
+      }
+      throw error;
+    }
+  } catch (error) {
+    console.error("[ukt-register] forceRegisterUktPendingInDb failed", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Gagal mendaftarkan ke periode UKT",
+    };
+  }
+}
+
+/** Setelah ranting Terima: pastikan satu billing PENDING lalu siap diajukan. */
+export async function ensureUktBillingForAcceptedRegistration(opts: {
+  eventId: string;
+  memberId: string;
+  registrationId: string;
+  memberRank: string;
+  periodTitle: string;
+  token: string;
+}): Promise<
+  | { ok: true; billingId: string; created: boolean }
+  | { ok: false; error: string }
+> {
+  const existing = await prisma.billing.findFirst({
+    where: {
+      registrationId: opts.registrationId,
+      isDeleted: false,
+      status: { notIn: ["CANCELLED", "REJECTED"] },
+    },
+    select: { id: true, status: true },
+    orderBy: { createdAt: "desc" },
+  });
+  if (existing) {
+    return { ok: true, billingId: existing.id, created: false };
+  }
+
+  const amount = await resolveUktRegisterFeeAmount({
+    token: opts.token,
+    eventId: opts.eventId,
+    memberRank: opts.memberRank,
+  });
+  const event = await prisma.event.findFirst({
+    where: { id: opts.eventId },
+    select: { registrationCloseAt: true, endDate: true, title: true },
+  });
+  const dueDate =
+    event?.registrationCloseAt ?? event?.endDate ?? new Date();
+
+  try {
+    const billing = await prisma.billing.create({
+      data: {
+        memberId: opts.memberId,
+        registrationId: opts.registrationId,
+        type: "EVENT",
+        amount: Math.max(0, Math.round(amount)),
+        baseFeeAmount: Math.max(0, Math.round(amount)),
+        description: `UKT — ${opts.periodTitle || event?.title || "Pendaftaran"}`,
+        dueDate,
+        status: "PENDING",
+        isDeleted: false,
+      },
+    });
+    return { ok: true, billingId: billing.id, created: true };
+  } catch (error) {
+    console.error("[ukt-register] ensureUktBilling failed", error);
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Gagal membuat tagihan UKT",
+    };
+  }
 }

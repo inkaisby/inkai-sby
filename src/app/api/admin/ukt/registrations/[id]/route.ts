@@ -25,6 +25,13 @@ import {
   forceDeleteRegistrationInDb,
   forceUnlinkBillingsInDb,
 } from "@/lib/billing-delete";
+import {
+  ensureUktBillingForAcceptedRegistration,
+} from "@/lib/ukt-register";
+import {
+  deleteUktSelfRegistrationMeta,
+  loadUktSelfRegistrationMeta,
+} from "@/lib/ukt-self-registration";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -565,6 +572,266 @@ export async function PATCH(request: Request, context: RouteContext) {
       selesai: appliedKyu,
       kyuBaru: appliedKyu ? kyuBaruLabel : undefined,
     });
+  }
+
+  if (data.action === "accept_self_registration") {
+    const localReg = await prisma.eventRegistration.findFirst({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        eventId: true,
+        memberId: true,
+        registeredRank: true,
+        member: {
+          select: {
+            fullName: true,
+            dojoId: true,
+            currentRank: true,
+          },
+        },
+        event: { select: { title: true } },
+      },
+    });
+    if (!localReg) {
+      return NextResponse.json(
+        { error: "Pendaftaran tidak ditemukan" },
+        { status: 404 },
+      );
+    }
+
+    if (role === "ADMIN_DOJO") {
+      const allowlist = getManagedDojoIdsFromUser(authResult.user);
+      if (
+        allowlist.length > 0 &&
+        localReg.member.dojoId &&
+        !allowlist.includes(localReg.member.dojoId)
+      ) {
+        return NextResponse.json(
+          { error: "Pendaftaran di luar ranting Anda" },
+          { status: 403 },
+        );
+      }
+    }
+
+    const memberId = localReg.memberId;
+    const eventId = localReg.eventId;
+    const memberName = localReg.member.fullName;
+    const periodTitle = localReg.event.title ?? "UKT";
+
+    // Idempotent: sudah WAITING_VERIFICATION
+    const existingBilling = await prisma.billing.findFirst({
+      where: {
+        registrationId: id,
+        isDeleted: false,
+        status: "WAITING_VERIFICATION",
+      },
+      select: { id: true },
+    });
+    if (existingBilling && localReg.status === "APPROVED") {
+      return NextResponse.json({
+        success: true,
+        alreadyAccepted: true,
+        billingId: existingBilling.id,
+        billingStatus: "WAITING_VERIFICATION",
+      });
+    }
+
+    if (localReg.status !== "PENDING" && localReg.status !== "APPROVED") {
+      return NextResponse.json(
+        { error: "Pendaftaran tidak dalam status menunggu Terima" },
+        { status: 400 },
+      );
+    }
+
+    const kyuLama =
+      formatRankLabel(localReg.member.currentRank) ||
+      localReg.member.currentRank ||
+      DEFAULT_MEMBER_RANK;
+    const registeredRank =
+      localReg.registeredRank || encodeUktRegisteredRank(kyuLama, "");
+
+    await prisma.eventRegistration.update({
+      where: { id },
+      data: { status: "APPROVED", registeredRank },
+    });
+
+    // Sync Inkai bila memungkinkan
+    void inkaiFetch(
+      `/v1/events/register/${id}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ status: "APPROVED", registeredRank }),
+      },
+      authResult.token,
+    ).catch(() => undefined);
+
+    const billingEnsured = await ensureUktBillingForAcceptedRegistration({
+      eventId,
+      memberId,
+      registrationId: id,
+      memberRank: kyuLama,
+      periodTitle,
+      token: authResult.token,
+    });
+    if (!billingEnsured.ok) {
+      return NextResponse.json({ error: billingEnsured.error }, { status: 400 });
+    }
+
+    const billingId = billingEnsured.billingId;
+    const note = "Diterima ranting (daftar mandiri) — menunggu verifikasi cabang";
+    let submitted = false;
+    for (const attempt of [
+      {
+        path: `/v1/billing/${billingId}/status`,
+        method: "PATCH" as const,
+        body: { status: "WAITING_VERIFICATION", adminNotes: note },
+      },
+      {
+        path: `/v1/billing/${billingId}`,
+        method: "PATCH" as const,
+        body: { status: "WAITING_VERIFICATION", adminNotes: note },
+      },
+    ]) {
+      const { res } = await inkaiFetch(
+        attempt.path,
+        { method: attempt.method, body: JSON.stringify(attempt.body) },
+        authResult.token,
+      );
+      if (res.ok) {
+        submitted = true;
+        break;
+      }
+    }
+    if (!submitted) {
+      await prisma.billing.update({
+        where: { id: billingId },
+        data: { status: "WAITING_VERIFICATION" },
+      });
+    }
+
+    await deleteUktSelfRegistrationMeta(eventId, memberId);
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "UKT_ACCEPT_SELF_REGISTRATION",
+      details: `Accepted self UKT ${memberName} (${id}) → WAITING_VERIFICATION`,
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      token: authResult.token,
+    });
+
+    void notifyUktStatusChange({
+      token: authResult.token,
+      memberId,
+      memberName,
+      periodTitle,
+      displayStatus: "menunggu_verifikasi",
+      extra: "Ranting sudah menerima pendaftaran dan pembayaran, diteruskan ke cabang.",
+    }).catch((err) => console.error("[UKT accept self] notify member", err));
+
+    void notifyUktBranchAdmins({
+      token: authResult.token,
+      title: "UKT — Ranting terima daftar mandiri",
+      content: `${memberName} diterima ranting dan diteruskan ke cabang (${periodTitle}). Status: Menunggu Verifikasi.`,
+      actorEmail: authResult.user.email,
+      type: "INFO",
+    }).catch((err) => console.error("[UKT accept self] notify cabang", err));
+
+    return NextResponse.json({
+      success: true,
+      billingId,
+      billingStatus: "WAITING_VERIFICATION",
+    });
+  }
+
+  if (data.action === "reject_self_registration") {
+    const localReg = await prisma.eventRegistration.findFirst({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        eventId: true,
+        memberId: true,
+        member: { select: { fullName: true, dojoId: true } },
+        event: { select: { title: true } },
+      },
+    });
+    if (!localReg) {
+      return NextResponse.json(
+        { error: "Pendaftaran tidak ditemukan" },
+        { status: 404 },
+      );
+    }
+
+    if (role === "ADMIN_DOJO") {
+      const allowlist = getManagedDojoIdsFromUser(authResult.user);
+      if (
+        allowlist.length > 0 &&
+        localReg.member.dojoId &&
+        !allowlist.includes(localReg.member.dojoId)
+      ) {
+        return NextResponse.json(
+          { error: "Pendaftaran di luar ranting Anda" },
+          { status: 403 },
+        );
+      }
+    }
+
+    if (localReg.status !== "PENDING") {
+      return NextResponse.json(
+        { error: "Hanya pengajuan menunggu Terima yang dapat ditolak" },
+        { status: 400 },
+      );
+    }
+
+    const meta = await loadUktSelfRegistrationMeta(
+      localReg.eventId,
+      localReg.memberId,
+    );
+    const hadPaymentConfirm = Boolean(meta?.memberPaymentConfirmedAt);
+
+    await prisma.eventRegistration.update({
+      where: { id },
+      data: { status: "REJECTED" },
+    });
+    void inkaiFetch(
+      `/v1/events/register/${id}`,
+      { method: "PUT", body: JSON.stringify({ status: "REJECTED" }) },
+      authResult.token,
+    ).catch(() => undefined);
+
+    await deleteUktSelfRegistrationMeta(localReg.eventId, localReg.memberId);
+
+    // CANCELLED agar unique (eventId, memberId) bisa dipakai daftar ulang
+    await prisma.eventRegistration.update({
+      where: { id },
+      data: { status: "CANCELLED" },
+    });
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "UKT_REJECT_SELF_REGISTRATION",
+      details: `Rejected self UKT ${localReg.member.fullName} (${id})`,
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      token: authResult.token,
+    });
+
+    void notifyUktStatusChange({
+      token: authResult.token,
+      memberId: localReg.memberId,
+      memberName: localReg.member.fullName,
+      periodTitle: localReg.event.title ?? "UKT",
+      displayStatus: "ditolak",
+      extra: hadPaymentConfirm
+        ? "Koordinasikan pengembalian pembayaran dengan ketua ranting bila sudah menyetor."
+        : "Anda dapat mendaftar ulang setelah melengkapi syarat.",
+    }).catch((err) => console.error("[UKT reject self] notify member", err));
+
+    return NextResponse.json({ success: true });
   }
 
   if (data.action === "submit_for_verification") {

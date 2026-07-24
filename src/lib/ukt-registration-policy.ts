@@ -103,6 +103,16 @@ export function resolveUktMemberRequirementFlags(
   requireMinAttendance: boolean;
   minAttendancePct: number;
 } {
+  // Daftar mandiri anggota: selalu enforce flag syarat yang aktif di kebijakan
+  if (primaryRole === "MEMBER") {
+    return {
+      requireNoOutstandingDues: policy.requireNoOutstandingDues,
+      requireDocuments: policy.requireDocuments,
+      requireMinAttendance: policy.requireMinAttendance,
+      minAttendancePct: policy.minAttendancePct,
+    };
+  }
+
   const enforce =
     primaryRole === "ADMIN_DOJO"
       ? policy.enforceForRanting

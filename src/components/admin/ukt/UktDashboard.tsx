@@ -297,6 +297,8 @@ function statusBadge(row: UktMemberRow) {
     mengulang: "bg-orange-100 text-orange-700 hover:bg-orange-100",
     menunggu_ujian: "bg-blue-100 text-blue-700 hover:bg-blue-100",
     menunggu_verifikasi: "bg-amber-100 text-amber-700 hover:bg-amber-100",
+    menunggu_terima_ranting: "bg-orange-100 text-orange-800 hover:bg-orange-100",
+    menunggu_konfirmasi_ranting: "bg-orange-100 text-orange-800 hover:bg-orange-100",
     belum_bayar: "bg-amber-100 text-amber-700 hover:bg-amber-100",
   };
   const className = map[displayStatus];
@@ -1507,6 +1509,82 @@ export function UktDashboard(props: Props) {
     }
   };
 
+  /** Ranting: Terima daftar mandiri + bayar → teruskan ke cabang. */
+  const handleAcceptSelfRegistration = async (row: UktMemberRow) => {
+    if (!row.registrationId) return;
+    setMemberPending(row.memberId, true);
+    try {
+      const res = await fetch(
+        `/api/admin/ukt/registrations/${row.registrationId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "accept_self_registration" }),
+        },
+      );
+      const data = await parseApiJson<{
+        error?: string;
+        billingId?: string;
+        billingStatus?: string;
+      }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal menerima pendaftaran");
+      patchRow(row.memberId, {
+        status: "APPROVED",
+        billingId: data.billingId ?? row.billingId,
+        billingStatus: data.billingStatus ?? "WAITING_VERIFICATION",
+        selfRegistration: false,
+        memberPaymentConfirmedAt: null,
+      });
+      toast.success("Diterima — diteruskan ke cabang (Menunggu Verifikasi)");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal");
+    } finally {
+      setMemberPending(row.memberId, false);
+    }
+  };
+
+  const handleRejectSelfRegistration = async (row: UktMemberRow) => {
+    if (!row.registrationId) return;
+    if (
+      !window.confirm(
+        `Tolak pengajuan UKT ${formatMemberName(row.fullName)}?${
+          row.memberPaymentConfirmedAt
+            ? " Anggota sudah konfirmasi bayar — koordinasikan pengembalian."
+            : ""
+        }`,
+      )
+    ) {
+      return;
+    }
+    setMemberPending(row.memberId, true);
+    try {
+      const res = await fetch(
+        `/api/admin/ukt/registrations/${row.registrationId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "reject_self_registration" }),
+        },
+      );
+      const data = await parseApiJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal menolak");
+      patchRow(row.memberId, {
+        registrationId: null,
+        status: "BELUM_DAFTAR",
+        billingId: null,
+        billingStatus: null,
+        billingAmount: null,
+        selfRegistration: false,
+        memberPaymentConfirmedAt: null,
+      });
+      toast.success("Pengajuan ditolak");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal");
+    } finally {
+      setMemberPending(row.memberId, false);
+    }
+  };
+
   /** Ranting: ajukan Bayar UKT → Menunggu Verifikasi (bukan lunas). */
   const handleBayarUkt = async (
     targets: UktMemberRow[],
@@ -1831,6 +1909,7 @@ export function UktDashboard(props: Props) {
           },
         ]
       : []),
+    { label: "Menunggu Terima", value: kpi.menungguTerima, icon: Clock, color: "text-orange-600", filter: "menunggu_terima_ranting" },
     { label: "Belum Bayar", value: kpi.belumBayar, icon: Clock, color: "text-yellow-600", filter: "belum_bayar" },
     { label: "Menunggu Verif.", value: kpi.menungguVerifikasi, icon: Wallet, color: "text-purple-600", filter: "menunggu_verifikasi" },
     { label: "Menunggu Ujian", value: kpi.menungguUjian, icon: FileText, color: "text-indigo-600", filter: "menunggu_ujian" },
@@ -2748,11 +2827,13 @@ export function UktDashboard(props: Props) {
           </summary>
           <div className="space-y-1 border-t px-3 py-3 text-sm text-muted-foreground">
             <p>
-              Aksi ranting: <b>Daftar UKT</b>, <b>Batal UKT</b>, dan{" "}
-              <b>Bayar UKT</b>. Cetak nota &amp; laporan WA lewat toolbar (manual).
+              Aksi ranting: <b>Daftar UKT</b>, <b>Terima</b>/<b>Tolak</b>{" "}
+              (daftar mandiri), <b>Batal UKT</b>, dan <b>Bayar UKT</b>. Cetak
+              nota &amp; laporan WA lewat toolbar (manual).
             </p>
             <p>
-              <b>Bayar UKT</b> = ajukan ke cabang (
+              <b>Terima</b> = terima pendaftaran mandiri + konfirmasi uang,
+              lalu teruskan ke cabang. <b>Bayar UKT</b> = ajukan ke cabang (
               <b>Menunggu Verifikasi</b>), bukan lunas. Cabang yang
               memverifikasi pembayaran, lalu mengisi hasil ujian &amp; Kyu
               Baru.
@@ -3263,6 +3344,42 @@ export function UktDashboard(props: Props) {
 
                       return (
                         <div className="flex flex-wrap items-center gap-1">
+                          {isDojoAdmin &&
+                            (resolveUktDisplayStatus(row) ===
+                              "menunggu_terima_ranting" ||
+                              resolveUktDisplayStatus(row) ===
+                                "menunggu_konfirmasi_ranting") && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  className="h-7 bg-inkai-red text-xs hover:bg-inkai-red/90"
+                                  onClick={() =>
+                                    void handleAcceptSelfRegistration(row)
+                                  }
+                                  disabled={
+                                    loading || isMemberPending(row.memberId)
+                                  }
+                                  title="Terima pendaftaran mandiri dan konfirmasi pembayaran — teruskan ke cabang"
+                                >
+                                  <CheckCircle2 className="mr-0.5 h-3 w-3" />
+                                  Terima
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs text-destructive"
+                                  onClick={() =>
+                                    void handleRejectSelfRegistration(row)
+                                  }
+                                  disabled={
+                                    loading || isMemberPending(row.memberId)
+                                  }
+                                  title="Tolak pengajuan mandiri"
+                                >
+                                  Tolak
+                                </Button>
+                              </>
+                            )}
                           {isDojoAdmin && canRantingSubmitUktPayment(row) && (
                             <Button
                               size="sm"

@@ -17,9 +17,13 @@ import {
   type UktDisplayStatus,
   type UktMemberRow,
   type UktPeriodOption,
+  type UktRegistrationBlocker,
 } from "@/lib/ukt";
 import { fetchSettingsByPrefix } from "@/lib/inkai-api/admin-data";
 import { loadUktPeriodMeta } from "@/lib/ukt-period-meta-store";
+import { validateUktRegistrationEligibility } from "@/lib/ukt-register";
+import { loadUktSelfRegistrationMeta } from "@/lib/ukt-self-registration";
+import { prisma } from "@/lib/prisma";
 
 export type MemberUktStatusPayload = {
   period?: {
@@ -39,6 +43,9 @@ export type MemberUktStatusPayload = {
   examLocation?: string | null;
   registrationId?: string;
   examResult?: string | null;
+  canSelfRegister?: boolean;
+  blockers?: UktRegistrationBlocker[];
+  memberPaymentConfirmedAt?: string | null;
 };
 
 function filterUktEvents(events: Array<Record<string, unknown>>) {
@@ -112,6 +119,8 @@ export async function getMemberUktStatus(
           ? "Menunggu periode UKT baru"
           : "Periode belum dibuka",
       displayStatus: "belum_daftar",
+      canSelfRegister: false,
+      blockers: ["PERIODE_BELUM_BUKA"],
     };
   }
 
@@ -122,29 +131,57 @@ export async function getMemberUktStatus(
     examLocation: periodMeta.examLocation ?? null,
   };
 
+  const selfMeta = await loadUktSelfRegistrationMeta(match.id, memberId);
+
+  // Prefer Prisma registration (self-reg PENDING often not on Inkai yet)
+  const localReg = await prisma.eventRegistration.findFirst({
+    where: {
+      eventId: match.id,
+      memberId,
+      status: { notIn: ["CANCELLED"] },
+    },
+    select: {
+      id: true,
+      status: true,
+      registeredRank: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
   const { res: detailRes, data: detailData } = await inkaiFetch(
     `/v1/events/${match.id}`,
     {},
     token,
   );
-  if (!detailRes.ok) {
-    return {
-      period: match,
-      registered: false,
-      statusLabel: "—",
-      ...examPayload,
+
+  let reg: Record<string, unknown> | null = null;
+  if (detailRes.ok) {
+    const event = detailData.data as Record<string, unknown>;
+    const registrations =
+      (event.registrations as Array<Record<string, unknown>>) ?? [];
+    reg =
+      registrations.find(
+        (r) =>
+          String((r.member as { id?: string })?.id ?? r.memberId) === memberId,
+      ) ?? null;
+  }
+
+  if (localReg && (!reg || localReg.status === "PENDING")) {
+    reg = {
+      id: localReg.id,
+      status: localReg.status,
+      registeredRank: localReg.registeredRank,
+      memberId,
     };
   }
 
-  const event = detailData.data as Record<string, unknown>;
-  const registrations =
-    (event.registrations as Array<Record<string, unknown>>) ?? [];
-  const reg = registrations.find(
-    (r) =>
-      String((r.member as { id?: string })?.id ?? r.memberId) === memberId,
-  );
-
-  if (!reg) {
+  if (!reg || String(reg.status) === "CANCELLED") {
+    const eligibility = await validateUktRegistrationEligibility(
+      token,
+      match.id,
+      memberId,
+      { primaryRole: "MEMBER" },
+    );
     return {
       period: match,
       registered: false,
@@ -152,6 +189,8 @@ export async function getMemberUktStatus(
         ? "Periode diarsipkan"
         : "Belum terdaftar",
       displayStatus: "belum_daftar",
+      canSelfRegister: eligibility.ok,
+      blockers: eligibility.ok ? [] : eligibility.blockers,
       ...examPayload,
     };
   }
@@ -161,10 +200,28 @@ export async function getMemberUktStatus(
     `ukt-exam-result:${match.id}:`,
   );
   const examMap = buildUktExamResultMap(examSettings, match.id);
-  const member = reg.member as Record<string, unknown> | undefined;
+  const member = (reg.member as Record<string, unknown> | undefined) ?? {};
   const billings = (member?.billings as Array<Record<string, unknown>>) ?? [];
-  const billing =
-    billings.find((b) => b.registrationId === reg.id) ?? billings[0];
+  let billing =
+    billings.find((b) => b.registrationId === reg!.id) ?? billings[0] ?? null;
+
+  if (!billing) {
+    const localBilling = await prisma.billing.findFirst({
+      where: {
+        registrationId: String(reg.id),
+        isDeleted: false,
+      },
+      select: { id: true, status: true, amount: true },
+    });
+    if (localBilling) {
+      billing = {
+        id: localBilling.id,
+        status: localBilling.status,
+        amount: localBilling.amount,
+      };
+    }
+  }
+
   const category = reg.category as { name?: string } | null | undefined;
   const registeredRank =
     typeof reg.registeredRank === "string" ? reg.registeredRank : null;
@@ -211,13 +268,16 @@ export async function getMemberUktStatus(
     status: String(reg.status ?? ""),
     billingId: billing?.id ? String(billing.id) : null,
     billingStatus: billing?.status ? String(billing.status) : null,
-    billingAmount: billing?.amount != null ? Number(billing.amount) : null,
+    // Jangan kirim nominal ke kartu anggota
+    billingAmount: null,
     outstandingDues: 0,
     pendingVerifications: 0,
     attendanceCount: 0,
     attendancePct: null,
     examResult: examMap.get(String(reg.id)) ?? null,
     examPresent: null,
+    selfRegistration: Boolean(selfMeta),
+    memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,
   };
 
   const displayStatus = resolveUktDisplayStatus(row);
@@ -231,6 +291,9 @@ export async function getMemberUktStatus(
     displayStatus,
     statusLabel: uktDisplayStatusLabel(displayStatus),
     examResult: (row.examResult as string | null) ?? null,
+    memberPaymentConfirmedAt: row.memberPaymentConfirmedAt ?? null,
+    canSelfRegister: false,
+    blockers: [],
     ...examPayload,
   };
 }

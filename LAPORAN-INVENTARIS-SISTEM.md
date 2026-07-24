@@ -86,7 +86,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Profil | Aktif | Edit lengkap (foto, identitas, dokumen); **email/NIA/sabuk/MSH edit mandiri 1×** lalu pengajuan `PROFILE_CHANGE`; No. MSH (Hitam/DAN) di Kartu Anggota |
 | Absensi | Aktif | Riwayat + check-in GPS (kode QR opsional) |
 | Iuran | Aktif | Daftar tagihan + unggah bukti pembayaran |
-| Kegiatan | Aktif | Pendaftaran event (dengan gate kelengkapan) |
+| Kegiatan | Aktif | Pendaftaran event (dengan gate kelengkapan); UKT lewat kartu Status UKT (daftar mandiri) |
 | Materi Digital | Aktif | Katalog materi dari cabang (unduh/buka file) |
 | Store | Aktif | Katalog produk + pesan (stok) |
 | Prestasi & Sabuk | Aktif | Sabuk, unggah piagam, pelatihan |
@@ -155,7 +155,7 @@ Pusat / Nasional
 |------|----------------|---------|--------|----------|
 | Profil & akun | Edit profil sendiri | Edit **nama** + **dokumen** anggota (hak edit profil); tidak edit akun login | Lihat ranting & anggota di bawahnya | Lihat cabang, ranting & anggota di bawahnya |
 | Kyu / DAN | Tidak edit sendiri | Tidak edit | **Edit Kyu (UKT & anggota)** | Tidak edit (hanya lihat) |
-| Event (UKT, Gashuku, pertandingan) | Lihat & daftar sendiri | Daftarkan anggota ranting | **Buat event** + lihat pendaftar | Lihat event & pendaftar |
+| Event (UKT, Gashuku, pertandingan) | Lihat & **daftar UKT mandiri** (+ konfirmasi bayar); daftar event non-UKT | Daftarkan anggota ranting; **Terima/Tolak** mandiri; Bayar UKT | **Buat event** + lihat pendaftar; Verifikasi bayar UKT | Lihat event & pendaftar |
 | NIA | Lihat sendiri | Tidak assign | **Assign NIA** | Lihat saja |
 | Iuran | Lihat & bayar sendiri | **Edit tagihan + verifikasi + lunas**; **edit Iuran/bln per anggota** (scope dojo) | **Kelola iuran** cabang (edit/verifikasi/lunas + Iuran/bln) | Lihat saja (tanpa edit) |
 | Status keanggotaan | Lihat sendiri | **Nonaktifkan / aktifkan**; **hapus/arsip** (aktif/ber-NIA: ketik nama; bulk: ketik ARSIPKAN); **gabungkan duplikat** | **Nonaktif / aktif / hapus (arsip)** + bulk; gabungkan duplikat | Lihat saja |
@@ -215,12 +215,14 @@ Pusat / Nasional
 ### 9.3 UKT (Ujian Kenaikan Tingkat)
 1. **Cabang** membuat periode UKT per semester (Semester I = Jan–Jun, Semester II = Jul–Des); setiap semester = **event terpisah** dengan registrasi & pembayaran sendiri.
 2. URL admin: **Pendaftaran** `/admin/ukt?semester=I|II&year=YYYY&period=<eventId>` (periode aktif) dan **Arsip UKT** `/admin/ukt/arsip?...` (riwayat/terkunci). Dropdown semester/tahun memilih event yang cocok; bila belum ada periode aktif, tombol **Buat Periode** di Pendaftaran.
-3. **Ranting** mendaftarkan anggota (**Kyu Lama** = sabuk keanggotaan saat ini; setelah UKT selesai/sabuk naik, Kyu Lama dikunci dari snapshot registrasi).
-4. Pendaftaran UKT: gate operasional dikonfigurasi di **Pengaturan → UKT** (`/admin/pengaturan/ukt`): centang iuran / dokumen / absensi (+ ambang %), serta **berlaku untuk ranting / cabang**. Periode buka/tutup selalu berlaku. Cabang tetap bisa waiver per anggota.
-5. **Ranting** — aksi baris: **Daftar UKT**, **Batal UKT** (termasuk yang sudah bayar/lunas, scope ranting sendiri; notifikasi cabang + peringatan koordinasi pengembalian uang), **Bayar UKT** (= ajukan ke cabang → status **Menunggu Verifikasi** / `WAITING_VERIFICATION`, **bukan** lunas; cabang yang **Verifikasi** → lunas/**Menunggu Ujian**). Toolbar ranting tetap punya **Laporan WA** (buka WhatsApp siap kirim, bukan salin clipboard) dan **Cetak Nota** (manual — **tidak** otomatis saat daftar/Bayar). Setelah daftar, status **Belum Bayar**; cabang mendapat notifikasi otomatis saat daftar/batal/**Bayar UKT**. Tanpa setoran/tambah anggota di halaman UKT.
-6. **Cabang** **memverifikasi pembayaran** (per baris / bulk; dari **Belum Bayar** atau **Menunggu Verifikasi**) → status **Menunggu Ujian**, lalu mencatat **hasil ujian**: `LULUS` / `GAGAL` / `MENGULANG`.
-7. Alur cabang setelah bayar: **Verifikasi** → **Menunggu Ujian** → isi **Kyu Baru** → otomatis **Lulus** + **Selesai** (sabuk resmi naik). Status **Selesai** = lunas + Kyu Baru + LULUS.
-8. Status operasional UKT disederhanakan untuk UI: **Belum Daftar / Belum Bayar / Menunggu Verifikasi / Menunggu Ujian / Lulus Ujian / Tidak Lulus / Mengulang / Selesai**.
+3. **Dual path daftar:** (a) **Ranting** mendaftarkan anggota langsung → **Belum Bayar**; (b) **Anggota** daftar mandiri dari kartu Status UKT (**Daftar UKT sekarang**) → **Menunggu Terima Ranting** (`PENDING`, tanpa tagihan dulu). **Kyu Lama** = sabuk keanggotaan saat ini.
+3b. **Daftar mandiri:** gate syarat (periode, iuran, dokumen Akte+BPJS, absensi) di server dengan role `MEMBER`; **Pengecualian iuran** otoritas **ranting** (`allowEventWithoutDues`). UI anggota **tidak menampilkan nominal** biaya UKT (kartu + filter tagihan UKT dari `/dashboard/iuran`). Setelah daftar, anggota bayar offline ke ranting lalu **Konfirmasi sudah bayar** (flag saja). Unique `(eventId, memberId)` anti-bentrok.
+3c. **Ranting Terima / Tolak** pengajuan mandiri: **Terima** = APPROVED + buat billing + `WAITING_VERIFICATION` (uang sah + teruskan cabang); **Tolak** = batalkan + notif (koordinasi pengembalian bila sudah konfirmasi bayar).
+4. Pendaftaran UKT: gate operasional dikonfigurasi di **Pengaturan → UKT** (`/admin/pengaturan/ukt`): centang iuran / dokumen / absensi (+ ambang %), serta **berlaku untuk ranting / cabang**. Periode buka/tutup selalu berlaku. Cabang tetap bisa waiver multi-blocker; pengecualian iuran anggota lewat ranting.
+5. **Ranting** — aksi baris: **Daftar UKT**, **Terima**/**Tolak** (mandiri), **Batal UKT**, **Bayar UKT** (= ajukan ke cabang → **Menunggu Verifikasi**; untuk jalur daftar ranting). Setelah daftar ranting: **Belum Bayar**. Notifikasi otomatis daftar/batal/Bayar/Terima.
+6. **Cabang** **memverifikasi pembayaran** → **Menunggu Ujian**, lalu hasil ujian `LULUS` / `GAGAL` / `MENGULANG`.
+7. Alur cabang setelah bayar: **Verifikasi** → **Menunggu Ujian** → isi **Kyu Baru** → otomatis **Lulus** + **Selesai**.
+8. Status operasional UI: **Belum Daftar / Menunggu Terima Ranting / Menunggu Konfirmasi Ranting / Belum Bayar / Menunggu Verifikasi / Menunggu Ujian / Lulus Ujian / Tidak Lulus / Mengulang / Selesai**.
 9. Status **Selesai** bila sudah lunas + lulus + sabuk target terisi; sabuk resmi anggota diperbarui + riwayat.
 10. Cetak nota memakai tabel biaya sabuk bulat; **tanpa kode unik** (+1…999). Nomor nota memuat semester (`UKT/SBY/{RANTING}/I|II/{tahun}`). Pejabat (Bidang Ujian / Bendahara) dari **period-meta per periode**, fallback **Pengaturan → Kebijakan**.
 10b. **Biaya sabuk & komisi** di-**snapshot** ke period-meta saat buat/simpan periode; UI Atur Biaya default menyimpan ke snapshot periode (`updateGlobal: false`). Template global (`RankFeeTemplate` + setting komisi) hanya diubah bila tanpa periode atau opsi “juga update global” dicentang.
@@ -229,9 +231,9 @@ Pusat / Nasional
 11b. **Rekonsiliasi setoran** (kartu di UI **cabang**): tabel Ranting / Peserta / Lunas / Total / Status setor via `buildUktDepositReconciliation`; ranting tidak lagi menandai setor dari halaman UKT (diganti alur nota + verifikasi cabang).
 11c. **Cron H-3** (`/api/cron/ukt-reminders`, `vercel.json`): pengingat batas daftar & notifikasi jadwal ke ranting (idempoten lewat `notified*` di period-meta).
 11d. **Fokus periode aktif:** resolusi mengutamakan non-arsip; judul kanonis `UKT Semester {I|II}-{tahun}`; buat periode baru mengarsipkan term yang sudah tutup; sidebar **UKT → Pendaftaran / Arsip UKT** (bukan dropdown campuran); anggota hanya melihat periode aktif. Arsipkan dari Pendaftaran mengarahkan ke Arsip; buka arsip mengembalikan ke Pendaftaran. **Arsip UKT** hanya menampilkan peserta yang sudah mendaftar (tanpa pool “Belum Daftar”).
-12. Dashboard anggota menampilkan **kartu Status UKT** di beranda & Prestasi (termasuk **jadwal ujian + lokasi** bila diisi); admin cabang: **export daftar peserta** (Print/Save as PDF/CSV + pilih ranting + validasi data; kolom **KYU** = sabuk keanggotaan), **Laporan WA** ringkas, **hari-H** (roster hadir + hasil massal), **status setoran** (cabang), **arsip/kunci periode**, waiver, wizard, action bar. Cabang & ranting dapat **membatalkan pendaftaran UKT beserta tagihan terkait, termasuk yang sudah lunas** (ranting: scope dojo + notifikasi cabang). Hapus hanya menyasar tagihan tertaut registrasi / UKT yatim (bukan semua iuran PAID anggota); bila API Inkai menolak karena tagihan lunas, server memakai **fallback Prisma**. Setelah hapus, anggota yang ikut ter-soft-delete dipulihkan agar bisa daftar UKT lain. Gate daftar memakai fallback Prisma bila GET anggota Inkai 404. Cabang dapat **menghapus tagihan UKT saja** (`DELETE /api/admin/billing/[id]`).
+12. Dashboard anggota: kartu **Status UKT** (daftar mandiri + konfirmasi bayar + status; **tanpa nominal**); admin cabang: export, Laporan WA, hari-H, setoran, arsip, waiver, wizard. Cabang & ranting dapat membatalkan pendaftaran UKT beserta tagihan terkait.
 13. Toolbar cabang: **Buat Periode**, Hari-H, Export, Laporan WA, **Salin Undangan** / **WA Undangan**, Cetak Nota, Biaya Sabuk, Arsip (tombol terpisah). Toolbar ranting: **Laporan WA** + **Salin/WA Undangan** + **Cetak Nota** (manual).
-14. **Undangan portal publik** `/undangan/ukt/[periodId]`: gaya undangan digital (elegan siang + motif sabuk); data jadwal/lokasi dari snapshot `AppSetting` `ukt-invite:{periodId}` (disinkron saat buat/ubah periode/meta); CTA **Daftarkan Anggota** → `/login?callbackUrl=/admin/ukt?period=…` (login menghormati `callbackUrl`).
+14. **Undangan portal publik** `/undangan/ukt/[periodId]`: gaya undangan digital; snapshot `ukt-invite:{periodId}`; CTA **Daftarkan Anggota** → login admin.
 
 ### 9.4 Kegiatan & absensi
 - **Cabang** dapat membuat event non-UKT di `/admin/kegiatan` (Gashuku, pertandingan, dll.).
@@ -297,7 +299,7 @@ Pusat / Nasional
 | Email notifikasi | Opsional (Resend) | `notifyUser` kirim email bila `RESEND_API_KEY`; dipakai pesan admin, verifikasi, UKT, lifecycle; reset-password email ke ranting |
 | Eligibility UKT | Diterapkan | Gate periode tutup, iuran, dokumen, absensi semester minimum 75% |
 | Hasil ujian UKT | Aktif | Cabang tetapkan `LULUS` / `GAGAL` / `MENGULANG`; Kyu Baru **wajib** setelah LULUS |
-| Status UKT anggota | Aktif | `/api/member/ukt-status` + kartu status di beranda & Prestasi (CTA + jadwal ujian bila ada) |
+| Status UKT anggota | Aktif | `/api/member/ukt-status` + kartu: **Daftar UKT sekarang**, konfirmasi bayar, status Menunggu Terima/Verifikasi/Ujian; **tanpa nominal biaya** |
 | Undangan portal UKT | Aktif | `/undangan/ukt/[periodId]` publik; snapshot `AppSetting` `ukt-invite:{id}`; Salin/WA Undangan di toolbar admin |
 | Filter/KPI UKT operasional | Aktif | Status UI selaras: Belum Bayar, Menunggu Verif/Ujian, Lulus, Selesai; kartu KPI **Gagal/Mengulang** memfilter kedua status |
 | Pengecualian UKT (waiver) | Aktif | Cabang kecualikan iuran/dokumen/absensi + catatan audit |
@@ -369,6 +371,9 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/member/upload           Unggah file anggota (foto/akte/bpjs + folder legacy iuran/piagam)
 /api/member/document-file    Proxy pratinjau dokumen anggota
 /api/member/ukt-status       Kartu status UKT periode aktif untuk anggota
+/api/member/ukt/register     Daftar UKT mandiri (PENDING, tanpa billing)
+/api/member/ukt/confirm-payment  Flag konfirmasi sudah bayar ke ranting
+/api/admin/ukt/registrations/[id]  … + `accept_self_registration` / `reject_self_registration`
 /api/admin/materi/*         CRUD materi digital
 /api/admin/store/*          Produk & status pesanan
 /api/admin/pesan/*          Inbox, unread, tandai dibaca, balas
@@ -620,6 +625,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Juli 2026 | **Undangan portal UKT**: `/undangan/ukt/[periodId]` (cover+musik+Home/Acara/Galeri/Peta auto/klik/scroll), snapshot `ukt-invite`, Salin/WA Undangan di toolbar, login `callbackUrl` ke `/admin/ukt` |
 | 23 Juli 2026 | Undangan UKT: ringanin UI — hapus animasi infinite/blur/noise, tunda mount konten+Maps, countdown via DOM ref, musik HTMLAudio saja, font `next/font` |
 | 23 Juli 2026 | Fix 404 undangan: fallback service token + persist snapshot; `POST /api/admin/ukt/invite` saat Salin/WA Undangan |
+| 24 Juli 2026 | **UKT daftar mandiri:** anggota Daftar UKT sekarang + gate syarat + konfirmasi bayar; ranting Terima/Tolak → cabang Verifikasi; anti-bocor nominal di iuran anggota; unique `(eventId,memberId)`; API `POST /api/member/ukt/register` + `confirm-payment` |
 
 ---
 
