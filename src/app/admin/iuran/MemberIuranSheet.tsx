@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, startTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Sheet,
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { billingStatusLabel } from "@/lib/admin-labels";
 import {
   agingLabel,
+  periodKey,
   type ArrearsAging,
   type IuranLedgerBilling,
 } from "@/lib/iuran-ledger";
@@ -86,6 +87,9 @@ function paymentMethodLabel(method: string | null | undefined) {
 
 function auditActionLabel(action: string, details: string | null) {
   const d = details || "";
+  if (d.includes("ranting_report_setor")) {
+    return "Catat setor ranting";
+  }
   if (
     action === "BILLING_MEMBER_REPORT" ||
     d.includes("member_report_setor")
@@ -114,6 +118,56 @@ function extractNotes(details: string | null) {
 
 const UNPAID = new Set(["PENDING", "WAITING_VERIFICATION", "REJECTED"]);
 const PAID = new Set(["PAID", "SUCCESS", "APPROVED"]);
+const BLOCKED_PERIOD = new Set([
+  "PAID",
+  "SUCCESS",
+  "APPROVED",
+  "WAITING_VERIFICATION",
+]);
+const SETOR_LOOKBACK_MONTHS = 24;
+
+function todayYmd() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+}
+
+function periodLabel(key: string) {
+  const [y, m] = key.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("id-ID", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function billingPeriodKey(b: IuranLedgerBilling): string | null {
+  const desc = String(b.description || "");
+  const m = desc.match(/(\d{4}-\d{2})/);
+  if (m) return m[1];
+  try {
+    const d = new Date(b.dueDate);
+    return periodKey(d.getFullYear(), d.getMonth() + 1);
+  } catch {
+    return null;
+  }
+}
+
+function listReportablePeriods(billings: IuranLedgerBilling[]) {
+  const blocked = new Set<string>();
+  for (const b of billings) {
+    if (!BLOCKED_PERIOD.has(b.status)) continue;
+    const key = billingPeriodKey(b);
+    if (key) blocked.add(key);
+  }
+  const now = new Date();
+  const options: Array<{ key: string; label: string }> = [];
+  for (let i = 0; i < SETOR_LOOKBACK_MONTHS; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = periodKey(d.getFullYear(), d.getMonth() + 1);
+    if (blocked.has(key)) continue;
+    options.push({ key, label: periodLabel(key) });
+  }
+  return options;
+}
 
 export function MemberIuranSheet({
   memberId,
@@ -224,6 +278,16 @@ export function MemberIuranSheet({
 
   const unpaidBillings =
     detail?.billings.filter((b) => UNPAID.has(b.status)) ?? [];
+
+  const catatSetorForm =
+    canEdit && detail ? (
+      <CatatSetorForm
+        memberId={detail.member.id}
+        monthlyDuesAmount={detail.member.monthlyDuesAmount}
+        billings={detail.billings}
+        onDone={refreshAll}
+      />
+    ) : null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -347,12 +411,13 @@ export function MemberIuranSheet({
               </TabsContent>
 
               <TabsContent value="mutasi" className="space-y-3">
+                {catatSetorForm}
                 {detail.billings.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Belum ada mutasi iuran bulanan.
                     {detail.member.allowEventWithoutDues
                       ? " Anggota berstatus pengecualian (skip generate)."
-                      : ""}
+                      : " Gunakan Catat setor di atas untuk periode berjalan/sebelumnya."}
                   </p>
                 ) : (
                   <div className="overflow-x-auto rounded-lg border">
@@ -452,6 +517,7 @@ export function MemberIuranSheet({
               </TabsContent>
 
               <TabsContent value="pembayaran" className="space-y-3">
+                {catatSetorForm}
                 {unpaidBillings.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Tidak ada tagihan yang perlu diproses.
@@ -542,6 +608,145 @@ export function MemberIuranSheet({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+function CatatSetorForm({
+  memberId,
+  monthlyDuesAmount,
+  billings,
+  onDone,
+}: {
+  memberId: string;
+  monthlyDuesAmount: number;
+  billings: IuranLedgerBilling[];
+  onDone: () => void;
+}) {
+  const options = useMemo(() => listReportablePeriods(billings), [billings]);
+  const [period, setPeriod] = useState(options[0]?.key ?? "");
+  const [paidAt, setPaidAt] = useState(todayYmd());
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const selected =
+    options.find((p) => p.key === period)?.key || options[0]?.key;
+
+  useEffect(() => {
+    if (selected && period !== selected) setPeriod(selected);
+  }, [selected, period]);
+
+  if (options.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+        Semua periode (maks. {SETOR_LOOKBACK_MONTHS} bln) sudah lunas atau
+        menunggu verifikasi.
+      </div>
+    );
+  }
+
+  async function submit() {
+    const target = selected || period;
+    if (!target || !paidAt) {
+      showError("Periode dan tanggal bayar wajib");
+      return;
+    }
+    const toastId = showLoading(`Mencatat setor ${target}…`);
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/admin/iuran/members/${memberId}/report-setor`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            period: target,
+            paidAt,
+            ...(notes.trim() ? { adminNotes: notes.trim() } : {}),
+          }),
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError(data.error || "Gagal mencatat setor", { id: toastId });
+        return;
+      }
+      showSuccess(data.message || "Setor dicatat", { id: toastId });
+      setNotes("");
+      onDone();
+    } catch {
+      showError("Gagal mencatat setor", { id: toastId });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border p-3">
+      <p className="text-sm font-medium">Catat setor periode</p>
+      <p className="text-xs text-muted-foreground">
+        Selaras lapor setor anggota — status menunggu verifikasi, lalu Setujui.
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="space-y-1">
+          <label htmlFor="catat-period" className="text-xs text-muted-foreground">
+            Periode
+          </label>
+          <select
+            id="catat-period"
+            className="flex h-9 w-[170px] rounded-md border border-input bg-background px-2 text-sm"
+            value={selected || ""}
+            disabled={busy}
+            onChange={(e) => setPeriod(e.target.value)}
+          >
+            {options.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label
+            htmlFor="catat-paidAt"
+            className="text-xs text-muted-foreground"
+          >
+            Tanggal bayar
+          </label>
+          <Input
+            id="catat-paidAt"
+            type="date"
+            className="h-9 w-[150px]"
+            max={todayYmd()}
+            value={paidAt}
+            disabled={busy}
+            onChange={(e) => setPaidAt(e.target.value)}
+          />
+        </div>
+        <p className="pb-2 text-xs text-muted-foreground">
+          Nominal: {formatRp(monthlyDuesAmount)}
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          className="h-9 bg-inkai-red hover:bg-inkai-red/90"
+          disabled={busy || !selected || !paidAt}
+          onClick={() => void submit()}
+        >
+          {busy ? (
+            <InkaiLogoLoader size="sm" showDots={false} className="shrink-0" />
+          ) : (
+            "Catat setor"
+          )}
+        </Button>
+      </div>
+      <Input
+        placeholder="Catatan (opsional)"
+        className="h-8"
+        value={notes}
+        disabled={busy}
+        onChange={(e) => setNotes(e.target.value)}
+      />
+    </div>
   );
 }
 

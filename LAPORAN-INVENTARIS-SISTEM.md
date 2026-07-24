@@ -207,8 +207,8 @@ Pusat / Nasional
 1. Tagihan iuran bulanan muncul di sistem (nominal dari **Iuran/bln** per anggota saat generate).
 2. Anggota melihat tagihan di `/dashboard/iuran`, **menyetor manual ke ranting** (bukti fisik offline), lalu **melaporkan tanggal bayar** untuk tagihan yang ada **atau periode bulan sebelumnya** (maks. 24 bulan; nominal = Iuran/bln; tagihan dibuat otomatis bila belum digenerate). **Tanpa unggah** bukti TF. Status → `WAITING_VERIFICATION`.
 3. **Ketua ranting / cabang** di `/admin/iuran` melihat **daftar anggota** (rekening koran) scoped ranting/cabang, dengan rekap tunggakan, status bulan, aging, dan kolom **Pengecualian** (tidak wajib lunas iuran untuk daftar event/UKT atau lainnya).
-4. Klik nama anggota membuka Sheet rekening: **Pengaturan** (Iuran/bln + pengecualian), **Mutasi** (riwayat iuran bulanan; Debit/Kredit; metode + **tgl setor**), **Pembayaran** (setujui/tolak/tandai lunas laporan setor). Ranting/cabang dapat **hapus jejak aksi** lokal di Sheet.
-5. Strip **Perlu aksi** menampilkan antrian `WAITING_VERIFICATION` (tgl setor) dengan setujui cepat. **Bulk lunas tunai** (centang anggota → tandai lunas periode filter) tetap ada jika anggota lupa lapor.
+4. Klik nama anggota membuka Sheet rekening: **Pengaturan** (Iuran/bln + pengecualian), **Mutasi** (riwayat iuran bulanan; Debit/Kredit; metode + **tgl setor**; **Catat setor periode** oleh ranting/cabang), **Pembayaran** (setujui/tolak/tandai lunas laporan setor). Ranting/cabang dapat **hapus jejak aksi** lokal di Sheet.
+5. Strip **Perlu aksi** menampilkan antrian `WAITING_VERIFICATION` (tgl setor) dengan setujui cepat. **Bulk lunas tunai** (centang anggota → tandai lunas periode filter) tetap ada jika anggota lupa lapor. **Catat setor ranting** (`POST …/report-setor`) selaras lapor setor anggota (buat tagihan bila perlu → menunggu verifikasi).
 6. **Iuran/bln per anggota** dapat diubah di Sheet Iuran atau detail `/admin/anggota` (`PATCH set_dues`); generate tagihan bulanan memakai nominal per anggota bila ada, else default kebijakan; anggota pengecualian di-skip generate.
 7. Status: `PENDING` → `WAITING_VERIFICATION` (lapor setor anggota) → `PAID` / ditolak. `Payment.paidAt` dari tanggal laporan anggota **dipertahankan** saat approve. Aksi lapor/verifikasi/lunas/edit menulis **jejak aksi** ke audit lokal + Inkai; tampil di Sheet Mutasi/Pembayaran.
 
@@ -353,6 +353,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/billing/generate Buat tagihan iuran bulanan massal
 /api/admin/billing/bulk-mark-paid  Lunas tunai massal per periode (memberIds + year/month)
 /api/admin/iuran/members/[id]  Detail rekening iuran anggota (profil + mutasi bulanan + summary tunggakan + jejak aksi; scoped RBAC)
+/api/admin/iuran/members/[id]/report-setor  Ranting/cabang catat setor periode (selaras lapor anggota)
 /api/admin/iuran/audit/[id]    DELETE jejak aksi lokal rekening iuran (ranting/cabang, scoped member)
 /api/admin/ukt/registrations/[id]  Update/hapus pendaftaran UKT (`submit_for_verification` / `mark_paid` / Kyu; cabang force hapus: API lalu fallback Prisma shared DB)
 /api/admin/ukt/table        Refresh cepat tabel UKT (snapshot registrasi/tagihan periode, merge ke rows lokal)
@@ -632,6 +633,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | **Iuran setor ranting:** anggota lapor tanggal bayar (nominal = tagihan, tanpa unggah bukti); ranting konfirmasi di Sheet/antrian; preserve `paidAt`; Mutasi/Pembayaran tampil tgl setor |
 | 24 Juli 2026 | Iuran Sheet: ranting/cabang **hapus jejak aksi** lokal (`DELETE /api/admin/iuran/audit/[id]`) + toast loading logo INKAI pada aksi verifikasi/hapus |
 | 24 Juli 2026 | Iuran anggota: lapor setor **periode sebelumnya** (`POST /api/member/billing/report-period`, maks 24 bln) + toast loading logo INKAI |
+| 24 Juli 2026 | Ranting **catat setor periode** di Sheet Iuran (`POST …/report-setor`, helper `iuran-setor-period`); mutasi+jejak; status menunggu Setujui |
 
 ---
 
