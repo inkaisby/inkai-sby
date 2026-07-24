@@ -4,6 +4,7 @@ import { z } from "zod";
 import { AppreciationKind } from "@prisma/client";
 import { requireAdmin } from "@/lib/admin-auth";
 import { canAccessAdminPath } from "@/lib/admin-page-access";
+import { polishAppreciationSummary } from "@/lib/polish-summary";
 import { prisma } from "@/lib/prisma";
 
 const updateSchema = z.object({
@@ -43,6 +44,13 @@ export async function PATCH(request: Request, ctx: Ctx) {
   }
 
   const d = parsed.data;
+  let polishedSummary: string | undefined;
+  if (d.summary !== undefined) {
+    polishedSummary = polishAppreciationSummary(d.summary);
+    if (polishedSummary.length < 3 || polishedSummary.length > 4000) {
+      return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
+    }
+  }
   try {
     const item = await prisma.appreciationEntry.update({
       where: { id },
@@ -50,7 +58,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
         ...(d.kind !== undefined ? { kind: d.kind } : {}),
         ...(d.name !== undefined ? { name: d.name } : {}),
         ...(d.title !== undefined ? { title: d.title?.trim() || null } : {}),
-        ...(d.summary !== undefined ? { summary: d.summary } : {}),
+        ...(polishedSummary !== undefined ? { summary: polishedSummary } : {}),
         ...(d.photoUrl !== undefined ? { photoUrl: d.photoUrl || null } : {}),
         ...(d.eventDate !== undefined
           ? { eventDate: d.eventDate ? new Date(d.eventDate) : null }

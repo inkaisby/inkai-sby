@@ -4,6 +4,7 @@ import { z } from "zod";
 import { AppreciationKind } from "@prisma/client";
 import { requireAdmin } from "@/lib/admin-auth";
 import { canAccessAdminPath } from "@/lib/admin-page-access";
+import { polishAppreciationSummary } from "@/lib/polish-summary";
 import { prisma } from "@/lib/prisma";
 
 const createSchema = z.object({
@@ -52,12 +53,16 @@ export async function POST(request: Request) {
   }
 
   const data = parsed.data;
+  const summary = polishAppreciationSummary(data.summary);
+  if (summary.length < 3 || summary.length > 4000) {
+    return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
+  }
   const item = await prisma.appreciationEntry.create({
     data: {
       kind: data.kind,
       name: data.name,
       title: data.title?.trim() || null,
-      summary: data.summary,
+      summary,
       photoUrl: data.photoUrl || null,
       eventDate: data.eventDate ? new Date(data.eventDate) : null,
       order: data.order,

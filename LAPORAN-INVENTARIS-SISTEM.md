@@ -116,7 +116,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Pesan | Inbox + unread badge, cari, balas, **broadcast notifikasi** |
 | Absensi | **Progress** tabel klik→Sheet + harian + belum hadir; **tab client instan** (tanpa delay navigasi); export; soft-backfill menu ranting |
 | Carousel Beranda | Upload gambar + aktif + **urutkan** (Prisma lokal; cabang) |
-| Apresiasi | CRUD kenangan & prestasi publik (`AppreciationEntry`); cabang saja |
+| Apresiasi | CRUD kenangan & prestasi publik (`AppreciationEntry`); edit dialog + rapikan ringkasan; cabang saja |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
 | Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; **cabut sesi / kunci / buka kunci**; **ambil alih (Mode A)** pusat/cabang; ranting tidak akses |
 | Notifikasi | Inbox admin (ada di nav); **ranting: rantingnya + ops cabang**; field `audience`; tanpa notif pribadi anggota; cabang lihat semua ranting |
@@ -258,7 +258,7 @@ Pusat / Nasional
 
 ### 9.6 Konten & organisasi
 - Carousel beranda dikelola admin.
-- Apresiasi (kenangan/prestasi) dikelola cabang di `/admin/apresiasi`; tampil di `/apresiasi` + cuplikan beranda.
+- Apresiasi (kenangan/prestasi) dikelola cabang di `/admin/apresiasi` (edit/hapus/rapikan ringkasan); tampil di `/apresiasi` + cuplikan beranda.
 - Struktur & pengurus dikelola di modul Organisasi (terbatas role).
 
 ### 9.7 Verifikasi kartu anggota (publik)
@@ -678,6 +678,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | **UKT P0 security+rate limit:** `assertUktPeriodMutable` (arsip/kunci gate, `ukt-period-meta-store.ts`) diwire ke `register`/`registrations/[id]` PATCH+DELETE/`deposit`/`fees`/`waiver`/`exam-day`/`validateUktRegistrationEligibility`; `registrations/[id]` DELETE anti-IDOR (billingId dari klien tak lagi dipercaya, hanya tagihan terverifikasi tertaut registrasi yang dihapus) + log `SECURITY_UKT_BILLING_ID_MISMATCH` saat mismatch; scope `ADMIN_DOJO` fail-closed (allowlist kosong / dojo peserta tak diketahui-cocok → 403, bukan lolos) di accept/reject self-registration, submit verifikasi, DELETE; `deposit` PATCH jadi cabang-only murni (jalur ranting `SUBMITTED` dihapus); rate limit (`rateLimitAsync`/`rateLimitResponse`, ~20–30/60dtk/user) di 7 endpoint tulis UKT termasuk `period-meta` |
 | 24 Juli 2026 | **UKT loader SLA:** hapus soft PUT `registrationOpenAt` pada load dashboard (hanya backfill in-memory); mode arsip skip pool anggota/billing/verifikasi/attendance dump; merge registrasi-first Prisma untuk peserta di luar cap 500; attendance dihitung setelah members final (filter ID relevan); inventaris §9/§11/§15 |
 | 24 Juli 2026 | Floating chip **Masih terbuka** di layout publik `(public)` — tampil di semua tab/halaman publik, bukan hanya beranda |
+| 24 Juli 2026 | **Apresiasi:** UI **Ubah** (dialog PATCH) + Hapus; tombol **Rapikan teks** + polish server (`polish-summary.ts`); tip/placeholder copy Kenangan vs Prestasi; `/apresiasi` CSS-light (aksen jenis, `whitespace-pre-line`, empty state) |
 
 ---
 
