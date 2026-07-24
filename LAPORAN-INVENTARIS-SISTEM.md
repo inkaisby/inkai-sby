@@ -377,6 +377,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/ukt/registrations/[id]  Update/hapus pendaftaran UKT (`submit_for_verification` / `mark_paid` / Kyu; cabang force hapus: API lalu fallback Prisma shared DB); kunci periode (`assertUktPeriodMutable`) di PATCH & DELETE
 /api/admin/ukt/table        Refresh cepat tabel UKT (snapshot registrasi/tagihan periode, merge ke rows lokal); read-only, tanpa side-effect write; `maxDuration=15`
 /api/admin/ukt/members      GET detail 1 anggota (+ `?periodId=` hydrate baris Belum Daftar / `uktRow`) — scoped `buildMemberFilter`/allowlist ranting sebelum fetch Inkai (403 di luar cakupan)
+/api/admin/ukt/candidates   GET calon Belum Daftar on-demand (`periodId`, opsional `dojo`, `limit`≤80) untuk filter status Belum Daftar (registrants-first)
 /api/admin/ukt/suggest      GET autocomplete nama/NIA (q≥2, maks 64 char); ADMIN_DOJO di-scope Prisma ke ranting allowlist, role lain via Inkai `/v1/members`
 /api/admin/ukt/deposit      PATCH status setoran ranting — **cabang-only** (`canEditKyuBaru`); kunci periode berlaku
 /api/admin/ukt/register     POST daftar anggota ke periode UKT; kunci periode berlaku; `maxDuration=30`
@@ -684,6 +685,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | **Apresiasi deep-link:** URL pasteable `?jenis=kenangan&tokoh=…` (scroll+highlight, OG metadata nama tokoh); Salin tautan di publik & admin; cuplikan beranda ke permalink entri; foto kartu publik → **lightbox view** (bukan navigasi scroll) |
 | 24 Juli 2026 | **UKT P0 + load:** period-lock percaya DB `eventId` (bukan hint klien); gate billing UKT; register allowlist fail-closed; blok Verifikasi cabang pada PENDING mandiri; redirect URL canonical via `resolveUktAdminPeriodId` sebelum fetch berat; docs+dues paralel |
 | 24 Juli 2026 | **UKT paket komplit:** registrants-first Pendaftaran (suggest+hydrate Belum Daftar); snapshot self-reg + append peserta; CANCELLED/REJECTED tidak ghost; periodLocked di Terima/Tolak/Bayar/Verifikasi/batal; KPI Peserta |
+| 24 Juli 2026 | **UKT Belum Daftar on-demand:** filter status Belum Daftar memanggil `GET /api/admin/ukt/candidates` (bukan pool SSR); copy empty-state + hint filter/cari |
 
 ---
 

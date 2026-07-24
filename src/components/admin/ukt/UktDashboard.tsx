@@ -655,13 +655,96 @@ export function UktDashboard(props: Props) {
     if (localView === "unregistered") setLocalView("");
   }, [isArchiveView, localStatus, localView]);
 
+  // On-demand Belum Daftar: filter status memuat calon dari API (bukan pool SSR).
+  useEffect(() => {
+    if (isArchiveView) return;
+    if (localStatus !== "belum_daftar") return;
+    if (!props.selectedPeriodId) return;
+
+    let cancelled = false;
+    const toastId = toast.loading("Memuat calon Belum Daftar…");
+    const params = new URLSearchParams({
+      periodId: props.selectedPeriodId,
+      limit: "40",
+    });
+    if (effectiveDojoIds?.length === 1) {
+      params.set("dojo", effectiveDojoIds[0]);
+    }
+
+    void fetch(`/api/admin/ukt/candidates?${params.toString()}`)
+      .then(async (res) => {
+        const data = await parseApiJson<{
+          error?: string;
+          candidates?: UktMemberRow[];
+        }>(res);
+        if (!res.ok) {
+          throw new Error(data.error || "Gagal memuat calon Belum Daftar");
+        }
+        if (cancelled) return;
+        const incoming = data.candidates ?? [];
+        // #region agent log
+        fetch(
+          "http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Debug-Session-Id": "f0acf0",
+            },
+            body: JSON.stringify({
+              sessionId: "f0acf0",
+              hypothesisId: "E",
+              location: "UktDashboard.tsx:candidates",
+              message: "client candidates loaded",
+              data: { count: incoming.length, status: res.status },
+              timestamp: Date.now(),
+            }),
+          },
+        ).catch(() => {});
+        // #endregion
+        setRows((prev) => {
+          const byId = new Map(prev.map((r) => [r.memberId, r]));
+          for (const c of incoming) {
+            if (!byId.has(c.memberId)) byId.set(c.memberId, c);
+          }
+          return Array.from(byId.values());
+        });
+        toast.success(
+          incoming.length > 0
+            ? `${incoming.length} calon Belum Daftar dimuat`
+            : "Tidak ada calon Belum Daftar di cakupan ini",
+          { id: toastId },
+        );
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        toast.error(
+          e instanceof Error ? e.message : "Gagal memuat calon Belum Daftar",
+          { id: toastId },
+        );
+      });
+
+    return () => {
+      cancelled = true;
+      toast.dismiss(toastId);
+    };
+  }, [
+    isArchiveView,
+    localStatus,
+    props.selectedPeriodId,
+    effectiveDojoIds,
+  ]);
+
   const scopedRows = useMemo(() => {
     let list = rows;
-    // Registrants-first: default hanya peserta; Belum Daftar stub via search hydrate.
+    // Registrants-first: default hanya peserta; Belum Daftar via search/hydrate
+    // atau filter status Belum Daftar (on-demand candidates).
+    const showBelumDaftar =
+      Boolean(localQ.trim()) || localStatus === "belum_daftar";
     list = list.filter(
       (r) =>
         Boolean(r.registrationId) ||
-        Boolean(localQ.trim() && r.status === "BELUM_DAFTAR"),
+        (showBelumDaftar && r.status === "BELUM_DAFTAR"),
     );
     if (effectiveDojoIds) {
       list = list.filter((r) => effectiveDojoIds.includes(r.dojoId));
@@ -2923,8 +3006,9 @@ export function UktDashboard(props: Props) {
 
       {!isArchiveView ? (
         <p className="text-xs text-muted-foreground">
-          Tabel = peserta terdaftar. Untuk <b>Belum Daftar</b>, ketik nama di
-          kotak cari → pilih saran → baris muncul → <b>Daftar UKT</b>.
+          Tabel default = peserta terdaftar. Untuk <b>Belum Daftar</b>: pilih
+          filter status <b>Belum Daftar</b>, atau ketik nama di kotak cari →
+          pilih saran → <b>Daftar UKT</b>.
         </p>
       ) : null}
 
