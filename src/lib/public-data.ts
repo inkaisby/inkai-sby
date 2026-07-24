@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { inkaiFetch } from "@/lib/inkai-api/server";
+import { prisma } from "@/lib/prisma";
 import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
 
 export type CarouselItem = {
@@ -151,27 +152,25 @@ function mapEventSummary(raw: Record<string, unknown>): PublicEventSummary {
 }
 
 async function fetchCarousel(activeOnly: boolean, limit?: number): Promise<CarouselItem[]> {
-  let res: Response;
-  let data: Record<string, unknown>;
   try {
-    ({ res, data } = await inkaiFetch("/v1/news-carousel", {}, null));
-  } catch {
+    const rows = await prisma.newsCarousel.findMany({
+      where: activeOnly ? { isActive: true } : undefined,
+      orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+      take: limit,
+    });
+    return rows.map((i) => ({
+      id: i.id,
+      title: i.title,
+      imageUrl: i.imageUrl,
+      targetUrl: i.targetUrl,
+      order: i.order,
+      isActive: i.isActive,
+      createdAt: i.createdAt.toISOString(),
+    }));
+  } catch (error) {
+    console.error("[fetchCarousel]", error);
     return [];
   }
-  if (!res.ok) return [];
-  let items = ((data.data as Array<Record<string, unknown>>) ?? []).map((i) => ({
-    id: String(i.id),
-    title: String(i.title ?? ""),
-    imageUrl: String(i.imageUrl ?? ""),
-    targetUrl: (i.targetUrl as string | null) ?? null,
-    order: Number(i.order ?? 0),
-    isActive: i.isActive === true,
-    createdAt: i.createdAt ? String(i.createdAt) : undefined,
-  }));
-  if (activeOnly) items = items.filter((i) => i.isActive);
-  items.sort((a, b) => a.order - b.order);
-  if (limit) items = items.slice(0, limit);
-  return items;
 }
 
 export const getActiveNewsCarousel = unstable_cache(

@@ -48,7 +48,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
     └──► Resend (email reset password, opsional)
 ```
 
-**Environment utama:** `INKAI_API_URL`, `DATABASE_URL`, `AUTH_SECRET` / `NEXTAUTH_SECRET`, `BLOB_READ_WRITE_TOKEN`, `RESEND_API_KEY`.
+**Environment utama:** `INKAI_API_URL`, `DATABASE_URL`, `AUTH_SECRET` / `NEXTAUTH_SECRET`, `BLOB_READ_WRITE_TOKEN`, `RESEND_API_KEY`, `IMPERSONATION_ENABLED` (opsional; default on kecuali `"false"`).
 
 ---
 
@@ -115,10 +115,10 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Store | CRUD produk (**edit/stok/aktif**) + status pesanan berlabel ID |
 | Pesan | Inbox + unread badge, cari, balas, **broadcast notifikasi** |
 | Absensi | **Progress** tabel klik→Sheet + harian + belum hadir; **tab client instan** (tanpa delay navigasi); export; soft-backfill menu ranting |
-| Carousel Beranda | Upload gambar + aktif + **urutkan** |
+| Carousel Beranda | Upload gambar + aktif + **urutkan** (Prisma lokal; cabang) |
 | Apresiasi | CRUD kenangan & prestasi publik (`AppreciationEntry`); cabang saja |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat) |
-| Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; tanpa force-logout; ranting tidak akses |
+| Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; **cabut sesi / kunci / buka kunci**; **ambil alih (Mode A)** pusat/cabang; ranting tidak akses |
 | Notifikasi | Inbox admin (ada di nav); **ranting: rantingnya + ops cabang**; field `audience`; tanpa notif pribadi anggota; cabang lihat semua ranting |
 | Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; panel Akun: **Jadikan admin ranting** (email anggota existing → dual-role) + **centang hak akses** (edit profil, CRUD, menu sidebar); **Pengaturan Cabang** mendukung **Jadikan admin cabang** dari akun existing (mis. ketua cabang) tanpa akun baru + badge **Admin + Anggota / Admin saja**; admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, **Pengaturan UKT (syarat daftar)**, peran (**preset**), geofencing (**pratinjau peta**), akun; **arsip cabang: Pulihkan + Hapus permanen** (ditolak jika masih ada anggota / cabang SURABAYA) |
 
@@ -161,7 +161,7 @@ Pusat / Nasional
 | NIA | Lihat sendiri | Tidak assign | **Assign NIA** | Lihat saja |
 | Iuran | Lihat & bayar sendiri | **Edit tagihan + verifikasi + lunas**; **edit Iuran/bln per anggota** (scope dojo) | **Kelola iuran** cabang (edit/verifikasi/lunas + Iuran/bln) | Lihat saja (tanpa edit) |
 | Status keanggotaan | Lihat sendiri | **Nonaktifkan / aktifkan**; **hapus/arsip** (aktif/ber-NIA: ketik nama; bulk: ketik ARSIPKAN); **gabungkan duplikat** | **Nonaktif / aktif / hapus (arsip)** + bulk; gabungkan duplikat | Lihat saja |
-| Kehadiran akun | Tidak lihat daftar | Tidak lihat | **Lihat sedang aktif + last login** (scope cabang) | Tidak (khusus pusat/cabang) |
+| Kehadiran akun | Tidak lihat daftar | Tidak lihat | **Lihat + cabut/kunci/ambil alih** (scope cabang) | Tidak (khusus pusat/cabang) |
 
 ---
 
@@ -293,13 +293,13 @@ Pusat / Nasional
 | Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC, serah terima; **email/password PIC** di form Ubah Data ranting (cabang); admin ranting ubah email/password di **Akun Saya** (email bisa diedit); geofence + **pratinjau peta OSM**; degradasi username login: klasifikasi pool vs error lain, KPI/filter aman saat DB gagal; **multi-ranting per akun** (`AppSetting` + context switcher); **promote akun existing ke admin cabang** (dual-role anggota + admin cabang) + badge tipe akun; arsip cabang **hapus permanen** (`permanent` pada DELETE cabang) |
 | Lapor setor iuran (anggota) | Aktif | `/dashboard/iuran` + `PATCH /api/member/billing/[id]` (tgl + nominal = tagihan; tanpa bukti TF) |
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` streaming + GPS multi-lokasi + biometrik + `/api/member/attendance/checkin` |
-| Absensi admin | Aktif | Progress tabel+Sheet detail, harian, belum hadir, export CSV |
-| Iuran generate bulan | Aktif | `POST /api/admin/billing/generate` + UI Iuran |
+| Absensi admin | Aktif | Progress tabel+Sheet detail, harian, belum hadir; **DOM ≤ pageSize 25/50/100**; export CSV; tab client instan |
+| Iuran generate bulan | Aktif | `POST /api/admin/billing/generate` (+ rate limit) + UI Iuran |
 | Nav admin | Campuran | Top-level: Iuran, Event, Absensi; **UKT** sebagai grup (Pendaftaran + Arsip UKT); grup: Keanggotaan / Konten / Sistem + badge unread pesan |
 | Deteksi duplikat anggota | Aktif | Keras: NIK / NIA / nama+TTL (termasuk arsip untuk NIK/NIA); lunak: nama; admin create melepas NIA/NIK arsip bila hanya bentrok nomor; blok create admin & daftar publik; UI peringatan |
 | Gabungkan duplikat | Aktif | Ranting/cabang: pindahkan akun login + riwayat ke data operasional; arsipkan duplikat |
-| Audit admin | Aktif | Filter + export CSV di `/admin/audit` |
-| Kehadiran akun | Aktif | `/admin/online` — pusat & cabang; heartbeat `/api/presence`; Redis opsional + DB fallback; jejak `UserSession` (IP/perangkat/lokasi); tanpa force-logout |
+| Audit admin | Aktif | Filter + preset **Keamanan** (`SECURITY_*`/IMPERSONATE/upload/broadcast) + pagination client (25/50/100) + export CSV di `/admin/audit`; hapus jejak iuran lokal menolak `SECURITY_*` |
+| Kehadiran akun | Aktif | `/admin/online` — pusat & cabang; heartbeat `/api/presence`; Redis opsional + DB fallback; jejak `UserSession`; **cabut sesi / kunci akun**; **impersonasi Mode A** (`inkai_impersonation` cookie) |
 | Nominal UKT | Tanpa kode unik | Frontend tidak menulis `uniqueTail`; tampilan pakai `uktBaseFeeAmount` (+ strip data lama). Sinkron backend Inkai (opsional) |
 | Unduh PDF UKT | Aktif | Tombol **Unduh PDF** di nota & export peserta (jspdf+html2canvas); Print tetap ada |
 | Email notifikasi | Opsional (Resend) | `notifyUser` kirim email bila `RESEND_API_KEY`; dipakai pesan admin, verifikasi, UKT, lifecycle; reset-password email ke ranting |
@@ -321,10 +321,11 @@ Pusat / Nasional
 | Notifikasi UKT | Aktif | Otomatis ke anggota saat daftar, verifikasi bayar, hasil ujian, selesai |
 | Ketergantungan API | Ada | Halaman degrade jika API sibuk/timeout |
 | Email & Blob | Opsional | Perlu env production |
-| Keamanan P0–P2 | Diperkuat | Pesan IDOR ditutup; verifikasi fail-closed; rate limit Upstash opsional; CSRF admin ketat; password register; audit upload/broadcast/verifikasi |
-| Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI/pageSize; **navigasi instan**; **dashboard anggota: slim critical path (tanpa agenda), sticky header, cache token, Suspense UKT** |
+| Keamanan P0–P2 | Diperkuat | Pesan IDOR ditutup; verifikasi fail-closed + **assertDojoInScope destinasi transfer**; rate limit Upstash opsional (broadcast/bulk/upload/normalize/**billing/generate**/presence lock-revoke); CSRF admin ketat; password register; audit upload/broadcast/verifikasi; **forbidUnlessAdminPath** carousel/store/materi; document proxy tanpa blanket `*.vercel.app`; security-events (`SECURITY_*` / abuse burst) |
+| Keamanan P1 (ops wiring) | Selesai | `rateLimitResponse(retryAfterSec, key)` fire-and-forget `SECURITY_RATE_LIMIT`+strike bump saat trip (billing/generate, broadcast, members/bulk, upload, normalize, presence lock/revoke); `SECURITY_SCOPE_DENIED` di setiap deny 404/403 out-of-scope (`members/[id]` semua aksi, `billing/[id]` PATCH/DELETE) tanpa bocorkan data; upload admin **magic-byte sniff** (jpeg/png/webp/gif/pdf) menolak mismatch MIME vs header; `check-duplicate` disaring ulang oleh `buildMemberFilter` (anti-IDOR lintas wilayah); prisma-error mentah di billing/generate tidak lagi diteruskan ke klien |
+| Performa admin | Diperkuat | Badge pesan di-cache 45s; KPI/pageSize; **navigasi instan**; **dashboard anggota: slim critical path (tanpa agenda), sticky header, cache token, Suspense UKT**; index Billing/Event/EventRegistration/Appreciation/AuditLog; **iuran ledger**: query billing tersegmentasi (belum-lunas + periode-only, bukan dump seluruh riwayat), KPI dari hasil query tersebut; **UKT**: `UktDashboard` (~180KB) via `next/dynamic`; **iuran page**: Suspense bersarang (form filter tampil instan, KPI+tabel streaming terpisah) |
 
-| Index Prisma | Ditambah | Member/Billing/Attendance/Verification/Message — jalankan migrate/db push di production |
+| Index Prisma | Ditambah | Member/Billing/Attendance/Verification/Message + Billing(registrationId, memberId+isDeleted+type) / Event(isDeleted+endDate|registrationCloseAt) / EventRegistration(eventId+status) / AppreciationEntry / AuditLog(action+createdAt) — migrate `20260724120000_admin_perf_security_indexes` |
 | Pool DB Supabase | Diperkuat | Transaction `:6543`+`pgbouncer`; `connection_limit=5`/`pool_timeout=20`; soft-delete & **purge massal batch** (`deleteMany` per relasi); chunk purge 25 + jeda/retry; toast sibuk |
 
 ---
@@ -350,6 +351,11 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/auth/*                 Login, register (+ identitas/sabuk lengkap), check-duplicate, forgot/reset password
 /api/presence               POST heartbeat kehadiran; DELETE clear (logout/ganti akun)
 /api/admin/presence         GET daftar sedang aktif / login 24 jam (pusat & cabang, scoped)
+/api/admin/presence/revoke  POST cabut sesi user (pusat/cabang, scoped) + audit SECURITY_SESSION_REVOKE
+/api/admin/presence/lock    POST kunci akun (isActive=false) + cabut sesi + audit SECURITY_SESSION_LOCK
+/api/admin/presence/unlock  POST buka kunci akun + audit SECURITY_SESSION_UNLOCK
+/api/admin/impersonate/start POST ambil alih (step-up password + frasa AMBIL ALIH); cookie inkai_impersonation
+/api/admin/impersonate/stop  POST hentikan ambil alih; hapus cookie
 /api/admin/members          POST create; GET list+KPI counts (filter cepat client-side)
 /api/admin/members/bulk-create  Input massal tambah anggota (maks 50)
 /api/admin/members/[id]     Detail + aksi (approve/NIA/set_name/set_msh/set_rank/set_dojo/set_dues/set_dues_exemption/dokumen/reset_password/nonaktif/hapus/restore/merge)
@@ -369,7 +375,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/account-peers   Email akun ranting gabungan (overlap managed dojos) untuk topbar ganti akun
 /api/admin/pengaturan/*     User, cabang, ranting, wilayah-accounts, roles, geofencing, akun, kebijakan (pejabat dokumen), **ukt** (syarat daftar)
 /api/admin/verifications/*  Proses klaim
-/api/admin/carousel/*       Carousel beranda
+/api/admin/carousel/*       Carousel beranda (Prisma lokal)
 /api/admin/apresiasi/*      CRUD apresiasi publik (cabang)
 /api/admin/upload           Upload ke Blob
 /api/admin/document-file    Proxy pratinjau dokumen anggota (modal + print)
@@ -650,6 +656,13 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | **Tutorial:** skrip video anggota+pengurus (`guide/tutorials/`); `/tutorial` publik (tab nav) + `/dashboard/panduan` langkah+embed YouTube; welcome v2 |
 | 24 Juli 2026 | Beranda publik: floating chip **Masih terbuka**; hapus `/berita` (redirect `/`); modul **Apresiasi** (Kenangan/Prestasi) + admin CRUD + cuplikan beranda; badge kegiatan; `loading.tsx` publik |
 | 24 Juli 2026 | Form daftar `/login?tab=daftar` selaras Tambah Anggota: urutan Dojo→Identitas→Sabuk→Akun; No. MSH di Sabuk (hanya Hitam/DAN); persist Prisma + notif admin; tutorial urutan diperbarui |
+| 24 Juli 2026 | Security hardening: index Prisma admin-perf; bulk memberIds `.max(100)`; `forbidUnlessAdminPath` carousel/store/materi; rate limit broadcast/bulk/upload/normalize; `security-events`; sempitkan document URL allowlist; assertDojoInScope destinasi verifikasi transfer |
+| 24 Juli 2026 | **Security ops:** cabut sesi / kunci / buka kunci (`session-control` + JWT block); impersonasi Mode A (cookie `inkai_impersonation` jose); banner + blok password/email; audit `SECURITY_*` |
+| 24 Juli 2026 | **Security ops P1 wiring:** rate limit `billing/generate` (5/60dtk); `rateLimitResponse` fire-and-forget `SECURITY_RATE_LIMIT`+strike bump di semua endpoint rate-limited; `SECURITY_SCOPE_DENIED` di deny out-of-scope `members/[id]` & `billing/[id]`; upload admin magic-byte sniff (tolak MIME palsu); `check-duplicate` disaring `buildMemberFilter` (anti-IDOR wilayah); hapus echo pesan error Prisma mentah di billing/generate & upload |
+| 24 Juli 2026 | **Impersonasi Mode A — UX & anti-fake-data:** TTL dipersingkat 60→**15 menit**; modal risiko `ImpersonationRiskModal` (9 poin risiko + checklist ack + alasan + password step-up + frasa **AMBIL ALIH**) gantikan `window.prompt` bertingkat di `/admin/online`; token Inkai saat ambil alih **tetap milik aktor** — semua fetcher `/me`+`/my` di `member-data.ts` (`fetchMyMemberProfile`/`fetchMyBillings`/`fetchMyAttendance`/`fetchMyEventRegistrations`/`fetchMyNotifications`) diblok saat mode ambil alih (kembalikan null/[] alih-alih data aktor); halaman `dashboard` (beranda, profil, dokumen, prestasi, pindah, detail kegiatan) tampilkan notice jujur **"Tidak tersedia saat ambil alih"** alih-alih data yang salah/tertukar |
+| 24 Juli 2026 | **Admin perf lanjutan:** `/admin/audit` preset **Keamanan** (`SECURITY_*`/IMPERSONATE/upload/broadcast) + pagination client 25/50/100 (data Inkai API hard-cap, fetch 300 lalu filter/paginate client); konfirmasi hapus jejak audit lokal sudah menolak `SECURITY_*` (tanpa perubahan, hanya diverifikasi); `iuran-ledger.ts` — query billing tersegmentasi (findMany belum-lunas lintas periode + findMany match periode aktif saja) menggantikan dump seluruh riwayat billing per anggota, KPI dihitung dari dua hasil query tsb (bukan reduce atas seluruh histori); `/admin/ukt` & `/admin/ukt/arsip` — `UktDashboard` (~180KB client component) dibungkus `next/dynamic`; `/admin/iuran` — Suspense bersarang: header+form filter render instan, KPI+OpsBar+tabel dipindah ke `IuranLedgerSection` async terpisah (urutan visual: form filter kini di atas KPI) |
+| 24 Juli 2026 | **Paket ahli Admin Perf+Security (selesai):** P0 IDOR fail-closed `members/[id]`+`billing/[id]`; CSRF proxy → `SECURITY_CSRF_REJECT`+strike; Absensi admin pager DOM; Anggota debounce search 300ms; apresiasi/store/materi `take:200`; Zod `ukt/invite`; inventaris §6/§10/§11/§13/§15 diselaraskan |
+| 24 Juli 2026 | Carousel beranda: CRUD + baca publik pakai **Prisma lokal** (bukan Inkai `/v1/news-carousel`) agar admin cabang tidak kena *Access denied: Insufficient permissions* |
 
 ---
 

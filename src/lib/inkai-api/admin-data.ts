@@ -833,19 +833,17 @@ export async function fetchCarouselItems(): Promise<
     isActive: boolean;
   }>
 > {
-  const { res, data } = await inkaiFetch("/v1/news-carousel", {}, null);
-  if (!res.ok) return [];
-  const items = (data.data as Array<Record<string, unknown>>) ?? [];
-  return items
-    .map((i) => ({
-      id: String(i.id),
-      title: String(i.title ?? ""),
-      imageUrl: String(i.imageUrl ?? ""),
-      targetUrl: (i.targetUrl as string | null) ?? null,
-      order: Number(i.order ?? 0),
-      isActive: i.isActive === true,
-    }))
-    .sort((a, b) => a.order - b.order);
+  const items = await prisma.newsCarousel.findMany({
+    orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+  });
+  return items.map((i) => ({
+    id: i.id,
+    title: i.title,
+    imageUrl: i.imageUrl,
+    targetUrl: i.targetUrl,
+    order: i.order,
+    isActive: i.isActive,
+  }));
 }
 
 export async function fetchAuditLogs(token: string, limit = 100) {
