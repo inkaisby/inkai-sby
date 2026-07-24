@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import nextDynamic from "next/dynamic";
 import { redirect } from "next/navigation";
 import {
   getPrimaryAdminRole,
@@ -23,12 +22,7 @@ import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { UktTermNav } from "@/components/admin/ukt/UktTermNav";
-
-// UktDashboard besar — client-only agar shell SSR tetap ringan.
-const UktDashboard = nextDynamic(
-  () => import("@/components/admin/ukt/UktDashboard").then((m) => m.UktDashboard),
-  { ssr: false, loading: () => <AdminPageLoader rows={8} message="Memuat data UKT..." /> },
-);
+import { UktDashboardClient } from "@/components/admin/ukt/UktDashboardClient";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -266,7 +260,7 @@ async function UktDashboardSection({
     : "";
 
   return (
-    <UktDashboard
+    <UktDashboardClient
       hideStickyTermBar
       headerNote={`${ROLE_LABELS[primaryRole] || primaryRole} — Periode aktif & pendaftaran anggota`}
       periods={periods}

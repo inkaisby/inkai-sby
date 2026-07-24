@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import nextDynamic from "next/dynamic";
 import { redirect } from "next/navigation";
 import {
   getPrimaryAdminRole,
@@ -23,11 +22,7 @@ import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { UktTermNav } from "@/components/admin/ukt/UktTermNav";
-
-const UktDashboard = nextDynamic(
-  () => import("@/components/admin/ukt/UktDashboard").then((m) => m.UktDashboard),
-  { ssr: false, loading: () => <AdminPageLoader rows={8} message="Memuat arsip UKT..." /> },
-);
+import { UktArsipDashboardClient } from "@/components/admin/ukt/UktDashboardClient";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -215,7 +210,7 @@ async function UktArsipDashboardSection({
   const dojoGroups: [] = [];
 
   return (
-    <UktDashboard
+    <UktArsipDashboardClient
       hideStickyTermBar
       headerNote={`${ROLE_LABELS[primaryRole] || primaryRole} — Riwayat & periode terkunci`}
       periods={periods}
