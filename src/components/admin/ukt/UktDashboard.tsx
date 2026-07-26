@@ -1135,7 +1135,7 @@ export function UktDashboard(props: Props) {
       const data = await parseApiJson<{ error?: string; message?: string }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal");
       toast.success(data.message || "Status setoran diperbarui");
-      router.refresh();
+      void requestServerRowsSync({ silent: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
@@ -1186,7 +1186,7 @@ export function UktDashboard(props: Props) {
       if (!res.ok) throw new Error(data.error || "Gagal menyimpan pengecualian");
       toast.success("Pengecualian pendaftaran disimpan");
       setWaiverTarget(null);
-      router.refresh();
+      void requestServerRowsSync({ silent: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
