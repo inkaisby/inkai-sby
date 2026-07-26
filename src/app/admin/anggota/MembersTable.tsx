@@ -53,7 +53,11 @@ import {
   type MemberImpactSummary,
   type MemberLifecycleMeta,
 } from "@/lib/member-lifecycle";
-import { canManageIuranByWilayah, canToggleMemberActive } from "@/lib/wilayah-rbac";
+import {
+  canManageIuranByWilayah,
+  canToggleMemberActive,
+  isRantingAdmin,
+} from "@/lib/wilayah-rbac";
 import { MemberActions } from "./MemberActions";
 import { BulkDeactivateBar } from "./BulkDeactivateBar";
 import { usePersistedBulkSelection } from "./usePersistedBulkSelection";
@@ -376,9 +380,13 @@ export function MembersTable({
   const canEditDojo = canEditKyuBaru(userRoles);
   const canEditDues = canManageIuranByWilayah(userRoles);
   const canEditMsh = canManageIuranByWilayah(userRoles);
-  /** Ranting & cabang: nama + dokumen anggota. */
+  /** Ranting & cabang: nama + dokumen anggota (detail). */
   const canEditName = canManageIuranByWilayah(userRoles);
   const canEditDocuments = canManageIuranByWilayah(userRoles);
+  /** Inline di tabel: cabang saja; ranting edit lewat sheet detail. */
+  const canInlineEditName = canEditName && !isRantingAdmin(userRoles);
+  const canInlineEditDocuments =
+    canEditDocuments && !isRantingAdmin(userRoles);
   const canResetPassword = canToggleMemberActive(userRoles);
 
   useEffect(() => {
@@ -968,7 +976,7 @@ export function MembersTable({
                       className="font-medium text-inkai-red"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      {canEditName ? (
+                      {canInlineEditName ? (
                         <Input
                           key={`${m.id}:${m.fullName}`}
                           defaultValue={formatMemberName(m.fullName)}
@@ -1035,7 +1043,7 @@ export function MembersTable({
                         <DocumentsCell
                           birthCertificateUrl={m.birthCertificateUrl}
                           bpjsCardUrl={m.bpjsCardUrl}
-                          canEdit={canEditDocuments}
+                          canEdit={canInlineEditDocuments}
                           onOpen={(label, url) =>
                             setDocPreview({ title: label, url })
                           }
