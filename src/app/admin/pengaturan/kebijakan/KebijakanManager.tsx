@@ -37,7 +37,7 @@ export function KebijakanManager({
     setSavingProfile(false);
     if (res.ok) {
       showSuccess(data.message || "Profil disimpan");
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal menyimpan profil");
     }
@@ -55,7 +55,7 @@ export function KebijakanManager({
     setSavingDefaults(false);
     if (res.ok) {
       showSuccess(data.message || "Kebijakan disimpan");
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal menyimpan kebijakan");
     }

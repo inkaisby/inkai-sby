@@ -28,10 +28,12 @@ export function BulkDeactivateBar({
   selectedIds,
   pendingIds = [],
   onClear,
+  onSuccess,
 }: {
   selectedIds: string[];
   pendingIds?: string[];
   onClear: () => void;
+  onSuccess?: () => void;
 }) {
   const router = useRouter();
   const [dialogKind, setDialogKind] = useState<DialogKind>(null);
@@ -87,7 +89,7 @@ export function BulkDeactivateBar({
     }
     showSuccess(result.message || "Berhasil");
     onClear();
-    router.refresh();
+    onSuccess?.();
   }
 
   async function submitDeactivate() {
@@ -118,7 +120,7 @@ export function BulkDeactivateBar({
     showSuccess(result.message || "Bulk nonaktif selesai");
     closeDialog();
     onClear();
-    router.refresh();
+    onSuccess?.();
   }
 
   async function submitDelete() {
@@ -153,7 +155,7 @@ export function BulkDeactivateBar({
     setConfirmPhrase("");
     setProgress({ percent: 0, done: 0, total: 0 });
     onClear();
-    router.refresh();
+    onSuccess?.();
   }
 
   return (

@@ -20,6 +20,8 @@ import { MembersTable } from "./MembersTable";
 import { NormalizeMembersButton } from "./NormalizeMembersButton";
 import type { MemberSortKey, SortDir } from "@/lib/table-sort";
 import { parseMemberSortKey, parseSortDir, toggleSortKey } from "@/lib/table-sort";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { DojoContextSwitcher } from "@/components/admin/DojoContextSwitcher";
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
@@ -132,6 +134,8 @@ export function AnggotaBrowser({
   canArchive,
   canNormalize,
   defaultDojoId,
+  isDojoAdmin,
+  hasError,
 }: {
   roleLabel?: string;
   scopeHint?: string;
@@ -147,15 +151,18 @@ export function AnggotaBrowser({
   canArchive: boolean;
   canNormalize: boolean;
   defaultDojoId: string;
+  isDojoAdmin?: boolean;
+  hasError?: boolean;
 }) {
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [members, setMembers] = useState(initialMembers);
   const [total, setTotal] = useState(initialTotal);
   const [statusCounts, setStatusCounts] = useState(initialStatusCounts);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(hasError ? "Gagal memuat data anggota." : null);
   const abortRef = useRef<AbortController | null>(null);
   const reqIdRef = useRef(0);
+  const prevDojoIdRef = useRef(initialFilters.dojoId);
 
   const syncUrl = useCallback((next: FilterState) => {
     const href = buildHref(filtersToParams(next));
@@ -163,7 +170,7 @@ export function AnggotaBrowser({
     window.history.replaceState(null, "", path);
   }, []);
 
-  const load = useCallback(async (next: FilterState) => {
+  const load = useCallback(async (next: FilterState, forceCounts = false) => {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
@@ -176,7 +183,15 @@ export function AnggotaBrowser({
     for (const [k, v] of Object.entries(params)) {
       if (v) qs.set(k, v);
     }
-    qs.set("counts", "1");
+    
+    // counts=1 hanya jika dojoId berubah atau dipaksa (setelah tambah/edit anggota)
+    const dojoChanged = next.dojoId !== prevDojoIdRef.current;
+    prevDojoIdRef.current = next.dojoId;
+    if (dojoChanged || forceCounts) {
+      qs.set("counts", "1");
+    } else {
+      qs.set("counts", "0");
+    }
 
     try {
       const res = await fetch(`/api/admin/members?${qs}`, {
@@ -220,7 +235,7 @@ export function AnggotaBrowser({
   }, []);
 
   const applyFilters = useCallback(
-    (patch: Partial<FilterState>, opts?: { resetPage?: boolean }) => {
+    (patch: Partial<FilterState>, opts?: { resetPage?: boolean; forceCounts?: boolean }) => {
       setFilters((prev) => {
         const resetPage = opts?.resetPage !== false && patch.page == null;
         const next: FilterState = {
@@ -229,7 +244,7 @@ export function AnggotaBrowser({
           page: resetPage ? 1 : (patch.page ?? prev.page),
         };
         syncUrl(next);
-        void load(next);
+        void load(next, opts?.forceCounts);
         return next;
       });
     },
@@ -359,8 +374,31 @@ export function AnggotaBrowser({
   const totalPages = Math.max(1, Math.ceil(total / filters.pageSize));
   const safePage = Math.min(filters.page, totalPages);
 
+  const liveLockDojoId = singleLockedDojo || (userRoles.includes("ADMIN_DOJO") && dojos.length > 1 ? filters.dojoId : lockDojoId);
+
   return (
     <>
+      <AdminPageHeader
+        title="Kelola Anggota"
+        description={
+          error ? (
+            <span className="text-destructive">{error}</span>
+          ) : undefined
+        }
+        actions={
+          isDojoAdmin && dojos.length > 1 ? (
+            <div className="col-span-2 sm:col-span-1">
+              <DojoContextSwitcher
+                dojos={dojos}
+                value={filters.dojoId}
+                label="Kelola ranting"
+                onChange={(next) => applyFilters({ dojoId: next })}
+              />
+            </div>
+          ) : undefined
+        }
+      />
+
       {roleLabel ? (
         <p className="-mt-4 mb-4 text-muted-foreground">
           {roleLabel} — {subtitleCount} anggota
@@ -377,11 +415,11 @@ export function AnggotaBrowser({
       <div className="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
         <AnggotaAddButton
           dojos={dojos}
-          defaultDojoId={defaultDojoId}
-          lockDojo={Boolean(singleLockedDojo)}
-          onMembersChanged={() => applyFilters({}, { resetPage: false })}
+          defaultDojoId={liveLockDojoId || defaultDojoId}
+          lockDojo={Boolean(singleLockedDojo || filters.dojoId)}
+          onMembersChanged={() => applyFilters({}, { resetPage: false, forceCounts: true })}
         />
-        {canNormalize ? <NormalizeMembersButton /> : null}
+        {canNormalize ? <NormalizeMembersButton onSuccess={() => applyFilters({}, { resetPage: false })} /> : null}
         {canArchive ? (
           <Link
             href="/admin/anggota?view=archive"
@@ -419,7 +457,7 @@ export function AnggotaBrowser({
         pageSize={String(filters.pageSize)}
         dojos={dojos}
         showDojoFilter={showDojoFilter}
-        lockDojoId={lockDojoId}
+        lockDojoId={liveLockDojoId}
         onNavigate={(href) => {
           const patch = parseHrefToFilters(href, filters.pageSize);
           applyFilters(patch);

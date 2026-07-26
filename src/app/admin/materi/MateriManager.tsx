@@ -47,7 +47,7 @@ export function MateriManager({ initialItems }: { initialItems: Material[] }) {
       setFileUrl("");
       setCategory("");
       setItems((prev) => [data as Material, ...prev]);
-      router.refresh();
+      /* router.refresh(); */
     } finally {
       setBusy(false);
     }
@@ -82,7 +82,7 @@ export function MateriManager({ initialItems }: { initialItems: Material[] }) {
     }
     setItems((prev) => prev.filter((i) => i.id !== id));
     showSuccess("Dihapus");
-    router.refresh();
+    /* router.refresh(); */
   }
 
   return (

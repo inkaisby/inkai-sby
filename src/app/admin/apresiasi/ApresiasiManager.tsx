@@ -120,6 +120,18 @@ export function ApresiasiManager({
   const [editForm, setEditForm] = useState<FormFields>(emptyForm);
   const [savingEdit, setSavingEdit] = useState(false);
 
+  async function load() {
+    try {
+      const res = await fetch("/api/admin/apresiasi");
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data.sort((a: { order: number }, b: { order: number }) => a.order - b.order));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   const visible = useMemo(
     () => (filter === "ALL" ? items : items.filter((i) => i.kind === filter)),
     [items, filter],
@@ -159,7 +171,7 @@ export function ApresiasiManager({
     if (res.ok) {
       showSuccess(data.message || "Apresiasi berhasil ditambahkan");
       setForm(emptyForm());
-      router.refresh();
+      void load();
     } else {
       showError(data.error || "Gagal menambah apresiasi");
     }
@@ -203,7 +215,7 @@ export function ApresiasiManager({
       );
       showSuccess(data.message || "Apresiasi berhasil diperbarui");
       setEditing(null);
-      router.refresh();
+      void load();
     } else {
       showError(data.error || "Gagal memperbarui");
     }
@@ -244,7 +256,7 @@ export function ApresiasiManager({
       ),
     );
     showSuccess("Urutan diperbarui");
-    router.refresh();
+    void load();
   }
 
   async function handleDelete(id: string) {
@@ -254,7 +266,7 @@ export function ApresiasiManager({
     if (res.ok) {
       setItems((prev) => prev.filter((i) => i.id !== id));
       showSuccess(data.message || "Berhasil dihapus");
-      router.refresh();
+      void load();
     } else {
       showError(data.error || "Gagal menghapus");
     }

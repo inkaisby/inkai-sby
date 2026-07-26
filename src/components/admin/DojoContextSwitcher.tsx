@@ -16,6 +16,7 @@ export function DojoContextSwitcher({
   allowAll = true,
   allLabel = "Semua ranting",
   className,
+  onChange,
 }: {
   dojos: DojoContextOption[];
   value: string;
@@ -23,6 +24,7 @@ export function DojoContextSwitcher({
   allowAll?: boolean;
   allLabel?: string;
   className?: string;
+  onChange?: (value: string) => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -31,7 +33,11 @@ export function DojoContextSwitcher({
 
   if (dojos.length <= 1) return null;
 
-  function onChange(next: string) {
+  function handleChange(next: string) {
+    if (onChange) {
+      onChange(next);
+      return;
+    }
     const params = new URLSearchParams(searchParams.toString());
     if (next) params.set("dojoId", next);
     else params.delete("dojoId");
@@ -47,8 +53,8 @@ export function DojoContextSwitcher({
       <label className="text-xs text-muted-foreground">{label}</label>
       <select
         value={value}
-        disabled={pending}
-        onChange={(e) => onChange(e.target.value)}
+        disabled={onChange ? false : pending}
+        onChange={(e) => handleChange(e.target.value)}
         className="h-8 min-w-[180px] rounded-lg border border-inkai-red/30 bg-background px-2 text-sm font-medium text-foreground"
         aria-label={label}
       >

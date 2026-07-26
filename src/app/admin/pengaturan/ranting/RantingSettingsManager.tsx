@@ -187,7 +187,7 @@ export function RantingSettingsManager({
     setLoading(false);
     if (res.ok) {
       showSuccess(data.message || "Ranting diarsipkan");
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal mengarsipkan");
     }
@@ -205,7 +205,7 @@ export function RantingSettingsManager({
     setLoading(false);
     if (res.ok) {
       showSuccess(data.message || "Ranting dipulihkan");
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal memulihkan");
     }
@@ -330,7 +330,7 @@ export function RantingSettingsManager({
           setDetailDojoId(newId);
         }
       }
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal menyimpan ranting");
     }

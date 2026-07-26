@@ -102,7 +102,7 @@ export function CabangSettingsManager({
       if (newId) {
         setAccountsBranch({ id: newId, name, headName, adminCount: 0 });
       }
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal menyimpan cabang");
     }
@@ -133,7 +133,7 @@ export function CabangSettingsManager({
     setLoading(false);
     if (res.ok) {
       showSuccess(data.message || "Cabang diarsipkan");
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal mengarsipkan");
     }
@@ -151,7 +151,7 @@ export function CabangSettingsManager({
     setLoading(false);
     if (res.ok) {
       showSuccess(data.message || "Cabang dipulihkan");
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal memulihkan");
     }
@@ -175,7 +175,7 @@ export function CabangSettingsManager({
     setLoading(false);
     if (res.ok) {
       showSuccess(data.message || "Cabang dihapus permanen");
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal menghapus");
     }

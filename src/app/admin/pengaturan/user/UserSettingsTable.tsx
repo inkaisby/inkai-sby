@@ -134,7 +134,7 @@ export function UserSettingsTable({
     setLoading(false);
     if (res.ok) {
       showSuccess(data.message || "User diperbarui");
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal memperbarui user");
     }
@@ -161,7 +161,7 @@ export function UserSettingsTable({
     if (res.ok) {
       showSuccess(data.message || "User diperbarui");
       setEditUser(null);
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal menyimpan");
     }
@@ -197,7 +197,7 @@ export function UserSettingsTable({
           hint: "Tampilkan sekali — salin sekarang, tidak disimpan di browser.",
         });
       }
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal membuat user");
     }

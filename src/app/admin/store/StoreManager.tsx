@@ -75,7 +75,7 @@ export function StoreManager({
       setName("");
       setDescription("");
       setImageUrl("");
-      router.refresh();
+      /* router.refresh(); */
     } finally {
       setBusy(false);
     }
@@ -107,7 +107,7 @@ export function StoreManager({
       );
       setEditing(null);
       showSuccess("Produk diperbarui");
-      router.refresh();
+      /* router.refresh(); */
     } finally {
       setBusy(false);
     }
@@ -157,7 +157,7 @@ export function StoreManager({
       prev.map((o) => (o.id === id ? { ...o, status } : o)),
     );
     showSuccess("Status diperbarui");
-    router.refresh();
+    /* router.refresh(); */
   }
 
   return (

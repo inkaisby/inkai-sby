@@ -67,7 +67,7 @@ export function UktPolicyManager({
     if (res.ok) {
       showSuccess(data.message || "Pengaturan disimpan");
       if (data.data) setPolicy(data.data);
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal menyimpan");
     }

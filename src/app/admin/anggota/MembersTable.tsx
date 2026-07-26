@@ -468,23 +468,35 @@ export function MembersTable({
   }
 
   useEffect(() => {
-    if (!selectedId) {
+    if (!selectedId || loading) {
       setDupCandidates([]);
       return;
     }
     let cancelled = false;
-    void fetch(`/api/admin/members/${selectedId}/duplicates`)
-      .then((r) => r.json())
-      .then((data: { candidates?: MergeCandidate[] }) => {
-        if (!cancelled) setDupCandidates(data.candidates ?? []);
-      })
-      .catch(() => {
-        if (!cancelled) setDupCandidates([]);
-      });
+    const fetchDups = () => {
+      void fetch(`/api/admin/members/${selectedId}/duplicates`)
+        .then((r) => r.json())
+        .then((data: { candidates?: MergeCandidate[] }) => {
+          if (!cancelled) setDupCandidates(data.candidates ?? []);
+        })
+        .catch(() => {
+          if (!cancelled) setDupCandidates([]);
+        });
+    };
+
+    const handle = typeof window !== 'undefined' && 'requestIdleCallback' in window
+      ? window.requestIdleCallback(() => fetchDups())
+      : setTimeout(() => fetchDups(), 200);
+
     return () => {
       cancelled = true;
+      if (typeof window !== 'undefined' && 'cancelIdleCallback' in window && typeof handle === 'number') {
+        window.cancelIdleCallback(handle);
+      } else {
+        clearTimeout(handle as unknown as ReturnType<typeof setTimeout>);
+      }
     };
-  }, [selectedId]);
+  }, [selectedId, loading]);
 
   async function handleSetRank(memberId: string, currentRank: string) {
     if (!currentRank.trim()) return;
@@ -514,7 +526,6 @@ export function MembersTable({
       if (selectedId === memberId && detail) {
         setDetail({ ...detail, currentRank: nextRank });
       }
-      router.refresh();
     } catch {
       showError("Gagal memperbarui sabuk");
     } finally {
@@ -558,7 +569,6 @@ export function MembersTable({
         setNameDraft(next);
       }
       onMembersChanged?.();
-      router.refresh();
     } catch {
       showError("Gagal menyimpan nama");
     } finally {
@@ -599,7 +609,6 @@ export function MembersTable({
       if (detail) {
         setDetail({ ...detail, mshNumber: saved });
       }
-      router.refresh();
     } catch {
       showError("Gagal menyimpan No. MSH");
     } finally {
@@ -652,7 +661,6 @@ export function MembersTable({
         });
       }
       onMembersChanged?.();
-      router.refresh();
     } catch {
       showError("Gagal memindahkan ranting");
     } finally {
@@ -689,7 +697,6 @@ export function MembersTable({
       );
       setDuesDraft(String(saved));
       showSuccess(data.message || "Iuran/bln disimpan");
-      router.refresh();
     } catch {
       showError("Gagal menyimpan iuran/bln");
     } finally {
@@ -728,7 +735,6 @@ export function MembersTable({
             ? "Pengecualian iuran diaktifkan"
             : "Pengecualian iuran dinonaktifkan"),
       );
-      router.refresh();
     } catch {
       showError("Gagal menyimpan pengecualian iuran");
     } finally {
@@ -1133,8 +1139,8 @@ export function MembersTable({
       {canBulk ? (
         <BulkDeactivateBar
           selectedIds={[...selectedIds]}
-          pendingIds={pendingSelectedIds}
           onClear={clearSelection}
+          onSuccess={onMembersChanged}
         />
       ) : null}
 
@@ -1650,7 +1656,6 @@ export function MembersTable({
                           ),
                         );
                       }
-                      router.refresh();
                     }}
                   />
                 </section>
@@ -1853,7 +1858,6 @@ export function MembersTable({
                   });
                 }
                 onMembersChanged?.();
-                router.refresh();
               }}
             />
           ) : null}

@@ -58,7 +58,7 @@ export function GeofencingManager({ dojos }: { dojos: GeofenceDojo[] }) {
     if (res.ok) {
       showSuccess(data.message || "Geofencing disimpan");
       setEditingId(null);
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal menyimpan geofencing");
     }

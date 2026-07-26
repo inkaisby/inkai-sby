@@ -189,7 +189,7 @@ export function OnlinePresenceClient() {
         return;
       }
       setImpersonateTarget(null);
-      router.refresh();
+      /* router.refresh(); */
       router.push("/admin");
     },
     [impersonateTarget, router],

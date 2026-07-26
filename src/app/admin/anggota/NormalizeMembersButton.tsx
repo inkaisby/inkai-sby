@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { Loader2, Wand2 } from "lucide-react";
 
-export function NormalizeMembersButton() {
+export function NormalizeMembersButton({ onSuccess }: { onSuccess?: () => void }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -27,7 +27,7 @@ export function NormalizeMembersButton() {
         return;
       }
       showSuccess(data.message || "Normalisasi selesai");
-      router.refresh();
+      onSuccess?.();
     } finally {
       setLoading(false);
     }

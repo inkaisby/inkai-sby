@@ -194,7 +194,6 @@ export function IuranLedgerClient({
       }
       showSuccess(data.message || "Berhasil", { id: toastId });
       setSelected(new Set());
-      startTransition(() => router.refresh());
     } catch {
       showError("Gagal lunas massal", { id: toastId });
     } finally {
@@ -217,7 +216,6 @@ export function IuranLedgerClient({
         return;
       }
       showSuccess(data.message || "Setor disetujui", { id: toastId });
-      startTransition(() => router.refresh());
     } catch {
       showError("Gagal menyetujui", { id: toastId });
     } finally {

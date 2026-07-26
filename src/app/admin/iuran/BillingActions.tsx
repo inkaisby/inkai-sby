@@ -80,7 +80,6 @@ export function BillingActions({
       ) {
         hideCard?.();
       }
-      startTransition(() => router.refresh());
     } catch {
       showError("Gagal memproses iuran", { id: toastId });
     } finally {

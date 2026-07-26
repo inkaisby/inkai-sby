@@ -154,7 +154,6 @@ export function ArchivedMembersPanel({
     setProgress({ percent: 0, done: 0, total: 0 });
     setSelectedIds(new Set());
     void load();
-    router.refresh();
   }
 
   async function submitRestore() {
@@ -184,7 +183,6 @@ export function ArchivedMembersPanel({
     setProgress({ percent: 0, done: 0, total: 0 });
     setSelectedIds(new Set());
     void load();
-    router.refresh();
   }
 
   const allSelected = rows.length > 0 && selectedIds.size === rows.length;
@@ -302,7 +300,6 @@ export function ArchivedMembersPanel({
                       isArchived
                       onSuccess={() => {
                         void load();
-                        router.refresh();
                         showSuccess("Daftar arsip diperbarui");
                       }}
                     />

@@ -405,7 +405,7 @@ export function PengurusEditor({
     } else if (data.syncKetua?.ok) {
       showSuccess("Ketua cabang ikut diselaraskan");
     }
-    router.refresh();
+    /* router.refresh(); */
     return data;
   }
 

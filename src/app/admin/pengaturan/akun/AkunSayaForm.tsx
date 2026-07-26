@@ -45,7 +45,7 @@ export function AkunSayaForm({ initial }: { initial: AkunSayaData }) {
     setSavingProfile(false);
     if (res.ok) {
       showSuccess(data.message || "Profil disimpan");
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal menyimpan profil");
     }

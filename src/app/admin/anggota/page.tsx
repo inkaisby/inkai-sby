@@ -19,7 +19,6 @@ import {
   monthsSince,
 } from "@/lib/member-lifecycle";
 import { parsePage, parsePageSize } from "@/components/admin/pengaturan/SettingsTableToolbar";
-import { DojoContextSwitcher } from "@/components/admin/DojoContextSwitcher";
 import { ArchivedMembersPanel } from "./ArchivedMembersPanel";
 import { AnggotaBrowser } from "./AnggotaBrowser";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
@@ -181,59 +180,39 @@ async function AdminAnggotaContent({
     allowlist.length > 1 && !dojoId ? `${allowlist.length} ranting` : dojoLabel;
 
   return (
-    <>
-      <AdminPageHeader
-        title="Kelola Anggota"
-        description={
-          !result.ok ? (
-            <span className="text-destructive">Gagal memuat data anggota.</span>
-          ) : undefined
-        }
-        actions={
-          isDojoAdmin && managedDojoOptions.length > 1 ? (
-            <div className="col-span-2 sm:col-span-1">
-              <DojoContextSwitcher
-                dojos={managedDojoOptions}
-                value={dojoId}
-                label="Kelola ranting"
-              />
-            </div>
-          ) : undefined
-        }
-      />
-
-      <AnggotaBrowser
-        roleLabel={roleLabel}
-        scopeHint={scopeHint}
-        initialMembers={members}
-        initialTotal={
-          inactiveMonths > 0 ? members.length : total
-        }
-        initialStatusCounts={syncedStatusCounts}
-        initialFilters={{
-          q,
-          status,
-          dojoId: singleLockedDojo ? "" : dojoId,
-          docs,
-          nia: niaFilter,
-          inactiveMonths: inactiveMonths ? String(inactiveMonths) : "",
-          page,
-          pageSize,
-          sort,
-          sortDir,
-        }}
-        dojos={dojos.map((d) => ({ id: d.id, name: d.name }))}
-        userRoles={user.roles}
-        showDojoFilter={!singleLockedDojo && !isDojoAdmin}
-        lockDojoId={
-          singleLockedDojo ||
-          (isDojoAdmin && allowlist.length > 1 ? dojoId : "")
-        }
-        singleLockedDojo={singleLockedDojo}
-        canArchive={canArchive}
-        canNormalize={canEditKyuBaru(user.roles ?? [])}
-        defaultDojoId={singleLockedDojo || dojoId || ""}
-      />
-    </>
+    <AnggotaBrowser
+      roleLabel={roleLabel}
+      scopeHint={scopeHint}
+      initialMembers={members}
+      initialTotal={
+        inactiveMonths > 0 ? members.length : total
+      }
+      initialStatusCounts={syncedStatusCounts}
+      initialFilters={{
+        q,
+        status,
+        dojoId: singleLockedDojo ? "" : dojoId,
+        docs,
+        nia: niaFilter,
+        inactiveMonths: inactiveMonths ? String(inactiveMonths) : "",
+        page,
+        pageSize,
+        sort,
+        sortDir,
+      }}
+      dojos={dojos.map((d) => ({ id: d.id, name: d.name }))}
+      userRoles={user.roles}
+      showDojoFilter={!singleLockedDojo && !isDojoAdmin}
+      lockDojoId={
+        singleLockedDojo ||
+        (isDojoAdmin && allowlist.length > 1 ? dojoId : "")
+      }
+      singleLockedDojo={singleLockedDojo}
+      canArchive={canArchive}
+      canNormalize={canEditKyuBaru(user.roles ?? [])}
+      defaultDojoId={singleLockedDojo || dojoId || ""}
+      isDojoAdmin={isDojoAdmin}
+      hasError={!result.ok}
+    />
   );
 }

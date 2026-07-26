@@ -33,6 +33,18 @@ export function CarouselManager({
   const [targetUrl, setTargetUrl] = useState("");
   const [loading, setLoading] = useState(false);
 
+  async function load() {
+    try {
+      const res = await fetch("/api/admin/carousel");
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data.sort((a: { order: number }, b: { order: number }) => a.order - b.order));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -53,7 +65,7 @@ export function CarouselManager({
       setTitle("");
       setImageUrl("");
       setTargetUrl("");
-      router.refresh();
+      void load();
     } else {
       showError(data.error || "Gagal menambahkan carousel");
     }
@@ -94,7 +106,7 @@ export function CarouselManager({
       ),
     );
     showSuccess("Urutan diperbarui");
-    router.refresh();
+    void load();
   }
 
   async function handleDelete(id: string) {
@@ -104,7 +116,7 @@ export function CarouselManager({
     if (res.ok) {
       setItems((prev) => prev.filter((i) => i.id !== id));
       showSuccess(data.message || "Carousel berhasil dihapus");
-      router.refresh();
+      void load();
     } else {
       showError(data.error || "Gagal menghapus carousel");
     }

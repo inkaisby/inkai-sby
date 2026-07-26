@@ -688,8 +688,9 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | **UKT paket komplit:** registrants-first Pendaftaran (suggest+hydrate Belum Daftar); snapshot self-reg + append peserta; CANCELLED/REJECTED tidak ghost; periodLocked di Terima/Tolak/Bayar/Verifikasi/batal; KPI Peserta |
 | 24 Juli 2026 | **UKT Belum Daftar on-demand:** filter status Belum Daftar memanggil `GET /api/admin/ukt/candidates` (bukan pool SSR); copy empty-state + hint filter/cari |
 | 24 Juli 2026 | **UKT slim empty + UI ringan:** load 0 peserta skip prefix exam/waiver/deposit + self-reg Prisma; meta prefix-only; fees snapshot; dojos Prisma; retries 0; `dojoGroups` lazy; `UktDashboard` ssr:false + dialog dynamic |
-| 26 Juli 2026 | Kelola Anggota: **ranting** edit Nama/Dokumen **hanya di detail** (bukan inline); cabang tetap inline |
+| 26 Juli 2026 | Kelola Anggota: ranting edit Nama/Dokumen hanya di detail (bukan inline); cabang tetap inline |
+| 26 Juli 2026 | Optimasi UX Snappy: DojoContextSwitcher dipindah ke client component, counts parameter selektif, router.refresh dihapus secara global di semua modul admin, defer duplicates check dengan requestIdleCallback |
 
 ---
 
-*Dokumen ini living inventaris organisasi (bukan laporan sekali-jadi) dan dapat dilampirkan pada presentasi pengurus Cabang / Pengprov.*
+## 14. Kesimpulan ini living inventaris organisasi (bukan laporan sekali-jadi) dan dapat dilampirkan pada presentasi pengurus Cabang / Pengprov.*

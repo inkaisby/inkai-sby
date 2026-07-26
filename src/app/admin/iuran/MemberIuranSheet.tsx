@@ -219,7 +219,6 @@ export function MemberIuranSheet({
 
   function refreshAll() {
     if (memberId) void load(memberId);
-    startTransition(() => router.refresh());
   }
 
   async function saveDues() {

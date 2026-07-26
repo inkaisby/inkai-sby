@@ -65,7 +65,7 @@ export function RolePermissionsManager({
     setSaving(false);
     if (res.ok) {
       showSuccess(data.message || "Hak akses disimpan");
-      router.refresh();
+      /* router.refresh(); */
     } else {
       showError(data.error || "Gagal menyimpan");
     }

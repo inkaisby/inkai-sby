@@ -73,7 +73,6 @@ export function IuranOpsBar({
         return;
       }
       showSuccess(data.message || "Berhasil");
-      if (!dryRun) router.refresh();
     } finally {
       setBusy(false);
     }
