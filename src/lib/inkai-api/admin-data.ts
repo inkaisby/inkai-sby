@@ -2071,7 +2071,7 @@ export async function fetchUktDashboardData(
       UktDepositRecord
     >,
     periodMeta,
-    ok: eventsRes.res.ok || membersResult.ok,
+    ok: Array.isArray(eventsData) || membersResult.ok,
   };
 }
 
