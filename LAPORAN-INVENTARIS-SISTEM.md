@@ -680,6 +680,201 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | **UKT scope + anti-freeze:** `ukt/members` GET fail-closed (`buildMemberFilter`/allowlist ranting, tanpa echo error mentah); `ukt/suggest` GET `q` maks 64 char (zod) + ADMIN_DOJO wajib allowlist non-kosong & pencarian di-scope Prisma ke ranting; copy kartu setoran diluruskan **cabang-only** (selaras `deposit` API yang memang sudah `canEditKyuBaru`); `UktDashboard` — aksi per-baris (`handleExamResult`/`handleCancelRegistration`) berhenti fallback ke `setLoading` global, murni `pendingMemberIds` agar 1 baris sibuk tidak mengunci toolbar; dicatat juga kunci periode API (`assertUktPeriodMutable` di register/registrations/deposit/fees), refresh tabel read-only tanpa side-effect, dan merge anggota registrasi-first; inventaris §9.1/§9.3/§11/§13/§15 diselaraskan |
 | 24 Juli 2026 | **UKT P0 security+rate limit:** `assertUktPeriodMutable` (arsip/kunci gate, `ukt-period-meta-store.ts`) diwire ke `register`/`registrations/[id]` PATCH+DELETE/`deposit`/`fees`/`waiver`/`exam-day`/`validateUktRegistrationEligibility`; `registrations/[id]` DELETE anti-IDOR (billingId dari klien tak lagi dipercaya, hanya tagihan terverifikasi tertaut registrasi yang dihapus) + log `SECURITY_UKT_BILLING_ID_MISMATCH` saat mismatch; scope `ADMIN_DOJO` fail-closed (allowlist kosong / dojo peserta tak diketahui-cocok → 403, bukan lolos) di accept/reject self-registration, submit verifikasi, DELETE; `deposit` PATCH jadi cabang-only murni (jalur ranting `SUBMITTED` dihapus); rate limit (`rateLimitAsync`/`rateLimitResponse`, ~20–30/60dtk/user) di 7 endpoint tulis UKT termasuk `period-meta` |
 | 24 Juli 2026 | **UKT loader SLA:** hapus soft PUT `registrationOpenAt` pada load dashboard (hanya backfill in-memory); mode arsip skip pool anggota/billing/verifikasi/attendance dump; merge registrasi-first Prisma untuk peserta di luar cap 500; attendance dihitung setelah members final (filter ID relevan); inventaris §9/§11/§15 |
+| 18 Juli 2026 | Cetak Nota UKT: hilangkan tombol X ganda; logo INKAI lebih dekat ke teks kop |
+| 18 Juli 2026 | Paket UKT komplit: pejabat dinamis (kebijakan), hari-H roster+hasil massal, setoran ranting↔cabang, arsip/kunci periode, export validasi+pratinjau, toolbar Dokumen |
+| 18 Juli 2026 | UKT: tombol **Buat Periode** dipindah ke toolbar kiri Export/Dokumen (banner info saja) |
+| 18 Juli 2026 | UKT: hapus banner info “Periode … belum dibuat” — cukup tombol toolbar |
+| 18 Juli 2026 | UKT toolbar: keluarkan semua aksi dari dropdown Dokumen jadi tombol terpisah |
+| 19 Juli 2026 | Nav admin: Iuran Anggota, UKT, Event & Kegiatan, Absensi jadi item top-level (bukan grup Keuangan/Kegiatan) |
+| 19 Juli 2026 | Deteksi duplikat anggota: NIK/NIA/nama+TTL (keras) + nama (lunak); blok admin create & daftar publik; UI peringatan |
+| 19 Juli 2026 | Merge duplikat: ranting/cabang gabungkan akun mandiri ↔ data ranting; reparent iuran/absensi; arsipkan duplikat |
+| 19 Juli 2026 | Kelola Anggota: kolom Terdaftar (tanggal + jam) di tabel + export CSV |
+| 19 Juli 2026 | Ranting/cabang dapat edit Iuran/bln per anggota (detail anggota); generate tagihan pakai nominal per anggota |
+| 19 Juli 2026 | Nav: Pengaturan User digabung ke Pengaturan Ranting & User; cabang dapat ubah email login ranting (change_email) |
+| 19 Juli 2026 | Pengaturan cabang/ranting: klasifikasi error Prisma (sibuk vs gagal), KPI/filter login tidak menyesatkan saat username gagal dimuat |
+| 19 Juli 2026 | Teknis: Unduh PDF UKT native (jspdf+html2canvas); email Resend di notifyUser (pesan/verifikasi/UKT); hapus helper uniqueTail; email reset-password ke ranting |
+| 19 Juli 2026 | Pengaturan ranting: form Ubah Data/Tambah menampilkan email + password (cabang); PATCH mengembalikan kredensial bila password di-set |
+| 19 Juli 2026 | Admin topbar: ikon **Back** di halaman konten (kecuali beranda; nested → parent path) |
+| 19 Juli 2026 | Logout: dialog konfirmasi elegan sebelum `signOut` (menu admin/anggota + header beranda anggota) |
+| 19 Juli 2026 | Beranda mobile: logo INKAI di atas sendiri; badge hero **Kota Surabaya** (bukan Cabang Surabaya) |
+| 19 Juli 2026 | Beranda hero: lockup **Kota Surabaya** memakai emblem resmi Suro–Boyo (tanpa lingkaran emas) + Kota Pahlawan |
+| 19 Juli 2026 | Beranda hero: lockup Kota Surabaya dipindah di bawah judul Institut Karate-Do Indonesia |
+| 19 Juli 2026 | Kelola Anggota: pencarian autocomplete (debounce, tanpa tombol Filter); ranting: nonaktif/aktif + hapus/arsip koreksi; cabang: hapus/arsip penuh |
+| 19 Juli 2026 | Ranting: kolom Aksi boleh **Hapus / arsipkan** untuk semua status (aktif/ber-NIA wajib ketik nama); API soft-delete selaras |
+| 19 Juli 2026 | Fix multi-ranting Kelola Anggota: tabel anggota selalu via Prisma (bukan Inkai API single-dojo) agar selaras KPI & pilihan ranting |
+| 19 Juli 2026 | Kelola Anggota: Export CSV digabung ke baris aksi (Tambah / Arsip), bukan baris terpisah di atas tabel |
+| 19 Juli 2026 | Pengaturan ranting: form Ubah Data lengkap (multi-dojo) via Prisma; tidak lagi salah tampil "managedDojoId kosong" saat >1 ranting |
+| 19 Juli 2026 | Multi-ranting per akun: AppSetting `user.managedDojos.*`, panel Akun (Multi/Tautkan), matriks cabang, context switcher anggota, RBAC `managedDojoIds` |
+| 19 Juli 2026 | Pengaturan admin ranting: hapus duplikat email/password di Ubah Data; ganti email+password hanya di Akun Saya |
+| 19 Juli 2026 | Paket keamanan+performa P0–P2: pesan IDOR ditutup; verifikasi fail-closed+scope; rate limit async/Upstash; CSRF admin; password register; audit upload/broadcast/verifikasi; cache badge pesan; KPI anggota groupBy; attendance scoped; chunk broadcast/generate; index Prisma; polling diperlambat |
+| 19 Juli 2026 | Kelola Anggota: floating bar multi-select + **Hapus / arsipkan** massal (ketik ARSIPKAN); API bulk `delete` |
+| 19 Juli 2026 | Notifikasi admin: scope per ranting (filter inbox ADMIN_DOJO); daftar mandiri kegiatan → notif ranting+cabang saja; badge ranting di bell |
+| 19 Juli 2026 | Form Tambah Anggota / identitas: field teks otomatis **HURUF BESAR** (UI + API create/register) |
+| 19 Juli 2026 | Tanggal lahir form identitas: paste fleksibel (`28 Februari 2011`, `28/02/2011`, ISO) |
+| 19 Juli 2026 | Tambah Anggota (ranting/cabang): **NIK opsional** — kosong tetap tersimpan (null, bukan `""`) |
+| 19 Juli 2026 | Daftar mandiri publik: identitas **wajib lengkap** (NIK, JK, TTL, alamat, telepon); NIA tetap opsional |
+| 19 Juli 2026 | Arsip anggota: multi-select + pilih semua + floating **Hapus permanen** (ketik HAPUS) + pulihkan massal (cabang) |
+| 19 Juli 2026 | Fix bulk arsip: batas `memberIds` 500 + chunk client 100 — hindari "Data tidak valid" saat pilih >100 |
+| 19 Juli 2026 | Bulk anggota: `memberIds` **tanpa batas max** (client tetap chunk 100) |
+| 19 Juli 2026 | Kelola Anggota: seleksi checkbox **tetap** saat ganti page/pageSize (sessionStorage); pilih semua = halaman ini |
+| 19 Juli 2026 | Bulk hapus/arsip: **progress bar %** + chunk 25; tombol tampil persen saat memproses |
+| 19 Juli 2026 | Fix arsip anggota: error "Gagal memproses aksi" = pool Supabase **EMAXCONNSESSION**; soft-delete tanpa interactive tx; toast sibuk; bulk chunk 10 + jeda/retry |
+| 19 Juli 2026 | Fix bulk nonaktif: sama pool sibuk; `deactivateMember` catch 503; Prisma auto-alihkan Supabase pooler `:5432`→`:6543`+pgbouncer |
+| 19 Juli 2026 | Fix KPI Kelola Anggota cabang: daftar+KPI satu sumber Prisma + `buildMemberFilter` (bukan Inkai vs Prisma unscoped) |
+| 19 Juli 2026 | Kelola Anggota: kolom **No** (nomor urut lintas halaman) di tabel |
+| 19 Juli 2026 | Kelola Anggota: KPI card navigasi `startTransition` + prefetch (tanpa flash AdminLoading) |
+| 19 Juli 2026 | KPI **Dok. kurang** & **Tanpa NIA**: angka nyata (Prisma scoped) + filter daftar server-side |
+| 19 Juli 2026 | Kolom Dokumen anggota: modal pratinjau (ukuran + Print), bukan tab baru; proxy `/api/admin/document-file` |
+| 19 Juli 2026 | Admin upload Akte/BPJS di detail anggota (`set_documents` + Blob); sinkron Prisma + Inkai PATCH |
+| 20 Juli 2026 | Fix crash Kelola Anggota: KPI ikon pakai nama string (bukan komponen Lucide ke Client Component) |
+| 20 Juli 2026 | Percepat bulk arsip: `updateMany` + Inkai DELETE background; chunk 50 (bukan tunggu API per anggota) |
+| 20 Juli 2026 | Kelola Anggota: filter Dojo via Prisma (`fetchAdminDojosScoped`) bukan Inkai API; dark mode native `<select>` (`color-scheme` + bg/text) |
+| 20 Juli 2026 | Fix NIA “sudah digunakan”: bentrok dengan arsip (mis. `25.34533` milik ABDUL AZIZ AL-AMIN); deteksi arsip + lepas NIA/NIK arsip saat tambah anggota |
+| 20 Juli 2026 | Fix pratinjau PDF Akte/BPJS: CSP izinkan `frame-src`/`object-src` `blob:` (Chrome “This content is blocked”) + tombol Tab baru |
+| 20 Juli 2026 | Percepat filter Kelola Anggota: client fetch `GET /api/admin/members` (bukan full RSC); cache KPI/dojo; query docs/NIA dirampingkan |
+| 20 Juli 2026 | Input Massal Tambah Anggota: tabel NIA…Ranting, template CSV, paste Excel, API `bulk-create` (maks 50) |
+| 20 Juli 2026 | Fix error NIA: cari pemilik global (bukan hanya Surabaya); pesan sebut nama+dojo+cabang+ARSIP (mis. ABDUL AZIZ · JAKARTA) |
+| 20 Juli 2026 | Input Massal: isi semua ranting; JK teks (paste); Tempat&Tgl lahir digabung (`Surabaya, 28 Maret 2015`) |
+| 20 Juli 2026 | Input Massal: kolom Kyu saat ini teks (bisa paste), saran via datalist |
+| 20 Juli 2026 | Fix “Database sibuk” saat hapus permanen arsip (1 user): purge batch `deleteMany` (bukan N× query/anggota); pool `connection_limit=5`; chunk purge 25 |
+| 20 Juli 2026 | Input Massal: paste Kyu 1 sel Excel tidak lagi jadi baris baru; placeholder Kyu “boleh kosong” |
+| 20 Juli 2026 | Input Massal: hapus kolom NIK/Telepon; **isi semua Kyu/DAN**; progress bar persentase saat simpan (chunk 5) |
+| 20 Juli 2026 | Input Massal: urutan Tempat&Tgl sebelum JK; lebar kolom disesuaikan (table-fixed) |
+| 20 Juli 2026 | Input Massal: angka Kyu (`4`) → `Biru (Kyu 4)`; lebar kolom diperlebar; error validasi lebih jelas; kirim `name` ke Inkai |
+| 20 Juli 2026 | Input Massal: progress % naik per anggota (chunk 1) + bar persentase lebih jelas |
+| 20 Juli 2026 | Fix KPI Total vs subtitle anggota: hapus cache 30s counts; `all` dari `count()`; samakan dengan total daftar |
+| 20 Juli 2026 | Input Massal: Isi semua Kyu/DAN = select langsung isi kolom; paste kosong tidak lagi default Putih jika sudah dipilih |
+| 20 Juli 2026 | Fix bocor URL Blob di field dokumen anggota: UI tampilkan status + unggah (bukan URL mentah) |
+| 20 Juli 2026 | Upload dokumen Akte/BPJS: kompres otomatis ke maks. 150 KB (JPEG client-side) |
+| 20 Juli 2026 | Kelola Anggota: cabang dapat **pindah ranting** via kolom Dojo inline (`set_dojo` → Inkai + Prisma) |
+| 20 Juli 2026 | Pesan bentrok NIA lintas cabang: tegaskan bukan arsip Surabaya; NIA masih aktif di cabang lain (unik nasional) |
+| 20 Juli 2026 | Pengaturan Cabang: arsip punya **Hapus** permanen (tolak jika masih ada anggota; cabang SURABAYA dilindungi) |
+| 20 Juli 2026 | Kelola Anggota: tampilkan anggota luar Surabaya / ranting terarsip (mis. JAKARTA PUSAT) agar NIA & arsip cabang bisa dibersihkan |
+| 20 Juli 2026 | Fix simpan password PIC ranting: update `User.passwordHash` lokal (bukan Inkai PATCH) — hilangkan error "Data tidak valid password baru ranting" |
+| 20 Juli 2026 | Pengaturan ranting: telepon maks 60 karakter (dukung 2 nomor dipisah `/`) |
+| 20 Juli 2026 | Input Massal: logo INKAI animasi saat progress menyimpan anggota |
+| 20 Juli 2026 | Fix Kelola Anggota crash: filter luar Surabaya — `name.not` + `mode` (bukan `not.equals.mode`) |
+| 20 Juli 2026 | Fix filter ranting kosong: sintaks Prisma `name.not`, bust cache dojo `v3`, jangan cache hasil error `[]` |
+| 20 Juli 2026 | Kelola Anggota + UKT: header kolom tabel bisa sort A-Z/Z-A (ikon naik/turun); anggota server-side via `sort`/`sortDir` URL |
+| 21 Juli 2026 | Fix biaya sabuk UKT: matching template (`Sabuk Biru`/`Coklat`) + jangan reuse ID salah; wizard & Atur Biaya sabuk satu sumber nominal; perbaiki data RankFeeTemplate korup |
+| 21 Juli 2026 | Wizard periode UKT: field **Tanggal buka pendaftaran** (+ jam); gate daftar [buka–batas]; simpan di period-meta |
+| 21 Juli 2026 | Banner jadwal UKT (batas lewat / belum buka): soft blink + glow elegan |
+| 21 Juli 2026 | Paket UKT komplit UI: snapshot biaya per periode, jadwal/tempat ujian + pejabat di wizard & kartu, rekonsiliasi setoran, pejabat nota dari period-meta, kartu anggota tampilkan ujian, inventaris §9.3/§11 |
+| 21 Juli 2026 | UKT fokus aktif vs riwayat: judul kanonis, buat periode baru arsipkan yang tutup, dropdown Aktif/Arsip, anggota fokus periode non-arsip |
+| 21 Juli 2026 | Nav UKT: sub-menu **Pendaftaran** (periode aktif) + **Arsip UKT** (`/admin/ukt/arsip`); arsipkan/buka arsip pindah antar halaman |
+| 21 Juli 2026 | Arsip UKT: sembunyikan anggota belum daftar (tabel, KPI, filter status, pencarian) |
+| 21 Juli 2026 | Fix gate daftar UKT ranting: absensi null/0% & dokumen/iuran ditegakkan di UI+API (fail-closed) |
+| 21 Juli 2026 | Sementara: ranting boleh daftar UKT tanpa gate iuran/dokumen/absensi (`UKT_ENFORCE_ELIGIBILITY_FOR_RANTING=false`); cabang tetap ketat |
+| 21 Juli 2026 | Pengaturan UKT cabang: centang syarat daftar (iuran/dokumen/absensi) + berlaku ranting/cabang; ganti flag hardcode |
+| 21 Juli 2026 | UKT UI lebih responsif: update status lokal segera setelah daftar/batal/verifikasi/hasil; refresh server di background |
+| 21 Juli 2026 | UKT perf: tanpa soft-refresh setelah aksi baris; parallel org/policy+dashboard; period-meta paralel; notify daftar non-blocking; bulk verifikasi concurrent; page size maks 100 |
+| 21 Juli 2026 | Perf admin lintas halaman: overlay navigasi `pointer-events-none` + min loader lebih singkat; pageSize maks 100 (bukan 1000); MemberActions tanpa double refresh; iuran/verifikasi hide kartu optimistic; pesan kirim tanpa full reload list |
+| 21 Juli 2026 | Laporan WA UKT: ranting = daftar peserta + nama dojo login; cabang tetap ringkas (Total Ranting / List / Jumlah kyu) |
+| 21 Juli 2026 | Export PDF/CSV/print UKT: kolom KYU (lama) terisi — snapshot atau infer satu tingkat di bawah Kyu Baru |
+| 21 Juli 2026 | Tabel UKT: kolom Kyu Lama tampil (infer bila snapshot "—" / hilang setelah isi Kyu Baru) |
+| 21 Juli 2026 | Fix notifikasi anggota: inbox `/dashboard/notifikasi` + bell hanya akun sendiri; sembunyikan notif ops admin (fan-out Inkai) |
+| 21 Juli 2026 | Fix notifikasi admin: ranting hanya notif rantingnya + ops cabang; semua admin sembunyikan notif pribadi anggota (fan-out) |
+| 21 Juli 2026 | Paket notifikasi komplit: fix akar `notifyAdmins` (jangan fan-out semua user), field `audience`, cleanup DB, filter+log+test di sby |
+| 21 Juli 2026 | Fix filter KPI UKT: kartu **Gagal/Mengulang** di `/admin/ukt` kini menampilkan peserta status `GAGAL` dan `MENGULANG` sekaligus |
+| 21 Juli 2026 | UKT admin: hapus peserta dari kolom Aksi juga menghapus tagihan UKT terkait, termasuk yang sudah `PAID`, dengan dialog konfirmasi yang menyebut dampaknya |
+| 21 Juli 2026 | UKT Pendaftaran: timer floating hitungan mundur (hari/jam/menit/detik/ms) ke batas pendaftaran, fixed saat scroll, glassmorphism + aksen inkai-red |
+| 21 Juli 2026 | UKT timer: mode H-2 darurat (≤48 jam) — strip h-2 berdenyut, glow merah, label H-2 · Darurat |
+| 21 Juli 2026 | UKT jadwal: badge **Masih terbuka** animasi glow lembut (`ukt-open-badge`) |
+| 21 Juli 2026 | UKT UI polish: hilangkan judul ganda (topbar cukup), toolbar **Lainnya** (Syarat/Biaya/Arsip), kartu jadwal grid 2 kolom, sembunyikan Nota Terpilih kosong, badge terbuka pakai titik pulse |
+| 21 Juli 2026 | UKT: timer kompak inline di kanan badge **Masih terbuka** (bukan floating); hapus judul periode & kontrol semester/tahun dari kiri kartu aksi |
+| 21 Juli 2026 | UKT: timer besar elegan mengisi ruang kosong kiri kartu aksi (sebelah kiri Laporan WA) |
+| 21 Juli 2026 | Fix hapus paksa peserta UKT lunas: kirim `billingId`+`force`, resolve tagihan multi-sumber, coba DELETE/PATCH force sebelum hapus registrasi |
+| 22 Juli 2026 | UKT: tombol **Hapus tagihan** (cabang) + `DELETE /api/admin/billing/[id]`; helper bersama `billing-delete.ts` |
+| 22 Juli 2026 | Fix hapus peserta lunas: cari semua tagihan UKT anggota (bukan hanya billingId UI), sapu lalu retry DELETE registrasi; mapping billing UI diperbaiki |
+| 22 Juli 2026 | Percepat hapus UKT: timeout 5s, hapus tagihan paralel + unlink dulu, toast loading di UI |
+| 22 Juli 2026 | Force hapus UKT lunas: fallback Prisma (unlink billing + hapus EventRegistration); map billingId dari `/v1/billing` global |
+| 22 Juli 2026 | UKT: toolbar atas (semester + timer + aksi) sticky di bawah topbar admin |
+| 22 Juli 2026 | Kyu Lama UKT = sabuk keanggotaan; snapshot lama hanya dikunci setelah sabuk naik (selesai); kolom KYU di PDF/CSV ikut sama |
+| 22 Juli 2026 | Daftar UKT ranting → status Belum Bayar (bukan Menunggu Ujian); mapping tagihan ketat by registrationId; notifikasi cabang otomatis |
+| 22 Juli 2026 | UI ranting UKT dipangkas: hanya Daftar / Batal / Bayar UKT |
+| 22 Juli 2026 | Ranting dapat Batal UKT meski sudah bayar/lunas (force + notifikasi cabang) |
+| 22 Juli 2026 | Paket UKT ranting↔cabang: status Belum Bayar, UI 3 aksi, Bayar=nota (bukan lunas), batal lunas+peringatan refund, inventaris §9.3 |
+| 22 Juli 2026 | Ranting Bayar UKT = `submit_for_verification` → Menunggu Verifikasi (bukan lunas); cabang Verifikasi yang menandai lunas |
+| 22 Juli 2026 | UKT cabang: Hapus/Batal langsung update tabel+KPI+rekap tanpa F5; sync aman vs data server usang; refresh saat fokus tab |
+| 22 Juli 2026 | Toolbar ranting: kembalikan Laporan WA + Cetak Nota; WA buka kirim manual (bukan copy); Daftar/Bayar tidak auto-buka nota |
+| 22 Juli 2026 | UKT: tombol Reset filter + Refresh tabel (`GET /api/admin/ukt/table`) tanpa reload halaman |
+| 22 Juli 2026 | Percepat Refresh UKT: snapshot registrasi/tagihan saja (bukan full dashboard), merge ke baris lokal |
+| 22 Juli 2026 | Fix status UKT: Verifikasi → Menunggu Ujian (bukan Selesai); Selesai hanya setelah Lulus + Kyu Baru |
+| 22 Juli 2026 | Alur cabang: Verifikasi → Menunggu Ujian → isi Kyu Baru → Lulus → Selesai |
+| 22 Juli 2026 | Fix isi Kyu Baru: jangan gagal bila GET Inkai 404 — fallback Prisma + cek lunas via billing |
+| 22 Juli 2026 | Isi Kyu Baru (cabang) otomatis Lulus + Selesai; kolom status/aksi langsung Selesai |
+| 22 Juli 2026 | Ranting: status Selesai → aksi tampil Selesai (disabled), tanpa Batal UKT |
+| 22 Juli 2026 | Fix daftar UKT ulang setelah cabang hapus peserta selesai: jangan hapus semua tagihan PAID anggota; pulihkan soft-delete; fallback Prisma bila Inkai GET anggota 404 |
+| 22 Juli 2026 | Fix ranting daftar UKT "Akses wilayah ditolak": jangan PATCH anggota pakai token ranting; fallback daftar+tagihan via Prisma (atau INKAI_SERVICE_TOKEN) setelah cek scope dojo |
+| 22 Juli 2026 | Filter ranting UKT cabang: opsi **Gabungan** dari akun multi-ranting (mis. Gabungan GADING · CAKRA, MANYAR) |
+| 22 Juli 2026 | Fix UKT ranting multi: load anggota+registrasi semua managed dojo via Prisma; filter + kolom Ranting di UI ranting |
+| 22 Juli 2026 | Topbar admin: daftar email akun gabungan multi-ranting + pindah akun cepat (prefill Ganti Akun) |
+| 22 Juli 2026 | Fix detail anggota: overlay username/telepon dari Prisma; hapus hint password palsu (`nama+123`); tombol **Reset password** sementara (ranting/cabang, `PATCH reset_password`) |
+| 22 Juli 2026 | **Kehadiran akun**: `/admin/online` untuk pusat & cabang; heartbeat + `lastLoginAt`/`lastSeenAt`; Redis opsional; clear saat logout; catatan privasi di profil/akun; tanpa force-logout |
+| 22 Juli 2026 | Kehadiran audit: tabel `UserSession` (IP, UA, browser/OS, lokasi CDN, timezone/layar); detail UI + export CSV; bootstrap sesi dari heartbeat |
+| 22 Juli 2026 | Fix WA PIC beranda anggota: multi-nomor di `Dojo.phoneNumber` (mis. `0852…/0896…`) tidak lagi di-concat; pakai nomor utama + bersihkan data JWON |
+| 22 Juli 2026 | Fix sabuk kartu anggota: `resolveMemberDisplayRank` mengikuti `currentRank` keanggotaan (selaras admin/verifikasi QR), bukan sabuk tertinggi dari riwayat/UKT |
+| 22 Juli 2026 | Detail anggota: centang **pengecualian iuran** (`allowEventWithoutDues`) — gate daftar event/UKT tanpa lunas iuran; generate tagihan bulanan skip anggota pengecualian |
+| 22 Juli 2026 | Pengaturan ranting (cabang): **Jadikan admin ranting** — email login existing (anggota) jadi `ADMIN_DOJO` dual-role tanpa akun baru (`promote_existing`) |
+| 22 Juli 2026 | Portal dual-role: login default `/dashboard` bila `memberId` + admin; admin-only tetap `/admin`; **Panel Admin** hanya tampil bila email punya role admin (`canChooseAdminPortal`) |
+| 22 Juli 2026 | **Jadikan admin ranting**: centang hak akses per akun — edit profil, CRUD anggota, menu sidebar admin (`adminGrants` di meta ranting); tombol perbarui hak akses di daftar akun |
+| 22 Juli 2026 | Form Tambah Ranting: penanda field wajib (*); perbaiki kirim `adminEmail` ke Inkai saat buat/ubah (password tetap Prisma); validasi email+password berpasangan |
+| 22 Juli 2026 | Topbar akun gabungan: hanya tampilkan email yang berbagi kelola ranting (API `/account-peers`), bukan riwayat Ganti Akun dari localStorage |
+| 22 Juli 2026 | Pengaturan Ranting & User: UI diperjelas sebagai panel **akun admin ranting**; akun dual-role ditandai **Admin + Anggota**, anggota biasa tidak tampil sampai dijadikan admin ranting |
+| 22 Juli 2026 | Pengaturan Cabang: tambah alur **Jadikan admin cabang** untuk akun existing (contoh ketua cabang) tanpa akun baru; panel Akun Admin membedakan **Admin + Anggota** vs **Admin saja** |
+| 22 Juli 2026 | Hotfix build Vercel: `wilayah-accounts` — `memberId` via relasi Prisma `member`; hapus `adminGrantsRaw` dari response PATCH tanpa `delete` pada field wajib |
+| 22 Juli 2026 | Perbaikan cabang: fallback PIC & `isHomeDojo` scope-aware di `listWilayahAccounts`; audit promote cabang `WILAYAH_ACCOUNT_PROMOTE_ADMIN_BRANCH`; copy UI tanpa contoh email spesifik |
+| 22 Juli 2026 | Dashboard dual-role: **ikon Panel Admin** (perisai) di header kanan sebelah logout + sub-halaman anggota; refresh klaim JWT dari DB (~30s) setelah promosi admin cabang/ranting |
+| 23 Juli 2026 | UKT admin mobile: hapus timer ms + rAF (tick 1s, pause tab hidden); sticky hanya semester; grid aksi/filter; jadwal & alur collapsible; hapus tombol Back redundant |
+| 23 Juli 2026 | Admin mobile global: topbar lebih pendek + Menu ikon; shell `overflow-x-hidden`; `AdminPageHeader` di semua halaman; filter Anggota/Settings/Iuran/Absensi/Online; KPI scroll; bulk-bar safe-area; IuranOps collapsible |
+| 23 Juli 2026 | Admin aksi baris mobile: `AdminMoreActions` (user/ranting/cabang/event/store/materi/carousel/UKT); Verifikasi/Iuran tombol full-width; tabel Anggota/UKT sembunyikan Foto/Sabuk/Terdaftar di HP |
+| 23 Juli 2026 | Pesan admin mobile: inbox/thread single-pane (kembali ←); broadcast stack; safe-area composer |
+| 23 Juli 2026 | Polish visual admin: atmosfer `admin-surface`, topbar aksen merah–kuning, header dengan strip, sidebar/nav lebih halus, kartu/tabel lembut |
+| 23 Juli 2026 | Polish visual publik: `public-surface`, topbar/nav/footer elegan, hero grid lebih lembut, CTA & kartu beranda dirapikan |
+| 23 Juli 2026 | Halaman konten publik: header Badge+h1 diganti `PublicPageHeader` (sejarah, makna-lambang, visi-misi, kontak, berita, kegiatan, dojo, struktur, keamanan-siber) |
+| 23 Juli 2026 | Tema: default ikuti sistem OS; tombol siklus sistem → terang → gelap (ikon Monitor/Moon/Sun); `storageKey=inkai-theme` |
+| 23 Juli 2026 | Navigasi cepat: hapus min delay 180ms + overlay loader; matikan animasi content-enter; hapus `loading.tsx` admin/dashboard/publik agar konten lama tetap sampai halaman baru siap |
+| 23 Juli 2026 | Toast loading elegan: spinner Sonner diganti `InkaiLogoLoader` (logo + ring beranimasi) di Toaster global |
+| 23 Juli 2026 | UKT timer: milidetik dikembalikan (hari–jam–menit–detik–ms via rAF); tetap pause saat tab tersembunyi |
+| 23 Juli 2026 | Profil anggota: tampil + edit foto, NIK, JK, TTL, alamat, telepon, Akte/BPJS; email/sabuk baca saja; API PATCH sync Inkai+Prisma |
+| 23 Juli 2026 | Profil: email/NIA/sabuk/MSH edit mandiri 1× lalu pengajuan `PROFILE_CHANGE`; kolom `mshNumber` + migrasi; Kartu Anggota tampilkan NIA + No. MSH (Hitam/DAN) |
+| 23 Juli 2026 | Perf dashboard anggota: parallel fetch beranda; Suspense UKT; tanpa poll kartu/fade; SSR pesan/store; cache profil; heartbeat 90s |
+| 23 Juli 2026 | Tema default: **jam operasional** (05–17 terang, 18–04 gelap) menggantikan ikuti OS; siklus jadwal → terang → gelap; ikon Clock |
+| 23 Juli 2026 | No. MSH di Kelola Anggota (kolom + detail edit `set_msh`); notifikasi admin ranting/cabang saat MSH diisi/diubah (profil, pengajuan, admin) |
+| 23 Juli 2026 | Kelola Anggota: ranting/cabang edit **Nama** inline (`set_name`) + **Dokumen** (tombol Ubah di kolom) |
+| 23 Juli 2026 | Admin Iuran → **rekening koran**: tabel anggota (Iuran/bln, status bulan, tunggakan, aging, **Pengecualian** event/UKT); Sheet Pengaturan/Mutasi/Pembayaran; strip verifikasi; `GET /api/admin/iuran/members/[id]`; deep-link dari detail anggota |
+| 23 Juli 2026 | Iuran MVP gaps: filter tipe bulanan saja; aging + status Belum digenerate; **jejak aksi** lokal di Sheet; **bulk lunas tunai** `POST /api/admin/billing/bulk-mark-paid` |
+| 23 Juli 2026 | Admin topbar: chip **Masih terbuka** (pulse live, shimmer, rotasi judul, panel daftar + sisa waktu); `GET /api/admin/open-events` |
+| 23 Juli 2026 | Topbar kegiatan terbuka: HP = ikon compact di cluster aksi (judul tidak terpotong); panel fixed + backdrop |
+| 23 Juli 2026 | Transisi logo INKAI elegan (login/logout/ganti akun + perpindahan portal publik↔admin↔dashboard): overlay ringan tanpa blur, unmount saat idle, progress tipis untuk nav dalam shell; `NavigationProvider` global; hapus delay 750ms ganti akun |
+| 23 Juli 2026 | Perf auth+UI paket: login 1× Inkai (tanpa `/validate` ganda) + kode error CredentialsSignin; logout/ganti akun tanpa double clearPresence; topbar foto+nama; notif `countOnly` poll 180s; OpenEvents tanpa shimmer/pulse infinite; topbar blur hanya desktop; UKT ms via DOM ref |
+| 23 Juli 2026 | **Undangan portal UKT**: `/undangan/ukt/[periodId]` (cover+musik+Home/Acara/Galeri/Peta auto/klik/scroll), snapshot `ukt-invite`, Salin/WA Undangan di toolbar, login `callbackUrl` ke `/admin/ukt` |
+| 23 Juli 2026 | Undangan UKT: ringanin UI — hapus animasi infinite/blur/noise, tunda mount konten+Maps, countdown via DOM ref, musik HTMLAudio saja, font `next/font` |
+| 23 Juli 2026 | Fix 404 undangan: fallback service token + persist snapshot; `POST /api/admin/ukt/invite` saat Salin/WA Undangan |
+| 24 Juli 2026 | **UKT daftar mandiri:** anggota Daftar UKT sekarang + gate syarat + konfirmasi bayar; ranting Terima/Tolak → cabang Verifikasi; anti-bocor nominal di iuran anggota; unique `(eventId,memberId)`; API `POST /api/member/ukt/register` + `confirm-payment` |
+| 24 Juli 2026 | Perf kartu UKT anggota: parallel fetch; Prisma-first (tanpa dump registrasi Inkai); gate eligibility ditunda ke klik daftar; optimistic UI tanpa refetch ganda |
+| 24 Juli 2026 | **Iuran setor ranting:** anggota lapor tanggal bayar (nominal = tagihan, tanpa unggah bukti); ranting konfirmasi di Sheet/antrian; preserve `paidAt`; Mutasi/Pembayaran tampil tgl setor |
+| 24 Juli 2026 | Iuran Sheet: ranting/cabang **hapus jejak aksi** lokal (`DELETE /api/admin/iuran/audit/[id]`) + toast loading logo INKAI pada aksi verifikasi/hapus |
+| 24 Juli 2026 | Iuran anggota: lapor setor **periode sebelumnya** (`POST /api/member/billing/report-period`, maks 24 bln) + toast loading logo INKAI |
+| 24 Juli 2026 | Ranting **catat setor periode** di Sheet Iuran (`POST …/report-setor`, helper `iuran-setor-period`); mutasi+jejak; status menunggu Setujui |
+| 24 Juli 2026 | Beranda anggota: hapus section Agenda (bug undefined); slim critical fetch; sticky header; cache token + overlay profil paralel |
+| 24 Juli 2026 | Tambah Anggota: field **No. MSH** opsional (Sabuk); persist Prisma + unique/Hitam-DAN + notif admin |
+| 24 Juli 2026 | Absensi: streaming UI anggota; GPS multi-lokasi + geofence server; biometrik WebAuthn; 1×/hari + % hari unik; label progres; admin tabel Progress+Sheet; notif check-in; soft-backfill menu Absensi ranting |
+| 24 Juli 2026 | Absensi admin: tab Progress/Harian/Belum **client-side instan** (tanpa RSC reload); payload log dibatasi; peek biometrik ringan |
+| 24 Juli 2026 | **Tutorial:** skrip video anggota+pengurus (`guide/tutorials/`); `/tutorial` publik (tab nav) + `/dashboard/panduan` langkah+embed YouTube; welcome v2 |
+| 24 Juli 2026 | Beranda publik: floating chip **Masih terbuka**; hapus `/berita` (redirect `/`); modul **Apresiasi** (Kenangan/Prestasi) + admin CRUD + cuplikan beranda; badge kegiatan; `loading.tsx` publik |
+| 24 Juli 2026 | Form daftar `/login?tab=daftar` selaras Tambah Anggota: urutan Dojo→Identitas→Sabuk→Akun; No. MSH di Sabuk (hanya Hitam/DAN); persist Prisma + notif admin; tutorial urutan diperbarui |
+| 24 Juli 2026 | Security hardening: index Prisma admin-perf; bulk memberIds `.max(100)`; `forbidUnlessAdminPath` carousel/store/materi; rate limit broadcast/bulk/upload/normalize; `security-events`; sempitkan document URL allowlist; assertDojoInScope destinasi verifikasi transfer |
+| 24 Juli 2026 | **Security ops:** cabut sesi / kunci / buka kunci (`session-control` + JWT block); impersonasi Mode A (cookie `inkai_impersonation` jose); banner + blok password/email; audit `SECURITY_*` |
+| 24 Juli 2026 | **Security ops P1 wiring:** rate limit `billing/generate` (5/60dtk); `rateLimitResponse` fire-and-forget `SECURITY_RATE_LIMIT`+strike bump di semua endpoint rate-limited; `SECURITY_SCOPE_DENIED` di deny out-of-scope `members/[id]` & `billing/[id]`; upload admin magic-byte sniff (tolak MIME palsu); `check-duplicate` disaring `buildMemberFilter` (anti-IDOR wilayah); hapus echo pesan error Prisma mentah di billing/generate & upload |
+| 24 Juli 2026 | **Impersonasi Mode A — UX & anti-fake-data:** TTL dipersingkat 60→**15 menit**; modal risiko `ImpersonationRiskModal` (9 poin risiko + checklist ack + alasan + password step-up + frasa **AMBIL ALIH**) gantikan `window.prompt` bertingkat di `/admin/online`; token Inkai saat ambil alih **tetap milik aktor** — semua fetcher `/me`+`/my` di `member-data.ts` (`fetchMyMemberProfile`/`fetchMyBillings`/`fetchMyAttendance`/`fetchMyEventRegistrations`/`fetchMyNotifications`) diblok saat mode ambil alih (kembalikan null/[] alih-alih data aktor); halaman `dashboard` (beranda, profil, dokumen, prestasi, pindah, detail kegiatan) tampilkan notice jujur **"Tidak tersedia saat ambil alih"** alih-alih data yang salah/tertukar |
+| 24 Juli 2026 | **Admin perf lanjutan:** `/admin/audit` preset **Keamanan** (`SECURITY_*`/IMPERSONATE/upload/broadcast) + pagination client 25/50/100 (data Inkai API hard-cap, fetch 300 lalu filter/paginate client); konfirmasi hapus jejak audit lokal sudah menolak `SECURITY_*` (tanpa perubahan, hanya diverifikasi); `iuran-ledger.ts` — query billing tersegmentasi (findMany belum-lunas lintas periode + findMany match periode aktif saja) menggantikan dump seluruh riwayat billing per anggota, KPI dihitung dari dua hasil query tsb (bukan reduce atas seluruh histori); `/admin/ukt` & `/admin/ukt/arsip` — `UktDashboard` (~180KB client component) dibungkus `next/dynamic`; `/admin/iuran` — Suspense bersarang: header+form filter render instan, KPI+OpsBar+tabel dipindah ke `IuranLedgerSection` async terpisah (urutan visual: form filter kini di atas KPI) |
+| 24 Juli 2026 | **Paket ahli Admin Perf+Security (selesai):** P0 IDOR fail-closed `members/[id]`+`billing/[id]`; CSRF proxy → `SECURITY_CSRF_REJECT`+strike; Absensi admin pager DOM; Anggota debounce search 300ms; apresiasi/store/materi `take:200`; Zod `ukt/invite`; inventaris §6/§10/§11/§13/§15 diselaraskan |
+| 24 Juli 2026 | Carousel beranda: CRUD + baca publik pakai **Prisma lokal** (bukan Inkai `/v1/news-carousel`) agar admin cabang tidak kena *Access denied: Insufficient permissions* |
+| 24 Juli 2026 | Upload admin/anggota: fallback **Supabase Storage** (`portal-public`) bila `BLOB_READ_WRITE_TOKEN` belum ada — pakai `SUPABASE_SECRET_KEY` yang sudah di Vercel |
+| 24 Juli 2026 | **UKT scope + anti-freeze:** `ukt/members` GET fail-closed (`buildMemberFilter`/allowlist ranting, tanpa echo error mentah); `ukt/suggest` GET `q` maks 64 char (zod) + ADMIN_DOJO wajib allowlist non-kosong & pencarian di-scope Prisma ke ranting; copy kartu setoran diluruskan **cabang-only** (selaras `deposit` API yang memang sudah `canEditKyuBaru`); `UktDashboard` — aksi per-baris (`handleExamResult`/`handleCancelRegistration`) berhenti fallback ke `setLoading` global, murni `pendingMemberIds` agar 1 baris sibuk tidak mengunci toolbar; dicatat juga kunci periode API (`assertUktPeriodMutable` di register/registrations/deposit/fees), refresh tabel read-only tanpa side-effect, dan merge anggota registrasi-first; inventaris §9.1/§9.3/§11/§13/§15 diselaraskan |
+| 24 Juli 2026 | **UKT P0 security+rate limit:** `assertUktPeriodMutable` (arsip/kunci gate, `ukt-period-meta-store.ts`) diwire ke `register`/`registrations/[id]` PATCH+DELETE/`deposit`/`fees`/`waiver`/`exam-day`/`validateUktRegistrationEligibility`; `registrations/[id]` DELETE anti-IDOR (billingId dari klien tak lagi dipercaya, hanya tagihan terverifikasi tertaut registrasi yang dihapus) + log `SECURITY_UKT_BILLING_ID_MISMATCH` saat mismatch; scope `ADMIN_DOJO` fail-closed (allowlist kosong / dojo peserta tak diketahui-cocok → 403, bukan lolos) di accept/reject self-registration, submit verifikasi, DELETE; `deposit` PATCH jadi cabang-only murni (jalur ranting `SUBMITTED` dihapus); rate limit (`rateLimitAsync`/`rateLimitResponse`, ~20–30/60dtk/user) di 7 endpoint tulis UKT termasuk `period-meta` |
+| 24 Juli 2026 | **UKT loader SLA:** hapus soft PUT `registrationOpenAt` pada load dashboard (hanya backfill in-memory); mode arsip skip pool anggota/billing/verifikasi/attendance dump; merge registrasi-first Prisma untuk peserta di luar cap 500; attendance dihitung setelah members final (filter ID relevan); inventaris §9/§11/§15 |
 | 24 Juli 2026 | **UKT streaming UI:** `/admin/ukt` & `/admin/ukt/arsip` — header + `UktTermNav` (semester/tahun) di luar Suspense data; KPI/tabel `UktDashboard` streaming menyusul (pola `/admin/iuran`); `hideStickyTermBar` anti-duplikat; dojo groups parallel dengan fetch dashboard |
 | 24 Juli 2026 | Floating chip **Masih terbuka** di layout publik `(public)` — tampil di semua tab/halaman publik, bukan hanya beranda |
 | 24 Juli 2026 | **Apresiasi:** UI **Ubah** (dialog PATCH) + Hapus; tombol **Rapikan teks** + polish server (`polish-summary.ts`); tip/placeholder copy Kenangan vs Prestasi; `/apresiasi` CSS-light (aksen jenis, `whitespace-pre-line`, empty state) |
@@ -690,7 +885,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | **UKT slim empty + UI ringan:** load 0 peserta skip prefix exam/waiver/deposit + self-reg Prisma; meta prefix-only; fees snapshot; dojos Prisma; retries 0; `dojoGroups` lazy; `UktDashboard` ssr:false + dialog dynamic |
 | 26 Juli 2026 | Kelola Anggota: ranting edit Nama/Dokumen hanya di detail (bukan inline); cabang tetap inline |
 | 26 Juli 2026 | Optimasi UX Snappy: DojoContextSwitcher dipindah ke client component, counts parameter selektif, router.refresh dihapus secara global di semua modul admin, defer duplicates check dengan requestIdleCallback |
+| 26 Juli 2026 | Optimasi UX Snappy UKT: router.refresh() dicabut dari perubahan status setoran (deposit) dan pengecualian (waiver) di UktDashboard, murni menggunakan requestServerRowsSync client-side |
 
 ---
 
-## 14. Kesimpulan ini living inventaris organisasi (bukan laporan sekali-jadi) dan dapat dilampirkan pada presentasi pengurus Cabang / Pengprov.*
+*Dokumen ini living inventaris organisasi (bukan laporan sekali-jadi) dan dapat dilampirkan pada presentasi pengurus Cabang / Pengprov.*
