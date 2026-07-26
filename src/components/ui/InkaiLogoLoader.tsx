@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +25,15 @@ export function InkaiLogoLoader({
 }: InkaiLogoLoaderProps) {
   const s = SIZES[size];
   const showMessage = message && size !== "sm";
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    const start = Date.now();
+    const interval = setInterval(() => {
+      setSeconds(Math.round((Date.now() - start) / 100) / 10);
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div
@@ -75,8 +87,9 @@ export function InkaiLogoLoader({
       </div>
 
       {showMessage && (
-        <p className="mt-5 text-sm font-medium tracking-wide text-muted-foreground">
-          {message}
+        <p className="mt-5 text-sm font-medium tracking-wide text-muted-foreground flex items-center gap-1.5">
+          <span>{message}</span>
+          <span className="text-xs opacity-60 tabular-nums">({seconds.toFixed(1)}s)</span>
         </p>
       )}
 
