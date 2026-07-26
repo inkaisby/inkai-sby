@@ -886,6 +886,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 26 Juli 2026 | Kelola Anggota: ranting edit Nama/Dokumen hanya di detail (bukan inline); cabang tetap inline |
 | 26 Juli 2026 | Optimasi UX Snappy: DojoContextSwitcher dipindah ke client component, counts parameter selektif, router.refresh dihapus secara global di semua modul admin, defer duplicates check dengan requestIdleCallback |
 | 26 Juli 2026 | Optimasi UX Snappy UKT: router.refresh() dicabut dari perubahan status setoran (deposit) dan pengecualian (waiver) di UktDashboard, murni menggunakan requestServerRowsSync client-side |
+| 26 Juli 2026 | UKT Dialog: Native window.confirm pada tolak pengajuan UKT diganti menjadi komponen Dialog Tailwind/Shadcn UI yang elegan |
 
 ---
 
