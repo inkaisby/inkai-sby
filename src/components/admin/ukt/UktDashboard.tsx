@@ -390,6 +390,7 @@ export function UktDashboard(props: Props) {
     name: string;
     billingStatus: string | null;
   } | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<UktMemberRow | null>(null);
   const [showRegistrationDeadline, setShowRegistrationDeadline] = useState(false);
   const [registrationDeadlineDate, setRegistrationDeadlineDate] = useState("");
   const [registrationDeadlineTime, setRegistrationDeadlineTime] = useState("");
@@ -1687,23 +1688,17 @@ export function UktDashboard(props: Props) {
     }
   };
 
-  const handleRejectSelfRegistration = async (row: UktMemberRow) => {
+  const handleRejectSelfRegistration = (row: UktMemberRow) => {
     if (periodLocked) {
       toast.error("Periode dikunci — tidak dapat menolak pendaftaran");
       return;
     }
     if (!row.registrationId) return;
-    if (
-      !window.confirm(
-        `Tolak pengajuan UKT ${formatMemberName(row.fullName)}?${
-          row.memberPaymentConfirmedAt
-            ? " Anggota sudah konfirmasi bayar — koordinasikan pengembalian."
-            : ""
-        }`,
-      )
-    ) {
-      return;
-    }
+    setRejectTarget(row);
+  };
+
+  const executeRejectSelfRegistration = async (row: UktMemberRow) => {
+    if (!row.registrationId) return;
     setMemberPending(row.memberId, true);
     try {
       const res = await fetch(
@@ -4037,6 +4032,43 @@ export function UktDashboard(props: Props) {
               disabled={loading}
             >
               Ya, {isDojoAdmin ? "Batalkan" : "Hapus"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject confirmation */}
+      <Dialog open={!!rejectTarget} onOpenChange={(o) => !o && setRejectTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tolak Pengajuan UKT?</DialogTitle>
+            <DialogDescription className="space-y-2">
+              <span className="block">
+                Apakah Anda yakin ingin menolak pengajuan UKT dari <strong>{rejectTarget ? formatMemberName(rejectTarget.fullName) : ""}</strong>?
+              </span>
+              {rejectTarget?.memberPaymentConfirmedAt && (
+                <span className="block font-medium text-destructive mt-2">
+                  Penting: Anggota sudah melakukan konfirmasi pembayaran. Mohon koordinasikan proses pengembalian dana.
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectTarget(null)} disabled={loading}>
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (rejectTarget) {
+                  const target = rejectTarget;
+                  setRejectTarget(null);
+                  void executeRejectSelfRegistration(target);
+                }
+              }}
+              disabled={loading}
+            >
+              Ya, Tolak
             </Button>
           </DialogFooter>
         </DialogContent>
