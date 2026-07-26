@@ -280,6 +280,7 @@ Pusat / Nasional
 | Resend | Email reset password |
 | Rate limit | Upstash Redis opsional (`UPSTASH_REDIS_*`); fallback memori per instance |
 | Verifikasi klaim | Fail-closed ke Inkai API + `assertDojoInScope` + audit |
+| Playwright | End-to-End (E2E) testing framework untuk pengujian UI otomatis |
 
 ---
 
@@ -887,6 +888,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 26 Juli 2026 | Optimasi UX Snappy: DojoContextSwitcher dipindah ke client component, counts parameter selektif, router.refresh dihapus secara global di semua modul admin, defer duplicates check dengan requestIdleCallback |
 | 26 Juli 2026 | Optimasi UX Snappy UKT: router.refresh() dicabut dari perubahan status setoran (deposit) dan pengecualian (waiver) di UktDashboard, murni menggunakan requestServerRowsSync client-side |
 | 26 Juli 2026 | UKT Dialog: Native window.confirm pada tolak pengajuan UKT diganti menjadi komponen Dialog Tailwind/Shadcn UI yang elegan |
+| 26 Juli 2026 | Setup Playwright untuk E2E testing (package.json, playwright.config.ts, dan tests/e2e/example.spec.ts) |
 
 ---
 

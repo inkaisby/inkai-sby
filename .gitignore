@@ -48,3 +48,8 @@ next-env.d.ts
 /src/generated/prisma
 
 .vercel
+
+# Playwright
+/playwright-report/
+/test-results/
+/playwright/.local-browsers/
