@@ -1006,6 +1006,64 @@ function buildVerificationCountMap(verifications: Array<Record<string, unknown>>
   return counts;
 }
 
+export async function fetchUktEventsCached(
+  token: string,
+  options?: { timeoutMs?: number; retries?: number },
+) {
+  return unstable_cache(
+    async () => {
+      const { res, data } = await inkaiFetch("/v1/events?limit=200", {}, token, options);
+      if (!res.ok) {
+        throw new Error("Failed to fetch events from Inkai API");
+      }
+      return (data.data as Array<Record<string, unknown>>) ?? [];
+    },
+    ["ukt-events-list-v3"],
+    { revalidate: 60 },
+  )().catch((error) => {
+    console.error("[fetchUktEventsCached]", error);
+    return [] as Array<Record<string, unknown>>;
+  });
+}
+
+export async function fetchBeltFeesTemplatesCached(
+  token: string,
+  options?: { timeoutMs?: number; retries?: number },
+) {
+  return unstable_cache(
+    async () => {
+      const { res, data } = await inkaiFetch("/v1/events/rank-fee-templates", {}, token, options);
+      if (!res.ok) {
+        throw new Error("Failed to fetch rank fee templates");
+      }
+      return (data.data as Array<{ rankName: string; fee: number }>) ?? [];
+    },
+    ["ukt-belt-fees-templates-v3"],
+    { revalidate: 60 },
+  )().catch((error) => {
+    console.error("[fetchBeltFeesTemplatesCached]", error);
+    return [] as Array<{ rankName: string; fee: number }>;
+  });
+}
+
+export async function fetchUktKomisiRantingCached(
+  token: string,
+  key: string,
+  fallback: number,
+  options?: { timeoutMs?: number; retries?: number },
+) {
+  return unstable_cache(
+    async () => {
+      return fetchUktKomisiRanting(token, key, fallback, options);
+    },
+    ["ukt-komisi-ranting-global-v3", key],
+    { revalidate: 60 },
+  )().catch((error) => {
+    console.error("[fetchUktKomisiRantingCached]", error);
+    return fallback;
+  });
+}
+
 /**
  * Resolve periode UKT ringan (events + period-meta saja) untuk redirect URL
  * canonical sebelum fetch berat (members/attendance/billing).
@@ -1032,19 +1090,15 @@ export async function resolveUktAdminPeriodId(
     return { selectedPeriodId: null };
   }
 
-  const [eventsRes, periodMetaRowsAll] = await Promise.all([
-    inkaiFetch("/v1/events?limit=200", {}, token, {
+  const [eventsData, periodMetaRowsAll] = await Promise.all([
+    fetchUktEventsCached(token, {
       timeoutMs: 8_000,
       retries: 0,
     }),
     fetchSettingsByPrefix(token, "ukt-period-meta:"),
   ]);
 
-  let periods = eventsRes.res.ok
-    ? filterUktEvents(
-        (eventsRes.data.data as Array<Record<string, unknown>>) ?? [],
-      ).map((p) => periodOptionFromEvent(p))
-    : [];
+  let periods = filterUktEvents(eventsData).map((p) => periodOptionFromEvent(p));
 
   const metaByPeriodId = new Map<string, UktPeriodMeta>();
   for (const row of periodMetaRowsAll) {
@@ -1156,9 +1210,9 @@ export async function fetchUktDashboardData(
   // Wave 1: events + dojos Prisma + period-meta prefix + event detail URL.
   // Prefix exam/waiver/deposit + fees global ditunda sampai tahu periode kosong /
   // snapshot biaya tersedia (hemat RTT saat 0 peserta).
-  const [eventsRes, dojosScoped, membersResult, eventDetailInitial, periodMetaRowsAll] =
+  const [eventsData, dojosScoped, membersResult, eventDetailInitial, periodMetaRowsAll] =
     await Promise.all([
-      inkaiFetch("/v1/events?limit=200", {}, token, UKT_DASH_INKAI),
+      fetchUktEventsCached(token, UKT_DASH_INKAI),
       fetchAdminDojosScopedCached(user),
       membersPromise,
       periodFromUrl
@@ -1185,11 +1239,7 @@ export async function fetchUktDashboardData(
     }
   }
 
-  let periods = eventsRes.res.ok
-    ? filterUktEvents((eventsRes.data.data as Array<Record<string, unknown>>) ?? []).map((p) =>
-        periodOptionFromEvent(p),
-      )
-    : [];
+  let periods = filterUktEvents(eventsData).map((p) => periodOptionFromEvent(p));
 
   const periodMetaRows = periodMetaRowsAll;
   const metaByPeriodId = new Map<string, UktPeriodMeta>();
@@ -1319,7 +1369,7 @@ export async function fetchUktDashboardData(
     (inkaiRegCount === 0 && prismaRegCount === 0);
 
   const [
-    feesRes,
+    feesData,
     komisiRanting,
     billingsRes,
     pendingVerificationsRes,
@@ -1330,15 +1380,10 @@ export async function fetchUktDashboardData(
     depositSettings,
   ] = await Promise.all([
     needGlobalFees
-      ? inkaiFetch(
-          "/v1/events/rank-fee-templates",
-          {},
-          token,
-          UKT_DASH_INKAI,
-        )
-      : skippedFetch,
+      ? fetchBeltFeesTemplatesCached(token, UKT_DASH_INKAI)
+      : Promise.resolve([] as Array<{ rankName: string; fee: number }>),
     needGlobalFees
-      ? fetchUktKomisiRanting(
+      ? fetchUktKomisiRantingCached(
           token,
           UKT_KOMISI_SETTING_KEY,
           DEFAULT_KOMISI_RANTING,
@@ -1407,11 +1452,7 @@ export async function fetchUktDashboardData(
   const waiverMap = selectedPeriodId
     ? buildUktWaiverMap(waiverSettings, selectedPeriodId)
     : new Map<string, UktRegistrationWaiver>();
-  const beltFeesGlobal = feesRes.res.ok
-    ? beltFeesFromTemplates(
-        (feesRes.data.data as Array<{ rankName: string; fee: number }>) ?? [],
-      )
-    : beltFeesFromTemplates([]);
+  const beltFeesGlobal = beltFeesFromTemplates(feesData);
 
   const resolvedFees = resolveUktPeriodFees(
     beltFeesGlobal,

@@ -889,6 +889,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 26 Juli 2026 | Optimasi UX Snappy UKT: router.refresh() dicabut dari perubahan status setoran (deposit) dan pengecualian (waiver) di UktDashboard, murni menggunakan requestServerRowsSync client-side |
 | 26 Juli 2026 | UKT Dialog: Native window.confirm pada tolak pengajuan UKT diganti menjadi komponen Dialog Tailwind/Shadcn UI yang elegan |
 | 26 Juli 2026 | Setup Playwright untuk E2E testing (package.json, playwright.config.ts, dan tests/e2e/example.spec.ts) |
+| 26 Juli 2026 | Optimasi pemuatan halaman UKT: Caching jangka pendek (60 dtk) menggunakan `unstable_cache` untuk data statis (event list, fees templates, komisi) |
 
 ---
 
