@@ -105,19 +105,19 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Fungsi |
 |-------|--------|
 | Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda); **dual-role: menu Dashboard Anggota**; **topbar chip kegiatan Masih terbuka** (pulse + rotasi judul + panel) |
-| Kelola Anggota | Cari **autocomplete** (nama/NIA/**MSH**); kolom **No**; **sort kolom** (NIA, Nama, Sabuk, Status, Dojo, Terdaftar — ikon naik/turun, server-side); KPI status + **Dok. kurang** + **Tanpa NIA**; **cabang edit Nama** inline (`set_name`) + **Dokumen** (tombol Ubah di kolom); **ranting edit Nama/Dokumen hanya di detail**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **No. MSH** (Hitam/DAN — kolom + edit ranting/cabang `set_msh` di detail); **Terdaftar**; **edit Iuran/bln**; **pengecualian iuran (event/UKT)**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV (+ No. MSH); arsip; Prisma scoped (+ **anggota luar Surabaya / ranting arsip** tetap terlihat); filter client-side; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50); detail: **username login dari Prisma** (bukan hint palsu); **Reset password** sementara (ranting/cabang) |
-| Iuran Anggota | **Rekening koran per anggota** (tabel: No, Nama, NIA, Ranting, Iuran/bln, Status bulan, Tunggakan, Aging, **Pengecualian**); klik nama → Sheet **Pengaturan / Mutasi / Pembayaran**; strip antrian verifikasi; generate bulan; export rekap CSV; deep-link `?memberId=&tab=` |
+| Kelola Anggota | Cari **autocomplete** (nama/NIA/**MSH**); kolom **No**; **sort kolom** (NIA, Nama, Sabuk, Status, Dojo, Terdaftar — ikon naik/turun, server-side); KPI status + **Dok. kurang** + **Tanpa NIA**; **cabang edit Nama** inline (`set_name`) + **Dokumen** (tombol Ubah di kolom); **ranting edit Nama/Dokumen hanya di detail**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **No. MSH** (Hitam/DAN — kolom + edit ranting/cabang `set_msh` di detail); **Terdaftar**; **edit Iuran/bln**; **pengecualian iuran (event/UKT)**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV (+ No. MSH); arsip; Prisma scoped (+ **anggota luar Surabaya / ranting arsip** tetap terlihat); **filter/switcher client-fetch** (`counts=1` hanya ganti dojo); mutasi tanpa `router.refresh`; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50); detail: **username login dari Prisma** (bukan hint palsu); **Reset password** sementara (ranting/cabang) |
+| Iuran Anggota | **Rekening koran per anggota** (tabel: No, Nama, NIA, Ranting, Iuran/bln, Status bulan, Tunggakan, Aging, **Pengecualian**); **filter + DojoContextSwitcher client-fetch** (`GET /api/admin/iuran/ledger` + `replaceState`, tanpa full RSC); klik nama → Sheet **Pengaturan / Mutasi / Pembayaran**; strip antrian verifikasi; generate bulan; export rekap CSV; deep-link `?memberId=&tab=` |
 | UKT | Nav grup **Pendaftaran** (`/admin/ukt`) + **Arsip UKT** (`/admin/ukt/arsip`); **registrants-first** (peserta terdaftar; Belum Daftar via suggest+hydrate); **shell streaming**: header + semester/tahun tampil dulu, KPI/tabel Suspense menyusul; periode aktif, **sort kolom**, multi-select ranting, **filter Gabungan multi-ranting**, bayar→verifikasi cabang, sabuk target, nota, **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya); **toolbar atas sticky**; **ranting: Daftar/Batal/Bayar + toolbar Laporan WA, Salin/WA Undangan & Cetak Nota**; cabang: **Hapus tagihan** terpisah dari hapus pendaftaran; **undangan portal** `/undangan/ukt/[periodId]` |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
 | Verifikasi | Antrian klaim + **filter tipe/aging**; riwayat |
-| Event & Kegiatan | Buat + **ubah/tutup** event non-UKT + **roster pendaftar**; link UKT |
+| Event & Kegiatan | Buat + **ubah/tutup** event non-UKT + **roster pendaftar**; link UKT; **mutasi update state lokal** (tanpa `router.refresh`) |
 | Materi Digital | CRUD + **upload Blob** + **publish/draft** |
 | Store | CRUD produk (**edit/stok/aktif**) + status pesanan berlabel ID |
 | Pesan | Inbox + unread badge, cari, balas, **broadcast notifikasi** |
-| Absensi | **Progress** tabel klik→Sheet + harian + belum hadir; **tab client instan** (tanpa delay navigasi); export; soft-backfill menu ranting |
+| Absensi | **Progress** tabel klik→Sheet + harian + belum hadir; **tab client instan**; **filter tanggal/semester client-fetch** (`GET /api/admin/absensi` + `replaceState`); export; soft-backfill menu ranting |
 | Carousel Beranda | Upload gambar + aktif + **urutkan** (Prisma lokal; cabang) |
 | Apresiasi | CRUD kenangan & prestasi publik (`AppreciationEntry`); edit dialog + rapikan ringkasan; cabang saja |
-| Log Audit | Filter aksi/cari + **export CSV** (pusat) |
+| Log Audit | Filter aksi/cari + **export CSV** (pusat); fetch awal **100** log (bukan 300) + pagination client |
 | Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; **cabut sesi / kunci / buka kunci**; **ambil alih (Mode A)** pusat/cabang; ranting tidak akses |
 | Notifikasi | Inbox admin (ada di nav); **ranting: rantingnya + ops cabang**; field `audience`; tanpa notif pribadi anggota; cabang lihat semua ranting |
 | Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; panel Akun: **Jadikan admin ranting** (email anggota existing → dual-role) + **centang hak akses** (edit profil, CRUD, menu sidebar); **Pengaturan Cabang** mendukung **Jadikan admin cabang** dari akun existing (mis. ketua cabang) tanpa akun baru + badge **Admin + Anggota / Admin saja**; admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, **Pengaturan UKT (syarat daftar)**, peran (**preset**), geofencing (**pratinjau peta**), akun; **arsip cabang: Pulihkan + Hapus permanen** (ditolak jika masih ada anggota / cabang SURABAYA) |
@@ -298,12 +298,12 @@ Pusat / Nasional
 | Pengaturan wilayah | Lengkap | Multi-akun satu pintu, jabatan, PIC, serah terima; **email/password PIC** di form Ubah Data ranting (cabang); admin ranting ubah email/password di **Akun Saya** (email bisa diedit); geofence + **pratinjau peta OSM**; degradasi username login: klasifikasi pool vs error lain, KPI/filter aman saat DB gagal; **multi-ranting per akun** (`AppSetting` + context switcher); **promote akun existing ke admin cabang** (dual-role anggota + admin cabang) + badge tipe akun; arsip cabang **hapus permanen** (`permanent` pada DELETE cabang) |
 | Lapor setor iuran (anggota) | Aktif | `/dashboard/iuran` + `PATCH /api/member/billing/[id]` (tgl + nominal = tagihan; tanpa bukti TF) |
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` streaming + GPS multi-lokasi + biometrik + `/api/member/attendance/checkin` |
-| Absensi admin | Aktif | Progress tabel+Sheet detail, harian, belum hadir; **DOM ≤ pageSize 25/50/100**; export CSV; tab client instan |
+| Absensi admin | Aktif | Progress tabel+Sheet detail, harian, belum hadir; **DOM ≤ pageSize 25/50/100**; export CSV; tab client instan; filter date/semester via `GET /api/admin/absensi` |
 | Iuran generate bulan | Aktif | `POST /api/admin/billing/generate` (+ rate limit) + UI Iuran |
 | Nav admin | Campuran | Top-level: Iuran, Event, Absensi; **UKT** sebagai grup (Pendaftaran + Arsip UKT); grup: Keanggotaan / Konten / Sistem + badge unread pesan |
 | Deteksi duplikat anggota | Aktif | Keras: NIK / NIA / nama+TTL (termasuk arsip untuk NIK/NIA); lunak: nama; admin create melepas NIA/NIK arsip bila hanya bentrok nomor; blok create admin & daftar publik; UI peringatan |
 | Gabungkan duplikat | Aktif | Ranting/cabang: pindahkan akun login + riwayat ke data operasional; arsipkan duplikat |
-| Audit admin | Aktif | Filter + preset **Keamanan** (`SECURITY_*`/IMPERSONATE/upload/broadcast) + pagination client (25/50/100) + export CSV di `/admin/audit`; hapus jejak iuran lokal menolak `SECURITY_*` |
+| Audit admin | Aktif | Filter + preset **Keamanan** (`SECURITY_*`/IMPERSONATE/upload/broadcast) + pagination client (25/50/100) + fetch awal 100 log + export CSV di `/admin/audit`; hapus jejak iuran lokal menolak `SECURITY_*` |
 | Kehadiran akun | Aktif | `/admin/online` — pusat & cabang; heartbeat `/api/presence`; Redis opsional + DB fallback; jejak `UserSession`; **cabut sesi / kunci akun**; **impersonasi Mode A** (`inkai_impersonation` cookie) |
 | Nominal UKT | Tanpa kode unik | Frontend tidak menulis `uniqueTail`; tampilan pakai `uktBaseFeeAmount` (+ strip data lama). Sinkron backend Inkai (opsional) |
 | Unduh PDF UKT | Aktif | Tombol **Unduh PDF** di nota & export peserta (jspdf+html2canvas); Print tetap ada |
@@ -372,9 +372,11 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/billing/[id]     Edit tagihan, **submit_for_verification** (ranting→Menunggu Verifikasi), verifikasi/tandai lunas, **hapus** (ranting/cabang; force lunas = cabang; fallback Prisma bila API gagal)
 /api/admin/billing/generate Buat tagihan iuran bulanan massal
 /api/admin/billing/bulk-mark-paid  Lunas tunai massal per periode (memberIds + year/month)
+/api/admin/iuran/ledger        GET indeks ledger iuran (filter/paging/KPI) untuk client-fetch admin
 /api/admin/iuran/members/[id]  Detail rekening iuran anggota (profil + mutasi bulanan + summary tunggakan + jejak aksi; scoped RBAC)
 /api/admin/iuran/members/[id]/report-setor  Ranting/cabang catat setor periode (selaras lapor anggota)
 /api/admin/iuran/audit/[id]    DELETE jejak aksi lokal rekening iuran (ranting/cabang, scoped member)
+/api/admin/absensi             GET payload absensi admin (harian/semester/progress) untuk client refetch filter
 /api/admin/ukt/registrations/[id]  Update/hapus pendaftaran UKT (`submit_for_verification` / `mark_paid` / Kyu; cabang force hapus: API lalu fallback Prisma shared DB); kunci periode (`assertUktPeriodMutable`) di PATCH & DELETE
 /api/admin/ukt/table        Refresh cepat tabel UKT (snapshot registrasi/tagihan periode, merge ke rows lokal); read-only, tanpa side-effect write; `maxDuration=15`
 /api/admin/ukt/members      GET detail 1 anggota (+ `?periodId=` hydrate baris Belum Daftar / `uktRow`) — scoped `buildMemberFilter`/allowlist ranting sebelum fetch Inkai (403 di luar cakupan)
@@ -890,6 +892,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 26 Juli 2026 | UKT Dialog: Native window.confirm pada tolak pengajuan UKT diganti menjadi komponen Dialog Tailwind/Shadcn UI yang elegan |
 | 26 Juli 2026 | Setup Playwright untuk E2E testing (package.json, playwright.config.ts, dan tests/e2e/example.spec.ts) |
 | 26 Juli 2026 | Optimasi pemuatan halaman UKT: Caching jangka pendek (60 dtk) menggunakan `unstable_cache` untuk data statis (event list, fees templates, komisi) |
+| 30 Juli 2026 | **Admin UX snappy end-to-end:** login/switch akun tanpa `router.refresh`; dashboard dedupe unread pesan; account-peers lazy; Anggota/Iuran client-fetch + DojoContextSwitcher `onChange`; Absensi filter date/semester via `GET /api/admin/absensi`; Iuran `GET /api/admin/iuran/ledger`; hapus refresh pasca-mutasi (UKT/verifikasi/dialog/kegiatan); audit fetch 100; Suspense pengaturan hub/kebijakan/UKT; Prisma cabang/ranting paralel; SettingsSearchForm `replace` |
 
 ---
 

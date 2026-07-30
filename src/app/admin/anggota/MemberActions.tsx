@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { MoreHorizontal, UserMinus, UserCheck, Trash2, ArchiveRestore } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,7 +66,6 @@ export function MemberActions({
   impact?: MemberImpactSummary | null;
   onSuccess?: () => void;
 }) {
-  const router = useRouter();
   const [niaInput, setNiaInput] = useState(nia || "");
   const [loading, setLoading] = useState(false);
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
@@ -151,8 +149,6 @@ export function MemberActions({
       showSuccess(data.message || "Aksi berhasil disimpan");
       setConfirmKind(null);
       onSuccess?.();
-      // Hindari double reload: caller dengan onSuccess mengurus daftar sendiri.
-      if (!onSuccess) router.refresh();
     } else {
       const msg =
         (typeof data.error === "string" && data.error) ||

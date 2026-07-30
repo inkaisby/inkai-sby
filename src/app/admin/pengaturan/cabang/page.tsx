@@ -74,47 +74,80 @@ async function PengaturanCabangContent({
     name: string;
     province: { name: string } | null;
   }> = [];
+  let primaryByBranch = new Map<string, string>();
 
   if (branchIds.length) {
-    const adminsResult = await withPrismaFallback(
-      "pengaturan-cabang-admins",
-      () =>
-        prisma.user.findMany({
-          where: {
-            isDeleted: false,
-            managedBranchId: { in: branchIds },
-            roles: { some: { name: "ADMIN_BRANCH" } },
-          },
-          select: { email: true, isActive: true, managedBranchId: true },
-          orderBy: [{ isActive: "desc" }, { email: "asc" }],
-        }),
-      [] as AdminRow[],
-    );
+    const [adminsResult, archivedResult, primaryResult] = await Promise.all([
+      withPrismaFallback(
+        "pengaturan-cabang-admins",
+        () =>
+          prisma.user.findMany({
+            where: {
+              isDeleted: false,
+              managedBranchId: { in: branchIds },
+              roles: { some: { name: "ADMIN_BRANCH" } },
+            },
+            select: { email: true, isActive: true, managedBranchId: true },
+            orderBy: [{ isActive: "desc" }, { email: "asc" }],
+          }),
+        [] as AdminRow[],
+      ),
+      withPrismaFallback(
+        "pengaturan-cabang-archived",
+        () =>
+          prisma.branch.findMany({
+            where: { isDeleted: true },
+            select: {
+              id: true,
+              name: true,
+              province: { select: { name: true } },
+            },
+            orderBy: { name: "asc" },
+            take: 50,
+          }),
+        [] as Array<{
+          id: string;
+          name: string;
+          province: { name: string } | null;
+        }>,
+      ),
+      withPrismaFallback(
+        "pengaturan-cabang-primary",
+        () =>
+          loadPrimaryEmailsByWilayah({
+            scope: "branch",
+            wilayahIds: branchIds,
+          }),
+        new Map<string, string>(),
+      ),
+    ]);
     admins = adminsResult.data;
     adminLoadFailed = adminsResult.failed;
     adminLoadError = adminsResult.error;
+    archivedBranches = archivedResult.data;
+    primaryByBranch = primaryResult.data;
+  } else {
+    const archivedResult = await withPrismaFallback(
+      "pengaturan-cabang-archived",
+      () =>
+        prisma.branch.findMany({
+          where: { isDeleted: true },
+          select: {
+            id: true,
+            name: true,
+            province: { select: { name: true } },
+          },
+          orderBy: { name: "asc" },
+          take: 50,
+        }),
+      [] as Array<{
+        id: string;
+        name: string;
+        province: { name: string } | null;
+      }>,
+    );
+    archivedBranches = archivedResult.data;
   }
-
-  const archivedResult = await withPrismaFallback(
-    "pengaturan-cabang-archived",
-    () =>
-      prisma.branch.findMany({
-        where: { isDeleted: true },
-        select: {
-          id: true,
-          name: true,
-          province: { select: { name: true } },
-        },
-        orderBy: { name: "asc" },
-        take: 50,
-      }),
-    [] as Array<{
-      id: string;
-      name: string;
-      province: { name: string } | null;
-    }>,
-  );
-  archivedBranches = archivedResult.data;
 
   const warning = orgLoadFailed
     ? "Data organisasi belum berhasil dimuat (API sibuk/timeout). Tekan refresh sebentar lagi."
@@ -131,17 +164,6 @@ async function PengaturanCabangContent({
     list.push({ email: a.email, isActive: a.isActive });
     adminsByBranch.set(a.managedBranchId, list);
   }
-
-  const primaryResult = await withPrismaFallback(
-    "pengaturan-cabang-primary",
-    () =>
-      loadPrimaryEmailsByWilayah({
-        scope: "branch",
-        wilayahIds: branchIds,
-      }),
-    new Map<string, string>(),
-  );
-  const primaryByBranch = primaryResult.data;
 
   const mapped = branches.map((b) => {
     const id = String(b.id);

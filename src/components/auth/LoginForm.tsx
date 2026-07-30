@@ -72,7 +72,6 @@ function LoginFormInner({
 
     onSuccess?.();
     router.push(destination);
-    router.refresh();
   }
 
   const loading = phase !== "idle";

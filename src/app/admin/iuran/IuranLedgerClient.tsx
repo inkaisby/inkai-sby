@@ -73,6 +73,8 @@ export function IuranLedgerClient({
   periodKey,
   initialMemberId,
   initialTab,
+  onLedgerChanged,
+  onPageNavigate,
 }: {
   rows: IuranLedgerMemberRow[];
   total: number;
@@ -85,6 +87,8 @@ export function IuranLedgerClient({
   periodKey: string;
   initialMemberId?: string;
   initialTab?: string;
+  onLedgerChanged?: () => void;
+  onPageNavigate?: (href: string) => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -505,6 +509,10 @@ export function IuranLedgerClient({
             pageSizeOptions={[25, 50, 100]}
             baseParams={paginationParams}
             onNavigate={(href) => {
+              if (onPageNavigate) {
+                onPageNavigate(href);
+                return;
+              }
               startTransition(() => router.push(href));
             }}
           />

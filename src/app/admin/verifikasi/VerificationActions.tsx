@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, startTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +17,6 @@ export function VerificationActions({
   type?: string;
   nameHint?: string | null;
 }) {
-  const router = useRouter();
   const hideCard = useOptimisticHide();
   const [notes, setNotes] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -49,7 +47,6 @@ export function VerificationActions({
     if (res.ok) {
       showSuccess(data.message || "Verifikasi berhasil disimpan");
       hideCard?.();
-      startTransition(() => router.refresh());
     } else {
       showError(data.error || "Gagal memproses verifikasi");
     }
@@ -85,7 +82,6 @@ export function VerificationActions({
       setNewPassword("");
       setConfirmPassword("");
       hideCard?.();
-      startTransition(() => router.refresh());
     } else {
       showError(data.error || "Gagal mengubah password");
     }

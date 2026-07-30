@@ -48,6 +48,7 @@ export function AnggotaAddButton({
         defaultDojoId={defaultDojoId}
         lockDojo={lockDojo}
         apiPath="/api/admin/members"
+        onSuccess={onMembersChanged}
       />
       <AddMembersBulkDialog
         open={bulkOpen}

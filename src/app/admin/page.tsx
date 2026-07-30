@@ -7,7 +7,6 @@ import {
 } from "@/lib/rbac";
 import { fetchAdminDashboardBundle } from "@/lib/inkai-api/admin-data";
 import { requireAdminSession } from "@/lib/admin-session";
-import { getCachedAdminUnreadPesan } from "@/lib/admin-pesan-unread";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,10 +65,7 @@ async function AdminDashboardContent() {
   let unreadPesan = 0;
 
   try {
-    const [bundle, unreadPesanCount] = await Promise.all([
-      fetchAdminDashboardBundle(token, user),
-      getCachedAdminUnreadPesan(session.user.id),
-    ]);
+    const bundle = await fetchAdminDashboardBundle(token, user);
 
     totalMembers = Number(bundle.stats?.totalMembers ?? 0);
     totalDojos = Number(bundle.stats?.totalDojos ?? 0);
@@ -81,7 +77,8 @@ async function AdminDashboardContent() {
     upcomingEvents = bundle.upcomingEvents;
     recentNotifications = bundle.notifications.items;
     unreadNotifications = bundle.notifications.unread;
-    unreadPesan = unreadPesanCount;
+    // Badge unread pesan sudah di layout admin (nav sidebar).
+    unreadPesan = 0;
   } catch (error) {
     console.error("[AdminDashboard] API error:", error);
   }
@@ -116,8 +113,8 @@ async function AdminDashboardContent() {
       show: true,
     },
     {
-      label: "Pesan Belum Dibaca",
-      value: unreadPesan,
+      label: "Pesan",
+      value: "→",
       icon: MessageSquare,
       href: "/admin/pesan",
       show: true,

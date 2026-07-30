@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { SidebarNavLink } from "@/components/layout/SidebarNavLink";
 import { useNavigation } from "@/components/layout/NavigationProvider";
@@ -48,6 +48,7 @@ export function UserMenu({
   const [switchPrefill, setSwitchPrefill] = useState("");
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [peers, setPeers] = useState<PeerAccount[]>([]);
+  const [peersLoaded, setPeersLoaded] = useState(false);
   const { startNavigation } = useNavigation();
 
   const initials = name
@@ -63,28 +64,24 @@ export function UserMenu({
     if (email) rememberSwitchAccount(email);
   }, [email]);
 
-  useEffect(() => {
-    if (!showAdmin) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/admin/account-peers", {
-          cache: "no-store",
-        });
-        const data = (await res.json().catch(() => ({}))) as {
-          peers?: PeerAccount[];
-        };
-        if (!cancelled && res.ok) {
-          setPeers(data.peers ?? []);
-        }
-      } catch {
-        if (!cancelled) setPeers([]);
+  const loadPeers = useCallback(async () => {
+    if (!showAdmin || peersLoaded) return;
+    try {
+      const res = await fetch("/api/admin/account-peers", {
+        cache: "no-store",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        peers?: PeerAccount[];
+      };
+      if (res.ok) {
+        setPeers(data.peers ?? []);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [showAdmin, email]);
+    } catch {
+      setPeers([]);
+    } finally {
+      setPeersLoaded(true);
+    }
+  }, [showAdmin, peersLoaded]);
 
   /** Hanya akun yang berbagi kelola ranting (dari pengaturan), bukan riwayat ganti akun. */
   const linkedEmails = useMemo(() => {
@@ -114,7 +111,7 @@ export function UserMenu({
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu onOpenChange={(open) => { if (open) void loadPeers(); }}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"

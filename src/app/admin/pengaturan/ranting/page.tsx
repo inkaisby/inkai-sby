@@ -139,55 +139,91 @@ async function PengaturanRantingContent({
     name: string;
     branch: { name: string } | null;
   }> = [];
+  let primaryByDojo = new Map<string, string>();
 
-  if (dojoIds.length) {
-    const adminsResult = await withPrismaFallback(
-      "pengaturan-ranting-admins",
-      () =>
-        prisma.user.findMany({
-          where: {
-            isDeleted: false,
-            managedDojoId: { in: dojoIds },
-            roles: { some: { name: "ADMIN_DOJO" } },
-          },
-          select: {
-            email: true,
-            isActive: true,
-            managedDojoId: true,
-          },
-        }),
-      [] as AdminRow[],
-    );
-    admins = adminsResult.data;
-    adminLoadFailed = adminsResult.failed;
-    adminLoadError = adminsResult.error;
-  }
+  const adminsPromise = dojoIds.length
+    ? withPrismaFallback(
+        "pengaturan-ranting-admins",
+        () =>
+          prisma.user.findMany({
+            where: {
+              isDeleted: false,
+              managedDojoId: { in: dojoIds },
+              roles: { some: { name: "ADMIN_DOJO" } },
+            },
+            select: {
+              email: true,
+              isActive: true,
+              managedDojoId: true,
+            },
+          }),
+        [] as AdminRow[],
+      )
+    : Promise.resolve({
+        data: [] as AdminRow[],
+        failed: false,
+        error: undefined as unknown,
+      });
 
-  if (!selfManagedOnly) {
-    const archivedResult = await withPrismaFallback(
-      "pengaturan-ranting-archived",
-      () =>
-        prisma.dojo.findMany({
-          where: {
-            isDeleted: true,
-            ...(lockedBranchId ? { branchId: lockedBranchId } : {}),
-          },
-          select: {
-            id: true,
-            name: true,
-            branch: { select: { name: true } },
-          },
-          orderBy: { name: "asc" },
-          take: 50,
-        }),
-      [] as Array<{
-        id: string;
-        name: string;
-        branch: { name: string } | null;
-      }>,
-    );
-    archivedDojos = archivedResult.data;
-  }
+  const archivedPromise = !selfManagedOnly
+    ? withPrismaFallback(
+        "pengaturan-ranting-archived",
+        () =>
+          prisma.dojo.findMany({
+            where: {
+              isDeleted: true,
+              ...(lockedBranchId ? { branchId: lockedBranchId } : {}),
+            },
+            select: {
+              id: true,
+              name: true,
+              branch: { select: { name: true } },
+            },
+            orderBy: { name: "asc" },
+            take: 50,
+          }),
+        [] as Array<{
+          id: string;
+          name: string;
+          branch: { name: string } | null;
+        }>,
+      )
+    : Promise.resolve({
+        data: [] as Array<{
+          id: string;
+          name: string;
+          branch: { name: string } | null;
+        }>,
+        failed: false,
+        error: undefined as unknown,
+      });
+
+  const primaryPromise = dojoIds.length
+    ? withPrismaFallback(
+        "pengaturan-ranting-primary",
+        () =>
+          loadPrimaryEmailsByWilayah({
+            scope: "dojo",
+            wilayahIds: dojoIds,
+          }),
+        new Map<string, string>(),
+      )
+    : Promise.resolve({
+        data: new Map<string, string>(),
+        failed: false,
+        error: undefined as unknown,
+      });
+
+  const [adminsResult, archivedResult, primaryResult] = await Promise.all([
+    adminsPromise,
+    archivedPromise,
+    primaryPromise,
+  ]);
+  admins = adminsResult.data;
+  adminLoadFailed = adminsResult.failed;
+  adminLoadError = adminsResult.error;
+  archivedDojos = archivedResult.data;
+  primaryByDojo = primaryResult.data;
 
   const warning =
     loadPartial === "org"
@@ -206,17 +242,6 @@ async function PengaturanRantingContent({
     list.push({ email: a.email, isActive: a.isActive });
     adminsByDojo.set(a.managedDojoId, list);
   }
-
-  const primaryResult = await withPrismaFallback(
-    "pengaturan-ranting-primary",
-    () =>
-      loadPrimaryEmailsByWilayah({
-        scope: "dojo",
-        wilayahIds: dojoIds,
-      }),
-    new Map<string, string>(),
-  );
-  const primaryByDojo = primaryResult.data;
 
   const mapped = scopedDojos.map((d) => {
     const branch = d.branch as { id?: string; name?: string } | undefined;

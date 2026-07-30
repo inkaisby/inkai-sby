@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { requireAdminSession } from "@/lib/admin-session";
 import {
   SETTINGS_GROUP_LABELS,
@@ -33,10 +34,19 @@ import {
 import { DojoPengaturanContent } from "./DojoPengaturanContent";
 import { WilayahPermissionsMatrix } from "@/components/admin/WilayahPermissionsMatrix";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
 
-export default async function PengaturanHubPage() {
+export default function PengaturanHubPage() {
+  return (
+    <Suspense fallback={<AdminPageLoader rows={5} />}>
+      <PengaturanHubGate />
+    </Suspense>
+  );
+}
+
+async function PengaturanHubGate() {
   const { user } = await requireAdminSession();
   const role = getPrimaryAdminRole(user.roles);
 

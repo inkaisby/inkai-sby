@@ -142,9 +142,7 @@ export function SwitchAccountModal({
 
       if (targetPath !== fullCurrentPath) {
         router.push(targetPath);
-        router.refresh();
       } else {
-        router.refresh();
         window.setTimeout(() => resetForm(), 350);
       }
     } catch {

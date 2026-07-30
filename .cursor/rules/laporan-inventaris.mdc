@@ -24,6 +24,14 @@ Perbarui inventaris **pada turn yang sama** dengan perubahan kode:
 - Peta API (§13) jika endpoint baru/berubah
 - **Riwayat penyusunan (§15)** — tambah baris tanggal + ringkasan singkat
 
+## Efisiensi Token AI (SANGAT PENTING)
+
+Mengingat `LAPORAN-INVENTARIS-SISTEM.md` berukuran besar (>120 KB), wajib mengikuti aturan berikut untuk menghemat token:
+
+1. **Gunakan Range Baris**: JANGAN membaca seluruh berkas ini sekaligus. Gunakan `view_file` dengan range baris (`StartLine` & `EndLine`) hanya pada bagian/seksi (§) yang ingin dibaca.
+2. **Gunakan Pencarian (Grep)**: Gunakan `grep_search` untuk mencari kata kunci (misal nama modul atau API) sebelum membaca file untuk menemukan nomor baris yang tepat.
+3. **Pembaruan Parsial**: Selalu gunakan tool `replace_file_content` atau `multi_replace_file_content` untuk memperbarui inventaris pada baris/seksi tertentu saja. JANGAN menulis ulang atau menimpa seluruh isi berkas.
+
 ## Jangan
 
 - Jangan membuat dokumen inventaris baru; edit file yang sudah ada

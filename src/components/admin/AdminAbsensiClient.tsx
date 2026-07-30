@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +11,7 @@ import {
   attendanceProgressLabel,
   UKT_SEMESTER_SESSION_TOTAL,
 } from "@/lib/ukt";
+import type { AbsensiClientPayload } from "@/lib/admin-absensi-data";
 import { cn } from "@/lib/utils";
 
 export type AbsensiView = "progress" | "harian" | "belum";
@@ -58,18 +58,84 @@ export function AdminAbsensiClient({
   year,
   q,
   presentCount,
-  dayLogs,
-  belumHadir,
-  progressRows,
+  dayLogs: initialDayLogs,
+  belumHadir: initialBelumHadir,
+  progressRows: initialProgressRows,
 }: Props) {
-  const router = useRouter();
   const [view, setView] = useState<AbsensiView>(initialView);
   const [query, setQuery] = useState(q);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-  const [isPending, startTransition] = useTransition();
+  const [dateStrState, setDateStrState] = useState(dateStr);
+  const [semesterState, setSemesterState] = useState(semester);
+  const [yearState, setYearState] = useState(year);
+  const [presentCountState, setPresentCountState] = useState(presentCount);
+  const [dayLogs, setDayLogs] = useState(initialDayLogs);
+  const [belumHadir, setBelumHadir] = useState(initialBelumHadir);
+  const [progressRows, setProgressRows] = useState(initialProgressRows);
+  const [loading, setLoading] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const semesterLabel = `Semester ${semester} ${year}`;
+  const semesterLabel = `Semester ${semesterState} ${yearState}`;
+
+  const applyPayload = useCallback((data: AbsensiClientPayload) => {
+    setDateStrState(data.dateStr);
+    setSemesterState(data.semester);
+    setYearState(data.year);
+    setPresentCountState(data.presentCount);
+    setDayLogs(data.dayLogs);
+    setBelumHadir(data.belumHadir);
+    setProgressRows(data.progressRows);
+  }, []);
+
+  const fetchAbsensi = useCallback(
+    async (opts: {
+      date: string;
+      semester: "I" | "II";
+      year: number;
+      q: string;
+      view: AbsensiView;
+    }) => {
+      abortRef.current?.abort();
+      const ac = new AbortController();
+      abortRef.current = ac;
+      setLoading(true);
+      try {
+        const qs = new URLSearchParams({
+          date: opts.date,
+          semester: opts.semester,
+          year: String(opts.year),
+        });
+        const res = await fetch(`/api/admin/absensi?${qs}`, {
+          signal: ac.signal,
+          cache: "no-store",
+        });
+        const data = (await res.json().catch(() => ({}))) as
+          | AbsensiClientPayload
+          | { error?: string };
+        if (!res.ok) throw new Error("error" in data ? data.error : "Gagal");
+        applyPayload(data as AbsensiClientPayload);
+        const params = new URLSearchParams();
+        params.set("view", opts.view);
+        params.set("date", opts.date);
+        params.set("semester", opts.semester);
+        params.set("year", String(opts.year));
+        if (opts.q.trim()) params.set("q", opts.q.trim());
+        window.history.replaceState(
+          null,
+          "",
+          `/admin/absensi?${params.toString()}`,
+        );
+      } catch (err) {
+        if (!ac.signal.aborted) {
+          console.error("[absensi-client]", err);
+        }
+      } finally {
+        if (!ac.signal.aborted) setLoading(false);
+      }
+    },
+    [applyPayload],
+  );
 
   const filterName = useCallback(
     (name: string, nia: string | null | undefined) => {
@@ -133,11 +199,10 @@ export function AdminAbsensiClient({
     setPage(1);
     const params = new URLSearchParams();
     params.set("view", next);
-    params.set("date", dateStr);
-    params.set("semester", semester);
-    params.set("year", String(year));
+    params.set("date", dateStrState);
+    params.set("semester", semesterState);
+    params.set("year", String(yearState));
     if (query.trim()) params.set("q", query.trim());
-    // Soft URL update — tanpa navigasi RSC / tanpa blank loader
     window.history.replaceState(null, "", `/admin/absensi?${params.toString()}`);
   }
 
@@ -145,44 +210,42 @@ export function AdminAbsensiClient({
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const nextQ = String(fd.get("q") || "").trim();
-    const nextDate = String(fd.get("date") || dateStr);
-    const nextSem = (String(fd.get("semester") || semester) === "II"
+    const nextDate = String(fd.get("date") || dateStrState);
+    const nextSem = (String(fd.get("semester") || semesterState) === "II"
       ? "II"
       : "I") as "I" | "II";
-    const nextYear = Number(fd.get("year") || year) || year;
+    const nextYear = Number(fd.get("year") || yearState) || yearState;
 
     setQuery(nextQ);
+    setPage(1);
 
-    // Semester/tahun/tanggal butuh refetch server; q saja cukup client filter
     const needsRefetch =
-      nextDate !== dateStr ||
-      nextSem !== semester ||
-      nextYear !== year;
+      nextDate !== dateStrState ||
+      nextSem !== semesterState ||
+      nextYear !== yearState;
 
     if (!needsRefetch) {
       const params = new URLSearchParams();
       params.set("view", view);
-      params.set("date", dateStr);
-      params.set("semester", semester);
-      params.set("year", String(year));
+      params.set("date", dateStrState);
+      params.set("semester", semesterState);
+      params.set("year", String(yearState));
       if (nextQ) params.set("q", nextQ);
       window.history.replaceState(null, "", `/admin/absensi?${params.toString()}`);
       return;
     }
 
-    const params = new URLSearchParams();
-    params.set("view", view);
-    params.set("date", nextDate);
-    params.set("semester", nextSem);
-    params.set("year", String(nextYear));
-    if (nextQ) params.set("q", nextQ);
-    startTransition(() => {
-      router.replace(`/admin/absensi?${params.toString()}`);
+    void fetchAbsensi({
+      date: nextDate,
+      semester: nextSem,
+      year: nextYear,
+      q: nextQ,
+      view,
     });
   }
 
   return (
-    <div className={cn(isPending && "opacity-70 pointer-events-none")}>
+    <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           {VIEWS.map((v) => (
@@ -202,7 +265,7 @@ export function AdminAbsensiClient({
         </div>
         {view === "harian" ? (
           <ExportCsvButton
-            filename={`absensi-${dateStr}.csv`}
+            filename={`absensi-${dateStrState}.csv`}
             headers={["Nama", "NIA", "Dojo", "Check-in", "Metode"]}
             rows={filteredDay.map((log) => [
               log.fullName,
@@ -214,7 +277,7 @@ export function AdminAbsensiClient({
           />
         ) : view === "belum" ? (
           <ExportCsvButton
-            filename={`absensi-belum-${dateStr}.csv`}
+            filename={`absensi-belum-${dateStrState}.csv`}
             headers={["Nama", "NIA", "Dojo"]}
             rows={filteredBelum.map((m) => [
               m.fullName,
@@ -224,7 +287,7 @@ export function AdminAbsensiClient({
           />
         ) : (
           <ExportCsvButton
-            filename={`absensi-progress-${semester}-${year}.csv`}
+            filename={`absensi-progress-${semesterState}-${yearState}.csv`}
             headers={["Nama", "NIA", "Dojo", "Hadir", "Persen", "Status"]}
             rows={filteredProgress.map((m) => [
               m.fullName,
@@ -246,7 +309,8 @@ export function AdminAbsensiClient({
           <Input
             name="date"
             type="date"
-            defaultValue={dateStr}
+            defaultValue={dateStrState}
+            key={`date-${dateStrState}`}
             className="h-10 w-full sm:h-8 sm:max-w-[180px] sm:w-auto"
           />
         ) : null}
@@ -254,7 +318,8 @@ export function AdminAbsensiClient({
           <>
             <select
               name="semester"
-              defaultValue={semester}
+              defaultValue={semesterState}
+              key={`sem-${semesterState}-${yearState}`}
               className="h-10 w-full rounded-lg border px-2 text-sm sm:h-8 sm:w-auto"
             >
               <option value="I">Semester I</option>
@@ -263,7 +328,8 @@ export function AdminAbsensiClient({
             <Input
               name="year"
               type="number"
-              defaultValue={year}
+              defaultValue={yearState}
+              key={`year-${yearState}`}
               className="h-10 w-full sm:h-8 sm:max-w-[100px] sm:w-auto"
             />
           </>
@@ -283,6 +349,12 @@ export function AdminAbsensiClient({
         </button>
       </form>
 
+      <div
+        className={cn(
+          loading ? "opacity-60 transition-opacity duration-150" : "",
+        )}
+        aria-busy={loading}
+      >
       {view === "progress" ? (
         <>
           <p className="mb-3 text-sm text-muted-foreground">
@@ -348,8 +420,10 @@ export function AdminAbsensiClient({
       {view === "belum" ? (
         <>
           <p className="mb-3 text-sm text-muted-foreground">
-            {filteredBelum.length} anggota aktif belum absen pada {dateStr}
-            {presentCount > 0 ? ` · ${presentCount} sudah hadir` : ""}
+            {filteredBelum.length} anggota aktif belum absen pada {dateStrState}
+            {presentCountState > 0
+              ? ` · ${presentCountState} sudah hadir`
+              : ""}
           </p>
           {filteredBelum.length === 0 ? (
             <Card>
@@ -386,6 +460,7 @@ export function AdminAbsensiClient({
           )}
         </>
       ) : null}
+      </div>
     </div>
   );
 }

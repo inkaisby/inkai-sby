@@ -1059,7 +1059,7 @@ export function UktDashboard(props: Props) {
         period: data.event?.id ?? "",
         create: "",
       });
-      router.refresh();
+      void requestServerRowsSync({ silent: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
@@ -1112,7 +1112,7 @@ export function UktDashboard(props: Props) {
           "/admin/ukt",
         );
       }
-      router.refresh();
+      void requestServerRowsSync({ silent: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
@@ -1210,7 +1210,6 @@ export function UktDashboard(props: Props) {
       }
       toast.success("Label periode diperbarui");
       setEditingTitle(false);
-      router.refresh();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
@@ -1305,7 +1304,7 @@ export function UktDashboard(props: Props) {
       if (!res.ok) throw new Error(data.error || "Gagal menyimpan jadwal pendaftaran");
       toast.success("Jadwal pendaftaran UKT diperbarui");
       setShowRegistrationDeadline(false);
-      router.refresh();
+      void requestServerRowsSync({ silent: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
     } finally {
@@ -1604,7 +1603,7 @@ export function UktDashboard(props: Props) {
         toast.success("Biaya sabuk global cabang disimpan");
       }
       setShowBeltFees(false);
-      router.refresh();
+      void requestServerRowsSync({ silent: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal menyimpan");
     } finally {

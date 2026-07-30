@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/admin-session";
 import { canManageKebijakan } from "@/lib/pengaturan";
@@ -7,10 +8,19 @@ import {
 } from "@/lib/org-settings";
 import { KebijakanManager } from "./KebijakanManager";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 
 export const dynamic = "force-dynamic";
 
-export default async function KebijakanPage() {
+export default function KebijakanPage() {
+  return (
+    <Suspense fallback={<AdminPageLoader rows={4} />}>
+      <KebijakanContent />
+    </Suspense>
+  );
+}
+
+async function KebijakanContent() {
   const { user } = await requireAdminSession();
   if (!canManageKebijakan(user)) redirect("/admin/pengaturan");
 

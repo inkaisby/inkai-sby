@@ -484,7 +484,6 @@ export function AddMembersBulkDialog({
         showSuccess(data.message || "Semua anggota berhasil ditambahkan");
         onOpenChange(false);
         onSuccess?.();
-        router.refresh();
       } else {
         showError(
           data.message ||
@@ -492,7 +491,6 @@ export function AddMembersBulkDialog({
         );
         if ((data.okCount ?? 0) > 0) {
           onSuccess?.();
-          router.refresh();
         }
       }
     } catch {

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -48,6 +47,7 @@ export function AddMemberDialog({
   defaultDojoId = "",
   lockDojo = false,
   apiPath = "/api/admin/members",
+  onSuccess,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -55,8 +55,8 @@ export function AddMemberDialog({
   defaultDojoId?: string;
   lockDojo?: boolean;
   apiPath?: string;
+  onSuccess?: () => void;
 }) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(() => emptyForm(defaultDojoId));
   const [suggestions, setSuggestions] = useState<MemberFormSuggestion[]>([]);
@@ -164,7 +164,7 @@ export function AddMemberDialog({
       }
       showSuccess("Anggota berhasil ditambahkan");
       onOpenChange(false);
-      router.refresh();
+      onSuccess?.();
     } catch {
       showError("Gagal menambahkan anggota");
     } finally {

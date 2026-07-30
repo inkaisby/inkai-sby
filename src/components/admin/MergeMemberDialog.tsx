@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -62,7 +61,6 @@ export function MergeMemberDialog({
   candidate: MergeCandidate | null;
   onMerged?: (keepMemberId: string) => void;
 }) {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [preferUserFrom, setPreferUserFrom] = useState<"keep" | "merge">("keep");
 
@@ -109,7 +107,6 @@ export function MergeMemberDialog({
       showSuccess(data.message || "Berhasil digabung");
       onOpenChange(false);
       onMerged?.(data.keepMemberId || keepId);
-      router.refresh();
     } catch {
       showError("Gagal menggabungkan");
     } finally {

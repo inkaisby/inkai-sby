@@ -17,12 +17,8 @@ import {
   parsePage,
   parsePageSize,
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
-import { DojoContextSwitcher } from "@/components/admin/DojoContextSwitcher";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
-import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { Input } from "@/components/ui/input";
-import { IuranOpsBar } from "./IuranOpsBar";
-import { IuranLedgerClient } from "./IuranLedgerClient";
+import { IuranBrowser } from "./IuranBrowser";
 
 export const dynamic = "force-dynamic";
 
@@ -40,10 +36,6 @@ type SearchParams = Promise<{
   memberId?: string;
   tab?: string;
 }>;
-
-function formatRp(n: number) {
-  return `Rp ${Math.round(n).toLocaleString("id-ID")}`;
-}
 
 export default function AdminIuranPage({
   searchParams,
@@ -88,184 +80,23 @@ async function AdminIuranContent({
     ? activeDojoId || ""
     : params.dojoId?.trim() || "";
 
-  const [defaults, dojos] = await Promise.all([
+  const [defaults, dojos, ledger] = await Promise.all([
     getOperationalDefaults(),
     fetchAdminDojosScopedCached(user),
+    getIuranMemberLedgerIndex(user, period, {
+      q,
+      dojoId: dojoId || undefined,
+      filter,
+      page,
+      pageSize,
+      sort,
+      sortDir,
+    }),
   ]);
 
   const switcherDojos = isDojoAdmin
     ? dojos.filter((d) => allowlist.includes(d.id))
     : dojos;
-
-  const baseParams: Record<string, string> = {
-    ...(q ? { q } : {}),
-    month: period.key,
-    ...(filter !== "all" ? { filter } : {}),
-    ...(dojoId ? { dojoId } : {}),
-    ...(sort !== "name" ? { sort } : {}),
-    ...(sortDir !== "asc" ? { sortDir } : {}),
-    ...(params.memberId ? { memberId: params.memberId } : {}),
-    ...(params.tab ? { tab: params.tab } : {}),
-  };
-
-  return (
-    <>
-      <AdminPageHeader
-        title="Iuran Anggota"
-        description={
-          <>
-            Rekening koran iuran per anggota · Periode {period.key}
-            <br />
-            {canEdit ? (
-              <span>
-                Klik nama anggota untuk pengaturan, mutasi, dan pembayaran.
-              </span>
-            ) : (
-              <span>Mode lihat saja — kelola iuran oleh ranting/cabang.</span>
-            )}
-          </>
-        }
-        actions={
-          switcherDojos.length > 1 ? (
-            <DojoContextSwitcher
-              dojos={switcherDojos.map((d) => ({ id: d.id, name: d.name }))}
-              value={dojoId}
-              label="Ranting"
-            />
-          ) : null
-        }
-      />
-
-      <form className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
-        <Input
-          name="q"
-          placeholder="Cari nama / NIA..."
-          defaultValue={q}
-          className="h-10 w-full sm:h-8 sm:max-w-xs sm:w-auto"
-        />
-        <Input
-          name="month"
-          type="month"
-          defaultValue={period.key}
-          className="h-10 w-full sm:h-8 sm:max-w-[160px] sm:w-auto"
-          title="Periode status bulan"
-        />
-        {!isDojoAdmin || switcherDojos.length > 1 ? (
-          <select
-            name="dojoId"
-            defaultValue={dojoId}
-            className="h-10 w-full rounded-lg border px-2 text-sm sm:h-8 sm:w-auto"
-          >
-            <option value="">Semua ranting</option>
-            {switcherDojos.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </select>
-        ) : null}
-        <select
-          name="filter"
-          defaultValue={filter}
-          className="h-10 w-full rounded-lg border px-2 text-sm sm:h-8 sm:w-auto"
-        >
-          <option value="all">Semua anggota</option>
-          <option value="arrears">Ada tunggakan</option>
-          <option value="waiting">Menunggu verifikasi</option>
-          <option value="paid">Lunas bulan ini</option>
-          <option value="nobill">Belum digenerate</option>
-          <option value="exempt">Pengecualian</option>
-        </select>
-        <select
-          name="sort"
-          defaultValue={sort}
-          className="h-10 w-full rounded-lg border px-2 text-sm sm:h-8 sm:w-auto"
-        >
-          <option value="name">Urut nama</option>
-          <option value="arrears">Urut tunggakan</option>
-          <option value="status">Urut status</option>
-        </select>
-        <select
-          name="sortDir"
-          defaultValue={sortDir}
-          className="h-10 w-full rounded-lg border px-2 text-sm sm:h-8 sm:w-auto"
-        >
-          <option value="asc">Naik</option>
-          <option value="desc">Turun</option>
-        </select>
-        <input type="hidden" name="pageSize" value={String(pageSize)} />
-        <button
-          type="submit"
-          className="h-10 rounded-lg bg-inkai-red px-4 text-sm text-white sm:h-8 sm:py-1.5"
-        >
-          Filter
-        </button>
-      </form>
-
-      {/* KPI + tabel dipisah ke Suspense sendiri: header/form di atas tampil
-          instan, sementara agregasi ledger (query terberat) masih streaming. */}
-      <Suspense fallback={<AdminPageLoader rows={6} />}>
-        <IuranLedgerSection
-          user={user}
-          period={period}
-          q={q}
-          dojoId={dojoId}
-          filter={filter}
-          page={page}
-          pageSize={pageSize}
-          sort={sort}
-          sortDir={sortDir}
-          canEdit={canEdit}
-          defaultDuesAmount={defaults.monthlyDuesAmount}
-          baseParams={baseParams}
-          initialMemberId={params.memberId?.trim() || undefined}
-          initialTab={params.tab?.trim() || undefined}
-        />
-      </Suspense>
-    </>
-  );
-}
-
-async function IuranLedgerSection({
-  user,
-  period,
-  q,
-  dojoId,
-  filter,
-  page,
-  pageSize,
-  sort,
-  sortDir,
-  canEdit,
-  defaultDuesAmount,
-  baseParams,
-  initialMemberId,
-  initialTab,
-}: {
-  user: Awaited<ReturnType<typeof requireAdminSession>>["user"];
-  period: ReturnType<typeof parsePeriod>;
-  q: string;
-  dojoId: string;
-  filter: string;
-  page: number;
-  pageSize: number;
-  sort: "name" | "arrears" | "status";
-  sortDir: "asc" | "desc";
-  canEdit: boolean;
-  defaultDuesAmount: number;
-  baseParams: Record<string, string>;
-  initialMemberId?: string;
-  initialTab?: string;
-}) {
-  const ledger = await getIuranMemberLedgerIndex(user, period, {
-    q,
-    dojoId: dojoId || undefined,
-    filter,
-    page,
-    pageSize,
-    sort,
-    sortDir,
-  });
 
   const exportRows = ledger.exportRows.map((r) => ({
     fullName: r.fullName,
@@ -280,51 +111,29 @@ async function IuranLedgerSection({
       : "Tidak",
   }));
 
-  const { kpis } = ledger;
-
   return (
-    <>
-      <div className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-        <KpiChip label="Tunggakan" value={formatRp(kpis.arrearsAmount)} />
-        <KpiChip label="Belum bayar" value={String(kpis.pendingCount)} />
-        <KpiChip label="Menunggu verifikasi" value={String(kpis.waitingCount)} />
-        <KpiChip
-          label={`Lunas ${period.key}`}
-          value={`${formatRp(kpis.paidMonthAmount)} (${kpis.paidMonthCount})`}
-        />
-        <KpiChip label="Pengecualian" value={String(kpis.exemptCount)} />
-        <KpiChip label="Belum digenerate" value={String(kpis.noBillCount)} />
-      </div>
-
-      <IuranOpsBar
-        canEdit={canEdit}
-        defaultAmount={defaultDuesAmount}
-        exportMode="members"
-        memberExportRows={exportRows}
-      />
-
-      <IuranLedgerClient
-        rows={ledger.rows}
-        total={ledger.total}
-        page={page}
-        pageSize={pageSize}
-        canEdit={canEdit}
-        defaultDuesAmount={defaultDuesAmount}
-        waitingQueue={ledger.waitingQueue}
-        baseParams={baseParams}
-        periodKey={period.key}
-        initialMemberId={initialMemberId}
-        initialTab={initialTab}
-      />
-    </>
-  );
-}
-
-function KpiChip({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-[132px] shrink-0 rounded-xl border bg-background px-3 py-2 sm:min-w-0">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="text-sm font-semibold tabular-nums">{value}</p>
-    </div>
+    <IuranBrowser
+      canEdit={canEdit}
+      isDojoAdmin={isDojoAdmin}
+      switcherDojos={switcherDojos.map((d) => ({ id: d.id, name: d.name }))}
+      initialFilters={{
+        q,
+        month: period.key,
+        dojoId,
+        filter,
+        sort,
+        sortDir,
+        page,
+        pageSize,
+      }}
+      initialRows={ledger.rows}
+      initialTotal={ledger.total}
+      initialKpis={ledger.kpis}
+      initialWaitingQueue={ledger.waitingQueue}
+      initialDefaultDuesAmount={defaults.monthlyDuesAmount}
+      initialExportRows={exportRows}
+      initialMemberId={params.memberId?.trim() || undefined}
+      initialTab={params.tab?.trim() || undefined}
+    />
   );
 }

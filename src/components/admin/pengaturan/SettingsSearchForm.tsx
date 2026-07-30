@@ -83,7 +83,7 @@ export function SettingsSearchForm({
       extraHidden,
     });
     startTransition(() => {
-      router.push(href);
+      router.replace(href, { scroll: false });
     });
   };
 

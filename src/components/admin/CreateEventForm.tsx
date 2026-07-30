@@ -1,14 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { Loader2, Plus } from "lucide-react";
 
-export function CreateEventForm({ canCreate }: { canCreate: boolean }) {
-  const router = useRouter();
+export function CreateEventForm({
+  canCreate,
+  onCreated,
+}: {
+  canCreate: boolean;
+  onCreated?: (event?: Record<string, unknown> | null) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
@@ -47,7 +51,11 @@ export function CreateEventForm({ canCreate }: { canCreate: boolean }) {
       setTitle("");
       setDescription("");
       setLocation("");
-      router.refresh();
+      onCreated?.(
+        data.event && typeof data.event === "object"
+          ? (data.event as Record<string, unknown>)
+          : null,
+      );
     } finally {
       setBusy(false);
     }

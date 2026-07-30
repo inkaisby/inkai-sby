@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +29,7 @@ export function EventAdminActions({
   endDate,
   canEdit,
   isUkt,
+  onChanged,
 }: {
   eventId: string;
   title: string;
@@ -38,8 +38,15 @@ export function EventAdminActions({
   endDate: string;
   canEdit: boolean;
   isUkt: boolean;
+  onChanged?: (
+    patch?: Partial<{
+      title: string;
+      location: string | null;
+      startDate: string;
+      endDate: string;
+    }> | { closed?: true },
+  ) => void;
 }) {
-  const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -69,7 +76,12 @@ export function EventAdminActions({
       }
       showSuccess(data.message || "Event diperbarui");
       setEditOpen(false);
-      router.refresh();
+      onChanged?.({
+        title: formTitle,
+        location: formLocation || null,
+        startDate: new Date(formStart).toISOString(),
+        endDate: new Date(formEnd).toISOString(),
+      });
     } finally {
       setBusy(false);
     }
@@ -90,7 +102,7 @@ export function EventAdminActions({
         return;
       }
       showSuccess(data.message || "Event ditutup");
-      router.refresh();
+      onChanged?.({ closed: true });
     } finally {
       setBusy(false);
     }
