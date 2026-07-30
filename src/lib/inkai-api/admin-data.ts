@@ -75,6 +75,9 @@ function listMetaTotal(data: Record<string, unknown>, fallback: number) {
   return meta.total ?? fallback;
 }
 
+/** Admin beranda — fail fast; don't burn ~24s on cold backend. */
+const HOME_INKAI = { timeoutMs: 8_000, retries: 0 } as const;
+
 function filterUktEvents(events: Array<Record<string, unknown>>) {
   return events.filter((e) => String(e.title).toUpperCase().includes("UKT"));
 }
@@ -490,26 +493,26 @@ export async function fetchAdminMembersForDojoIds(
 }
 
 export async function fetchDashboardStats(token: string) {
-  const { res, data } = await inkaiFetch("/v1/dashboard/stats", {}, token);
+  const { res, data } = await inkaiFetch("/v1/dashboard/stats", {}, token, HOME_INKAI);
   if (!res.ok) return null;
   return (data.data as Record<string, unknown>) ?? null;
 }
 
 export async function fetchRecentMembers(token: string) {
-  const { res, data } = await inkaiFetch("/v1/dashboard/recent-activities", {}, token);
+  const { res, data } = await inkaiFetch("/v1/dashboard/recent-activities", {}, token, HOME_INKAI);
   if (!res.ok) return [];
   return (data.data as AdminMemberRow[]) ?? [];
 }
 
 export async function fetchPendingMembersCount(token: string) {
-  const { res, data } = await inkaiFetch("/v1/members?status=PENDING&limit=1&page=1", {}, token);
+  const { res, data } = await inkaiFetch("/v1/members?status=PENDING&limit=1&page=1", {}, token, HOME_INKAI);
   if (!res.ok) return 0;
   const members = (data.data as unknown[]) ?? [];
   return listMetaTotal(data, members.length);
 }
 
 export async function fetchPendingVerificationsCount(token: string) {
-  const { res, data } = await inkaiFetch("/v1/verifications/pending?limit=1", {}, token);
+  const { res, data } = await inkaiFetch("/v1/verifications/pending?limit=1", {}, token, HOME_INKAI);
   if (!res.ok) return 0;
   const items = (data.data as unknown[]) ?? [];
   return listMetaTotal(data, items.length);
@@ -520,6 +523,7 @@ export async function fetchPendingBillingsCount(token: string) {
     "/v1/billing?status=WAITING_VERIFICATION&limit=1",
     {},
     token,
+    HOME_INKAI,
   );
   if (!res.ok) return 0;
   const items = (data.data as unknown[]) ?? [];
@@ -539,7 +543,7 @@ export async function fetchPendingBillings(token: string) {
 }
 
 export async function fetchUpcomingEvents(token: string, limit = 10) {
-  const { res, data } = await inkaiFetch(`/v1/events?limit=${limit + 10}`, {}, token);
+  const { res, data } = await inkaiFetch(`/v1/events?limit=${limit + 10}`, {}, token, HOME_INKAI);
   if (!res.ok) return [];
   const events = (data.data as Array<Record<string, unknown>>) ?? [];
   const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
@@ -557,6 +561,7 @@ export async function fetchMyNotifications(
     "/v1/notifications/my?limit=100",
     {},
     token,
+    HOME_INKAI,
   );
   if (!res.ok) return { items: [], unread: 0 };
   let items = (data.data as Array<Record<string, unknown>>) ?? [];

@@ -50,6 +50,16 @@ function LoginFormInner({
     return () => controller.abort();
   }, []);
 
+  function readEntryHint(): string | null {
+    if (typeof document === "undefined") return null;
+    const match = document.cookie.match(/(?:^|;\s*)inkai_entry=([^;]+)/);
+    if (!match?.[1]) return null;
+    const value = decodeURIComponent(match[1]);
+    if (value !== "/dashboard" && value !== "/admin") return null;
+    document.cookie = "inkai_entry=; Max-Age=0; path=/";
+    return value;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setPhase("signing-in");
@@ -74,9 +84,8 @@ function LoginFormInner({
 
     setPhase("entering");
 
-    // Skip getSession round-trip: /dashboard layout redirects admin-only → /admin.
-    // Dual-role + member default ke /dashboard (resolvePostLoginPath).
-    const destination = callbackUrl ?? "/dashboard";
+    // Prefer server hint (admin-only → /admin) to avoid /dashboard redirect hop.
+    const destination = callbackUrl ?? readEntryHint() ?? "/dashboard";
 
     onSuccess?.();
     router.push(destination);

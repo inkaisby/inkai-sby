@@ -11,9 +11,11 @@ export const requireAdminSession = cache(async () => {
   const session = await auth();
   if (!session) redirect("/login");
   if (!canAccessAdmin(session.user)) redirect("/dashboard");
-  const token = await getInkaiAccessToken();
+  const [token, user] = await Promise.all([
+    getInkaiAccessToken(),
+    enrichSessionUser(session.user),
+  ]);
   if (!token) redirect("/login");
-  const user = await enrichSessionUser(session.user);
   const adminDojoGrants = await loadAdminDojoGrantsForUser(user);
   return { session: { ...session, user }, token, user, adminDojoGrants };
 });

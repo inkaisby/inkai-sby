@@ -67,7 +67,13 @@ export function PresenceHeartbeat() {
       }, delay);
     };
 
-    void sendHeartbeat().then(schedule);
+    // Login already markUserLogin — defer first heartbeat so it doesn't
+    // compete with dashboard/admin SSR Redis/Prisma/auth on first paint.
+    timerRef.current = setTimeout(async () => {
+      if (cancelled) return;
+      await sendHeartbeat();
+      schedule();
+    }, 20_000);
 
     const onVisibility = () => {
       if (document.visibilityState === "visible") {

@@ -2,7 +2,7 @@ import { Redis } from "@upstash/redis";
 import { prisma } from "@/lib/prisma";
 
 const REVOKE_TTL_MS = 24 * 60 * 60 * 1000;
-const BLOCK_CACHE_TTL_MS = 8_000;
+const BLOCK_CACHE_TTL_MS = 30_000;
 const REDIS_REVOKE_PREFIX = "inkai-sby:session:revoked:";
 const REDIS_LOCK_PREFIX = "inkai-sby:session:locked:";
 

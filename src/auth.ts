@@ -1,6 +1,7 @@
 import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { authConfig } from "@/auth.config";
 import { inkaiFetch } from "@/lib/inkai-api/server";
 import {
@@ -18,6 +19,10 @@ import {
   isUserBlocked,
 } from "@/lib/security/session-control";
 import { resolveImpersonationOverlay } from "@/lib/security/impersonation";
+import { resolvePostLoginPath } from "@/lib/rbac";
+
+/** Short-lived client-readable hint so LoginForm can skip /dashboard→/admin hop. */
+export const POST_LOGIN_PATH_COOKIE = "inkai_entry";
 
 const SESSION_CLAIMS_TTL_MS = 30_000;
 
@@ -89,7 +94,7 @@ type BackendUser = {
   member?: { id?: string; status?: string; photoUrl?: string | null };
 };
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const nextAuth = NextAuth({
   ...authConfig,
   callbacks: {
     ...authConfig.callbacks,
@@ -110,6 +115,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const userId = token.sub;
       if (!userId) return token;
 
+      const stale =
+        trigger === "update" ||
+        !token.claimsUpdatedAt ||
+        Date.now() - token.claimsUpdatedAt > SESSION_CLAIMS_TTL_MS;
+
+      // Block/revoke check only when claims refresh — avoids Redis/Prisma on every
+      // nested auth() during the same first-paint (root + layout + page).
+      if (!stale) return token;
+
       const blocked = await isUserBlocked(userId);
       if (blocked.blocked) {
         return {
@@ -119,13 +133,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           claimsUpdatedAt: Date.now(),
         };
       }
-
-      const stale =
-        trigger === "update" ||
-        !token.claimsUpdatedAt ||
-        Date.now() - token.claimsUpdatedAt > SESSION_CLAIMS_TTL_MS;
-
-      if (!stale) return token;
 
       const claims = await loadSessionClaimsFromDb(userId);
       if (!claims) {
@@ -300,6 +307,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const cookieStore = await cookies();
         cookieStore.set(INKAI_TOKEN_COOKIE, token, getInkaiTokenCookieOptions());
+        const entryPath = resolvePostLoginPath(roles, memberId);
+        cookieStore.set(POST_LOGIN_PATH_COOKIE, entryPath, {
+          httpOnly: false,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax",
+          path: "/",
+          maxAge: 120,
+        });
 
         void snapshotFromNextHeaders()
           .then((snap) => markUserLogin(userId, snap))
@@ -326,3 +341,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
 });
+
+export const { handlers, signIn, signOut } = nextAuth;
+/** Dedupe auth() within one RSC/request (root + layout + page). */
+export const auth = cache(nextAuth.auth);

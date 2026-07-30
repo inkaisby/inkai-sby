@@ -7,6 +7,9 @@ import {
 } from "@/lib/member-local-fields";
 import { isCurrentlyImpersonating } from "@/lib/security/impersonation";
 
+/** Home/dashboard SSR — fail fast; don't burn ~24s on cold backend. */
+const HOME_INKAI = { timeoutMs: 8_000, retries: 0 } as const;
+
 /**
  * Endpoint "/me" & "/my" Inkai selalu diresolusi dari token, yang selama
  * mode ambil alih tetap milik aktor (lihat impersonation.ts). Jangan pernah
@@ -35,7 +38,7 @@ async function fetchMyMemberProfileUncached(
     async () => {
       const hint = memberIdHint?.trim() || "";
       const [{ res, data }, localPrefetch] = await Promise.all([
-        inkaiFetch("/v1/members/me", {}, token),
+        inkaiFetch("/v1/members/me", {}, token, HOME_INKAI),
         hint ? fetchMemberLocalOverlay(hint) : Promise.resolve(null),
       ]);
       if (!res.ok) return null;
@@ -58,7 +61,7 @@ export async function fetchMyBillings(token: string, limit = 50) {
   return safeCall(
     "billings",
     async () => {
-      const { res, data } = await inkaiFetch(`/v1/billing/my`, {}, token);
+      const { res, data } = await inkaiFetch(`/v1/billing/my`, {}, token, HOME_INKAI);
       if (!res.ok) return [];
       const items = (data.data as Array<Record<string, unknown>>) ?? [];
       return items.slice(0, limit);
@@ -72,7 +75,7 @@ async function fetchMyAttendanceUncached(token: string, limit = 100) {
   return safeCall(
     "attendance",
     async () => {
-      const { res, data } = await inkaiFetch("/v1/attendance/me", {}, token);
+      const { res, data } = await inkaiFetch("/v1/attendance/me", {}, token, HOME_INKAI);
       if (!res.ok) return [];
       const items = (data.data as Array<Record<string, unknown>>) ?? [];
       return items.slice(0, limit);
@@ -114,6 +117,7 @@ export async function fetchMyNotifications(
         `/v1/notifications/my?limit=${Math.min(Math.max(limit, 1), 100)}`,
         {},
         token,
+        HOME_INKAI,
       );
       if (!res.ok) return [];
       let items = (data.data as Array<Record<string, unknown>>) ?? [];
