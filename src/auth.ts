@@ -227,6 +227,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         let res: Response;
         let data: Record<string, unknown>;
+        const loginStarted = Date.now();
         try {
           ({ res, data } = await inkaiFetch(
             "/v1/auth/login",
@@ -238,10 +239,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               }),
             },
             null,
+            // Login is user-facing — fail faster than default SSR soft-retry budget.
+            { timeoutMs: 10_000, retries: 0, throwOnNetworkError: true },
           ));
-        } catch {
+        } catch (error) {
+          console.error(
+            `[auth.authorize] inkai login failed after ${Date.now() - loginStarted}ms`,
+            error,
+          );
           throwLogin(LOGIN_ERROR_CODE.server_error);
         }
+        console.info(
+          `[auth.authorize] inkai /v1/auth/login ${res.status} in ${Date.now() - loginStarted}ms`,
+        );
 
         if (res.status >= 500) throwLogin(LOGIN_ERROR_CODE.server_error);
         if (res.status === 429) throwLogin(LOGIN_ERROR_CODE.rate_limited);
@@ -263,24 +273,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         const userId = user.id;
-        const localGate = await prisma.user
-          .findFirst({
-            where: { id: userId, isDeleted: false },
-            select: { isActive: true, photoUrl: true, fullName: true },
-          })
-          .catch(() => null);
+        const gateStarted = Date.now();
+        const [localGate, blocked] = await Promise.all([
+          prisma.user
+            .findFirst({
+              where: { id: userId, isDeleted: false },
+              select: { isActive: true, photoUrl: true, fullName: true },
+            })
+            .catch(() => null),
+          isUserBlocked(userId),
+        ]);
 
         if (localGate && !localGate.isActive) {
           throwLogin(LOGIN_ERROR_CODE.disabled);
         }
 
-        const blocked = await isUserBlocked(userId);
         if (blocked.blocked && blocked.reason !== "revoked") {
           throwLogin(LOGIN_ERROR_CODE.disabled);
         }
 
         // Login ulang setelah revoke mengakhiri blok JWT lama
         await clearUserRevocation(userId);
+        console.info(
+          `[auth.authorize] local gates in ${Date.now() - gateStarted}ms`,
+        );
 
         const cookieStore = await cookies();
         cookieStore.set(INKAI_TOKEN_COOKIE, token, getInkaiTokenCookieOptions());

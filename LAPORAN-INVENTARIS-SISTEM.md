@@ -335,6 +335,7 @@ Pusat / Nasional
 
 | Index Prisma | Ditambah | Member/Billing/Attendance/Verification/Message + Billing(registrationId, memberId+isDeleted+type) / Event(isDeleted+endDate|registrationCloseAt) / EventRegistration(eventId+status) / AppreciationEntry / AuditLog(action+createdAt) — migrate `20260724120000_admin_perf_security_indexes` |
 | Pool DB Supabase | Diperkuat | Transaction `:6543`+`pgbouncer`; `connection_limit=5`/`pool_timeout=20`; soft-delete & **purge massal batch** (`deleteMany` per relasi); chunk purge 25 + jeda/retry; toast sibuk |
+| Login latency (pasca migrasi Supabase) | Diperkuat | Bottleneck utama = **inkai-backend** (`POST /v1/auth/login`) + region Vercel vs DB; portal `vercel.json` **regions: sin1** (dekat `inkai-db` ap-southeast-1); `/login` warm-up `GET /api/auth/health` (pakai `getInkaiApiBaseUrl`); skip `getSession` post-login → `/dashboard` (layout redirect admin-only); authorize: gate Prisma/Redis paralel + timing log + timeout login 10s tanpa retry; index `20260724120000_admin_perf_security_indexes` diterapkan di project `inkai-db` |
 
 ---
 
@@ -894,6 +895,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 26 Juli 2026 | Optimasi pemuatan halaman UKT: Caching jangka pendek (60 dtk) menggunakan `unstable_cache` untuk data statis (event list, fees templates, komisi) |
 | 30 Juli 2026 | **Admin UX snappy end-to-end:** login/switch akun tanpa `router.refresh`; dashboard dedupe unread pesan; account-peers lazy; Anggota/Iuran client-fetch + DojoContextSwitcher `onChange`; Absensi filter date/semester via `GET /api/admin/absensi`; Iuran `GET /api/admin/iuran/ledger`; hapus refresh pasca-mutasi (UKT/verifikasi/dialog/kegiatan); audit fetch 100; Suspense pengaturan hub/kebijakan/UKT; Prisma cabang/ranting paralel; SettingsSearchForm `replace` |
 | 30 Juli 2026 | Beranda publik: hero **logo INKAI 3D CSS** (`InkaiHeroLogo3D`) — float, tilt perspektif, kilau specular, parallax mouse desktop; hormati `prefers-reduced-motion` |
+| 30 Juli 2026 | **Diagnosis login lambat pasca migrasi Supabase:** login bergantung inkai-backend (bukan Supabase Auth); production portal sebelumnya di iad1 sementara DB `inkai-db` ap-southeast-1; `/api/auth/health` 503 karena tidak pakai fallback URL; perbaikan region `sin1`, warm-up health, skip getSession, gate paralel, index perf diterapkan; **aksi lanjutan:** set region `sin1` juga di project Vercel `inkai-ecosystem` + pastikan `INKAI_API_URL`/`DATABASE_URL` portal=backend=project `mzmdhkwleufeiyaspmns` |
 
 ---
 

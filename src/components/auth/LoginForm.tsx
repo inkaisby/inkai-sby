@@ -1,14 +1,13 @@
 "use client";
 
-import { Suspense, useState } from "react";
-import { signIn, getSession } from "next-auth/react";
+import { Suspense, useEffect, useState } from "react";
+import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { resolvePostLoginPath } from "@/lib/rbac";
 import { AuthTransitionOverlay } from "@/components/auth/AuthTransitionOverlay";
 import { loginErrorMessage } from "@/lib/auth/login-errors";
 import { showError } from "@/lib/client-toast";
@@ -41,6 +40,16 @@ function LoginFormInner({
   const [error, setError] = useState("");
   const [phase, setPhase] = useState<LoginPhase>("idle");
 
+  // Warm portal + inkai-backend before submit (cold start often dominates login latency).
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/auth/health", {
+      cache: "no-store",
+      signal: controller.signal,
+    }).catch(() => {});
+    return () => controller.abort();
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setPhase("signing-in");
@@ -65,10 +74,9 @@ function LoginFormInner({
 
     setPhase("entering");
 
-    const session = await getSession();
-    const roles: string[] = session?.user?.roles || [];
-    const memberId = session?.user?.memberId ?? null;
-    const destination = callbackUrl ?? resolvePostLoginPath(roles, memberId);
+    // Skip getSession round-trip: /dashboard layout redirects admin-only → /admin.
+    // Dual-role + member default ke /dashboard (resolvePostLoginPath).
+    const destination = callbackUrl ?? "/dashboard";
 
     onSuccess?.();
     router.push(destination);
