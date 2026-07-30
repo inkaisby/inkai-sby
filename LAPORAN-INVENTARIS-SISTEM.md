@@ -56,7 +56,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Route | Fungsi |
 |-------|--------|
-| `/` | Beranda, carousel berita, **cuplikan Apresiasi**, CTA login/daftar; **floating chip kegiatan terbuka** di seluruh layout publik |
+| `/` | Beranda, **hero logo INKAI 3D CSS** (float/tilt/kilau + parallax mouse), carousel berita, **cuplikan Apresiasi**, CTA login/daftar; **floating chip kegiatan terbuka** di seluruh layout publik |
 | `/tutorial` | **Tutorial anggota** (langkah + slot embed YouTube): pendaftaran, menu dashboard, UKT, iuran, absensi; CTA Daftar/Masuk; nav header **Tutorial** |
 | `/sejarah` | Sejarah organisasi |
 | `/makna-lambang` | Filosofi lambang |
@@ -893,6 +893,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 26 Juli 2026 | Setup Playwright untuk E2E testing (package.json, playwright.config.ts, dan tests/e2e/example.spec.ts) |
 | 26 Juli 2026 | Optimasi pemuatan halaman UKT: Caching jangka pendek (60 dtk) menggunakan `unstable_cache` untuk data statis (event list, fees templates, komisi) |
 | 30 Juli 2026 | **Admin UX snappy end-to-end:** login/switch akun tanpa `router.refresh`; dashboard dedupe unread pesan; account-peers lazy; Anggota/Iuran client-fetch + DojoContextSwitcher `onChange`; Absensi filter date/semester via `GET /api/admin/absensi`; Iuran `GET /api/admin/iuran/ledger`; hapus refresh pasca-mutasi (UKT/verifikasi/dialog/kegiatan); audit fetch 100; Suspense pengaturan hub/kebijakan/UKT; Prisma cabang/ranting paralel; SettingsSearchForm `replace` |
+| 30 Juli 2026 | Beranda publik: hero **logo INKAI 3D CSS** (`InkaiHeroLogo3D`) — float, tilt perspektif, kilau specular, parallax mouse desktop; hormati `prefers-reduced-motion` |
 
 ---
 

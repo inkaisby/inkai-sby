@@ -624,6 +624,125 @@
   mask-image: radial-gradient(ellipse 75% 70% at 50% 40%, #000 20%, transparent 75%);
 }
 
+/* Hero logo 3D (CSS perspective — no WebGL) */
+.inkai-hero-logo-stage {
+  perspective: 900px;
+  perspective-origin: 50% 40%;
+}
+
+.inkai-hero-logo-float,
+.inkai-hero-logo-tilt {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.inkai-hero-logo-tilt {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.inkai-hero-logo-float--animate {
+  animation: inkai-logo-float 6s ease-in-out infinite;
+}
+
+.inkai-hero-logo-tilt--animate {
+  animation: inkai-logo-tilt 10s ease-in-out infinite;
+}
+
+.inkai-hero-logo-glow--pulse {
+  animation: inkai-logo-glow 5.5s ease-in-out infinite;
+}
+
+.inkai-hero-logo-glow-red--pulse {
+  animation: inkai-logo-glow-red 7s ease-in-out infinite;
+}
+
+.inkai-hero-logo-shine {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.08) 55%,
+    transparent 65%
+  );
+  background-size: 220% 220%;
+  mix-blend-mode: soft-light;
+  animation: inkai-logo-shine 7.5s ease-in-out infinite;
+}
+
+@keyframes inkai-logo-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes inkai-logo-tilt {
+  0%,
+  100% {
+    transform: rotateX(4deg) rotateY(-12deg);
+  }
+  50% {
+    transform: rotateX(-3deg) rotateY(12deg);
+  }
+}
+
+@keyframes inkai-logo-shine {
+  0%,
+  100% {
+    background-position: 120% 40%;
+    opacity: 0.35;
+  }
+  45%,
+  55% {
+    opacity: 0.7;
+  }
+  50% {
+    background-position: -20% 60%;
+  }
+}
+
+@keyframes inkai-logo-glow {
+  0%,
+  100% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes inkai-logo-glow-red {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inkai-hero-logo-float--animate,
+  .inkai-hero-logo-tilt--animate,
+  .inkai-hero-logo-glow--pulse,
+  .inkai-hero-logo-glow-red--pulse,
+  .inkai-hero-logo-shine {
+    animation: none;
+  }
+}
+
 .inkai-section-muted {
   background: linear-gradient(180deg, var(--background) 0%, var(--muted) 100%);
 }

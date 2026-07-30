@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { BookOpen, Shield, Users, Target, ArrowRight } from "lucide-react";
@@ -7,6 +6,7 @@ import ArticleCarousel from "@/components/home/ArticleCarousel";
 import ArticleCarouselSkeleton from "@/components/home/ArticleCarouselSkeleton";
 import HomeAppreciationSnippet from "@/components/home/HomeAppreciationSnippet";
 import HomeHeroCTA from "@/components/home/HomeHeroCTA";
+import InkaiHeroLogo3D from "@/components/home/InkaiHeroLogo3D";
 import SurabayaHeroMark from "@/components/home/SurabayaHeroMark";
 
 export const revalidate = 60;
@@ -65,20 +65,7 @@ export default function HomePage() {
         <div className="absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-inkai-yellow/10 blur-3xl" />
 
         <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-10 px-4 py-16 sm:gap-12 sm:px-6 sm:py-28 lg:flex-row lg:gap-16 lg:py-36">
-          <div className="relative order-first flex-shrink-0 lg:order-last">
-            <div className="absolute -inset-8 rounded-full bg-inkai-yellow/15 blur-3xl" />
-            <div className="absolute -inset-2 rounded-full bg-inkai-red/20 blur-xl" />
-            <div className="relative rounded-full bg-gradient-to-br from-white/25 to-white/5 p-1.5 shadow-2xl ring-1 ring-white/25 backdrop-blur-sm">
-              <Image
-                src="/logo-inkai.png"
-                alt="Logo INKAI"
-                width={260}
-                height={260}
-                className="h-36 w-36 rounded-full sm:h-[220px] sm:w-[220px] lg:h-[260px] lg:w-[260px]"
-                priority
-              />
-            </div>
-          </div>
+          <InkaiHeroLogo3D />
 
           <div className="flex-1 text-center lg:text-left">
             <h1 className="mb-6 text-4xl font-semibold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
