@@ -220,7 +220,7 @@ Pusat / Nasional
 2. URL admin: **Pendaftaran** `/admin/ukt?semester=I|II&year=YYYY&period=<eventId>` (periode aktif) dan **Arsip UKT** `/admin/ukt/arsip?...` (riwayat/terkunci). Dropdown semester/tahun memilih event yang cocok; bila belum ada periode aktif, tombol **Buat Periode** di Pendaftaran.
 3. **Dual path daftar:** (a) **Ranting** mendaftarkan anggota langsung → **Belum Bayar**; (b) **Anggota** daftar mandiri dari kartu Status UKT (**Daftar UKT sekarang**) → **Menunggu Terima Ranting** (`PENDING`, tanpa tagihan dulu). **Kyu Lama** = sabuk keanggotaan saat ini.
 3b. **Daftar mandiri:** gate syarat (periode, iuran, dokumen Akte+BPJS, absensi) di server dengan role `MEMBER`; **Pengecualian iuran** otoritas **ranting** (`allowEventWithoutDues`). UI anggota **tidak menampilkan nominal** biaya UKT (kartu + filter tagihan UKT dari `/dashboard/iuran`). Setelah daftar, anggota bayar offline ke ranting lalu **Konfirmasi sudah bayar** (flag saja). Unique `(eventId, memberId)` anti-bentrok.
-3c. **Ranting Terima / Tolak** pengajuan mandiri: **Terima** = APPROVED + buat billing + `WAITING_VERIFICATION` (uang sah + teruskan cabang); **Tolak** = batalkan + notif (koordinasi pengembalian bila sudah konfirmasi bayar).
+3c. **Ranting Terima / Tolak** pengajuan mandiri: **Terima** = APPROVED + buat billing + `WAITING_VERIFICATION` (uang sah + teruskan cabang); **Tolak** = soft-status `CANCELLED` (baris unique tetap) + notif (koordinasi pengembalian bila sudah konfirmasi bayar). **Daftar ulang** (ranting **Daftar UKT** setelah Tolak/Batal soft-cancel): UI tetap **Belum Daftar**; `POST /api/admin/ukt/register` bila Inkai bilang *already registered* → **PUT** reuse + `forceRegisterUktInDb` (CANCELLED/REJECTED→APPROVED + tagihan); status aktif tetap ditolak (PENDING → minta **Terima**).
 4. Pendaftaran UKT: gate operasional dikonfigurasi di **Pengaturan → UKT** (`/admin/pengaturan/ukt`): centang iuran / dokumen / absensi (+ ambang %), serta **berlaku untuk ranting / cabang**. Periode buka/tutup selalu berlaku. Cabang tetap bisa waiver multi-blocker; pengecualian iuran anggota lewat ranting.
 5. **Ranting** — aksi baris: **Daftar UKT**, **Terima**/**Tolak** (mandiri), **Batal UKT**, **Bayar UKT** (= ajukan ke cabang → **Menunggu Verifikasi**; untuk jalur daftar ranting). Setelah daftar ranting: **Belum Bayar**. Notifikasi otomatis daftar/batal/Bayar/Terima.
 6. **Cabang** **memverifikasi pembayaran** → **Menunggu Ujian**, lalu hasil ujian `LULUS` / `GAGAL` / `MENGULANG`.
@@ -385,7 +385,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/ukt/dojo-groups  GET filter gabungan multi-ranting (cabang); lazy di luar critical path load dashboard
 /api/admin/ukt/suggest      GET autocomplete nama/NIA (q≥2, maks 64 char); ADMIN_DOJO di-scope Prisma ke ranting allowlist, role lain via Inkai `/v1/members`
 /api/admin/ukt/deposit      PATCH status setoran ranting — **cabang-only** (`canEditKyuBaru`); kunci periode berlaku
-/api/admin/ukt/register     POST daftar anggota ke periode UKT; kunci periode berlaku; `maxDuration=30`
+/api/admin/ukt/register     POST daftar anggota ke periode UKT; kunci periode berlaku; `maxDuration=30`; bila Inkai *already registered* → reuse CANCELLED/REJECTED (PUT + `forceRegisterUktInDb`)
 /api/admin/ukt/*            Periode, waiver, nota, hasil ujian, fees (snapshot/global; kunci periode berlaku), Kyu, exam-day, period-meta, invite (siapkan snapshot), hapus pendaftaran + tagihan terkait; sync undangan publik `ukt-invite:{id}`
 /api/cron/ukt-reminders     Cron H-3 pengingat UKT (batas daftar / jadwal ranting)
 /api/admin/open-events       Daftar kegiatan dengan pendaftaran masih terbuka (topbar admin)
@@ -897,6 +897,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 30 Juli 2026 | Beranda publik: hero **logo INKAI 3D CSS** (`InkaiHeroLogo3D`) — float, tilt perspektif, kilau specular, parallax mouse desktop; hormati `prefers-reduced-motion` |
 | 30 Juli 2026 | **Diagnosis login lambat pasca migrasi Supabase:** login bergantung inkai-backend (bukan Supabase Auth); production portal sebelumnya di iad1 sementara DB `inkai-db` ap-southeast-1; `/api/auth/health` 503 karena tidak pakai fallback URL; perbaikan region `sin1`, warm-up health, skip getSession, gate paralel, index perf diterapkan; **aksi lanjutan:** set region `sin1` juga di project Vercel `inkai-ecosystem` + pastikan `INKAI_API_URL`/`DATABASE_URL` portal=backend=project `mzmdhkwleufeiyaspmns` |
 | 30 Juli 2026 | **Post-login hidden latency:** JWT `isUserBlocked` digeser ke refresh claims (~30s) + `cache(auth)`; home member/admin Inkai fail-fast 8s/0; cookie `inkai_entry` bypass hop `/dashboard`→`/admin`; defer PresenceHeartbeat 20s; admin-session token+enrich paralel |
+| 1 Agustus 2026 | **UKT daftar ulang setelah soft-cancel:** `POST /api/admin/ukt/register` tidak lagi 409 mentah pada *Already registered… Use update instead* — reuse baris `CANCELLED`/`REJECTED` via Inkai PUT + `forceRegisterUktInDb` (kasus FULAN Belum Daftar tapi unique masih terisi); inventaris §9.3/§13/§15 |
 
 ---
 

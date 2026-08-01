@@ -90,6 +90,110 @@ async function loadScopedMemberForRegister(
   });
 }
 
+/** Inkai unique (eventId, memberId) masih memegang CANCELLED/REJECTED — reuse via PUT + DB. */
+async function reuseSoftCancelledRegistration(opts: {
+  token: string;
+  eventId: string;
+  memberId: string;
+  registeredByUserId: string;
+  kyuLamaSnapshot: string;
+  registeredRankEncoded: string;
+}): Promise<
+  | {
+      ok: true;
+      registrationId: string;
+      billingId: string;
+      billingAmount: number;
+      billingStatus: string;
+      memberName: string;
+    }
+  | { ok: false; error: string; status: number }
+> {
+  const existing = await prisma.eventRegistration.findFirst({
+    where: { eventId: opts.eventId, memberId: opts.memberId },
+    select: { id: true, status: true },
+  });
+
+  if (existing) {
+    const st = String(existing.status ?? "").toUpperCase();
+    if (st !== "CANCELLED" && st !== "REJECTED") {
+      if (st === "PENDING") {
+        return {
+          ok: false,
+          error:
+            "Anggota sudah mengajukan daftar mandiri — gunakan tombol Terima di baris tersebut",
+          status: 400,
+        };
+      }
+      return {
+        ok: false,
+        error: "Anggota sudah terdaftar pada periode UKT ini",
+        status: 409,
+      };
+    }
+
+    // Sinkronkan Inkai dulu (best-effort), lalu pastikan Prisma + billing
+    const putBody = JSON.stringify({
+      status: "APPROVED",
+      registeredRank: opts.registeredRankEncoded,
+    });
+    let putOk = false;
+    const put = await inkaiFetch(
+      `/v1/events/register/${existing.id}`,
+      { method: "PUT", body: putBody },
+      opts.token,
+    );
+    if (put.res.ok) {
+      putOk = true;
+    } else {
+      const putMsg = inkaiErrorMessage(put.data, "");
+      if (isInkaiScopeDeniedError(putMsg, put.res.status)) {
+        const serviceToken =
+          process.env.INKAI_SERVICE_TOKEN || process.env.CRON_INKAI_TOKEN;
+        if (serviceToken) {
+          const retry = await inkaiFetch(
+            `/v1/events/register/${existing.id}`,
+            { method: "PUT", body: putBody },
+            serviceToken,
+          );
+          putOk = retry.res.ok;
+        }
+      }
+    }
+    if (!putOk) {
+      console.warn(
+        "[UKT Register] Inkai PUT reuse soft-cancel failed; falling back to DB",
+        existing.id,
+      );
+    }
+  }
+
+  const amount = await resolveUktRegisterFeeAmount({
+    token: opts.token,
+    eventId: opts.eventId,
+    memberRank: opts.kyuLamaSnapshot,
+  });
+  const dbReg = await forceRegisterUktInDb({
+    eventId: opts.eventId,
+    memberId: opts.memberId,
+    registeredByUserId: opts.registeredByUserId,
+    kyuLamaSnapshot: opts.registeredRankEncoded,
+    periodTitle: "UKT",
+    amount,
+  });
+  if (!dbReg.ok) {
+    return { ok: false, error: dbReg.error, status: 400 };
+  }
+  return {
+    ok: true,
+    registrationId: dbReg.registrationId,
+    billingId: dbReg.billingId,
+    billingAmount: dbReg.billingAmount,
+    billingStatus: dbReg.billingStatus,
+    memberName: dbReg.memberName,
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const authResult = await requireAdmin();
@@ -261,8 +365,61 @@ export async function POST(request: Request) {
 
       if (!res.ok) {
         const message = inkaiErrorMessage(data, "Gagal mendaftarkan anggota");
-        const status = message.toLowerCase().includes("already") ? 409 : res.status;
-        return NextResponse.json({ error: message }, { status });
+        if (message.toLowerCase().includes("already")) {
+          // Soft-cancel leftover: Inkai unique masih memegang baris — UPDATE, jangan 409 mentah
+          const reused = await reuseSoftCancelledRegistration({
+            token: authResult.token,
+            eventId,
+            memberId,
+            registeredByUserId: authResult.user.id,
+            kyuLamaSnapshot,
+            registeredRankEncoded,
+          });
+          if (!reused.ok) {
+            return NextResponse.json(
+              { error: reused.error },
+              { status: reused.status },
+            );
+          }
+
+          writeAuditLog({
+            userId: authResult.user.id,
+            email: authResult.user.email,
+            action: "UKT_REGISTER",
+            details: `Registered ${reused.memberName} for ${eventId} [reuse-cancelled]`,
+            ip: getClientIp(request),
+            userAgent: request.headers.get("user-agent"),
+            token: authResult.token,
+          });
+
+          void notifyUktStatusChange({
+            token: authResult.token,
+            memberId,
+            memberName: reused.memberName,
+            periodTitle: "UKT",
+            displayStatus: "belum_bayar",
+            extra: "Silakan koordinasi pembayaran UKT dengan ketua ranting.",
+          }).catch((err) => console.error("[UKT Register] notify member", err));
+
+          if (primaryRole === "ADMIN_DOJO") {
+            void notifyUktBranchAdmins({
+              token: authResult.token,
+              title: "UKT — Pendaftaran baru dari ranting",
+              content: `${reused.memberName} didaftarkan ke periode UKT. Status: Belum Bayar — menunggu setoran/verifikasi cabang.`,
+              actorEmail: authResult.user.email,
+              type: "INFO",
+            }).catch((err) => console.error("[UKT Register] notify cabang", err));
+          }
+
+          return NextResponse.json({
+            success: true,
+            registrationId: reused.registrationId,
+            billingId: reused.billingId,
+            billingAmount: reused.billingAmount,
+            billingStatus: reused.billingStatus,
+          });
+        }
+        return NextResponse.json({ error: message }, { status: res.status });
       }
     }
 
