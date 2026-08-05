@@ -15,6 +15,7 @@ import {
 } from "react";
 import { SITE_CONTACT } from "@/lib/site";
 import { toWhatsAppLink } from "@/lib/phone";
+import { friendlyClientErrorMessage } from "@/lib/tanya-inkai/errors";
 import { cn } from "@/lib/utils";
 import {
   hasOpenedTanyaInkai,
@@ -179,8 +180,8 @@ function TanyaInkaiWidgetInner({ pathname }: { pathname: string }) {
             {messages.length === 0 ? (
               <div className="tanya-inkai-msg rounded-xl bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
                 Halo! Tanya seputar INKAI Surabaya atau cara pakai website ini
-                (daftar, iuran, UKT, dojo, absensi). Pertanyaan di luar topik
-                akan saya arahkan kembali.
+                (tutorial daftar/iuran/UKT, sejarah, visi-misi, dojo, kontak).
+                Pertanyaan di luar topik akan saya arahkan kembali.
               </div>
             ) : null}
 
@@ -190,6 +191,22 @@ function TanyaInkaiWidgetInner({ pathname }: { pathname: string }) {
               );
               if (!text && message.role === "assistant") return null;
               const isUser = message.role === "user";
+              const looksLikeError =
+                !isUser &&
+                /^(an error occurred\.?|gagal menjawab|layanan tanya inkai|batas kuota)/i.test(
+                  text.trim(),
+                );
+              if (looksLikeError) {
+                return (
+                  <div
+                    key={message.id}
+                    className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                    role="alert"
+                  >
+                    {friendlyClientErrorMessage(text)}
+                  </div>
+                );
+              }
               return (
                 <div
                   key={message.id}
@@ -217,8 +234,11 @@ function TanyaInkaiWidgetInner({ pathname }: { pathname: string }) {
             ) : null}
 
             {error ? (
-              <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                {error.message || "Gagal mengirim. Coba lagi."}
+              <div
+                className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                role="alert"
+              >
+                {friendlyClientErrorMessage(error.message)}
               </div>
             ) : null}
           </div>

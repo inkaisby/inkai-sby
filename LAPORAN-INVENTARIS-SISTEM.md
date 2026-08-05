@@ -48,7 +48,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
     └──► Resend (email reset password, opsional)
 ```
 
-**Environment utama:** `INKAI_API_URL`, `DATABASE_URL`, `AUTH_SECRET` / `NEXTAUTH_SECRET`, `BLOB_READ_WRITE_TOKEN`, `RESEND_API_KEY`, `IMPERSONATION_ENABLED` (opsional; default on kecuali `"false"`), `AI_GATEWAY_API_KEY` (Tanya INKAI; Opsional `TANYA_INKAI_MODEL`).
+**Environment utama:** `INKAI_API_URL`, `DATABASE_URL`, `AUTH_SECRET` / `NEXTAUTH_SECRET`, `BLOB_READ_WRITE_TOKEN`, `RESEND_API_KEY`, `IMPERSONATION_ENABLED` (opsional; default on kecuali `"false"`), `GOOGLE_GENERATIVE_AI_API_KEY` (Tanya INKAI / Gemini; opsional `TANYA_INKAI_MODEL`).
 
 ---
 
@@ -94,7 +94,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Dokumen | Aktif | Ringkasan Akte/BPJS; unggah/edit via Profil |
 | Notifikasi | Aktif | Notifikasi **akun sendiri** saja (filter fan-out Inkai + sembunyikan notif ops admin) |
 | Pesan | Aktif | Chat dengan pengurus |
-| Tanya INKAI | Aktif | FAB chat AI (Vercel AI Gateway); panduan/FAQ situs; **bukan** pengganti Pesan pengurus; draggable + off-topic reject |
+| Tanya INKAI | Aktif | FAB chat AI (**Google Gemini** `@ai-sdk/google`, free tier); knowledge tutorial + org publik; **bukan** pengganti Pesan pengurus; draggable + off-topic reject |
 | Pindah Dojo | Aktif | Ajuan pindah ranting → verifikasi |
 | Panduan | Aktif | Langkah lengkap + slot video (`guide/member-tutorials.json`); welcome singkat di beranda |
 | Riwayat | Aktif | Kegiatan yang sudah lewat |
@@ -280,7 +280,7 @@ Pusat / Nasional
 | Vercel Blob | Upload file (dokumen/gambar) |
 | Resend | Email reset password |
 | Rate limit | Upstash Redis opsional (`UPSTASH_REDIS_*`); fallback memori per instance |
-| Vercel AI Gateway | Chat **Tanya INKAI** (`AI_GATEWAY_API_KEY` / OIDC; model default `google/gemini-3.5-flash-lite`, override `TANYA_INKAI_MODEL`) |
+| Google Gemini API | Chat **Tanya INKAI** (`GOOGLE_GENERATIVE_AI_API_KEY` dari AI Studio; model default `gemini-2.5-flash`, override `TANYA_INKAI_MODEL`) — **tanpa** Vercel AI Gateway |
 | Verifikasi klaim | Fail-closed ke Inkai API + `assertDojoInScope` + audit |
 | Playwright | End-to-End (E2E) testing framework untuk pengujian UI otomatis |
 
@@ -423,7 +423,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/member/attendance/locations  Daftar dojo/event override (tanpa koordinat)
 /api/member/attendance/webauthn/*  Register/verify biometrik absensi (WebAuthn)
 /api/notifications/*        Notifikasi (anggota: akun sendiri; admin ranting: ranting+ops cabang; tanpa notif pribadi anggota)
-/api/tanya-inkai            POST chat AI streaming (Tanya INKAI; rate limit; AI Gateway; knowledge tutorial + off-topic reject)
+/api/tanya-inkai            POST chat AI streaming (Tanya INKAI; rate limit; Google Gemini; knowledge tutorial+org publik + off-topic reject)
 /api/dojos                  Daftar dojo publik
 Inkai API `/v1/members/verify/[id]`  Verifikasi kartu anggota (publik, via halaman `/v/[id]`)
 ```
@@ -902,6 +902,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 30 Juli 2026 | **Post-login hidden latency:** JWT `isUserBlocked` digeser ke refresh claims (~30s) + `cache(auth)`; home member/admin Inkai fail-fast 8s/0; cookie `inkai_entry` bypass hop `/dashboard`→`/admin`; defer PresenceHeartbeat 20s; admin-session token+enrich paralel |
 | 1 Agustus 2026 | **UKT daftar ulang setelah soft-cancel:** `POST /api/admin/ukt/register` tidak lagi 409 mentah pada *Already registered… Use update instead* — reuse baris `CANCELLED`/`REJECTED` via Inkai PUT + `forceRegisterUktInDb` (kasus FULAN Belum Daftar tapi unique masih terisi); inventaris §9.3/§13/§15 |
 | 5 Agustus 2026 | **Tanya INKAI:** FAB chat AI global (publik/dashboard/admin; skip `/undangan/*`); `POST /api/tanya-inkai` + Vercel AI Gateway; knowledge dari tutorial anggota; off-topic tolak+redirect; FAB draggable + `localStorage`; inventaris §4/§5/§6/§10/§11/§13/§15 |
+| 5 Agustus 2026 | **Tanya INKAI → Gemini langsung:** ganti AI Gateway (butuh kartu) ke `@ai-sdk/google` + `GOOGLE_GENERATIVE_AI_API_KEY`; knowledge diperluas (tutorial + sejarah/visi-misi/lambang/struktur/keamanan); pesan error BI; inventaris §5/§10/§13/§15 |
 
 ---
 

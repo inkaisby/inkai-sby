@@ -1,3 +1,4 @@
+import { google } from "@ai-sdk/google";
 import {
   convertToModelMessages,
   createUIMessageStreamResponse,
@@ -7,9 +8,11 @@ import {
 } from "ai";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { mapTanyaInkaiError } from "@/lib/tanya-inkai/errors";
 import {
   buildTanyaInkaiSystemPrompt,
   getTanyaInkaiModelId,
+  hasGeminiApiKey,
 } from "@/lib/tanya-inkai/knowledge";
 import {
   extractLastUserText,
@@ -34,6 +37,16 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Content-Type harus application/json." },
         { status: 415 },
+      );
+    }
+
+    if (!hasGeminiApiKey()) {
+      return NextResponse.json(
+        {
+          error:
+            "Layanan Tanya INKAI belum dikonfigurasi (kunci Gemini). Hubungi pengurus atau coba lagi nanti.",
+        },
+        { status: 503 },
       );
     }
 
@@ -69,7 +82,7 @@ export async function POST(request: Request) {
     const messages = parsed.data.messages as UIMessage[];
 
     const result = streamText({
-      model: getTanyaInkaiModelId(),
+      model: google(getTanyaInkaiModelId()),
       system: buildTanyaInkaiSystemPrompt(),
       messages: await convertToModelMessages(messages),
       maxOutputTokens: 1_024,
@@ -77,12 +90,18 @@ export async function POST(request: Request) {
     });
 
     return createUIMessageStreamResponse({
-      stream: toUIMessageStream({ stream: result.stream }),
+      stream: toUIMessageStream({
+        stream: result.stream,
+        onError: (error) => {
+          console.error("[tanya-inkai] stream", error);
+          return mapTanyaInkaiError(error);
+        },
+      }),
     });
   } catch (error) {
     console.error("[tanya-inkai]", error);
     return NextResponse.json(
-      { error: "Gagal memproses Tanya INKAI. Coba lagi sebentar." },
+      { error: mapTanyaInkaiError(error) },
       { status: 500 },
     );
   }
