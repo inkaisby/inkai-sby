@@ -193,9 +193,10 @@ function TanyaInkaiWidgetInner({ pathname }: { pathname: string }) {
               const isUser = message.role === "user";
               const looksLikeError =
                 !isUser &&
-                /^(an error occurred\.?|gagal menjawab|layanan tanya inkai|batas kuota)/i.test(
-                  text.trim(),
-                );
+                (/^\{[\s\S]*"error"\s*:/.test(text.trim()) ||
+                  /^(an error occurred\.?|gagal menjawab|layanan tanya inkai|batas kuota|kunci mixroute)/i.test(
+                    text.trim(),
+                  ));
               if (looksLikeError) {
                 return (
                   <div

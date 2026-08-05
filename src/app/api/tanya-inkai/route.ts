@@ -1,4 +1,3 @@
-import { google } from "@ai-sdk/google";
 import {
   convertToModelMessages,
   createUIMessageStreamResponse,
@@ -9,16 +8,19 @@ import {
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { mapTanyaInkaiError } from "@/lib/tanya-inkai/errors";
+import { buildTanyaInkaiSystemPrompt } from "@/lib/tanya-inkai/knowledge";
+import { answerTanyaInkaiLocal } from "@/lib/tanya-inkai/local-answer";
 import {
-  buildTanyaInkaiSystemPrompt,
+  createMixrouteProvider,
   getTanyaInkaiModelId,
-  hasGeminiApiKey,
-} from "@/lib/tanya-inkai/knowledge";
+  hasMixrouteApiKey,
+} from "@/lib/tanya-inkai/mixroute";
 import {
   extractLastUserText,
   MAX_USER_TEXT_CHARS,
   tanyaInkaiBodySchema,
 } from "@/lib/tanya-inkai/schema";
+import { streamLocalTextResponse } from "@/lib/tanya-inkai/stream-local";
 import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import {
   assertJsonRequest,
@@ -37,16 +39,6 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Content-Type harus application/json." },
         { status: 415 },
-      );
-    }
-
-    if (!hasGeminiApiKey()) {
-      return NextResponse.json(
-        {
-          error:
-            "Layanan Tanya INKAI belum dikonfigurasi (kunci Gemini). Hubungi pengurus atau coba lagi nanti.",
-        },
-        { status: 503 },
       );
     }
 
@@ -79,10 +71,17 @@ export async function POST(request: Request) {
       );
     }
 
+    // Tanpa MixRoute: tetap jawab dari knowledge lokal (seperti asisten offline)
+    if (!hasMixrouteApiKey()) {
+      const local = answerTanyaInkaiLocal(lastUserText);
+      return streamLocalTextResponse(local);
+    }
+
     const messages = parsed.data.messages as UIMessage[];
+    const mixroute = createMixrouteProvider();
 
     const result = streamText({
-      model: google(getTanyaInkaiModelId()),
+      model: mixroute(getTanyaInkaiModelId()),
       system: buildTanyaInkaiSystemPrompt(),
       messages: await convertToModelMessages(messages),
       maxOutputTokens: 1_024,

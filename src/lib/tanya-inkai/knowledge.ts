@@ -3,8 +3,7 @@ import { buildOrgKnowledgeBlock } from "@/lib/tanya-inkai/org-knowledge";
 import { SITE_BRANCH_NAME, SITE_CONTACT, SITE_URL } from "@/lib/site";
 import { toWhatsAppLink } from "@/lib/phone";
 
-/** Model id untuk @ai-sdk/google (bukan slug Gateway provider/model). */
-const MODEL_ID = "gemini-2.5-flash";
+export { getTanyaInkaiModelId } from "@/lib/tanya-inkai/mixroute";
 
 let cachedSystemPrompt: string | null = null;
 
@@ -17,16 +16,6 @@ function buildTutorialsBlock(): string {
     })
     .join("\n\n");
   return `${tutorials.title}\n${tutorials.subtitle ?? ""}\n\n${sections}`.trim();
-}
-
-export function getTanyaInkaiModelId(): string {
-  const raw = process.env.TANYA_INKAI_MODEL?.trim() || MODEL_ID;
-  // Hindari sisa slug Gateway "google/..." agar tidak salah arah ke AI Gateway
-  return raw.replace(/^google\//i, "");
-}
-
-export function hasGeminiApiKey(): boolean {
-  return Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim());
 }
 
 export function buildTanyaInkaiSystemPrompt(): string {
