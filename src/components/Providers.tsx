@@ -8,6 +8,7 @@ import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PresenceHeartbeat } from "@/components/presence/PresenceHeartbeat";
 import { NavigationProvider } from "@/components/layout/NavigationProvider";
+import { TanyaInkaiWidget } from "@/components/tanya-inkai/TanyaInkaiWidget";
 import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
 import { resolveAppearance } from "@/lib/theme-schedule";
 
@@ -63,6 +64,7 @@ export default function Providers({
         <NavigationProvider>
           <PresenceHeartbeat />
           {children}
+          <TanyaInkaiWidget />
           <AppToaster />
         </NavigationProvider>
       </ThemeProvider>

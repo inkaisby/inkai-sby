@@ -48,7 +48,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
     └──► Resend (email reset password, opsional)
 ```
 
-**Environment utama:** `INKAI_API_URL`, `DATABASE_URL`, `AUTH_SECRET` / `NEXTAUTH_SECRET`, `BLOB_READ_WRITE_TOKEN`, `RESEND_API_KEY`, `IMPERSONATION_ENABLED` (opsional; default on kecuali `"false"`).
+**Environment utama:** `INKAI_API_URL`, `DATABASE_URL`, `AUTH_SECRET` / `NEXTAUTH_SECRET`, `BLOB_READ_WRITE_TOKEN`, `RESEND_API_KEY`, `IMPERSONATION_ENABLED` (opsional; default on kecuali `"false"`), `AI_GATEWAY_API_KEY` (Tanya INKAI; Opsional `TANYA_INKAI_MODEL`).
 
 ---
 
@@ -56,7 +56,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Route | Fungsi |
 |-------|--------|
-| `/` | Beranda, **hero logo INKAI 3D CSS** (float/tilt/kilau + parallax mouse), carousel berita, **cuplikan Apresiasi**, CTA login/daftar; **floating chip kegiatan terbuka** di seluruh layout publik |
+| `/` | Beranda, **hero logo INKAI 3D CSS** (float/tilt/kilau + parallax mouse), carousel berita, **cuplikan Apresiasi**, CTA login/daftar; **floating chip kegiatan terbuka** di seluruh layout publik; **Tanya INKAI** (FAB chat AI global, kecuali undangan UKT) |
 | `/tutorial` | **Tutorial anggota** (langkah + slot embed YouTube): pendaftaran, menu dashboard, UKT, iuran, absensi; CTA Daftar/Masuk; nav header **Tutorial** |
 | `/sejarah` | Sejarah organisasi |
 | `/makna-lambang` | Filosofi lambang |
@@ -94,6 +94,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Dokumen | Aktif | Ringkasan Akte/BPJS; unggah/edit via Profil |
 | Notifikasi | Aktif | Notifikasi **akun sendiri** saja (filter fan-out Inkai + sembunyikan notif ops admin) |
 | Pesan | Aktif | Chat dengan pengurus |
+| Tanya INKAI | Aktif | FAB chat AI (Vercel AI Gateway); panduan/FAQ situs; **bukan** pengganti Pesan pengurus; draggable + off-topic reject |
 | Pindah Dojo | Aktif | Ajuan pindah ranting → verifikasi |
 | Panduan | Aktif | Langkah lengkap + slot video (`guide/member-tutorials.json`); welcome singkat di beranda |
 | Riwayat | Aktif | Kegiatan yang sudah lewat |
@@ -104,7 +105,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Modul | Fungsi |
 |-------|--------|
-| Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda); **dual-role: menu Dashboard Anggota**; **topbar chip kegiatan Masih terbuka** (pulse + rotasi judul + panel) |
+| Beranda Admin | KPI anggota, iuran pending, event, verifikasi, **pesan unread**; aksi cepat role-aware + notifikasi; **ikon back** di topbar (kecuali beranda); **dual-role: menu Dashboard Anggota**; **topbar chip kegiatan Masih terbuka** (pulse + rotasi judul + panel); **Tanya INKAI** FAB (global, skip undangan) |
 | Kelola Anggota | Cari **autocomplete** (nama/NIA/**MSH**); kolom **No**; **sort kolom** (NIA, Nama, Sabuk, Status, Dojo, Terdaftar — ikon naik/turun, server-side); KPI status + **Dok. kurang** + **Tanpa NIA**; **cabang edit Nama** inline (`set_name`) + **Dokumen** (tombol Ubah di kolom); **ranting edit Nama/Dokumen hanya di detail**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **No. MSH** (Hitam/DAN — kolom + edit ranting/cabang `set_msh` di detail); **Terdaftar**; **edit Iuran/bln**; **pengecualian iuran (event/UKT)**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV (+ No. MSH); arsip; Prisma scoped (+ **anggota luar Surabaya / ranting arsip** tetap terlihat); **filter/switcher client-fetch** (`counts=1` hanya ganti dojo); mutasi tanpa `router.refresh`; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50); detail: **username login dari Prisma** (bukan hint palsu); **Reset password** sementara (ranting/cabang) |
 | Iuran Anggota | **Rekening koran per anggota** (tabel: No, Nama, NIA, Ranting, Iuran/bln, Status bulan, Tunggakan, Aging, **Pengecualian**); **filter + DojoContextSwitcher client-fetch** (`GET /api/admin/iuran/ledger` + `replaceState`, tanpa full RSC); klik nama → Sheet **Pengaturan / Mutasi / Pembayaran**; strip antrian verifikasi; generate bulan; export rekap CSV; deep-link `?memberId=&tab=` |
 | UKT | Nav grup **Pendaftaran** (`/admin/ukt`) + **Arsip UKT** (`/admin/ukt/arsip`); **registrants-first** (peserta terdaftar; Belum Daftar via suggest+hydrate); **shell streaming**: header + semester/tahun tampil dulu, KPI/tabel Suspense menyusul; periode aktif, **sort kolom**, multi-select ranting, **filter Gabungan multi-ranting**, bayar→verifikasi cabang, sabuk target, nota, **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya); **toolbar atas sticky**; **ranting: Daftar/Batal/Bayar + toolbar Laporan WA, Salin/WA Undangan & Cetak Nota**; cabang: **Hapus tagihan** terpisah dari hapus pendaftaran; **undangan portal** `/undangan/ukt/[periodId]` |
@@ -279,6 +280,7 @@ Pusat / Nasional
 | Vercel Blob | Upload file (dokumen/gambar) |
 | Resend | Email reset password |
 | Rate limit | Upstash Redis opsional (`UPSTASH_REDIS_*`); fallback memori per instance |
+| Vercel AI Gateway | Chat **Tanya INKAI** (`AI_GATEWAY_API_KEY` / OIDC; model default `google/gemini-3.5-flash-lite`, override `TANYA_INKAI_MODEL`) |
 | Verifikasi klaim | Fail-closed ke Inkai API + `assertDojoInScope` + audit |
 | Playwright | End-to-End (E2E) testing framework untuk pengujian UI otomatis |
 
@@ -288,7 +290,7 @@ Pusat / Nasional
 
 | Area | Status | Catatan untuk laporan / rencana |
 |------|--------|----------------------------------|
-| Portal publik | Lengkap | Konten organisasi, kegiatan terbuka (chip), apresiasi, carousel |
+| Portal publik | Lengkap | Konten organisasi, kegiatan terbuka (chip), apresiasi, carousel; **Tanya INKAI** FAB |
 | Dashboard anggota inti | Lengkap | Beranda asisten: checklist, jadwal dojo, absen hari ini, PIC, aksi kontekstual; kegiatan via `/dashboard/kegiatan` |
 | Admin anggota / iuran / UKT | Lengkap | Iuran: **rekening koran** per anggota + Sheet pengaturan/mutasi/bayar + pengecualian event/UKT; anggota: nonaktif/aktif/hapus arsip + **edit sabuk (cabang)**; UKT pakai gate iuran+dokumen+absensi, hasil ujian, rekap ranting, nota tanpa kode unik |
 | Verifikasi kartu (publik) | Aktif | `/v/[id]` — scan QR kartu anggota |
@@ -421,6 +423,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/member/attendance/locations  Daftar dojo/event override (tanpa koordinat)
 /api/member/attendance/webauthn/*  Register/verify biometrik absensi (WebAuthn)
 /api/notifications/*        Notifikasi (anggota: akun sendiri; admin ranting: ranting+ops cabang; tanpa notif pribadi anggota)
+/api/tanya-inkai            POST chat AI streaming (Tanya INKAI; rate limit; AI Gateway; knowledge tutorial + off-topic reject)
 /api/dojos                  Daftar dojo publik
 Inkai API `/v1/members/verify/[id]`  Verifikasi kartu anggota (publik, via halaman `/v/[id]`)
 ```
@@ -898,6 +901,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 30 Juli 2026 | **Diagnosis login lambat pasca migrasi Supabase:** login bergantung inkai-backend (bukan Supabase Auth); production portal sebelumnya di iad1 sementara DB `inkai-db` ap-southeast-1; `/api/auth/health` 503 karena tidak pakai fallback URL; perbaikan region `sin1`, warm-up health, skip getSession, gate paralel, index perf diterapkan; **aksi lanjutan:** set region `sin1` juga di project Vercel `inkai-ecosystem` + pastikan `INKAI_API_URL`/`DATABASE_URL` portal=backend=project `mzmdhkwleufeiyaspmns` |
 | 30 Juli 2026 | **Post-login hidden latency:** JWT `isUserBlocked` digeser ke refresh claims (~30s) + `cache(auth)`; home member/admin Inkai fail-fast 8s/0; cookie `inkai_entry` bypass hop `/dashboard`→`/admin`; defer PresenceHeartbeat 20s; admin-session token+enrich paralel |
 | 1 Agustus 2026 | **UKT daftar ulang setelah soft-cancel:** `POST /api/admin/ukt/register` tidak lagi 409 mentah pada *Already registered… Use update instead* — reuse baris `CANCELLED`/`REJECTED` via Inkai PUT + `forceRegisterUktInDb` (kasus FULAN Belum Daftar tapi unique masih terisi); inventaris §9.3/§13/§15 |
+| 5 Agustus 2026 | **Tanya INKAI:** FAB chat AI global (publik/dashboard/admin; skip `/undangan/*`); `POST /api/tanya-inkai` + Vercel AI Gateway; knowledge dari tutorial anggota; off-topic tolak+redirect; FAB draggable + `localStorage`; inventaris §4/§5/§6/§10/§11/§13/§15 |
 
 ---
 
