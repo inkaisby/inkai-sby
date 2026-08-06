@@ -21,6 +21,8 @@ if (!niaArg) {
   process.exit(1);
 }
 
+const niaInput: string = niaArg;
+
 const prisma = new PrismaClient();
 
 function emailForNia(nia: string) {
@@ -32,7 +34,7 @@ async function main() {
   const member = await prisma.member.findFirst({
     where: {
       isDeleted: false,
-      nia: { equals: niaArg, mode: "insensitive" },
+      nia: { equals: niaInput, mode: "insensitive" },
     },
     select: {
       id: true,
@@ -44,10 +46,10 @@ async function main() {
   });
 
   if (!member) {
-    throw new Error(`Member dengan NIA ${niaArg} tidak ditemukan`);
+    throw new Error(`Member dengan NIA ${niaInput} tidak ditemukan`);
   }
 
-  const nia = (member.nia || niaArg).trim();
+  const nia = (member.nia || niaInput).trim();
   const passwordHash = await bcrypt.hash(nia, 10);
   let userId = member.userId;
   let email = member.user?.email || null;
