@@ -76,7 +76,14 @@ function LoginFormInner({
 
     if (result?.error) {
       setPhase("idle");
-      const msg = loginErrorMessage(result.code);
+      // Auth.js may return custom code on CredentialsSignin; fall back carefully.
+      const rawCode =
+        typeof result.code === "string" && result.code
+          ? result.code
+          : result.error === "Configuration"
+            ? "server_error"
+            : null;
+      const msg = loginErrorMessage(rawCode);
       setError(msg);
       showError(msg);
       return;

@@ -25,9 +25,27 @@ const niaInput: string = niaArg;
 
 const prisma = new PrismaClient();
 
+/** Match Inkai backend register/change-password cost. */
+const BCRYPT_ROUNDS = 12;
+
 function emailForNia(nia: string) {
   const compact = nia.replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "member";
   return `nia.${compact}@members.inkaisby.local`;
+}
+
+async function ensureMemberRole(userId: string) {
+  const role = await prisma.role.upsert({
+    where: { name: "MEMBER" },
+    create: { name: "MEMBER" },
+    update: {},
+    select: { id: true, name: true },
+  });
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      roles: { connect: { id: role.id } },
+    },
+  });
 }
 
 async function main() {
@@ -50,9 +68,10 @@ async function main() {
   }
 
   const nia = (member.nia || niaInput).trim();
-  const passwordHash = await bcrypt.hash(nia, 10);
+  const passwordHash = await bcrypt.hash(nia, BCRYPT_ROUNDS);
   let userId = member.userId;
   let email = member.user?.email || null;
+  let createdAccount = false;
 
   if (!userId) {
     if (!createAccount) {
@@ -77,16 +96,44 @@ async function main() {
         passwordHash,
         isActive: true,
         member: { connect: { id: member.id } },
+        roles: {
+          connectOrCreate: {
+            where: { name: "MEMBER" },
+            create: { name: "MEMBER" },
+          },
+        },
       },
       select: { id: true, email: true },
     });
     userId = created.id;
     email = created.email;
+    createdAccount = true;
   } else {
     await prisma.user.update({
       where: { id: userId },
-      data: { passwordHash },
+      data: { passwordHash, isActive: true },
     });
+    await ensureMemberRole(userId);
+  }
+
+  // Verify Inkai-style lookup: User → member.nia
+  const linked = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      member: { nia: { equals: nia, mode: "insensitive" } },
+    },
+    select: {
+      id: true,
+      email: true,
+      isActive: true,
+      roles: { select: { name: true } },
+      member: { select: { id: true, nia: true, userId: true } },
+    },
+  });
+  if (!linked?.member?.userId) {
+    throw new Error(
+      `Relasi User↔Member gagal diverifikasi untuk NIA ${nia} (userId=${userId})`,
+    );
   }
 
   console.log(
@@ -97,9 +144,11 @@ async function main() {
         fullName: member.fullName,
         nia,
         userId,
-        email,
-        createdAccount: Boolean(!member.userId && createAccount),
-        message: "passwordHash set to bcrypt(NIA); login dengan NIA / NIA",
+        email: linked.email,
+        roles: linked.roles.map((r) => r.name),
+        createdAccount,
+        message:
+          "passwordHash set to bcrypt(NIA,12); MEMBER role ensured; login dengan NIA / NIA",
       },
       null,
       2,

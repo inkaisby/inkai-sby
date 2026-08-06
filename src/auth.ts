@@ -294,7 +294,12 @@ const nextAuth = NextAuth({
 
         const roles = Array.isArray(user.roles) ? user.roles : [];
         const memberId = user.memberId ?? user.member?.id ?? null;
-        const memberStatus = user.member?.status;
+        // Inkai flattens member fields onto user — prefer nested, fallback top-level status.
+        const memberStatus =
+          user.member?.status ??
+          (typeof (user as { status?: string }).status === "string"
+            ? (user as { status?: string }).status
+            : null);
         if (isMemberLoginBlocked(memberStatus)) {
           throwLogin(LOGIN_ERROR_CODE.blocked);
         }
