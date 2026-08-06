@@ -116,6 +116,11 @@ function LoginFormInner({
               disabled={loading}
             />
           </div>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            Login pertama ber-NIA: isi NIA sebagai username dan password, lalu
+            ganti password di Profil agar akun lebih aman. Email tanpa NIA tetap
+            bisa dipakai login.
+          </p>
         </div>
 
         <div className="space-y-2">

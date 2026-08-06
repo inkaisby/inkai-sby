@@ -135,6 +135,22 @@ export async function clearUserRevocation(userId: string) {
   await clearRedisRevoked(userId);
 }
 
+/** Akhiri sesi DB lain tanpa men-revoke JWT pengguna yang sedang aktif. */
+export async function endOtherUserSessions(userId: string) {
+  const now = new Date();
+  try {
+    await prisma.userSession.updateMany({
+      where: {
+        userId,
+        OR: [{ isCurrent: true }, { endedAt: null }],
+      },
+      data: { isCurrent: false, endedAt: now, lastSeenAt: now },
+    });
+  } catch (error) {
+    console.error("[session-control] endOtherUserSessions", error);
+  }
+}
+
 /** Akhiri semua sesi DB + tandai revoke (TTL 24 jam) agar JWT lama gagal. */
 export async function revokeUserSessions(userId: string) {
   const now = new Date();

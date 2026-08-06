@@ -127,6 +127,13 @@ export default function ProfilPageClient({
   const [changeReason, setChangeReason] = useState("");
   const [submittingChange, setSubmittingChange] = useState(false);
 
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [showOldPw, setShowOldPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+
   const showMsh = useMemo(
     () => isBlackBeltRank(currentRank) || member.isBlackBelt,
     [currentRank, member.isBlackBelt],
@@ -240,6 +247,44 @@ export default function ProfilPageClient({
       },
       "Dokumen disimpan",
     );
+  }
+
+  async function submitPasswordChange(e: React.FormEvent) {
+    e.preventDefault();
+    if (newPassword !== newPasswordConfirm) {
+      showError("Konfirmasi password baru tidak cocok");
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      const res = await fetch("/api/member/password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          oldPassword,
+          newPassword,
+          newPasswordConfirm,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError(
+          (typeof data.error === "string" && data.error) ||
+            "Gagal mengubah password",
+        );
+        return;
+      }
+      showSuccess(
+        (typeof data.message === "string" && data.message) ||
+          "Password berhasil diubah",
+      );
+      setOldPassword("");
+      setNewPassword("");
+      setNewPasswordConfirm("");
+      router.refresh();
+    } finally {
+      setPasswordSaving(false);
+    }
   }
 
   async function submitProfileChange(e: React.FormEvent) {
@@ -597,6 +642,87 @@ export default function ProfilPageClient({
             </Link>
           </p>
         </div>
+      </form>
+
+      <form
+        id="password"
+        onSubmit={submitPasswordChange}
+        className="scroll-mt-24 space-y-4 rounded-2xl border border-border/60 bg-card p-4 sm:p-5"
+      >
+        <div>
+          <h2 className="text-sm font-semibold tracking-wide">Ubah password</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Jangan pakai NIA sebagai password baru. Gunakan minimal 8 karakter,
+            campuran huruf dan angka.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="old-password">Password lama</Label>
+          <div className="relative">
+            <Input
+              id="old-password"
+              type={showOldPw ? "text" : "password"}
+              value={oldPassword}
+              onChange={(e) => setOldPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+              className="pr-10"
+            />
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              onClick={() => setShowOldPw((v) => !v)}
+              aria-label={showOldPw ? "Sembunyikan" : "Tampilkan"}
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="new-password">Password baru</Label>
+            <div className="relative">
+              <Input
+                id="new-password"
+                type={showNewPw ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+                required
+                minLength={8}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                onClick={() => setShowNewPw((v) => !v)}
+                aria-label={showNewPw ? "Sembunyikan" : "Tampilkan"}
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="new-password-confirm">Konfirmasi password baru</Label>
+            <Input
+              id="new-password-confirm"
+              type={showNewPw ? "text" : "password"}
+              value={newPasswordConfirm}
+              onChange={(e) => setNewPasswordConfirm(e.target.value)}
+              autoComplete="new-password"
+              required
+              minLength={8}
+            />
+          </div>
+        </div>
+        <Button
+          type="submit"
+          disabled={passwordSaving}
+          className="w-full gap-2 bg-inkai-red hover:bg-inkai-red/90 sm:w-auto"
+        >
+          {passwordSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Simpan password baru
+        </Button>
       </form>
 
       {anyLocked ? (

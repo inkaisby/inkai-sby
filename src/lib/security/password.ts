@@ -1,4 +1,5 @@
 import { randomInt } from "crypto";
+import bcrypt from "bcryptjs";
 
 const BLOCKED_PASSWORDS = new Set([
   "password",
@@ -15,6 +16,35 @@ export type PasswordValidation = {
   error?: string;
 };
 
+export function normalizeNiaKey(nia: string): string {
+  return nia.trim();
+}
+
+/** True only when password exactly matches the member NIA (default-login path). */
+export function assertDefaultNiaPassword(
+  password: string,
+  nia: string | null | undefined,
+): boolean {
+  if (!nia?.trim() || !password) return false;
+  return normalizeNiaKey(password).toLowerCase() === normalizeNiaKey(nia).toLowerCase();
+}
+
+export async function isPasswordEqualToNia(
+  passwordHash: string | null | undefined,
+  nia: string | null | undefined,
+): Promise<boolean> {
+  if (!passwordHash || !nia?.trim()) return false;
+  try {
+    return await bcrypt.compare(normalizeNiaKey(nia), passwordHash);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Strong password rules for register / self-change / admin accounts.
+ * Does NOT accept NIA-style defaults — use assertDefaultNiaPassword for those.
+ */
 export function validatePassword(password: string): PasswordValidation {
   if (password.length < 8) {
     return { valid: false, error: "Password minimal 8 karakter" };
@@ -36,6 +66,20 @@ export function validatePassword(password: string): PasswordValidation {
   }
 
   return { valid: true };
+}
+
+/** Self-change: strong + must not equal member NIA. */
+export function validateMemberSelfPassword(
+  password: string,
+  nia: string | null | undefined,
+): PasswordValidation {
+  if (assertDefaultNiaPassword(password, nia)) {
+    return {
+      valid: false,
+      error: "Password baru tidak boleh sama dengan NIA. Pilih password yang lebih kuat.",
+    };
+  }
+  return validatePassword(password);
 }
 
 /**

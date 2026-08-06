@@ -6,7 +6,7 @@ import { canAssignNia, canEditKyuBaru, formatMemberName, formatRankLabel } from 
 import { memberActionSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
-import { generateSimplePassword } from "@/lib/security/password";
+import { generateSimplePassword, isPasswordEqualToNia } from "@/lib/security/password";
 import {
   getMemberImpact,
   getMemberLifecycle,
@@ -274,17 +274,30 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "NIA wajib diisi" }, { status: 400 });
     }
 
-    const inScope = await prisma.member.findFirst({
+    const scoped = await prisma.member.findFirst({
       where: { AND: [{ id }, buildMemberFilter(authResult.user)] },
-      select: { id: true },
+      select: {
+        id: true,
+        nia: true,
+        userId: true,
+        user: {
+          select: {
+            id: true,
+            passwordHash: true,
+            lastLoginAt: true,
+          },
+        },
+      },
     });
-    if (!inScope) {
+    if (!scoped) {
       logScopeDenied(authResult.user.id, "set_nia");
       return NextResponse.json(
         { error: "Anggota tidak ditemukan atau di luar cakupan" },
         { status: 404 },
       );
     }
+
+    const previousNia = scoped.nia?.trim() || null;
 
     const { res, data } = await inkaiFetch(
       `/v1/members/${id}`,
@@ -302,11 +315,59 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
+    // Default password = NIA only when account still on default / never logged in.
+    let passwordSyncedToNia = false;
+    if (scoped.userId && scoped.user) {
+      const neverLoggedIn = !scoped.user.lastLoginAt;
+      const matchesOldNia = previousNia
+        ? await isPasswordEqualToNia(scoped.user.passwordHash, previousNia)
+        : false;
+      const matchesNewNia = await isPasswordEqualToNia(
+        scoped.user.passwordHash,
+        nia,
+      );
+      const shouldSetDefault =
+        neverLoggedIn || matchesOldNia || !scoped.user.passwordHash;
+
+      if (shouldSetDefault && !matchesNewNia) {
+        try {
+          const passwordHash = await bcrypt.hash(nia, 10);
+          await prisma.user.update({
+            where: { id: scoped.userId },
+            data: { passwordHash },
+          });
+          const patch = await inkaiFetch(
+            `/v1/members/${id}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({ password: nia }),
+            },
+            token,
+          );
+          if (!patch.res.ok) {
+            console.warn(
+              "[set_nia] Inkai password PATCH failed after local hash update:",
+              inkaiErrorMessage(patch.data, "unknown"),
+            );
+          }
+          passwordSyncedToNia = true;
+        } catch (err) {
+          console.error("[set_nia] failed to sync default NIA password:", err);
+        }
+      } else if (!shouldSetDefault) {
+        console.info(
+          `[set_nia] skip password overwrite for member ${id} (custom password kept)`,
+        );
+      }
+    }
+
     writeAuditLog({
       userId: authResult.user.id,
       email: authResult.user.email,
       action: "MEMBER_SET_NIA",
-      details: `Set NIA ${nia} for member ${id}`,
+      details: `Set NIA ${nia} for member ${id}${
+        passwordSyncedToNia ? "; default password synced to NIA" : ""
+      }`,
       ip,
       userAgent,
       token,
@@ -315,7 +376,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({
       success: true,
       member: data.data,
-      message: "NIA berhasil disimpan",
+      message: passwordSyncedToNia
+        ? "NIA berhasil disimpan. Password default = NIA (minta anggota ganti di Profil)."
+        : "NIA berhasil disimpan",
+      passwordSyncedToNia,
     });
   }
 
@@ -820,6 +884,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       select: {
         id: true,
         fullName: true,
+        nia: true,
         userId: true,
         user: { select: { id: true, email: true } },
       },
@@ -841,7 +906,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    const temporaryPassword = generateSimplePassword(scoped.fullName);
+    const nia = scoped.nia?.trim() || "";
+    const usedNiaAsPassword = Boolean(nia);
+    const temporaryPassword = usedNiaAsPassword
+      ? nia
+      : generateSimplePassword(scoped.fullName);
     const { res, data } = await inkaiFetch(
       `/v1/members/${id}`,
       {
@@ -885,7 +954,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       userId: authResult.user.id,
       email: authResult.user.email,
       action: "MEMBER_RESET_PASSWORD",
-      details: `Reset password for ${scoped.fullName} (${id}; ${scoped.user.email})`,
+      details: usedNiaAsPassword
+        ? `Reset password to NIA for ${scoped.fullName} (${id}; ${scoped.user.email})`
+        : `Reset temporary password for ${scoped.fullName} (${id}; ${scoped.user.email})`,
       ip,
       userAgent,
       token,
@@ -895,7 +966,10 @@ export async function PATCH(request: Request, context: RouteContext) {
       success: true,
       email: scoped.user.email,
       temporaryPassword,
-      message: `Password sementara dibuat untuk ${scoped.user.email}. Salin sekarang — tidak ditampilkan lagi.`,
+      usedNiaAsPassword,
+      message: usedNiaAsPassword
+        ? `Password sementara = NIA untuk ${scoped.user.email}. Salin sekarang — minta anggota ganti di Profil.`
+        : `Password sementara dibuat untuk ${scoped.user.email}. Salin sekarang — tidak ditampilkan lagi.`,
     });
   }
 

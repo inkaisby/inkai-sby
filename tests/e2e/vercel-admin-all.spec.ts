@@ -26,6 +26,10 @@ test("Verify all admin pages load sequentially", async ({
 }) => {
   test.setTimeout(120000);
   test.skip(
+    !process.env.PLAYWRIGHT_PROD,
+    "Set PLAYWRIGHT_PROD=1 to run production Vercel smoke tests",
+  );
+  test.skip(
     browserName === "webkit",
     "Skip WebKit due to environment-specific timeout issues"
   );

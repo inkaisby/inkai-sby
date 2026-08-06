@@ -97,18 +97,43 @@ function TanyaInkaiWidgetInner({ pathname }: { pathname: string }) {
   }, [messages, waitingFirstToken, open]);
 
   const panelStyle = useMemo(() => {
-    if (typeof window === "undefined") {
-      return { left: pos.x, top: pos.y - PANEL_H - 12 };
-    }
+    const fab = 56;
+    const gap = 12;
     const margin = 8;
-    let left = pos.x + 56 - PANEL_W;
-    let top = pos.y - PANEL_H - 12;
-    left = Math.min(Math.max(margin, left), window.innerWidth - PANEL_W - margin);
-    if (top < margin) {
-      top = Math.min(pos.y + 64, window.innerHeight - PANEL_H - margin);
+    const vw = typeof window !== "undefined" ? window.innerWidth : 390;
+    const vh = typeof window !== "undefined" ? window.innerHeight : 844;
+    const width = Math.min(PANEL_W, vw - margin * 2);
+    const availableAbove = Math.max(0, pos.y - margin - gap);
+    const availableBelow = Math.max(0, vh - (pos.y + fab) - margin - gap);
+    const preferAbove = availableAbove >= 220 || availableAbove >= availableBelow;
+    const maxH = preferAbove ? availableAbove : availableBelow;
+    const height = Math.max(220, Math.min(PANEL_H, maxH || PANEL_H));
+
+    let left = pos.x + fab - width;
+    left = Math.min(Math.max(margin, left), vw - width - margin);
+
+    let top: number;
+    if (preferAbove && availableAbove >= 160) {
+      top = pos.y - gap - height;
+    } else {
+      top = pos.y + fab + gap;
     }
-    top = Math.min(Math.max(margin, top), window.innerHeight - PANEL_H - margin);
-    return { left, top };
+    top = Math.min(Math.max(margin, top), Math.max(margin, vh - height - margin));
+
+    const originX = Math.min(
+      Math.max(0, pos.x + fab / 2 - left),
+      width,
+    );
+    const originY = preferAbove ? height : 0;
+
+    return {
+      left,
+      top,
+      width,
+      height,
+      maxHeight: height,
+      transformOrigin: `${originX}px ${originY}px`,
+    };
   }, [pos.x, pos.y, open]);
 
   const toggleOpen = useCallback(() => {
@@ -148,7 +173,7 @@ function TanyaInkaiWidgetInner({ pathname }: { pathname: string }) {
       {open ? (
         <div
           className={cn(
-            "pointer-events-auto fixed flex max-h-[min(480px,calc(100vh-24px))] w-[min(360px,calc(100vw-16px))] flex-col overflow-hidden rounded-2xl border border-border/70 bg-card shadow-xl shadow-black/15",
+            "pointer-events-auto fixed flex w-[min(360px,calc(100vw-16px))] flex-col overflow-hidden rounded-2xl border border-border/70 bg-card shadow-xl shadow-black/15",
             "tanya-inkai-panel",
             panelVisible ? "tanya-inkai-panel-open" : "tanya-inkai-panel-closed",
           )}

@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Bell, Wallet } from "lucide-react";
+import { Bell, Lock, Wallet } from "lucide-react";
 import {
   fetchMyAttendance,
   fetchMyBillings,
@@ -34,6 +34,8 @@ import {
   semesterAttendanceStats,
   UKT_MIN_ATTENDANCE_PCT,
 } from "@/lib/ukt";
+import { isPasswordEqualToNia } from "@/lib/security/password";
+import { getOperationalDefaults } from "@/lib/org-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +53,7 @@ export default async function MemberDashboard() {
   const userId = String(session.user.id);
   const memberIdHint =
     typeof session.user.memberId === "string" ? session.user.memberId : null;
-  const [member, notifications, attendances, billings, unreadPesanResult] =
+  const [member, notifications, attendances, billings, unreadPesanResult, opsDefaults] =
     await Promise.all([
       fetchMyMemberProfile(token, memberIdHint),
       fetchMyNotifications(token, 15, session.user.id),
@@ -71,7 +73,24 @@ export default async function MemberDashboard() {
           }),
         0,
       ),
+      getOperationalDefaults(),
     ]);
+
+  const memberNia =
+    typeof member?.nia === "string" ? member.nia.trim() : "";
+  let showPasswordNiaBanner = false;
+  if (opsDefaults.forcePasswordHint && memberNia) {
+    const userRow = await prisma.user
+      .findFirst({
+        where: { id: userId, isDeleted: false },
+        select: { passwordHash: true },
+      })
+      .catch(() => null);
+    showPasswordNiaBanner = await isPasswordEqualToNia(
+      userRow?.passwordHash,
+      memberNia,
+    );
+  }
 
   const unreadPesan = unreadPesanResult.data || 0;
 
@@ -217,6 +236,27 @@ export default async function MemberDashboard() {
           </div>
         </div>
       )}
+
+      {showPasswordNiaBanner ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
+          <div className="flex items-start gap-3">
+            <Lock className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <p className="font-semibold text-sm">Segera ganti password</p>
+              <p className="text-sm text-muted-foreground">
+                Password Anda masih sama dengan NIA. Ganti di Profil agar akun
+                lebih aman.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/profil#password"
+            className="text-sm font-semibold text-inkai-red"
+          >
+            Ubah password →
+          </Link>
+        </div>
+      ) : null}
 
       {isActive && <MemberUktStatus compact />}
 

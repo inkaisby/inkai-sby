@@ -1,6 +1,6 @@
 import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { cache } from "react";
 import { authConfig } from "@/auth.config";
 import { inkaiFetch } from "@/lib/inkai-api/server";
@@ -13,11 +13,13 @@ import { clearPresence, markUserLogin } from "@/lib/presence";
 import { snapshotFromNextHeaders } from "@/lib/session-audit";
 import { loadSessionClaimsFromDb } from "@/lib/session-refresh";
 import { LOGIN_ERROR_CODE } from "@/lib/auth/login-errors";
+import { resolveLoginIdentifier } from "@/lib/auth/parse-login-identifier";
 import { prisma } from "@/lib/prisma";
 import {
   clearUserRevocation,
   isUserBlocked,
 } from "@/lib/security/session-control";
+import { rateLimitAsync } from "@/lib/security/rate-limit";
 import { resolveImpersonationOverlay } from "@/lib/security/impersonation";
 import { resolvePostLoginPath } from "@/lib/rbac";
 
@@ -230,7 +232,25 @@ const nextAuth = NextAuth({
           throwLogin(LOGIN_ERROR_CODE.credentials);
         }
 
-        const identifier = (credentials.email as string).trim();
+        const rawIdentifier = (credentials.email as string).trim();
+        const identifier = await resolveLoginIdentifier(rawIdentifier);
+
+        const hdrs = await headers();
+        const ip =
+          hdrs.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+          hdrs.get("x-real-ip") ||
+          "unknown";
+
+        const [ipLimit, idLimit] = await Promise.all([
+          rateLimitAsync(`login:ip:${ip}`, { max: 10, windowMs: 15 * 60_000 }),
+          rateLimitAsync(`login:id:${identifier.toLowerCase()}`, {
+            max: 8,
+            windowMs: 15 * 60_000,
+          }),
+        ]);
+        if (!ipLimit.success || !idLimit.success) {
+          throwLogin(LOGIN_ERROR_CODE.rate_limited);
+        }
 
         let res: Response;
         let data: Record<string, unknown>;

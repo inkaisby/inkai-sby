@@ -1541,10 +1541,17 @@ export function MembersTable({
                   </dl>
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
                     Password tersimpan tidak bisa dibaca ulang. Reset membuat
-                    password sementara (pola {passwordAdminStyle || "Nama####"}
-                    ) — salin segera, lalu minta anggota ganti lewat profil /
-                    lupa password.
+                    password sementara = NIA (jika ada), atau pola{" "}
+                    {passwordAdminStyle || "Nama####"} jika belum ber-NIA —
+                    salin segera, lalu minta anggota ganti di Profil.
                   </p>
+                  {!loading && detail?.nia && !user?.email ? (
+                    <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-200">
+                      Sudah ber-NIA tetapi belum punya akun login. Minta anggota
+                      daftar mandiri atau gabungkan (merge) dengan data yang
+                      sudah berakun.
+                    </p>
+                  ) : null}
                 </section>
 
                 <section className="space-y-2.5">

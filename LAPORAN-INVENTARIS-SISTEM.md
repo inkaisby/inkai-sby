@@ -84,7 +84,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Modul | Status | Fungsi |
 |-------|--------|--------|
 | Beranda | Aktif | Kartu anggota, **checklist keanggotaan + CTA**, dojo/jadwal/**absen hari ini**/PIC, aksi cepat kontekstual, UKT, badge pesan+notif; **header sticky**; kegiatan via menu (bukan agenda di beranda); **dual-role: ikon Panel Admin** di header (sebelah logout) |
-| Profil | Aktif | Edit lengkap (foto, identitas, dokumen); **email/NIA/sabuk/MSH edit mandiri 1×** lalu pengajuan `PROFILE_CHANGE`; No. MSH (Hitam/DAN) di Kartu Anggota |
+| Profil | Aktif | Edit lengkap (foto, identitas, dokumen); **ubah password mandiri** (`#password`); **email/NIA/sabuk/MSH edit mandiri 1×** lalu pengajuan `PROFILE_CHANGE`; No. MSH (Hitam/DAN) di Kartu Anggota; banner beranda jika password masih = NIA |
 | Absensi | Aktif | Streaming UI; check-in GPS multi-lokasi (auto geofence + override); biometrik HP opsional (WebAuthn); QR collapsible; riwayat; 1×/hari |
 | Iuran | Aktif | Daftar tagihan + **lapor setor** (tanggal; nominal = tagihan; periode berjalan/**bulan sebelumnya**; tanpa unggah bukti TF) |
 | Kegiatan | Aktif | Pendaftaran event (dengan gate kelengkapan); UKT lewat kartu Status UKT (daftar mandiri) |
@@ -94,7 +94,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Dokumen | Aktif | Ringkasan Akte/BPJS; unggah/edit via Profil |
 | Notifikasi | Aktif | Notifikasi **akun sendiri** saja (filter fan-out Inkai + sembunyikan notif ops admin) |
 | Pesan | Aktif | Chat dengan pengurus |
-| Tanya INKAI | Aktif | FAB chat AI (**MixRoute** OpenAI-compatible; fallback knowledge lokal tanpa key); tutorial + org publik; **bukan** pengganti Pesan pengurus; draggable + off-topic reject |
+| Tanya INKAI | Aktif | FAB chat AI (**MixRoute** OpenAI-compatible; fallback knowledge lokal tanpa key); tutorial + org publik; **bukan** pengganti Pesan pengurus; draggable; panel **menempel dekat FAB** (tinggi dinamis semua device); off-topic reject |
 | Pindah Dojo | Aktif | Ajuan pindah ranting → verifikasi |
 | Panduan | Aktif | Langkah lengkap + slot video (`guide/member-tutorials.json`); welcome singkat di beranda |
 | Riwayat | Aktif | Kegiatan yang sudah lewat |
@@ -201,12 +201,12 @@ Pusat / Nasional
 4. **Deteksi duplikat** sebelum simpan: **keras** jika NIK, NIA, atau nama tepat + tanggal lahir sama (cakupan Cabang Surabaya); **lunak** jika nama mirip. Blok `POST /api/admin/members` & `POST /api/auth/register` (409); UI peringatan di form tambah anggota & daftar publik.
 5. **Gabungkan (merge)** oleh ranting/cabang di detail `/admin/anggota`: data operasional dipertahankan, akun login dari daftar mandiri dipindahkan, duplikat diarsipkan (`POST /api/admin/members/merge`). Cocok untuk kasus ranting daftar dulu (tanpa akun) lalu anggota daftar mandiri (PENDING + akun), atau sebaliknya. **Registrasi-first:** bila kedua sisi punya `EventRegistration` untuk event yang sama (mis. UKT), registrasi milik data `keep` yang dipertahankan; duplikat di sisi `merge` **dihapus** (bukan menimpa) supaya tidak bentrok unique `(eventId, memberId)` — riwayat billing/absensi/rank tetap direparent ke `keep`.
 6. Admin memverifikasi di `/admin/verifikasi` atau kelola anggota.
-7. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran, **mengedit sabuk**, dan **memindahkan ranting** anggota (kolom Dojo inline di `/admin/anggota`, `set_dojo`). Ranting & cabang dapat **mengedit nama** (`set_name`), **dokumen** Akte/BPJS (`set_documents`), dan **No. MSH** untuk sabuk Hitam/DAN (`set_msh`); **ranting hanya lewat sheet detail** (bukan inline tabel); **cabang** tetap boleh inline Nama/Dokumen. Perubahan MSH (mandiri, pengajuan, atau admin) **memberitahu admin ranting & cabang**. Ajuan pindah dari anggota tetap lewat verifikasi `DOJO_TRANSFER`.
-8. Anggota melengkapi profil & dokumen (termasuk No. MSH mandiri 1× untuk Hitam/DAN).
+7. Cabang dapat mengisi **NIA** bila belum diisi saat pendaftaran, **mengedit sabuk**, dan **memindahkan ranting** anggota (kolom Dojo inline di `/admin/anggota`, `set_dojo`). Saat **set NIA**, password default diset = NIA **hanya** jika akun belum login / masih password default NIA lama (tidak menimpa password kuat). Ranting & cabang dapat **mengedit nama** (`set_name`), **dokumen** Akte/BPJS (`set_documents`), dan **No. MSH** untuk sabuk Hitam/DAN (`set_msh`); **ranting hanya lewat sheet detail** (bukan inline tabel); **cabang** tetap boleh inline Nama/Dokumen. Perubahan MSH (mandiri, pengajuan, atau admin) **memberitahu admin ranting & cabang**. Ajuan pindah dari anggota tetap lewat verifikasi `DOJO_TRANSFER`.
+8. Anggota melengkapi profil & dokumen (termasuk No. MSH mandiri 1× untuk Hitam/DAN); **ganti password** di `/dashboard/profil` (`PATCH /api/member/password`).
 9. **Nonaktifkan** (status `INACTIVE` / `SUSPENDED`) — ranting/cabang; wajib alasan + catatan; notifikasi ke anggota; login diblokir; NIA & riwayat tetap; dapat **aktifkan kembali**. Bulk nonaktif tersedia.
-10. **Reset password** di detail `/admin/anggota` (ranting/cabang): password tersimpan tidak ditampilkan; tombol **Reset password** membuat password sementara (pola `Nama####`), ditampilkan sekali untuk disalin.
+10. **Reset password** di detail `/admin/anggota` (ranting/cabang): password tersimpan tidak ditampilkan; tombol **Reset password** membuat password sementara = **NIA** (jika ada) atau pola `Nama####`; ditampilkan sekali untuk disalin; minta anggota ganti di Profil.
 11. **Hapus** = soft-delete (`isDeleted`) — cek dampak iuran/UKT; ranting & cabang dalam scope; aktif/ber-NIA wajib ketik nama. **Bulk hapus/arsip** dari floating bar (konfirmasi ketik `ARSIPKAN`). Arsip dapat dilihat & **dipulihkan** (jadi Nonaktif) oleh cabang; **bulk hapus permanen** di arsip (ketik `HAPUS`).
-
+12. **Login anggota:** identifier email atau NIA (varian titik dinormalisasi ke NIA tersimpan); rate limit per-IP + per-identifier di NextAuth authorize; email tanpa NIA tetap bisa login.
 ### 9.2 Iuran
 1. Tagihan iuran bulanan muncul di sistem (nominal dari **Iuran/bln** per anggota saat generate).
 2. Anggota melihat tagihan di `/dashboard/iuran`, **menyetor manual ke ranting** (bukti fisik offline), lalu **melaporkan tanggal bayar** untuk tagihan yang ada **atau periode bulan sebelumnya** (maks. 24 bulan; nominal = Iuran/bln; tagihan dibuat otomatis bila belum digenerate). **Tanpa unggah** bukti TF. Status → `WAITING_VERIFICATION`.
@@ -401,6 +401,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/events           Buat event non-UKT (Cabang)
 /api/admin/events/[id]      Detail/roster + ubah/tutup event
 /api/member/profile          GET sabuk kartu (no-store) + PATCH profil lengkap (identitas, foto, dokumen; email/NIA/sabuk/MSH 1×)
+/api/member/password         PATCH ubah password mandiri (Inkai change-password + sync hash + end sesi lain)
 /api/member/profile-change   Pengajuan ubah email/NIA/sabuk/MSH setelah terkunci (`PROFILE_CHANGE`)
 /api/member/upload           Unggah file anggota (foto/akte/bpjs + folder legacy iuran/piagam)
 /api/member/document-file    Proxy pratinjau dokumen anggota
@@ -904,6 +905,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 5 Agustus 2026 | **Tanya INKAI:** FAB chat AI global (publik/dashboard/admin; skip `/undangan/*`); `POST /api/tanya-inkai` + Vercel AI Gateway; knowledge dari tutorial anggota; off-topic tolak+redirect; FAB draggable + `localStorage`; inventaris §4/§5/§6/§10/§11/§13/§15 |
 | 5 Agustus 2026 | **Tanya INKAI → Gemini langsung:** ganti AI Gateway (butuh kartu) ke `@ai-sdk/google` + `GOOGLE_GENERATIVE_AI_API_KEY`; knowledge diperluas (tutorial + sejarah/visi-misi/lambang/struktur/keamanan); pesan error BI; inventaris §5/§10/§13/§15 |
 | 5 Agustus 2026 | **Tanya INKAI → MixRoute (pola asisten):** `@ai-sdk/openai-compatible` + `MIXROUTE_API_KEY`/`AI_BASE_URL`; fallback FAQ lokal tanpa key; parse error JSON di widget; inventaris §5/§10/§13/§15 |
+| 6 Agustus 2026 | **Login NIA=password + profil ubah password:** reset/set NIA default password=NIA (tanpa timpa kuat); `PATCH /api/member/password`; banner dashboard; rate-limit authorize + gate e2e `PLAYWRIGHT_PROD`; normalisasi NIA login; panel Tanya INKAI anchor FAB; inventaris §5/§9/§13/§15 |
 
 ---
 

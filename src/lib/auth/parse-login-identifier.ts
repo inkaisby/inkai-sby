@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 export function parseLoginIdentifier(
   raw: string
@@ -31,4 +32,30 @@ export function userWhereForLoginIdentifier(
       member: { nia: { equals: v, mode: "insensitive" }, isDeleted: false },
     })),
   };
+}
+
+/**
+ * Canonical identifier for Inkai login: email as-is, or stored Member.nia when
+ * the typed value matches a known NIA (with/without dots).
+ */
+export async function resolveLoginIdentifier(raw: string): Promise<string> {
+  const parsed = parseLoginIdentifier(raw);
+  if (parsed.type === "email") return parsed.value;
+
+  const primary = parsed.values[0] || raw.trim();
+  try {
+    const member = await prisma.member.findFirst({
+      where: {
+        isDeleted: false,
+        OR: parsed.values.map((v) => ({
+          nia: { equals: v, mode: "insensitive" as const },
+        })),
+      },
+      select: { nia: true },
+    });
+    if (member?.nia?.trim()) return member.nia.trim();
+  } catch {
+    // fall through to typed value
+  }
+  return primary;
 }
