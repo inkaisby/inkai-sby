@@ -10,6 +10,8 @@ import {
   FileWarning,
   IdCard,
   UserMinus,
+  UserCog,
+  Copy,
   type LucideIcon,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,7 +23,9 @@ export type AnggotaKpiIconName =
   | "userMinus"
   | "userX"
   | "fileWarning"
-  | "idCard";
+  | "idCard"
+  | "userCog"
+  | "copy";
 
 export type AnggotaKpiItem = {
   key: string;
@@ -43,6 +47,8 @@ const KPI_ICONS: Record<AnggotaKpiIconName, LucideIcon> = {
   userX: UserX,
   fileWarning: FileWarning,
   idCard: IdCard,
+  userCog: UserCog,
+  copy: Copy,
 };
 
 /**
@@ -90,7 +96,7 @@ export function AnggotaKpiCards({
 
   return (
     <>
-      <div className="-mx-3 mb-4 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-3 sm:overflow-visible sm:px-0 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="-mx-3 mb-4 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-3 sm:overflow-visible sm:px-0 lg:grid-cols-4 xl:grid-cols-5">
         {items.map((kpi) => {
           const Icon = KPI_ICONS[kpi.icon] ?? Users;
           const active =

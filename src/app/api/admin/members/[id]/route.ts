@@ -6,7 +6,7 @@ import { canAssignNia, canEditKyuBaru, formatMemberName, formatRankLabel } from 
 import { memberActionSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
-import { generateSimplePassword, isPasswordEqualToNia } from "@/lib/security/password";
+import { generateSimplePassword, isPasswordEqualToNia, normalizeNiaKey } from "@/lib/security/password";
 import {
   getMemberImpact,
   getMemberLifecycle,
@@ -30,9 +30,11 @@ import { assertDojoInScope } from "@/lib/pengaturan";
 import {
   mshAllowedForRank,
   normalizeMsh,
+  normalizeNia,
 } from "@/lib/member-profile-locks";
 import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
 import { writeSecurityEvent } from "@/lib/security/security-events";
+import { tryProvisionMemberNiaLogin } from "@/lib/member-nia-login";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -269,7 +271,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         { status: 403 },
       );
     }
-    const nia = parsed.data.nia?.trim();
+    const nia = normalizeNia(parsed.data.nia);
     if (!nia) {
       return NextResponse.json({ error: "NIA wajib diisi" }, { status: 400 });
     }
@@ -317,7 +319,19 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     // Default password = NIA only when account still on default / never logged in.
     let passwordSyncedToNia = false;
-    if (scoped.userId && scoped.user) {
+    let accountProvisioned = false;
+    if (!scoped.userId) {
+      const provision = await tryProvisionMemberNiaLogin(id, {
+        actorUserId: authResult.user.id,
+        actorEmail: authResult.user.email,
+      });
+      if (provision?.status === "created") {
+        accountProvisioned = true;
+        passwordSyncedToNia = true;
+      } else if (provision?.status === "failed") {
+        console.warn("[set_nia] auto-provision failed:", provision.reason);
+      }
+    } else if (scoped.userId && scoped.user) {
       const neverLoggedIn = !scoped.user.lastLoginAt;
       const matchesOldNia = previousNia
         ? await isPasswordEqualToNia(scoped.user.passwordHash, previousNia)
@@ -331,7 +345,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
       if (shouldSetDefault && !matchesNewNia) {
         try {
-          const passwordHash = await bcrypt.hash(nia, 10);
+          const passwordHash = await bcrypt.hash(normalizeNiaKey(nia), 10);
           await prisma.user.update({
             where: { id: scoped.userId },
             data: { passwordHash },
@@ -366,7 +380,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       email: authResult.user.email,
       action: "MEMBER_SET_NIA",
       details: `Set NIA ${nia} for member ${id}${
-        passwordSyncedToNia ? "; default password synced to NIA" : ""
+        accountProvisioned
+          ? "; login account created (password=NIA)"
+          : passwordSyncedToNia
+            ? "; default password synced to NIA"
+            : ""
       }`,
       ip,
       userAgent,
@@ -376,10 +394,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({
       success: true,
       member: data.data,
-      message: passwordSyncedToNia
-        ? "NIA berhasil disimpan. Password default = NIA (minta anggota ganti di Profil)."
-        : "NIA berhasil disimpan",
+      message: accountProvisioned
+        ? "NIA berhasil disimpan. Akun login dibuat (password = NIA). Minta anggota ganti di Profil."
+        : passwordSyncedToNia
+          ? "NIA berhasil disimpan. Password default = NIA (minta anggota ganti di Profil)."
+          : "NIA berhasil disimpan",
       passwordSyncedToNia,
+      accountProvisioned,
     });
   }
 

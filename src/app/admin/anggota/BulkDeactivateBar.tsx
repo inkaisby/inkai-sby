@@ -61,6 +61,42 @@ export function BulkDeactivateBar({
     setProgress({ percent: 0, done: 0, total: 0 });
   }
 
+  async function provisionLogin() {
+    setLoading(true);
+    setProgress({ percent: 0, done: 0, total: selectedIds.length });
+    try {
+      const res = await fetch("/api/admin/members/provision-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberIds: selectedIds }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        okCount?: number;
+        failCount?: number;
+      };
+      setProgress({
+        percent: 100,
+        done: selectedIds.length,
+        total: selectedIds.length,
+      });
+      if (!res.ok) {
+        showError(data.error || "Gagal membuat akun login");
+        return;
+      }
+      showSuccess(data.message || "Akun login diproses");
+      onClear();
+      onSuccess?.();
+      router.refresh();
+    } catch {
+      showError("Gagal membuat akun login");
+    } finally {
+      setLoading(false);
+      setProgress({ percent: 0, done: 0, total: 0 });
+    }
+  }
+
   async function approvePending() {
     if (pendingIds.length === 0) {
       showError("Pilih anggota berstatus PENDING untuk disetujui");
@@ -186,6 +222,15 @@ export function BulkDeactivateBar({
               Setujui {pendingIds.length} pending
             </Button>
           ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={loading}
+            onClick={() => void provisionLogin()}
+          >
+            Buat akun login
+          </Button>
           <Button
             type="button"
             size="sm"

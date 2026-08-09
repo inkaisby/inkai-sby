@@ -17,8 +17,10 @@ import { getClientIp } from "@/lib/security/request";
 import {
   mshAllowedForRank,
   normalizeMsh,
+  normalizeNia,
 } from "@/lib/member-profile-locks";
 import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
+import { tryProvisionMemberNiaLogin } from "@/lib/member-nia-login";
 import {
   activeHardDuplicates,
   archivedIdentityConflicts,
@@ -95,7 +97,7 @@ export async function createAdminMember(opts: {
   // NIK opsional: hanya kirim jika tepat 16 digit (jangan "" — bentrok unique).
   const nikRaw = input.nik?.trim() || "";
   const nik = /^\d{16}$/.test(nikRaw) ? nikRaw : undefined;
-  const nia = input.nia?.trim() || undefined;
+  const nia = normalizeNia(input.nia) || undefined;
   const phoneNumber = input.phoneNumber?.trim() || undefined;
   const mshRaw = input.mshNumber?.trim() || "";
   const msh = mshRaw ? normalizeMsh(mshRaw) : null;
@@ -194,7 +196,7 @@ export async function createAdminMember(opts: {
     status: "Active",
   };
   if (nik) payload.nik = nik;
-  if (nia) payload.nia = nia.toUpperCase();
+  if (nia) payload.nia = nia;
   if (phoneNumber) payload.phoneNumber = phoneNumber;
 
   const { res, data } = await inkaiFetch(
@@ -348,6 +350,19 @@ async function finalizeCreatedMember(opts: {
       }
     } catch (err) {
       console.error("[createAdminMember:sync]", err);
+    }
+  }
+
+  if (memberId && nia) {
+    const provision = await tryProvisionMemberNiaLogin(memberId, {
+      actorUserId: user.id,
+      actorEmail: user.email,
+    });
+    if (provision?.status === "failed") {
+      console.warn(
+        "[createAdminMember] NIA login provision failed:",
+        provision.reason,
+      );
     }
   }
 

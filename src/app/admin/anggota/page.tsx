@@ -37,6 +37,8 @@ type SearchParams = Promise<{
   dojoId?: string;
   docs?: string;
   nia?: string;
+  account?: string;
+  dup?: string;
   inactiveMonths?: string;
   view?: string;
   page?: string;
@@ -69,6 +71,8 @@ async function AdminAnggotaContent({
   const status = params.status?.trim() || "";
   const docs = params.docs === "incomplete" ? "incomplete" : "";
   const niaFilter = params.nia === "missing" ? "missing" : "";
+  const accountFilter = params.account === "missing" ? "missing" : "";
+  const dupFilter = params.dup === "nia_nik" ? "nia_nik" : "";
   const view = params.view === "archive" ? "archive" : "";
   const inactiveMonthsRaw = Number(params.inactiveMonths || 0);
   const inactiveMonths =
@@ -135,6 +139,8 @@ async function AdminAnggotaContent({
       ...scopeOpts,
       docsIncomplete: docs === "incomplete",
       missingNia: niaFilter === "missing",
+      withoutAccount: accountFilter === "missing",
+      duplicateIdentity: dupFilter === "nia_nik",
       sort,
       sortDir,
     }),
@@ -164,6 +170,8 @@ async function AdminAnggotaContent({
     !status &&
     !docs &&
     !niaFilter &&
+    !accountFilter &&
+    !dupFilter &&
     !inactiveMonths &&
     syncedStatusCounts.all !== total
   ) {
@@ -194,6 +202,8 @@ async function AdminAnggotaContent({
         dojoId: singleLockedDojo ? "" : dojoId,
         docs,
         nia: niaFilter,
+        account: accountFilter,
+        dup: dupFilter,
         inactiveMonths: inactiveMonths ? String(inactiveMonths) : "",
         page,
         pageSize,

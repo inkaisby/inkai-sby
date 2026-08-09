@@ -25,6 +25,8 @@ export async function GET(request: Request) {
   const status = sp.get("status")?.trim() || "";
   const docs = sp.get("docs") === "incomplete" ? "incomplete" : "";
   const niaFilter = sp.get("nia") === "missing" ? "missing" : "";
+  const accountFilter = sp.get("account") === "missing" ? "missing" : "";
+  const dupFilter = sp.get("dup") === "nia_nik" ? "nia_nik" : "";
   const inactiveMonthsRaw = Number(sp.get("inactiveMonths") || 0);
   const inactiveMonths =
     inactiveMonthsRaw === 3 ||
@@ -66,6 +68,8 @@ export async function GET(request: Request) {
       ...scopeOpts,
       docsIncomplete: docs === "incomplete",
       missingNia: niaFilter === "missing",
+      withoutAccount: accountFilter === "missing",
+      duplicateIdentity: dupFilter === "nia_nik",
       sort: sort || undefined,
       sortDir,
     }),

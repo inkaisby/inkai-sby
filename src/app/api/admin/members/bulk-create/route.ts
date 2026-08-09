@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { adminMemberBulkCreateSchema } from "@/lib/security/schemas";
 import { createAdminMember } from "@/lib/admin-member-create";
+import { normalizeNia } from "@/lib/member-profile-locks";
 import { parseFlexibleBirthDate } from "@/lib/parse-birth-date";
 import {
   formatRankLabel,
@@ -86,7 +87,7 @@ export async function POST(request: Request) {
         address: raw.address?.trim()
           ? raw.address.trim().toUpperCase()
           : undefined,
-        nia: raw.nia?.trim() ? raw.nia.trim().toUpperCase() : undefined,
+        nia: normalizeNia(raw.nia) || undefined,
       },
       request,
       auditAction: "MEMBER_CREATE_BULK",

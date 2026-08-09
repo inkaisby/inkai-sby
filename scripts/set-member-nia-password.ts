@@ -9,6 +9,11 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
+import {
+  NIA_LOGIN_BCRYPT_ROUNDS,
+  provisionMemberNiaLogin,
+} from "../src/lib/member-nia-login";
+import { normalizeNiaKey } from "../src/lib/security/password";
 
 const args = process.argv.slice(2).filter(Boolean);
 const createAccount = args.includes("--create-account");
@@ -22,31 +27,7 @@ if (!niaArg) {
 }
 
 const niaInput: string = niaArg;
-
 const prisma = new PrismaClient();
-
-/** Match Inkai backend register/change-password cost. */
-const BCRYPT_ROUNDS = 12;
-
-function emailForNia(nia: string) {
-  const compact = nia.replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "member";
-  return `nia.${compact}@members.inkaisby.local`;
-}
-
-async function ensureMemberRole(userId: string) {
-  const role = await prisma.role.upsert({
-    where: { name: "MEMBER" },
-    create: { name: "MEMBER" },
-    update: {},
-    select: { id: true, name: true },
-  });
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-      roles: { connect: { id: role.id } },
-    },
-  });
-}
 
 async function main() {
   const member = await prisma.member.findFirst({
@@ -68,73 +49,70 @@ async function main() {
   }
 
   const nia = (member.nia || niaInput).trim();
-  const passwordHash = await bcrypt.hash(nia, BCRYPT_ROUNDS);
-  let userId = member.userId;
-  let email = member.user?.email || null;
-  let createdAccount = false;
 
-  if (!userId) {
+  if (!member.userId) {
     if (!createAccount) {
       throw new Error(
         `Member ${member.fullName} (${nia}) belum punya akun login. Jalankan ulang dengan --create-account.`,
       );
     }
-
-    email = emailForNia(nia);
-    const clash = await prisma.user.findFirst({
-      where: { email: { equals: email, mode: "insensitive" } },
-      select: { id: true },
-    });
-    if (clash) {
-      throw new Error(`Email cadangan ${email} sudah dipakai user lain`);
+    const result = await provisionMemberNiaLogin(member.id);
+    if (result.status === "failed") {
+      throw new Error(result.reason);
     }
-
-    const created = await prisma.user.create({
-      data: {
-        email,
-        fullName: member.fullName,
-        passwordHash,
-        isActive: true,
-        member: { connect: { id: member.id } },
-        roles: {
-          connectOrCreate: {
-            where: { name: "MEMBER" },
-            create: { name: "MEMBER" },
-          },
+    if (result.status === "skipped" && result.reason !== "already_has_user") {
+      throw new Error(`Provision skipped: ${result.reason}`);
+    }
+    const email =
+      result.status === "created"
+        ? result.email
+        : result.status === "skipped"
+          ? result.email
+          : null;
+    const userId =
+      result.status === "created"
+        ? result.userId
+        : result.status === "skipped"
+          ? result.userId
+          : null;
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          memberId: member.id,
+          fullName: member.fullName,
+          nia: result.status === "created" ? result.nia : nia,
+          userId,
+          email,
+          createdAccount: result.status === "created",
+          message:
+            "passwordHash set to bcrypt(NIA,12); MEMBER role ensured; login dengan NIA / NIA",
         },
-      },
-      select: { id: true, email: true },
-    });
-    userId = created.id;
-    email = created.email;
-    createdAccount = true;
-  } else {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash, isActive: true },
-    });
-    await ensureMemberRole(userId);
+        null,
+        2,
+      ),
+    );
+    return;
   }
 
-  // Verify Inkai-style lookup: User → member.nia
-  const linked = await prisma.user.findFirst({
-    where: {
-      id: userId,
-      member: { nia: { equals: nia, mode: "insensitive" } },
-    },
-    select: {
-      id: true,
-      email: true,
-      isActive: true,
-      roles: { select: { name: true } },
-      member: { select: { id: true, nia: true, userId: true } },
-    },
+  const passwordHash = await bcrypt.hash(
+    normalizeNiaKey(nia),
+    NIA_LOGIN_BCRYPT_ROUNDS,
+  );
+  await prisma.user.update({
+    where: { id: member.userId },
+    data: { passwordHash, isActive: true },
   });
-  if (!linked?.member?.userId) {
-    throw new Error(
-      `Relasi User↔Member gagal diverifikasi untuk NIA ${nia} (userId=${userId})`,
-    );
-  }
+  const role = await prisma.role.upsert({
+    where: { name: "MEMBER" },
+    create: { name: "MEMBER" },
+    update: {},
+    select: { id: true },
+  });
+  await prisma.user.update({
+    where: { id: member.userId },
+    data: { roles: { connect: { id: role.id } } },
+  });
 
   console.log(
     JSON.stringify(
@@ -143,10 +121,9 @@ async function main() {
         memberId: member.id,
         fullName: member.fullName,
         nia,
-        userId,
-        email: linked.email,
-        roles: linked.roles.map((r) => r.name),
-        createdAccount,
+        userId: member.userId,
+        email: member.user?.email ?? null,
+        createdAccount: false,
         message:
           "passwordHash set to bcrypt(NIA,12); MEMBER role ensured; login dengan NIA / NIA",
       },

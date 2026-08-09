@@ -963,7 +963,17 @@ export function MembersTable({
                     </TableCell>
                     <TableCell className="font-mono text-sm">
                       {m.nia ? (
-                        m.nia
+                        <span className="inline-flex flex-col gap-0.5">
+                          <span>{m.nia}</span>
+                          {m.hasAccount === false ? (
+                            <Badge
+                              variant="outline"
+                              className="w-fit text-[10px] text-violet-800 border-violet-300 bg-violet-50"
+                            >
+                              tanpa akun
+                            </Badge>
+                          ) : null}
+                        </span>
                       ) : (
                         <Badge
                           variant="outline"
@@ -1547,9 +1557,9 @@ export function MembersTable({
                   </p>
                   {!loading && detail?.nia && !user?.email ? (
                     <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-200">
-                      Sudah ber-NIA tetapi belum punya akun login. Minta anggota
-                      daftar mandiri atau gabungkan (merge) dengan data yang
-                      sudah berakun.
+                      Sudah ber-NIA tetapi belum punya akun login. Gunakan{" "}
+                      <strong>Buat akun login</strong> di bilah massal, atau
+                      tunggu auto-provision / backfill. Login default = NIA.
                     </p>
                   ) : null}
                 </section>

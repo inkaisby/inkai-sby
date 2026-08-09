@@ -33,6 +33,8 @@ type FilterState = {
   dojoId: string;
   docs: string;
   nia: string;
+  account: string;
+  dup: string;
   inactiveMonths: string;
   page: number;
   pageSize: number;
@@ -56,6 +58,8 @@ function filtersToParams(f: FilterState): Record<string, string> {
     dojoId: f.dojoId,
     docs: f.docs,
     nia: f.nia,
+    account: f.account,
+    dup: f.dup,
     inactiveMonths: f.inactiveMonths,
     page: f.page > 1 ? String(f.page) : "",
     pageSize: f.pageSize !== 25 ? String(f.pageSize) : "",
@@ -109,6 +113,8 @@ function parseHrefToFilters(
     dojoId: qs.get("dojoId")?.trim() || "",
     docs: qs.get("docs") === "incomplete" ? "incomplete" : "",
     nia: qs.get("nia") === "missing" ? "missing" : "",
+    account: qs.get("account") === "missing" ? "missing" : "",
+    dup: qs.get("dup") === "nia_nik" ? "nia_nik" : "",
     inactiveMonths: ["3", "6", "12"].includes(qs.get("inactiveMonths") || "")
       ? qs.get("inactiveMonths")!
       : "",
@@ -283,11 +289,18 @@ export function AnggotaBrowser({
     dojoId: singleLockedDojo ? "" : filters.dojoId,
     docs: filters.docs,
     nia: filters.nia,
+    account: filters.account,
+    dup: filters.dup,
     pageSize: String(filters.pageSize),
   };
 
   const unfiltered =
-    !filters.status && !filters.docs && !filters.nia && !filters.inactiveMonths;
+    !filters.status &&
+    !filters.docs &&
+    !filters.nia &&
+    !filters.account &&
+    !filters.dup &&
+    !filters.inactiveMonths;
   // Total KPI = total daftar saat tanpa filter status/dokumen (satu sumber kebenaran).
   const totalKpiValue = unfiltered ? total : statusCounts.all;
   const subtitleCount = unfiltered ? total : statusCounts.all;
@@ -302,15 +315,34 @@ export function AnggotaBrowser({
       label: "Total",
       value: totalKpiValue,
       icon: "users" as AnggotaKpiIconName,
-      href: buildHref({ ...kpiBase, status: "", docs: "", nia: "" }),
-      active: !filters.status && !filters.docs && !filters.nia,
+      href: buildHref({
+        ...kpiBase,
+        status: "",
+        docs: "",
+        nia: "",
+        account: "",
+        dup: "",
+      }),
+      active:
+        !filters.status &&
+        !filters.docs &&
+        !filters.nia &&
+        !filters.account &&
+        !filters.dup,
     },
     {
       key: "pending",
       label: "Menunggu",
       value: statusCounts.pending,
       icon: "clock",
-      href: buildHref({ ...kpiBase, status: "PENDING", docs: "", nia: "" }),
+      href: buildHref({
+        ...kpiBase,
+        status: "PENDING",
+        docs: "",
+        nia: "",
+        account: "",
+        dup: "",
+      }),
       active: filters.status === "PENDING",
       accent: "text-amber-600",
     },
@@ -319,8 +351,19 @@ export function AnggotaBrowser({
       label: "Aktif",
       value: statusCounts.active,
       icon: "userCheck",
-      href: buildHref({ ...kpiBase, status: "Active", docs: "", nia: "" }),
-      active: filters.status === "Active" && !filters.nia,
+      href: buildHref({
+        ...kpiBase,
+        status: "Active",
+        docs: "",
+        nia: "",
+        account: "",
+        dup: "",
+      }),
+      active:
+        filters.status === "Active" &&
+        !filters.nia &&
+        !filters.account &&
+        !filters.dup,
       accent: "text-emerald-600",
     },
     {
@@ -328,7 +371,14 @@ export function AnggotaBrowser({
       label: "Nonaktif",
       value: statusCounts.inactive,
       icon: "userMinus",
-      href: buildHref({ ...kpiBase, status: "INACTIVE", docs: "", nia: "" }),
+      href: buildHref({
+        ...kpiBase,
+        status: "INACTIVE",
+        docs: "",
+        nia: "",
+        account: "",
+        dup: "",
+      }),
       active: filters.status === "INACTIVE",
       accent: "text-slate-600",
     },
@@ -337,7 +387,14 @@ export function AnggotaBrowser({
       label: "Ditolak",
       value: statusCounts.rejected,
       icon: "userX",
-      href: buildHref({ ...kpiBase, status: "REJECTED", docs: "", nia: "" }),
+      href: buildHref({
+        ...kpiBase,
+        status: "REJECTED",
+        docs: "",
+        nia: "",
+        account: "",
+        dup: "",
+      }),
       active: filters.status === "REJECTED",
       accent: "text-destructive",
     },
@@ -350,6 +407,8 @@ export function AnggotaBrowser({
         ...kpiBase,
         status: "",
         nia: "",
+        account: "",
+        dup: "",
         docs: filters.docs === "incomplete" ? "" : "incomplete",
       }),
       active: filters.docs === "incomplete",
@@ -364,10 +423,44 @@ export function AnggotaBrowser({
         ...kpiBase,
         status: "",
         docs: "",
+        account: "",
+        dup: "",
         nia: filters.nia === "missing" ? "" : "missing",
       }),
       active: filters.nia === "missing",
       accent: "text-amber-700",
+    },
+    {
+      key: "account",
+      label: "Tanpa akun",
+      value: statusCounts.withoutAccount ?? 0,
+      icon: "userCog",
+      href: buildHref({
+        ...kpiBase,
+        status: "",
+        docs: "",
+        nia: "",
+        dup: "",
+        account: filters.account === "missing" ? "" : "missing",
+      }),
+      active: filters.account === "missing",
+      accent: "text-violet-700",
+    },
+    {
+      key: "dup",
+      label: "Duplikat NIA/NIK",
+      value: statusCounts.duplicateIdentity ?? 0,
+      icon: "copy",
+      href: buildHref({
+        ...kpiBase,
+        status: "",
+        docs: "",
+        nia: "",
+        account: "",
+        dup: filters.dup === "nia_nik" ? "" : "nia_nik",
+      }),
+      active: filters.dup === "nia_nik",
+      accent: "text-rose-700",
     },
   ];
 
@@ -453,6 +546,8 @@ export function AnggotaBrowser({
         dojoId={singleLockedDojo ? "" : filters.dojoId}
         docs={filters.docs}
         nia={filters.nia}
+        account={filters.account}
+        dup={filters.dup}
         inactiveMonths={filters.inactiveMonths}
         pageSize={String(filters.pageSize)}
         dojos={dojos}
@@ -466,10 +561,18 @@ export function AnggotaBrowser({
 
       {filters.docs === "incomplete" ||
       filters.nia === "missing" ||
+      filters.account === "missing" ||
+      filters.dup === "nia_nik" ||
       filters.inactiveMonths ? (
         <p className="mb-3 text-xs text-muted-foreground">
           {filters.docs === "incomplete" ? "Filter: dokumen kurang. " : ""}
           {filters.nia === "missing" ? "Filter: tanpa NIA. " : ""}
+          {filters.account === "missing"
+            ? "Filter: ber-NIA tanpa akun login. "
+            : ""}
+          {filters.dup === "nia_nik"
+            ? "Filter: duplikat NIA/NIK (ternormalisasi). "
+            : ""}
           {filters.inactiveMonths
             ? `Nonaktif/ditangguhkan ≥ ${filters.inactiveMonths} bulan (filter halaman).`
             : null}

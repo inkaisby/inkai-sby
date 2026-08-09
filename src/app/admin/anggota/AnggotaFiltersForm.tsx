@@ -13,6 +13,8 @@ type FilterValues = {
   dojoId: string;
   docs: string;
   nia: string;
+  account: string;
+  dup: string;
   inactiveMonths: string;
   pageSize: string;
 };
@@ -24,6 +26,8 @@ function buildHref(values: FilterValues) {
   if (values.dojoId) params.set("dojoId", values.dojoId);
   if (values.docs) params.set("docs", values.docs);
   if (values.nia) params.set("nia", values.nia);
+  if (values.account) params.set("account", values.account);
+  if (values.dup) params.set("dup", values.dup);
   if (values.inactiveMonths) params.set("inactiveMonths", values.inactiveMonths);
   if (values.pageSize && values.pageSize !== "25") {
     params.set("pageSize", values.pageSize);
@@ -50,6 +54,8 @@ export function AnggotaFiltersForm({
   dojoId,
   docs,
   nia,
+  account = "",
+  dup = "",
   inactiveMonths,
   pageSize,
   dojos = [],
@@ -62,6 +68,8 @@ export function AnggotaFiltersForm({
   dojoId: string;
   docs: string;
   nia: string;
+  account?: string;
+  dup?: string;
   inactiveMonths: string;
   pageSize: string;
   dojos?: DojoOption[];
@@ -79,6 +87,8 @@ export function AnggotaFiltersForm({
     dojoId,
     docs,
     nia,
+    account,
+    dup,
     inactiveMonths,
   });
   const inputRef = useRef<HTMLInputElement>(null);
@@ -94,8 +104,8 @@ export function AnggotaFiltersForm({
   }, [q]);
 
   useEffect(() => {
-    setFilters({ status, dojoId, docs, nia, inactiveMonths });
-  }, [status, dojoId, docs, nia, inactiveMonths]);
+    setFilters({ status, dojoId, docs, nia, account, dup, inactiveMonths });
+  }, [status, dojoId, docs, nia, account, dup, inactiveMonths]);
 
   useEffect(() => {
     return () => clearTimeout(debounceRef.current);
@@ -108,6 +118,8 @@ export function AnggotaFiltersForm({
       dojoId: lockDojoId || nextFilters.dojoId,
       docs: nextFilters.docs,
       nia: nextFilters.nia,
+      account: nextFilters.account,
+      dup: nextFilters.dup,
       inactiveMonths: nextFilters.inactiveMonths,
       pageSize,
     });
@@ -143,12 +155,16 @@ export function AnggotaFiltersForm({
       (!lockDojoId && filters.dojoId) ||
       filters.docs ||
       filters.nia ||
+      filters.account ||
+      filters.dup ||
       filters.inactiveMonths,
   );
 
   const hasAdvanced =
     Boolean(filters.docs) ||
     Boolean(filters.nia) ||
+    Boolean(filters.account) ||
+    Boolean(filters.dup) ||
     Boolean(filters.inactiveMonths);
 
   const resetHref =

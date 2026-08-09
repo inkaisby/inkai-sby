@@ -68,6 +68,8 @@ export type AdminMemberRow = {
   createdAt?: string | null;
   /** Nominal iuran bulanan per anggota. */
   monthlyDuesAmount?: number | null;
+  /** Ada akun login terhubung. */
+  hasAccount?: boolean;
 };
 
 function listMetaTotal(data: Record<string, unknown>, fallback: number) {
@@ -160,6 +162,10 @@ export type MemberStatusCounts = {
   docsIncomplete: number;
   /** NIA kosong / null. */
   missingNia: number;
+  /** Ber-NIA tetapi belum punya User login. */
+  withoutAccount: number;
+  /** Terlibat bentrok NIA/NIK ternormalisasi. */
+  duplicateIdentity: number;
 };
 
 function memberScopeWhere(
@@ -188,6 +194,62 @@ function missingNiaClause() {
   return { nia: null };
 }
 
+function withoutAccountClause() {
+  return {
+    userId: null,
+    nia: { not: null },
+  };
+}
+
+/**
+ * Anggota non-arsip yang NIA/NIK-nya bentrok setelah normalisasi
+ * dengan anggota lain (termasuk arsip).
+ */
+async function findDuplicateIdentityMemberIds(): Promise<string[]> {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+      SELECT m.id
+      FROM "Member" m
+      WHERE m."isDeleted" = false
+        AND (
+          (
+            m.nia IS NOT NULL
+            AND EXISTS (
+              SELECT 1
+              FROM "Member" o
+              WHERE o.id <> m.id
+                AND o.nia IS NOT NULL
+                AND UPPER(TRIM(o.nia)) = UPPER(TRIM(m.nia))
+            )
+          )
+          OR (
+            m.nik IS NOT NULL
+            AND TRIM(m.nik) <> ''
+            AND EXISTS (
+              SELECT 1
+              FROM "Member" o
+              WHERE o.id <> m.id
+                AND o.nik IS NOT NULL
+                AND TRIM(o.nik) <> ''
+                AND TRIM(o.nik) = TRIM(m.nik)
+            )
+          )
+        )
+    `;
+    return rows.map((r) => r.id);
+  } catch (err) {
+    console.error("[findDuplicateIdentityMemberIds]", err);
+    return [];
+  }
+}
+
+function duplicateIdentityClause(ids: string[]) {
+  if (ids.length === 0) {
+    return { id: { in: ["__no_duplicate_identity__"] } };
+  }
+  return { id: { in: ids } };
+}
+
 /** Satu query Prisma groupBy + count untuk KPI — selalu scoped RBAC. */
 export async function fetchAdminMemberStatusCounts(
   user: SessionUser,
@@ -197,8 +259,16 @@ export async function fetchAdminMemberStatusCounts(
   } = {},
 ): Promise<MemberStatusCounts> {
   const where = memberScopeWhere(user, opts);
+  const dupIds = await findDuplicateIdentityMemberIds();
 
-  const [allResult, statusResult, docsResult, niaResult] = await Promise.all([
+  const [
+    allResult,
+    statusResult,
+    docsResult,
+    niaResult,
+    accountResult,
+    dupResult,
+  ] = await Promise.all([
     withPrismaFallback(
       "admin-member-all-count",
       () => prisma.member.count({ where }),
@@ -230,6 +300,22 @@ export async function fetchAdminMemberStatusCounts(
         }),
       0,
     ),
+    withPrismaFallback(
+      "admin-member-without-account",
+      () =>
+        prisma.member.count({
+          where: { AND: [where, withoutAccountClause()] },
+        }),
+      0,
+    ),
+    withPrismaFallback(
+      "admin-member-duplicate-identity",
+      () =>
+        prisma.member.count({
+          where: { AND: [where, duplicateIdentityClause(dupIds)] },
+        }),
+      0,
+    ),
   ]);
 
   const counts: MemberStatusCounts = {
@@ -241,6 +327,8 @@ export async function fetchAdminMemberStatusCounts(
     rejected: 0,
     docsIncomplete: docsResult.data,
     missingNia: niaResult.data,
+    withoutAccount: accountResult.data,
+    duplicateIdentity: dupResult.data,
   };
 
   for (const row of statusResult.data) {
@@ -279,6 +367,10 @@ export async function fetchAdminMembersScoped(
     docsIncomplete?: boolean;
     /** Filter KPI: tanpa NIA. */
     missingNia?: boolean;
+    /** Filter KPI: ber-NIA tanpa akun login. */
+    withoutAccount?: boolean;
+    /** Filter KPI: duplikat NIA/NIK ternormalisasi. */
+    duplicateIdentity?: boolean;
     sort?: string;
     sortDir?: string;
   } = {},
@@ -291,6 +383,10 @@ export async function fetchAdminMembersScoped(
   const sortDir = parseSortDir(opts.sortDir);
   const orderBy = memberOrderBy(sortKey, sortDir);
 
+  const dupIds = opts.duplicateIdentity
+    ? await findDuplicateIdentityMemberIds()
+    : [];
+
   const where = {
     AND: [
       memberScopeWhere(user, {
@@ -302,6 +398,8 @@ export async function fetchAdminMembersScoped(
         : []),
       ...(opts.docsIncomplete ? [docsIncompleteClause()] : []),
       ...(opts.missingNia ? [missingNiaClause()] : []),
+      ...(opts.withoutAccount ? [withoutAccountClause()] : []),
+      ...(opts.duplicateIdentity ? [duplicateIdentityClause(dupIds)] : []),
       ...(search
         ? [
             {
@@ -339,6 +437,7 @@ export async function fetchAdminMembersScoped(
           currentRank: true,
           status: true,
           dojoId: true,
+          userId: true,
           birthCertificateUrl: true,
           bpjsCardUrl: true,
           bpjsCardNumber: true,
@@ -378,6 +477,7 @@ export async function fetchAdminMembersScoped(
       photoUrl: m.user?.photoUrl ?? null,
       createdAt: m.createdAt.toISOString(),
       monthlyDuesAmount: m.monthlyDuesAmount,
+      hasAccount: Boolean(m.userId),
     }));
 
     return { ok: true as const, members, total, page };

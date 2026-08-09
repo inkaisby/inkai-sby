@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { surabayaDojoWhere } from "@/lib/security/branch-scope";
+import { normalizeNia } from "@/lib/member-profile-locks";
 import {
   birthDateDayRange,
   normalizeMemberName,
@@ -92,7 +93,7 @@ export async function findMembersByNia(
   niaRaw: string,
   excludeMemberId?: string | null,
 ): Promise<DuplicateHit[]> {
-  const nia = niaRaw.trim().toUpperCase();
+  const nia = normalizeNia(niaRaw) || "";
   if (nia.length < 2) return [];
   const rows = await prisma.member.findMany({
     where: {
@@ -114,7 +115,7 @@ export async function findMemberDuplicates(
   input: DuplicateCheckInput,
 ): Promise<DuplicateHit[]> {
   const nik = input.nik?.trim() || "";
-  const nia = input.nia?.trim().toUpperCase() || "";
+  const nia = normalizeNia(input.nia) || "";
   const fullName = input.fullName ? normalizeMemberName(input.fullName) : "";
   const birthRange = input.birthDate ? birthDateDayRange(input.birthDate) : null;
   const excludeId = input.excludeMemberId?.trim() || undefined;
