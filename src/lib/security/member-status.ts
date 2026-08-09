@@ -15,3 +15,10 @@ export function isMemberInactiveLike(status: string | null | undefined): boolean
   const s = status.toUpperCase();
   return s === "INACTIVE" || s === "SUSPENDED";
 }
+
+/** True for Active / ACTIVE / Aktif (canonical DB default is "Active"). */
+export function isMemberActiveStatus(status: string | null | undefined): boolean {
+  if (!status) return false;
+  const s = status.trim().toUpperCase();
+  return s === "ACTIVE" || s === "AKTIF";
+}

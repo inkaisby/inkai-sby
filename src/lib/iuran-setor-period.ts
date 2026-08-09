@@ -6,6 +6,7 @@ import {
 } from "@/lib/iuran-ledger";
 import { getOperationalDefaults } from "@/lib/org-settings";
 import { formatBillingAuditDetails, writeBillingAudit } from "@/lib/audit";
+import { isMemberActiveStatus } from "@/lib/security/member-status";
 
 export const IURAN_SETOR_LOOKBACK_MONTHS = 24;
 
@@ -266,7 +267,7 @@ export async function reportIuranSetorPeriod(params: {
   if (!member) {
     return { ok: false, error: "Anggota tidak ditemukan", status: 404 };
   }
-  if (member.status && member.status !== "ACTIVE") {
+  if (!isMemberActiveStatus(member.status)) {
     return { ok: false, error: "Keanggotaan tidak aktif", status: 403 };
   }
 

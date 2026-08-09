@@ -13,6 +13,7 @@ import {
   rateLimitResponse,
 } from "@/lib/security/rate-limit";
 import { canManageIuranByWilayah } from "@/lib/wilayah-rbac";
+import { isMemberActiveStatus } from "@/lib/security/member-status";
 import { z } from "zod";
 
 const schema = z.object({
@@ -106,7 +107,7 @@ export async function POST(request: Request) {
   const duesExemptIds = await fetchDuesExemptMemberIds(members.map((m) => m.id));
 
   const targets = members.filter((m) => {
-    if (m.status && m.status !== "ACTIVE") return false;
+    if (!isMemberActiveStatus(m.status)) return false;
     if (duesExemptIds.has(m.id)) return false;
     return !existingKeys.has(m.id);
   });

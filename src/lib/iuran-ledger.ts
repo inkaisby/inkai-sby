@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { buildMemberFilter, type SessionUser } from "@/lib/rbac";
+import { isMemberActiveStatus } from "@/lib/security/member-status";
 
 /** Tipe tagihan yang dihitung sebagai iuran bulanan (bukan UKT/event). */
 const MONTHLY_TYPES = new Set([
@@ -164,11 +165,6 @@ export function agingLabel(aging: ArrearsAging): string {
   }
 }
 
-function isActiveMemberStatus(status: string) {
-  const s = status.trim().toUpperCase();
-  return s === "ACTIVE" || s === "AKTIF";
-}
-
 function computeAging(
   unpaidDueDates: Date[],
   asOf: Date = new Date(),
@@ -189,7 +185,7 @@ function resolveMonthStatus(opts: {
   monthBillings: Array<{ status: string }>;
 }): MonthStatus {
   if (opts.allowEventWithoutDues) return "EXEMPT";
-  if (!isActiveMemberStatus(opts.memberStatus)) return "INACTIVE";
+  if (!isMemberActiveStatus(opts.memberStatus)) return "INACTIVE";
   if (opts.monthBillings.length === 0) return "NO_BILL";
   if (opts.monthBillings.some((b) => PAID_STATUSES.has(b.status))) return "PAID";
   if (opts.monthBillings.some((b) => b.status === "WAITING_VERIFICATION")) {

@@ -915,6 +915,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 9 Agustus 2026 | **Laporan UKT UI:** modal Buat Laporan UKT responsive (mobile sheet); input angka boleh kosong + Total biaya penguji terima format `7.250.000`; logo kop print lebih dekat ke teks INKAI |
 | 9 Agustus 2026 | **Ops login NIA tanpa User:** anggota aktif ber-NIA tapi `userId` null (mis. `23.29313`) gagal login NIA/NIA dengan pesan credentials; recovery `npx tsx scripts/set-member-nia-password.ts <NIA> --create-account` |
 | 9 Agustus 2026 | **Auto-provision akun NIA + audit:** lib `provisionMemberNiaLogin`; hook create/`set_nia`/bulk; backfill `scripts/backfill-nia-login-accounts.ts`; KPI **Tanpa akun** + **Duplikat NIA/NIK**; `POST /api/admin/members/provision-login`; inventaris §5/§9/§13/§15 |
+| 9 Agustus 2026 | **Fix lapor setor iuran status Active:** `isMemberActiveStatus` (case-insensitive Active/ACTIVE/Aktif) dipakai di `iuran-setor-period` + generate billing; dedup ledger; regresi Vitest `tests/member-status.test.ts` |
 
 ---
 
