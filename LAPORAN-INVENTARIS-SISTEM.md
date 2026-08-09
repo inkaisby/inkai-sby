@@ -911,6 +911,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 6 Agustus 2026 | **Login NIA=password + profil ubah password:** reset/set NIA default password=NIA (tanpa timpa kuat); `PATCH /api/member/password`; banner dashboard; rate-limit authorize + gate e2e `PLAYWRIGHT_PROD`; normalisasi NIA login; panel Tanya INKAI anchor FAB; inventaris §5/§9/§13/§15 |
 | 9 Agustus 2026 | **UKT WA rinci + Laporan Pengprov:** Laporan WA ranting tampilkan Subtotal A − komisi = total setor; toolbar cabang **Buat Laporan UKT** (Perincian Administrasi, peserta lunas, semua ranting, `pengprovBeltFees` period-meta); inventaris §6/§9.3/§11/§15 |
 | 9 Agustus 2026 | **Laporan UKT UI:** modal Buat Laporan UKT responsive (mobile sheet); input angka boleh kosong + Total biaya penguji terima format `7.250.000`; logo kop print lebih dekat ke teks INKAI |
+| 9 Agustus 2026 | **Ops login NIA tanpa User:** anggota aktif ber-NIA tapi `userId` null (mis. `23.29313`) gagal login NIA/NIA dengan pesan credentials; recovery `npx tsx scripts/set-member-nia-password.ts <NIA> --create-account` |
 
 ---
 
