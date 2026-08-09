@@ -88,13 +88,14 @@ export function buildUktAdminReportPrintHtml(data: UktAdminReportPrintData): str
     .header {
       display: flex;
       align-items: center;
-      gap: 12px;
+      justify-content: center;
+      gap: 8px;
       border-bottom: 2px solid #000;
       padding-bottom: 8px;
       margin-bottom: 10px;
     }
-    .header img { width: 56px; height: 56px; object-fit: contain; }
-    .header-text { text-align: center; flex: 1; }
+    .header img { width: 56px; height: 56px; object-fit: contain; flex-shrink: 0; }
+    .header-text { text-align: center; flex: 0 1 auto; }
     .header-text .org { font-size: 14px; font-weight: 700; letter-spacing: 0.02em; }
     .header-text .city { font-size: 13px; font-weight: 700; }
     .header-text .addr { font-size: 10px; }
