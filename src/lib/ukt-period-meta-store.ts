@@ -70,6 +70,7 @@ export function mergeUktPeriodMeta(
     bendaharaCabangName?: string | null;
     beltFees?: Partial<Record<BeltFeeKey, number>> | null;
     komisiRanting?: number | null;
+    pengprovBeltFees?: Partial<Record<BeltFeeKey, number>> | null;
     notifiedOpenAt?: string | null;
     notifiedCloseReminderAt?: string | null;
     notifiedExtendedAt?: string | null;
@@ -115,6 +116,9 @@ export function mergeUktPeriodMeta(
   if (patch.komisiRanting !== undefined) {
     next.komisiRanting =
       patch.komisiRanting == null ? undefined : Math.round(patch.komisiRanting);
+  }
+  if (patch.pengprovBeltFees !== undefined) {
+    next.pengprovBeltFees = patch.pengprovBeltFees || undefined;
   }
   if (patch.notifiedOpenAt !== undefined) {
     next.notifiedOpenAt = patch.notifiedOpenAt || undefined;

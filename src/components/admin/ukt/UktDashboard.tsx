@@ -80,6 +80,13 @@ const UktPrintModal = dynamic(
     import("@/components/admin/ukt/UktPrintModal").then((m) => m.UktPrintModal),
   { ssr: false },
 );
+const UktAdminReportModal = dynamic(
+  () =>
+    import("@/components/admin/ukt/UktAdminReportModal").then(
+      (m) => m.UktAdminReportModal,
+    ),
+  { ssr: false },
+);
 const UktExportDialog = dynamic(
   () =>
     import("@/components/admin/ukt/UktExportDialog").then(
@@ -134,6 +141,7 @@ import {
   isRegistrationApproved,
   isNotaParticipant,
   isUktBillingUnpaid,
+  isUktBillingPaid,
   canRantingSubmitUktPayment,
   canCabangVerifyUktPayment,
   isUktSelesai,
@@ -364,6 +372,11 @@ export function UktDashboard(props: Props) {
   const [memberHistory, setMemberHistory] = useState<Record<string, unknown> | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
+  const [showAdminReport, setShowAdminReport] = useState(false);
+  const [pengprovBeltFeesLocal, setPengprovBeltFeesLocal] = useState<Record<
+    BeltFeeKey,
+    number
+  > | null>(null);
   const [showBeltFees, setShowBeltFees] = useState(false);
   const [beltFees, setBeltFees] = useState(props.beltFees);
   const [komisiRanting, setKomisiRanting] = useState(props.komisiRanting);
@@ -466,6 +479,11 @@ export function UktDashboard(props: Props) {
     setBeltFees(props.beltFees);
     setKomisiRanting(props.komisiRanting);
   }, [props.beltFees, props.komisiRanting]);
+
+  useEffect(() => {
+    setPengprovBeltFeesLocal(null);
+  }, [props.selectedPeriodId]);
+
   const selectedPeriod = props.periods.find((p) => p.id === props.selectedPeriodId);
   const periodSchedule = selectedPeriod
     ? {
@@ -1956,6 +1974,8 @@ export function UktDashboard(props: Props) {
             loginDojoName: props.loginDojoName,
           }),
           approved,
+          beltFees,
+          komisiRanting,
         );
 
     // Buka WhatsApp dengan teks siap kirim (pilih penerima manual) — bukan salin clipboard.
@@ -2235,6 +2255,16 @@ export function UktDashboard(props: Props) {
                   <Printer className="mr-1 h-4 w-4" />
                   Cetak Nota
                 </Button>
+                {props.selectedPeriodId && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAdminReport(true)}
+                    className={periodActionBtn}
+                  >
+                    <FileText className="mr-1 h-4 w-4" />
+                    Buat Laporan UKT
+                  </Button>
+                )}
                 {(viewMode === "registration" || Boolean(props.selectedPeriodId)) && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -4159,6 +4189,32 @@ export function UktDashboard(props: Props) {
             address: props.orgProfile?.address,
             ...periodOfficers,
           }}
+        />
+      ) : null}
+
+      {showAdminReport && props.selectedPeriodId ? (
+        <UktAdminReportModal
+          open={showAdminReport}
+          onClose={() => setShowAdminReport(false)}
+          eventId={props.selectedPeriodId}
+          semester={props.semester}
+          year={props.year}
+          rows={rows.filter((r) => r.registrationId && isUktBillingPaid(r))}
+          notaBeltFees={beltFees}
+          periodMeta={
+            pengprovBeltFeesLocal
+              ? {
+                  archived: Boolean(props.periodMeta?.archived),
+                  locked: Boolean(props.periodMeta?.locked),
+                  ...props.periodMeta,
+                  pengprovBeltFees: pengprovBeltFeesLocal,
+                }
+              : props.periodMeta
+          }
+          examAt={props.periodMeta?.examAt ?? selectedPeriod?.startDate}
+          examLocation={props.periodMeta?.examLocation}
+          sekretariatAddress={props.orgProfile?.address}
+          onPengprovFeesSaved={setPengprovBeltFeesLocal}
         />
       ) : null}
 

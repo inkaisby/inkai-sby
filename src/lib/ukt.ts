@@ -319,6 +319,21 @@ export const DEFAULT_BELT_FEES: Record<BeltFeeKey, number> = {
   COKELAT: 345000,
 };
 
+/** Tarif setor ke Pengprov (terpisah dari biaya Nota/cabang). */
+export const DEFAULT_UKT_PENGPROV_BELT_FEES: Record<BeltFeeKey, number> = {
+  PUTIH: 150000,
+  KUNING: 150000,
+  HIJAU: 150000,
+  BIRU: 155000,
+  COKELAT: 195000,
+};
+
+export const DEFAULT_UKT_PENGPROV_BANK_FOOTER =
+  "UANG UJIAN MOHON DITRANSFER KE REKENING BANK JATIM a.n. PENGPROV INKAI JATIM No. Rek. 0013809828";
+
+export const UKT_SALAH_PENULISAN_FEE = 15000;
+export const UKT_BUKU_HILANG_RUSAK_FEE = 100000;
+
 export const BELT_FEE_LABELS: Record<BeltFeeKey, string> = {
   PUTIH: "Putih",
   KUNING: "Kuning",
@@ -329,6 +344,27 @@ export const BELT_FEE_LABELS: Record<BeltFeeKey, string> = {
 
 export function formatRupiahNota(amount: number): string {
   return `Rp ${amount.toLocaleString("id-ID")},-`;
+}
+
+/** Format rupiah tanpa sufiks `,-` (teks WA / ringkas). */
+export function formatRupiahPlain(amount: number): string {
+  return `Rp ${amount.toLocaleString("id-ID")}`;
+}
+
+export function parsePengprovBeltFeesPartial(
+  raw: unknown,
+): Partial<Record<BeltFeeKey, number>> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const out: Partial<Record<BeltFeeKey, number>> = {};
+  let any = false;
+  for (const key of BELT_FEE_KEYS) {
+    const n = Number((raw as Record<string, unknown>)[key]);
+    if (Number.isFinite(n) && n >= 0) {
+      out[key] = Math.round(n);
+      any = true;
+    }
+  }
+  return any ? out : undefined;
 }
 
 /**
@@ -764,6 +800,8 @@ export type UktPeriodMeta = {
   /** Snapshot biaya sabuk periode (dibekukan saat buat / simpan periode). */
   beltFees?: Partial<Record<BeltFeeKey, number>>;
   komisiRanting?: number;
+  /** Tarif setor Pengprov per sabuk (Laporan UKT cabang; terpisah dari beltFees Nota). */
+  pengprovBeltFees?: Partial<Record<BeltFeeKey, number>>;
   /** Jadwal & tempat ujian (bukan batas daftar). */
   examAt?: string;
   examLocation?: string;
@@ -775,6 +813,19 @@ export type UktPeriodMeta = {
   notifiedCloseReminderAt?: string;
   notifiedExtendedAt?: string;
 };
+
+export function resolveUktPengprovBeltFees(
+  meta?: UktPeriodMeta | null,
+): Record<BeltFeeKey, number> {
+  const snap = meta?.pengprovBeltFees;
+  const fees = { ...DEFAULT_UKT_PENGPROV_BELT_FEES };
+  if (!snap) return fees;
+  for (const k of BELT_FEE_KEYS) {
+    const n = Number(snap[k]);
+    if (Number.isFinite(n) && n >= 0) fees[k] = Math.round(n);
+  }
+  return fees;
+}
 
 export function resolveUktPeriodFees(
   globalFees: Record<BeltFeeKey, number>,
@@ -974,6 +1025,7 @@ export function parseUktPeriodMetaValue(value: unknown): UktPeriodMeta {
     }
   }
   const komisi = v.komisiRanting;
+  const pengprovBeltFees = parsePengprovBeltFeesPartial(v.pengprovBeltFees);
   return {
     archived: v.archived === true,
     locked: v.locked === true,
@@ -987,6 +1039,7 @@ export function parseUktPeriodMetaValue(value: unknown): UktPeriodMeta {
       typeof komisi === "number" && Number.isFinite(komisi)
         ? Math.round(komisi)
         : undefined,
+    pengprovBeltFees,
     examAt: typeof v.examAt === "string" ? v.examAt : undefined,
     examLocation: typeof v.examLocation === "string" ? v.examLocation : undefined,
     bidangUjianName:
@@ -1272,13 +1325,6 @@ function formatWaParticipantLine(row: UktMemberRow, index: number): string {
   return `${index + 1}. ${formatMemberName(row.fullName)}${rk ? ` ${rk}` : ""}`;
 }
 
-function sumWaParticipantAmount(rows: UktMemberRow[]): number {
-  return rows.reduce(
-    (sum, r) => sum + participantAmount(r.billingAmount, r.billingStatus, null),
-    0,
-  );
-}
-
 function waRankBucketLabel(row: UktMemberRow): string {
   const raw = (row.kyuBaru || row.kyuLama || "").trim();
   const short = shortRankLabel(raw);
@@ -1341,14 +1387,30 @@ export function resolveUktWaDojoLabel(opts: {
   return "Ranting";
 }
 
-/** Laporan WA satu ranting (peserta + total pembayaran). */
+/** Laporan WA satu ranting (peserta + rincian setor selaras Nota). */
 export function buildUktRantingWaReportText(
   periodTitle: string,
   dojoName: string,
   approvedRows: UktMemberRow[],
+  beltFees: Record<BeltFeeKey, number>,
+  komisiRanting: number,
 ): string {
   const lines = approvedRows.map((r, i) => formatWaParticipantLine(r, i));
-  const total = sumWaParticipantAmount(approvedRows);
+  const counts = countNotaBeltGroups(approvedRows, beltFees);
+  const subtotalA = BELT_FEE_KEYS.reduce(
+    (sum, belt) => sum + counts[belt] * beltFees[belt],
+    0,
+  );
+  const registeredCount = approvedRows.length;
+  const komisiTotal = registeredCount * komisiRanting;
+  const grandTotal = subtotalA - komisiTotal;
+
+  const beltLines = BELT_FEE_KEYS.filter((belt) => counts[belt] > 0).map((belt) => {
+    const n = counts[belt];
+    const fee = beltFees[belt];
+    return `${belt}: ${n} × ${formatRupiahPlain(fee)} = ${formatRupiahPlain(n * fee)}`;
+  });
+
   return [
     periodTitle,
     `Ranting/Dojo: ${dojoName}`,
@@ -1356,7 +1418,11 @@ export function buildUktRantingWaReportText(
     "Peserta yang terdaftar",
     ...lines,
     "",
-    `Total pembayaran Rp ${new Intl.NumberFormat("id-ID").format(total)}`,
+    "Rincian pembayaran",
+    ...beltLines,
+    `Subtotal A (Biaya UKT): ${formatRupiahPlain(subtotalA)}`,
+    `Komisi Ranting (${registeredCount} × ${formatRupiahPlain(komisiRanting)}): - ${formatRupiahPlain(komisiTotal)}`,
+    `TOTAL disetor ke cabang: ${formatRupiahPlain(grandTotal)}`,
   ].join("\n");
 }
 

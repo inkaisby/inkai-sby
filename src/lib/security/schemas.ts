@@ -404,6 +404,15 @@ export const uktPeriodMetaSchema = z.object({
     })
     .optional(),
   komisiRanting: z.coerce.number().int().min(0).max(1_000_000).optional(),
+  pengprovBeltFees: z
+    .object({
+      PUTIH: z.coerce.number().int().min(0).max(10_000_000),
+      KUNING: z.coerce.number().int().min(0).max(10_000_000),
+      HIJAU: z.coerce.number().int().min(0).max(10_000_000),
+      BIRU: z.coerce.number().int().min(0).max(10_000_000),
+      COKELAT: z.coerce.number().int().min(0).max(10_000_000),
+    })
+    .optional(),
   notifiedOpenAt: z.string().datetime().optional().nullable(),
   notifiedCloseReminderAt: z.string().datetime().optional().nullable(),
   notifiedExtendedAt: z.string().datetime().optional().nullable(),
