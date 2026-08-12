@@ -375,6 +375,10 @@ export function UktDashboard(props: Props) {
   const [showAddMember, setShowAddMember] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
   const [showAdminReport, setShowAdminReport] = useState(false);
+  const [showCabangWaPicker, setShowCabangWaPicker] = useState(false);
+  const [cabangWaSelectedDojoId, setCabangWaSelectedDojoId] = useState<string | null>(
+    null,
+  );
   const [pengprovBeltFeesLocal, setPengprovBeltFeesLocal] = useState<Record<
     BeltFeeKey,
     number
@@ -542,6 +546,32 @@ export function UktDashboard(props: Props) {
       !effectiveDojoIds || effectiveDojoIds.includes(dojoId),
     [effectiveDojoIds],
   );
+
+  // Cabang: untuk picker WA rinci, butuh daftar ranting yang punya peserta approved,
+  // tanpa bergantung pada filter tabel saat ini.
+  const cabangApprovedRowsAll = useMemo(() => {
+    return rows.filter((r) => r.registrationId && isRegistrationApproved(r.status));
+  }, [rows]);
+
+  const cabangWaDojoOptions = useMemo(() => {
+    const byDojo = new Map<string, { dojoId: string; dojoName: string; count: number }>();
+    for (const r of cabangApprovedRowsAll) {
+      const dojoId = r.dojoId;
+      const existing = byDojo.get(dojoId);
+      if (existing) {
+        existing.count++;
+      } else {
+        byDojo.set(dojoId, {
+          dojoId,
+          dojoName: r.dojoName?.trim() || "Ranting",
+          count: 1,
+        });
+      }
+    }
+    return [...byDojo.values()].sort((a, b) =>
+      a.dojoName.localeCompare(b.dojoName, "id"),
+    );
+  }, [cabangApprovedRowsAll]);
 
   const normalizeRows = useCallback((list: UktMemberRow[]) => {
     const cleared = locallyClearedMemberIdsRef.current;
@@ -1953,7 +1983,73 @@ export function UktDashboard(props: Props) {
     }
   };
 
+  const openCabangWaReportPicker = () => {
+    if (!props.selectedPeriodId) {
+      toast.error("Pilih periode UKT terlebih dahulu");
+      return;
+    }
+    if (cabangApprovedRowsAll.length === 0) {
+      toast.error("Belum ada peserta disetujui");
+      return;
+    }
+
+    const defaultDojoId = effectiveDojoIds?.length === 1 ? effectiveDojoIds[0] : null;
+    if (defaultDojoId && !cabangWaDojoOptions.some((o) => o.dojoId === defaultDojoId)) {
+      setCabangWaSelectedDojoId(null);
+    } else {
+      setCabangWaSelectedDojoId(defaultDojoId);
+    }
+    setShowCabangWaPicker(true);
+  };
+
+  const sendCabangWaReport = (dojoId: string | null) => {
+    const title = selectedPeriod?.title || periodTitle;
+    const approvedAll = cabangApprovedRowsAll;
+    if (approvedAll.length === 0) {
+      toast.error("Belum ada peserta disetujui");
+      return;
+    }
+
+    const text =
+      !dojoId
+        ? buildUktCabangWaReportText(title, approvedAll)
+        : (() => {
+            const approved = approvedAll.filter((r) => r.dojoId === dojoId);
+            if (approved.length === 0) {
+              toast.error("Ranting terpilih tidak punya peserta disetujui");
+              return "";
+            }
+            const dojoName =
+              cabangWaDojoOptions.find((o) => o.dojoId === dojoId)?.dojoName ||
+              props.dojos.find((d) => d.id === dojoId)?.name ||
+              "Ranting";
+            return buildUktRantingWaReportText(
+              title,
+              dojoName,
+              approved,
+              beltFees,
+              komisiRanting,
+            );
+          })();
+
+    if (!text) return;
+
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    const opened = window.open(waUrl, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      toast.error("Popup diblokir — izinkan jendela baru untuk membuka WhatsApp");
+      return;
+    }
+    toast.success("WhatsApp dibuka — pilih penerima lalu kirim laporan");
+  };
+
   const buildWaReport = () => {
+    // Cabang: pilih format ringkas atau rinci (per ranting) tanpa ganti akun.
+    if (isCabang) {
+      openCabangWaReportPicker();
+      return;
+    }
+
     const title = selectedPeriod?.title || periodTitle;
     const approved = rows.filter(
       (r) =>
@@ -1965,24 +2061,19 @@ export function UktDashboard(props: Props) {
       toast.error("Belum ada peserta disetujui");
       return;
     }
+    const text = buildUktRantingWaReportText(
+      title,
+      resolveUktWaDojoLabel({
+        effectiveDojoId: effectiveDojo,
+        dojos: props.dojos,
+        approvedRows: approved,
+        loginDojoName: props.loginDojoName,
+      }),
+      approved,
+      beltFees,
+      komisiRanting,
+    );
 
-    // Admin cabang: selalu format ringkas (Total Ranting / List / Jumlah kyu)
-    const text = isCabang
-      ? buildUktCabangWaReportText(title, approved)
-      : buildUktRantingWaReportText(
-          title,
-          resolveUktWaDojoLabel({
-            effectiveDojoId: effectiveDojo,
-            dojos: props.dojos,
-            approvedRows: approved,
-            loginDojoName: props.loginDojoName,
-          }),
-          approved,
-          beltFees,
-          komisiRanting,
-        );
-
-    // Buka WhatsApp dengan teks siap kirim (pilih penerima manual) — bukan salin clipboard.
     const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
     const opened = window.open(waUrl, "_blank", "noopener,noreferrer");
     if (!opened) {
@@ -3316,7 +3407,7 @@ export function UktDashboard(props: Props) {
                   <TableCell className="hidden sm:table-cell">
                     <MemberAvatarRing
                       fullName={row.fullName}
-                      currentRank={row.kyuBaru || row.kyuLama}
+                      currentRank={row.kyuLama}
                       photoUrl={row.photoUrl}
                       size="sm"
                     />
@@ -4247,6 +4338,58 @@ export function UktDashboard(props: Props) {
           initialDojoId={effectiveDojo || undefined}
           locked={periodLocked}
         />
+      ) : null}
+
+      {isCabang ? (
+        <Dialog open={showCabangWaPicker} onOpenChange={setShowCabangWaPicker}>
+          <DialogContent className="max-w-md gap-4">
+            <DialogHeader>
+              <DialogTitle>Pilih Laporan WA</DialogTitle>
+              <DialogDescription>
+                Untuk cabang: ringkas semua ranting, atau rincian per ranting tanpa ganti akun.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <Select
+                value={cabangWaSelectedDojoId ?? ""}
+                onValueChange={(v) =>
+                  setCabangWaSelectedDojoId(v ? v : null)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih ranting" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Semua ranting (ringkas)</SelectItem>
+                  {cabangWaDojoOptions.map((o) => (
+                    <SelectItem key={o.dojoId} value={o.dojoId}>
+                      {o.dojoName} ({o.count} peserta)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                variant="outline"
+                onClick={() => setShowCabangWaPicker(false)}
+              >
+                Batal
+              </Button>
+              <Button
+                className="bg-inkai-red"
+                onClick={() => {
+                  setShowCabangWaPicker(false);
+                  sendCabangWaReport(cabangWaSelectedDojoId ?? null);
+                }}
+              >
+                Kirim via WhatsApp
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       ) : null}
 
       <Dialog open={showRegistrationDeadline} onOpenChange={setShowRegistrationDeadline}>

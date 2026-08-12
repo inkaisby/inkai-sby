@@ -232,7 +232,7 @@ Pusat / Nasional
 8. Status operasional UI: **Belum Daftar / Menunggu Terima Ranting / Menunggu Konfirmasi Ranting / Belum Bayar / Menunggu Verifikasi / Menunggu Ujian / Lulus Ujian / Tidak Lulus / Mengulang / Selesai**.
 9. Status **Selesai** bila sudah lunas + lulus + sabuk target terisi; sabuk resmi anggota diperbarui + riwayat.
 10. Cetak nota memakai tabel biaya sabuk bulat; **tanpa kode unik** (+1…999). Nomor nota memuat semester (`UKT/SBY/{RANTING}/I|II/{tahun}`). Pejabat (Bidang Ujian / Bendahara) dari **period-meta per periode**, fallback **Pengaturan → Kebijakan**.
-10a. **Laporan WA ranting:** daftar peserta + **rincian pembayaran** (Subtotal A sabuk − Komisi Ranting = TOTAL disetor ke cabang), selaras Nota. WA cabang tetap ringkas (Total Ranting / kyu).
+10a. **Laporan WA ranting:** daftar peserta + **rincian pembayaran** (Subtotal A sabuk − Komisi Ranting = TOTAL disetor ke cabang), selaras Nota. WA cabang bisa memilih: **ringkas** (Total Ranting / kyu) atau **rinci per ranting** (peserta + rincian setor) tanpa ganti akun; rekap sabuk mengikuti **Kyu Lama**.
 10b. **Biaya sabuk & komisi** di-**snapshot** ke period-meta saat buat/simpan periode; UI Atur Biaya default menyimpan ke snapshot periode (`updateGlobal: false`). Template global (`RankFeeTemplate` + setting komisi) hanya diubah bila tanpa periode atau opsi “juga update global” dicentang.
 10b2. **Buat Laporan UKT** (toolbar **cabang** saja): Perincian Administrasi Ujian setor Pengprov; Bagian I = peserta **lunas** × tarif **Pengprov** (`pengprovBeltFees` di period-meta, default 150/150/150/155/195 — **terpisah** dari `beltFees` Nota); abaikan filter ranting UI (agregat semua ranting); Bagian II buku + Biaya Penguji manual; Print/PDF.
 10c. Wizard periode: jadwal buka/batas + **tanggal/jam & tempat ujian** + pejabat; langkah biaya mencatat bahwa nominal akan di-snapshot; buat periode mengirim `notifyRanting: true`.
@@ -945,6 +945,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 12 Agustus 2026 | **Modul Latber MVP:** sidebar Pendaftaran+Arsip; `LatberDashboard` + nota komisi 5rb; undangan `/undangan/latber/[periodId]`; kartu `MemberLatberStatus`; lib `latber*` + invite sync; inventaris §4/§5/§7/§9.3b/§11/§13/§15 |
 | 12 Agustus 2026 | **Label sidebar Latber → Latihan Bersama** (grup nav + topbar + Arsip); inventaris §6/§11/§15 |
 | 12 Agustus 2026 | **Perbaikan Latihan Bersama:** picker tanggal + jam 24 jam (pola UKT); pesan validasi Zod API; redirect `event.id`; nav/grant/guard ranting (`LATBER_NAV_GROUP`, `admin-dojo-grants` soft-backfill); label UI **Latihan Bersama**; UKT suggest/hydrate cluster akun gabungan (`resolveAdminDojoClusterAllowlist`); kolom/saran ranting multi-dojo; label jam edit UKT **(24 jam)**; inventaris §9.3b/§15 |
+| 12 Agustus 2026 | Fix UKT: rekap sabuk Laporan WA/Nota/Laporan UKT mengikuti **Kyu Lama** (bukan Kyu Baru) + cabang bisa pilih ranting untuk WA rinci tanpa ganti akun; guard parsing DAN + unit test; inventaris §9.3/§15 |
 
 ---
 

@@ -34,9 +34,9 @@ export function beltRingVisual(rankRaw: string | null | undefined): BeltRingVisu
 
 export function shortRankLabel(rankRaw: string | null | undefined): string {
   const r = (rankRaw || "").trim();
-  const kyu = r.match(/kyu\s*(\d+)/i);
+  const kyu = r.match(/\bkyu\s*(\d+)\b/i);
   if (kyu) return `Kyu ${kyu[1]}`;
-  const dan = r.match(/dan\s*(\d+)/i);
+  const dan = r.match(/\bdan\s*(\d+)\b/i);
   if (dan) return `Dan ${dan[1]}`;
   if (r.toLowerCase().includes("putih")) return "Putih";
   if (r.toLowerCase().includes("kuning")) return "Kuning";
@@ -64,7 +64,7 @@ export function formatRankLabel(rankRaw: string | null | undefined): string {
   );
   if (exact) return exact;
 
-  const kyu = r.match(/kyu\s*(\d+)/i);
+  const kyu = r.match(/\bkyu\s*(\d+)\b/i);
   if (kyu) {
     const byKyu = BELT_RANK_OPTIONS.find((opt) =>
       new RegExp(`kyu\\s*${kyu[1]}\\b`, "i").test(opt),
@@ -83,7 +83,7 @@ export function formatRankLabel(rankRaw: string | null | undefined): string {
     }
   }
 
-  const dan = r.match(/dan\s*(\d+)/i);
+  const dan = r.match(/\bdan\s*(\d+)\b/i);
   if (dan) {
     const n = Number(dan[1]);
     if (n >= 1 && n <= 10) return `Hitam (DAN ${n})`;
@@ -283,7 +283,16 @@ export function resolveUktRankColumns(
   const decoded = decodeUktRegisteredRank(registeredRank);
   const current =
     formatRankLabel(memberCurrentRank) || (memberCurrentRank || "").trim();
-  const kyuBaru = decoded.kyuBaru || categoryName || null;
+  // categoryName kadang berisi nama kategori event (mis. "Pendaftaran UKT").
+  // Jangan biarkan itu masuk sebagai label sabuk.
+  let kyuBaru: string | null = decoded.kyuBaru || null;
+  if (!kyuBaru) {
+    const candidate = categoryName?.trim() || "";
+    if (candidate && !isBlankUktRank(candidate)) {
+      const grp = getBeltGroup(candidate);
+      if (grp !== "LAINNYA") kyuBaru = candidate;
+    }
+  }
 
   if (
     opts?.lockSnapshot &&

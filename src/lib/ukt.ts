@@ -476,13 +476,6 @@ export function resolveNotaBeltGroup(
   row: UktMemberRow,
   beltFees: Record<BeltFeeKey, number>,
 ): BeltFeeKey | null {
-  if (row.kyuBaru) {
-    const fromBaru = getBeltGroup(row.kyuBaru);
-    if (fromBaru !== "LAINNYA") return fromBaru as BeltFeeKey;
-    const fromBaruKyu = beltGroupFromKyuText(row.kyuBaru);
-    if (fromBaruKyu) return fromBaruKyu;
-  }
-
   const fromBilling = beltGroupFromBilling(row.billingAmount, beltFees);
   if (fromBilling) return fromBilling;
 
@@ -1321,12 +1314,14 @@ export function resolveEffectiveUktExamResult(
 }
 
 function formatWaParticipantLine(row: UktMemberRow, index: number): string {
-  const rk = formatRankLabel(row.kyuBaru || row.kyuLama);
+  // WA harus mengikuti sabuk yang tampak di tabel (Kyu Lama).
+  const rk = formatRankLabel(row.kyuLama || row.kyuBaru);
   return `${index + 1}. ${formatMemberName(row.fullName)}${rk ? ` ${rk}` : ""}`;
 }
 
 function waRankBucketLabel(row: UktMemberRow): string {
-  const raw = (row.kyuBaru || row.kyuLama || "").trim();
+  // Laporan WA cabang = ringkas "Jumlah per kyu" yang harus konsisten dengan tabel.
+  const raw = (row.kyuLama || row.kyuBaru || "").trim();
   const short = shortRankLabel(raw);
   if (!short) return "Lainnya";
   return short.toLowerCase();
@@ -1787,9 +1782,9 @@ function csvEscape(value: string | number | null | undefined): string {
 export function extractUktRankNumber(rankRaw: string | null | undefined): string {
   const r = (rankRaw || "").trim();
   if (!r || r === "—" || r === "-") return "";
-  const kyu = r.match(/kyu\s*(\d+)/i);
+  const kyu = r.match(/\bkyu\s*(\d+)\b/i);
   if (kyu) return kyu[1];
-  const dan = r.match(/dan\s*(\d+)/i);
+  const dan = r.match(/\bdan\s*(\d+)\b/i);
   if (dan) return dan[1];
   if (/^\d+$/.test(r)) return r;
   return "";
