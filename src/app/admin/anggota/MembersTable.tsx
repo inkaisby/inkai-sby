@@ -40,12 +40,14 @@ import type { AdminMemberRow } from "@/lib/inkai-api/admin-data";
 import { SITE_BRANCH_NAME } from "@/lib/site";
 import {
   BELT_RANK_OPTIONS,
+  canAssignNia,
   canEditKyuBaru,
   formatGenderLabel,
   formatMemberName,
   formatRankLabel,
   isBlackBeltRank,
 } from "@/lib/belt";
+import { normalizeNia } from "@/lib/member-profile-locks";
 import { passwordPatternHint } from "@/lib/security/password";
 import {
   reasonLabel,
@@ -350,6 +352,8 @@ export function MembersTable({
   const [duesSaving, setDuesSaving] = useState(false);
   const [duesExemptionSaving, setDuesExemptionSaving] = useState(false);
   const [duesDraft, setDuesDraft] = useState("");
+  const [niaDraft, setNiaDraft] = useState("");
+  const [niaSavingId, setNiaSavingId] = useState<string | null>(null);
   const [mshDraft, setMshDraft] = useState("");
   const [mshSaving, setMshSaving] = useState(false);
   const [nameSavingId, setNameSavingId] = useState<string | null>(null);
@@ -376,6 +380,7 @@ export function MembersTable({
     url: string;
   } | null>(null);
   const canBulk = canToggleMemberActive(userRoles);
+  const canEditNia = canAssignNia(userRoles);
   const canEditRank = canEditKyuBaru(userRoles);
   const canEditDojo = canEditKyuBaru(userRoles);
   const canEditDues = canManageIuranByWilayah(userRoles);
@@ -431,6 +436,7 @@ export function MembersTable({
       _partial: true,
     });
     setMshDraft(member.mshNumber?.trim() || "");
+    setNiaDraft(member.nia?.trim() || "");
     setNameDraft(formatMemberName(member.fullName));
     setLoading(true);
     try {
@@ -456,6 +462,8 @@ export function MembersTable({
             ? data.member.mshNumber
             : "";
         setMshDraft(msh.trim());
+        const nia = typeof data.member.nia === "string" ? data.member.nia : "";
+        setNiaDraft(nia.trim());
         if (typeof data.member.fullName === "string") {
           setNameDraft(formatMemberName(data.member.fullName));
         }
@@ -573,6 +581,66 @@ export function MembersTable({
       showError("Gagal menyimpan nama");
     } finally {
       setNameSavingId(null);
+    }
+  }
+
+  async function handleSetNia(memberId: string, rawNia: string) {
+    if (!canEditNia) return;
+    const current = normalizeNia(members.find((m) => m.id === memberId)?.nia) || "";
+    const nia = normalizeNia(rawNia) || "";
+    if (!nia) {
+      if (selectedId === memberId) setNiaDraft(current);
+      return;
+    }
+    if (nia === current) {
+      if (selectedId === memberId) setNiaDraft(nia);
+      return;
+    }
+
+    setNiaSavingId(memberId);
+    try {
+      const res = await fetch(`/api/admin/members/${memberId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_nia", nia }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        member?: { nia?: string | null };
+        accountProvisioned?: boolean;
+      };
+      if (!res.ok) {
+        showError(data.error || "Gagal menyimpan NIA");
+        if (selectedId === memberId) setNiaDraft(current);
+        return;
+      }
+      const next = normalizeNia(data.member?.nia) || nia;
+      showSuccess(data.message || "NIA berhasil disimpan");
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.id === memberId
+            ? {
+                ...m,
+                nia: next,
+                hasAccount:
+                  data.accountProvisioned && m.hasAccount === false
+                    ? true
+                    : m.hasAccount,
+              }
+            : m,
+        ),
+      );
+      if (selectedId === memberId) {
+        setNiaDraft(next);
+        setDetail((prev) => (prev ? { ...prev, nia: next } : prev));
+      }
+      onMembersChanged?.();
+    } catch {
+      showError("Gagal menyimpan NIA");
+      if (selectedId === memberId) setNiaDraft(current);
+    } finally {
+      setNiaSavingId(null);
     }
   }
 
@@ -961,8 +1029,47 @@ export function MembersTable({
                         size="sm"
                       />
                     </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {m.nia ? (
+                    <TableCell
+                      className="font-mono text-sm"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {canEditNia ? (
+                        <div className="inline-flex min-w-[8.5rem] flex-col gap-1">
+                          <Input
+                            key={`${m.id}:${m.nia || ""}`}
+                            defaultValue={m.nia || ""}
+                            placeholder="Isi NIA"
+                            disabled={niaSavingId === m.id}
+                            className="h-8 w-full font-mono text-xs uppercase"
+                            aria-label={`Ubah NIA ${m.fullName}`}
+                            onBlur={(e) => {
+                              const current = normalizeNia(m.nia) || "";
+                              const next = normalizeNia(e.target.value) || "";
+                              if (!next) {
+                                e.target.value = current;
+                                return;
+                              }
+                              e.target.value = next;
+                              if (next !== current) {
+                                void handleSetNia(m.id, next);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.currentTarget.blur();
+                              }
+                            }}
+                          />
+                          {m.hasAccount === false ? (
+                            <Badge
+                              variant="outline"
+                              className="w-fit text-[10px] text-violet-800 border-violet-300 bg-violet-50"
+                            >
+                              tanpa akun
+                            </Badge>
+                          ) : null}
+                        </div>
+                      ) : m.nia ? (
                         <span className="inline-flex flex-col gap-0.5">
                           <span>{m.nia}</span>
                           {m.hasAccount === false ? (
@@ -1381,6 +1488,52 @@ export function MembersTable({
                         }
                       />
                     ) : null}
+                    <DetailRow
+                      label="NIA"
+                      value={
+                        canEditNia ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Input
+                              value={niaDraft}
+                              onChange={(e) =>
+                                setNiaDraft(e.target.value.toUpperCase())
+                              }
+                              placeholder="Isi NIA"
+                              className="h-8 w-36 font-mono text-xs uppercase"
+                              disabled={niaSavingId === selectedId || loading}
+                            />
+                            <Button
+                              size="sm"
+                              className="h-8 bg-inkai-red"
+                              disabled={
+                                niaSavingId === selectedId ||
+                                loading ||
+                                !selectedId ||
+                                !normalizeNia(niaDraft) ||
+                                normalizeNia(niaDraft) ===
+                                  (normalizeNia(detail.nia) || "")
+                              }
+                              onClick={() => {
+                                if (selectedId) {
+                                  void handleSetNia(selectedId, niaDraft);
+                                }
+                              }}
+                            >
+                              Simpan
+                            </Button>
+                          </div>
+                        ) : detail.nia ? (
+                          <span className="font-mono text-sm">{str(detail.nia)}</span>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-xs text-amber-700 border-amber-300 bg-amber-50"
+                          >
+                            Belum ada NIA
+                          </Badge>
+                        )
+                      }
+                    />
                     <DetailRow label="NIK" value={loading && !detail.nik ? "…" : str(detail.nik)} />
                     <DetailRow
                       label="Tempat lahir"

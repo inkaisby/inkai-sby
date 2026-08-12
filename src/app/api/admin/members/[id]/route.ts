@@ -317,6 +317,15 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
+    try {
+      await prisma.member.update({
+        where: { id },
+        data: { nia },
+      });
+    } catch (err) {
+      console.error("[set_nia] failed to sync local Prisma nia:", err);
+    }
+
     // Default password = NIA only when account still on default / never logged in.
     let passwordSyncedToNia = false;
     let accountProvisioned = false;

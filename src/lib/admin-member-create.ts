@@ -311,6 +311,27 @@ async function finalizeCreatedMember(opts: {
   } = opts;
   const memberId = typeof member?.id === "string" ? member.id : null;
 
+  if (memberId && nia) {
+    try {
+      const patch = await inkaiFetch(
+        `/v1/members/${memberId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ nia }),
+        },
+        token,
+      );
+      if (!patch.res.ok) {
+        console.warn(
+          "[createAdminMember:syncNia]",
+          inkaiErrorMessage(patch.data, "unknown"),
+        );
+      }
+    } catch (err) {
+      console.error("[createAdminMember:syncNia]", err);
+    }
+  }
+
   // Selaraskan field identitas di DB lokal (NIK kosong = null, bukan "").
   if (memberId) {
     try {
@@ -327,6 +348,7 @@ async function finalizeCreatedMember(opts: {
             : null,
           gender: input.gender || null,
           birthDate: input.birthDate ? new Date(input.birthDate) : null,
+          ...(nia ? { nia } : {}),
           ...(msh ? { mshNumber: msh } : {}),
         },
       });

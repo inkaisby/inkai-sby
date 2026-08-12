@@ -19,7 +19,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { canAssignNia } from "@/lib/belt";
 import {
   DEACTIVATE_REASON_CODES,
   DEACTIVATE_REASON_LABELS,
@@ -66,7 +65,6 @@ export function MemberActions({
   impact?: MemberImpactSummary | null;
   onSuccess?: () => void;
 }) {
-  const [niaInput, setNiaInput] = useState(nia || "");
   const [loading, setLoading] = useState(false);
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
   const [confirmName, setConfirmName] = useState("");
@@ -78,11 +76,9 @@ export function MemberActions({
     impact ?? null,
   );
 
-  const assignNia = canAssignNia(userRoles);
   const canToggle = canToggleMemberActive(userRoles);
   const canDelete = canSoftDeleteMembers(userRoles);
   const isCabang = isCabangAdmin(userRoles);
-  const needsNia = !nia?.trim();
   const statusKey = normalizeStatus(status);
   const isActive = statusKey === "ACTIVE";
   const isInactiveLike = statusKey === "INACTIVE" || statusKey === "SUSPENDED";
@@ -93,10 +89,6 @@ export function MemberActions({
   /** Ranting & cabang: hapus/arsip dalam scope (aktif/ber-NIA wajib ketik nama). */
   const canDeleteThis = canDelete && !isArchived;
   const canRestore = isArchived && isCabang;
-
-  useEffect(() => {
-    setNiaInput(nia || "");
-  }, [nia, memberId]);
 
   useEffect(() => {
     if (!confirmKind) {
@@ -122,24 +114,18 @@ export function MemberActions({
     action:
       | "approve"
       | "reject"
-      | "set_nia"
       | "deactivate"
       | "activate"
       | "delete"
       | "restore",
     extra?: Record<string, unknown>,
   ) {
-    if (action === "set_nia" && !niaInput.trim()) {
-      showError("NIA wajib diisi");
-      return;
-    }
     setLoading(true);
     const res = await fetch(`/api/admin/members/${memberId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action,
-        ...(niaInput.trim() ? { nia: niaInput.trim() } : {}),
         ...extra,
       }),
     });
@@ -460,28 +446,9 @@ export function MemberActions({
               : "flex flex-col gap-2 sm:flex-row sm:items-center"
           }
         >
-          {assignNia && needsNia ? (
-            <>
-              <Input
-                placeholder="Isi NIA"
-                value={niaInput}
-                onChange={(e) => setNiaInput(e.target.value)}
-                className="h-8 w-28"
-              />
-              <Button
-                size="sm"
-                className="h-8 bg-inkai-red"
-                disabled={loading}
-                onClick={() => handleAction("set_nia")}
-              >
-                Simpan NIA
-              </Button>
-            </>
-          ) : (
-            <span className="text-xs text-muted-foreground">
-              {nia?.trim() ? "Aktif" : "Aktif · tanpa NIA"}
-            </span>
-          )}
+          <span className="text-xs text-muted-foreground">
+            {nia?.trim() ? "Aktif" : "Aktif · tanpa NIA"}
+          </span>
           {lifecycleMenu}
         </div>
         {confirmDialog}
@@ -520,14 +487,6 @@ export function MemberActions({
   return (
     <>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        {assignNia ? (
-          <Input
-            placeholder="NIA (opsional)"
-            value={niaInput}
-            onChange={(e) => setNiaInput(e.target.value)}
-            className="h-8 w-28"
-          />
-        ) : null}
         <div className="flex gap-1">
           <Button
             size="sm"
