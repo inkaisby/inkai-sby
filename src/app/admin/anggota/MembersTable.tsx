@@ -1511,7 +1511,11 @@ export function MembersTable({
                                 !selectedId ||
                                 !normalizeNia(niaDraft) ||
                                 normalizeNia(niaDraft) ===
-                                  (normalizeNia(detail.nia) || "")
+                                  (normalizeNia(
+                                    typeof detail.nia === "string"
+                                      ? detail.nia
+                                      : null,
+                                  ) || "")
                               }
                               onClick={() => {
                                 if (selectedId) {
