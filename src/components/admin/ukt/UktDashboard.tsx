@@ -116,6 +116,7 @@ import {
   inferPreviousBeltRank,
   isBlankUktRank,
 } from "@/lib/belt";
+import { normalizeNia } from "@/lib/member-profile-locks";
 import {
   parseUktDojoFilterValue,
   type UktDojoFilterGroup,
@@ -393,6 +394,7 @@ export function UktDashboard(props: Props) {
   );
   /** Salinan lokal agar status UI langsung berubah tanpa tunggu refresh penuh. */
   const [rows, setRows] = useState(props.allRows);
+  const [niaSavingId, setNiaSavingId] = useState<string | null>(null);
   /** Anggota yang baru dibatalkan lokal — cegah sync server usang menimpa UI. */
   const locallyClearedMemberIdsRef = useRef<Set<string>>(new Set());
   const pendingServerRowsSyncRef = useRef(false);
@@ -693,6 +695,54 @@ export function UktDashboard(props: Props) {
       prev.map((r) => (r.memberId === memberId ? { ...r, ...patch } : r)),
     );
   }, []);
+
+  const handleSetNia = useCallback(
+    async (memberId: string, rawNia: string) => {
+      if (!isCabang || isArchiveView) return;
+
+      const current = normalizeNia(
+        rows.find((r) => r.memberId === memberId)?.nia,
+      );
+      const nia = normalizeNia(rawNia);
+      const currentKey = current ?? "";
+      const niaKey = nia ?? "";
+
+      if (!niaKey || niaKey === currentKey) return;
+
+      setNiaSavingId(memberId);
+      try {
+        const res = await fetch(`/api/admin/members/${memberId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "set_nia", nia: niaKey }),
+        });
+
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+          member?: { nia?: string | null };
+          accountProvisioned?: boolean;
+        };
+
+        if (!res.ok) {
+          toast.error(data.error || data.message || "Gagal menyimpan NIA");
+          return;
+        }
+
+        const next = normalizeNia(data.member?.nia) || niaKey;
+        patchRow(memberId, { nia: next });
+        setSelectedMember((prev) =>
+          prev && prev.memberId === memberId ? { ...prev, nia: next } : prev,
+        );
+        toast.success(data.message || "NIA berhasil disimpan");
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Gagal menyimpan NIA");
+      } finally {
+        setNiaSavingId(null);
+      }
+    },
+    [isCabang, isArchiveView, patchRow, rows],
+  );
 
   const clearMemberFromUktLocal = useCallback((memberId: string) => {
     locallyClearedMemberIdsRef.current.add(memberId);
@@ -3412,7 +3462,36 @@ export function UktDashboard(props: Props) {
                       size="sm"
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{row.nia || "-"}</TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {isCabang && !isArchiveView ? (
+                      <div className="inline-flex min-w-[8.5rem] flex-col gap-1">
+                        <Input
+                          key={`${row.memberId}:${row.nia || ""}`}
+                          defaultValue={row.nia || ""}
+                          placeholder="Isi NIA"
+                          disabled={niaSavingId === row.memberId}
+                          className="h-8 w-full font-mono text-xs uppercase"
+                          aria-label={`Ubah NIA ${row.fullName}`}
+                          onClick={(e) => e.stopPropagation()}
+                          onBlur={(e) => {
+                            const current = normalizeNia(row.nia) || "";
+                            const next = normalizeNia(e.target.value) || "";
+                            if (!next || next === current) {
+                              e.target.value = current;
+                              return;
+                            }
+                            e.target.value = next;
+                            void handleSetNia(row.memberId, next);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") e.currentTarget.blur();
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      row.nia || "-"
+                    )}
+                  </TableCell>
                   <TableCell>
                     <button
                       type="button"
