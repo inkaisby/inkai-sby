@@ -554,14 +554,6 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 
-  const periodMutable = await assertLatberPeriodMutable(token, eventIdForAssert);
-  if (!periodMutable.ok) {
-    return NextResponse.json(
-      { error: periodMutable.error },
-      { status: periodMutable.status },
-    );
-  }
-
   const locals = await prisma.billing.findMany({
     where: { registrationId: id, isDeleted: false },
     select: { id: true, status: true, type: true, description: true },

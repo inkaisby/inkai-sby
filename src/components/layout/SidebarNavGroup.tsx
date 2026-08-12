@@ -20,8 +20,9 @@ export function SidebarNavGroup({
   const pathname = usePathname();
   const childActive = items.some((c) => {
     const path = hrefPathname(c.href);
-    // /admin/ukt (Pendaftaran) exact — jangan ikut /admin/ukt/arsip
+    // /admin/ukt & /admin/latber (Pendaftaran) exact — jangan ikut arsip
     if (path === "/admin/ukt") return pathname === "/admin/ukt";
+    if (path === "/admin/latber") return pathname === "/admin/latber";
     return pathname === path || pathname.startsWith(`${path}/`);
   });
   // Buka grup jika di salah satu child (termasuk nested path di bawah UKT)
@@ -31,7 +32,8 @@ export function SidebarNavGroup({
       const path = hrefPathname(c.href);
       return pathname === path || pathname.startsWith(`${path}/`);
     }) ||
-    (label === "UKT" && pathname.startsWith("/admin/ukt"));
+    (label === "UKT" && pathname.startsWith("/admin/ukt")) ||
+    (label === "Latihan Bersama" && pathname.startsWith("/admin/latber"));
   const [open, setOpen] = useState(groupOpen);
 
   useEffect(() => {
@@ -61,7 +63,9 @@ export function SidebarNavGroup({
             const path = hrefPathname(link.href);
             // Exact-only: parent paths that have sibling sub-routes (UKT Pendaftaran vs Arsip)
             const exactOnly =
-              path === "/admin/pengaturan" || path === "/admin/ukt";
+              path === "/admin/pengaturan" ||
+              path === "/admin/ukt" ||
+              path === "/admin/latber";
             const isActive =
               pathname === path ||
               (!exactOnly && pathname.startsWith(`${path}/`));

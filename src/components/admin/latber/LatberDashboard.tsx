@@ -126,9 +126,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
 
   const isCabang = canEditKyuBaru(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
-  const periodLocked =
-    props.isArchiveView ||
-    Boolean(props.periodMeta?.archived || props.periodMeta?.locked);
+  const periodLocked = Boolean(props.periodMeta?.archived || props.periodMeta?.locked);
   const isMultiDojoAdmin = !isDojoAdmin && props.dojos.length > 1;
 
   const displayRows = useMemo(() => {
@@ -457,8 +455,8 @@ export function LatberDashboard(props: LatberDashboardProps) {
                   Periode {props.periodMeta?.archived ? "diarsipkan" : "dikunci"}
                 </p>
                 <p className="text-muted-foreground">
-                  Pendaftaran dan perubahan status dibatasi. Lihat data dan cetak nota tetap
-                  tersedia.
+                  Pendaftaran dan perubahan status dibatasi. Lihat data, cetak nota, dan hapus
+                  pendaftaran lunas tetap tersedia untuk cabang/ranting.
                 </p>
               </div>
             </div>
@@ -674,7 +672,6 @@ export function LatberDashboard(props: LatberDashboardProps) {
                                 </Button>
                               )}
                             {row.registrationId &&
-                              !periodLocked &&
                               (status === "lunas" || status === "menunggu_verifikasi") &&
                               (isCabang || isDojoAdmin) && (
                                 <Button
