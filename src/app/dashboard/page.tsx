@@ -14,6 +14,7 @@ import { DashboardHomeHeader } from "@/components/member/DashboardHomeHeader";
 import { MemberCard } from "@/components/member/MemberCard";
 import { QuickActions } from "@/components/member/QuickActions";
 import { MemberUktStatus } from "@/components/member/MemberUktStatus";
+import { MemberLatberStatus } from "@/components/member/MemberLatberStatus";
 import {
   MembershipChecklist,
   buildMembershipChecklist,
@@ -259,6 +260,7 @@ export default async function MemberDashboard() {
       ) : null}
 
       {isActive && <MemberUktStatus compact />}
+      {isActive && <MemberLatberStatus compact />}
 
       {unpaidMonthly > 0 && isActive && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">

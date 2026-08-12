@@ -76,6 +76,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/lupa-password` | Ajuan reset password |
 | `/reset-password` | Set password baru |
 | `/undangan/ukt/[periodId]` | **Undangan portal UKT** (publik): cover buka + musik, section Home/Acara/Galeri/Peta (auto-play + klik tab + scroll), CTA login ke `/admin/ukt` |
+| `/undangan/latber/[periodId]` | **Undangan portal Latber** (publik): cover buka + musik, section Home/Acara/Galeri/Peta, CTA login ke `/admin/latber` |
 
 ---
 
@@ -83,11 +84,11 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Modul | Status | Fungsi |
 |-------|--------|--------|
-| Beranda | Aktif | Kartu anggota, **checklist keanggotaan + CTA**, dojo/jadwal/**absen hari ini**/PIC, aksi cepat kontekstual, UKT, badge pesan+notif; **header sticky**; kegiatan via menu (bukan agenda di beranda); **dual-role: ikon Panel Admin** di header (sebelah logout) |
+| Beranda | Aktif | Kartu anggota, **checklist keanggotaan + CTA**, dojo/jadwal/**absen hari ini**/PIC, aksi cepat kontekstual, UKT + **Latber**, badge pesan+notif; **header sticky**; kegiatan via menu (bukan agenda di beranda); **dual-role: ikon Panel Admin** di header (sebelah logout) |
 | Profil | Aktif | Edit lengkap (foto, identitas, dokumen); **ubah password mandiri** (`#password`); **email/NIA/sabuk/MSH edit mandiri 1×** lalu pengajuan `PROFILE_CHANGE`; No. MSH (Hitam/DAN) di Kartu Anggota; banner beranda jika password masih = NIA |
 | Absensi | Aktif | Streaming UI; check-in GPS multi-lokasi (auto geofence + override); biometrik HP opsional (WebAuthn); QR collapsible; riwayat; 1×/hari |
 | Iuran | Aktif | Daftar tagihan + **lapor setor** (tanggal; nominal = tagihan; periode berjalan/**bulan sebelumnya**; tanpa unggah bukti TF) |
-| Kegiatan | Aktif | Pendaftaran event (dengan gate kelengkapan); UKT lewat kartu Status UKT (daftar mandiri) |
+| Kegiatan | Aktif | Pendaftaran event (dengan gate kelengkapan); UKT & **Latber** lewat kartu Status (daftar mandiri) |
 | Materi Digital | Aktif | Katalog materi dari cabang (unduh/buka file) |
 | Store | Aktif | Katalog produk + pesan (stok) |
 | Prestasi & Sabuk | Aktif | Sabuk, unggah piagam, pelatihan |
@@ -109,6 +110,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Kelola Anggota | Cari **autocomplete** (nama/NIA/**MSH**); kolom **No**; **sort kolom** (NIA, Nama, Sabuk, Status, Dojo, Terdaftar — ikon naik/turun, server-side); KPI status + **Dok. kurang** + **Tanpa NIA** + **Tanpa akun** + **Duplikat NIA/NIK**; badge baris tanpa akun; bulk **Buat akun login** (retry); **auto-provision** User saat create/set NIA/bulk ber-NIA; **cabang edit Nama** inline (`set_name`) + **Dokumen** (tombol Ubah di kolom); **ranting edit Nama/Dokumen hanya di detail**; **upload Akte/BPJS** di detail; pratinjau modal + print; detail, NIA; **No. MSH** (Hitam/DAN — kolom + edit ranting/cabang `set_msh` di detail); **Terdaftar**; **edit Iuran/bln**; **pengecualian iuran (event/UKT)**; **pindah ranting inline (cabang)**; nonaktif/bulk; CSV (+ No. MSH); arsip; Prisma scoped (+ **anggota luar Surabaya / ranting arsip** tetap terlihat); **filter/switcher client-fetch** (`counts=1` hanya ganti dojo); mutasi tanpa `router.refresh`; **Input Massal** (NIA…Kyu…Ranting, isi semua Kyu/DAN, progress %, maks 50); detail: **username login dari Prisma** (bukan hint palsu); **Reset password** sementara (ranting/cabang) |
 | Iuran Anggota | **Rekening koran per anggota** (tabel: No, Nama, NIA, Ranting, Iuran/bln, Status bulan, Tunggakan, Aging, **Pengecualian**); **filter + DojoContextSwitcher client-fetch** (`GET /api/admin/iuran/ledger` + `replaceState`, tanpa full RSC); klik nama → Sheet **Pengaturan / Mutasi / Pembayaran**; strip antrian verifikasi; generate bulan; export rekap CSV; deep-link `?memberId=&tab=` |
 | UKT | Nav grup **Pendaftaran** (`/admin/ukt`) + **Arsip UKT** (`/admin/ukt/arsip`); **registrants-first** (peserta terdaftar; Belum Daftar via suggest+hydrate); **shell streaming**: header + semester/tahun tampil dulu, KPI/tabel Suspense menyusul; periode aktif, **sort kolom**, multi-select ranting, **filter Gabungan multi-ranting**, bayar→verifikasi cabang, sabuk target, nota, **Buat Laporan UKT** (cabang→Pengprov), **export**, **hari-H**, **setoran + rekonsiliasi**, **arsip**, wizard (ujian/pejabat/snapshot biaya); **toolbar atas sticky**; **ranting: Daftar/Batal/Bayar + toolbar Laporan WA (rincian setor), Salin/WA Undangan & Cetak Nota**; cabang: **Hapus tagihan** terpisah dari hapus pendaftaran; **undangan portal** `/undangan/ukt/[periodId]` |
+| Latber | Nav grup **Pendaftaran** (`/admin/latber`) + **Arsip Latber** (`/admin/latber/arsip`); **registrants-first** (clone UKT disederhanakan); periode bebas tanggal (cabang buat); biaya flat **Rp 45.000** + komisi ranting **Rp 5.000** (setor cabang Rp 40.000/peserta lunas); kolom: No, Foto, NIA, Nama, Sabuk, Ranting, Biaya, Status, Aksi; **Daftar/Terima/Tolak/Bayar/Verifikasi/Batal Latber**; cabang **Hapus pendaftaran** + **Hapus tagihan**; toolbar **Salin/WA Undangan** + **Cetak Nota**; undangan `/undangan/latber/[periodId]`; v1 tanpa Kyu/hari-H/laporan Pengprov |
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
 | Verifikasi | Antrian klaim + **filter tipe/aging**; riwayat |
 | Event & Kegiatan | Buat + **ubah/tutup** event non-UKT + **roster pendaftar**; link UKT; **mutasi update state lokal** (tanpa `router.refresh`) |
@@ -158,7 +160,7 @@ Pusat / Nasional
 |------|----------------|---------|--------|----------|
 | Profil & akun | Edit profil sendiri | Edit **nama** + **dokumen** anggota di **detail** (hak edit profil; bukan inline); tidak edit akun login | Edit nama/dokumen (inline + detail); lihat ranting & anggota di bawahnya | Lihat cabang, ranting & anggota di bawahnya |
 | Kyu / DAN | Tidak edit sendiri | Tidak edit | **Edit Kyu (UKT & anggota)** | Tidak edit (hanya lihat) |
-| Event (UKT, Gashuku, pertandingan) | Lihat & **daftar UKT mandiri** (+ konfirmasi bayar); daftar event non-UKT | Daftarkan anggota ranting; **Terima/Tolak** mandiri; Bayar UKT | **Buat event** + lihat pendaftar; Verifikasi bayar UKT | Lihat event & pendaftar |
+| Event (UKT, Gashuku, pertandingan) | Lihat & **daftar UKT/Latber mandiri** (+ konfirmasi bayar); daftar event non-UKT | Daftarkan anggota ranting; **Terima/Tolak** mandiri; Bayar UKT/Latber | **Buat event** + periode Latber; lihat pendaftar; Verifikasi bayar UKT/Latber | Lihat event & pendaftar |
 | NIA | Lihat sendiri | Tidak assign | **Assign NIA** | Lihat saja |
 | Iuran | Lihat & bayar sendiri | **Edit tagihan + verifikasi + lunas**; **edit Iuran/bln per anggota** (scope dojo) | **Kelola iuran** cabang (edit/verifikasi/lunas + Iuran/bln) | Lihat saja (tanpa edit) |
 | Status keanggotaan | Lihat sendiri | **Nonaktifkan / aktifkan**; **hapus/arsip** (aktif/ber-NIA: ketik nama; bulk: ketik ARSIPKAN); **gabungkan duplikat** | **Nonaktif / aktif / hapus (arsip)** + bulk; gabungkan duplikat | Lihat saja |
@@ -246,6 +248,16 @@ Pusat / Nasional
 13. Toolbar cabang: **Buat Periode**, Hari-H, Export, Laporan WA, **Salin Undangan** / **WA Undangan**, Cetak Nota, **Buat Laporan UKT**, Biaya Sabuk, Arsip (tombol terpisah). Toolbar ranting: **Laporan WA** + **Salin/WA Undangan** + **Cetak Nota** (manual).
 14. **Undangan portal publik** `/undangan/ukt/[periodId]`: gaya undangan digital; snapshot `ukt-invite:{periodId}`; CTA **Daftarkan Anggota** → login admin.
 
+### 9.3b Latber (Latihan Bersama)
+1. **Cabang** membuat periode Latber (nama + buka/tutup + jadwal/lokasi); event kanonis `Latber — {nama}`, kategori **Pendaftaran Latber**; snapshot `latber-period-meta:{eventId}` (fee **45.000**, komisi ranting **5.000**).
+2. URL admin: **Pendaftaran** `/admin/latber?period=<eventId>` dan **Arsip Latber** `/admin/latber/arsip?...`.
+3. **Dual path daftar** (sama UKT): ranting daftar langsung → **Belum Bayar**; anggota daftar mandiri → **Menunggu Terima Ranting** (`PENDING`, tanpa tagihan dulu).
+4. **Ranting** — Terima/Tolak mandiri, **Daftar Latber**, **Bayar** (ajukan verifikasi), **Batal Latber**; **Cabang** — Verifikasi lunas, **Hapus pendaftaran**, **Hapus tagihan** (terpisah).
+5. Nota/rekap: `grandTotal = (n × 45.000) − (n × 5.000)`; toolbar **Salin/WA Undangan** + **Cetak Nota**.
+6. **Undangan portal** `/undangan/latber/[periodId]`; snapshot `latber-invite:{periodId}`; sync saat buat/ubah periode + `POST /api/admin/latber/invite`.
+7. Dashboard anggota: kartu **Status Latber** (`/api/member/latber-status`); daftar mandiri + konfirmasi bayar ke ranting.
+8. v1 **tanpa:** Kyu/hari-H, laporan Pengprov, fee per sabuk, halaman Pengaturan Latber penuh.
+
 ### 9.4 Kegiatan & absensi
 - **Cabang** dapat membuat event non-UKT di `/admin/kegiatan` (Gashuku, pertandingan, dll.).
 - Anggota mendaftar event jika profil/dokumen/iuran memenuhi syarat.
@@ -305,7 +317,7 @@ Pusat / Nasional
 | Scan/check-in absensi (anggota) | Aktif | `/dashboard/absensi` streaming + GPS multi-lokasi + biometrik + `/api/member/attendance/checkin` |
 | Absensi admin | Aktif | Progress tabel+Sheet detail, harian, belum hadir; **DOM ≤ pageSize 25/50/100**; export CSV; tab client instan; filter date/semester via `GET /api/admin/absensi` |
 | Iuran generate bulan | Aktif | `POST /api/admin/billing/generate` (+ rate limit) + UI Iuran |
-| Nav admin | Campuran | Top-level: Iuran, Event, Absensi; **UKT** sebagai grup (Pendaftaran + Arsip UKT); grup: Keanggotaan / Konten / Sistem + badge unread pesan |
+| Nav admin | Campuran | Top-level: Iuran, Event, Absensi; **UKT** + **Latber** sebagai grup (Pendaftaran + Arsip); grup: Keanggotaan / Konten / Sistem + badge unread pesan |
 | Deteksi duplikat anggota | Aktif | Keras: NIK / NIA / nama+TTL (termasuk arsip untuk NIK/NIA); lunak: nama; admin create melepas NIA/NIK arsip bila hanya bentrok nomor; blok create admin & daftar publik; UI peringatan |
 | Gabungkan duplikat | Aktif | Ranting/cabang: pindahkan akun login + riwayat ke data operasional; arsipkan duplikat |
 | Audit admin | Aktif | Filter + preset **Keamanan** (`SECURITY_*`/IMPERSONATE/upload/broadcast) + pagination client (25/50/100) + fetch awal 100 log + export CSV di `/admin/audit`; hapus jejak iuran lokal menolak `SECURITY_*` |
@@ -317,6 +329,9 @@ Pusat / Nasional
 | Hasil ujian UKT | Aktif | Cabang tetapkan `LULUS` / `GAGAL` / `MENGULANG`; Kyu Baru **wajib** setelah LULUS |
 | Status UKT anggota | Aktif | `/api/member/ukt-status` + kartu: **Daftar UKT sekarang**, konfirmasi bayar, status Menunggu Terima/Verifikasi/Ujian; **tanpa nominal biaya** |
 | Undangan portal UKT | Aktif | `/undangan/ukt/[periodId]` publik; snapshot `AppSetting` `ukt-invite:{id}`; Salin/WA Undangan di toolbar admin |
+| Modul Latber (MVP) | Aktif | Admin `/admin/latber` + arsip; flat fee 45rb/komisi 5rb; registrants-first; nota; undangan `/undangan/latber/[periodId]`; kartu anggota |
+| Status Latber anggota | Aktif | `/api/member/latber-status` + kartu beranda: daftar mandiri, konfirmasi bayar, status |
+| Undangan portal Latber | Aktif | `/undangan/latber/[periodId]`; snapshot `latber-invite:{id}`; Salin/WA di toolbar admin |
 | Filter/KPI UKT operasional | Aktif | Status UI selaras: Belum Bayar, Menunggu Verif/Ujian, Lulus, Selesai; kartu KPI **Gagal/Mengulang** memfilter kedua status |
 | Pengecualian UKT (waiver) | Aktif | Cabang kecualikan iuran/dokumen/absensi + catatan audit |
 | Kebijakan syarat UKT | Aktif | `/admin/pengaturan/ukt` — centang iuran/dokumen/absensi + enforce ranting/cabang (`AppSetting` `ukt.registration.policy`) |
@@ -394,6 +409,15 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/ukt/deposit      PATCH status setoran ranting — **cabang-only** (`canEditKyuBaru`); kunci periode berlaku
 /api/admin/ukt/register     POST daftar anggota ke periode UKT; kunci periode berlaku; `maxDuration=30`; bila Inkai *already registered* → reuse CANCELLED/REJECTED (PUT + `forceRegisterUktInDb`)
 /api/admin/ukt/*            Periode, waiver, nota, hasil ujian, fees (snapshot/global; kunci periode berlaku), Kyu, exam-day, period-meta, invite (siapkan snapshot), hapus pendaftaran + tagihan terkait; sync undangan publik `ukt-invite:{id}`
+/api/admin/latber/period    POST buat / PATCH ubah periode Latber (cabang-only `canCreateEventsByWilayah`); kategori Pendaftaran Latber; snapshot fee 45rb/komisi 5rb di `latber-period-meta`; sync `latber-invite:{id}`
+/api/admin/latber/register  POST daftar anggota ke periode Latber (`forceRegisterLatberInDb`); kunci periode; ADMIN_DOJO fail-closed allowlist
+/api/admin/latber/registrations/[id]  PATCH terima/tolak mandiri, submit verifikasi, mark_paid (cabang `canEditKyuBaru`); DELETE batal + tagihan
+/api/admin/latber/suggest   GET autocomplete nama/NIA (scoped, clone UKT)
+/api/admin/latber/members   GET hydrate 1 anggota + `?periodId=` baris Belum Daftar (`latberRow`)
+/api/admin/latber/invite     POST refresh snapshot undangan publik Latber
+/api/member/latber/register POST daftar mandiri PENDING
+/api/member/latber/confirm-payment  POST konfirmasi sudah bayar ke ranting
+/api/member/latber-status   GET status Latber periode aktif (kartu anggota)
 /api/cron/ukt-reminders     Cron H-3 pengingat UKT (batas daftar / jadwal ranting)
 /api/admin/open-events       Daftar kegiatan dengan pendaftaran masih terbuka (topbar admin)
 /api/admin/account-peers   Email akun ranting gabungan (overlap managed dojos) untuk topbar ganti akun
@@ -916,6 +940,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 9 Agustus 2026 | **Ops login NIA tanpa User:** anggota aktif ber-NIA tapi `userId` null (mis. `23.29313`) gagal login NIA/NIA dengan pesan credentials; recovery `npx tsx scripts/set-member-nia-password.ts <NIA> --create-account` |
 | 9 Agustus 2026 | **Auto-provision akun NIA + audit:** lib `provisionMemberNiaLogin`; hook create/`set_nia`/bulk; backfill `scripts/backfill-nia-login-accounts.ts`; KPI **Tanpa akun** + **Duplikat NIA/NIK**; `POST /api/admin/members/provision-login`; inventaris §5/§9/§13/§15 |
 | 9 Agustus 2026 | **Fix lapor setor iuran status Active:** `isMemberActiveStatus` (case-insensitive Active/ACTIVE/Aktif) dipakai di `iuran-setor-period` + generate billing; dedup ledger; regresi Vitest `tests/member-status.test.ts` |
+| 12 Agustus 2026 | **API Latber (clone UKT simplified):** admin period/register/registrations/suggest/members/invite; member register/confirm-payment/latber-status; lib `latber-self-registration`, `member-latber-status`; Zod `latberPeriod*`, `latberRegister*`, `latberRegistrationUpdate*`; inventaris §13/§15 |
+| 12 Agustus 2026 | **Modul Latber MVP:** sidebar Pendaftaran+Arsip; `LatberDashboard` + nota komisi 5rb; undangan `/undangan/latber/[periodId]`; kartu `MemberLatberStatus`; lib `latber*` + invite sync; inventaris §4/§5/§7/§9.3b/§11/§13/§15 |
 
 ---
 

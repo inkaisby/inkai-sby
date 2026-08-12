@@ -233,6 +233,45 @@ export const uktRegistrationUpdateSchema = z.object({
   eventId: z.string().uuid().optional(),
 });
 
+export const latberPeriodSchema = z.object({
+  title: z.string().trim().min(3).max(120).optional(),
+  registrationCloseAt: z.string().datetime().optional(),
+  registrationOpenAt: z.string().datetime().optional(),
+  eventAt: z.string().datetime().optional().nullable(),
+  eventLocation: z.string().trim().max(200).optional().nullable(),
+  feeAmount: z.coerce.number().int().min(0).max(10_000_000).optional(),
+  komisiRanting: z.coerce.number().int().min(0).max(1_000_000).optional(),
+});
+
+export const latberPeriodPatchSchema = z.object({
+  eventId: z.string().uuid(),
+  title: z.string().trim().min(3).max(120).optional(),
+  registrationCloseAt: z.string().datetime().optional(),
+  registrationOpenAt: z.string().datetime().optional().nullable(),
+  eventAt: z.string().datetime().optional().nullable(),
+  eventLocation: z.string().trim().max(200).optional().nullable(),
+  feeAmount: z.coerce.number().int().min(0).max(10_000_000).optional().nullable(),
+  komisiRanting: z.coerce.number().int().min(0).max(1_000_000).optional().nullable(),
+});
+
+export const latberRegisterSchema = z.object({
+  eventId: z.string().uuid(),
+  memberId: z.string().uuid(),
+});
+
+export const latberRegistrationUpdateSchema = z.object({
+  action: z
+    .enum([
+      "accept_self_registration",
+      "reject_self_registration",
+      "submit_for_verification",
+      "mark_paid",
+    ])
+    .optional(),
+  memberId: z.string().uuid().optional(),
+  eventId: z.string().uuid().optional(),
+});
+
 export const uktMemberCreateSchema = z.object({
   fullName: z
     .string()

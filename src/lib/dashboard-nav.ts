@@ -71,6 +71,14 @@ const UKT_NAV_GROUP: NavGroup = {
   ],
 };
 
+const LATBER_NAV_GROUP: NavGroup = {
+  label: "Latber",
+  children: [
+    { href: "/admin/latber", label: "Pendaftaran" },
+    { href: "/admin/latber/arsip", label: "Arsip Latber" },
+  ],
+};
+
 export const ADMIN_LINKS: NavItem[] = [
   { href: "/admin", label: "Beranda Admin" },
   {
@@ -83,6 +91,7 @@ export const ADMIN_LINKS: NavItem[] = [
   },
   { href: "/admin/iuran", label: "Iuran Anggota" },
   UKT_NAV_GROUP,
+  LATBER_NAV_GROUP,
   { href: "/admin/kegiatan", label: "Event & Kegiatan" },
   { href: "/admin/absensi", label: "Absensi" },
   {

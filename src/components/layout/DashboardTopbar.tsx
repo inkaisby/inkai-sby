@@ -17,6 +17,8 @@ const ADMIN_TITLES: Record<string, string> = {
   "/admin/iuran": "Iuran Anggota",
   "/admin/ukt": "UKT — Pendaftaran",
   "/admin/ukt/arsip": "UKT — Arsip",
+  "/admin/latber": "Latber — Pendaftaran",
+  "/admin/latber/arsip": "Latber — Arsip",
   "/admin/organisasi": "Organisasi",
   "/admin/verifikasi": "Verifikasi",
   "/admin/kegiatan": "Event & Kegiatan",
