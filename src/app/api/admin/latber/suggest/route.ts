@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { inkaiFetch } from "@/lib/inkai-api/server";
 import { prisma } from "@/lib/prisma";
 import { buildMemberFilter, getPrimaryAdminRole } from "@/lib/rbac";
-import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
+import { resolveAdminDojoClusterAllowlist } from "@/lib/account-peers";
 
 const suggestQuerySchema = z.object({
   q: z.string().trim().max(64).optional().default(""),
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
   const primaryRole = getPrimaryAdminRole(authResult.user.roles);
 
   if (primaryRole === "ADMIN_DOJO") {
-    const allowlist = getManagedDojoIdsFromUser(authResult.user);
+    const allowlist = await resolveAdminDojoClusterAllowlist(authResult.user);
     if (allowlist.length === 0) {
       return NextResponse.json({ suggestions: [] });
     }
@@ -44,11 +44,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ suggestions: [] });
     }
     const scopedDojoIds = dojoId ? [dojoId] : allowlist;
+    const scopedUser = { ...authResult.user, managedDojoIds: allowlist };
 
     const members = await prisma.member.findMany({
       where: {
         AND: [
-          buildMemberFilter(authResult.user),
+          buildMemberFilter(scopedUser),
           { dojoId: { in: scopedDojoIds } },
           {
             OR: [

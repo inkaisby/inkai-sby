@@ -41,7 +41,7 @@ export async function POST(request: Request) {
   });
   if (!registration) {
     return NextResponse.json(
-      { error: "Belum ada pengajuan Latber untuk periode ini" },
+      { error: "Belum ada pengajuan Latihan Bersama untuk periode ini" },
       { status: 400 },
     );
   }

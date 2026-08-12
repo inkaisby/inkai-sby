@@ -10,7 +10,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { periodId } = await params;
   const invite = await getLatberInvitePublic(periodId);
   if (!invite) {
-    return { title: "Undangan Latber" };
+    return { title: "Undangan Latihan Bersama" };
   }
   const title = `Undangan ${invite.title}`;
   const description =

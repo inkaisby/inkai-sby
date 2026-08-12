@@ -57,10 +57,10 @@ export default async function LatberAdminPage({
     return (
       <>
         <AdminPageHeader
-          title="Pendaftaran Latber"
+          title="Pendaftaran Latihan Bersama"
           description={`${ROLE_LABELS[primaryRole] || primaryRole} — Latihan bersama & pendaftaran anggota`}
         />
-        <Suspense fallback={<AdminPageLoader rows={8} message="Memuat Latber..." />}>
+        <Suspense fallback={<AdminPageLoader rows={8} message="Memuat Latihan Bersama..." />}>
           <LatberSection searchParams={searchParams} />
         </Suspense>
       </>

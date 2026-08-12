@@ -17,6 +17,8 @@ export const ADMIN_DOJO_SIDEBAR_OPTIONS = [
   { path: "/admin/iuran", label: "Iuran Anggota" },
   { path: "/admin/ukt", label: "UKT — Pendaftaran" },
   { path: "/admin/ukt/arsip", label: "UKT — Arsip" },
+  { path: "/admin/latber", label: "Latihan Bersama — Pendaftaran" },
+  { path: "/admin/latber/arsip", label: "Latihan Bersama — Arsip" },
   { path: "/admin/kegiatan", label: "Event & Kegiatan" },
   { path: "/admin/absensi", label: "Absensi" },
   { path: "/admin/materi", label: "Materi Digital" },
@@ -69,6 +71,8 @@ export const ADMIN_DOJO_GRANT_PRESETS = [
         "/admin",
         "/admin/iuran",
         "/admin/ukt",
+        "/admin/latber",
+        "/admin/latber/arsip",
         "/admin/notifikasi",
         "/admin/pengaturan",
       ],
@@ -77,6 +81,7 @@ export const ADMIN_DOJO_GRANT_PRESETS = [
 ] as const;
 
 const ABSENSI_PATH = "/admin/absensi";
+const LATBER_PATHS = ["/admin/latber", "/admin/latber/arsip"] as const;
 
 /** Default lama sebelum Absensi masuk opsi sidebar (untuk soft-backfill). */
 const LEGACY_DEFAULT_WITHOUT_ABSENSI = DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS.filter(
@@ -98,6 +103,18 @@ function softBackfillAbsensi(paths: string[]): string[] {
   return paths;
 }
 
+/** Akun lama dengan UKT tapi belum path Latihan Bersama → tambahkan otomatis. */
+function softBackfillLatber(paths: string[]): string[] {
+  const hasUkt = paths.includes("/admin/ukt") || paths.includes("/admin/ukt/arsip");
+  const hasLatber = LATBER_PATHS.every((p) => paths.includes(p));
+  if (!hasUkt || hasLatber) return paths;
+  const next = [...paths];
+  for (const p of LATBER_PATHS) {
+    if (!next.includes(p)) next.push(p);
+  }
+  return next;
+}
+
 function normalizeSidebarPaths(paths: unknown): string[] {
   if (!Array.isArray(paths)) return [...DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS];
   const allowed = new Set<string>(DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS);
@@ -108,7 +125,7 @@ function normalizeSidebarPaths(paths: unknown): string[] {
     }
   }
   const normalized = out.length ? out : ["/admin"];
-  return softBackfillAbsensi(normalized);
+  return softBackfillLatber(softBackfillAbsensi(normalized));
 }
 
 export function parseAdminDojoGrants(raw: unknown): AdminDojoGrants | null {

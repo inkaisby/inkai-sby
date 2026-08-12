@@ -57,7 +57,7 @@ export default async function LatberArsipPage({
     return (
       <>
         <AdminPageHeader
-          title="Arsip Latber"
+          title="Arsip Latihan Bersama"
           description={`${ROLE_LABELS[primaryRole] || primaryRole} — Riwayat periode latihan bersama`}
         />
         <Suspense fallback={<AdminPageLoader rows={8} message="Memuat arsip..." />}>

@@ -36,7 +36,7 @@ export async function validateLatberRegistrationEligibility(
     },
   });
   if (!event) {
-    return { ok: false, error: "Periode Latber tidak ditemukan" };
+    return { ok: false, error: "Periode Latihan Bersama tidak ditemukan" };
   }
 
   let registrationOpenAt: string | undefined;
@@ -53,7 +53,7 @@ export async function validateLatberRegistrationEligibility(
       );
       registrationOpenAt = meta.registrationOpenAt;
       if (meta.archived || meta.locked) {
-        return { ok: false, error: "Periode Latber sudah ditutup" };
+        return { ok: false, error: "Periode Latihan Bersama sudah ditutup" };
       }
     }
   } catch {
@@ -68,7 +68,7 @@ export async function validateLatberRegistrationEligibility(
   };
 
   if (!isLatberRegistrationOpen(schedule)) {
-    return { ok: false, error: "Pendaftaran Latber belum dibuka atau sudah ditutup" };
+    return { ok: false, error: "Pendaftaran Latihan Bersama belum dibuka atau sudah ditutup" };
   }
 
   return { ok: true };
@@ -125,7 +125,7 @@ export async function forceRegisterLatberInDb(opts: {
       where: { id: opts.eventId, isDeleted: false },
       select: { id: true, title: true, registrationCloseAt: true, endDate: true },
     });
-    if (!event) return { ok: false, error: "Periode Latber tidak ditemukan" };
+    if (!event) return { ok: false, error: "Periode Latihan Bersama tidak ditemukan" };
 
     const registration = existing
       ? await prisma.eventRegistration.update({

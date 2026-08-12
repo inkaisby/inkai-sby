@@ -46,7 +46,7 @@ export function LatberStatusCard({
       });
       const json = await parseApiJson<{ error?: string }>(res);
       if (!res.ok) throw new Error(json.error || "Gagal mendaftar");
-      showSuccess("Pengajuan Latber terkirim — menunggu ranting");
+      showSuccess("Pengajuan Latihan Bersama terkirim — menunggu ranting");
       setData((d) => ({
         ...d,
         registered: true,
@@ -112,7 +112,7 @@ export function LatberStatusCard({
       <div className="mt-3 flex flex-wrap gap-2">
         {data.canSelfRegister && (
           <Button size="sm" disabled={loading} onClick={selfRegister}>
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Daftar Latber"}
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Daftar Latihan Bersama"}
           </Button>
         )}
         {status === "menunggu_terima_ranting" && !data.memberPaymentConfirmedAt && (

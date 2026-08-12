@@ -52,6 +52,8 @@ import {
   type LatberPeriodOption,
 } from "@/lib/latber";
 import { countLatberKpis } from "@/lib/latber-data";
+import { combineDateAndTimeLocal } from "@/lib/ukt";
+import { Time24Fields } from "@/components/admin/Time24Fields";
 import { parseApiJson } from "@/lib/api-client";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { LatberPrintModal } from "@/components/admin/latber/LatberPrintModal";
@@ -99,9 +101,12 @@ export function LatberDashboard(props: LatberDashboardProps) {
   const [printOpen, setPrintOpen] = useState(false);
   const [createForm, setCreateForm] = useState({
     title: "",
-    registrationOpenAt: "",
-    registrationCloseAt: "",
-    eventAt: "",
+    openDate: "",
+    openTime: "00:00",
+    closeDate: "",
+    closeTime: "23:59",
+    eventDate: "",
+    eventTime: "08:00",
     eventLocation: "",
   });
 
@@ -205,24 +210,52 @@ export function LatberDashboard(props: LatberDashboardProps) {
 
   async function handleCreatePeriod() {
     try {
+      const toIso = (date: string, time: string, label: string) => {
+        if (!date || !time) return undefined;
+        const d = combineDateAndTimeLocal(date, time);
+        if (Number.isNaN(d.getTime())) {
+          throw new Error(`${label} tidak valid`);
+        }
+        return d.toISOString();
+      };
+
+      const registrationOpenAt = toIso(
+        createForm.openDate,
+        createForm.openTime,
+        "Tanggal buka pendaftaran",
+      );
+      const registrationCloseAt = toIso(
+        createForm.closeDate,
+        createForm.closeTime,
+        "Batas pendaftaran",
+      );
+      const eventAt = toIso(
+        createForm.eventDate,
+        createForm.eventTime,
+        "Waktu latihan",
+      );
+
       const res = await fetch("/api/admin/latber/period", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: createForm.title || "Latihan Bersama",
-          registrationOpenAt: createForm.registrationOpenAt || undefined,
-          registrationCloseAt: createForm.registrationCloseAt || undefined,
-          eventAt: createForm.eventAt || undefined,
+          registrationOpenAt,
+          registrationCloseAt,
+          eventAt,
           eventLocation: createForm.eventLocation || undefined,
-          notifyRanting: true,
         }),
       });
-      const data = await parseApiJson<{ error?: string; eventId?: string }>(res);
+      const data = await parseApiJson<{
+        error?: string;
+        event?: { id?: string };
+      }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal membuat periode");
-      showSuccess("Periode Latber dibuat");
+      showSuccess("Periode Latihan Bersama dibuat");
       setCreateOpen(false);
-      if (data.eventId) {
-        router.push(`/admin/latber?period=${data.eventId}`);
+      const periodId = data.event?.id;
+      if (periodId) {
+        router.push(`/admin/latber?period=${periodId}`);
       } else {
         refresh();
       }
@@ -241,7 +274,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
   function waInvite() {
     if (!props.selectedPeriodId) return;
     const url = buildLatberInviteUrl(props.selectedPeriodId);
-    const title = props.selectedPeriod?.title ?? "Latber";
+    const title = props.selectedPeriod?.title ?? "Latihan Bersama";
     const text = encodeURIComponent(
       `Undangan ${title} — INKAI Surabaya\nDaftarkan anggota ranting Anda:\n${url}`,
     );
@@ -354,8 +387,8 @@ export function LatberDashboard(props: LatberDashboardProps) {
       {!props.selectedPeriodId && (
         <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
           {props.canCreatePeriod
-            ? "Belum ada periode Latber aktif. Klik Buat Periode untuk memulai."
-            : "Belum ada periode Latber aktif."}
+            ? "Belum ada periode Latihan Bersama aktif. Klik Buat Periode untuk memulai."
+            : "Belum ada periode Latihan Bersama aktif."}
         </div>
       )}
 
@@ -537,9 +570,9 @@ export function LatberDashboard(props: LatberDashboardProps) {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Buat Periode Latber</DialogTitle>
+            <DialogTitle>Buat Periode Latihan Bersama</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
               <Label htmlFor="latber-title">Nama periode</Label>
               <Input
@@ -551,39 +584,30 @@ export function LatberDashboard(props: LatberDashboardProps) {
                 }
               />
             </div>
-            <div>
-              <Label htmlFor="latber-open">Buka pendaftaran</Label>
-              <Input
-                id="latber-open"
-                type="datetime-local"
-                value={createForm.registrationOpenAt}
-                onChange={(e) =>
-                  setCreateForm((f) => ({ ...f, registrationOpenAt: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="latber-close">Batas pendaftaran</Label>
-              <Input
-                id="latber-close"
-                type="datetime-local"
-                value={createForm.registrationCloseAt}
-                onChange={(e) =>
-                  setCreateForm((f) => ({ ...f, registrationCloseAt: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="latber-event">Waktu latihan</Label>
-              <Input
-                id="latber-event"
-                type="datetime-local"
-                value={createForm.eventAt}
-                onChange={(e) =>
-                  setCreateForm((f) => ({ ...f, eventAt: e.target.value }))
-                }
-              />
-            </div>
+            <Time24Fields
+              dateId="latber-open-date"
+              dateLabel="Tanggal buka pendaftaran"
+              date={createForm.openDate}
+              time={createForm.openTime}
+              onDateChange={(openDate) => setCreateForm((f) => ({ ...f, openDate }))}
+              onTimeChange={(openTime) => setCreateForm((f) => ({ ...f, openTime }))}
+            />
+            <Time24Fields
+              dateId="latber-close-date"
+              dateLabel="Tanggal batas pendaftaran"
+              date={createForm.closeDate}
+              time={createForm.closeTime}
+              onDateChange={(closeDate) => setCreateForm((f) => ({ ...f, closeDate }))}
+              onTimeChange={(closeTime) => setCreateForm((f) => ({ ...f, closeTime }))}
+            />
+            <Time24Fields
+              dateId="latber-event-date"
+              dateLabel="Tanggal latihan"
+              date={createForm.eventDate}
+              time={createForm.eventTime}
+              onDateChange={(eventDate) => setCreateForm((f) => ({ ...f, eventDate }))}
+              onTimeChange={(eventTime) => setCreateForm((f) => ({ ...f, eventTime }))}
+            />
             <div>
               <Label htmlFor="latber-loc">Lokasi</Label>
               <Input

@@ -73,7 +73,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const eventIdForAssert = await resolveEventIdForRegistration(id, data.eventId);
   if (!eventIdForAssert) {
     return NextResponse.json(
-      { error: "Periode Latber tidak dapat diverifikasi untuk pendaftaran ini" },
+      { error: "Periode Latihan Bersama tidak dapat diverifikasi untuk pendaftaran ini" },
       { status: 400 },
     );
   }
@@ -172,11 +172,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       registrationId: id,
       memberId: localReg.memberId,
       eventId: localReg.eventId,
-      periodTitle: localReg.event.title ?? "Latber",
+      periodTitle: localReg.event.title ?? "Latihan Bersama",
       amount,
     });
     if (!billing) {
-      return NextResponse.json({ error: "Gagal membuat tagihan Latber" }, { status: 400 });
+      return NextResponse.json({ error: "Gagal membuat tagihan Latihan Bersama" }, { status: 400 });
     }
 
     await deleteLatberSelfRegistrationMeta(localReg.eventId, localReg.memberId);
@@ -312,7 +312,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
     if (!billing) {
       return NextResponse.json(
-        { error: "Tagihan Latber belum tersedia atau sudah lunas" },
+        { error: "Tagihan Latihan Bersama belum tersedia atau sudah lunas" },
         { status: 400 },
       );
     }
@@ -322,7 +322,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       {
         path: `/v1/billing/${billing.id}/status`,
         method: "PATCH" as const,
-        body: { status: "PAID", adminNotes: "Verifikasi cabang — Latber" },
+        body: { status: "PAID", adminNotes: "Verifikasi cabang — Latihan Bersama" },
       },
       {
         path: "/v1/billing/verify",
@@ -405,13 +405,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
     if (!billing) {
       return NextResponse.json(
-        { error: "Tagihan Latber belum tersedia. Daftar ulang atau hubungi cabang." },
+        { error: "Tagihan Latihan Bersama belum tersedia. Daftar ulang atau hubungi cabang." },
         { status: 400 },
       );
     }
 
     const status = "WAITING_VERIFICATION";
-    const note = "Diajukan ranting — menunggu verifikasi cabang (Latber)";
+    const note = "Diajukan ranting — menunggu verifikasi cabang (Latihan Bersama)";
     let submitted = false;
     for (const attempt of [
       {
@@ -487,7 +487,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   let memberId = "";
   let memberDojoId = "";
   let memberName = "";
-  let periodTitle = "Latber";
+  let periodTitle = "Latihan Bersama";
   let eventIdForAssert: string | null = null;
   let sawPaid = false;
 
@@ -524,7 +524,7 @@ export async function DELETE(request: Request, context: RouteContext) {
 
   if (!eventIdForAssert) {
     return NextResponse.json(
-      { error: "Periode Latber tidak dapat diverifikasi untuk pendaftaran ini" },
+      { error: "Periode Latihan Bersama tidak dapat diverifikasi untuk pendaftaran ini" },
       { status: 400 },
     );
   }
@@ -619,7 +619,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     success: true,
     message:
       billingIds.size > 0
-        ? "Pendaftaran dan tagihan Latber berhasil dihapus"
+        ? "Pendaftaran dan tagihan Latihan Bersama berhasil dihapus"
         : "Pendaftaran dibatalkan",
   });
 }

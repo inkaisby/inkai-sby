@@ -8,6 +8,7 @@ const DOJO_ALLOWED_PREFIXES = [
   "/admin/anggota",
   "/admin/iuran",
   "/admin/ukt",
+  "/admin/latber",
   "/admin/verifikasi",
   "/admin/kegiatan",
   "/admin/materi",

@@ -45,7 +45,7 @@ export function LatberPrintModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto print:max-w-none">
         <DialogHeader>
-          <DialogTitle>Nota Latber — {periodTitle}</DialogTitle>
+          <DialogTitle>Nota Latihan Bersama — {periodTitle}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 text-sm print:text-black" id="latber-nota-print">
           <p className="text-muted-foreground print:text-gray-600">

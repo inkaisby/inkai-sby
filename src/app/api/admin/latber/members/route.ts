@@ -62,10 +62,10 @@ export async function GET(request: Request) {
       select: { id: true, title: true },
     });
     if (!event) {
-      return NextResponse.json({ error: "Periode Latber tidak ditemukan" }, { status: 404 });
+      return NextResponse.json({ error: "Periode Latihan Bersama tidak ditemukan" }, { status: 404 });
     }
     if (!isLatberEventTitle(event.title)) {
-      return NextResponse.json({ error: "Event bukan periode Latber" }, { status: 400 });
+      return NextResponse.json({ error: "Event bukan periode Latihan Bersama" }, { status: 400 });
     }
 
     const eligibility = await validateLatberRegistrationEligibility(

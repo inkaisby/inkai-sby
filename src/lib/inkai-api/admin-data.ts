@@ -7,6 +7,7 @@ import {
   buildDojoFilter,
   type SessionUser,
 } from "@/lib/rbac";
+import { resolveAdminDojoClusterAllowlist } from "@/lib/account-peers";
 import { SITE_BRANCH_NAME } from "@/lib/site";
 import {
   decodeUktRegisteredRank,
@@ -1266,11 +1267,7 @@ export async function fetchUktDashboardData(
   const primaryRole = getPrimaryAdminRole(user.roles);
   const dojoAllowlist =
     primaryRole === "ADMIN_DOJO"
-      ? user.managedDojoIds && user.managedDojoIds.length > 0
-        ? user.managedDojoIds
-        : user.managedDojoId
-          ? [user.managedDojoId]
-          : []
+      ? await resolveAdminDojoClusterAllowlist(user)
       : [];
 
   const skipMemberPool = true;

@@ -174,7 +174,7 @@ export const getLatberInvitePublic = cache(
 
     return buildLatberInviteSnapshot({
       periodId,
-      title: String(event.title ?? "Latber"),
+      title: String(event.title ?? "Latihan Bersama"),
       startDate: event.startDate,
       endDate: event.endDate,
       registrationCloseAt: event.endDate,

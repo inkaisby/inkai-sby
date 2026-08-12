@@ -9,7 +9,7 @@ export const LatberDashboardClient = nextDynamic(
   {
     ssr: false,
     loading: () => (
-      <AdminPageLoader rows={8} message="Memuat data Latber..." />
+      <AdminPageLoader rows={8} message="Memuat data Latihan Bersama..." />
     ),
   },
 );

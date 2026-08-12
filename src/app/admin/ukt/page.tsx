@@ -18,6 +18,7 @@ import { fetchUktDashboardData, resolveUktAdminPeriodId } from "@/lib/inkai-api/
 import { getBranchOrgProfile } from "@/lib/org-settings";
 import { getUktRegistrationPolicy } from "@/lib/ukt-registration-policy";
 import { requireAdminSession } from "@/lib/admin-session";
+import { resolveAdminDojoClusterAllowlist } from "@/lib/account-peers";
 import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -244,7 +245,10 @@ async function UktDashboardSection({
     dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
   }
 
-  const managedDojoIds = getManagedDojoIdsFromUser(user);
+  const managedDojoIds =
+    primaryRole === "ADMIN_DOJO"
+      ? await resolveAdminDojoClusterAllowlist(user)
+      : getManagedDojoIdsFromUser(user);
   const autoDojoId =
     primaryRole === "ADMIN_DOJO" && managedDojoIds.length === 1
       ? managedDojoIds[0]
@@ -277,6 +281,7 @@ async function UktDashboardSection({
       dbError={dbError}
       defaultDojoFilter={autoDojoId}
       loginDojoName={loginDojoName}
+      managedDojoIds={managedDojoIds}
       beltFees={beltFees}
       komisiRanting={komisiRanting}
       feesFromSnapshot={feesFromSnapshot}

@@ -114,7 +114,7 @@ export async function POST(request: Request) {
       where: { id: eventId, isDeleted: false },
       select: { title: true },
     });
-    const periodTitle = event?.title ?? "Latber";
+    const periodTitle = event?.title ?? "Latihan Bersama";
     const amount = await resolveLatberRegisterFeeAmount({
       token: authResult.token,
       eventId,

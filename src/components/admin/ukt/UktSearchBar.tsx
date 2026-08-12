@@ -25,6 +25,8 @@ type Props = {
   enableRemoteSuggest?: boolean;
   dojoFilter?: string;
   onSelectRemote?: (member: RemoteSuggestion) => void;
+  /** Tampilkan nama ranting di saran (multi-ranting). */
+  showDojoInSuggest?: boolean;
 };
 
 function matchQuery(row: UktMemberRow, q: string) {
@@ -44,6 +46,7 @@ export function UktSearchBar({
   enableRemoteSuggest = false,
   dojoFilter = "",
   onSelectRemote,
+  showDojoInSuggest = false,
 }: Props) {
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
@@ -271,6 +274,10 @@ export function UktSearchBar({
                 ? item.row.memberCurrentRank || item.row.kyuLama
                 : formatRankLabel(item.member.currentRank || "") ||
                   item.member.currentRank;
+            const dojoName =
+              item.kind === "local" ? item.row.dojoName : item.member.dojoName;
+            const metaParts = [nia, rank];
+            if (showDojoInSuggest && dojoName) metaParts.push(dojoName);
             return (
               <li key={key} role="option" aria-selected={idx === activeIndex}>
                 <button
@@ -284,9 +291,7 @@ export function UktSearchBar({
                 >
                   <span className="font-medium">{name}</span>
                   <span className="text-xs text-muted-foreground">
-                    {[nia, rank, item.kind === "remote" ? item.member.dojoName : null]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    {metaParts.filter(Boolean).join(" · ")}
                     {showRegistrationStatus ? (
                       <>
                         {" · "}

@@ -85,3 +85,20 @@ export async function loadAccountPeers(
 
   return peers;
 }
+
+/** Union ranting kelola akun aktif + peer cluster (email gabungan). */
+export async function resolveAdminDojoClusterAllowlist(
+  user: SessionUser,
+): Promise<string[]> {
+  const mine = getManagedDojoIdsFromUser(user);
+  const role = getPrimaryAdminRole(user.roles);
+  if (role !== "ADMIN_DOJO") return mine;
+
+  const peers = await loadAccountPeers(user);
+  const union = new Set(mine);
+  for (const peer of peers) {
+    const ids = await loadManagedDojoIds(peer.userId);
+    for (const id of ids) union.add(id);
+  }
+  return [...union];
+}

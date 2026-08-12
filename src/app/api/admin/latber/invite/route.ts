@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   const { res, data } = await inkaiFetch(`/v1/events/${eventId}`, {}, authResult.token);
   if (!res.ok) {
     return NextResponse.json(
-      { error: inkaiErrorMessage(data, "Periode Latber tidak ditemukan") },
+      { error: inkaiErrorMessage(data, "Periode Latihan Bersama tidak ditemukan") },
       { status: res.status },
     );
   }
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   const event = (data.data as Record<string, unknown> | undefined) ?? {};
   const title = String(event.title ?? "");
   if (!isLatberEventTitle(title)) {
-    return NextResponse.json({ error: "Event bukan periode Latber" }, { status: 400 });
+    return NextResponse.json({ error: "Event bukan periode Latihan Bersama" }, { status: 400 });
   }
 
   const meta = await loadLatberPeriodMeta(authResult.token, eventId);

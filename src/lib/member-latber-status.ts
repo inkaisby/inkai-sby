@@ -77,7 +77,7 @@ export async function getMemberLatberStatus(
     return {
       period: null,
       registered: false,
-      statusLabel: "Periode Latber belum dibuka",
+      statusLabel: "Periode Latihan Bersama belum dibuka",
       displayStatus: "belum_daftar",
       canSelfRegister: false,
     };

@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     where: { id: eventId },
     select: { title: true },
   });
-  const periodTitle = period?.title ?? "Latber";
+  const periodTitle = period?.title ?? "Latihan Bersama";
 
   const existing = await prisma.eventRegistration.findFirst({
     where: { eventId, memberId, status: { notIn: ["CANCELLED", "REJECTED"] } },

@@ -2,8 +2,8 @@ import { formatMemberName, formatRankLabel } from "@/lib/belt";
 
 export const DEFAULT_LATBER_FEE = 45_000;
 export const DEFAULT_LATBER_KOMISI_RANTING = 5_000;
-export const LATBER_CATEGORY = "Pendaftaran Latber";
-export const LATBER_EVENT_PREFIX = "Latber";
+export const LATBER_CATEGORY = "Pendaftaran Latihan Bersama";
+export const LATBER_EVENT_PREFIX = "Latihan Bersama";
 
 export type LatberPeriodSchedule = {
   startDate: string;
@@ -63,13 +63,15 @@ export type LatberPeriodOption = {
 };
 
 export function isLatberEventTitle(title: string): boolean {
-  return String(title ?? "").toUpperCase().includes("LATBER");
+  const upper = String(title ?? "").toUpperCase();
+  return upper.includes("LATBER") || upper.includes("LATIHAN BERSAMA");
 }
 
 export function buildLatberEventTitle(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) return `${LATBER_EVENT_PREFIX} — Periode`;
-  if (trimmed.toUpperCase().startsWith("LATBER")) return trimmed;
+  const upper = trimmed.toUpperCase();
+  if (upper.startsWith("LATBER") || upper.startsWith("LATIHAN BERSAMA")) return trimmed;
   return `${LATBER_EVENT_PREFIX} — ${trimmed}`;
 }
 
@@ -278,7 +280,12 @@ export function findActiveLatberPeriod(
 }
 
 export function formatLatberPeriodLabel(title: string): string {
-  return title.replace(/^Latber\s*—?\s*/i, "").trim() || title;
+  return (
+    title
+      .replace(/^Latihan Bersama\s*—?\s*/i, "")
+      .replace(/^Latber\s*—?\s*/i, "")
+      .trim() || title
+  );
 }
 
 export function formatLatberCurrency(n: number): string {

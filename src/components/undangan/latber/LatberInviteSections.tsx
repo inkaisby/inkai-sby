@@ -133,7 +133,7 @@ export function LatberHomeTab({
 export function LatberAcaraTab({ invite }: { invite: LatberInvitePublic }) {
   return (
     <section className="invite-ukt__section" data-tab="acara">
-      <h2 className="invite-ukt__section-title">Jadwal Latber</h2>
+      <h2 className="invite-ukt__section-title">Jadwal Latihan Bersama</h2>
       <ul className="invite-ukt__detail-list">
         {invite.eventAt && (
           <li>

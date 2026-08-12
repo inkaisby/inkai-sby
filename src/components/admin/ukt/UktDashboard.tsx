@@ -288,6 +288,8 @@ type Props = {
   headerNote?: string;
   /** Toolbar semester/tahun sudah di shell halaman — sembunyikan sticky duplikat. */
   hideStickyTermBar?: boolean;
+  /** Jumlah ranting terkelola (termasuk cluster akun gabungan). */
+  managedDojoIds?: string[];
   /** Kebijakan syarat daftar dari Pengaturan UKT cabang. */
   registrationPolicy?: UktRegistrationPolicy;
 };
@@ -503,7 +505,9 @@ export function UktDashboard(props: Props) {
     : null;
 
   /** Filter ranting: satu id, gabungan multi-ranting, atau semua (null). */
-  const isMultiDojoAdmin = isDojoAdmin && props.dojos.length > 1;
+  const isMultiDojoAdmin =
+    isDojoAdmin &&
+    (props.dojos.length > 1 || (props.managedDojoIds?.length ?? 0) > 1);
   const dojoFilterParsed = useMemo(() => {
     const raw = isDojoAdmin
       ? isMultiDojoAdmin
@@ -2858,6 +2862,7 @@ export function UktDashboard(props: Props) {
             dojoFilter={
               effectiveDojoIds?.length === 1 ? effectiveDojoIds[0] : ""
             }
+            showDojoInSuggest={isMultiDojoAdmin}
             onSelectRemote={(member) => {
               if (!props.selectedPeriodId) {
                 toast.error("Pilih periode UKT dulu");
@@ -3243,7 +3248,7 @@ export function UktDashboard(props: Props) {
                   activeKey={sort.key}
                   activeDir={sort.dir}
                   onSort={handleSort}
-                  className="hidden sm:table-cell"
+                  className="hidden md:table-cell"
                 />
               )}
               {isMultiDojoAdmin && (
@@ -3253,7 +3258,7 @@ export function UktDashboard(props: Props) {
                   activeKey={sort.key}
                   activeDir={sort.dir}
                   onSort={handleSort}
-                  className="hidden sm:table-cell"
+                  className="hidden md:table-cell"
                 />
               )}
               <SortableTableHead
@@ -3460,7 +3465,7 @@ export function UktDashboard(props: Props) {
                     <TableCell className="hidden sm:table-cell text-xs">{row.dojoName}</TableCell>
                   )}
                   {isMultiDojoAdmin && (
-                    <TableCell className="hidden sm:table-cell text-xs">{row.dojoName}</TableCell>
+                    <TableCell className="hidden md:table-cell text-xs">{row.dojoName}</TableCell>
                   )}
                   <TableCell>
                     <div className="space-y-1">
@@ -4267,7 +4272,7 @@ export function UktDashboard(props: Props) {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Jam</label>
+                <label className="text-sm font-medium">Jam (24 jam)</label>
                 <div className="flex items-center gap-1.5">
                   <Select
                     value={registrationOpenTimeParts.hour}
@@ -4328,7 +4333,7 @@ export function UktDashboard(props: Props) {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Jam</label>
+                <label className="text-sm font-medium">Jam (24 jam)</label>
                 <div className="flex items-center gap-1.5">
                   <Select
                     value={registrationTimeParts.hour}

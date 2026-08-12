@@ -33,7 +33,7 @@ export async function assertLatberPeriodMutable(
     return {
       ok: false,
       status: 403,
-      error: "Periode Latber sudah diarsipkan/dikunci — tidak dapat diubah",
+      error: "Periode Latihan Bersama sudah diarsipkan/dikunci — tidak dapat diubah",
     };
   }
   return { ok: true, meta: resolved };

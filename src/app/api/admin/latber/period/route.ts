@@ -100,7 +100,10 @@ export async function POST(request: Request) {
   const body = await request.json();
   const parsed = latberPeriodSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message || "Data tidak valid" },
+      { status: 400 },
+    );
   }
 
   const {
@@ -115,7 +118,7 @@ export async function POST(request: Request) {
 
   if (!canCreateEventsByWilayah(authResult.user.roles)) {
     return NextResponse.json(
-      { error: "Hanya admin cabang yang dapat membuat periode Latber baru" },
+      { error: "Hanya admin cabang yang dapat membuat periode Latihan Bersama baru" },
       { status: 403 },
     );
   }
@@ -158,7 +161,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       event: allEvents.find((e) => String(e.id) === exactOpen.id),
       created: false,
-      message: "Periode Latber dengan judul serupa masih terbuka",
+      message: "Periode Latihan Bersama dengan judul serupa masih terbuka",
     });
   }
 
@@ -215,7 +218,7 @@ export async function POST(request: Request) {
 
   if (!res.ok) {
     return NextResponse.json(
-      { error: inkaiErrorMessage(data, "Gagal membuat periode Latber") },
+      { error: inkaiErrorMessage(data, "Gagal membuat periode Latihan Bersama") },
       { status: res.status },
     );
   }
@@ -291,7 +294,10 @@ export async function PATCH(request: Request) {
   const body = await request.json();
   const parsed = latberPeriodPatchSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message || "Data tidak valid" },
+      { status: 400 },
+    );
   }
 
   const {
@@ -318,17 +324,17 @@ export async function PATCH(request: Request) {
 
   if (!canCreateEventsByWilayah(authResult.user.roles)) {
     return NextResponse.json(
-      { error: "Hanya admin cabang yang dapat mengubah periode Latber" },
+      { error: "Hanya admin cabang yang dapat mengubah periode Latihan Bersama" },
       { status: 403 },
     );
   }
 
   const existing = await fetchEventRecord(authResult.token, eventId);
   if (!existing) {
-    return NextResponse.json({ error: "Periode Latber tidak ditemukan" }, { status: 404 });
+    return NextResponse.json({ error: "Periode Latihan Bersama tidak ditemukan" }, { status: 404 });
   }
   if (!isLatberEventTitle(String(existing.title ?? ""))) {
-    return NextResponse.json({ error: "Event bukan periode Latber" }, { status: 400 });
+    return NextResponse.json({ error: "Event bukan periode Latihan Bersama" }, { status: 400 });
   }
 
   const prevClose = existing.registrationCloseAt
@@ -376,7 +382,7 @@ export async function PATCH(request: Request) {
     );
     if (!res.ok) {
       return NextResponse.json(
-        { error: inkaiErrorMessage(data, "Gagal mengubah periode Latber") },
+        { error: inkaiErrorMessage(data, "Gagal mengubah periode Latihan Bersama") },
         { status: res.status },
       );
     }
@@ -399,7 +405,7 @@ export async function PATCH(request: Request) {
       (eventResult as Record<string, unknown> | null) ?? existing;
     await syncInviteAfterLatberPeriodChange({
       periodId: eventId,
-      title: String(eventForInvite.title ?? existing.title ?? "Latber"),
+      title: String(eventForInvite.title ?? existing.title ?? "Latihan Bersama"),
       startDate: eventForInvite.startDate
         ? String(eventForInvite.startDate)
         : String(existing.startDate ?? ""),

@@ -5,7 +5,7 @@ import { uktMemberCreateSchema } from "@/lib/security/schemas";
 import { createAdminMember } from "@/lib/admin-member-create";
 import { prisma } from "@/lib/prisma";
 import { buildMemberFilter, getPrimaryAdminRole } from "@/lib/rbac";
-import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
+import { resolveAdminDojoClusterAllowlist } from "@/lib/account-peers";
 import { formatRankLabel } from "@/lib/belt";
 import { parseUktEventTitle } from "@/lib/ukt";
 import { validateUktRegistrationEligibility } from "@/lib/ukt-register";
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
   // Fail-closed: admin ranting tanpa ranting terkelola tidak berhak melihat data anggota manapun.
   const primaryRole = getPrimaryAdminRole(authResult.user.roles);
   if (primaryRole === "ADMIN_DOJO") {
-    const allowlist = getManagedDojoIdsFromUser(authResult.user);
+    const allowlist = await resolveAdminDojoClusterAllowlist(authResult.user);
     if (allowlist.length === 0) {
       return NextResponse.json(
         { error: "Akun belum terhubung ke ranting" },
@@ -55,6 +55,15 @@ export async function GET(request: Request) {
       );
     }
   }
+
+  const clusterAllowlist =
+    primaryRole === "ADMIN_DOJO"
+      ? await resolveAdminDojoClusterAllowlist(authResult.user)
+      : null;
+  const scopedUser =
+    clusterAllowlist && clusterAllowlist.length > 0
+      ? { ...authResult.user, managedDojoIds: clusterAllowlist }
+      : authResult.user;
 
   const { searchParams } = new URL(request.url);
   const memberId = searchParams.get("memberId");
@@ -64,7 +73,7 @@ export async function GET(request: Request) {
 
   // Verifikasi anggota berada dalam cakupan RBAC sebelum meneruskan ke Inkai (anti-IDOR).
   const scopedMember = await prisma.member.findFirst({
-    where: { AND: [{ id: memberId }, buildMemberFilter(authResult.user)] },
+    where: { AND: [{ id: memberId }, buildMemberFilter(scopedUser)] },
     select: {
       id: true,
       fullName: true,
