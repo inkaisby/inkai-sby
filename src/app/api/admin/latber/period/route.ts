@@ -225,8 +225,11 @@ export async function POST(request: Request) {
 
   const event = data.data as { id?: string } | undefined;
   if (event?.id) {
-    for (const old of openPeriods) {
-      if (!old.id || old.id === event.id) continue;
+    const toArchive = latberOptions.filter(
+      (p) => p.id && p.id !== event.id && !p.archived && !p.locked,
+    );
+    for (const old of toArchive) {
+      if (!old.id) continue;
       const oldMeta = await loadLatberPeriodMeta(authResult.token, old.id);
       const archived = mergeLatberPeriodMeta(oldMeta, {
         archived: true,
@@ -309,14 +312,18 @@ export async function PATCH(request: Request) {
     eventLocation,
     feeAmount,
     komisiRanting,
+    archived,
+    locked,
   } = parsed.data;
 
+  const hasArchivePatch = archived !== undefined || locked !== undefined;
   const hasMetaPatch =
     registrationOpenAt !== undefined ||
     eventAt !== undefined ||
     eventLocation !== undefined ||
     feeAmount !== undefined ||
-    komisiRanting !== undefined;
+    komisiRanting !== undefined ||
+    hasArchivePatch;
 
   if (!title && !registrationCloseAt && !hasMetaPatch) {
     return NextResponse.json({ error: "Tidak ada perubahan" }, { status: 400 });
@@ -397,6 +404,8 @@ export async function PATCH(request: Request) {
       eventLocation,
       feeAmount,
       komisiRanting,
+      ...(archived !== undefined ? { archived } : {}),
+      ...(locked !== undefined ? { locked } : {}),
       by: authResult.user.email,
     });
     await saveLatberPeriodMeta(authResult.token, eventId, next);
@@ -437,5 +446,13 @@ export async function PATCH(request: Request) {
     token: authResult.token,
   });
 
-  return NextResponse.json({ event: eventResult });
+  return NextResponse.json({
+    event: eventResult,
+    message:
+      archived === true
+        ? "Periode diarsipkan"
+        : archived === false
+          ? "Periode dibuka kembali"
+          : undefined,
+  });
 }

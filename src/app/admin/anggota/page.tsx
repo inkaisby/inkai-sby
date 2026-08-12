@@ -26,6 +26,11 @@ import { canEditKyuBaru } from "@/lib/belt";
 import { canSoftDeleteMembers } from "@/lib/wilayah-rbac";
 import { parseMemberSortKey, parseSortDir } from "@/lib/table-sort";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { canRegisterMembersToEvents } from "@/lib/wilayah-rbac";
+import {
+  resolveActiveLatberRegistrationPeriod,
+  resolveActiveUktRegistrationPeriod,
+} from "@/lib/active-registration-periods";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +69,7 @@ async function AdminAnggotaContent({
 }: {
   searchParams: SearchParams;
 }) {
-  const { user } = await requireAdminSession();
+  const { user, token } = await requireAdminSession();
 
   const params = await searchParams;
   const q = params.q?.trim() || "";
@@ -130,7 +135,7 @@ async function AdminAnggotaContent({
       isDojoAdmin && !dojoId && allowlist.length > 0 ? allowlist : undefined,
   };
 
-  const [result, dojos, statusCounts] = await Promise.all([
+  const [result, dojos, statusCounts, activeUkt, activeLatber] = await Promise.all([
     fetchAdminMembersScoped(user, {
       page,
       limit: pageSize,
@@ -146,6 +151,8 @@ async function AdminAnggotaContent({
     }),
     fetchAdminDojosScopedCached(user),
     fetchAdminMemberStatusCountsCached(user, scopeOpts),
+    resolveActiveUktRegistrationPeriod(token),
+    resolveActiveLatberRegistrationPeriod(token),
   ]);
 
   const managedDojoOptions = isDojoAdmin ? dojos : [];
@@ -223,6 +230,9 @@ async function AdminAnggotaContent({
       defaultDojoId={singleLockedDojo || dojoId || ""}
       isDojoAdmin={isDojoAdmin}
       hasError={!result.ok}
+      activeUkt={activeUkt}
+      activeLatber={activeLatber}
+      canQuickReg={canRegisterMembersToEvents(user.roles ?? [])}
     />
   );
 }

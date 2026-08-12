@@ -6,8 +6,11 @@ import {
   loadLatberSelfRegistrationMeta,
   upsertLatberSelfRegistrationMeta,
 } from "@/lib/latber-self-registration";
+import { notifyDojoAndBranchAdmins } from "@/lib/admin-notify-scope";
+import { notifyLatberStatusChange } from "@/lib/latber-notify";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
+import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import { z } from "zod";
 
 export const maxDuration = 30;
@@ -24,6 +27,14 @@ export async function POST(request: Request) {
   const token = await getInkaiAccessToken();
   if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const limit = await rateLimitAsync(`member-latber-confirm:${session.user.id}`, {
+    max: 10,
+    windowMs: 60_000,
+  });
+  if (!limit.success) {
+    return rateLimitResponse(limit.retryAfterSec ?? 60);
   }
 
   const body = await request.json().catch(() => null);
@@ -64,9 +75,21 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       alreadyConfirmed: true,
+      registrationId: registration.id,
       displayStatus: "menunggu_konfirmasi_ranting",
     });
   }
+
+  const member = await prisma.member.findFirst({
+    where: { id: memberId, isDeleted: false },
+    select: { fullName: true, dojoId: true },
+  });
+  const period = await prisma.event.findFirst({
+    where: { id: eventId },
+    select: { title: true },
+  });
+  const periodTitle = period?.title ?? "Latihan Bersama";
+  const memberName = member?.fullName ?? session.user.name ?? "Anggota";
 
   const confirmedAt = new Date().toISOString();
   await upsertLatberSelfRegistrationMeta(eventId, memberId, {
@@ -84,9 +107,29 @@ export async function POST(request: Request) {
     token,
   });
 
+  void notifyLatberStatusChange({
+    token,
+    memberId,
+    memberName,
+    periodTitle,
+    displayStatus: "menunggu_konfirmasi_ranting",
+    extra: "Konfirmasi bayar tercatat. Menunggu ranting menerima pengajuan.",
+  }).catch((err) => console.error("[Latber confirm-payment] notify member", err));
+
+  if (member?.dojoId) {
+    void notifyDojoAndBranchAdmins({
+      dojoId: member.dojoId,
+      token,
+      title: "Latihan Bersama — Konfirmasi bayar anggota",
+      content: `${memberName} mengonfirmasi sudah bayar Latihan Bersama (${periodTitle}). Menunggu Terima/Tolak ranting.`,
+      type: "INFO",
+    }).catch((err) => console.error("[Latber confirm-payment] notify ranting", err));
+  }
+
   return NextResponse.json({
     success: true,
     alreadyConfirmed: false,
+    registrationId: registration.id,
     displayStatus: "menunggu_konfirmasi_ranting",
   });
 }

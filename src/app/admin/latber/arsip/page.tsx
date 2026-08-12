@@ -4,6 +4,7 @@ import { getPrimaryAdminRole, ROLE_LABELS } from "@/lib/rbac";
 import { canCreateEventsByWilayah } from "@/lib/wilayah-rbac";
 import { fetchLatberDashboardData } from "@/lib/latber-data";
 import { requireAdminSession } from "@/lib/admin-session";
+import { getBranchOrgProfile } from "@/lib/org-settings";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { LatberDashboardClient } from "@/components/admin/latber/LatberDashboardClient";
@@ -24,6 +25,7 @@ async function LatberArsipSection({ searchParams }: { searchParams: SearchParams
     viewMode: "archive",
   });
 
+  const orgProfile = await getBranchOrgProfile();
   const archivedPeriods = data.periods.filter((p) => p.archived || p.locked);
 
   return (
@@ -41,6 +43,10 @@ async function LatberArsipSection({ searchParams }: { searchParams: SearchParams
       canCreatePeriod={canCreatePeriod}
       isArchiveView
       dbError={data.dbError}
+      orgProfile={{
+        address: orgProfile.address,
+        bendaharaCabangName: orgProfile.bendaharaCabangName,
+      }}
     />
   );
 }

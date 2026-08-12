@@ -35,6 +35,13 @@ export function LatberStatusCard({
   const status = data.displayStatus ?? "belum_daftar";
   const badgeClass = STATUS_CLASS[status] ?? "bg-muted";
 
+  async function refetchStatus() {
+    const res = await fetch("/api/member/latber-status");
+    if (!res.ok) return;
+    const json = (await res.json()) as MemberLatberStatusPayload;
+    setData(json);
+  }
+
   async function selfRegister() {
     if (!data.period?.id) return;
     setLoading(true);
@@ -44,16 +51,21 @@ export function LatberStatusCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId: data.period.id }),
       });
-      const json = await parseApiJson<{ error?: string }>(res);
+      const json = await parseApiJson<{
+        error?: string;
+        registrationId?: string;
+      }>(res);
       if (!res.ok) throw new Error(json.error || "Gagal mendaftar");
       showSuccess("Pengajuan Latihan Bersama terkirim — menunggu ranting");
       setData((d) => ({
         ...d,
         registered: true,
+        registrationId: json.registrationId ?? d.registrationId,
         displayStatus: "menunggu_terima_ranting",
         statusLabel: "Menunggu Terima Ranting",
         canSelfRegister: false,
       }));
+      void refetchStatus();
     } catch (e) {
       showError(e instanceof Error ? e.message : "Gagal mendaftar");
     } finally {
@@ -62,23 +74,28 @@ export function LatberStatusCard({
   }
 
   async function confirmPayment() {
-    if (!data.registrationId) return;
+    if (!data.period?.id) return;
     setLoading(true);
     try {
       const res = await fetch("/api/member/latber/confirm-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registrationId: data.registrationId }),
+        body: JSON.stringify({ eventId: data.period.id }),
       });
-      const json = await parseApiJson<{ error?: string }>(res);
+      const json = await parseApiJson<{
+        error?: string;
+        registrationId?: string;
+      }>(res);
       if (!res.ok) throw new Error(json.error || "Gagal konfirmasi");
       showSuccess("Konfirmasi bayar tercatat");
       setData((d) => ({
         ...d,
+        registrationId: json.registrationId ?? d.registrationId,
         displayStatus: "menunggu_konfirmasi_ranting",
         statusLabel: "Menunggu Konfirmasi Ranting",
         memberPaymentConfirmedAt: new Date().toISOString(),
       }));
+      void refetchStatus();
     } catch (e) {
       showError(e instanceof Error ? e.message : "Gagal konfirmasi");
     } finally {

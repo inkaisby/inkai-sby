@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Archive,
   Calendar,
   Copy,
   Loader2,
@@ -16,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +59,8 @@ import { Time24Fields } from "@/components/admin/Time24Fields";
 import { parseApiJson } from "@/lib/api-client";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { LatberPrintModal } from "@/components/admin/latber/LatberPrintModal";
+import { LatberSearchBar } from "@/components/admin/latber/LatberSearchBar";
+import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 
 type LatberDashboardProps = {
   periods: LatberPeriodOption[];
@@ -72,6 +76,10 @@ type LatberDashboardProps = {
   canCreatePeriod: boolean;
   isArchiveView?: boolean;
   dbError?: boolean;
+  orgProfile?: {
+    address?: string;
+    bendaharaCabangName?: string;
+  };
 };
 
 function StatusBadge({ row }: { row: LatberMemberRow }) {
@@ -99,6 +107,12 @@ export function LatberDashboard(props: LatberDashboardProps) {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{
+    registrationId: string;
+    force: boolean;
+  } | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState(false);
   const [createForm, setCreateForm] = useState({
     title: "",
     openDate: "",
@@ -112,6 +126,10 @@ export function LatberDashboard(props: LatberDashboardProps) {
 
   const isCabang = canEditKyuBaru(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
+  const periodLocked =
+    props.isArchiveView ||
+    Boolean(props.periodMeta?.archived || props.periodMeta?.locked);
+  const isMultiDojoAdmin = !isDojoAdmin && props.dojos.length > 1;
 
   const displayRows = useMemo(() => {
     let list = rows;
@@ -186,9 +204,12 @@ export function LatberDashboard(props: LatberDashboardProps) {
   }
 
   async function handleDelete(registrationId: string, force = false) {
-    if (!confirm(force ? "Batalkan pendaftaran (termasuk lunas)?" : "Batalkan pendaftaran?")) {
-      return;
-    }
+    setConfirmDelete({ registrationId, force });
+  }
+
+  async function executeDelete() {
+    if (!confirmDelete) return;
+    const { registrationId, force } = confirmDelete;
     setPendingId(registrationId);
     try {
       const qs = force ? "?force=1" : "";
@@ -200,6 +221,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
       if (!res.ok) throw new Error(data.error || "Gagal membatalkan");
       setRows((prev) => prev.filter((r) => r.registrationId !== registrationId));
       showSuccess("Pendaftaran dibatalkan");
+      setConfirmDelete(null);
       refresh();
     } catch (e) {
       showError(e instanceof Error ? e.message : "Gagal membatalkan");
@@ -207,6 +229,84 @@ export function LatberDashboard(props: LatberDashboardProps) {
       setPendingId(null);
     }
   }
+
+  async function handlePeriodArchive(archived: boolean) {
+    if (!props.selectedPeriodId) return;
+    setArchiveLoading(true);
+    try {
+      const res = await fetch("/api/admin/latber/period", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: props.selectedPeriodId,
+          archived,
+          locked: archived,
+        }),
+      });
+      const data = await parseApiJson<{ error?: string; message?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal memperbarui periode");
+      showSuccess(data.message || (archived ? "Periode diarsipkan" : "Periode dibuka kembali"));
+      setConfirmArchive(false);
+      if (archived) {
+        router.push(`/admin/latber/arsip?period=${props.selectedPeriodId}`);
+      } else {
+        router.push(`/admin/latber?period=${props.selectedPeriodId}`);
+      }
+      refresh();
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "Gagal memperbarui periode");
+    } finally {
+      setArchiveLoading(false);
+    }
+  }
+
+  const hydrateRemoteMember = useCallback(
+    (member: {
+      id: string;
+      fullName: string;
+      nia: string | null;
+      dojoName?: string;
+      currentRank?: string;
+    }) => {
+      if (!props.selectedPeriodId || periodLocked) return;
+      if (rows.some((r) => r.memberId === member.id)) return;
+      void (async () => {
+        setPendingId(member.id);
+        try {
+          const params = new URLSearchParams({
+            memberId: member.id,
+            periodId: props.selectedPeriodId!,
+          });
+          const res = await fetch(`/api/admin/latber/members?${params}`);
+          const data = await parseApiJson<{
+            error?: string;
+            latberRow?: LatberMemberRow & {
+              hydrateOk?: boolean;
+              hydrateError?: string | null;
+            };
+          }>(res);
+          if (!res.ok || !data.latberRow) {
+            throw new Error(data.error || "Gagal memuat anggota");
+          }
+          if (data.latberRow.hydrateOk === false) {
+            throw new Error(data.latberRow.hydrateError || "Anggota tidak memenuhi syarat");
+          }
+          setRows((prev) => {
+            if (prev.some((r) => r.memberId === data.latberRow!.memberId)) {
+              return prev;
+            }
+            return [...prev, data.latberRow!];
+          });
+          showSuccess("Anggota siap didaftarkan Latihan Bersama");
+        } catch (e) {
+          showError(e instanceof Error ? e.message : "Gagal memuat anggota");
+        } finally {
+          setPendingId(null);
+        }
+      })();
+    },
+    [props.selectedPeriodId, periodLocked, rows],
+  );
 
   async function handleCreatePeriod() {
     try {
@@ -281,32 +381,6 @@ export function LatberDashboard(props: LatberDashboardProps) {
     window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
   }
 
-  async function handleSuggestRegister() {
-    const q = searchQ.trim();
-    if (q.length < 2 || !props.selectedPeriodId) return;
-    setPendingId("suggest");
-    try {
-      const qs = new URLSearchParams({ q, periodId: props.selectedPeriodId });
-      if (localDojo) qs.set("dojo", localDojo);
-      const res = await fetch(`/api/admin/latber/suggest?${qs}`);
-      const data = await parseApiJson<{
-        results?: Array<{ memberId: string; fullName: string }>;
-        error?: string;
-      }>(res);
-      if (!res.ok) throw new Error(data.error || "Pencarian gagal");
-      const first = data.results?.[0];
-      if (!first) {
-        showError("Anggota tidak ditemukan atau sudah terdaftar");
-        return;
-      }
-      await handleRegister(first.memberId);
-    } catch (e) {
-      showError(e instanceof Error ? e.message : "Pencarian gagal");
-    } finally {
-      setPendingId(null);
-    }
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -358,7 +432,49 @@ export function LatberDashboard(props: LatberDashboardProps) {
         <Button type="button" variant="ghost" size="icon" onClick={refresh} title="Muat ulang">
           <RefreshCw className="h-4 w-4" />
         </Button>
+
+        {isCabang && props.selectedPeriodId && !props.isArchiveView && !periodLocked && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={archiveLoading}
+            onClick={() => setConfirmArchive(true)}
+          >
+            <Archive className="mr-1 h-4 w-4" />
+            Arsipkan
+          </Button>
+        )}
       </div>
+
+      {periodLocked && props.selectedPeriodId && (
+        <Card className="border-slate-400 bg-slate-50 dark:bg-slate-950/40">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+            <div className="flex items-start gap-2">
+              <Archive className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <p className="font-medium">
+                  Periode {props.periodMeta?.archived ? "diarsipkan" : "dikunci"}
+                </p>
+                <p className="text-muted-foreground">
+                  Pendaftaran dan perubahan status dibatasi. Lihat data dan cetak nota tetap
+                  tersedia.
+                </p>
+              </div>
+            </div>
+            {isCabang && props.isArchiveView && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={archiveLoading}
+                onClick={() => void handlePeriodArchive(false)}
+              >
+                Buka kembali
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {props.selectedPeriod && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -394,7 +510,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
 
       {props.selectedPeriodId && (
         <>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-end gap-2">
             {!isDojoAdmin && (
               <Select value={localDojo || "all"} onValueChange={(v) => setLocalDojo(v === "all" ? "" : v)}>
                 <SelectTrigger className="w-[200px]">
@@ -410,18 +526,28 @@ export function LatberDashboard(props: LatberDashboardProps) {
                 </SelectContent>
               </Select>
             )}
-            <Input
-              placeholder="Cari nama atau NIA…"
+            <LatberSearchBar
+              allRows={rows}
               value={searchQ}
-              onChange={(e) => setSearchQ(e.target.value)}
-              className="max-w-xs"
+              onChange={setSearchQ}
+              placeholder={
+                periodLocked
+                  ? "Cari nama atau NIA…"
+                  : "Cari nama untuk daftarkan / temukan peserta…"
+              }
+              enableRemoteSuggest={!periodLocked}
+              dojoFilter={localDojo}
+              showDojoInSuggest={isMultiDojoAdmin}
+              onSelectRemote={hydrateRemoteMember}
+              disabled={!props.selectedPeriodId}
             />
-            {searchQ.trim().length >= 2 && (
-              <Button type="button" variant="secondary" onClick={handleSuggestRegister}>
-                Daftar dari pencarian
-              </Button>
-            )}
           </div>
+
+          {!periodLocked && (
+            <p className="text-xs text-muted-foreground">
+              Ketik nama di kotak cari, pilih saran → <b>Daftar</b> untuk anggota Belum Daftar.
+            </p>
+          )}
 
           <div className="overflow-x-auto rounded-xl border">
             <Table>
@@ -463,7 +589,16 @@ export function LatberDashboard(props: LatberDashboardProps) {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {status === "menunggu_terima_ranting" && (
+                            {status === "belum_daftar" && !periodLocked && (
+                              <Button
+                                size="sm"
+                                disabled={busy}
+                                onClick={() => handleRegister(row.memberId)}
+                              >
+                                Daftar
+                              </Button>
+                            )}
+                            {status === "menunggu_terima_ranting" && !periodLocked && (
                               <>
                                 <Button
                                   size="sm"
@@ -494,7 +629,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
                                 </Button>
                               </>
                             )}
-                            {status === "belum_bayar" && (
+                            {status === "belum_bayar" && !periodLocked && (
                               <Button
                                 size="sm"
                                 disabled={busy}
@@ -509,7 +644,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
                                 Bayar
                               </Button>
                             )}
-                            {status === "menunggu_verifikasi" && isCabang && (
+                            {status === "menunggu_verifikasi" && isCabang && !periodLocked && (
                               <Button
                                 size="sm"
                                 disabled={busy}
@@ -525,6 +660,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
                               </Button>
                             )}
                             {row.registrationId &&
+                              !periodLocked &&
                               status !== "lunas" &&
                               status !== "ditolak" &&
                               status !== "batal" && (
@@ -538,6 +674,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
                                 </Button>
                               )}
                             {row.registrationId &&
+                              !periodLocked &&
                               (status === "lunas" || status === "menunggu_verifikasi") &&
                               (isCabang || isDojoAdmin) && (
                                 <Button
@@ -641,8 +778,37 @@ export function LatberDashboard(props: LatberDashboardProps) {
           feeAmount={props.feeAmount}
           komisiRanting={props.komisiRanting}
           totals={notaTotals}
+          orgProfile={props.orgProfile}
         />
       )}
+
+      <InkaiConfirmDialog
+        open={Boolean(confirmDelete)}
+        onOpenChange={(open) => !open && setConfirmDelete(null)}
+        title={confirmDelete?.force ? "Hapus pendaftaran?" : "Batalkan pendaftaran?"}
+        description={
+          confirmDelete?.force
+            ? "Pendaftaran lunas atau menunggu verifikasi akan dibatalkan beserta tagihannya."
+            : "Pendaftaran akan dibatalkan. Tindakan ini tidak dapat dibatalkan."
+        }
+        confirmLabel={confirmDelete?.force ? "Ya, hapus" : "Ya, batalkan"}
+        cancelLabel="Tutup"
+        variant="danger"
+        loading={Boolean(pendingId && confirmDelete?.registrationId === pendingId)}
+        onConfirm={() => void executeDelete()}
+      />
+
+      <InkaiConfirmDialog
+        open={confirmArchive}
+        onOpenChange={setConfirmArchive}
+        title="Arsipkan periode?"
+        description="Periode akan dikunci dan dipindah ke Arsip Latihan Bersama. Pendaftaran baru tidak dapat dilakukan."
+        confirmLabel="Ya, arsipkan"
+        cancelLabel="Batal"
+        variant="danger"
+        loading={archiveLoading}
+        onConfirm={() => void handlePeriodArchive(true)}
+      />
     </div>
   );
 }

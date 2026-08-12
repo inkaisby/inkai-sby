@@ -252,6 +252,8 @@ export const latberPeriodPatchSchema = z.object({
   eventLocation: z.string().trim().max(200).optional().nullable(),
   feeAmount: z.coerce.number().int().min(0).max(10_000_000).optional().nullable(),
   komisiRanting: z.coerce.number().int().min(0).max(1_000_000).optional().nullable(),
+  archived: z.boolean().optional(),
+  locked: z.boolean().optional(),
 });
 
 export const latberRegisterSchema = z.object({

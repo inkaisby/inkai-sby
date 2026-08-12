@@ -19,6 +19,9 @@ import {
   loadLatberSelfRegistrationMeta,
 } from "@/lib/latber-self-registration";
 import {
+  notifyLatberStatusChange,
+} from "@/lib/latber-notify";
+import {
   deleteBillingsHard,
   forceDeleteRegistrationInDb,
   forceUnlinkBillingsInDb,
@@ -127,16 +130,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       where: {
         registrationId: id,
         isDeleted: false,
-        status: "WAITING_VERIFICATION",
+        status: { in: ["PENDING", "WAITING_VERIFICATION", "PAID"] },
       },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (existingBilling && localReg.status === "APPROVED") {
       return NextResponse.json({
         success: true,
         alreadyAccepted: true,
         billingId: existingBilling.id,
-        billingStatus: "WAITING_VERIFICATION",
+        billingStatus: existingBilling.status,
       });
     }
 
@@ -190,6 +193,15 @@ export async function PATCH(request: Request, context: RouteContext) {
       userAgent: request.headers.get("user-agent"),
       token: authResult.token,
     });
+
+    void notifyLatberStatusChange({
+      token: authResult.token,
+      memberId: localReg.memberId,
+      memberName: localReg.member.fullName,
+      periodTitle: localReg.event.title ?? "Latihan Bersama",
+      displayStatus: "belum_bayar",
+      extra: "Pengajuan diterima ranting. Silakan bayar ke ketua ranting.",
+    }).catch((err) => console.error("[Latber accept] notify member", err));
 
     return NextResponse.json({
       success: true,
@@ -262,6 +274,19 @@ export async function PATCH(request: Request, context: RouteContext) {
       userAgent: request.headers.get("user-agent"),
       token: authResult.token,
     });
+
+    const periodTitle = await prisma.event
+      .findFirst({ where: { id: localReg.eventId }, select: { title: true } })
+      .then((e) => e?.title ?? "Latihan Bersama");
+
+    void notifyLatberStatusChange({
+      token: authResult.token,
+      memberId: localReg.memberId,
+      memberName: localReg.member.fullName,
+      periodTitle,
+      displayStatus: "ditolak",
+      extra: "Pengajuan ditolak ranting.",
+    }).catch((err) => console.error("[Latber reject] notify member", err));
 
     return NextResponse.json({ success: true });
   }

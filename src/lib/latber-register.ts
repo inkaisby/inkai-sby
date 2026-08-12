@@ -236,7 +236,7 @@ export async function ensureLatberBillingForAcceptedRegistration(opts: {
       baseFeeAmount: amount,
       description: desc,
       dueDate,
-      status: "WAITING_VERIFICATION",
+      status: "PENDING",
       isDeleted: false,
     },
   });

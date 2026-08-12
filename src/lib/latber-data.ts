@@ -8,6 +8,7 @@ import {
   DEFAULT_LATBER_KOMISI_RANTING,
   findActiveLatberPeriod,
   isLatberEventTitle,
+  isLatberRegistrationOpen,
   parseLatberPeriodMetaValue,
   periodOptionFromLatberEvent,
   resolveLatberDisplayStatus,
@@ -16,6 +17,15 @@ import {
   type LatberPeriodMeta,
   type LatberPeriodOption,
 } from "@/lib/latber";
+import {
+  latberSelfRegistrationKey,
+  parseLatberSelfRegistrationMeta,
+} from "@/lib/latber-self-registration";
+import {
+  mergeLatberPeriodMeta,
+  saveLatberPeriodMeta,
+} from "@/lib/latber-period-meta-store";
+import { syncInviteAfterLatberPeriodChange } from "@/lib/latber-invite-sync";
 
 const LATBER_INKAI = { timeoutMs: 12_000, retries: 0 } as const;
 
@@ -43,6 +53,53 @@ async function fetchSettingsByPrefix(token: string, prefix: string) {
 }
 
 export type LatberAdminViewMode = "registration" | "archive";
+
+function latberPeriodSchedule(
+  p: LatberPeriodOption,
+  meta: LatberPeriodMeta,
+) {
+  return {
+    startDate: p.startDate ?? "",
+    endDate: p.endDate ?? p.startDate ?? "",
+    registrationCloseAt: p.registrationCloseAt,
+    registrationOpenAt: meta.registrationOpenAt ?? null,
+  };
+}
+
+function isLatberPeriodInactive(p: LatberPeriodOption, meta: LatberPeriodMeta): boolean {
+  if (meta.archived || meta.locked) return true;
+  return !isLatberRegistrationOpen(latberPeriodSchedule(p, meta));
+}
+
+/** Idempotent: arsipkan periode yang pendaftarannya sudah tutup. */
+async function autoArchiveInactiveLatberPeriods(
+  token: string,
+  periods: LatberPeriodOption[],
+  metaByPeriodId: Map<string, LatberPeriodMeta>,
+) {
+  for (const p of periods) {
+    const meta = metaByPeriodId.get(p.id) ?? { archived: false, locked: false };
+    if (meta.archived || meta.locked) continue;
+    if (isLatberRegistrationOpen(latberPeriodSchedule(p, meta))) continue;
+
+    const archived = mergeLatberPeriodMeta(meta, {
+      archived: true,
+      locked: true,
+    });
+    await saveLatberPeriodMeta(token, p.id, archived);
+    metaByPeriodId.set(p.id, archived);
+    await syncInviteAfterLatberPeriodChange({
+      periodId: p.id,
+      title: p.title,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      registrationCloseAt: p.registrationCloseAt,
+      location: meta.eventLocation ?? null,
+      meta: archived,
+      token,
+    });
+  }
+}
 
 export async function fetchLatberDashboardData(
   token: string,
@@ -94,6 +151,29 @@ export async function fetchLatberDashboardData(
       locked: meta?.locked === true,
     };
   });
+
+  await autoArchiveInactiveLatberPeriods(token, periods, metaByPeriodId);
+
+  periods = periods.map((p) => {
+    const meta = metaByPeriodId.get(p.id);
+    return {
+      ...p,
+      archived: meta?.archived === true,
+      locked: meta?.locked === true,
+    };
+  });
+
+  if (viewMode === "registration") {
+    periods = periods.filter((p) => {
+      const meta = metaByPeriodId.get(p.id) ?? { archived: false, locked: false };
+      return !isLatberPeriodInactive(p, meta);
+    });
+  } else {
+    periods = periods.filter((p) => {
+      const meta = metaByPeriodId.get(p.id) ?? { archived: false, locked: false };
+      return isLatberPeriodInactive(p, meta);
+    });
+  }
 
   let selectedPeriodId = forceNoPeriod ? null : periodFromUrl;
   if (!selectedPeriodId && !forceNoPeriod) {
@@ -155,10 +235,35 @@ export async function fetchLatberDashboardData(
       }
     }
 
+    const pendingRegs = registrations.filter((r) => r.status === "PENDING");
+    const selfMetaByMember = new Map<string, { memberPaymentConfirmedAt: string | null }>();
+    if (pendingRegs.length > 0 && selectedPeriodId) {
+      const keys = pendingRegs.map((r) =>
+        latberSelfRegistrationKey(selectedPeriodId, r.memberId),
+      );
+      const metaRows = await prisma.appSetting.findMany({
+        where: { key: { in: keys } },
+        select: { key: true, value: true },
+      });
+      for (const row of metaRows) {
+        const parsed = parseLatberSelfRegistrationMeta(row.value);
+        if (!parsed) continue;
+        const memberId = row.key.slice(
+          latberSelfRegistrationKey(selectedPeriodId, "").length,
+        );
+        if (memberId) {
+          selfMetaByMember.set(memberId, {
+            memberPaymentConfirmedAt: parsed.memberPaymentConfirmedAt,
+          });
+        }
+      }
+    }
+
     rows = registrations.map((reg) => {
       const m = reg.member;
       const bill = billingByReg.get(reg.id);
       const isPending = reg.status === "PENDING";
+      const selfMeta = selfMetaByMember.get(m.id);
       return {
         memberId: m.id,
         registrationId: reg.id,
@@ -172,8 +277,8 @@ export async function fetchLatberDashboardData(
         billingId: bill?.id ?? null,
         billingAmount: bill?.amount ?? fees.feeAmount,
         billingStatus: bill?.status ?? (isPending ? null : "PENDING"),
-        selfRegistration: isPending,
-        memberPaymentConfirmedAt: null,
+        selfRegistration: isPending && Boolean(selfMeta),
+        memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,
       };
     });
   }

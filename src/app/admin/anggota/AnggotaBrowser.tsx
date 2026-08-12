@@ -22,6 +22,7 @@ import type { MemberSortKey, SortDir } from "@/lib/table-sort";
 import { parseMemberSortKey, parseSortDir, toggleSortKey } from "@/lib/table-sort";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { DojoContextSwitcher } from "@/components/admin/DojoContextSwitcher";
+import type { ActiveRegistrationPeriod } from "@/lib/active-registration-periods";
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
@@ -142,6 +143,9 @@ export function AnggotaBrowser({
   defaultDojoId,
   isDojoAdmin,
   hasError,
+  activeUkt = null,
+  activeLatber = null,
+  canQuickReg = false,
 }: {
   roleLabel?: string;
   scopeHint?: string;
@@ -159,6 +163,9 @@ export function AnggotaBrowser({
   defaultDojoId: string;
   isDojoAdmin?: boolean;
   hasError?: boolean;
+  activeUkt?: ActiveRegistrationPeriod;
+  activeLatber?: ActiveRegistrationPeriod;
+  canQuickReg?: boolean;
 }) {
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [members, setMembers] = useState(initialMembers);
@@ -553,6 +560,9 @@ export function AnggotaBrowser({
         dojos={dojos}
         showDojoFilter={showDojoFilter}
         lockDojoId={liveLockDojoId}
+        activeUkt={activeUkt}
+        activeLatber={activeLatber}
+        canQuickReg={canQuickReg}
         onNavigate={(href) => {
           const patch = parseHrefToFilters(href, filters.pageSize);
           applyFilters(patch);

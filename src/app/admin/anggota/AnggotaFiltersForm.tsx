@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { AnggotaSearchQuickReg } from "@/components/admin/anggota/AnggotaSearchQuickReg";
+import type { ActiveRegistrationPeriod } from "@/lib/active-registration-periods";
 import { Input } from "@/components/ui/input";
 
 type DojoOption = { id: string; name: string };
@@ -62,6 +64,9 @@ export function AnggotaFiltersForm({
   showDojoFilter = false,
   lockDojoId = "",
   onNavigate,
+  activeUkt = null,
+  activeLatber = null,
+  canQuickReg = false,
 }: {
   q: string;
   status: string;
@@ -78,6 +83,9 @@ export function AnggotaFiltersForm({
   lockDojoId?: string;
   /** Client-side navigate (tanpa RSC full reload). */
   onNavigate?: (href: string) => void;
+  activeUkt?: ActiveRegistrationPeriod;
+  activeLatber?: ActiveRegistrationPeriod;
+  canQuickReg?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -180,14 +188,25 @@ export function AnggotaFiltersForm({
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="min-w-0 w-full space-y-1 sm:min-w-[180px] sm:flex-1 sm:max-w-md">
           <label className="text-xs text-muted-foreground">Pencarian</label>
-          <Input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
-            placeholder="Cari nama / NIA / MSH..."
-            autoComplete="off"
-            className="h-10 sm:h-8"
-          />
+          {canQuickReg && (activeUkt || activeLatber) ? (
+            <AnggotaSearchQuickReg
+              query={query}
+              onQueryChange={(value: string) => handleQueryChange(value)}
+              activeUkt={activeUkt}
+              activeLatber={activeLatber}
+              canQuickReg={canQuickReg}
+              dojoFilter={lockDojoId || filters.dojoId}
+            />
+          ) : (
+            <Input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              placeholder="Cari nama / NIA / MSH..."
+              autoComplete="off"
+              className="h-10 sm:h-8"
+            />
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:contents">
