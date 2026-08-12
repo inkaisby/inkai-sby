@@ -1407,17 +1407,17 @@ export function buildUktRantingWaReportText(
   });
 
   return [
-    periodTitle,
-    `Ranting/Dojo: ${dojoName}`,
+    `*${periodTitle}*`,
+    `*Ranting/Dojo: ${dojoName}*`,
     "",
-    "Peserta yang terdaftar",
+    "*Peserta yang terdaftar*",
     ...lines,
     "",
-    "Rincian pembayaran",
+    "*Rincian pembayaran*",
     ...beltLines,
-    `Subtotal A (Biaya UKT): ${formatRupiahPlain(subtotalA)}`,
+    `Subtotal A (Biaya UKT): _${formatRupiahPlain(subtotalA)}_`,
     `Komisi Ranting (${registeredCount} × ${formatRupiahPlain(komisiRanting)}): - ${formatRupiahPlain(komisiTotal)}`,
-    `TOTAL disetor ke cabang: ${formatRupiahPlain(grandTotal)}`,
+    `*TOTAL disetor ke cabang: ${formatRupiahPlain(grandTotal)}*`,
   ].join("\n");
 }
 
@@ -1427,6 +1427,7 @@ export function buildUktRantingWaReportText(
 export function buildUktCabangWaReportText(
   periodTitle: string,
   approvedRows: UktMemberRow[],
+  examCountdownLine?: string | null,
 ): string {
   const byDojo = new Map<string, { dojoName: string; count: number }>();
   const byRank = new Map<string, number>();
@@ -1454,24 +1455,25 @@ export function buildUktCabangWaReportText(
   );
 
   const rantingLines = rantingList.map(
-    (g, i) => `${i + 1}. ${g.dojoName} = ${g.count} peserta`,
+    (g, i) => `${i + 1}. ${g.dojoName} = _${g.count} peserta_`,
   );
   const rankLines = rankList.map(
-    ([label, count]) => `${label} = ${count} peserta`,
+    ([label, count]) => `${label} = _${count} peserta_`,
   );
 
   return [
-    periodTitle,
+    `*${periodTitle}*`,
     "",
-    `Total Ranting : ${rantingList.length}`,
+    `*Total Ranting : ${rantingList.length}*`,
     "",
-    "List Ranting",
+    "*List Ranting*",
     ...rantingLines,
     "",
-    "Jumlah",
+    "*Jumlah*",
     ...rankLines,
     "",
-    `TOTAL SEMUA: ${approvedRows.length} peserta`,
+    `*TOTAL SEMUA: ${approvedRows.length} peserta*`,
+    ...(examCountdownLine ? ["", "*Pelaksaan UKT*", `_${examCountdownLine}_`] : []),
   ].join("\n");
 }
 

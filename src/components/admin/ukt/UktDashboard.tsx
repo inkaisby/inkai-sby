@@ -2060,9 +2060,24 @@ export function UktDashboard(props: Props) {
       return;
     }
 
+    // Hitung countdown sekali saat tombol diklik
+    let examCountdownLine: string | null = null;
+    const examAt = props.periodMeta?.examAt;
+    if (examAt) {
+      const diffMs = new Date(examAt).getTime() - Date.now();
+      if (diffMs > 0) {
+        const totalSec = Math.floor(diffMs / 1000);
+        const d = Math.floor(totalSec / 86400);
+        const h = Math.floor((totalSec % 86400) / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        examCountdownLine = `-${d} Hari: ${h.toString().padStart(2, "0")} Jam: ${m.toString().padStart(2, "0")} Menit: ${s.toString().padStart(2, "0")} Detik`;
+      }
+    }
+
     const text =
       !dojoId
-        ? buildUktCabangWaReportText(title, approvedAll)
+        ? buildUktCabangWaReportText(title, approvedAll, examCountdownLine)
         : (() => {
             const approved = approvedAll.filter((r) => r.dojoId === dojoId);
             if (approved.length === 0) {
