@@ -37,22 +37,85 @@ import {
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-/** Cari eventId sebuah registrasi UKT (Prisma dulu, lalu Inkai) untuk gate periode. */
+type ResolvedUktRegistration = {
+  eventId: string | null;
+  localRegistrationId: string | null;
+  memberId: string | null;
+  memberDojoId: string | null;
+  memberName: string | null;
+  periodTitle: string | null;
+};
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUuid(value: string | null | undefined): value is string {
+  return Boolean(value && UUID_RE.test(value));
+}
+
+const localRegSelect = {
+  id: true,
+  eventId: true,
+  memberId: true,
+  member: { select: { dojoId: true, fullName: true } },
+  event: { select: { title: true } },
+} as const;
+
+function mapLocalReg(local: {
+  id: string;
+  eventId: string;
+  memberId: string;
+  member: { dojoId: string | null; fullName: string };
+  event: { title: string | null };
+}): Omit<ResolvedUktRegistration, "eventId"> & { eventId: string } {
+  return {
+    eventId: local.eventId,
+    localRegistrationId: local.id,
+    memberId: local.memberId,
+    memberDojoId: local.member.dojoId,
+    memberName: local.member.fullName,
+    periodTitle: local.event.title,
+  };
+}
+
+/**
+ * Cari eventId sebuah registrasi UKT (Prisma dulu, lalu Inkai) untuk gate periode.
+ * Hint klien hanya untuk lookup memberId+eventId + deteksi mismatch — bukan sumber kebenaran.
+ */
 async function resolveEventIdForRegistration(
   token: string,
   registrationId: string,
   hintEventId?: string | null,
-): Promise<string | null> {
-  let resolved: string | null = null;
+  memberIdHint?: string | null,
+): Promise<ResolvedUktRegistration> {
+  const empty: ResolvedUktRegistration = {
+    eventId: null,
+    localRegistrationId: null,
+    memberId: null,
+    memberDojoId: null,
+    memberName: null,
+    periodTitle: null,
+  };
+  let localMapped: ResolvedUktRegistration | null = null;
   try {
-    const local = await prisma.eventRegistration.findFirst({
+    const byId = await prisma.eventRegistration.findFirst({
       where: { id: registrationId },
-      select: { eventId: true },
+      select: localRegSelect,
     });
-    if (local?.eventId) resolved = local.eventId;
+    if (byId) {
+      localMapped = mapLocalReg(byId);
+    } else if (isUuid(memberIdHint) && isUuid(hintEventId)) {
+      const byMember = await prisma.eventRegistration.findFirst({
+        where: { memberId: memberIdHint, eventId: hintEventId },
+        select: localRegSelect,
+      });
+      if (byMember) localMapped = mapLocalReg(byMember);
+    }
   } catch (error) {
     console.error("[UKT] resolveEventIdForRegistration prisma lookup failed", error);
   }
+
+  let resolved = localMapped?.eventId ?? null;
   if (!resolved) {
     try {
       const { res, data } = await inkaiFetch(
@@ -71,11 +134,7 @@ async function resolveEventIdForRegistration(
       console.error("[UKT] resolveEventIdForRegistration inkai lookup failed", error);
     }
   }
-  if (
-    resolved &&
-    hintEventId &&
-    String(hintEventId) !== String(resolved)
-  ) {
+  if (resolved && hintEventId && String(hintEventId) !== String(resolved)) {
     void import("@/lib/security/security-events").then(({ writeSecurityEvent }) => {
       writeSecurityEvent({
         action: "SECURITY_UKT_EVENT_ID_MISMATCH",
@@ -83,7 +142,10 @@ async function resolveEventIdForRegistration(
       });
     });
   }
-  return resolved;
+  if (localMapped) {
+    return { ...localMapped, eventId: resolved };
+  }
+  return { ...empty, eventId: resolved };
 }
 
 function mapActionToStatus(data: {
@@ -505,11 +567,13 @@ export async function PATCH(request: Request, context: RouteContext) {
   const role = getPrimaryAdminRole(authResult.user.roles);
   const isCabang = canEditKyuBaru(authResult.user.roles);
 
-  const eventIdForAssert = await resolveEventIdForRegistration(
-    authResult.token,
-    id,
-    data.eventId,
-  );
+  const eventIdForAssert = (
+    await resolveEventIdForRegistration(
+      authResult.token,
+      id,
+      data.eventId,
+    )
+  ).eventId;
   if (!eventIdForAssert) {
     return NextResponse.json(
       { error: "Periode UKT tidak dapat diverifikasi untuk pendaftaran ini" },
@@ -1405,6 +1469,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   const url = new URL(request.url);
   const billingIdFromClient = url.searchParams.get("billingId")?.trim() || null;
   const memberIdFromClient = url.searchParams.get("memberId")?.trim() || null;
+  const hintEventId = url.searchParams.get("eventId")?.trim() || null;
   const forceRequested =
     url.searchParams.get("force") === "1" ||
     url.searchParams.get("force") === "true";
@@ -1424,6 +1489,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   let memberName = "";
   let periodTitle = "UKT";
   let eventIdForAssert: string | null = null;
+  let localRegistrationId: string | null = null;
   let sawPaid = false;
 
   type BillingRow = {
@@ -1480,6 +1546,25 @@ export async function DELETE(request: Request, context: RouteContext) {
         considerBilling(b);
       }
     }
+  }
+
+  const resolved = await resolveEventIdForRegistration(
+    token,
+    id,
+    hintEventId,
+    memberId || memberIdFromClient,
+  );
+  eventIdForAssert = resolved.eventId || eventIdForAssert;
+  localRegistrationId = resolved.localRegistrationId;
+  if (!memberId && resolved.memberId) memberId = resolved.memberId;
+  if (!memberDojoId && resolved.memberDojoId) {
+    memberDojoId = resolved.memberDojoId;
+  }
+  if ((!memberName || memberName === "Anggota") && resolved.memberName) {
+    memberName = resolved.memberName;
+  }
+  if (periodTitle === "UKT" && resolved.periodTitle) {
+    periodTitle = resolved.periodTitle;
   }
 
   if (isDojo) {
@@ -1541,7 +1626,11 @@ export async function DELETE(request: Request, context: RouteContext) {
     const list = await collectMemberBillings(memberId);
     for (const b of list) {
       const rid = String(b.registrationId ?? "");
-      if (rid === id || (!rid && isUktish(b))) {
+      if (
+        rid === id ||
+        (localRegistrationId && rid === localRegistrationId) ||
+        (!rid && isUktish(b))
+      ) {
         considerBilling(b);
       }
     }
@@ -1551,10 +1640,14 @@ export async function DELETE(request: Request, context: RouteContext) {
     // Hanya tagihan tertaut registrasi ini — jangan percaya billingId dari
     // klien (anti-IDOR) dan jangan hapus semua tagihan PAID anggota (iuran
     // bulanan dll.) yang bisa merusak status anggota.
+    const localRegIds = [id, localRegistrationId].filter(
+      (value, index, all): value is string =>
+        Boolean(value) && all.indexOf(value) === index,
+    );
     const locals = await prisma.billing.findMany({
       where: {
         isDeleted: false,
-        registrationId: id,
+        registrationId: { in: localRegIds },
       },
       select: { id: true, status: true, type: true, description: true },
       take: 50,
@@ -1647,7 +1740,11 @@ export async function DELETE(request: Request, context: RouteContext) {
       if (!b.id) continue;
       const rid = String(b.registrationId ?? "");
       // Hanya tagihan periode ini, atau UKT yatim (registrationId null)
-      if (rid === id || (!rid && isUktish(b))) {
+      if (
+        rid === id ||
+        (localRegistrationId && rid === localRegistrationId) ||
+        (!rid && isUktish(b))
+      ) {
         retryIds.add(String(b.id));
         considerBilling(b);
       }
@@ -1674,17 +1771,6 @@ export async function DELETE(request: Request, context: RouteContext) {
         );
       }
     }
-    const dbDelete = await forceDeleteRegistrationInDb(id);
-    if (!dbDelete.ok) {
-      return NextResponse.json(
-        {
-          error:
-            dbDelete.error ||
-            "Gagal menghapus pendaftaran di database setelah API menolak",
-        },
-        { status: 500 },
-      );
-    }
     usedDbForce = true;
     regResult = { ok: true, error: "", status: 200 };
   }
@@ -1699,6 +1785,26 @@ export async function DELETE(request: Request, context: RouteContext) {
       },
       { status: regResult.status },
     );
+  }
+
+  // Inkai 404 = sukses API, tetapi baris Prisma (force-register / daftar mandiri)
+  // harus tetap dihapus — termasuk id hasil lookup memberId+eventId.
+  const prismaIds = [id, localRegistrationId].filter(
+    (value, index, all): value is string =>
+      Boolean(value) && all.indexOf(value) === index,
+  );
+  for (const rid of prismaIds) {
+    const dbDelete = await forceDeleteRegistrationInDb(rid);
+    if (!dbDelete.ok) {
+      return NextResponse.json(
+        {
+          error:
+            dbDelete.error ||
+            "Gagal menghapus pendaftaran di database setelah API menolak",
+        },
+        { status: 500 },
+      );
+    }
   }
 
   if (billingIds.size > 0 && !usedDbForce) {

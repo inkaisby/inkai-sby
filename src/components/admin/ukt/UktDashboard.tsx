@@ -1678,6 +1678,7 @@ export function UktDashboard(props: Props) {
       const qs = new URLSearchParams();
       if (billingId) qs.set("billingId", billingId);
       if (memberId) qs.set("memberId", memberId);
+      if (props.selectedPeriodId) qs.set("eventId", props.selectedPeriodId);
       if (useForce) qs.set("force", "1");
       const suffix = qs.toString() ? `?${qs.toString()}` : "";
       const res = await fetch(
