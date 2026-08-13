@@ -1,4 +1,6 @@
 import ExcelJS from "exceljs";
+
+const PAPER_A4 = 9 as import("exceljs").PaperSize;
 import {
   buildUktHasilUjianFilename,
   countUktHasilUjianRanting,
@@ -66,7 +68,7 @@ export async function buildUktHasilUjianXlsxBuffer(
   const sheet = wb.addWorksheet(sheetName, {
     pageSetup: {
       orientation: "landscape",
-      paperSize: 8,
+      paperSize: PAPER_A4,
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 0,
@@ -165,7 +167,7 @@ export async function buildUktHasilUjianXlsxBuffer(
   const ttd = wb.addWorksheet("LEMBAR TTD", {
     pageSetup: {
       orientation: "landscape",
-      paperSize: 9,
+      paperSize: PAPER_A4,
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 1,
