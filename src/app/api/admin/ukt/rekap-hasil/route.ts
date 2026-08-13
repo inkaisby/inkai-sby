@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     rows,
   });
 
-  return new NextResponse(buffer, {
+  return new NextResponse(Buffer.from(buffer), {
     status: 200,
     headers: {
       "Content-Type":
