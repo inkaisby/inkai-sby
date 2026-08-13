@@ -237,6 +237,7 @@ async function UktArsipDashboardSection({
         address: orgProfile?.address,
         bidangUjianName: orgProfile?.bidangUjianName,
         bendaharaCabangName: orgProfile?.bendaharaCabangName,
+        ketuaCabangName: orgProfile?.ketuaCabangName,
       }}
     />
   );

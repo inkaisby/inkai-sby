@@ -23,6 +23,7 @@ import {
   Trash2,
   CalendarClock,
   Download,
+  FileSpreadsheet,
   LayoutList,
   ShieldCheck,
   ClipboardCheck,
@@ -165,6 +166,11 @@ import {
   resolveEffectiveUktExamResult,
   resolveUktDisplayStatus,
   resolveUktPeriodOfficers,
+  hasUktHasilUjianRecap,
+  rowHasUktHasilUjianKyuBaru,
+  buildUktHasilUjianRecapRows,
+  buildUktHasilUjianFilename,
+  collectUktExportDataIssues,
   summarizeRowEligibility,
   toDateInput,
   toTimeInput,
@@ -282,6 +288,7 @@ type Props = {
     address?: string;
     bidangUjianName?: string;
     bendaharaCabangName?: string;
+    ketuaCabangName?: string;
   };
   /** Pendaftaran = periode aktif; archive = riwayat/arsip (sidebar). */
   viewMode?: UktAdminViewMode;
@@ -423,6 +430,7 @@ export function UktDashboard(props: Props) {
   const [alurOpen, setAlurOpen] = useState(false);
   const [jadwalOpen, setJadwalOpen] = useState(true);
   const [showExport, setShowExport] = useState(false);
+  const [rekapDownloading, setRekapDownloading] = useState(false);
   const [showExamDay, setShowExamDay] = useState(false);
   const [dojoGroups, setDojoGroups] = useState<UktDojoFilterGroup[]>(
     () => props.dojoGroups ?? [],
@@ -1175,6 +1183,63 @@ export function UktDashboard(props: Props) {
       return;
     }
     setShowExport(true);
+  };
+
+  const canShowHasilUjianRecap =
+    Boolean(props.selectedPeriodId) &&
+    (isCabang || isDojoAdmin) &&
+    hasUktHasilUjianRecap(rows);
+
+  const handleDownloadHasilUjian = async () => {
+    if (!canShowHasilUjianRecap || rekapDownloading) return;
+    const recapRows = buildUktHasilUjianRecapRows(rows);
+    if (recapRows.length === 0) {
+      toast.error("Belum ada peserta dengan Kyu Baru untuk direkap");
+      return;
+    }
+    const issues = collectUktExportDataIssues(
+      rows.filter(rowHasUktHasilUjianKyuBaru),
+    );
+    if (issues.length > 0) {
+      toast.message(
+        `${issues.length} peserta punya data kurang (NIA/TTL/alamat/JK) — tetap diunduh`,
+      );
+    }
+    setRekapDownloading(true);
+    try {
+      const res = await fetch("/api/admin/ukt/rekap-hasil", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          semester: props.semester,
+          year: props.year,
+          examAt: props.periodMeta?.examAt ?? null,
+          ketuaCabangName: props.orgProfile?.ketuaCabangName ?? "",
+          bidangUjianName: periodOfficers.bidangUjianName,
+          rows: recapRows,
+        }),
+      });
+      if (!res.ok) {
+        const data = await parseApiJson<{ error?: string }>(res);
+        throw new Error(data.error || "Gagal membuat rekap Excel");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = buildUktHasilUjianFilename(
+        props.semester,
+        props.year,
+        props.periodMeta?.examAt,
+      );
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${recapRows.length} peserta direkap ke Excel`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal mengunduh rekap");
+    } finally {
+      setRekapDownloading(false);
+    }
   };
 
   const handlePeriodArchive = async (archived: boolean) => {
@@ -2379,6 +2444,17 @@ export function UktDashboard(props: Props) {
                   <Download className="mr-1 h-4 w-4" />
                   Export
                 </Button>
+                {canShowHasilUjianRecap ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleDownloadHasilUjian()}
+                    disabled={rekapDownloading}
+                    className={periodActionBtn}
+                  >
+                    <FileSpreadsheet className="mr-1 h-4 w-4" />
+                    {rekapDownloading ? "Menyusun…" : "Rekap Hasil Ujian"}
+                  </Button>
+                ) : null}
                 <Button
                   variant="outline"
                   onClick={buildWaReport}
@@ -2490,6 +2566,17 @@ export function UktDashboard(props: Props) {
             )}
             {isDojoAdmin && props.selectedPeriodId && (
               <>
+                {canShowHasilUjianRecap ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleDownloadHasilUjian()}
+                    disabled={rekapDownloading}
+                    className={periodActionBtn}
+                  >
+                    <FileSpreadsheet className="mr-1 h-4 w-4" />
+                    {rekapDownloading ? "Menyusun…" : "Rekap Hasil Ujian"}
+                  </Button>
+                ) : null}
                 <Button
                   variant="outline"
                   onClick={buildWaReport}

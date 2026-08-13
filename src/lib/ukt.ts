@@ -1,4 +1,11 @@
-import { formatMemberName, formatRankLabel, formatGenderLabel, getBeltGroup, shortRankLabel } from "@/lib/belt";
+import {
+  formatMemberName,
+  formatRankLabel,
+  formatGenderLabel,
+  getBeltGroup,
+  shortRankLabel,
+  isBlankUktRank,
+} from "@/lib/belt";
 
 export type UktSemester = "I" | "II";
 
@@ -1905,4 +1912,229 @@ export function triggerCsvDownload(filename: string, content: string) {
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+export type UktHasilUjianSabukLabel =
+  | "PUTIH"
+  | "KUNING"
+  | "HIJAU"
+  | "BIRU"
+  | "COKELAT"
+  | "HITAM";
+
+export type UktHasilUjianRecapRow = {
+  no: number;
+  noRanting: number;
+  nia: string;
+  nama: string;
+  tempatTanggalLahir: string;
+  jenisKelamin: string;
+  alamat: string;
+  kyuLama: string;
+  kyuBaru: string;
+  sabuk: UktHasilUjianSabukLabel | "";
+  ranting: string;
+  dojoId: string;
+};
+
+const UKT_RECAP_MONTHS_ID = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+];
+
+function titleCaseId(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/(^|[^\p{L}])(\p{L})/gu, (full, sep: string, ch: string) => {
+      void full;
+      return `${sep}${ch.toUpperCase()}`;
+    });
+}
+
+function parseUktRecapDate(value: string): Date | null {
+  const dayOnly = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dayOnly) {
+    return new Date(
+      Number(dayOnly[1]),
+      Number(dayOnly[2]) - 1,
+      Number(dayOnly[3]),
+    );
+  }
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatUktRecapLongDate(d: Date): string {
+  return `${d.getDate()} ${UKT_RECAP_MONTHS_ID[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+/** TTL format rekap Pengda: `Surabaya, 28 Februari 2011`. */
+export function formatUktHasilUjianTtl(
+  birthPlace: string | null | undefined,
+  birthDate: string | null | undefined,
+): string {
+  const place = titleCaseId(birthPlace || "");
+  let dateStr = "";
+  if (birthDate) {
+    const d = parseUktRecapDate(birthDate);
+    dateStr = d ? formatUktRecapLongDate(d) : birthDate.trim();
+  }
+  if (place && dateStr) return `${place}, ${dateStr}`;
+  return place || dateStr;
+}
+
+function isDanOrBlackRank(rankRaw: string | null | undefined): boolean {
+  const r = (rankRaw || "").trim().toLowerCase();
+  if (!r) return false;
+  if (r.includes("hitam")) return true;
+  return /\bdan\s*\d+\b/i.test(r);
+}
+
+/** Warna sabuk Kyu Baru untuk kolom SABUK rekap Pengda. */
+export function sabukLabelFromKyuBaru(
+  kyuBaru: string | null | undefined,
+): UktHasilUjianSabukLabel | "" {
+  if (isBlankUktRank(kyuBaru)) return "";
+  if (isDanOrBlackRank(kyuBaru)) return "HITAM";
+  const group = getBeltGroup(kyuBaru);
+  if (group !== "LAINNYA") return group;
+  const n = Number(extractUktRankNumber(kyuBaru));
+  if (!Number.isFinite(n) || n <= 0) return "";
+  if (n >= 9) return "PUTIH";
+  if (n >= 7) return "KUNING";
+  if (n === 6) return "HIJAU";
+  if (n >= 4) return "BIRU";
+  if (n >= 1) return "COKELAT";
+  return "";
+}
+
+export function rowHasUktHasilUjianKyuBaru(row: UktMemberRow): boolean {
+  return Boolean(row.registrationId) && !isBlankUktRank(row.kyuBaru);
+}
+
+export function hasUktHasilUjianRecap(rows: UktMemberRow[]): boolean {
+  return rows.some(rowHasUktHasilUjianKyuBaru);
+}
+
+function niaNumericKey(nia: string): bigint {
+  const digits = nia.replace(/\D/g, "");
+  if (!digits) return 0n;
+  try {
+    return BigInt(digits);
+  } catch {
+    return 0n;
+  }
+}
+
+/** NIA numerik tertinggi di baris rekap (bukan baris terakhir tabel). */
+export function resolveUktHasilUjianLastNia(
+  rows: Array<{ nia?: string | null }>,
+): string {
+  let best = "";
+  let bestKey = 0n;
+  for (const row of rows) {
+    const nia = (row.nia || "").trim();
+    if (!nia) continue;
+    const key = niaNumericKey(nia);
+    if (key > bestKey) {
+      bestKey = key;
+      best = nia;
+    }
+  }
+  return best;
+}
+
+function kyuLamaSortNumber(kyuLama: string): number {
+  const n = Number(extractUktRankNumber(kyuLama));
+  return Number.isFinite(n) && n > 0 ? n : -1;
+}
+
+/**
+ * Rekap hasil ujian Pengda: peserta terdaftar yang sudah punya Kyu Baru.
+ * Kyu Lama selalu dari snapshot pendaftaran (bukan currentRank).
+ */
+export function buildUktHasilUjianRecapRows(
+  rows: UktMemberRow[],
+): UktHasilUjianRecapRow[] {
+  const eligible = rows.filter(rowHasUktHasilUjianKyuBaru).sort((a, b) => {
+    const byDojo = (a.dojoName || "").localeCompare(b.dojoName || "", "id");
+    if (byDojo !== 0) return byDojo;
+    const byKyu = kyuLamaSortNumber(b.kyuLama) - kyuLamaSortNumber(a.kyuLama);
+    if (byKyu !== 0) return byKyu;
+    return (a.fullName || "").localeCompare(b.fullName || "", "id");
+  });
+
+  const rantingCounter = new Map<string, number>();
+  return eligible.map((r, i) => {
+    const rantingKey = r.dojoId || r.dojoName || "";
+    const noRanting = (rantingCounter.get(rantingKey) ?? 0) + 1;
+    rantingCounter.set(rantingKey, noRanting);
+    return {
+      no: i + 1,
+      noRanting,
+      nia: (r.nia || "").trim(),
+      nama: formatMemberName(r.fullName),
+      tempatTanggalLahir: formatUktHasilUjianTtl(r.birthPlace, r.birthDate),
+      jenisKelamin: formatGenderLabel(r.gender),
+      alamat: (r.address || "").trim(),
+      kyuLama: extractUktRankNumber(r.kyuLama),
+      kyuBaru: extractUktRankNumber(r.kyuBaru),
+      sabuk: sabukLabelFromKyuBaru(r.kyuBaru),
+      ranting: (r.dojoName || "").trim().toUpperCase(),
+      dojoId: r.dojoId || "",
+    };
+  });
+}
+
+export function countUktHasilUjianSabuk(
+  recapRows: UktHasilUjianRecapRow[],
+): Record<UktHasilUjianSabukLabel, number> {
+  const counts: Record<UktHasilUjianSabukLabel, number> = {
+    PUTIH: 0,
+    KUNING: 0,
+    HIJAU: 0,
+    BIRU: 0,
+    COKELAT: 0,
+    HITAM: 0,
+  };
+  for (const row of recapRows) {
+    if (row.sabuk) counts[row.sabuk] += 1;
+  }
+  return counts;
+}
+
+export function countUktHasilUjianRanting(
+  recapRows: UktHasilUjianRecapRow[],
+): number {
+  const ids = new Set(
+    recapRows.map((r) => r.dojoId || r.ranting).filter(Boolean),
+  );
+  return ids.size;
+}
+
+export function formatUktExamDateLong(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = parseUktRecapDate(iso);
+  return d ? formatUktRecapLongDate(d) : "";
+}
+
+export function buildUktHasilUjianFilename(
+  semester: UktSemester,
+  year: number,
+  examAt?: string | null,
+): string {
+  const exam = formatUktExamDateLong(examAt);
+  const examSlug = exam ? `_${exam.replace(/\s+/g, "-")}` : "";
+  return `SURABAYA_UKT_S${semester}_${year}${examSlug}.xlsx`;
 }

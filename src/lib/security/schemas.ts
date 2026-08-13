@@ -468,6 +468,36 @@ export const uktRegistrationPolicySchema = z.object({
   minAttendancePct: z.coerce.number().int().min(0).max(100).optional(),
 });
 
+export const uktHasilUjianRecapSchema = z.object({
+  semester: z.enum(["I", "II"]),
+  year: z.coerce.number().int().min(2020).max(2100),
+  examAt: z.string().trim().max(40).optional().nullable(),
+  ketuaCabangName: z.string().trim().max(120).optional().nullable(),
+  bidangUjianName: z.string().trim().max(120).optional().nullable(),
+  rows: z
+    .array(
+      z.object({
+        no: z.coerce.number().int().min(1).max(5000),
+        noRanting: z.coerce.number().int().min(1).max(5000),
+        nia: z.string().max(40),
+        nama: z.string().max(160),
+        tempatTanggalLahir: z.string().max(160),
+        jenisKelamin: z.string().max(8),
+        alamat: z.string().max(300),
+        kyuLama: z.string().max(16),
+        kyuBaru: z.string().max(16),
+        sabuk: z.union([
+          z.enum(["PUTIH", "KUNING", "HIJAU", "BIRU", "COKELAT", "HITAM"]),
+          z.literal(""),
+        ]),
+        ranting: z.string().max(80),
+        dojoId: z.string().max(80),
+      }),
+    )
+    .min(1)
+    .max(2000),
+});
+
 export const operationalDefaultsSchema = z.object({
   monthlyDuesAmount: z.coerce.number().min(0).max(10_000_000),
   paymentInstructions: z.string().trim().max(1000),
