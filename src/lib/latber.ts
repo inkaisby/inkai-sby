@@ -1,4 +1,4 @@
-import { formatMemberName, formatRankLabel } from "@/lib/belt";
+import { formatMemberName, formatRankLabel, shortRankLabel } from "@/lib/belt";
 
 export const DEFAULT_LATBER_FEE = 45_000;
 export const DEFAULT_LATBER_KOMISI_RANTING = 5_000;
@@ -294,4 +294,220 @@ export function formatLatberCurrency(n: number): string {
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(n);
+}
+
+function formatLatberRupiahPlain(amount: number): string {
+  return `Rp ${amount.toLocaleString("id-ID")}`;
+}
+
+const LATBER_APPROVED_STATUSES = new Set(["APPROVED", "SUCCESS", "PAID"]);
+
+export function isLatberRegistrationApproved(status: string | null | undefined): boolean {
+  return LATBER_APPROVED_STATUSES.has(String(status ?? "").toUpperCase());
+}
+
+/** Peserta yang sudah diterima ranting (bukan mandiri PENDING / ditolak / batal). */
+export function isLatberApprovedParticipant(row: LatberMemberRow): boolean {
+  if (!row.registrationId) return false;
+  if (isSelfPending(row)) return false;
+  const st = String(row.status ?? "").toUpperCase();
+  if (st === "REJECTED" || st === "CANCELLED" || st === "BELUM_DAFTAR") return false;
+  return isLatberRegistrationApproved(row.status) || Boolean(row.billingId);
+}
+
+export function filterLatberApprovedRows(rows: LatberMemberRow[]): LatberMemberRow[] {
+  return rows.filter(isLatberApprovedParticipant);
+}
+
+export function resolveLatberWaDojoLabel(opts: {
+  effectiveDojoId?: string | null;
+  dojos: Array<{ id: string; name: string }>;
+  approvedRows: LatberMemberRow[];
+}): string {
+  const dojoId = opts.effectiveDojoId?.trim() || "";
+  if (dojoId) {
+    const fromList = opts.dojos.find((d) => d.id === dojoId)?.name?.trim();
+    if (fromList) return fromList;
+    const fromRow = opts.approvedRows
+      .find((r) => r.dojoId === dojoId)
+      ?.dojoName?.trim();
+    if (fromRow) return fromRow;
+  }
+
+  const fromRows = [
+    ...new Set(
+      opts.approvedRows
+        .map((r) => r.dojoName?.trim())
+        .filter((n): n is string => Boolean(n)),
+    ),
+  ];
+  if (fromRows.length === 1) return fromRows[0];
+  if (opts.dojos.length === 1) return opts.dojos[0].name.trim() || "Ranting";
+  if (fromRows.length > 1) return fromRows.join(", ");
+  if (opts.dojos.length > 0) {
+    return opts.dojos.map((d) => d.name.trim()).filter(Boolean).join(", ") || "Ranting";
+  }
+  return "Ranting";
+}
+
+function formatLatberWaParticipantLine(row: LatberMemberRow, index: number): string {
+  const rk = formatLatberRank(row);
+  return `${index + 1}. ${formatMemberName(row.fullName)}${rk && rk !== "—" ? ` ${rk}` : ""}`;
+}
+
+function latberWaRankBucketLabel(row: LatberMemberRow): string {
+  const short = shortRankLabel(row.currentRank);
+  if (!short) return "Lainnya";
+  return short.toLowerCase();
+}
+
+function compareLatberWaRankBuckets(a: string, b: string): number {
+  const parse = (label: string) => {
+    const kyu = label.match(/^kyu\s*(\d+)$/i);
+    if (kyu) return { kind: 0 as const, n: Number(kyu[1]) };
+    const dan = label.match(/^dan\s*(\d+)$/i);
+    if (dan) return { kind: 1 as const, n: Number(dan[1]) };
+    return { kind: 2 as const, n: 0 };
+  };
+  const pa = parse(a);
+  const pb = parse(b);
+  if (pa.kind !== pb.kind) return pa.kind - pb.kind;
+  if (pa.kind === 0) return pb.n - pa.n;
+  if (pa.kind === 1) return pa.n - pb.n;
+  return a.localeCompare(b, "id");
+}
+
+/** Laporan WA satu ranting (peserta + rincian setor selaras Nota). */
+export function buildLatberRantingWaReportText(
+  periodTitle: string,
+  dojoName: string,
+  approvedRows: LatberMemberRow[],
+  feeAmount: number,
+  komisiRanting: number,
+): string {
+  const lines = approvedRows.map((r, i) => formatLatberWaParticipantLine(r, i));
+  const n = approvedRows.length;
+  const subtotal = n * feeAmount;
+  const komisiTotal = n * komisiRanting;
+  const grandTotal = subtotal - komisiTotal;
+
+  return [
+    `*${periodTitle}*`,
+    `*Ranting/Dojo: ${dojoName}*`,
+    "",
+    "*Peserta yang terdaftar*",
+    ...lines,
+    "",
+    "*Rincian pembayaran*",
+    `Peserta: ${n} × ${formatLatberRupiahPlain(feeAmount)} = ${formatLatberRupiahPlain(subtotal)}`,
+    `Subtotal (Biaya Latber): _${formatLatberRupiahPlain(subtotal)}_`,
+    `Komisi Ranting (${n} × ${formatLatberRupiahPlain(komisiRanting)}): - ${formatLatberRupiahPlain(komisiTotal)}`,
+    `*TOTAL disetor ke cabang: ${formatLatberRupiahPlain(grandTotal)}*`,
+  ].join("\n");
+}
+
+/** Laporan WA admin cabang: ringkasan jumlah per ranting + sebaran sabuk. */
+export function buildLatberCabangWaReportText(
+  periodTitle: string,
+  approvedRows: LatberMemberRow[],
+): string {
+  const byDojo = new Map<string, { dojoName: string; count: number }>();
+  const byRank = new Map<string, number>();
+
+  for (const row of approvedRows) {
+    const key = row.dojoId || row.dojoName || "unknown";
+    const existing = byDojo.get(key);
+    if (existing) {
+      existing.count++;
+    } else {
+      byDojo.set(key, {
+        dojoName: row.dojoName?.trim() || "Ranting",
+        count: 1,
+      });
+    }
+    const rank = latberWaRankBucketLabel(row);
+    byRank.set(rank, (byRank.get(rank) ?? 0) + 1);
+  }
+
+  const rantingList = [...byDojo.values()].sort((a, b) =>
+    a.dojoName.localeCompare(b.dojoName, "id"),
+  );
+  const rankList = [...byRank.entries()].sort(([a], [b]) =>
+    compareLatberWaRankBuckets(a, b),
+  );
+
+  const rantingLines = rantingList.map(
+    (g, i) => `${i + 1}. ${g.dojoName} = _${g.count} peserta_`,
+  );
+  const rankLines = rankList.map(
+    ([label, count]) => `${label} = _${count} peserta_`,
+  );
+
+  return [
+    `*${periodTitle}*`,
+    "",
+    `*Total Ranting : ${rantingList.length}*`,
+    "",
+    "*List Ranting*",
+    ...rantingLines,
+    "",
+    "*Jumlah*",
+    ...rankLines,
+    "",
+    `*TOTAL SEMUA: ${approvedRows.length} peserta*`,
+  ].join("\n");
+}
+
+export type LatberRekapRow = {
+  no: number;
+  nia: string;
+  nama: string;
+  sabuk: string;
+  ranting: string;
+  biaya: number;
+  status: string;
+};
+
+export function buildLatberRekapRows(
+  rows: LatberMemberRow[],
+  feeAmount: number,
+): LatberRekapRow[] {
+  return filterLatberApprovedRows(rows).map((row, i) => ({
+    no: i + 1,
+    nia: row.nia?.trim() || "—",
+    nama: formatMemberName(row.fullName),
+    sabuk: formatLatberRank(row),
+    ranting: row.dojoName?.trim() || "—",
+    biaya: feeAmount,
+    status: latberDisplayStatusLabel(resolveLatberDisplayStatus(row)),
+  }));
+}
+
+export function buildLatberRekapTotals(
+  rowCount: number,
+  feeAmount: number,
+  komisiRanting: number,
+): { subtotal: number; komisiTotal: number; grandTotal: number } {
+  const subtotal = rowCount * feeAmount;
+  const komisiTotal = rowCount * komisiRanting;
+  return {
+    subtotal,
+    komisiTotal,
+    grandTotal: subtotal - komisiTotal,
+  };
+}
+
+export function buildLatberRekapFilename(
+  periodTitle: string,
+  ext: "xlsx" | "pdf" = "xlsx",
+): string {
+  const slug =
+    formatLatberPeriodLabel(periodTitle)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/gi, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40) || "periode";
+  const now = new Date();
+  const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
+  return `rekap-latber-${slug}-${ymd}.${ext}`;
 }

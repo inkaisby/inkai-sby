@@ -63,3 +63,50 @@ export async function notifyLatberStatusChange(opts: {
           : "INFO",
   });
 }
+
+/** Notifikasi admin cabang saat ranting konfirmasi daftar mandiri Latber. */
+export async function notifyLatberBranchAdmins(opts: {
+  token: string;
+  title: string;
+  content: string;
+  actorEmail?: string;
+  type?: string;
+}) {
+  try {
+    const recipients = await prisma.user.findMany({
+      where: {
+        isDeleted: false,
+        isActive: true,
+        roles: {
+          some: {
+            name: {
+              in: ["ADMIN_BRANCH", "ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN"],
+            },
+          },
+        },
+      },
+      select: { id: true, email: true },
+      take: 40,
+    });
+
+    const actor = opts.actorEmail?.toLowerCase();
+    await Promise.allSettled(
+      recipients
+        .filter((u) => !actor || u.email?.toLowerCase() !== actor)
+        .map((u) =>
+          notifyUser({
+            userId: u.id,
+            title: opts.title,
+            content: opts.content,
+            type: opts.type ?? "INFO",
+            token: opts.token,
+            audience: "ADMIN",
+          }),
+        ),
+    );
+    return recipients.length;
+  } catch (error) {
+    console.error("[notifyLatberBranchAdmins]", error);
+    return 0;
+  }
+}

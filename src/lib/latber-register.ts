@@ -247,3 +247,41 @@ export async function ensureLatberBillingForAcceptedRegistration(opts: {
     billingStatus: billing.status,
   };
 }
+
+export async function setLatberBillingWaitingVerification(opts: {
+  token: string;
+  billingId: string;
+  note: string;
+}): Promise<"WAITING_VERIFICATION"> {
+  const status = "WAITING_VERIFICATION" as const;
+  let submitted = false;
+  for (const attempt of [
+    {
+      path: `/v1/billing/${opts.billingId}/status`,
+      method: "PATCH" as const,
+      body: { status, adminNotes: opts.note },
+    },
+    {
+      path: `/v1/billing/${opts.billingId}`,
+      method: "PATCH" as const,
+      body: { status, adminNotes: opts.note },
+    },
+  ]) {
+    const { res } = await inkaiFetch(
+      attempt.path,
+      { method: attempt.method, body: JSON.stringify(attempt.body) },
+      opts.token,
+    );
+    if (res.ok) {
+      submitted = true;
+      break;
+    }
+  }
+  if (!submitted) {
+    await prisma.billing.update({
+      where: { id: opts.billingId },
+      data: { status },
+    });
+  }
+  return status;
+}

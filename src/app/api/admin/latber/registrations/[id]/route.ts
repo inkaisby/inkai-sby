@@ -13,12 +13,14 @@ import { assertLatberPeriodMutable } from "@/lib/latber-period-meta-store";
 import {
   ensureLatberBillingForAcceptedRegistration,
   resolveLatberRegisterFeeAmount,
+  setLatberBillingWaitingVerification,
 } from "@/lib/latber-register";
 import {
   deleteLatberSelfRegistrationMeta,
   loadLatberSelfRegistrationMeta,
 } from "@/lib/latber-self-registration";
 import {
+  notifyLatberBranchAdmins,
   notifyLatberStatusChange,
 } from "@/lib/latber-notify";
 import {
@@ -150,6 +152,14 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
+    const selfMeta = await loadLatberSelfRegistrationMeta(
+      localReg.eventId,
+      localReg.memberId,
+    );
+    const hadPaymentConfirm = Boolean(selfMeta?.memberPaymentConfirmedAt);
+    const periodTitle = localReg.event.title ?? "Latihan Bersama";
+    const memberName = localReg.member.fullName;
+
     await prisma.eventRegistration.update({
       where: { id },
       data: { status: "APPROVED", registeredRank: localReg.member.currentRank },
@@ -175,11 +185,24 @@ export async function PATCH(request: Request, context: RouteContext) {
       registrationId: id,
       memberId: localReg.memberId,
       eventId: localReg.eventId,
-      periodTitle: localReg.event.title ?? "Latihan Bersama",
+      periodTitle,
       amount,
     });
     if (!billing) {
       return NextResponse.json({ error: "Gagal membuat tagihan Latihan Bersama" }, { status: 400 });
+    }
+
+    let billingStatus = billing.billingStatus;
+    if (
+      hadPaymentConfirm &&
+      billingStatus !== "PAID" &&
+      billingStatus !== "SUCCESS"
+    ) {
+      billingStatus = await setLatberBillingWaitingVerification({
+        token: authResult.token,
+        billingId: billing.billingId,
+        note: "Diterima ranting (daftar mandiri) — menunggu verifikasi cabang",
+      });
     }
 
     await deleteLatberSelfRegistrationMeta(localReg.eventId, localReg.memberId);
@@ -188,25 +211,47 @@ export async function PATCH(request: Request, context: RouteContext) {
       userId: authResult.user.id,
       email: authResult.user.email,
       action: "LATBER_ACCEPT_SELF_REGISTRATION",
-      details: `Accepted self Latber ${localReg.member.fullName} (${id})`,
+      details: hadPaymentConfirm
+        ? `Accepted self Latber ${memberName} (${id}) → WAITING_VERIFICATION`
+        : `Accepted self Latber ${memberName} (${id})`,
       ip: getClientIp(request),
       userAgent: request.headers.get("user-agent"),
       token: authResult.token,
     });
 
-    void notifyLatberStatusChange({
-      token: authResult.token,
-      memberId: localReg.memberId,
-      memberName: localReg.member.fullName,
-      periodTitle: localReg.event.title ?? "Latihan Bersama",
-      displayStatus: "belum_bayar",
-      extra: "Pengajuan diterima ranting. Silakan bayar ke ketua ranting.",
-    }).catch((err) => console.error("[Latber accept] notify member", err));
+    if (hadPaymentConfirm) {
+      void notifyLatberStatusChange({
+        token: authResult.token,
+        memberId: localReg.memberId,
+        memberName,
+        periodTitle,
+        displayStatus: "menunggu_verifikasi",
+        extra:
+          "Ranting sudah menerima pendaftaran dan pembayaran, diteruskan ke cabang.",
+      }).catch((err) => console.error("[Latber accept] notify member", err));
+
+      void notifyLatberBranchAdmins({
+        token: authResult.token,
+        title: "Latber — Ranting konfirmasi daftar mandiri",
+        content: `${memberName} dikonfirmasi ranting dan diteruskan ke cabang (${periodTitle}). Status: Menunggu Verifikasi.`,
+        actorEmail: authResult.user.email,
+        type: "INFO",
+      }).catch((err) => console.error("[Latber accept] notify cabang", err));
+    } else {
+      void notifyLatberStatusChange({
+        token: authResult.token,
+        memberId: localReg.memberId,
+        memberName,
+        periodTitle,
+        displayStatus: "belum_bayar",
+        extra: "Pengajuan diterima ranting. Silakan bayar ke ketua ranting.",
+      }).catch((err) => console.error("[Latber accept] notify member", err));
+    }
 
     return NextResponse.json({
       success: true,
       billingId: billing.billingId,
-      billingStatus: billing.billingStatus,
+      billingStatus,
     });
   }
 
@@ -248,6 +293,12 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
+    const rejectMeta = await loadLatberSelfRegistrationMeta(
+      localReg.eventId,
+      localReg.memberId,
+    );
+    const hadPaymentConfirm = Boolean(rejectMeta?.memberPaymentConfirmedAt);
+
     await prisma.eventRegistration.update({
       where: { id },
       data: { status: "REJECTED" },
@@ -285,7 +336,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       memberName: localReg.member.fullName,
       periodTitle,
       displayStatus: "ditolak",
-      extra: "Pengajuan ditolak ranting.",
+      extra: hadPaymentConfirm
+        ? "Koordinasikan pengembalian pembayaran dengan ketua ranting bila sudah menyetor."
+        : "Pengajuan ditolak ranting.",
     }).catch((err) => console.error("[Latber reject] notify member", err));
 
     return NextResponse.json({ success: true });
@@ -435,37 +488,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    const status = "WAITING_VERIFICATION";
-    const note = "Diajukan ranting — menunggu verifikasi cabang (Latihan Bersama)";
-    let submitted = false;
-    for (const attempt of [
-      {
-        path: `/v1/billing/${billing.id}/status`,
-        method: "PATCH" as const,
-        body: { status, adminNotes: note },
-      },
-      {
-        path: `/v1/billing/${billing.id}`,
-        method: "PATCH" as const,
-        body: { status, adminNotes: note },
-      },
-    ]) {
-      const { res } = await inkaiFetch(
-        attempt.path,
-        { method: attempt.method, body: JSON.stringify(attempt.body) },
-        authResult.token,
-      );
-      if (res.ok) {
-        submitted = true;
-        break;
-      }
-    }
-    if (!submitted) {
-      await prisma.billing.update({
-        where: { id: billing.id },
-        data: { status },
-      });
-    }
+    const status = await setLatberBillingWaitingVerification({
+      token: authResult.token,
+      billingId: billing.id,
+      note: "Diajukan ranting — menunggu verifikasi cabang (Latihan Bersama)",
+    });
 
     writeAuditLog({
       userId: authResult.user.id,

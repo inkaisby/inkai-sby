@@ -274,6 +274,26 @@ export const latberRegistrationUpdateSchema = z.object({
   eventId: z.string().uuid().optional(),
 });
 
+export const latberRekapSchema = z.object({
+  periodTitle: z.string().trim().min(1).max(160),
+  feeAmount: z.coerce.number().int().min(0).max(10_000_000),
+  komisiRanting: z.coerce.number().int().min(0).max(1_000_000),
+  rows: z
+    .array(
+      z.object({
+        no: z.coerce.number().int().min(1).max(5000),
+        nia: z.string().max(40),
+        nama: z.string().max(160),
+        sabuk: z.string().max(80),
+        ranting: z.string().max(80),
+        biaya: z.coerce.number().int().min(0).max(10_000_000),
+        status: z.string().max(80),
+      }),
+    )
+    .min(1)
+    .max(2000),
+});
+
 export const uktMemberCreateSchema = z.object({
   fullName: z
     .string()

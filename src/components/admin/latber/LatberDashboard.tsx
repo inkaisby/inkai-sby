@@ -6,7 +6,8 @@ import {
   Archive,
   Calendar,
   Copy,
-  Loader2,
+  Download,
+  FileSpreadsheet,
   MessageCircle,
   Plus,
   Printer,
@@ -21,10 +22,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -43,16 +51,26 @@ import {
 import { canEditKyuBaru } from "@/lib/belt";
 import { buildLatberInviteUrl } from "@/lib/latber-invite";
 import {
+  buildLatberCabangWaReportText,
   buildLatberNotaTotals,
+  buildLatberRekapFilename,
+  buildLatberRekapRows,
+  buildLatberRantingWaReportText,
+  filterLatberApprovedRows,
   formatLatberCurrency,
   formatLatberPeriodLabel,
   formatLatberRank,
   latberDisplayStatusLabel,
   resolveLatberDisplayStatus,
+  resolveLatberWaDojoLabel,
   type LatberMemberRow,
   type LatberPeriodMeta,
   type LatberPeriodOption,
 } from "@/lib/latber";
+import {
+  downloadLatberRekapPdf,
+  printLatberRekapDocument,
+} from "@/lib/latber-rekap-html";
 import { countLatberKpis } from "@/lib/latber-data";
 import { combineDateAndTimeLocal } from "@/lib/ukt";
 import { Time24Fields } from "@/components/admin/Time24Fields";
@@ -99,6 +117,43 @@ function StatusBadge({ row }: { row: LatberMemberRow }) {
   return <Badge className={className}>{label}</Badge>;
 }
 
+function LatberRekapMenu({
+  loading,
+  onExcel,
+  onPdf,
+  onPrint,
+}: {
+  loading: boolean;
+  onExcel: () => void;
+  onPdf: () => void;
+  onPrint: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="outline" size="sm" disabled={loading}>
+          <FileSpreadsheet className="mr-1 h-4 w-4" />
+          {loading ? "Menyusun…" : "Rekap"}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-44">
+        <DropdownMenuItem onClick={onExcel} disabled={loading}>
+          <FileSpreadsheet className="h-4 w-4" />
+          Excel
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onPdf} disabled={loading}>
+          <Download className="h-4 w-4" />
+          Unduh PDF
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onPrint} disabled={loading}>
+          <Printer className="h-4 w-4" />
+          Print
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function LatberDashboard(props: LatberDashboardProps) {
   const router = useRouter();
   const [rows, setRows] = useState(props.rows);
@@ -113,6 +168,11 @@ export function LatberDashboard(props: LatberDashboardProps) {
     force: boolean;
   } | null>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [rekapDownloading, setRekapDownloading] = useState(false);
+  const [showCabangWaPicker, setShowCabangWaPicker] = useState(false);
+  const [cabangWaSelectedDojoId, setCabangWaSelectedDojoId] = useState<
+    string | null
+  >(null);
   const [createForm, setCreateForm] = useState({
     title: "",
     openDate: "",
@@ -148,6 +208,30 @@ export function LatberDashboard(props: LatberDashboardProps) {
     () => buildLatberNotaTotals(rows, props.feeAmount, props.komisiRanting),
     [rows, props.feeAmount, props.komisiRanting],
   );
+  const approvedForRecap = useMemo(() => {
+    let list = rows;
+    if (localDojo) list = list.filter((r) => r.dojoId === localDojo);
+    return filterLatberApprovedRows(list);
+  }, [rows, localDojo]);
+  const cabangWaDojoOptions = useMemo(() => {
+    const map = new Map<string, { dojoId: string; dojoName: string; count: number }>();
+    for (const row of filterLatberApprovedRows(rows)) {
+      const key = row.dojoId || row.dojoName || "unknown";
+      const existing = map.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        map.set(key, {
+          dojoId: row.dojoId || key,
+          dojoName: row.dojoName?.trim() || "Ranting",
+          count: 1,
+        });
+      }
+    }
+    return [...map.values()].sort((a, b) =>
+      a.dojoName.localeCompare(b.dojoName, "id"),
+    );
+  }, [rows]);
 
   const refresh = useCallback(() => router.refresh(), [router]);
 
@@ -379,6 +463,167 @@ export function LatberDashboard(props: LatberDashboardProps) {
     window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
   }
 
+  function openWaReport(text: string) {
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    const opened = window.open(waUrl, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      showError("Popup diblokir — izinkan jendela baru untuk membuka WhatsApp");
+      return;
+    }
+    showSuccess("WhatsApp dibuka — pilih penerima lalu kirim laporan");
+  }
+
+  function sendCabangWaReport(dojoId: string | null) {
+    const title = props.selectedPeriod?.title ?? "Latihan Bersama";
+    const approvedAll = filterLatberApprovedRows(rows);
+    if (approvedAll.length === 0) {
+      showError("Belum ada peserta disetujui");
+      return;
+    }
+    const text = !dojoId
+      ? buildLatberCabangWaReportText(title, approvedAll)
+      : (() => {
+          const approved = approvedAll.filter((r) => r.dojoId === dojoId);
+          if (approved.length === 0) {
+            showError("Ranting terpilih tidak punya peserta disetujui");
+            return "";
+          }
+          const dojoName =
+            cabangWaDojoOptions.find((o) => o.dojoId === dojoId)?.dojoName ||
+            props.dojos.find((d) => d.id === dojoId)?.name ||
+            "Ranting";
+          return buildLatberRantingWaReportText(
+            title,
+            dojoName,
+            approved,
+            props.feeAmount,
+            props.komisiRanting,
+          );
+        })();
+    if (!text) return;
+    setShowCabangWaPicker(false);
+    openWaReport(text);
+  }
+
+  function buildWaReport() {
+    if (isCabang) {
+      setCabangWaSelectedDojoId(null);
+      setShowCabangWaPicker(true);
+      return;
+    }
+    const title = props.selectedPeriod?.title ?? "Latihan Bersama";
+    const approved = approvedForRecap;
+    if (approved.length === 0) {
+      showError("Belum ada peserta disetujui");
+      return;
+    }
+    const text = buildLatberRantingWaReportText(
+      title,
+      resolveLatberWaDojoLabel({
+        effectiveDojoId: localDojo,
+        dojos: props.dojos,
+        approvedRows: approved,
+      }),
+      approved,
+      props.feeAmount,
+      props.komisiRanting,
+    );
+    openWaReport(text);
+  }
+
+  function printedAtLabel() {
+    return new Date().toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  function recapPrintPayload() {
+    const title = props.selectedPeriod?.title ?? "Latihan Bersama";
+    return {
+      periodTitle: title,
+      feeAmount: props.feeAmount,
+      komisiRanting: props.komisiRanting,
+      rows: buildLatberRekapRows(approvedForRecap, props.feeAmount),
+      origin: window.location.origin,
+      printedAt: printedAtLabel(),
+      sekretariatAddress: props.orgProfile?.address,
+      includeRanting: !isDojoAdmin,
+    };
+  }
+
+  function ensureRecapRows(): ReturnType<typeof buildLatberRekapRows> | null {
+    const recapRows = buildLatberRekapRows(approvedForRecap, props.feeAmount);
+    if (recapRows.length === 0) {
+      showError("Belum ada peserta disetujui untuk direkap");
+      return null;
+    }
+    return recapRows;
+  }
+
+  async function handleDownloadRekapExcel() {
+    const recapRows = ensureRecapRows();
+    if (!recapRows) return;
+    const title = props.selectedPeriod?.title ?? "Latihan Bersama";
+    setRekapDownloading(true);
+    try {
+      const res = await fetch("/api/admin/latber/rekap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          periodTitle: title,
+          feeAmount: props.feeAmount,
+          komisiRanting: props.komisiRanting,
+          rows: recapRows,
+        }),
+      });
+      if (!res.ok) {
+        const data = await parseApiJson<{ error?: string }>(res);
+        throw new Error(data.error || "Gagal membuat rekap Excel");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = buildLatberRekapFilename(title, "xlsx");
+      a.click();
+      URL.revokeObjectURL(url);
+      showSuccess(`${recapRows.length} peserta direkap ke Excel`);
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "Gagal mengunduh rekap");
+    } finally {
+      setRekapDownloading(false);
+    }
+  }
+
+  async function handleDownloadRekapPdf() {
+    const recapRows = ensureRecapRows();
+    if (!recapRows) return;
+    setRekapDownloading(true);
+    try {
+      await downloadLatberRekapPdf(recapPrintPayload());
+      showSuccess(`${recapRows.length} peserta diunduh sebagai PDF`);
+    } catch (e) {
+      showError(
+        e instanceof Error
+          ? e.message
+          : "Gagal membuat PDF. Coba Print / Save as PDF.",
+      );
+    } finally {
+      setRekapDownloading(false);
+    }
+  }
+
+  function handlePrintRekap() {
+    const recapRows = ensureRecapRows();
+    if (!recapRows) return;
+    printLatberRekapDocument(recapPrintPayload());
+    showSuccess(
+      `${recapRows.length} peserta siap — di dialog cetak pilih printer atau Save as PDF`,
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -412,6 +657,16 @@ export function LatberDashboard(props: LatberDashboardProps) {
 
         {props.selectedPeriodId && (
           <>
+            <LatberRekapMenu
+              loading={rekapDownloading}
+              onExcel={() => void handleDownloadRekapExcel()}
+              onPdf={() => void handleDownloadRekapPdf()}
+              onPrint={handlePrintRekap}
+            />
+            <Button type="button" variant="outline" size="sm" onClick={buildWaReport}>
+              <MessageCircle className="mr-1 h-4 w-4" />
+              Laporan WA
+            </Button>
             <Button type="button" variant="outline" size="sm" onClick={copyInvite}>
               <Copy className="mr-1 h-4 w-4" />
               Salin Undangan
@@ -596,7 +851,9 @@ export function LatberDashboard(props: LatberDashboardProps) {
                                 Daftar
                               </Button>
                             )}
-                            {status === "menunggu_terima_ranting" && !periodLocked && (
+                            {(status === "menunggu_terima_ranting" ||
+                              status === "menunggu_konfirmasi_ranting") &&
+                              !periodLocked && (
                               <>
                                 <Button
                                   size="sm"
@@ -605,11 +862,15 @@ export function LatberDashboard(props: LatberDashboardProps) {
                                     runAction(
                                       row.registrationId!,
                                       { action: "accept_self_registration" },
-                                      "Pendaftaran diterima",
+                                      status === "menunggu_konfirmasi_ranting"
+                                        ? "Pendaftaran dikonfirmasi — diteruskan ke cabang"
+                                        : "Pendaftaran diterima",
                                     )
                                   }
                                 >
-                                  Terima
+                                  {status === "menunggu_konfirmasi_ranting"
+                                    ? "Konfirmasi"
+                                    : "Terima"}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -794,6 +1055,52 @@ export function LatberDashboard(props: LatberDashboardProps) {
         loading={Boolean(pendingId && confirmDelete?.registrationId === pendingId)}
         onConfirm={() => void executeDelete()}
       />
+
+      {isCabang ? (
+        <Dialog open={showCabangWaPicker} onOpenChange={setShowCabangWaPicker}>
+          <DialogContent className="max-w-md gap-4">
+            <DialogHeader>
+              <DialogTitle>Pilih Laporan WA</DialogTitle>
+              <DialogDescription>
+                Untuk cabang: ringkas semua ranting, atau rincian per ranting tanpa ganti akun.
+              </DialogDescription>
+            </DialogHeader>
+            <Select
+              value={cabangWaSelectedDojoId ?? "all"}
+              onValueChange={(v) =>
+                setCabangWaSelectedDojoId(v === "all" ? null : v)
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih ranting" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua ranting (ringkas)</SelectItem>
+                {cabangWaDojoOptions.map((o) => (
+                  <SelectItem key={o.dojoId} value={o.dojoId}>
+                    {o.dojoName} ({o.count} peserta)
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCabangWaPicker(false)}
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                onClick={() => sendCabangWaReport(cabangWaSelectedDojoId)}
+              >
+                Buka WhatsApp
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
 
       <InkaiConfirmDialog
         open={confirmArchive}
