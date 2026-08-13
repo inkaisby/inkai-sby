@@ -59,7 +59,7 @@ function applyHeaderCell(cell: ExcelJS.Cell) {
 
 export async function buildUktHasilUjianXlsxBuffer(
   input: UktHasilUjianXlsxInput,
-): Promise<ArrayBuffer> {
+): Promise<Uint8Array> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "INKAI Surabaya";
   wb.created = new Date();
@@ -253,9 +253,7 @@ export async function buildUktHasilUjianXlsxBuffer(
   }
 
   const buf = await wb.xlsx.writeBuffer();
-  if (buf instanceof ArrayBuffer) return buf;
-  const view = new Uint8Array(buf as ArrayBufferLike);
-  return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+  return new Uint8Array(buf);
 }
 
 export function uktHasilUjianDownloadName(input: UktHasilUjianXlsxInput): string {
