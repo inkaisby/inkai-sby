@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
-import { fetchMyAttendance } from "@/lib/inkai-api/member-data";
+import { auth } from "@/auth";
+import { fetchMyAttendanceMerged } from "@/lib/inkai-api/member-data";
+import { LATBER_ATTENDANCE_LABEL, isLatberAttendanceMethod } from "@/lib/latber-attendance";
 import { Badge } from "@/components/ui/badge";
 
 export function AttendanceHistorySkeleton() {
@@ -22,7 +24,10 @@ export function AttendanceHistorySkeleton() {
 async function HistoryInner() {
   const token = await getInkaiAccessToken();
   if (!token) return null;
-  const attendances = await fetchMyAttendance(token, 20);
+  const session = await auth();
+  const memberId =
+    typeof session?.user.memberId === "string" ? session.user.memberId : null;
+  const attendances = await fetchMyAttendanceMerged(token, memberId, 20);
 
   if (attendances.length === 0) {
     return (
@@ -45,7 +50,9 @@ async function HistoryInner() {
             <div className="min-w-0">
               <p className="font-semibold">{dojo?.name ?? "—"}</p>
               <p className="text-sm text-muted-foreground">
-                {event?.title || String(a.method ?? "—")}
+                {isLatberAttendanceMethod(String(a.method ?? ""))
+                  ? event?.title || LATBER_ATTENDANCE_LABEL
+                  : event?.title || String(a.method ?? "—")}
               </p>
             </div>
             <Badge variant="secondary" className="shrink-0 text-[10px]">

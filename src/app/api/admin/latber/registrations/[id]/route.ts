@@ -23,6 +23,11 @@ import {
   notifyLatberBranchAdmins,
   notifyLatberStatusChange,
 } from "@/lib/latber-notify";
+import { loadLatberPeriodMeta } from "@/lib/latber-period-meta-store";
+import {
+  creditLatberAttendanceForPaidRegistration,
+  removeLatberAttendanceCredit,
+} from "@/lib/latber-attendance";
 import {
   deleteBillingsHard,
   forceDeleteRegistrationInDb,
@@ -354,7 +359,12 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const localReg = await prisma.eventRegistration.findFirst({
       where: { id },
-      select: { status: true, memberId: true, eventId: true },
+      select: {
+        status: true,
+        memberId: true,
+        eventId: true,
+        member: { select: { dojoId: true } },
+      },
     });
     if (localReg) {
       const selfMeta = await loadLatberSelfRegistrationMeta(
@@ -418,12 +428,10 @@ export async function PATCH(request: Request, context: RouteContext) {
         break;
       }
     }
-    if (!verified) {
-      await prisma.billing.update({
-        where: { id: billing.id },
-        data: { status: "PAID" },
-      });
-    }
+    await prisma.billing.update({
+      where: { id: billing.id },
+      data: { status: "PAID" },
+    }).catch(() => undefined);
 
     writeAuditLog({
       userId: authResult.user.id,
@@ -434,6 +442,19 @@ export async function PATCH(request: Request, context: RouteContext) {
       userAgent: request.headers.get("user-agent"),
       token: authResult.token,
     });
+
+    if (localReg) {
+      const periodMeta = await loadLatberPeriodMeta(
+        authResult.token,
+        localReg.eventId,
+      );
+      void creditLatberAttendanceForPaidRegistration({
+        memberId: localReg.memberId,
+        eventId: localReg.eventId,
+        eventAt: periodMeta.eventAt ?? null,
+        dojoId: localReg.member.dojoId,
+      }).catch((err) => console.error("[Latber mark_paid] attendance credit", err));
+    }
 
     return NextResponse.json({
       success: true,
@@ -647,6 +668,7 @@ export async function DELETE(request: Request, context: RouteContext) {
 
   if (eventIdForAssert && memberId) {
     await deleteLatberSelfRegistrationMeta(eventIdForAssert, memberId);
+    await removeLatberAttendanceCredit(memberId, eventIdForAssert);
   }
 
   writeAuditLog({

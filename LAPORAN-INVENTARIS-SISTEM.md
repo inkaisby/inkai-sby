@@ -260,13 +260,14 @@ Pusat / Nasional
 8. Dashboard anggota: kartu **Status Latihan Bersama** (`/api/member/latber-status`); daftar mandiri + konfirmasi bayar (`eventId`); **tanpa nominal biaya** di UI.
 9. Notifikasi: ranting/cabang + anggota pada daftar mandiri, konfirmasi bayar, terima, tolak (`latber-notify`, `notifyDojoAndBranchAdmins`).
 10. **Kelola Anggota** — dropdown pencarian: **Daftar UKT** / **Daftar Latber** ke periode aktif (`active-registration-periods`).
-11. v1 **tanpa:** Kyu/hari-H, laporan Pengprov, fee per sabuk, halaman Pengaturan Latber penuh.
+11. **Kredit kehadiran:** peserta **Lunas** mendapat 1 hari absensi pada tanggal jadwal (`eventAt`, `method=LATBER`, Prisma); tampil di `/dashboard/absensi` + **Kehadiran Semester** (hari unik / 48, GPS menang jika hari sama); ditulis saat cabang Verifikasi bila hari H sudah lewat + cron `GET /api/cron/latber-attendance`; batal/hapus menghapus kredit LATBER.
+12. v1 **tanpa:** Kyu/hari-H, laporan Pengprov, fee per sabuk, halaman Pengaturan Latber penuh.
 
 ### 9.4 Kegiatan & absensi
 - **Cabang** dapat membuat event non-UKT di `/admin/kegiatan` (Gashuku, pertandingan, dll.).
 - Anggota mendaftar event jika profil/dokumen/iuran memenuhi syarat.
-- Anggota check-in di `/dashboard/absensi`: GPS otomatis ke dojo ber-geofence terdekat; override “Bukan di sini?”; QR opsional; biometrik HP (WebAuthn) opsional + GPS tetap wajib; maks **1×/hari** (Asia/Jakarta).
-- % kehadiran semester = **hari unik** / 48; badge progres bertahap (MULAI LATIHAN … LAYAK UJIAN); min UKT 75%.
+- Anggota check-in di `/dashboard/absensi`: GPS otomatis ke dojo ber-geofence terdekat; override “Bukan di sini?”; QR opsional; biometrik HP (WebAuthn) opsional + GPS tetap wajib; maks **1×/hari** (Asia/Jakarta), termasuk kredit hari Latber lunas.
+- % kehadiran semester = **hari unik** / 48 (check-in GPS + kredit Latber lunas, tanpa dobel hari); badge progres bertahap (MULAI LATIHAN … LAYAK UJIAN); min UKT 75%.
 - Notifikasi inbox setelah check-in sukses (anggota + admin ranting dojo).
 - Admin `/admin/absensi`: tabel Progress (klik → detail riwayat), Harian, Belum hadir; geofencing di Pengaturan.
 
@@ -333,7 +334,7 @@ Pusat / Nasional
 | Hasil ujian UKT | Aktif | Cabang tetapkan `LULUS` / `GAGAL` / `MENGULANG`; Kyu Baru **wajib** setelah LULUS |
 | Status UKT anggota | Aktif | `/api/member/ukt-status` + kartu: **Daftar UKT sekarang**, konfirmasi bayar, status Menunggu Terima/Verifikasi/Ujian; **tanpa nominal biaya** |
 | Undangan portal UKT | Aktif | `/undangan/ukt/[periodId]` publik; snapshot `AppSetting` `ukt-invite:{id}`; Salin/WA Undangan di toolbar admin |
-| Modul Latber (MVP) | Aktif | Admin `/admin/latber` + arsip; suggest/hydrate; arsip manual+auto; `InkaiConfirmDialog`; nota print terisolasi; `periodLocked` UI; **Konfirmasi** daftar mandiri (bayar lapor → verifikasi cabang); **Rekap** Excel/PDF/Print + **Laporan WA** |
+| Modul Latber (MVP) | Aktif | Admin `/admin/latber` + arsip; suggest/hydrate; arsip manual+auto; `InkaiConfirmDialog`; nota print terisolasi; `periodLocked` UI; **Konfirmasi** daftar mandiri (bayar lapor → verifikasi cabang); **Rekap** Excel/PDF/Print + **Laporan WA**; kredit 1 hari kehadiran untuk peserta **Lunas** pada `eventAt` |
 | Status Latber anggota | Aktif | `/api/member/latber-status` + kartu: daftar mandiri, konfirmasi bayar (`eventId`), refetch; tanpa nominal biaya |
 | Notifikasi Latber | Aktif | Member + ranting/cabang pada daftar/konfirmasi/terima/tolak; rate limit member POST |
 | Undangan portal Latber | Aktif | `/undangan/latber/[periodId]`; snapshot `latber-invite:{id}`; Salin/WA di toolbar admin |
@@ -427,6 +428,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/member/latber/confirm-payment  POST konfirmasi sudah bayar ke ranting (`eventId`); rate limit; notif
 /api/member/latber-status   GET status Latber periode aktif (kartu anggota)
 /api/cron/ukt-reminders     Cron H-3 pengingat UKT (batas daftar / jadwal ranting)
+/api/cron/latber-attendance GET kredit kehadiran hari Latber untuk peserta lunas (eventAt); CRON_SECRET; `30 1 * * *`
 /api/admin/open-events       Daftar kegiatan dengan pendaftaran masih terbuka (topbar admin)
 /api/admin/account-peers   Email akun ranting gabungan (overlap managed dojos) untuk topbar ganti akun
 /api/admin/pengaturan/*     User, cabang, ranting, wilayah-accounts, roles, geofencing, akun, kebijakan (pejabat dokumen), **ukt** (syarat daftar)
@@ -963,6 +965,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 13 Agustus 2026 | **Prisma local + SSR publik:** `instrumentation.ts` IPv4-first; dev tidak rewrite pooler `:5432`→`:6543`; chip/carousel/apresiasi `withPrismaFallback` supaya `/login` tetap tampil saat P1001; inventaris §11/§15 |
 | 13 Agustus 2026 | **Ikon sidebar admin/dashboard:** Lucide di kiri setiap item (`nav-icons.tsx` + `SidebarNavLink`/`SidebarNavGroup`); desktop + mobile; inventaris §15 |
 | 13 Agustus 2026 | **Latber Konfirmasi Ranting + Rekap:** tombol **Konfirmasi/Terima/Tolak** pada Menunggu Konfirmasi Ranting; accept + `memberPaymentConfirmedAt` → `WAITING_VERIFICATION`; toolbar **Rekap** Excel/PDF/Print + **Laporan WA**; `POST /api/admin/latber/rekap`; inventaris §6/§9.3b/§13/§15 |
+| 13 Agustus 2026 | **Kredit kehadiran hari Latber:** peserta Lunas + `eventAt` → 1 hari `Attendance` `LATBER` (idempotent); merge ke dashboard/absensi/admin; cron `/api/cron/latber-attendance`; inventaris §9.3b/§9.4/§13/§15 |
 
 ---
 

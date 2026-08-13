@@ -9,6 +9,7 @@ import {
   matchDojosInGeofence,
 } from "@/lib/attendance-geofence";
 import { jakartaDayKey, isCheckedInOnJakartaDay } from "@/lib/ukt";
+import { hasLatberAttendanceOnJakartaDay } from "@/lib/latber-attendance";
 import { notifyAttendanceCheckIn } from "@/lib/attendance-notify";
 import { consumeBiometricCheckInToken } from "@/lib/attendance-webauthn";
 import { formatMemberName } from "@/lib/belt";
@@ -35,6 +36,13 @@ export async function POST(request: Request) {
 
   // Anti-kebocoran: max 1 check-in sukses / hari (Asia/Jakarta)
   try {
+    const alreadyLatber = await hasLatberAttendanceOnJakartaDay(memberId, today);
+    if (alreadyLatber) {
+      return NextResponse.json(
+        { error: "Sudah absen hari ini" },
+        { status: 409 },
+      );
+    }
     const { res, data } = await inkaiFetch("/v1/attendance/me", {}, token);
     if (res.ok) {
       const items = (data.data as Array<Record<string, unknown>>) ?? [];

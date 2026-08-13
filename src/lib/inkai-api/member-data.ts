@@ -87,6 +87,27 @@ async function fetchMyAttendanceUncached(token: string, limit = 100) {
 /** Dedup per request (dashboard + absensi). */
 export const fetchMyAttendance = cache(fetchMyAttendanceUncached);
 
+/** Inkai + kredit hari Latber (Prisma), GPS menang jika hari sama. */
+export async function fetchMyAttendanceMerged(
+  token: string,
+  memberId: string | null | undefined,
+  limit = 100,
+): Promise<Array<Record<string, unknown>>> {
+  const inkaiRows = await fetchMyAttendance(token, limit);
+  const mid = memberId?.trim() || "";
+  if (!mid) return inkaiRows;
+  try {
+    const { loadLatberAttendanceCreditsForMember, mergeAttendanceWithLatberCredits } =
+      await import("@/lib/latber-attendance");
+    const credits = await loadLatberAttendanceCreditsForMember(mid);
+    if (credits.length === 0) return inkaiRows;
+    return mergeAttendanceWithLatberCredits(inkaiRows, credits).slice(0, limit);
+  } catch (error) {
+    console.error("[member-data:attendance-latber]", error);
+    return inkaiRows;
+  }
+}
+
 export async function fetchMyEventRegistrations(token: string) {
   if (await isCurrentlyImpersonating()) return [];
   return safeCall(

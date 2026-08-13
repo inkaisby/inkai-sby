@@ -13,6 +13,10 @@ import {
   jakartaDayKey,
   type UktSemester,
 } from "@/lib/ukt";
+import {
+  loadLatberAttendanceCreditsInRange,
+  mergeAttendanceWithLatberCredits,
+} from "@/lib/latber-attendance";
 
 export type AbsensiClientPayload = {
   dateStr: string;
@@ -76,31 +80,50 @@ export async function loadAbsensiClientPayload(
   const managedDojoIds =
     role === "ADMIN_DOJO" ? getManagedDojoIdsFromUser(user) : [];
 
-  const [dayLogsRaw, semesterLogs, membersResult] = await Promise.all([
-    fetchAttendanceLogs(token, { date: dateStr, limit: 200 }),
-    fetchAttendanceLogs(token, {
-      from: new Date(year, semester === "II" ? 6 : 0, 1).toISOString(),
-      to: new Date(
-        year,
-        semester === "II" ? 12 : 6,
-        0,
-        23,
-        59,
-        59,
-        999,
-      ).toISOString(),
-      limit: 600,
-    }),
-    role === "ADMIN_DOJO"
-      ? fetchAdminMembersForDojoIds(token, managedDojoIds, {
-          status: "ACTIVE",
-          limit: 400,
-        })
-      : fetchAdminMembers(token, {
-          status: "ACTIVE",
-          limit: 400,
-        }),
-  ]);
+  const semesterFrom = new Date(year, semester === "II" ? 6 : 0, 1);
+  const semesterTo = new Date(
+    year,
+    semester === "II" ? 12 : 6,
+    0,
+    23,
+    59,
+    59,
+    999,
+  );
+  const [dayLogsRaw, semesterLogsRaw, membersResult, latberCredits] =
+    await Promise.all([
+      fetchAttendanceLogs(token, { date: dateStr, limit: 200 }),
+      fetchAttendanceLogs(token, {
+        from: semesterFrom.toISOString(),
+        to: semesterTo.toISOString(),
+        limit: 600,
+      }),
+      role === "ADMIN_DOJO"
+        ? fetchAdminMembersForDojoIds(token, managedDojoIds, {
+            status: "ACTIVE",
+            limit: 400,
+          })
+        : fetchAdminMembers(token, {
+            status: "ACTIVE",
+            limit: 400,
+          }),
+      loadLatberAttendanceCreditsInRange({
+        from: semesterFrom,
+        to: semesterTo,
+      }).catch(() => []),
+    ]);
+  const scopedCredits =
+    role === "ADMIN_DOJO" && managedDojoIds.length > 0
+      ? latberCredits.filter((c) => managedDojoIds.includes(c.dojoId))
+      : latberCredits;
+  const dayCredits = scopedCredits.filter(
+    (c) => jakartaDayKey(c.checkInAt) === dateStr,
+  );
+  const dayLogsMerged = mergeAttendanceWithLatberCredits(dayLogsRaw, dayCredits);
+  const semesterLogs = mergeAttendanceWithLatberCredits(
+    semesterLogsRaw,
+    scopedCredits,
+  );
 
   const members =
     membersResult.ok && "members" in membersResult
@@ -108,7 +131,7 @@ export async function loadAbsensiClientPayload(
       : [];
 
   const presentIds = new Set(
-    dayLogsRaw
+    dayLogsMerged
       .map((log) => {
         const member = log.member as { id?: string } | undefined;
         return member?.id ? String(member.id) : String(log.memberId ?? "");
@@ -116,18 +139,19 @@ export async function loadAbsensiClientPayload(
       .filter(Boolean),
   );
 
-  const dayLogs = dayLogsRaw.map((log) => {
+  const dayLogs = dayLogsMerged.map((log) => {
     const member = log.member as
       | { fullName?: string; nia?: string }
       | undefined;
     const dojo = log.dojo as { name?: string } | undefined;
     const event = log.event as { title?: string } | null | undefined;
+    const credit = dayCredits.find((c) => c.id === String(log.id));
     return {
       id: String(log.id),
-      fullName: member?.fullName ?? "—",
-      nia: member?.nia ?? "",
-      dojoName: dojo?.name ?? "—",
-      eventTitle: event?.title ?? null,
+      fullName: member?.fullName ?? credit?.fullName ?? "—",
+      nia: member?.nia ?? credit?.nia ?? "",
+      dojoName: dojo?.name ?? credit?.dojoName ?? "—",
+      eventTitle: event?.title ?? credit?.eventTitle ?? null,
       checkInAt: String(log.checkInAt),
       method: String(log.method ?? ""),
     };

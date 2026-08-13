@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Bell, Lock, Wallet } from "lucide-react";
 import {
-  fetchMyAttendance,
+  fetchMyAttendanceMerged,
   fetchMyBillings,
   fetchMyMemberProfile,
   fetchMyNotifications,
@@ -58,7 +58,7 @@ export default async function MemberDashboard() {
     await Promise.all([
       fetchMyMemberProfile(token, memberIdHint),
       fetchMyNotifications(token, 15, session.user.id),
-      fetchMyAttendance(token, 48),
+      fetchMyAttendanceMerged(token, memberIdHint, 48),
       fetchMyBillings(token, 12),
       withPrismaFallback(
         "member-pesan-unread",
