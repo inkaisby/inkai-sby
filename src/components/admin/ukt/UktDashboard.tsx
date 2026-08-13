@@ -192,6 +192,10 @@ import {
   type UktRegistrationPolicy,
 } from "@/lib/ukt-registration-policy";
 import { parseApiJson } from "@/lib/api-client";
+import {
+  downloadUktHasilUjianPdf,
+  printUktHasilUjianDocument,
+} from "@/lib/ukt-hasil-ujian-html";
 import { SortableTableHead } from "@/components/ui/SortableTableHead";
 import {
   compareDates,
@@ -200,6 +204,45 @@ import {
   toggleSortKey,
   type SortDir,
 } from "@/lib/table-sort";
+
+function UktHasilUjianRecapMenu({
+  className,
+  loading,
+  onExcel,
+  onPdf,
+  onPrint,
+}: {
+  className: string;
+  loading: boolean;
+  onExcel: () => void;
+  onPdf: () => void;
+  onPrint: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" disabled={loading} className={className}>
+          <FileSpreadsheet className="mr-1 h-4 w-4" />
+          {loading ? "Menyusun…" : "Rekap Hasil Ujian"}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-44">
+        <DropdownMenuItem onClick={onExcel} disabled={loading}>
+          <FileSpreadsheet className="h-4 w-4" />
+          Excel
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onPdf} disabled={loading}>
+          <Download className="h-4 w-4" />
+          Unduh PDF
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onPrint} disabled={loading}>
+          <Printer className="h-4 w-4" />
+          Print
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 function compareUktRows(
   a: UktMemberRow,
@@ -1190,21 +1233,43 @@ export function UktDashboard(props: Props) {
     (isCabang || isDojoAdmin) &&
     hasUktHasilUjianRecap(rows);
 
-  const handleDownloadHasilUjian = async () => {
-    if (!canShowHasilUjianRecap || rekapDownloading) return;
+  const ensureHasilUjianRecapRows = (mode: "excel" | "pdf" | "print") => {
+    if (!canShowHasilUjianRecap || (mode !== "print" && rekapDownloading)) {
+      return null;
+    }
     const recapRows = buildUktHasilUjianRecapRows(rows);
     if (recapRows.length === 0) {
       toast.error("Belum ada peserta dengan Kyu Baru untuk direkap");
-      return;
+      return null;
     }
     const issues = collectUktExportDataIssues(
       rows.filter(rowHasUktHasilUjianKyuBaru),
     );
     if (issues.length > 0) {
       toast.message(
-        `${issues.length} peserta punya data kurang (NIA/TTL/alamat/JK) — tetap diunduh`,
+        mode === "print"
+          ? `${issues.length} peserta punya data kurang (NIA/TTL/alamat/JK) — cek pratinjau`
+          : `${issues.length} peserta punya data kurang (NIA/TTL/alamat/JK) — tetap diunduh`,
       );
     }
+    return recapRows;
+  };
+
+  const recapHasilUjianPayload = (
+    recapRows: ReturnType<typeof buildUktHasilUjianRecapRows>,
+  ) => ({
+    semester: props.semester,
+    year: props.year,
+    examAt: props.periodMeta?.examAt ?? null,
+    ketuaCabangName: props.orgProfile?.ketuaCabangName ?? "",
+    bidangUjianName: periodOfficers.bidangUjianName,
+    origin: window.location.origin,
+    rows: recapRows,
+  });
+
+  const handleDownloadHasilUjianExcel = async () => {
+    const recapRows = ensureHasilUjianRecapRows("excel");
+    if (!recapRows) return;
     setRekapDownloading(true);
     try {
       const res = await fetch("/api/admin/ukt/rekap-hasil", {
@@ -1240,6 +1305,41 @@ export function UktDashboard(props: Props) {
     } finally {
       setRekapDownloading(false);
     }
+  };
+
+  const handleDownloadHasilUjianPdf = async () => {
+    const recapRows = ensureHasilUjianRecapRows("pdf");
+    if (!recapRows) return;
+    setRekapDownloading(true);
+    try {
+      await downloadUktHasilUjianPdf(
+        recapHasilUjianPayload(recapRows),
+        buildUktHasilUjianFilename(
+          props.semester,
+          props.year,
+          props.periodMeta?.examAt,
+          "pdf",
+        ),
+      );
+      toast.success(`${recapRows.length} peserta diunduh sebagai PDF`);
+    } catch (e) {
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : "Gagal membuat PDF. Coba Print / Save as PDF.",
+      );
+    } finally {
+      setRekapDownloading(false);
+    }
+  };
+
+  const handlePrintHasilUjian = () => {
+    const recapRows = ensureHasilUjianRecapRows("print");
+    if (!recapRows) return;
+    printUktHasilUjianDocument(recapHasilUjianPayload(recapRows));
+    toast.success(
+      `${recapRows.length} peserta siap — di dialog cetak pilih printer atau Save as PDF`,
+    );
   };
 
   const handlePeriodArchive = async (archived: boolean) => {
@@ -2446,15 +2546,13 @@ export function UktDashboard(props: Props) {
                   Export
                 </Button>
                 {canShowHasilUjianRecap ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleDownloadHasilUjian()}
-                    disabled={rekapDownloading}
+                  <UktHasilUjianRecapMenu
                     className={periodActionBtn}
-                  >
-                    <FileSpreadsheet className="mr-1 h-4 w-4" />
-                    {rekapDownloading ? "Menyusun…" : "Rekap Hasil Ujian"}
-                  </Button>
+                    loading={rekapDownloading}
+                    onExcel={() => void handleDownloadHasilUjianExcel()}
+                    onPdf={() => void handleDownloadHasilUjianPdf()}
+                    onPrint={handlePrintHasilUjian}
+                  />
                 ) : null}
                 <Button
                   variant="outline"
@@ -2568,15 +2666,13 @@ export function UktDashboard(props: Props) {
             {isDojoAdmin && props.selectedPeriodId && (
               <>
                 {canShowHasilUjianRecap ? (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleDownloadHasilUjian()}
-                    disabled={rekapDownloading}
+                  <UktHasilUjianRecapMenu
                     className={periodActionBtn}
-                  >
-                    <FileSpreadsheet className="mr-1 h-4 w-4" />
-                    {rekapDownloading ? "Menyusun…" : "Rekap Hasil Ujian"}
-                  </Button>
+                    loading={rekapDownloading}
+                    onExcel={() => void handleDownloadHasilUjianExcel()}
+                    onPdf={() => void handleDownloadHasilUjianPdf()}
+                    onPrint={handlePrintHasilUjian}
+                  />
                 ) : null}
                 <Button
                   variant="outline"

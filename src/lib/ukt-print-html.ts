@@ -228,7 +228,7 @@ export function buildUktNotaPrintHtml(data: UktNotaPrintData): string {
 </html>`;
 }
 
-function openHtmlPrintWindow(html: string): void {
+export function openHtmlPrintWindow(html: string): void {
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.cssText =
@@ -491,17 +491,26 @@ async function waitForImages(doc: Document): Promise<void> {
   );
 }
 
+export type DownloadPdfFromHtmlOptions = {
+  orientation?: "portrait" | "landscape";
+};
+
 /**
  * Unduh PDF langsung (tanpa dialog print browser) dari HTML UKT.
+ * Beberapa elemen `.page` → tiap elemen halaman PDF baru (konten tinggi tetap dipecah).
  */
 export async function downloadPdfFromHtml(
   html: string,
   filename: string,
+  options?: DownloadPdfFromHtmlOptions,
 ): Promise<void> {
+  const orientation = options?.orientation ?? "portrait";
+  const iframeW = orientation === "landscape" ? "297mm" : "210mm";
+  const iframeH = orientation === "landscape" ? "210mm" : "297mm";
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.cssText =
-    "position:fixed;left:-12000px;top:0;width:210mm;height:297mm;border:0;opacity:0;pointer-events:none;";
+    `position:fixed;left:-12000px;top:0;width:${iframeW};height:${iframeH};border:0;opacity:0;pointer-events:none;`;
   document.body.appendChild(iframe);
 
   const win = iframe.contentWindow;
@@ -521,33 +530,43 @@ export async function downloadPdfFromHtml(
     const html2canvas = (await import("html2canvas")).default;
     const { jsPDF } = await import("jspdf");
 
-    const target = (doc.querySelector(".page") as HTMLElement | null) || doc.body;
-    const canvas = await html2canvas(target, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: "#ffffff",
-      windowWidth: target.scrollWidth,
-      windowHeight: target.scrollHeight,
-    } as never);
+    const pages = Array.from(doc.querySelectorAll(".page")) as HTMLElement[];
+    const targets = pages.length > 0 ? pages : [doc.body];
 
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pdf = new jsPDF({ orientation, unit: "mm", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * pageWidth) / canvas.width;
+    let firstPdfPage = true;
 
-    let heightLeft = imgHeight;
-    let position = 0;
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
+    for (const target of targets) {
+      const canvas = await html2canvas(target, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        windowWidth: target.scrollWidth,
+        windowHeight: target.scrollHeight,
+      } as never);
 
-    while (heightLeft > 0) {
-      position -= pageHeight;
-      pdf.addPage();
+      const imgData = canvas.toDataURL("image/png");
+      const imgWidth = pageWidth;
+      const imgHeight = (canvas.height * pageWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+      if (!firstPdfPage) {
+        pdf.addPage();
+      }
+      firstPdfPage = false;
       pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position -= pageHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
     }
 
     const safeName = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;

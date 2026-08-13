@@ -225,6 +225,9 @@ describe("count + filename + ttl", () => {
     expect(buildUktHasilUjianFilename("II", 2026, "2026-10-05")).toBe(
       "SURABAYA_UKT_SII_2026_5-Oktober-2026.xlsx",
     );
+    expect(buildUktHasilUjianFilename("II", 2026, "2026-10-05", "pdf")).toBe(
+      "SURABAYA_UKT_SII_2026_5-Oktober-2026.pdf",
+    );
     expect(hasUktHasilUjianRecap([])).toBe(false);
   });
 });

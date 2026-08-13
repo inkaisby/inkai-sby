@@ -1922,6 +1922,23 @@ export type UktHasilUjianSabukLabel =
   | "COKELAT"
   | "HITAM";
 
+export const UKT_HASIL_UJIAN_SABUK_ORDER: UktHasilUjianSabukLabel[] = [
+  "PUTIH",
+  "KUNING",
+  "HIJAU",
+  "BIRU",
+  "COKELAT",
+  "HITAM",
+];
+
+/** Pejabat tetap di Lembar TTD Pengda — dipakai Excel + PDF/Print. */
+export const UKT_HASIL_UJIAN_OFFICERS = {
+  pengdaKetua: "SUYANTO KASDI, S.H.",
+  pengdaKetuaTitle: "DAN 7 INKAI MSH NO. 2702",
+  mshKetua: "S Y A H R U L L A H",
+  mshKetuaTitle: "DAN 6 INKAI MSH NO. 245",
+} as const;
+
 export type UktHasilUjianRecapRow = {
   no: number;
   noRanting: number;
@@ -2133,8 +2150,9 @@ export function buildUktHasilUjianFilename(
   semester: UktSemester,
   year: number,
   examAt?: string | null,
+  ext: "xlsx" | "pdf" = "xlsx",
 ): string {
   const exam = formatUktExamDateLong(examAt);
   const examSlug = exam ? `_${exam.replace(/\s+/g, "-")}` : "";
-  return `SURABAYA_UKT_S${semester}_${year}${examSlug}.xlsx`;
+  return `SURABAYA_UKT_S${semester}_${year}${examSlug}.${ext}`;
 }

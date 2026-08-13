@@ -7,8 +7,9 @@ import {
   countUktHasilUjianSabuk,
   formatUktExamDateLong,
   resolveUktHasilUjianLastNia,
+  UKT_HASIL_UJIAN_OFFICERS,
+  UKT_HASIL_UJIAN_SABUK_ORDER,
   type UktHasilUjianRecapRow,
-  type UktHasilUjianSabukLabel,
   type UktSemester,
 } from "@/lib/ukt";
 
@@ -20,20 +21,6 @@ export type UktHasilUjianXlsxInput = {
   bidangUjianName?: string | null;
   rows: UktHasilUjianRecapRow[];
 };
-
-const SABUK_ORDER: UktHasilUjianSabukLabel[] = [
-  "PUTIH",
-  "KUNING",
-  "HIJAU",
-  "BIRU",
-  "COKELAT",
-  "HITAM",
-];
-
-const PENGDA_KETUA = "SUYANTO KASDI, S.H.";
-const PENGDA_KETUA_TITLE = "DAN 7 INKAI MSH NO. 2702";
-const MSH_KETUA = "S Y A H R U L L A H";
-const MSH_KETUA_TITLE = "DAN 6 INKAI MSH NO. 245";
 
 const THIN: Partial<ExcelJS.Borders> = {
   top: { style: "thin", color: { argb: "FF000000" } },
@@ -201,17 +188,17 @@ export async function buildUktHasilUjianXlsxBuffer(
   ttd.getCell("E7").value = "Ketua,";
   ttd.getCell("G7").value = "Ketua,";
 
-  ttd.getCell("C11").value = PENGDA_KETUA;
+  ttd.getCell("C11").value = UKT_HASIL_UJIAN_OFFICERS.pengdaKetua;
   ttd.getCell("C11").font = { bold: true, underline: true };
-  ttd.getCell("E11").value = MSH_KETUA;
+  ttd.getCell("E11").value = UKT_HASIL_UJIAN_OFFICERS.mshKetua;
   ttd.getCell("E11").font = { bold: true, underline: true };
   ttd.getCell("G11").value = (input.ketuaCabangName || "").trim();
   ttd.getCell("G11").font = { bold: true, underline: true };
   ttd.getCell("J11").value = (input.bidangUjianName || "").trim();
   ttd.getCell("J11").font = { bold: true, underline: true };
 
-  ttd.getCell("C12").value = PENGDA_KETUA_TITLE;
-  ttd.getCell("E12").value = MSH_KETUA_TITLE;
+  ttd.getCell("C12").value = UKT_HASIL_UJIAN_OFFICERS.pengdaKetuaTitle;
+  ttd.getCell("E12").value = UKT_HASIL_UJIAN_OFFICERS.mshKetuaTitle;
 
   const counts = countUktHasilUjianSabuk(input.rows);
   const total = input.rows.length;
@@ -223,7 +210,7 @@ export async function buildUktHasilUjianXlsxBuffer(
   ttd.getCell("E16").value = "NAMA-NAMA PENGUJI :";
   ttd.getCell("E16").font = { bold: true };
 
-  const sabukLines = SABUK_ORDER.filter(
+  const sabukLines = UKT_HASIL_UJIAN_SABUK_ORDER.filter(
     (sabuk) => sabuk !== "HITAM" || counts.HITAM > 0,
   );
   sabukLines.forEach((sabuk, idx) => {
