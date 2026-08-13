@@ -360,7 +360,8 @@ Pusat / Nasional
 | Anti-freeze UI UKT | Diperkuat | `UktDashboard`: `loading` global hanya dipakai aksi lingkup periode (buat periode, jadwal, biaya sabuk, arsip, exam-day/Bayar UKT massal); aksi per-baris (daftar, Kyu, hasil ujian, batal, hapus tagihan, terima/tolak mandiri, mark paid) murni pakai `pendingMemberIds`/`isMemberPending` — tidak lagi jatuh ke `setLoading` sehingga 1 baris sibuk tidak mengunci toolbar/baris lain; **SLA**: `ukt/table` `maxDuration=15`, `ukt/register` `maxDuration=30` — batas ini yang membatasi durasi spinner per-baris, bukan lock toolbar global |
 
 | Index Prisma | Ditambah | Member/Billing/Attendance/Verification/Message + Billing(registrationId, memberId+isDeleted+type) / Event(isDeleted+endDate|registrationCloseAt) / EventRegistration(eventId+status) / AppreciationEntry / AuditLog(action+createdAt) — migrate `20260724120000_admin_perf_security_indexes` |
-| Pool DB Supabase | Diperkuat | Transaction `:6543`+`pgbouncer`; `connection_limit=5`/`pool_timeout=20`; soft-delete & **purge massal batch** (`deleteMany` per relasi); chunk purge 25 + jeda/retry; toast sibuk |
+| Pool DB Supabase | Diperkuat | Production: Transaction `:6543`+`pgbouncer`; `connection_limit=5`/`pool_timeout=20`; **dev:** tetap session `:5432` (selaras Prisma CLI); `instrumentation.ts` `ipv4first` anti-P1001 IPv6; override `PRISMA_USE_TRANSACTION_POOLER=1`; soft-delete & **purge massal batch**; toast sibuk |
+| SSR publik degrade | Diperkuat | Chip kegiatan + carousel + cuplikan apresiasi memakai `withPrismaFallback`/try-catch — DB unreachable tidak menjatuhkan `/login` via `error.tsx` |
 | Login latency (pasca migrasi Supabase) | Diperkuat | Bottleneck utama = **inkai-backend** (`POST /v1/auth/login`) + region Vercel vs DB; portal `vercel.json` **regions: sin1** (dekat `inkai-db` ap-southeast-1); `/login` warm-up `GET /api/auth/health` (pakai `getInkaiApiBaseUrl`); skip `getSession` + cookie hint `inkai_entry` (admin-only → `/admin`); authorize gate paralel; JWT block check hanya saat claims stale (~30s) + `React.cache(auth)`; home SSR Inkai `8s/0 retry`; defer PresenceHeartbeat 20s; index perf di `inkai-db` |
 
 ---
@@ -958,6 +959,8 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 13 Agustus 2026 | **Rekap Hasil Ujian UKT:** Excel format Pengda (sheet SMT + Lembar TTD); toolbar cabang+ranting (ranting scoped, tampil jika ada Kyu Baru); Kyu Lama snapshot; `POST /api/admin/ukt/rekap-hasil`; inventaris §6/§9.3/§11/§13/§15 |
 | 13 Agustus 2026 | **Fix hapus peserta UKT:** DELETE `registrations/[id]` resolve `eventId` Prisma-first (id / memberId+hint / Inkai) seperti PATCH+Latber; UI kirim hint periode; setelah Inkai 404 tetap `forceDeleteRegistrationInDb`; inventaris §9.3/§13/§15 |
 | 13 Agustus 2026 | **Rekap Hasil Ujian PDF/Print:** dropdown Excel/PDF/Print di Pendaftaran+Arsip (cabang+ranting); HTML landscape 2 halaman + logo INKAI kiri; Excel tetap `POST /api/admin/ukt/rekap-hasil`; inventaris §6/§9.3/§11/§15 |
+| 13 Agustus 2026 | **Prisma local + SSR publik:** `instrumentation.ts` IPv4-first; dev tidak rewrite pooler `:5432`→`:6543`; chip/carousel/apresiasi `withPrismaFallback` supaya `/login` tetap tampil saat P1001; inventaris §11/§15 |
+| 13 Agustus 2026 | **Ikon sidebar admin/dashboard:** Lucide di kiri setiap item (`nav-icons.tsx` + `SidebarNavLink`/`SidebarNavGroup`); desktop + mobile; inventaris §15 |
 
 ---
 

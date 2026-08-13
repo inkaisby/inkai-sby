@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { SidebarNavLink } from "@/components/layout/SidebarNavLink";
+import { getNavIcon } from "@/components/layout/nav-icons";
 import type { NavLink } from "@/lib/dashboard-nav";
 
 function hrefPathname(href: string) {
@@ -35,6 +36,7 @@ export function SidebarNavGroup({
     (label === "UKT" && pathname.startsWith("/admin/ukt")) ||
     (label === "Latihan Bersama" && pathname.startsWith("/admin/latber"));
   const [open, setOpen] = useState(groupOpen);
+  const Icon = getNavIcon(label);
 
   useEffect(() => {
     if (groupOpen) setOpen(true);
@@ -45,14 +47,15 @@ export function SidebarNavGroup({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+        className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
           groupOpen
             ? "bg-muted text-foreground"
             : "text-muted-foreground hover:bg-muted hover:text-foreground"
         }`}
         aria-expanded={open}
       >
-        <span>{label}</span>
+        {Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden /> : null}
+        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
         <ChevronDown
           className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
         />

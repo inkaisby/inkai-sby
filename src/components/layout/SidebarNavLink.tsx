@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
 import { useNavigation } from "@/components/layout/NavigationProvider";
+import { getNavIcon } from "@/components/layout/nav-icons";
 
 export function SidebarNavLink({
   href,
@@ -17,6 +18,7 @@ export function SidebarNavLink({
 }) {
   const { pendingHref, startNavigation } = useNavigation();
   const isPending = pendingHref === href;
+  const Icon = getNavIcon(label);
 
   return (
     <Link
@@ -32,6 +34,8 @@ export function SidebarNavLink({
     >
       {isPending ? (
         <InkaiLogoLoader size="sm" showDots={false} className="shrink-0" />
+      ) : Icon ? (
+        <Icon className="h-4 w-4 shrink-0" aria-hidden />
       ) : null}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {badge && badge > 0 ? (
