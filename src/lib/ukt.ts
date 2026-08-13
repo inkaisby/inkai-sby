@@ -2029,11 +2029,11 @@ export function hasUktHasilUjianRecap(rows: UktMemberRow[]): boolean {
 
 function niaNumericKey(nia: string): bigint {
   const digits = nia.replace(/\D/g, "");
-  if (!digits) return 0n;
+  if (!digits) return BigInt(0);
   try {
     return BigInt(digits);
   } catch {
-    return 0n;
+    return BigInt(0);
   }
 }
 
@@ -2042,7 +2042,7 @@ export function resolveUktHasilUjianLastNia(
   rows: Array<{ nia?: string | null }>,
 ): string {
   let best = "";
-  let bestKey = 0n;
+  let bestKey = BigInt(0);
   for (const row of rows) {
     const nia = (row.nia || "").trim();
     if (!nia) continue;
