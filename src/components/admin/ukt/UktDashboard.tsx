@@ -109,6 +109,7 @@ const AddMemberDialog = dynamic(
 );
 import {
   BELT_RANK_OPTIONS,
+  canAssignNia,
   canEditKyuBaru,
   displayUktKyuLama,
   formatGenderLabel,
@@ -495,6 +496,7 @@ export function UktDashboard(props: Props) {
   const [waiverNote, setWaiverNote] = useState("");
 
   const isCabang = canEditKyuBaru(props.userRoles);
+  const canEditNia = canAssignNia(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
   const canForcePaidCancel = isCabang || isDojoAdmin;
   const periodLocked = Boolean(props.periodMeta?.locked || props.periodMeta?.archived);
@@ -749,7 +751,7 @@ export function UktDashboard(props: Props) {
 
   const handleSetNia = useCallback(
     async (memberId: string, rawNia: string) => {
-      if (!isCabang || isArchiveView) return;
+      if (!canEditNia || isArchiveView) return;
 
       const current = normalizeNia(
         rows.find((r) => r.memberId === memberId)?.nia,
@@ -792,7 +794,7 @@ export function UktDashboard(props: Props) {
         setNiaSavingId(null);
       }
     },
-    [isCabang, isArchiveView, patchRow, rows],
+    [canEditNia, isArchiveView, patchRow, rows],
   );
 
   const clearMemberFromUktLocal = useCallback((memberId: string) => {
@@ -3662,7 +3664,7 @@ export function UktDashboard(props: Props) {
                     />
                   </TableCell>
                   <TableCell className="font-mono text-xs">
-                    {isCabang && !isArchiveView ? (
+                    {canEditNia && !isArchiveView ? (
                       <div className="inline-flex min-w-[8.5rem] flex-col gap-1">
                         <Input
                           key={`${row.memberId}:${row.nia || ""}`}

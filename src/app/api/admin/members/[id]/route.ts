@@ -267,7 +267,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   if (action === "set_nia") {
     if (!canAssignNia(roles)) {
       return NextResponse.json(
-        { error: "Hanya pengurus cabang yang dapat mengisi NIA" },
+        { error: "Hanya pengurus cabang atau pengprov yang dapat mengisi NIA" },
         { status: 403 },
       );
     }

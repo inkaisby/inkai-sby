@@ -52,7 +52,7 @@ export const WILAYAH_MATRIX: WilayahMatrixRow[] = [
       USER: "Lihat NIA sendiri",
       RANTING: "Tidak assign NIA",
       CABANG: "Assign / isi NIA anggota",
-      PENGPROV: "Lihat NIA (tidak assign)",
+      PENGPROV: "Assign / isi NIA anggota",
     },
   },
   {
@@ -117,9 +117,9 @@ export function canEditKyuByWilayah(roles: string[]) {
   return isCabangAdmin(roles);
 }
 
-/** Assign NIA — sama dengan cabang. */
+/** Assign NIA — Cabang, Pengprov, dan nasional. */
 export function canAssignNiaByWilayah(roles: string[]) {
-  return isCabangAdmin(roles);
+  return isCabangAdmin(roles) || isPengprovAdmin(roles);
 }
 
 /**
