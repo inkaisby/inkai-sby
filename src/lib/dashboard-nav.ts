@@ -63,8 +63,10 @@ function withFreshUktHref(items: NavItem[]): NavItem[] {
   });
 }
 
+const UKT_NAV_GROUP_LABEL = "UKT (Ujian Kenaikan Tingkat)";
+
 const UKT_NAV_GROUP: NavGroup = {
-  label: "UKT",
+  label: UKT_NAV_GROUP_LABEL,
   children: [
     { href: "/admin/ukt", label: "Pendaftaran" },
     { href: "/admin/ukt/arsip", label: "Arsip UKT" },

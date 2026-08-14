@@ -170,19 +170,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Persist MSH ke Prisma lokal (Inkai auth register tidak menyimpan MSH).
-    // Fire-and-forget agar response daftar tetap cepat.
-    if (msh) {
-      void persistRegisterMsh({
-        msh,
-        nik,
-        email,
-        name,
-        dojoId,
-        dojoName,
-        registerPayload: data.data,
-      });
-    }
+    // Persist field lokal ke Prisma (MSH + sabuk) — fire-and-forget agar response cepat.
+    void persistRegisterLocal({
+      msh,
+      currentRank: rank,
+      nik,
+      email,
+      name,
+      dojoId,
+      dojoName,
+      registerPayload: data.data,
+    });
 
     return NextResponse.json({
       success: true,
@@ -193,8 +191,9 @@ export async function POST(request: Request) {
   }
 }
 
-async function persistRegisterMsh(opts: {
-  msh: string;
+async function persistRegisterLocal(opts: {
+  msh: string | null;
+  currentRank: string;
   nik: string;
   email: string;
   name: string;
@@ -259,15 +258,20 @@ async function persistRegisterMsh(opts: {
 
     await prisma.member.update({
       where: { id: memberId },
-      data: { mshNumber: opts.msh },
+      data: {
+        currentRank: opts.currentRank,
+        ...(opts.msh ? { mshNumber: opts.msh } : {}),
+      },
     });
 
-    void notifyAdminsAboutMemberMsh({
-      dojoId: opts.dojoId,
-      title: "No. MSH pendaftaran mandiri",
-      content: `${fullName} (${dojoLabel}): No. MSH ${opts.msh} (daftar mandiri).`,
-    });
+    if (opts.msh) {
+      void notifyAdminsAboutMemberMsh({
+        dojoId: opts.dojoId,
+        title: "No. MSH pendaftaran mandiri",
+        content: `${fullName} (${dojoLabel}): No. MSH ${opts.msh} (daftar mandiri).`,
+      });
+    }
   } catch (err) {
-    console.error("[register:msh]", err);
+    console.error("[register:local]", err);
   }
 }

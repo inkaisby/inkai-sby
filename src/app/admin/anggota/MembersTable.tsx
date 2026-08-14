@@ -209,10 +209,7 @@ function DocumentsCell({
   onEdit?: () => void;
 }) {
   return (
-    <div
-      className="flex flex-wrap items-center gap-1"
-      onClick={(e) => e.stopPropagation()}
-    >
+    <div className="flex flex-wrap items-center gap-1">
       <DocBadge
         label="Akte"
         url={birthCertificateUrl}
@@ -225,7 +222,10 @@ function DocumentsCell({
           variant="ghost"
           size="sm"
           className="h-7 gap-1 px-1.5 text-xs text-muted-foreground hover:text-inkai-red"
-          onClick={onEdit}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit?.();
+          }}
           aria-label="Ubah dokumen"
         >
           <Pencil className="h-3 w-3" />
@@ -1029,10 +1029,7 @@ export function MembersTable({
                         size="sm"
                       />
                     </TableCell>
-                    <TableCell
-                      className="font-mono text-sm"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <TableCell className="font-mono text-sm">
                       {canEditNia ? (
                         <div className="inline-flex min-w-[8.5rem] flex-col gap-1">
                           <Input
@@ -1042,6 +1039,7 @@ export function MembersTable({
                             disabled={niaSavingId === m.id}
                             className="h-8 w-full font-mono text-xs uppercase"
                             aria-label={`Ubah NIA ${m.fullName}`}
+                            onClick={(e) => e.stopPropagation()}
                             onBlur={(e) => {
                               const current = normalizeNia(m.nia) || "";
                               const next = normalizeNia(e.target.value) || "";
@@ -1095,10 +1093,7 @@ export function MembersTable({
                         ? m.mshNumber.trim()
                         : "—"}
                     </TableCell>
-                    <TableCell
-                      className="font-medium text-inkai-red"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <TableCell className="font-medium text-inkai-red">
                       {canInlineEditName ? (
                         <Input
                           key={`${m.id}:${m.fullName}`}
@@ -1106,6 +1101,7 @@ export function MembersTable({
                           disabled={nameSavingId === m.id}
                           className="h-8 min-w-[10rem] max-w-[16rem] border-inkai-red/20 font-medium uppercase text-inkai-red"
                           aria-label={`Ubah nama ${m.fullName}`}
+                          onClick={(e) => e.stopPropagation()}
                           onBlur={(e) => {
                             void handleSetName(m.id, e.target.value);
                           }}
@@ -1119,15 +1115,13 @@ export function MembersTable({
                         formatMemberName(m.fullName)
                       )}
                     </TableCell>
-                    <TableCell
-                      className="hidden sm:table-cell"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <TableCell className="hidden sm:table-cell">
                       {canEditRank ? (
                         <select
                           className="h-8 max-w-40 rounded border bg-background px-1 text-xs"
                           value={formatRankLabel(m.currentRank) || ""}
                           disabled={rankSavingId === m.id}
+                          onClick={(e) => e.stopPropagation()}
                           onChange={(e) => {
                             const next = e.target.value;
                             if (!next || next === formatRankLabel(m.currentRank)) return;
@@ -1173,16 +1167,14 @@ export function MembersTable({
                           onEdit={() => setDocsEditMember(m)}
                         />
                       </TableCell>
-                    <TableCell
-                      className="hidden sm:table-cell"
-                      onClick={(e) => e.stopPropagation()}
-                    >
+                    <TableCell className="hidden sm:table-cell">
                       {canEditDojo && dojos.length > 0 ? (
                         <div className="space-y-0.5">
                           <select
                             className="h-8 max-w-[11rem] rounded border bg-background px-1 text-xs"
                             value={m.dojoId || ""}
                             disabled={dojoSavingId === m.id}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => {
                               const next = e.target.value;
                               if (!next || next === m.dojoId) return;

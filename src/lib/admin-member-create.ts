@@ -9,7 +9,7 @@ import {
   assertDojoAllowed,
   getManagedDojoIdsFromUser,
 } from "@/lib/managed-dojos";
-import { DEFAULT_MEMBER_RANK } from "@/lib/belt";
+import { DEFAULT_MEMBER_RANK, formatRankLabel } from "@/lib/belt";
 import type { z } from "zod";
 import type { uktMemberCreateSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
@@ -93,7 +93,10 @@ export async function createAdminMember(opts: {
     dojoId = scoped[0].id;
   }
 
-  const currentRank = input.currentRank?.trim() || DEFAULT_MEMBER_RANK;
+  const currentRank =
+    formatRankLabel(input.currentRank?.trim() || "") ||
+    input.currentRank?.trim() ||
+    DEFAULT_MEMBER_RANK;
   // NIK opsional: hanya kirim jika tepat 16 digit (jangan "" — bentrok unique).
   const nikRaw = input.nik?.trim() || "";
   const nik = /^\d{16}$/.test(nikRaw) ? nikRaw : undefined;
@@ -348,10 +351,32 @@ async function finalizeCreatedMember(opts: {
             : null,
           gender: input.gender || null,
           birthDate: input.birthDate ? new Date(input.birthDate) : null,
+          currentRank,
           ...(nia ? { nia } : {}),
           ...(msh ? { mshNumber: msh } : {}),
         },
       });
+      const inkaiRank = String(member.currentRank ?? "").trim();
+      if (inkaiRank !== currentRank) {
+        try {
+          const patch = await inkaiFetch(
+            `/v1/members/${memberId}`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({ currentRank }),
+            },
+            token,
+          );
+          if (!patch.res.ok) {
+            console.warn(
+              "[createAdminMember:syncRank]",
+              inkaiErrorMessage(patch.data, "unknown"),
+            );
+          }
+        } catch (err) {
+          console.error("[createAdminMember:syncRank]", err);
+        }
+      }
       if (phoneNumber && typeof member.userId === "string") {
         await prisma.user.update({
           where: { id: member.userId },

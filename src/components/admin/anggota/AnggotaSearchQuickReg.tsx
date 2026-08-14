@@ -90,9 +90,15 @@ export function AnggotaSearchQuickReg({
   const handleInput = (value: string) => {
     setLocalQ(value);
     setOpen(value.trim().length >= 2);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => onQueryChange(value), 300);
+    // Debounce filter tabel ada di AnggotaFiltersForm.handleQueryChange — jangan pakai debounceRef yang sama dengan suggest.
+    onQueryChange(value);
   };
+
+  function applySearchFromSuggestion(name: string) {
+    setLocalQ(name);
+    onQueryChange(name);
+    setOpen(false);
+  }
 
   async function registerMember(
     memberId: string,
@@ -152,7 +158,19 @@ export function AnggotaSearchQuickReg({
                 key={m.id}
                 className="border-b border-border/40 px-3 py-2 last:border-0"
               >
-                <div className="min-w-0">
+                <div
+                  className="min-w-0 cursor-pointer rounded-sm hover:bg-muted/60"
+                  role="button"
+                  tabIndex={0}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => applySearchFromSuggestion(m.fullName)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      applySearchFromSuggestion(m.fullName);
+                    }
+                  }}
+                >
                   <p className="truncate font-medium">{formatMemberName(m.fullName)}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     {[m.nia, formatRankLabel(m.currentRank || "") || m.currentRank, m.dojoName]

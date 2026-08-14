@@ -38,7 +38,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   "Beranda Admin": LayoutDashboard,
   Keanggotaan: Users,
   "Iuran Anggota": Wallet,
-  UKT: GraduationCap,
+  "UKT (Ujian Kenaikan Tingkat)": GraduationCap,
   "Latihan Bersama": Swords,
   "Event & Kegiatan": CalendarDays,
   Absensi: ClipboardCheck,

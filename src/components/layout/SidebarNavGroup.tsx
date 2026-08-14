@@ -32,9 +32,7 @@ export function SidebarNavGroup({
     items.some((c) => {
       const path = hrefPathname(c.href);
       return pathname === path || pathname.startsWith(`${path}/`);
-    }) ||
-    (label === "UKT" && pathname.startsWith("/admin/ukt")) ||
-    (label === "Latihan Bersama" && pathname.startsWith("/admin/latber"));
+    });
   const [open, setOpen] = useState(groupOpen);
   const Icon = getNavIcon(label);
 
@@ -53,9 +51,12 @@ export function SidebarNavGroup({
             : "text-muted-foreground hover:bg-muted hover:text-foreground"
         }`}
         aria-expanded={open}
+        title={label}
       >
         {Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden /> : null}
-        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+        <span className="min-w-0 flex-1 truncate text-left" title={label}>
+          {label}
+        </span>
         <ChevronDown
           className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
         />

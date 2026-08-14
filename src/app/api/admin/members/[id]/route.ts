@@ -646,6 +646,15 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
+    try {
+      await prisma.member.update({
+        where: { id },
+        data: { currentRank },
+      });
+    } catch (err) {
+      console.error("[set_rank] failed to sync local Prisma currentRank:", err);
+    }
+
     writeAuditLog({
       userId: authResult.user.id,
       email: authResult.user.email,
