@@ -277,7 +277,7 @@ export function AppSidebar({
   const pathname = usePathname();
 
   return (
-    <aside className="admin-sidebar hidden h-svh w-64 shrink-0 flex-col border-r border-border/60 bg-gradient-to-b from-muted/40 via-background to-background lg:flex">
+    <aside className="admin-sidebar hidden h-svh w-72 shrink-0 flex-col border-r border-border/60 bg-gradient-to-b from-muted/40 via-background to-background lg:flex">
       <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border/60 px-4">
         <Image
           src="/logo-inkai.png"

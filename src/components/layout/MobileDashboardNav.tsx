@@ -34,7 +34,7 @@ export function MobileDashboardNav({
           <Menu className="h-4 w-4" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-[min(18rem,88vw)] border-border/60 bg-background/95 backdrop-blur-xl">
+      <SheetContent side="left" className="w-[min(20rem,90vw)] border-border/60 bg-background/95 backdrop-blur-xl">
         <SheetTitle className="flex items-center gap-2 text-base font-semibold tracking-tight">
           <span className="h-5 w-1 rounded-full bg-gradient-to-b from-inkai-red to-inkai-yellow/80" aria-hidden />
           {title}

@@ -54,7 +54,7 @@ export function SidebarNavGroup({
         title={label}
       >
         {Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden /> : null}
-        <span className="min-w-0 flex-1 truncate text-left" title={label}>
+        <span className="min-w-0 flex-1 text-left leading-tight" title={label}>
           {label}
         </span>
         <ChevronDown

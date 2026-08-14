@@ -996,6 +996,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 14 Agustus 2026 | **Fase 1 dev lokal Docker:** `docker-compose.yml` Postgres :5433; scripts `db:local:*`, `assert-local-database`, `seed-local`; rule Cursor anti-halusinasi; README Windows + backend sibling; inventaris §3/§11/§15 |
 | 14 Agustus 2026 | **Kelola Anggota:** pencarian quick-reg memfilter tabel (fix debounce); klik kolom tampilan buka detail (ranting vs inline cabang); **create/register/bulk** tulis `currentRank` ke Prisma + `set_rank` sync Prisma; sidebar **UKT (Ujian Kenaikan Tingkat)**; inventaris §6/§9.1/§11/§15 |
 | 14 Agustus 2026 | **Kunci Batal UKT ranting:** `canRantingCancelUkt` — ranting **Batal** hanya sebelum **Menunggu Ujian**; cabang **Hapus** termasuk lunas; DELETE `registrations/[id]` force-paid cabang-only; matriks wilayah §7/§9.3; inventaris §15 |
+| 14 Agustus 2026 | **Sidebar muat label panjang:** `aside` admin `w-64` → **`w-72`**; label grup `SidebarNavGroup` membungkus (bukan `truncate`, `leading-tight`, `title` tetap); sheet mobile `w-[min(20rem,90vw)]` — **UKT (Ujian Kenaikan Tingkat)** tampil penuh; inventaris §15 |
 
 ---
 
