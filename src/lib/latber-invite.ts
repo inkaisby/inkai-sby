@@ -10,6 +10,7 @@ import {
   type LatberPeriodMeta,
 } from "@/lib/latber";
 import { SITE_URL } from "@/lib/site";
+import { resolveInviteMapsUrl } from "@/lib/venue";
 
 export const LATBER_INVITE_KEY_PREFIX = "latber-invite:";
 
@@ -43,9 +44,7 @@ export function buildLatberInviteLoginUrl(periodId: string): string {
 export function buildLatberInviteMapsUrl(
   location: string | null | undefined,
 ): string | null {
-  const q = location?.trim();
-  if (!q) return null;
-  return `https://www.google.com/maps?q=${encodeURIComponent(q)}`;
+  return resolveInviteMapsUrl(location);
 }
 
 export type LatberInviteSnapshotInput = {

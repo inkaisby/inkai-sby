@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { LatberInvitePublic } from "@/lib/latber-invite";
 import { formatLatberCurrency } from "@/lib/latber";
+import { resolveInviteEmbedUrl } from "@/lib/venue";
 import { LatberRegisterCta } from "./RegisterCta";
 
 function pad(n: number) {
@@ -161,9 +162,7 @@ export function LatberAcaraTab({ invite }: { invite: LatberInvitePublic }) {
 
 export function LatberMapTab({ invite }: { invite: LatberInvitePublic }) {
   const loc = invite.eventLocation?.trim();
-  const embed = loc
-    ? `https://maps.google.com/maps?q=${encodeURIComponent(loc)}&output=embed`
-    : null;
+  const embed = resolveInviteEmbedUrl(loc);
 
   return (
     <section className="invite-ukt__section" data-tab="peta">

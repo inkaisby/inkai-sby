@@ -75,8 +75,8 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/daftar` | Redirect ke form daftar |
 | `/lupa-password` | Ajuan reset password |
 | `/reset-password` | Set password baru |
-| `/undangan/ukt/[periodId]` | **Undangan portal UKT** (publik): cover buka + musik, section Home/Acara/Galeri/Peta (auto-play + klik tab + scroll), CTA login ke `/admin/ukt` |
-| `/undangan/latber/[periodId]` | **Undangan portal Latber** (publik): cover buka + musik, section Home/Acara/Galeri/Peta, CTA login ke `/admin/latber` |
+| `/undangan/ukt/[periodId]` | **Undangan portal UKT** (publik): cover buka + musik, section Home/Acara/Galeri/Peta (auto-play + klik tab + scroll), CTA login ke `/admin/ukt`; tab **Peta** embed Google Maps (CSP `frame-src` Google) — lokasi Dispora Jatim → pin koordinat presisi via `src/lib/venue.ts` |
+| `/undangan/latber/[periodId]` | **Undangan portal Latber** (publik): cover buka + musik, section Home/Acara/Galeri/Peta, CTA login ke `/admin/latber`; tab **Peta** sama (embed Google Maps + override Dispora Jatim) |
 
 ---
 
@@ -305,6 +305,7 @@ Pusat / Nasional
 | MixRoute AI | Chat **Tanya INKAI** (`MIXROUTE_API_KEY`, `AI_BASE_URL=https://api.mixroute.ai/v1`, model default `gpt-4o-mini`; tanpa key → jawaban FAQ lokal dari tutorial/org) |
 | Verifikasi klaim | Fail-closed ke Inkai API + `assertDojoInScope` + audit |
 | Playwright | End-to-End (E2E) testing framework untuk pengujian UI otomatis |
+| CSP (`next.config.ts`) | Header keamanan global; `frame-src` mengizinkan `blob:` (pratinjau PDF) + `https://www.google.com` / `https://maps.google.com` (embed peta undangan UKT/Latber) |
 
 ---
 
@@ -974,6 +975,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 13 Agustus 2026 | **Pengprov terbitkan NIA:** `canAssignNia` + `canAssignNiaByWilayah` include `ADMIN_PROVINCE` (Cabang tetap); inline NIA di Kelola Anggota & UKT; akun `pengprovjatim@gmail.com`; inventaris §7.3/§9.1/§15 |
 | 14 Agustus 2026 | **Hub Laporan UKT + TTD penguji:** satu tombol **Laporan** (tab Peserta/Hasil/Administrasi); pejabat+penguji+pad TTD + template `ukt.ttd-template` + `ttd-suggest`; CATATAN sabuk rapat; inventaris §6/§9.3/§11/§13/§15 |
 | 14 Agustus 2026 | **TTD full-screen + pangkat pejabat/penguji:** pad full viewport (edit TTD lama, landscape, tolak kosong); title DAN/MSH Cabang/Koordinator/penguji + `memberId` + `ttd-titles` live; inventaris §9.3/§13/§15 |
+| 14 Agustus 2026 | **Peta undangan UKT + Latber:** CSP `frame-src` longgar untuk Google Maps (fix iframe kosong); modul `src/lib/venue.ts` (Dispora Jatim koordinat + deteksi lokasi); embed presisi + link arah; inventaris §4/§10/§15 |
 
 ---
 

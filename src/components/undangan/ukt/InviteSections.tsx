@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { formatUktRegistrationDeadline } from "@/lib/ukt";
 import type { UktInvitePublic } from "@/lib/ukt-invite";
+import { resolveInviteEmbedUrl } from "@/lib/venue";
 import { RegisterCta } from "./RegisterCta";
 
 function pad(n: number) {
@@ -239,9 +240,7 @@ export function MapTab({
   invite: UktInvitePublic;
   mountMap: boolean;
 }) {
-  const embed = invite.examLocation?.trim()
-    ? `https://maps.google.com/maps?q=${encodeURIComponent(invite.examLocation)}&output=embed`
-    : null;
+  const embed = resolveInviteEmbedUrl(invite.examLocation);
 
   return (
     <div className="invite-ukt__panel">

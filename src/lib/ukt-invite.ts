@@ -13,6 +13,7 @@ import {
   type UktSemester,
 } from "@/lib/ukt";
 import { SITE_URL } from "@/lib/site";
+import { resolveInviteMapsUrl } from "@/lib/venue";
 
 export const UKT_INVITE_KEY_PREFIX = "ukt-invite:";
 
@@ -53,9 +54,7 @@ export function buildUktInviteLoginUrl(invite: {
 }
 
 export function buildUktInviteMapsUrl(examLocation: string | null | undefined): string | null {
-  const q = examLocation?.trim();
-  if (!q) return null;
-  return `https://www.google.com/maps?q=${encodeURIComponent(q)}`;
+  return resolveInviteMapsUrl(examLocation);
 }
 
 export type UktInviteSnapshotInput = {

@@ -9,7 +9,7 @@ const csp = [
   "connect-src 'self'",
   "media-src 'self' blob:",
   // Pratinjau PDF/dokumen via blob: URL di <iframe>/<embed> (DocumentPreviewDialog)
-  "frame-src 'self' blob:",
+  "frame-src 'self' blob: https://www.google.com https://maps.google.com",
   "object-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
