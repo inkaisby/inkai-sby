@@ -80,6 +80,7 @@ const UktPrintModal = dynamic(
     import("@/components/admin/ukt/UktPrintModal").then((m) => m.UktPrintModal),
   { ssr: false },
 );
+import { UKT_NOTA_GABUNGAN_ID } from "@/components/admin/ukt/UktPrintModal";
 const UktReportsHubModal = dynamic(
   () =>
     import("@/components/admin/ukt/UktReportsHubModal").then(
@@ -4394,16 +4395,13 @@ export function UktDashboard(props: Props) {
             ? selectedRows
             : rows
           ).filter(
-            (r) =>
-              r.registrationId &&
-              isNotaParticipant(r.status) &&
-              matchesDojoFilter(r.dojoId),
+            (r) => r.registrationId && isNotaParticipant(r.status),
           )}
           dojos={props.dojos}
           dojoFilter={
             effectiveDojoIds && effectiveDojoIds.length === 1
               ? effectiveDojo
-              : ""
+              : UKT_NOTA_GABUNGAN_ID
           }
           beltFees={beltFees}
           komisiRanting={komisiRanting}

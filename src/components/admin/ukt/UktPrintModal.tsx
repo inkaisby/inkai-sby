@@ -32,6 +32,9 @@ import {
 } from "@/lib/ukt-print-html";
 import { showError, showSuccess } from "@/lib/client-toast";
 
+/** Sentinel Select — bukan UUID ranting. */
+export const UKT_NOTA_GABUNGAN_ID = "gabungan";
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -40,6 +43,7 @@ type Props = {
   year: number;
   rows: UktMemberRow[];
   dojos: { id: string; name: string }[];
+  /** UUID ranting atau `gabungan` untuk default Select. */
   dojoFilter: string;
   beltFees: Record<BeltFeeKey, number>;
   komisiRanting: number;
@@ -57,6 +61,10 @@ type PrintConfig = {
   rusak: number;
   hilang: number;
 };
+
+function isGabunganSelection(id: string): boolean {
+  return id === UKT_NOTA_GABUNGAN_ID;
+}
 
 export function UktPrintModal({
   open,
@@ -77,59 +85,107 @@ export function UktPrintModal({
     for (const r of rows) names.add(r.dojoName);
     const list = dojos.filter((d) => names.has(d.name));
     if (list.length > 0) return list;
-    if (dojoFilter) {
+    if (dojoFilter && !isGabunganSelection(dojoFilter)) {
       const match = dojos.find((d) => d.id === dojoFilter);
       if (match) return [match];
     }
     return dojos;
   }, [rows, dojos, dojoFilter]);
 
-  const defaultDojoId = dojoFilter || dojoOptions[0]?.id || "";
+  const showGabunganOption = dojoOptions.length > 1;
 
-  const [selectedDojoId, setSelectedDojoId] = useState(defaultDojoId);
-  const [pdfLoading, setPdfLoading] = useState(false);
-  const [config, setConfig] = useState<PrintConfig>(() => {
-    const dojoName = dojos.find((d) => d.id === defaultDojoId)?.name || dojoOptions[0]?.name || "";
+  const resolveDefaultSelection = (): string => {
+    if (showGabunganOption && isGabunganSelection(dojoFilter)) {
+      return UKT_NOTA_GABUNGAN_ID;
+    }
+    if (dojoFilter && !isGabunganSelection(dojoFilter)) {
+      return dojoFilter;
+    }
+    return dojoOptions[0]?.id || "";
+  };
+
+  const defaultSelection = resolveDefaultSelection();
+
+  const gabunganNames = useMemo(
+    () =>
+      [...dojoOptions]
+        .map((d) => d.name)
+        .sort((a, b) => a.localeCompare(b, "id")),
+    [dojoOptions],
+  );
+
+  const gabunganSelectLabel = isDojoAdmin
+    ? `Gabungan ${gabunganNames.join(", ")}`
+    : "Gabungan (semua ranting)";
+
+  const buildInitialConfig = (selection: string): PrintConfig => {
+    const notaSlug = isGabunganSelection(selection)
+      ? "GABUNGAN"
+      : dojos.find((d) => d.id === selection)?.name ||
+        dojoOptions[0]?.name ||
+        "";
     return {
-      notaNo: buildNotaNumber(dojoName, semester, year),
+      notaNo: buildNotaNumber(notaSlug, semester, year),
       semester: `${semester} / ${year}`,
       rusak: 0,
       hilang: 0,
     };
-  });
+  };
+
+  const [selectedDojoId, setSelectedDojoId] = useState(defaultSelection);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [config, setConfig] = useState<PrintConfig>(() =>
+    buildInitialConfig(defaultSelection),
+  );
 
   useEffect(() => {
     if (!open) return;
-    const dojoName = dojos.find((d) => d.id === defaultDojoId)?.name || dojoOptions[0]?.name || "";
-    setSelectedDojoId(defaultDojoId);
-    setConfig({
-      notaNo: buildNotaNumber(dojoName, semester, year),
-      semester: `${semester} / ${year}`,
-      rusak: 0,
-      hilang: 0,
-    });
-  }, [open, defaultDojoId, dojoOptions, dojos, semester, year]);
+    const selection = resolveDefaultSelection();
+    setSelectedDojoId(selection);
+    setConfig(buildInitialConfig(selection));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset saat modal dibuka
+  }, [open, dojoFilter, dojoOptions, semester, year]);
 
-  const selectedDojoName = dojos.find((d) => d.id === selectedDojoId)?.name || "";
-  const list = useMemo(
-    () => rows.filter((r) => r.dojoName === selectedDojoName),
-    [rows, selectedDojoName],
+  const dojoOptionIds = useMemo(
+    () => new Set(dojoOptions.map((d) => d.id)),
+    [dojoOptions],
   );
+
+  const list = useMemo(() => {
+    if (isGabunganSelection(selectedDojoId)) {
+      return rows.filter((r) => dojoOptionIds.has(r.dojoId));
+    }
+    const selectedDojoName =
+      dojos.find((d) => d.id === selectedDojoId)?.name || "";
+    return rows.filter((r) => r.dojoName === selectedDojoName);
+  }, [rows, selectedDojoId, dojos, dojoOptionIds]);
+
+  const displayDojoName = useMemo(() => {
+    if (isGabunganSelection(selectedDojoId)) {
+      return `GABUNGAN (${gabunganNames.join(", ")})`;
+    }
+    return dojos.find((d) => d.id === selectedDojoId)?.name || "";
+  }, [selectedDojoId, dojos, gabunganNames]);
 
   const counts = useMemo(() => countNotaBeltGroups(list, beltFees), [list, beltFees]);
   const registeredCount = list.length;
 
-  const subtotalA = BELT_FEE_KEYS.reduce((sum, belt) => sum + counts[belt] * beltFees[belt], 0);
+  const subtotalA = BELT_FEE_KEYS.reduce(
+    (sum, belt) => sum + counts[belt] * beltFees[belt],
+    0,
+  );
   const subtotalB = config.rusak * 15000 + config.hilang * 100000;
   const totalC = registeredCount * komisiRanting;
   const grandTotal = subtotalA + subtotalB - totalC;
 
   const handleDojoChange = (dojoId: string) => {
-    const dojoName = dojos.find((d) => d.id === dojoId)?.name || "";
     setSelectedDojoId(dojoId);
+    const notaSlug = isGabunganSelection(dojoId)
+      ? "GABUNGAN"
+      : dojos.find((d) => d.id === dojoId)?.name || "";
     setConfig((prev) => ({
       ...prev,
-      notaNo: buildNotaNumber(dojoName, semester, year),
+      notaNo: buildNotaNumber(notaSlug, semester, year),
     }));
   };
 
@@ -140,7 +196,7 @@ export function UktPrintModal({
   const notaPayload = () => ({
     notaNo: config.notaNo,
     semester: config.semester,
-    dojoName: selectedDojoName,
+    dojoName: displayDojoName,
     periodTitle,
     registeredCount,
     counts,
@@ -162,6 +218,10 @@ export function UktPrintModal({
     bendaharaCabangName: orgProfile?.bendaharaCabangName,
   });
 
+  const pdfFilename = isGabunganSelection(selectedDojoId)
+    ? "nota-ukt-gabungan.pdf"
+    : `nota-ukt-${displayDojoName.replace(/\s+/g, "-").toLowerCase()}.pdf`;
+
   const handlePrint = () => {
     printUktNotaDocument(notaPayload());
   };
@@ -169,10 +229,7 @@ export function UktPrintModal({
   const handleDownloadPdf = async () => {
     setPdfLoading(true);
     try {
-      await downloadUktNotaPdf(
-        notaPayload(),
-        `nota-ukt-${selectedDojoName.replace(/\s+/g, "-").toLowerCase()}.pdf`,
-      );
+      await downloadUktNotaPdf(notaPayload(), pdfFilename);
       showSuccess("PDF nota diunduh");
     } catch {
       showError("Gagal membuat PDF. Coba Print / Save as PDF.");
@@ -216,6 +273,11 @@ export function UktPrintModal({
                   <SelectValue placeholder="Pilih ranting" />
                 </SelectTrigger>
                 <SelectContent>
+                  {showGabunganOption ? (
+                    <SelectItem value={UKT_NOTA_GABUNGAN_ID}>
+                      {gabunganSelectLabel}
+                    </SelectItem>
+                  ) : null}
                   {dojoOptions.map((d) => (
                     <SelectItem key={d.id} value={d.id}>
                       {d.name}
@@ -287,7 +349,7 @@ export function UktPrintModal({
             <div className="mb-6 grid grid-cols-2 gap-2 text-sm">
               <div>Nota No. : {config.notaNo}</div>
               <div>SEMESTER : {config.semester}</div>
-              <div className="col-span-2 font-bold uppercase">RANTING : {selectedDojoName}</div>
+              <div className="col-span-2 font-bold uppercase">RANTING : {displayDojoName}</div>
               <div className="col-span-2">Agenda : {periodTitle}</div>
               <div className="col-span-2">Jumlah Peserta : {registeredCount} anggota</div>
             </div>
