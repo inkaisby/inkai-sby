@@ -42,11 +42,13 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
     ├── Auth (NextAuth + token Inkai)
     ├── UI Publik / Dashboard / Admin
     │
-    ├──► Inkai API (anggota, billing, event, UKT, org)
+    ├──► Inkai API (anggota, billing, event, UKT, org) — **wajib**; sibling `inkai-backend` :5001 saat dev lokal
     ├──► PostgreSQL / Prisma (pengaturan, verifikasi, audit lokal)
     ├──► Vercel Blob (upload dokumen/gambar, opsional)
     └──► Resend (email reset password, opsional)
 ```
+
+**Dev lokal (Fase 1):** Postgres Docker di repo ini (`docker-compose.yml`, host **5433**), `npm run db:local:bootstrap`, schema via `prisma db push`, seed dummy `scripts/seed-local.ts`. Backend **tidak** di repo ini — jalankan sibling `inkai-backend` dengan `DATABASE_URL` sama. Guard `scripts/assert-local-database.ts` mencegah push/seed ke Supabase.
 
 **Environment utama:** `INKAI_API_URL`, `DATABASE_URL`, `AUTH_SECRET` / `NEXTAUTH_SECRET`, `BLOB_READ_WRITE_TOKEN`, `RESEND_API_KEY`, `IMPERSONATION_ENABLED` (opsional; default on kecuali `"false"`), `MIXROUTE_API_KEY` + `AI_BASE_URL` (Tanya INKAI / MixRoute; opsional `TANYA_INKAI_MODEL`; tanpa key → FAQ lokal).
 
@@ -355,6 +357,8 @@ Pusat / Nasional
 | Notifikasi ranting UKT | Aktif | `notifyRanting` saat buat/ubah periode; cron H-3 `/api/cron/ukt-reminders` |
 | Notifikasi UKT | Aktif | Otomatis ke anggota saat daftar, verifikasi bayar, hasil ujian, selesai |
 | Ketergantungan API | Ada | Halaman degrade jika API sibuk/timeout |
+| Dev lokal Docker | Fase 1 | `docker-compose.yml` Postgres :5433; `npm run db:local:*`; guard `assert-local-database`; seed `seed-local.ts`; **backend sibling wajib** `:5001`; verifikasi `/health/db` + `/api/auth/health` |
+| Sync cloud ↔ lokal | Belum ada | Auto-sync **tidak** diimplementasi; dump produksi di luar lingkup; login tetap lewat inkai-backend |
 | Email & Blob | Opsional | Perlu env production |
 | Keamanan P0–P2 | Diperkuat | Pesan IDOR ditutup; verifikasi fail-closed + **assertDojoInScope destinasi transfer**; rate limit Upstash opsional (broadcast/bulk/upload/normalize/**billing/generate**/presence lock-revoke); CSRF admin ketat; password register; audit upload/broadcast/verifikasi; **forbidUnlessAdminPath** carousel/store/materi; document proxy tanpa blanket `*.vercel.app`; security-events (`SECURITY_*` / abuse burst) |
 | Keamanan P1 (ops wiring) | Selesai | `rateLimitResponse(retryAfterSec, key)` fire-and-forget `SECURITY_RATE_LIMIT`+strike bump saat trip (billing/generate, broadcast, members/bulk, upload, normalize, presence lock/revoke); `SECURITY_SCOPE_DENIED` di setiap deny 404/403 out-of-scope (`members/[id]` semua aksi, `billing/[id]` PATCH/DELETE) tanpa bocorkan data; upload admin **magic-byte sniff** (jpeg/png/webp/gif/pdf) menolak mismatch MIME vs header; `check-duplicate` disaring ulang oleh `buildMemberFilter` (anti-IDOR lintas wilayah); prisma-error mentah di billing/generate tidak lagi diteruskan ke klien |
@@ -977,6 +981,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 14 Agustus 2026 | **TTD full-screen + pangkat pejabat/penguji:** pad full viewport (edit TTD lama, landscape, tolak kosong); title DAN/MSH Cabang/Koordinator/penguji + `memberId` + `ttd-titles` live; inventaris §9.3/§13/§15 |
 | 14 Agustus 2026 | **Peta undangan UKT + Latber:** CSP `frame-src` longgar untuk Google Maps (fix iframe kosong); modul `src/lib/venue.ts` (Dispora Jatim koordinat + deteksi lokasi); embed presisi + link arah; inventaris §4/§10/§15 |
 | 14 Agustus 2026 | **Export Kelola Anggota:** dropdown CSV/PDF/Print/WA; `GET /api/admin/members?pageSize=export` (cap 2000); lib `anggota-export.ts`; WA `{n}. NAMA, Sabuk`; PDF/Print roster; inventaris §6/§15 |
+| 14 Agustus 2026 | **Fase 1 dev lokal Docker:** `docker-compose.yml` Postgres :5433; scripts `db:local:*`, `assert-local-database`, `seed-local`; rule Cursor anti-halusinasi; README Windows + backend sibling; inventaris §3/§11/§15 |
 
 ---
 

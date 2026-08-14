@@ -2,7 +2,7 @@
 
 Website aplikasi resmi **Institut Karate-Do Indonesia (INKAI) Cabang Surabaya**.
 
-Terhubung ke **database Supabase PostgreSQL** yang sama dengan `inkai-backend`.
+Production terhubung ke **Supabase PostgreSQL** + **inkai-backend** (`inkai-ecosystem`). Dev lokal bisa full-stack dengan Postgres Docker di repo ini.
 
 ## Fitur
 
@@ -24,29 +24,85 @@ Terhubung ke **database Supabase PostgreSQL** yang sama dengan `inkai-backend`.
 | `ADMIN_DOJO` | Dojo/Ranting (`managedDojoId`) |
 | `MEMBER` | Dashboard anggota |
 
-## Setup Lokal
+## Setup Lokal (Supabase / cloud DB)
 
 ```bash
 npm install
-cp .env.example .env   # isi DATABASE_URL Supabase
+cp .env.example .env   # isi DATABASE_URL Supabase + INKAI_API_URL
 npx prisma generate
 npm run dev
 ```
 
-### Environment Variables
+## Setup Lokal (Docker Postgres — full stack tanpa Supabase)
+
+**Prasyarat:** Docker Desktop running, sibling `inkai-backend` dari repo `inkai-ecosystem`.
+
+### 1. Portal — Postgres Docker
+
+```powershell
+# Salin blok "Lokal Docker" dari .env.example ke .env.local (port 5433, tanpa sslmode)
+npm run db:local:up
+npm run db:local:bootstrap
+npm run dev
+```
+
+Script `db:local:bootstrap` menjalankan guard URL lokal → `prisma db push` → `prisma generate` → seed dummy.
+
+| Script | Fungsi |
+|--------|--------|
+| `npm run db:local:up` | `docker compose up -d` (Postgres :5433) |
+| `npm run db:local:down` | Stop container |
+| `npm run db:local:reset` | Hapus volume + start ulang |
+| `npm run db:local:bootstrap` | Push schema + seed lokal |
+| `npm run db:local:assert` | Cek DATABASE_URL bukan Supabase |
+
+Guard `scripts/assert-local-database.ts` **menolak** `db push`/seed jika `DATABASE_URL` mengandung Supabase atau host bukan `127.0.0.1:5433`.
+
+### 2. Backend sibling (`inkai-backend` :5001)
+
+Di folder sibling (mis. `D:\website\inkai\inkai-backend`):
+
+```powershell
+# .env — DATABASE_URL sama dengan portal (port 5433)
+# DATABASE_URL="postgresql://inkai:inkai@127.0.0.1:5433/inkai_local?schema=public"
+npm install
+npm run dev
+```
+
+### 3. Verifikasi sebelum klaim "lokal jalan"
+
+```text
+GET http://localhost:5001/health/db     → { ok: true }
+GET http://localhost:3000/api/auth/health → { ok: true, database: true }
+```
+
+Login seed (password **`inkai-local`**):
+
+| Email | Role |
+|-------|------|
+| admin@local.inkai | ADMINISTRATOR |
+| cabang@local.inkai | ADMIN_BRANCH |
+| ranting@local.inkai | ADMIN_DOJO |
+| anggota@local.inkai | MEMBER |
+
+**Catatan:** Auto-sync ke cloud **belum ada**. Login wajib inkai-backend lokal; portal saja tidak cukup.
+
+### Environment Variables (lokal Docker)
 
 ```env
-DATABASE_URL=postgresql://...@...pooler.supabase.com:5432/postgres?sslmode=require
-DIRECT_URL=postgresql://...@...pooler.supabase.com:5432/postgres?sslmode=require
-AUTH_SECRET=random-secret-string
+DATABASE_URL=postgresql://inkai:inkai@127.0.0.1:5433/inkai_local?schema=public
+DIRECT_URL=postgresql://inkai:inkai@127.0.0.1:5433/inkai_local?schema=public
+INKAI_API_URL=http://localhost:5001
+NEXT_PUBLIC_INKAI_API_URL=http://localhost:5001
+AUTH_SECRET=dev-local-secret-minimum-32-characters
 NEXTAUTH_URL=http://localhost:3000
 ```
 
 ## Deploy Vercel
 
-Set `DATABASE_URL`, `DIRECT_URL`, dan `AUTH_SECRET` di Vercel Environment Variables (sama dengan inkai-backend).
+Set `DATABASE_URL`, `DIRECT_URL`, `INKAI_API_URL`, dan `AUTH_SECRET` di Vercel Environment Variables.
 
-## Tabel Supabase yang Dipakai
+## Tabel yang Dipakai
 
 - `Province`, `Branch`, `Dojo` — struktur organisasi
 - `User`, `Role`, `Member` — auth & anggota

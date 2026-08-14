@@ -2,6 +2,8 @@
 # inkai-sby — konteks agent
 
 Sebelum mengubah fitur, alur bisnis, RBAC, atau API: baca dulu `LAPORAN-INVENTARIS-SISTEM.md` (living inventaris sistem). Setelah perubahan, update dokumen itu di turn yang sama. Detail wajib ada di `.cursor/rules/laporan-inventaris.mdc`.
+
+Dev lokal & fakta arsitektur: ikuti `.cursor/rules/dev-lokal-dan-fakta-sistem.mdc`; jangan asumsikan offline/sync tanpa bukti di repo.
 <!-- END:inkai-sby-context -->
 
 <!-- BEGIN:nextjs-agent-rules -->

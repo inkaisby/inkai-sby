@@ -1,0 +1,44 @@
+---
+description: Fakta sistem inkai-sby — cegah asumsi offline/sync/API; wajib grep/read sebelum klaim
+alwaysApply: true
+---
+
+# Dev lokal & fakta arsitektur inkai-sby
+
+Agent **tidak boleh mengasumsi** fitur yang belum ada di repo. Verifikasi dengan grep/read sebelum klaim.
+
+## Fakta tetap (jangan dibalik tanpa bukti di repo)
+
+| Klaim | Fakta |
+|-------|--------|
+| Offline / self-host siap pakai | **Tidak otomatis** — butuh `docker-compose.yml` + `npm run db:local:bootstrap` + inkai-backend sibling `:5001` |
+| Auto-sync ke cloud | **Tidak ada** — `/sync/*` backend hanya mobile; portal tidak memakai |
+| inkai-backend di repo ini | **Tidak** — repo terpisah `inkai-ecosystem`, sibling `inkai-backend` |
+| Login tanpa API | **Tidak** — `authorize` di `src/auth.ts` wajib `POST /v1/auth/login` ke inkai-backend |
+| DB lokal port default | **5433** (compose), bukan 5432 |
+| Schema dari nol | **`prisma db push`**, bukan `migrate deploy` (migrasi portal tidak lengkap) |
+| Kata "offline" di inventaris §9 iuran | = bayar **fisik ke ranting**, bukan app tanpa jaringan |
+
+## Sebelum menjawab / merencanakan / mengimplementasi
+
+1. **Grep atau Read** file yang disebut — jangan klaim endpoint/script ada tanpa path.
+2. **Baca inventaris** (grep § + range baris) untuk modul/RBAC/API — jangan dari training data saja.
+3. Jika inventaris ≠ kode → **percayai kode**, perbaiki inventaris di turn yang sama.
+4. Jangan katakan "sudah jalan offline" tanpa bukti: `GET http://localhost:5001/health/db` ok + `GET /api/auth/health` ok + login seed ok.
+5. Jangan rencanakan sync dua arah / dump produksi kecuali user minta eksplisit.
+6. Jangan commit `.env*` / `.playwright-cli/` / skill Claude kecuali diminta.
+
+## Saat topik dev lokal / Docker / DATABASE_URL
+
+- Wajib sebut **inkai-backend sibling** di `:5001` (repo `inkai-ecosystem`).
+- Wajib sebut **guard** `scripts/assert-local-database.ts` — jangan `db push` / seed ke Supabase.
+- Urutan: Docker Desktop → `db:local:up` → `db:local:bootstrap` → backend + portal `.env.local` blok port 5433.
+
+## Akun seed lokal (setelah bootstrap)
+
+| Email | Role | Password |
+|-------|------|----------|
+| admin@local.inkai | ADMINISTRATOR | inkai-local |
+| cabang@local.inkai | ADMIN_BRANCH | inkai-local |
+| ranting@local.inkai | ADMIN_DOJO | inkai-local |
+| anggota@local.inkai | MEMBER | inkai-local |

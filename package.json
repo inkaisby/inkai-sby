@@ -14,7 +14,13 @@
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:pull": "prisma db pull",
-    "db:seed:pengprov-jatim": "tsx scripts/seed-pengprov-jatim.ts"
+    "db:seed:pengprov-jatim": "tsx scripts/seed-pengprov-jatim.ts",
+    "db:local:up": "docker compose up -d",
+    "db:local:down": "docker compose down",
+    "db:local:reset": "docker compose down -v && docker compose up -d",
+    "db:local:assert": "tsx scripts/assert-local-database.ts",
+    "db:local:bootstrap": "tsx scripts/bootstrap-local.ts",
+    "db:local:seed": "tsx scripts/seed-local.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.23",
