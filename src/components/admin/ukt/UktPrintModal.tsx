@@ -11,13 +11,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   BELT_FEE_KEYS,
   buildNotaNumber,
   countNotaBeltGroups,
@@ -32,7 +25,7 @@ import {
 } from "@/lib/ukt-print-html";
 import { showError, showSuccess } from "@/lib/client-toast";
 
-/** Sentinel Select — bukan UUID ranting. */
+/** Sentinel default — pilih semua ranting di modal. */
 export const UKT_NOTA_GABUNGAN_ID = "gabungan";
 
 type Props = {
@@ -43,7 +36,7 @@ type Props = {
   year: number;
   rows: UktMemberRow[];
   dojos: { id: string; name: string }[];
-  /** UUID ranting atau `gabungan` untuk default Select. */
+  /** UUID ranting atau `gabungan` untuk pilihan awal. */
   dojoFilter: string;
   beltFees: Record<BeltFeeKey, number>;
   komisiRanting: number;
@@ -62,8 +55,30 @@ type PrintConfig = {
   hilang: number;
 };
 
-function isGabunganSelection(id: string): boolean {
+function isGabunganFilter(id: string): boolean {
   return id === UKT_NOTA_GABUNGAN_ID;
+}
+
+function resolveNotaSlug(
+  selectedIds: Set<string>,
+  dojoOptions: { id: string; name: string }[],
+): string {
+  if (selectedIds.size === 0) return "";
+  if (selectedIds.size === 1) {
+    const id = [...selectedIds][0];
+    return dojoOptions.find((d) => d.id === id)?.name || "";
+  }
+  return "GABUNGAN";
+}
+
+function resolveSelectedNames(
+  selectedIds: Set<string>,
+  dojoOptions: { id: string; name: string }[],
+): string[] {
+  return dojoOptions
+    .filter((d) => selectedIds.has(d.id))
+    .map((d) => d.name)
+    .sort((a, b) => a.localeCompare(b, "id"));
 }
 
 export function UktPrintModal({
@@ -83,89 +98,71 @@ export function UktPrintModal({
   const dojoOptions = useMemo(() => {
     const names = new Set<string>();
     for (const r of rows) names.add(r.dojoName);
-    const list = dojos.filter((d) => names.has(d.name));
-    if (list.length > 0) return list;
-    if (dojoFilter && !isGabunganSelection(dojoFilter)) {
+    let list = dojos.filter((d) => names.has(d.name));
+    if (list.length > 0) {
+      return list.sort((a, b) => a.name.localeCompare(b.name, "id"));
+    }
+    if (dojoFilter && !isGabunganFilter(dojoFilter)) {
       const match = dojos.find((d) => d.id === dojoFilter);
       if (match) return [match];
     }
-    return dojos;
+    return [...dojos].sort((a, b) => a.name.localeCompare(b.name, "id"));
   }, [rows, dojos, dojoFilter]);
 
-  const showGabunganOption = dojoOptions.length > 1;
+  const lockSingleDojo = dojoOptions.length === 1;
 
-  const resolveDefaultSelection = (): string => {
-    if (showGabunganOption && isGabunganSelection(dojoFilter)) {
-      return UKT_NOTA_GABUNGAN_ID;
+  const resolveDefaultSelectedIds = (): Set<string> => {
+    if (
+      dojoFilter &&
+      !isGabunganFilter(dojoFilter) &&
+      dojoOptions.some((d) => d.id === dojoFilter)
+    ) {
+      return new Set([dojoFilter]);
     }
-    if (dojoFilter && !isGabunganSelection(dojoFilter)) {
-      return dojoFilter;
-    }
-    return dojoOptions[0]?.id || "";
+    return new Set(dojoOptions.map((d) => d.id));
   };
 
-  const defaultSelection = resolveDefaultSelection();
-
-  const gabunganNames = useMemo(
-    () =>
-      [...dojoOptions]
-        .map((d) => d.name)
-        .sort((a, b) => a.localeCompare(b, "id")),
-    [dojoOptions],
-  );
-
-  const gabunganSelectLabel = isDojoAdmin
-    ? `Gabungan ${gabunganNames.join(", ")}`
-    : "Gabungan (semua ranting)";
-
-  const buildInitialConfig = (selection: string): PrintConfig => {
-    const notaSlug = isGabunganSelection(selection)
-      ? "GABUNGAN"
-      : dojos.find((d) => d.id === selection)?.name ||
-        dojoOptions[0]?.name ||
-        "";
+  const buildInitialConfig = (selectedIds: Set<string>): PrintConfig => {
+    const notaSlug = resolveNotaSlug(selectedIds, dojoOptions);
     return {
-      notaNo: buildNotaNumber(notaSlug, semester, year),
+      notaNo: notaSlug ? buildNotaNumber(notaSlug, semester, year) : "",
       semester: `${semester} / ${year}`,
       rusak: 0,
       hilang: 0,
     };
   };
 
-  const [selectedDojoId, setSelectedDojoId] = useState(defaultSelection);
+  const [selectedDojoIds, setSelectedDojoIds] = useState<Set<string>>(
+    () => resolveDefaultSelectedIds(),
+  );
   const [pdfLoading, setPdfLoading] = useState(false);
   const [config, setConfig] = useState<PrintConfig>(() =>
-    buildInitialConfig(defaultSelection),
+    buildInitialConfig(resolveDefaultSelectedIds()),
   );
 
   useEffect(() => {
     if (!open) return;
-    const selection = resolveDefaultSelection();
-    setSelectedDojoId(selection);
-    setConfig(buildInitialConfig(selection));
+    const defaults = resolveDefaultSelectedIds();
+    setSelectedDojoIds(defaults);
+    setConfig(buildInitialConfig(defaults));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset saat modal dibuka
   }, [open, dojoFilter, dojoOptions, semester, year]);
 
-  const dojoOptionIds = useMemo(
-    () => new Set(dojoOptions.map((d) => d.id)),
-    [dojoOptions],
+  const selectedNames = useMemo(
+    () => resolveSelectedNames(selectedDojoIds, dojoOptions),
+    [selectedDojoIds, dojoOptions],
   );
 
-  const list = useMemo(() => {
-    if (isGabunganSelection(selectedDojoId)) {
-      return rows.filter((r) => dojoOptionIds.has(r.dojoId));
-    }
-    const selectedDojoName =
-      dojos.find((d) => d.id === selectedDojoId)?.name || "";
-    return rows.filter((r) => r.dojoName === selectedDojoName);
-  }, [rows, selectedDojoId, dojos, dojoOptionIds]);
-
   const displayDojoName = useMemo(() => {
-    if (isGabunganSelection(selectedDojoId)) {
-      return `GABUNGAN (${gabunganNames.join(", ")})`;
-    }
-    return dojos.find((d) => d.id === selectedDojoId)?.name || "";
-  }, [selectedDojoId, dojos, gabunganNames]);
+    if (selectedNames.length === 0) return "";
+    if (selectedNames.length === 1) return selectedNames[0];
+    return `GABUNGAN (${selectedNames.join(", ")})`;
+  }, [selectedNames]);
+
+  const list = useMemo(
+    () => rows.filter((r) => selectedDojoIds.has(r.dojoId)),
+    [rows, selectedDojoIds],
+  );
 
   const counts = useMemo(() => countNotaBeltGroups(list, beltFees), [list, beltFees]);
   const registeredCount = list.length;
@@ -178,20 +175,46 @@ export function UktPrintModal({
   const totalC = registeredCount * komisiRanting;
   const grandTotal = subtotalA + subtotalB - totalC;
 
-  const handleDojoChange = (dojoId: string) => {
-    setSelectedDojoId(dojoId);
-    const notaSlug = isGabunganSelection(dojoId)
-      ? "GABUNGAN"
-      : dojos.find((d) => d.id === dojoId)?.name || "";
+  const allSelected =
+    dojoOptions.length > 0 && selectedDojoIds.size === dojoOptions.length;
+
+  const canPrint = selectedDojoIds.size > 0 && registeredCount > 0;
+
+  const syncNotaNo = (nextIds: Set<string>) => {
+    const notaSlug = resolveNotaSlug(nextIds, dojoOptions);
+    if (!notaSlug) return;
     setConfig((prev) => ({
       ...prev,
       notaNo: buildNotaNumber(notaSlug, semester, year),
     }));
   };
 
+  const toggleDojo = (id: string) => {
+    if (lockSingleDojo) return;
+    const next = new Set(selectedDojoIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedDojoIds(next);
+    syncNotaNo(next);
+  };
+
+  const toggleAll = () => {
+    if (lockSingleDojo) return;
+    const next = allSelected
+      ? new Set<string>()
+      : new Set(dojoOptions.map((d) => d.id));
+    setSelectedDojoIds(next);
+    syncNotaNo(next);
+  };
+
   const updateConfig = (field: keyof PrintConfig, value: string | number) => {
     setConfig((prev) => ({ ...prev, [field]: value }));
   };
+
+  const pdfFilename =
+    selectedDojoIds.size > 1
+      ? "nota-ukt-gabungan.pdf"
+      : `nota-ukt-${displayDojoName.replace(/\s+/g, "-").toLowerCase()}.pdf`;
 
   const notaPayload = () => ({
     notaNo: config.notaNo,
@@ -218,15 +241,13 @@ export function UktPrintModal({
     bendaharaCabangName: orgProfile?.bendaharaCabangName,
   });
 
-  const pdfFilename = isGabunganSelection(selectedDojoId)
-    ? "nota-ukt-gabungan.pdf"
-    : `nota-ukt-${displayDojoName.replace(/\s+/g, "-").toLowerCase()}.pdf`;
-
   const handlePrint = () => {
+    if (!canPrint) return;
     printUktNotaDocument(notaPayload());
   };
 
   const handleDownloadPdf = async () => {
+    if (!canPrint) return;
     setPdfLoading(true);
     try {
       await downloadUktNotaPdf(notaPayload(), pdfFilename);
@@ -251,12 +272,12 @@ export function UktPrintModal({
                 size="sm"
                 variant="outline"
                 onClick={() => void handleDownloadPdf()}
-                disabled={pdfLoading}
+                disabled={pdfLoading || !canPrint}
               >
                 <Download className="mr-1 h-4 w-4" />
                 {pdfLoading ? "PDF…" : "Unduh PDF"}
               </Button>
-              <Button size="sm" onClick={handlePrint}>
+              <Button size="sm" onClick={handlePrint} disabled={!canPrint}>
                 <Printer className="mr-1 h-4 w-4" />
                 Print
               </Button>
@@ -266,25 +287,47 @@ export function UktPrintModal({
 
         <div className="no-print space-y-4 rounded-lg border p-4">
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="col-span-2">
-              <label className="text-xs text-muted-foreground">Ranting</label>
-              <Select value={selectedDojoId} onValueChange={handleDojoChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih ranting" />
-                </SelectTrigger>
-                <SelectContent>
-                  {showGabunganOption ? (
-                    <SelectItem value={UKT_NOTA_GABUNGAN_ID}>
-                      {gabunganSelectLabel}
-                    </SelectItem>
-                  ) : null}
-                  {dojoOptions.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="col-span-2 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs text-muted-foreground">Ranting</label>
+                {!lockSingleDojo && dojoOptions.length > 0 ? (
+                  <Button type="button" variant="ghost" size="sm" onClick={toggleAll}>
+                    {allSelected ? "Hapus semua" : "Pilih semua"}
+                  </Button>
+                ) : null}
+              </div>
+              <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
+                {dojoOptions.length === 0 ? (
+                  <p className="p-2 text-sm text-muted-foreground">
+                    Belum ada peserta terdaftar.
+                  </p>
+                ) : (
+                  dojoOptions.map((d) => {
+                    const count = rows.filter((r) => r.dojoId === d.id).length;
+                    return (
+                      <label
+                        key={d.id}
+                        className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/60"
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-inkai-red"
+                          checked={selectedDojoIds.has(d.id)}
+                          disabled={lockSingleDojo}
+                          onChange={() => toggleDojo(d.id)}
+                        />
+                        <span className="flex-1">{d.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {count} peserta
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+              {selectedDojoIds.size === 0 ? (
+                <p className="text-xs text-destructive">Pilih minimal satu ranting.</p>
+              ) : null}
             </div>
             <div>
               <label className="text-xs text-muted-foreground">Nota No.</label>
@@ -349,7 +392,7 @@ export function UktPrintModal({
             <div className="mb-6 grid grid-cols-2 gap-2 text-sm">
               <div>Nota No. : {config.notaNo}</div>
               <div>SEMESTER : {config.semester}</div>
-              <div className="col-span-2 font-bold uppercase">RANTING : {displayDojoName}</div>
+              <div className="col-span-2 font-bold uppercase">RANTING : {displayDojoName || "—"}</div>
               <div className="col-span-2">Agenda : {periodTitle}</div>
               <div className="col-span-2">Jumlah Peserta : {registeredCount} anggota</div>
             </div>
