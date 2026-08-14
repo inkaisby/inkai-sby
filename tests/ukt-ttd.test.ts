@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { UKT_HASIL_UJIAN_OFFICERS } from "../src/lib/ukt";
 import {
+  applyLiveUktTtdTitles,
   formatUktOfficerTitle,
   resolveUktTtdOfficers,
 } from "../src/lib/ukt-ttd";
@@ -28,12 +29,15 @@ describe("resolveUktTtdOfficers", () => {
         archived: false,
         locked: false,
         pengdaKetua: "Meta Pengda",
+        ketuaCabangTitle: "DAN 5 INKAI MSH NO. 9",
         pengujiNames: ["Meta 1"],
+        pengujiTitles: ["DAN 3 INKAI MSH NO. 1"],
         pengdaKetuaSignUrl: "https://cdn/meta.png",
       },
       template: {
         pengdaKetua: "Tpl Pengda",
         mshKetua: "Tpl MSH",
+        ketuaCabangTitle: "Tpl Cabang Title",
         pengujiNames: ["Tpl 1", "Tpl 2"],
         pengdaKetuaSignUrl: "https://cdn/tpl.png",
         mshKetuaSignUrl: "https://cdn/msh.png",
@@ -49,8 +53,10 @@ describe("resolveUktTtdOfficers", () => {
     expect(resolved.mshKetua).toBe("Tpl MSH");
     expect(resolved.mshKetuaSignUrl).toBe("https://cdn/msh.png");
     expect(resolved.ketuaCabangName).toBe("Org Ketua");
+    expect(resolved.ketuaCabangTitle).toBe("DAN 5 INKAI MSH NO. 9");
     expect(resolved.bidangUjianName).toBe("Org Bidang");
     expect(resolved.pengujiNames).toEqual(["Meta 1"]);
+    expect(resolved.pengujiTitles).toEqual(["DAN 3 INKAI MSH NO. 1"]);
     expect(resolved.pengujiSignUrls).toEqual([""]);
   });
 
@@ -69,5 +75,30 @@ describe("resolveUktTtdOfficers", () => {
     const bare = resolveUktTtdOfficers({});
     expect(bare.pengdaKetua).toBe(UKT_HASIL_UJIAN_OFFICERS.pengdaKetua);
     expect(bare.bidangUjianName).toBe("SETIA BASUKI");
+  });
+});
+
+describe("applyLiveUktTtdTitles", () => {
+  it("menimpa title bila memberId ada; manual tanpa id tetap", () => {
+    const base = resolveUktTtdOfficers({
+      meta: {
+        archived: false,
+        locked: false,
+        pengdaKetuaMemberId: "m1",
+        pengdaKetuaTitle: "OLD",
+        ketuaCabangTitle: "MANUAL CABANG",
+        pengujiNames: ["A", "B"],
+        pengujiTitles: ["OLD A", "MANUAL B"],
+        pengujiMemberIds: ["m2", ""],
+      },
+    });
+    const next = applyLiveUktTtdTitles(base, [
+      { id: "m1", currentRank: "Hitam (DAN 7)", mshNumber: "2702" },
+      { id: "m2", currentRank: "Hitam (DAN 3)", mshNumber: "99" },
+    ]);
+    expect(next.pengdaKetuaTitle).toBe("DAN 7 INKAI MSH NO. 2702");
+    expect(next.ketuaCabangTitle).toBe("MANUAL CABANG");
+    expect(next.pengujiTitles[0]).toBe("DAN 3 INKAI MSH NO. 99");
+    expect(next.pengujiTitles[1]).toBe("MANUAL B");
   });
 });

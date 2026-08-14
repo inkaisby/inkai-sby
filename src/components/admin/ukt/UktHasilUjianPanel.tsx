@@ -29,6 +29,7 @@ import {
 } from "@/lib/ukt-hasil-ujian-html";
 import { parseApiJson } from "@/lib/api-client";
 import {
+  collectUktTtdMemberIds,
   padPengujiSlots,
   resolveUktTtdOfficers,
   UKT_TTD_DEFAULT_PENGUJI_SLOTS,
@@ -56,18 +57,17 @@ type Props = {
 type Draft = UktTtdResolvedOfficers;
 
 function draftFromResolved(r: UktTtdResolvedOfficers): Draft {
+  const slots = Math.max(UKT_TTD_DEFAULT_PENGUJI_SLOTS, r.pengujiNames.length);
   return {
     ...r,
-    pengujiNames: padPengujiSlots(
-      r.pengujiNames,
-      Math.max(UKT_TTD_DEFAULT_PENGUJI_SLOTS, r.pengujiNames.length),
-    ),
-    pengujiSignUrls: padPengujiSlots(
-      r.pengujiSignUrls,
-      Math.max(UKT_TTD_DEFAULT_PENGUJI_SLOTS, r.pengujiNames.length),
-    ),
+    pengujiNames: padPengujiSlots(r.pengujiNames, slots),
+    pengujiTitles: padPengujiSlots(r.pengujiTitles, slots),
+    pengujiMemberIds: padPengujiSlots(r.pengujiMemberIds, slots),
+    pengujiSignUrls: padPengujiSlots(r.pengujiSignUrls, slots),
   };
 }
+
+const TITLE_PLACEHOLDER = "DAN … INKAI MSH NO. …";
 
 export function UktHasilUjianPanel({
   eventId,
@@ -138,40 +138,94 @@ export function UktHasilUjianPanel({
     [canRecap, rows],
   );
 
-  const persistMeta = async (): Promise<boolean> => {
-    if (!isCabang) return true;
+  const refreshTitlesFromMembers = async (current: Draft): Promise<Draft> => {
+    if (!isCabang) return current;
+    const memberIds = collectUktTtdMemberIds(current);
+    if (memberIds.length === 0) return current;
+    try {
+      const res = await fetch("/api/admin/ukt/ttd-titles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberIds }),
+      });
+      if (!res.ok) return current;
+      const data = await parseApiJson<{ titles?: Record<string, string> }>(res);
+      const titles = data.titles ?? {};
+      const apply = (memberId: string, fallback: string) => {
+        const id = memberId.trim();
+        if (!id) return fallback;
+        return titles[id] || fallback;
+      };
+      return {
+        ...current,
+        pengdaKetuaTitle: apply(
+          current.pengdaKetuaMemberId,
+          current.pengdaKetuaTitle,
+        ),
+        mshKetuaTitle: apply(current.mshKetuaMemberId, current.mshKetuaTitle),
+        ketuaCabangTitle: apply(
+          current.ketuaCabangMemberId,
+          current.ketuaCabangTitle,
+        ),
+        bidangUjianTitle: apply(
+          current.bidangUjianMemberId,
+          current.bidangUjianTitle,
+        ),
+        pengujiTitles: current.pengujiNames.map((_, i) =>
+          apply(current.pengujiMemberIds[i] ?? "", current.pengujiTitles[i] ?? ""),
+        ),
+      };
+    } catch {
+      return current;
+    }
+  };
+
+  const metaBodyFromDraft = (d: Draft) => ({
+    eventId,
+    pengdaKetua: d.pengdaKetua || null,
+    pengdaKetuaTitle: d.pengdaKetuaTitle || null,
+    pengdaKetuaMemberId: d.pengdaKetuaMemberId || null,
+    mshKetua: d.mshKetua || null,
+    mshKetuaTitle: d.mshKetuaTitle || null,
+    mshKetuaMemberId: d.mshKetuaMemberId || null,
+    ketuaCabangName: d.ketuaCabangName || null,
+    ketuaCabangTitle: d.ketuaCabangTitle || null,
+    ketuaCabangMemberId: d.ketuaCabangMemberId || null,
+    bidangUjianName: d.bidangUjianName || null,
+    bidangUjianTitle: d.bidangUjianTitle || null,
+    bidangUjianMemberId: d.bidangUjianMemberId || null,
+    pengujiNames: d.pengujiNames.map((n) => n.trim()).filter(Boolean),
+    pengujiTitles: d.pengujiTitles,
+    pengujiMemberIds: d.pengujiMemberIds,
+    pengdaKetuaSignUrl: d.pengdaKetuaSignUrl || null,
+    mshKetuaSignUrl: d.mshKetuaSignUrl || null,
+    ketuaCabangSignUrl: d.ketuaCabangSignUrl || null,
+    bidangUjianSignUrl: d.bidangUjianSignUrl || null,
+    pengujiSignUrls: d.pengujiSignUrls,
+  });
+
+  const persistMeta = async (source?: Draft): Promise<Draft | null> => {
+    if (!isCabang) return source ?? draft;
     setSaving(true);
     try {
+      let next = source ?? draft;
+      next = await refreshTitlesFromMembers(next);
+      setDraft(next);
       const res = await fetch("/api/admin/ukt/period-meta", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventId,
-          pengdaKetua: draft.pengdaKetua || null,
-          pengdaKetuaTitle: draft.pengdaKetuaTitle || null,
-          mshKetua: draft.mshKetua || null,
-          mshKetuaTitle: draft.mshKetuaTitle || null,
-          ketuaCabangName: draft.ketuaCabangName || null,
-          bidangUjianName: draft.bidangUjianName || null,
-          pengujiNames: draft.pengujiNames.map((n) => n.trim()).filter(Boolean),
-          pengdaKetuaSignUrl: draft.pengdaKetuaSignUrl || null,
-          mshKetuaSignUrl: draft.mshKetuaSignUrl || null,
-          ketuaCabangSignUrl: draft.ketuaCabangSignUrl || null,
-          bidangUjianSignUrl: draft.bidangUjianSignUrl || null,
-          pengujiSignUrls: draft.pengujiSignUrls,
-        }),
+        body: JSON.stringify(metaBodyFromDraft(next)),
       });
       const data = await parseApiJson<{
         error?: string;
         data?: UktPeriodMeta;
-        message?: string;
       }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal menyimpan pejabat TTD");
       if (data.data) onMetaSaved?.(data.data);
-      return true;
+      return next;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal menyimpan");
-      return false;
+      return null;
     } finally {
       setSaving(false);
     }
@@ -180,22 +234,32 @@ export function UktHasilUjianPanel({
   const saveTemplate = async () => {
     setSavingTpl(true);
     try {
+      const refreshed = await refreshTitlesFromMembers(draft);
+      setDraft(refreshed);
       const res = await fetch("/api/admin/ukt/ttd-template", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          pengdaKetua: draft.pengdaKetua || null,
-          pengdaKetuaTitle: draft.pengdaKetuaTitle || null,
-          mshKetua: draft.mshKetua || null,
-          mshKetuaTitle: draft.mshKetuaTitle || null,
-          ketuaCabangName: draft.ketuaCabangName || null,
-          bidangUjianName: draft.bidangUjianName || null,
-          pengujiNames: draft.pengujiNames.map((n) => n.trim()).filter(Boolean),
-          pengdaKetuaSignUrl: draft.pengdaKetuaSignUrl || null,
-          mshKetuaSignUrl: draft.mshKetuaSignUrl || null,
-          ketuaCabangSignUrl: draft.ketuaCabangSignUrl || null,
-          bidangUjianSignUrl: draft.bidangUjianSignUrl || null,
-          pengujiSignUrls: draft.pengujiSignUrls,
+          pengdaKetua: refreshed.pengdaKetua || null,
+          pengdaKetuaTitle: refreshed.pengdaKetuaTitle || null,
+          pengdaKetuaMemberId: refreshed.pengdaKetuaMemberId || null,
+          mshKetua: refreshed.mshKetua || null,
+          mshKetuaTitle: refreshed.mshKetuaTitle || null,
+          mshKetuaMemberId: refreshed.mshKetuaMemberId || null,
+          ketuaCabangName: refreshed.ketuaCabangName || null,
+          ketuaCabangTitle: refreshed.ketuaCabangTitle || null,
+          ketuaCabangMemberId: refreshed.ketuaCabangMemberId || null,
+          bidangUjianName: refreshed.bidangUjianName || null,
+          bidangUjianTitle: refreshed.bidangUjianTitle || null,
+          bidangUjianMemberId: refreshed.bidangUjianMemberId || null,
+          pengujiNames: refreshed.pengujiNames.map((n) => n.trim()).filter(Boolean),
+          pengujiTitles: refreshed.pengujiTitles,
+          pengujiMemberIds: refreshed.pengujiMemberIds,
+          pengdaKetuaSignUrl: refreshed.pengdaKetuaSignUrl || null,
+          mshKetuaSignUrl: refreshed.mshKetuaSignUrl || null,
+          ketuaCabangSignUrl: refreshed.ketuaCabangSignUrl || null,
+          bidangUjianSignUrl: refreshed.bidangUjianSignUrl || null,
+          pengujiSignUrls: refreshed.pengujiSignUrls,
         }),
       });
       const data = await parseApiJson<{
@@ -230,22 +294,25 @@ export function UktHasilUjianPanel({
     return recapRows;
   };
 
-  const payload = (recap: typeof recapRows) => ({
+  const payload = (recap: typeof recapRows, d: Draft) => ({
     semester,
     year,
     examAt: examAt ?? periodMeta?.examAt ?? null,
-    ketuaCabangName: draft.ketuaCabangName,
-    bidangUjianName: draft.bidangUjianName,
-    pengdaKetua: draft.pengdaKetua,
-    pengdaKetuaTitle: draft.pengdaKetuaTitle,
-    mshKetua: draft.mshKetua,
-    mshKetuaTitle: draft.mshKetuaTitle,
-    pengujiNames: draft.pengujiNames.map((n) => n.trim()).filter(Boolean),
-    pengdaKetuaSignUrl: draft.pengdaKetuaSignUrl || null,
-    mshKetuaSignUrl: draft.mshKetuaSignUrl || null,
-    ketuaCabangSignUrl: draft.ketuaCabangSignUrl || null,
-    bidangUjianSignUrl: draft.bidangUjianSignUrl || null,
-    pengujiSignUrls: draft.pengujiSignUrls,
+    ketuaCabangName: d.ketuaCabangName,
+    ketuaCabangTitle: d.ketuaCabangTitle,
+    bidangUjianName: d.bidangUjianName,
+    bidangUjianTitle: d.bidangUjianTitle,
+    pengdaKetua: d.pengdaKetua,
+    pengdaKetuaTitle: d.pengdaKetuaTitle,
+    mshKetua: d.mshKetua,
+    mshKetuaTitle: d.mshKetuaTitle,
+    pengujiNames: d.pengujiNames.map((n) => n.trim()).filter(Boolean),
+    pengujiTitles: d.pengujiTitles,
+    pengdaKetuaSignUrl: d.pengdaKetuaSignUrl || null,
+    mshKetuaSignUrl: d.mshKetuaSignUrl || null,
+    ketuaCabangSignUrl: d.ketuaCabangSignUrl || null,
+    bidangUjianSignUrl: d.bidangUjianSignUrl || null,
+    pengujiSignUrls: d.pengujiSignUrls,
     origin: window.location.origin,
     rows: recap,
   });
@@ -255,11 +322,13 @@ export function UktHasilUjianPanel({
     if (!recap) return;
     setBusy(true);
     try {
-      await persistMeta();
+      const saved = await persistMeta();
+      if (!saved && isCabang) return;
+      const d = saved ?? draft;
       const res = await fetch("/api/admin/ukt/rekap-hasil", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload(recap)),
+        body: JSON.stringify(payload(recap, d)),
       });
       if (!res.ok) {
         const data = await parseApiJson<{ error?: string }>(res);
@@ -289,9 +358,11 @@ export function UktHasilUjianPanel({
     if (!recap) return;
     setBusy(true);
     try {
-      await persistMeta();
+      const saved = await persistMeta();
+      if (!saved && isCabang) return;
+      const d = saved ?? draft;
       await downloadUktHasilUjianPdf(
-        payload(recap),
+        payload(recap, d),
         buildUktHasilUjianFilename(
           semester,
           year,
@@ -310,26 +381,23 @@ export function UktHasilUjianPanel({
   const runPrint = async () => {
     const recap = ensureRecap("print");
     if (!recap) return;
-    await persistMeta();
-    printUktHasilUjianDocument(payload(recap));
+    const saved = await persistMeta();
+    if (!saved && isCabang) return;
+    const d = saved ?? draft;
+    printUktHasilUjianDocument(payload(recap, d));
     toast.success(`${recap.length} peserta siap dicetak`);
   };
 
-  const setPenguji = (idx: number, name: string) => {
-    setDraft((d) => {
-      const pengujiNames = [...d.pengujiNames];
-      pengujiNames[idx] = name;
-      return { ...d, pengujiNames };
-    });
-  };
-
-  const setPengujiSign = (idx: number, url: string | null) => {
-    setDraft((d) => {
-      const pengujiSignUrls = [...d.pengujiSignUrls];
-      while (pengujiSignUrls.length <= idx) pengujiSignUrls.push("");
-      pengujiSignUrls[idx] = url || "";
-      return { ...d, pengujiSignUrls };
-    });
+  const clearMemberOnType = (
+    field: keyof Draft,
+    memberField: keyof Draft,
+    value: string,
+  ) => {
+    setDraft((d) => ({
+      ...d,
+      [field]: value,
+      [memberField]: "",
+    }));
   };
 
   return (
@@ -353,12 +421,15 @@ export function UktHasilUjianPanel({
               <Label>Ketua Umum Pengda</Label>
               <UktTtdMemberPicker
                 value={draft.pengdaKetua}
-                onChange={(v) => setDraft((d) => ({ ...d, pengdaKetua: v }))}
+                onChange={(v) =>
+                  clearMemberOnType("pengdaKetua", "pengdaKetuaMemberId", v)
+                }
                 onPick={(item) =>
                   setDraft((d) => ({
                     ...d,
                     pengdaKetua: item.fullName,
                     pengdaKetuaTitle: item.officerTitle || d.pengdaKetuaTitle,
+                    pengdaKetuaMemberId: item.id,
                   }))
                 }
               />
@@ -368,7 +439,7 @@ export function UktHasilUjianPanel({
                 onChange={(e) =>
                   setDraft((d) => ({ ...d, pengdaKetuaTitle: e.target.value }))
                 }
-                placeholder="DAN … MSH NO. …"
+                placeholder={TITLE_PLACEHOLDER}
               />
               <UktSignaturePad
                 label="Ketua Umum Pengda"
@@ -382,12 +453,15 @@ export function UktHasilUjianPanel({
               <Label>Ketua MSH</Label>
               <UktTtdMemberPicker
                 value={draft.mshKetua}
-                onChange={(v) => setDraft((d) => ({ ...d, mshKetua: v }))}
+                onChange={(v) =>
+                  clearMemberOnType("mshKetua", "mshKetuaMemberId", v)
+                }
                 onPick={(item) =>
                   setDraft((d) => ({
                     ...d,
                     mshKetua: item.fullName,
                     mshKetuaTitle: item.officerTitle || d.mshKetuaTitle,
+                    mshKetuaMemberId: item.id,
                   }))
                 }
               />
@@ -397,7 +471,7 @@ export function UktHasilUjianPanel({
                 onChange={(e) =>
                   setDraft((d) => ({ ...d, mshKetuaTitle: e.target.value }))
                 }
-                placeholder="DAN … MSH NO. …"
+                placeholder={TITLE_PLACEHOLDER}
               />
               <UktSignaturePad
                 label="Ketua MSH"
@@ -412,11 +486,24 @@ export function UktHasilUjianPanel({
               <UktTtdMemberPicker
                 value={draft.ketuaCabangName}
                 onChange={(v) =>
-                  setDraft((d) => ({ ...d, ketuaCabangName: v }))
+                  clearMemberOnType("ketuaCabangName", "ketuaCabangMemberId", v)
                 }
                 onPick={(item) =>
-                  setDraft((d) => ({ ...d, ketuaCabangName: item.fullName }))
+                  setDraft((d) => ({
+                    ...d,
+                    ketuaCabangName: item.fullName,
+                    ketuaCabangTitle: item.officerTitle || d.ketuaCabangTitle,
+                    ketuaCabangMemberId: item.id,
+                  }))
                 }
+              />
+              <Input
+                className="mt-1"
+                value={draft.ketuaCabangTitle}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, ketuaCabangTitle: e.target.value }))
+                }
+                placeholder={TITLE_PLACEHOLDER}
               />
               <UktSignaturePad
                 label="Ketua Cabang"
@@ -431,11 +518,24 @@ export function UktHasilUjianPanel({
               <UktTtdMemberPicker
                 value={draft.bidangUjianName}
                 onChange={(v) =>
-                  setDraft((d) => ({ ...d, bidangUjianName: v }))
+                  clearMemberOnType("bidangUjianName", "bidangUjianMemberId", v)
                 }
                 onPick={(item) =>
-                  setDraft((d) => ({ ...d, bidangUjianName: item.fullName }))
+                  setDraft((d) => ({
+                    ...d,
+                    bidangUjianName: item.fullName,
+                    bidangUjianTitle: item.officerTitle || d.bidangUjianTitle,
+                    bidangUjianMemberId: item.id,
+                  }))
                 }
+              />
+              <Input
+                className="mt-1"
+                value={draft.bidangUjianTitle}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, bidangUjianTitle: e.target.value }))
+                }
+                placeholder={TITLE_PLACEHOLDER}
               />
               <UktSignaturePad
                 label="Koordinator Penguji"
@@ -458,6 +558,8 @@ export function UktHasilUjianPanel({
                   setDraft((d) => ({
                     ...d,
                     pengujiNames: [...d.pengujiNames, ""],
+                    pengujiTitles: [...d.pengujiTitles, ""],
+                    pengujiMemberIds: [...d.pengujiMemberIds, ""],
                     pengujiSignUrls: [...d.pengujiSignUrls, ""],
                   }))
                 }
@@ -477,14 +579,61 @@ export function UktHasilUjianPanel({
                 <div className="space-y-1">
                   <UktTtdMemberPicker
                     value={name}
-                    onChange={(v) => setPenguji(idx, v)}
-                    onPick={(item) => setPenguji(idx, item.fullName)}
+                    onChange={(v) =>
+                      setDraft((d) => {
+                        const pengujiNames = [...d.pengujiNames];
+                        const pengujiMemberIds = [...d.pengujiMemberIds];
+                        pengujiNames[idx] = v;
+                        pengujiMemberIds[idx] = "";
+                        return { ...d, pengujiNames, pengujiMemberIds };
+                      })
+                    }
+                    onPick={(item) =>
+                      setDraft((d) => {
+                        const pengujiNames = [...d.pengujiNames];
+                        const pengujiTitles = [...d.pengujiTitles];
+                        const pengujiMemberIds = [...d.pengujiMemberIds];
+                        while (pengujiTitles.length <= idx) pengujiTitles.push("");
+                        while (pengujiMemberIds.length <= idx)
+                          pengujiMemberIds.push("");
+                        pengujiNames[idx] = item.fullName;
+                        pengujiTitles[idx] =
+                          item.officerTitle || pengujiTitles[idx] || "";
+                        pengujiMemberIds[idx] = item.id;
+                        return {
+                          ...d,
+                          pengujiNames,
+                          pengujiTitles,
+                          pengujiMemberIds,
+                        };
+                      })
+                    }
                     placeholder="Nama penguji"
+                  />
+                  <Input
+                    value={draft.pengujiTitles[idx] ?? ""}
+                    onChange={(e) =>
+                      setDraft((d) => {
+                        const pengujiTitles = [...d.pengujiTitles];
+                        while (pengujiTitles.length <= idx) pengujiTitles.push("");
+                        pengujiTitles[idx] = e.target.value;
+                        return { ...d, pengujiTitles };
+                      })
+                    }
+                    placeholder={TITLE_PLACEHOLDER}
                   />
                   <UktSignaturePad
                     label={`Penguji ${idx + 1}`}
                     valueUrl={draft.pengujiSignUrls[idx]}
-                    onChange={(url) => setPengujiSign(idx, url)}
+                    onChange={(url) =>
+                      setDraft((d) => {
+                        const pengujiSignUrls = [...d.pengujiSignUrls];
+                        while (pengujiSignUrls.length <= idx)
+                          pengujiSignUrls.push("");
+                        pengujiSignUrls[idx] = url || "";
+                        return { ...d, pengujiSignUrls };
+                      })
+                    }
                   />
                 </div>
                 <Button
@@ -497,6 +646,10 @@ export function UktHasilUjianPanel({
                     setDraft((d) => ({
                       ...d,
                       pengujiNames: d.pengujiNames.filter((_, i) => i !== idx),
+                      pengujiTitles: d.pengujiTitles.filter((_, i) => i !== idx),
+                      pengujiMemberIds: d.pengujiMemberIds.filter(
+                        (_, i) => i !== idx,
+                      ),
                       pengujiSignUrls: d.pengujiSignUrls.filter(
                         (_, i) => i !== idx,
                       ),

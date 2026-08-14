@@ -452,20 +452,39 @@ const uktPengujiNamesSchema = z
   .max(20)
   .optional()
   .nullable();
+const uktPengujiTitlesSchema = z
+  .array(z.string().trim().max(120))
+  .max(20)
+  .optional()
+  .nullable();
+const uktPengujiMemberIdsSchema = z
+  .array(z.string().trim().max(64))
+  .max(20)
+  .optional()
+  .nullable();
 const uktPengujiSignUrlsSchema = z
   .array(z.string().trim().max(500))
   .max(20)
   .optional()
   .nullable();
+const uktMemberIdSchema = z.string().trim().max(64).optional().nullable();
 
 export const uktTtdTemplateSchema = z.object({
   pengdaKetua: z.string().trim().max(120).optional().nullable(),
   pengdaKetuaTitle: z.string().trim().max(120).optional().nullable(),
+  pengdaKetuaMemberId: uktMemberIdSchema,
   mshKetua: z.string().trim().max(120).optional().nullable(),
   mshKetuaTitle: z.string().trim().max(120).optional().nullable(),
+  mshKetuaMemberId: uktMemberIdSchema,
   ketuaCabangName: z.string().trim().max(120).optional().nullable(),
+  ketuaCabangTitle: z.string().trim().max(120).optional().nullable(),
+  ketuaCabangMemberId: uktMemberIdSchema,
   bidangUjianName: z.string().trim().max(120).optional().nullable(),
+  bidangUjianTitle: z.string().trim().max(120).optional().nullable(),
+  bidangUjianMemberId: uktMemberIdSchema,
   pengujiNames: uktPengujiNamesSchema,
+  pengujiTitles: uktPengujiTitlesSchema,
+  pengujiMemberIds: uktPengujiMemberIdsSchema,
   pengdaKetuaSignUrl: uktSignUrlSchema,
   mshKetuaSignUrl: uktSignUrlSchema,
   ketuaCabangSignUrl: uktSignUrlSchema,
@@ -503,10 +522,18 @@ export const uktPeriodMetaSchema = z.object({
     .optional(),
   pengdaKetua: z.string().trim().max(120).optional().nullable(),
   pengdaKetuaTitle: z.string().trim().max(120).optional().nullable(),
+  pengdaKetuaMemberId: uktMemberIdSchema,
   mshKetua: z.string().trim().max(120).optional().nullable(),
   mshKetuaTitle: z.string().trim().max(120).optional().nullable(),
+  mshKetuaMemberId: uktMemberIdSchema,
   ketuaCabangName: z.string().trim().max(120).optional().nullable(),
+  ketuaCabangTitle: z.string().trim().max(120).optional().nullable(),
+  ketuaCabangMemberId: uktMemberIdSchema,
+  bidangUjianTitle: z.string().trim().max(120).optional().nullable(),
+  bidangUjianMemberId: uktMemberIdSchema,
   pengujiNames: uktPengujiNamesSchema,
+  pengujiTitles: uktPengujiTitlesSchema,
+  pengujiMemberIds: uktPengujiMemberIdsSchema,
   pengdaKetuaSignUrl: uktSignUrlSchema,
   mshKetuaSignUrl: uktSignUrlSchema,
   ketuaCabangSignUrl: uktSignUrlSchema,
@@ -531,12 +558,15 @@ export const uktHasilUjianRecapSchema = z.object({
   year: z.coerce.number().int().min(2020).max(2100),
   examAt: z.string().trim().max(40).optional().nullable(),
   ketuaCabangName: z.string().trim().max(120).optional().nullable(),
+  ketuaCabangTitle: z.string().trim().max(120).optional().nullable(),
   bidangUjianName: z.string().trim().max(120).optional().nullable(),
+  bidangUjianTitle: z.string().trim().max(120).optional().nullable(),
   pengdaKetua: z.string().trim().max(120).optional().nullable(),
   pengdaKetuaTitle: z.string().trim().max(120).optional().nullable(),
   mshKetua: z.string().trim().max(120).optional().nullable(),
   mshKetuaTitle: z.string().trim().max(120).optional().nullable(),
   pengujiNames: z.array(z.string().trim().max(120)).max(20).optional().nullable(),
+  pengujiTitles: z.array(z.string().trim().max(120)).max(20).optional().nullable(),
   pengdaKetuaSignUrl: z.string().trim().max(500).optional().nullable(),
   mshKetuaSignUrl: z.string().trim().max(500).optional().nullable(),
   ketuaCabangSignUrl: z.string().trim().max(500).optional().nullable(),

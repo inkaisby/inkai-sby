@@ -11,11 +11,19 @@ export const UKT_TTD_MAX_PENGUJI = 20;
 export type UktTtdTemplate = {
   pengdaKetua?: string;
   pengdaKetuaTitle?: string;
+  pengdaKetuaMemberId?: string;
   mshKetua?: string;
   mshKetuaTitle?: string;
+  mshKetuaMemberId?: string;
   ketuaCabangName?: string;
+  ketuaCabangTitle?: string;
+  ketuaCabangMemberId?: string;
   bidangUjianName?: string;
+  bidangUjianTitle?: string;
+  bidangUjianMemberId?: string;
   pengujiNames?: string[];
+  pengujiTitles?: string[];
+  pengujiMemberIds?: string[];
   pengdaKetuaSignUrl?: string;
   mshKetuaSignUrl?: string;
   ketuaCabangSignUrl?: string;
@@ -27,11 +35,19 @@ export type UktTtdTemplate = {
 export type UktTtdResolvedOfficers = {
   pengdaKetua: string;
   pengdaKetuaTitle: string;
+  pengdaKetuaMemberId: string;
   mshKetua: string;
   mshKetuaTitle: string;
+  mshKetuaMemberId: string;
   ketuaCabangName: string;
+  ketuaCabangTitle: string;
+  ketuaCabangMemberId: string;
   bidangUjianName: string;
+  bidangUjianTitle: string;
+  bidangUjianMemberId: string;
   pengujiNames: string[];
+  pengujiTitles: string[];
+  pengujiMemberIds: string[];
   pengdaKetuaSignUrl: string;
   mshKetuaSignUrl: string;
   ketuaCabangSignUrl: string;
@@ -64,20 +80,23 @@ function parseStringList(value: unknown, max = UKT_TTD_MAX_PENGUJI): string[] {
   return out;
 }
 
-function parseUrlList(value: unknown, max = UKT_TTD_MAX_PENGUJI): string[] {
+/** Preserve empty slots (titles / member ids / sign urls aligned to names). */
+function parseAlignedList(value: unknown, max = UKT_TTD_MAX_PENGUJI): string[] {
   if (!Array.isArray(value)) return [];
   const out: string[] = [];
   for (const item of value) {
-    if (typeof item !== "string") continue;
-    const t = item.trim();
-    if (!t) {
+    if (typeof item !== "string") {
       out.push("");
     } else {
-      out.push(t.slice(0, 500));
+      out.push(item.trim().slice(0, 500));
     }
     if (out.length >= max) break;
   }
   return out;
+}
+
+function parseOptString(value: unknown): string | undefined {
+  return typeof value === "string" ? value.trim() || undefined : undefined;
 }
 
 /** Format pangkat pejabat dari sabuk DAN + No. MSH anggota. */
@@ -100,44 +119,26 @@ export function parseUktTtdTemplateValue(value: unknown): UktTtdTemplate {
   if (!value || typeof value !== "object") return {};
   const v = value as Record<string, unknown>;
   return {
-    pengdaKetua:
-      typeof v.pengdaKetua === "string" ? v.pengdaKetua.trim() || undefined : undefined,
-    pengdaKetuaTitle:
-      typeof v.pengdaKetuaTitle === "string"
-        ? v.pengdaKetuaTitle.trim() || undefined
-        : undefined,
-    mshKetua:
-      typeof v.mshKetua === "string" ? v.mshKetua.trim() || undefined : undefined,
-    mshKetuaTitle:
-      typeof v.mshKetuaTitle === "string"
-        ? v.mshKetuaTitle.trim() || undefined
-        : undefined,
-    ketuaCabangName:
-      typeof v.ketuaCabangName === "string"
-        ? v.ketuaCabangName.trim() || undefined
-        : undefined,
-    bidangUjianName:
-      typeof v.bidangUjianName === "string"
-        ? v.bidangUjianName.trim() || undefined
-        : undefined,
+    pengdaKetua: parseOptString(v.pengdaKetua),
+    pengdaKetuaTitle: parseOptString(v.pengdaKetuaTitle),
+    pengdaKetuaMemberId: parseOptString(v.pengdaKetuaMemberId),
+    mshKetua: parseOptString(v.mshKetua),
+    mshKetuaTitle: parseOptString(v.mshKetuaTitle),
+    mshKetuaMemberId: parseOptString(v.mshKetuaMemberId),
+    ketuaCabangName: parseOptString(v.ketuaCabangName),
+    ketuaCabangTitle: parseOptString(v.ketuaCabangTitle),
+    ketuaCabangMemberId: parseOptString(v.ketuaCabangMemberId),
+    bidangUjianName: parseOptString(v.bidangUjianName),
+    bidangUjianTitle: parseOptString(v.bidangUjianTitle),
+    bidangUjianMemberId: parseOptString(v.bidangUjianMemberId),
     pengujiNames: parseStringList(v.pengujiNames),
-    pengdaKetuaSignUrl:
-      typeof v.pengdaKetuaSignUrl === "string"
-        ? v.pengdaKetuaSignUrl.trim() || undefined
-        : undefined,
-    mshKetuaSignUrl:
-      typeof v.mshKetuaSignUrl === "string"
-        ? v.mshKetuaSignUrl.trim() || undefined
-        : undefined,
-    ketuaCabangSignUrl:
-      typeof v.ketuaCabangSignUrl === "string"
-        ? v.ketuaCabangSignUrl.trim() || undefined
-        : undefined,
-    bidangUjianSignUrl:
-      typeof v.bidangUjianSignUrl === "string"
-        ? v.bidangUjianSignUrl.trim() || undefined
-        : undefined,
-    pengujiSignUrls: parseUrlList(v.pengujiSignUrls),
+    pengujiTitles: parseAlignedList(v.pengujiTitles),
+    pengujiMemberIds: parseAlignedList(v.pengujiMemberIds),
+    pengdaKetuaSignUrl: parseOptString(v.pengdaKetuaSignUrl),
+    mshKetuaSignUrl: parseOptString(v.mshKetuaSignUrl),
+    ketuaCabangSignUrl: parseOptString(v.ketuaCabangSignUrl),
+    bidangUjianSignUrl: parseOptString(v.bidangUjianSignUrl),
+    pengujiSignUrls: parseAlignedList(v.pengujiSignUrls),
     updatedAt: typeof v.updatedAt === "string" ? v.updatedAt : undefined,
   };
 }
@@ -173,9 +174,7 @@ export function resolveUktTtdOfficers(
     return [];
   })();
 
-  const pengujiSignUrls = (() => {
-    const fromMeta = meta?.pengujiSignUrls;
-    const fromTpl = tpl?.pengujiSignUrls;
+  const align = (fromMeta?: string[], fromTpl?: string[]) => {
     const source =
       fromMeta && fromMeta.length > 0
         ? fromMeta
@@ -183,7 +182,7 @@ export function resolveUktTtdOfficers(
           ? fromTpl
           : [];
     return pengujiNames.map((_, i) => (source[i] ?? "").trim());
-  })();
+  };
 
   return {
     pengdaKetua: pickFirst(
@@ -197,6 +196,10 @@ export function resolveUktTtdOfficers(
       tpl?.pengdaKetuaTitle,
       UKT_HASIL_UJIAN_OFFICERS.pengdaKetuaTitle,
     ),
+    pengdaKetuaMemberId: pickFirst(
+      meta?.pengdaKetuaMemberId,
+      tpl?.pengdaKetuaMemberId,
+    ),
     mshKetua: pickFirst(
       meta?.mshKetua,
       tpl?.mshKetua,
@@ -207,11 +210,17 @@ export function resolveUktTtdOfficers(
       tpl?.mshKetuaTitle,
       UKT_HASIL_UJIAN_OFFICERS.mshKetuaTitle,
     ),
+    mshKetuaMemberId: pickFirst(meta?.mshKetuaMemberId, tpl?.mshKetuaMemberId),
     ketuaCabangName: pickFirst(
       meta?.ketuaCabangName,
       tpl?.ketuaCabangName,
       ctx.orgKetuaCabangName,
       ctx.strukturKetuaName,
+    ),
+    ketuaCabangTitle: pickFirst(meta?.ketuaCabangTitle, tpl?.ketuaCabangTitle),
+    ketuaCabangMemberId: pickFirst(
+      meta?.ketuaCabangMemberId,
+      tpl?.ketuaCabangMemberId,
     ),
     bidangUjianName: pickFirst(
       meta?.bidangUjianName,
@@ -219,7 +228,14 @@ export function resolveUktTtdOfficers(
       ctx.orgBidangUjianName,
       "SETIA BASUKI",
     ),
+    bidangUjianTitle: pickFirst(meta?.bidangUjianTitle, tpl?.bidangUjianTitle),
+    bidangUjianMemberId: pickFirst(
+      meta?.bidangUjianMemberId,
+      tpl?.bidangUjianMemberId,
+    ),
     pengujiNames,
+    pengujiTitles: align(meta?.pengujiTitles, tpl?.pengujiTitles),
+    pengujiMemberIds: align(meta?.pengujiMemberIds, tpl?.pengujiMemberIds),
     pengdaKetuaSignUrl: pickFirst(
       meta?.pengdaKetuaSignUrl,
       tpl?.pengdaKetuaSignUrl,
@@ -233,7 +249,7 @@ export function resolveUktTtdOfficers(
       meta?.bidangUjianSignUrl,
       tpl?.bidangUjianSignUrl,
     ),
-    pengujiSignUrls,
+    pengujiSignUrls: align(meta?.pengujiSignUrls, tpl?.pengujiSignUrls),
   };
 }
 
@@ -244,4 +260,60 @@ export function padPengujiSlots(
   const out = names.map((n) => n.trim());
   while (out.length < slots) out.push("");
   return out.slice(0, UKT_TTD_MAX_PENGUJI);
+}
+
+export type UktTtdMemberRankRow = {
+  id: string;
+  currentRank: string | null;
+  mshNumber: string | null;
+};
+
+/**
+ * Refresh titles from Member ranks when memberId is set.
+ * Manual titles (no memberId) are left unchanged.
+ */
+export function applyLiveUktTtdTitles<T extends UktTtdResolvedOfficers>(
+  draft: T,
+  members: UktTtdMemberRankRow[],
+): T {
+  const byId = new Map(members.map((m) => [m.id, m]));
+  const titleFor = (memberId: string, fallback: string) => {
+    const id = memberId.trim();
+    if (!id) return fallback;
+    const m = byId.get(id);
+    if (!m) return fallback;
+    return formatUktOfficerTitle(m.currentRank, m.mshNumber) || fallback;
+  };
+
+  const pengujiTitles = draft.pengujiNames.map((_, i) =>
+    titleFor(draft.pengujiMemberIds[i] ?? "", draft.pengujiTitles[i] ?? ""),
+  );
+
+  return {
+    ...draft,
+    pengdaKetuaTitle: titleFor(draft.pengdaKetuaMemberId, draft.pengdaKetuaTitle),
+    mshKetuaTitle: titleFor(draft.mshKetuaMemberId, draft.mshKetuaTitle),
+    ketuaCabangTitle: titleFor(
+      draft.ketuaCabangMemberId,
+      draft.ketuaCabangTitle,
+    ),
+    bidangUjianTitle: titleFor(
+      draft.bidangUjianMemberId,
+      draft.bidangUjianTitle,
+    ),
+    pengujiTitles,
+  };
+}
+
+export function collectUktTtdMemberIds(draft: UktTtdResolvedOfficers): string[] {
+  const ids = [
+    draft.pengdaKetuaMemberId,
+    draft.mshKetuaMemberId,
+    draft.ketuaCabangMemberId,
+    draft.bidangUjianMemberId,
+    ...draft.pengujiMemberIds,
+  ]
+    .map((id) => id.trim())
+    .filter(Boolean);
+  return [...new Set(ids)];
 }

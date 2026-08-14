@@ -19,12 +19,15 @@ export type UktHasilUjianXlsxInput = {
   year: number;
   examAt?: string | null;
   ketuaCabangName?: string | null;
+  ketuaCabangTitle?: string | null;
   bidangUjianName?: string | null;
+  bidangUjianTitle?: string | null;
   pengdaKetua?: string | null;
   pengdaKetuaTitle?: string | null;
   mshKetua?: string | null;
   mshKetuaTitle?: string | null;
   pengujiNames?: string[] | null;
+  pengujiTitles?: string[] | null;
   pengdaKetuaSignUrl?: string | null;
   mshKetuaSignUrl?: string | null;
   ketuaCabangSignUrl?: string | null;
@@ -234,6 +237,8 @@ export async function buildUktHasilUjianXlsxBuffer(
 
   ttd.getCell("C12").value = pengdaTitle;
   ttd.getCell("E12").value = mshTitle;
+  ttd.getCell("G12").value = (input.ketuaCabangTitle || "").trim();
+  ttd.getCell("J12").value = (input.bidangUjianTitle || "").trim();
 
   const signEntries: Array<{ url?: string | null; col: number; row: number }> = [
     { url: input.pengdaKetuaSignUrl, col: 3, row: 9 },
@@ -271,6 +276,7 @@ export async function buildUktHasilUjianXlsxBuffer(
   const pengujiRaw = (input.pengujiNames || [])
     .map((n) => n.trim())
     .filter(Boolean);
+  const pengujiTitleRaw = input.pengujiTitles || [];
   const slotCount = Math.max(
     UKT_TTD_DEFAULT_PENGUJI_SLOTS,
     sabukLines.length,
@@ -288,7 +294,12 @@ export async function buildUktHasilUjianXlsxBuffer(
       ttd.getCell(`A${r}`).font = { bold: true, name: "Calibri", size: 11 };
     }
     const name = pengujiRaw[i] || "";
+    const title = (pengujiTitleRaw[i] || "").trim();
     ttd.getCell(`E${r}`).value = `${i + 1}. ${name}`.trimEnd();
+    if (title) {
+      ttd.getCell(`F${r}`).value = title;
+      ttd.getCell(`F${r}`).font = { name: "Calibri", size: 9 };
+    }
   }
 
   const afterNotes = 17 + slotCount;

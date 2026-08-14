@@ -20,12 +20,15 @@ export type UktHasilUjianPrintData = {
   year: number;
   examAt?: string | null;
   ketuaCabangName?: string | null;
+  ketuaCabangTitle?: string | null;
   bidangUjianName?: string | null;
+  bidangUjianTitle?: string | null;
   pengdaKetua?: string | null;
   pengdaKetuaTitle?: string | null;
   mshKetua?: string | null;
   mshKetuaTitle?: string | null;
   pengujiNames?: string[] | null;
+  pengujiTitles?: string[] | null;
   pengdaKetuaSignUrl?: string | null;
   mshKetuaSignUrl?: string | null;
   ketuaCabangSignUrl?: string | null;
@@ -83,7 +86,9 @@ export function buildUktHasilUjianPrintHtml(data: UktHasilUjianPrintData): strin
   const examLabel = formatUktExamDateLong(data.examAt);
   const placeDate = examLabel ? `Surabaya, ${examLabel}` : "Surabaya,";
   const ketua = (data.ketuaCabangName || "").trim();
+  const ketuaTitle = (data.ketuaCabangTitle || "").trim();
   const bidang = (data.bidangUjianName || "").trim();
+  const bidangTitle = (data.bidangUjianTitle || "").trim();
   const pengda = (data.pengdaKetua || UKT_HASIL_UJIAN_OFFICERS.pengdaKetua).trim();
   const pengdaTitle = (
     data.pengdaKetuaTitle || UKT_HASIL_UJIAN_OFFICERS.pengdaKetuaTitle
@@ -103,14 +108,17 @@ export function buildUktHasilUjianPrintHtml(data: UktHasilUjianPrintData): strin
   const pengujiRaw = (data.pengujiNames || [])
     .map((n) => n.trim())
     .filter(Boolean);
+  const pengujiTitleRaw = data.pengujiTitles || [];
   const slotCount = Math.max(
     UKT_TTD_DEFAULT_PENGUJI_SLOTS,
     sabukLines.length,
     pengujiRaw.length,
   );
   const pengujiSlots: string[] = [];
+  const pengujiTitleSlots: string[] = [];
   for (let i = 0; i < slotCount; i++) {
     pengujiSlots.push(pengujiRaw[i] || "");
+    pengujiTitleSlots.push((pengujiTitleRaw[i] || "").trim());
   }
 
   const headerCells = TABLE_HEADERS.map((label) => `<th>${label}</th>`).join("");
@@ -152,7 +160,11 @@ export function buildUktHasilUjianPrintHtml(data: UktHasilUjianPrintData): strin
           ? `<td class="sabuk-line total-line">= ${total}</td>`
           : `<td class="sabuk-line"></td>`;
     const name = pengujiSlots[i] ?? "";
-    const right = `<td class="penguji">${i + 1}. ${escapeHtml(name)}</td>`;
+    const title = pengujiTitleSlots[i] ?? "";
+    const rightTitle = title
+      ? `<div class="penguji-title">${escapeHtml(title)}</div>`
+      : "";
+    const right = `<td class="penguji">${i + 1}. ${escapeHtml(name)}${rightTitle}</td>`;
     if (sabuk != null || i === sabukLines.length || name || i < UKT_TTD_DEFAULT_PENGUJI_SLOTS) {
       noteRows.push(`<tr>${left}${right}</tr>`);
     }
@@ -272,6 +284,12 @@ export function buildUktHasilUjianPrintHtml(data: UktHasilUjianPrintData): strin
     }
     table.notes td.sabuk-line.total-line { font-weight: 700; }
     table.notes td.penguji { width: 58%; }
+    .penguji-title {
+      font-size: 9px;
+      font-weight: 400;
+      margin-top: 1px;
+      opacity: 0.9;
+    }
     .notes-head { font-weight: 700; padding-top: 8px; }
     .ranting-count { font-weight: 700; margin-top: 12px; }
     .last-nia {
@@ -316,12 +334,14 @@ export function buildUktHasilUjianPrintHtml(data: UktHasilUjianPrintData): strin
         <div class="title">Ketua,</div>
         ${signImgHtml(data.ketuaCabangSignUrl)}
         <div class="name">${escapeHtml(ketua)}</div>
+        <div class="rank">${escapeHtml(ketuaTitle)}</div>
       </div>
       <div class="ttd-col">
         <div>Koordinator Penguji</div>
         <div class="title">&nbsp;</div>
         ${signImgHtml(data.bidangUjianSignUrl)}
         <div class="name">${escapeHtml(bidang)}</div>
+        <div class="rank">${escapeHtml(bidangTitle)}</div>
       </div>
     </div>
     <table class="notes">

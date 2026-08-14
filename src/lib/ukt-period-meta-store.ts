@@ -81,7 +81,15 @@ export type UktPeriodMetaPatch = {
   mshKetua?: string | null;
   mshKetuaTitle?: string | null;
   ketuaCabangName?: string | null;
+  ketuaCabangTitle?: string | null;
+  bidangUjianTitle?: string | null;
+  pengdaKetuaMemberId?: string | null;
+  mshKetuaMemberId?: string | null;
+  ketuaCabangMemberId?: string | null;
+  bidangUjianMemberId?: string | null;
   pengujiNames?: string[] | null;
+  pengujiTitles?: string[] | null;
+  pengujiMemberIds?: string[] | null;
   pengdaKetuaSignUrl?: string | null;
   mshKetuaSignUrl?: string | null;
   ketuaCabangSignUrl?: string | null;
@@ -155,12 +163,40 @@ export function mergeUktPeriodMeta(
   if (patch.ketuaCabangName !== undefined) {
     next.ketuaCabangName = trimOptional(patch.ketuaCabangName);
   }
+  if (patch.ketuaCabangTitle !== undefined) {
+    next.ketuaCabangTitle = trimOptional(patch.ketuaCabangTitle);
+  }
+  if (patch.bidangUjianTitle !== undefined) {
+    next.bidangUjianTitle = trimOptional(patch.bidangUjianTitle);
+  }
+  if (patch.pengdaKetuaMemberId !== undefined) {
+    next.pengdaKetuaMemberId = trimOptional(patch.pengdaKetuaMemberId);
+  }
+  if (patch.mshKetuaMemberId !== undefined) {
+    next.mshKetuaMemberId = trimOptional(patch.mshKetuaMemberId);
+  }
+  if (patch.ketuaCabangMemberId !== undefined) {
+    next.ketuaCabangMemberId = trimOptional(patch.ketuaCabangMemberId);
+  }
+  if (patch.bidangUjianMemberId !== undefined) {
+    next.bidangUjianMemberId = trimOptional(patch.bidangUjianMemberId);
+  }
   if (patch.pengujiNames !== undefined) {
     next.pengujiNames = patch.pengujiNames
       ? patch.pengujiNames
           .map((n) => n.trim())
           .filter(Boolean)
           .slice(0, 20)
+      : undefined;
+  }
+  if (patch.pengujiTitles !== undefined) {
+    next.pengujiTitles = patch.pengujiTitles
+      ? patch.pengujiTitles.map((n) => n.trim()).slice(0, 20)
+      : undefined;
+  }
+  if (patch.pengujiMemberIds !== undefined) {
+    next.pengujiMemberIds = patch.pengujiMemberIds
+      ? patch.pengujiMemberIds.map((n) => n.trim()).slice(0, 20)
       : undefined;
   }
   if (patch.pengdaKetuaSignUrl !== undefined) {

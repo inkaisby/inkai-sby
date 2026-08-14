@@ -103,8 +103,11 @@ describe("buildUktHasilUjianPrintHtml", () => {
       mshKetua: "S YAHRULLAH",
       mshKetuaTitle: "DAN 6 INKAI MSH NO. 245",
       ketuaCabangName: "JONATHAN",
+      ketuaCabangTitle: "DAN 5 INKAI MSH NO. 100",
       bidangUjianName: "SETIA BASUKI",
+      bidangUjianTitle: "DAN 4 INKAI MSH NO. 200",
       pengujiNames: ["Ahmad Penguji", "Budi Penguji"],
+      pengujiTitles: ["DAN 3 INKAI MSH NO. 10", "DAN 2 INKAI MSH NO. 20"],
       pengdaKetuaSignUrl: "https://cdn.example.com/ukt-ttd/pengda.png",
       rows: recap,
     });
@@ -113,9 +116,13 @@ describe("buildUktHasilUjianPrintHtml", () => {
     expect(html).toContain("DAN 7 INKAI MSH NO. 2702");
     expect(html).toContain("S YAHRULLAH");
     expect(html).toContain("JONATHAN");
+    expect(html).toContain("DAN 5 INKAI MSH NO. 100");
+    expect(html).toContain("DAN 4 INKAI MSH NO. 200");
     expect(html).toContain("NAMA-NAMA PENGUJI");
     expect(html).toContain("1. Ahmad Penguji");
+    expect(html).toContain("DAN 3 INKAI MSH NO. 10");
     expect(html).toContain("2. Budi Penguji");
+    expect(html).toContain("DAN 2 INKAI MSH NO. 20");
     expect(html).toMatch(/SABUK KUNING = 2/);
     expect(html).toMatch(/SABUK PUTIH = 0/);
     expect(html).toContain('class="sign-img"');

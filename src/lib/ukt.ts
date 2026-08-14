@@ -811,10 +811,18 @@ export type UktPeriodMeta = {
   /** Lembar TTD Pengda — pejabat + penguji (override per periode). */
   pengdaKetua?: string;
   pengdaKetuaTitle?: string;
+  pengdaKetuaMemberId?: string;
   mshKetua?: string;
   mshKetuaTitle?: string;
+  mshKetuaMemberId?: string;
   ketuaCabangName?: string;
+  ketuaCabangTitle?: string;
+  ketuaCabangMemberId?: string;
+  bidangUjianTitle?: string;
+  bidangUjianMemberId?: string;
   pengujiNames?: string[];
+  pengujiTitles?: string[];
+  pengujiMemberIds?: string[];
   pengdaKetuaSignUrl?: string;
   mshKetuaSignUrl?: string;
   ketuaCabangSignUrl?: string;
@@ -1074,11 +1082,45 @@ export function parseUktPeriodMetaValue(value: unknown): UktPeriodMeta {
       typeof v.ketuaCabangName === "string"
         ? v.ketuaCabangName.trim() || undefined
         : undefined,
+    ketuaCabangTitle:
+      typeof v.ketuaCabangTitle === "string"
+        ? v.ketuaCabangTitle.trim() || undefined
+        : undefined,
+    bidangUjianTitle:
+      typeof v.bidangUjianTitle === "string"
+        ? v.bidangUjianTitle.trim() || undefined
+        : undefined,
+    pengdaKetuaMemberId:
+      typeof v.pengdaKetuaMemberId === "string"
+        ? v.pengdaKetuaMemberId.trim() || undefined
+        : undefined,
+    mshKetuaMemberId:
+      typeof v.mshKetuaMemberId === "string"
+        ? v.mshKetuaMemberId.trim() || undefined
+        : undefined,
+    ketuaCabangMemberId:
+      typeof v.ketuaCabangMemberId === "string"
+        ? v.ketuaCabangMemberId.trim() || undefined
+        : undefined,
+    bidangUjianMemberId:
+      typeof v.bidangUjianMemberId === "string"
+        ? v.bidangUjianMemberId.trim() || undefined
+        : undefined,
     pengujiNames: Array.isArray(v.pengujiNames)
       ? v.pengujiNames
           .filter((n): n is string => typeof n === "string")
           .map((n) => n.trim())
           .filter(Boolean)
+          .slice(0, 20)
+      : undefined,
+    pengujiTitles: Array.isArray(v.pengujiTitles)
+      ? v.pengujiTitles
+          .map((n) => (typeof n === "string" ? n.trim() : ""))
+          .slice(0, 20)
+      : undefined,
+    pengujiMemberIds: Array.isArray(v.pengujiMemberIds)
+      ? v.pengujiMemberIds
+          .map((n) => (typeof n === "string" ? n.trim() : ""))
           .slice(0, 20)
       : undefined,
     pengdaKetuaSignUrl:
