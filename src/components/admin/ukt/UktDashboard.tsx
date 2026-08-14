@@ -158,6 +158,7 @@ import {
   buildUktDepositReconciliation,
   resolveEffectiveUktExamResult,
   resolveUktDisplayStatus,
+  canRantingCancelUkt,
   resolveUktPeriodOfficers,
   summarizeRowEligibility,
   toDateInput,
@@ -308,13 +309,32 @@ function canCancelUktRegistration(row: UktMemberRow): boolean {
   return Boolean(row.registrationId);
 }
 
-/** Cabang & ranting dapat membatalkan termasuk yang sudah lunas. */
+/** Cabang dapat membatalkan termasuk yang sudah lunas (Menunggu Ujian+). */
 function canForceCancelUktRegistration(
   row: UktMemberRow,
   canForcePaid: boolean,
 ): boolean {
   if (!row.registrationId || !canForcePaid) return false;
   return true;
+}
+
+function canShowUktCancelButton(
+  row: UktMemberRow,
+  isDojoAdmin: boolean,
+  isCabang: boolean,
+  canForcePaidCancel: boolean,
+): boolean {
+  if (isDojoAdmin && isUktSelesai(row)) return false;
+  if (isCabang) {
+    return (
+      canCancelUktRegistration(row) ||
+      canForceCancelUktRegistration(row, canForcePaidCancel)
+    );
+  }
+  if (isDojoAdmin) {
+    return canRantingCancelUkt(row);
+  }
+  return false;
 }
 
 function formatRupiah(amount: number | null) {
@@ -449,7 +469,7 @@ export function UktDashboard(props: Props) {
   const isCabang = canEditKyuBaru(props.userRoles);
   const canEditNia = canAssignNia(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
-  const canForcePaidCancel = isCabang || isDojoAdmin;
+  const canForcePaidCancel = isCabang;
   const periodMeta = periodMetaSaved ?? props.periodMeta;
   const periodLocked = Boolean(periodMeta?.locked || periodMeta?.archived);
 
@@ -3274,15 +3294,17 @@ export function UktDashboard(props: Props) {
           <div className="space-y-1 border-t px-3 py-3 text-sm text-muted-foreground">
             <p>
               Aksi ranting: <b>Daftar UKT</b>, <b>Terima</b>/<b>Tolak</b>{" "}
-              (daftar mandiri), <b>Batal UKT</b>, dan <b>Bayar UKT</b>. Cetak
-              nota &amp; laporan WA lewat toolbar (manual).
+              (daftar mandiri), <b>Batal UKT</b> (hanya sebelum{" "}
+              <b>Menunggu Ujian</b>), dan <b>Bayar UKT</b>. Cetak nota &amp;
+              laporan WA lewat toolbar (manual).
             </p>
             <p>
               <b>Terima</b> = terima pendaftaran mandiri + konfirmasi uang,
               lalu teruskan ke cabang. <b>Bayar UKT</b> = ajukan ke cabang (
               <b>Menunggu Verifikasi</b>), bukan lunas. Cabang yang
               memverifikasi pembayaran, lalu mengisi hasil ujian &amp; Kyu
-              Baru.
+              Baru. Setelah <b>Menunggu Ujian</b>, batal/refund hanya lewat
+              cabang.
             </p>
           </div>
         </details>
@@ -3799,13 +3821,12 @@ export function UktDashboard(props: Props) {
                         });
                       }
                       if (
-                        ((canCancelUktRegistration(row) &&
-                          (isDojoAdmin || isCabang)) ||
-                          canForceCancelUktRegistration(
-                            row,
-                            canForcePaidCancel,
-                          )) &&
-                        !(isDojoAdmin && isUktSelesai(row))
+                        canShowUktCancelButton(
+                          row,
+                          isDojoAdmin,
+                          isCabang,
+                          canForcePaidCancel,
+                        )
                       ) {
                         moreItems.push({
                           label: isDojoAdmin ? "Batal UKT" : "Hapus pendaftaran",
@@ -3966,13 +3987,12 @@ export function UktDashboard(props: Props) {
                                 {isMemberPending(row.memberId) ? "…" : "Hapus tagihan"}
                               </Button>
                             )}
-                            {((canCancelUktRegistration(row) &&
-                              (isDojoAdmin || isCabang)) ||
-                              canForceCancelUktRegistration(
-                                row,
-                                canForcePaidCancel,
-                              )) &&
-                            !(isDojoAdmin && isUktSelesai(row)) ? (
+                            {canShowUktCancelButton(
+                              row,
+                              isDojoAdmin,
+                              isCabang,
+                              canForcePaidCancel,
+                            ) ? (
                               <Button
                                 size="sm"
                                 variant="destructive"
@@ -4152,13 +4172,12 @@ export function UktDashboard(props: Props) {
                     </Button>
                   )}
                 {selectedMember.registrationId &&
-                  ((canCancelUktRegistration(selectedMember) &&
-                    (isDojoAdmin || isCabang)) ||
-                    canForceCancelUktRegistration(
-                      selectedMember,
-                      canForcePaidCancel,
-                    )) &&
-                  !(isDojoAdmin && isUktSelesai(selectedMember)) && (
+                  canShowUktCancelButton(
+                    selectedMember,
+                    isDojoAdmin,
+                    isCabang,
+                    canForcePaidCancel,
+                  ) && (
                   <Button
                     variant="destructive"
                     onClick={() =>

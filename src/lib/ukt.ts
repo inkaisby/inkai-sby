@@ -1343,6 +1343,13 @@ export function isUktBillingPaid(
   return st === "PAID" || st === "SUCCESS";
 }
 
+/** Ranting tidak boleh batal setelah cabang verifikasi (Menunggu Ujian+). */
+export function canRantingCancelUkt(
+  row: Pick<UktMemberRow, "registrationId" | "billingStatus" | "status">,
+): boolean {
+  return Boolean(row.registrationId) && !isUktBillingPaid(row);
+}
+
 export function resolveUktDisplayStatus(
   row: UktMemberRow,
   examResult: UktExamResult | null = row.examResult,

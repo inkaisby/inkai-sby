@@ -1464,7 +1464,7 @@ export async function DELETE(request: Request, context: RouteContext) {
   const isCabang = canEditKyuBaru(authResult.user.roles);
   const primaryRole = getPrimaryAdminRole(authResult.user.roles);
   const isDojo = primaryRole === "ADMIN_DOJO";
-  const canForcePaid = isCabang || isDojo;
+  const canForcePaid = isCabang;
   const { id } = await context.params;
   const url = new URL(request.url);
   const billingIdFromClient = url.searchParams.get("billingId")?.trim() || null;
@@ -1689,7 +1689,11 @@ export async function DELETE(request: Request, context: RouteContext) {
 
   if ((forceRequested || sawPaid) && !canForcePaid) {
     return NextResponse.json(
-      { error: "Anda tidak berwenang membatalkan peserta yang tagihannya sudah lunas" },
+      {
+        error: isDojo
+          ? "Setelah Menunggu Ujian, hanya cabang yang dapat membatalkan. Hubungi cabang untuk refund."
+          : "Anda tidak berwenang membatalkan peserta yang tagihannya sudah lunas",
+      },
       { status: 403 },
     );
   }
@@ -1759,7 +1763,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     }
   }
 
-  // Cabang/ranting force: API gagal (blokir lunas) → putuskan di shared DB
+  // Cabang force: API gagal (blokir lunas) → putuskan di shared DB
   let usedDbForce = false;
   if (!regResult.ok && canForcePaid && (looksPaidBlock || forceRequested || sawPaid)) {
     if (billingIds.size > 0) {
