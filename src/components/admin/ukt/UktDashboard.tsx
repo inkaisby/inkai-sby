@@ -23,7 +23,6 @@ import {
   Trash2,
   CalendarClock,
   Download,
-  FileSpreadsheet,
   LayoutList,
   ShieldCheck,
   ClipboardCheck,
@@ -81,17 +80,10 @@ const UktPrintModal = dynamic(
     import("@/components/admin/ukt/UktPrintModal").then((m) => m.UktPrintModal),
   { ssr: false },
 );
-const UktAdminReportModal = dynamic(
+const UktReportsHubModal = dynamic(
   () =>
-    import("@/components/admin/ukt/UktAdminReportModal").then(
-      (m) => m.UktAdminReportModal,
-    ),
-  { ssr: false },
-);
-const UktExportDialog = dynamic(
-  () =>
-    import("@/components/admin/ukt/UktExportDialog").then(
-      (m) => m.UktExportDialog,
+    import("@/components/admin/ukt/UktReportsHubModal").then(
+      (m) => m.UktReportsHubModal,
     ),
   { ssr: false },
 );
@@ -167,11 +159,6 @@ import {
   resolveEffectiveUktExamResult,
   resolveUktDisplayStatus,
   resolveUktPeriodOfficers,
-  hasUktHasilUjianRecap,
-  rowHasUktHasilUjianKyuBaru,
-  buildUktHasilUjianRecapRows,
-  buildUktHasilUjianFilename,
-  collectUktExportDataIssues,
   summarizeRowEligibility,
   toDateInput,
   toTimeInput,
@@ -193,10 +180,6 @@ import {
   type UktRegistrationPolicy,
 } from "@/lib/ukt-registration-policy";
 import { parseApiJson } from "@/lib/api-client";
-import {
-  downloadUktHasilUjianPdf,
-  printUktHasilUjianDocument,
-} from "@/lib/ukt-hasil-ujian-html";
 import { SortableTableHead } from "@/components/ui/SortableTableHead";
 import {
   compareDates,
@@ -205,45 +188,6 @@ import {
   toggleSortKey,
   type SortDir,
 } from "@/lib/table-sort";
-
-function UktHasilUjianRecapMenu({
-  className,
-  loading,
-  onExcel,
-  onPdf,
-  onPrint,
-}: {
-  className: string;
-  loading: boolean;
-  onExcel: () => void;
-  onPdf: () => void;
-  onPrint: () => void;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" disabled={loading} className={className}>
-          <FileSpreadsheet className="mr-1 h-4 w-4" />
-          {loading ? "Menyusun…" : "Rekap Hasil Ujian"}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-44">
-        <DropdownMenuItem onClick={onExcel} disabled={loading}>
-          <FileSpreadsheet className="h-4 w-4" />
-          Excel
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onPdf} disabled={loading}>
-          <Download className="h-4 w-4" />
-          Unduh PDF
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onPrint} disabled={loading}>
-          <Printer className="h-4 w-4" />
-          Print
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
 
 function compareUktRows(
   a: UktMemberRow,
@@ -334,6 +278,9 @@ type Props = {
     bendaharaCabangName?: string;
     ketuaCabangName?: string;
   };
+  /** Prefill TTD dari Organisasi Pengprov / susunan pengurus. */
+  pengprovHeadName?: string | null;
+  strukturKetuaName?: string | null;
   /** Pendaftaran = periode aktif; archive = riwayat/arsip (sidebar). */
   viewMode?: UktAdminViewMode;
   /** Teks lead di atas toolbar (ikut sticky saat scroll). */
@@ -426,7 +373,10 @@ export function UktDashboard(props: Props) {
   const [memberHistory, setMemberHistory] = useState<Record<string, unknown> | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
   const [showPrint, setShowPrint] = useState(false);
-  const [showAdminReport, setShowAdminReport] = useState(false);
+  const [showReportsHub, setShowReportsHub] = useState(false);
+  const [reportsHubTab, setReportsHubTab] = useState<
+    "peserta" | "hasil" | "administrasi" | undefined
+  >(undefined);
   const [showCabangWaPicker, setShowCabangWaPicker] = useState(false);
   const [cabangWaSelectedDojoId, setCabangWaSelectedDojoId] = useState<string | null>(
     null,
@@ -473,9 +423,10 @@ export function UktDashboard(props: Props) {
   const [compactView, setCompactView] = useState(false);
   const [alurOpen, setAlurOpen] = useState(false);
   const [jadwalOpen, setJadwalOpen] = useState(true);
-  const [showExport, setShowExport] = useState(false);
-  const [rekapDownloading, setRekapDownloading] = useState(false);
   const [showExamDay, setShowExamDay] = useState(false);
+  const [periodMetaSaved, setPeriodMetaSaved] = useState<UktPeriodMeta | null>(
+    null,
+  );
   const [dojoGroups, setDojoGroups] = useState<UktDojoFilterGroup[]>(
     () => props.dojoGroups ?? [],
   );
@@ -499,7 +450,8 @@ export function UktDashboard(props: Props) {
   const canEditNia = canAssignNia(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
   const canForcePaidCancel = isCabang || isDojoAdmin;
-  const periodLocked = Boolean(props.periodMeta?.locked || props.periodMeta?.archived);
+  const periodMeta = periodMetaSaved ?? props.periodMeta;
+  const periodLocked = Boolean(periodMeta?.locked || periodMeta?.archived);
 
   // Filter gabungan multi-ranting: lazy di luar critical path SSR.
   useEffect(() => {
@@ -522,7 +474,7 @@ export function UktDashboard(props: Props) {
   }, [isDojoAdmin, props.dojoGroups]);
 
   const [depositMap, setDepositMap] = useState(props.depositMap ?? {});
-  const periodOfficers = resolveUktPeriodOfficers(props.periodMeta, props.orgProfile);
+  const periodOfficers = resolveUktPeriodOfficers(periodMeta, props.orgProfile);
   const [tableRefreshing, setTableRefreshing] = useState(false);
   const cancelRow = useMemo(
     () =>
@@ -543,13 +495,14 @@ export function UktDashboard(props: Props) {
 
   useEffect(() => {
     setPengprovBeltFeesLocal(null);
+    setPeriodMetaSaved(null);
   }, [props.selectedPeriodId]);
 
   const selectedPeriod = props.periods.find((p) => p.id === props.selectedPeriodId);
   const periodSchedule = selectedPeriod
     ? {
         ...selectedPeriod,
-        registrationOpenAt: props.periodMeta?.registrationOpenAt ?? null,
+        registrationOpenAt: periodMeta?.registrationOpenAt ?? null,
       }
     : null;
   const registrationOpen = periodSchedule ? isUktRegistrationOpen(periodSchedule) : true;
@@ -1222,126 +1175,21 @@ export function UktDashboard(props: Props) {
     }
   };
 
+  const openReportsHub = (tab?: "peserta" | "hasil" | "administrasi") => {
+    if (!props.selectedPeriodId) {
+      toast.error("Pilih periode UKT terlebih dahulu");
+      return;
+    }
+    setReportsHubTab(tab);
+    setShowReportsHub(true);
+  };
+
   const openExportDialog = () => {
     if (!rows.some((r) => r.registrationId)) {
       toast.error("Tidak ada peserta terdaftar untuk diekspor");
       return;
     }
-    setShowExport(true);
-  };
-
-  const canShowHasilUjianRecap =
-    Boolean(props.selectedPeriodId) &&
-    (isCabang || isDojoAdmin) &&
-    hasUktHasilUjianRecap(rows);
-
-  const ensureHasilUjianRecapRows = (mode: "excel" | "pdf" | "print") => {
-    if (!canShowHasilUjianRecap || (mode !== "print" && rekapDownloading)) {
-      return null;
-    }
-    const recapRows = buildUktHasilUjianRecapRows(rows);
-    if (recapRows.length === 0) {
-      toast.error("Belum ada peserta dengan Kyu Baru untuk direkap");
-      return null;
-    }
-    const issues = collectUktExportDataIssues(
-      rows.filter(rowHasUktHasilUjianKyuBaru),
-    );
-    if (issues.length > 0) {
-      toast.message(
-        mode === "print"
-          ? `${issues.length} peserta punya data kurang (NIA/TTL/alamat/JK) — cek pratinjau`
-          : `${issues.length} peserta punya data kurang (NIA/TTL/alamat/JK) — tetap diunduh`,
-      );
-    }
-    return recapRows;
-  };
-
-  const recapHasilUjianPayload = (
-    recapRows: ReturnType<typeof buildUktHasilUjianRecapRows>,
-  ) => ({
-    semester: props.semester,
-    year: props.year,
-    examAt: props.periodMeta?.examAt ?? null,
-    ketuaCabangName: props.orgProfile?.ketuaCabangName ?? "",
-    bidangUjianName: periodOfficers.bidangUjianName,
-    origin: window.location.origin,
-    rows: recapRows,
-  });
-
-  const handleDownloadHasilUjianExcel = async () => {
-    const recapRows = ensureHasilUjianRecapRows("excel");
-    if (!recapRows) return;
-    setRekapDownloading(true);
-    try {
-      const res = await fetch("/api/admin/ukt/rekap-hasil", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          semester: props.semester,
-          year: props.year,
-          examAt: props.periodMeta?.examAt ?? null,
-          ketuaCabangName: props.orgProfile?.ketuaCabangName ?? "",
-          bidangUjianName: periodOfficers.bidangUjianName,
-          rows: recapRows,
-        }),
-      });
-      if (!res.ok) {
-        const data = await parseApiJson<{ error?: string }>(res);
-        throw new Error(data.error || "Gagal membuat rekap Excel");
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = buildUktHasilUjianFilename(
-        props.semester,
-        props.year,
-        props.periodMeta?.examAt,
-      );
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success(`${recapRows.length} peserta direkap ke Excel`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal mengunduh rekap");
-    } finally {
-      setRekapDownloading(false);
-    }
-  };
-
-  const handleDownloadHasilUjianPdf = async () => {
-    const recapRows = ensureHasilUjianRecapRows("pdf");
-    if (!recapRows) return;
-    setRekapDownloading(true);
-    try {
-      await downloadUktHasilUjianPdf(
-        recapHasilUjianPayload(recapRows),
-        buildUktHasilUjianFilename(
-          props.semester,
-          props.year,
-          props.periodMeta?.examAt,
-          "pdf",
-        ),
-      );
-      toast.success(`${recapRows.length} peserta diunduh sebagai PDF`);
-    } catch (e) {
-      toast.error(
-        e instanceof Error
-          ? e.message
-          : "Gagal membuat PDF. Coba Print / Save as PDF.",
-      );
-    } finally {
-      setRekapDownloading(false);
-    }
-  };
-
-  const handlePrintHasilUjian = () => {
-    const recapRows = ensureHasilUjianRecapRows("print");
-    if (!recapRows) return;
-    printUktHasilUjianDocument(recapHasilUjianPayload(recapRows));
-    toast.success(
-      `${recapRows.length} peserta siap — di dialog cetak pilih printer atau Save as PDF`,
-    );
+    openReportsHub("peserta");
   };
 
   const handlePeriodArchive = async (archived: boolean) => {
@@ -2230,7 +2078,7 @@ export function UktDashboard(props: Props) {
 
     // Hitung countdown sekali saat tombol diklik
     let examCountdownLine: string | null = null;
-    const examAt = props.periodMeta?.examAt;
+    const examAt = periodMeta?.examAt;
     if (examAt) {
       const diffMs = new Date(examAt).getTime() - Date.now();
       if (diffMs > 0) {
@@ -2541,21 +2389,12 @@ export function UktDashboard(props: Props) {
               <>
                 <Button
                   variant="outline"
-                  onClick={openExportDialog}
+                  onClick={() => openReportsHub()}
                   className={periodActionBtn}
                 >
-                  <Download className="mr-1 h-4 w-4" />
-                  Export
+                  <FileText className="mr-1 h-4 w-4" />
+                  Laporan
                 </Button>
-                {canShowHasilUjianRecap ? (
-                  <UktHasilUjianRecapMenu
-                    className={periodActionBtn}
-                    loading={rekapDownloading}
-                    onExcel={() => void handleDownloadHasilUjianExcel()}
-                    onPdf={() => void handleDownloadHasilUjianPdf()}
-                    onPrint={handlePrintHasilUjian}
-                  />
-                ) : null}
                 <Button
                   variant="outline"
                   onClick={buildWaReport}
@@ -2592,16 +2431,6 @@ export function UktDashboard(props: Props) {
                   <Printer className="mr-1 h-4 w-4" />
                   Cetak Nota
                 </Button>
-                {props.selectedPeriodId && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowAdminReport(true)}
-                    className={periodActionBtn}
-                  >
-                    <FileText className="mr-1 h-4 w-4" />
-                    Buat Laporan UKT
-                  </Button>
-                )}
                 {(viewMode === "registration" || Boolean(props.selectedPeriodId)) && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -2667,15 +2496,14 @@ export function UktDashboard(props: Props) {
             )}
             {isDojoAdmin && props.selectedPeriodId && (
               <>
-                {canShowHasilUjianRecap ? (
-                  <UktHasilUjianRecapMenu
-                    className={periodActionBtn}
-                    loading={rekapDownloading}
-                    onExcel={() => void handleDownloadHasilUjianExcel()}
-                    onPdf={() => void handleDownloadHasilUjianPdf()}
-                    onPrint={handlePrintHasilUjian}
-                  />
-                ) : null}
+                <Button
+                  variant="outline"
+                  onClick={() => openReportsHub()}
+                  className={periodActionBtn}
+                >
+                  <FileText className="mr-1 h-4 w-4" />
+                  Laporan
+                </Button>
                 <Button
                   variant="outline"
                   onClick={buildWaReport}
@@ -2863,17 +2691,17 @@ export function UktDashboard(props: Props) {
                     : "—"}
                 </p>
               </div>
-              {(props.periodMeta?.examAt || props.periodMeta?.examLocation) && (
+              {(periodMeta?.examAt || periodMeta?.examLocation) && (
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Ujian</p>
                   <p className="text-base font-semibold tracking-tight text-foreground">
-                    {props.periodMeta?.examAt
-                      ? formatUktRegistrationDeadline(props.periodMeta.examAt)
+                    {periodMeta?.examAt
+                      ? formatUktRegistrationDeadline(periodMeta.examAt)
                       : "—"}
                   </p>
-                  {props.periodMeta?.examLocation ? (
+                  {periodMeta?.examLocation ? (
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                      {props.periodMeta.examLocation}
+                      {periodMeta.examLocation}
                     </p>
                   ) : null}
                 </div>
@@ -3015,7 +2843,7 @@ export function UktDashboard(props: Props) {
               <Archive className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
                 <p className="font-medium">
-                  Periode {props.periodMeta?.archived ? "diarsipkan" : "dikunci"}
+                  Periode {periodMeta?.archived ? "diarsipkan" : "dikunci"}
                 </p>
                 <p className="text-muted-foreground">
                   Pendaftaran, verifikasi, dan perubahan hasil dibatasi. Export & laporan tetap
@@ -4568,43 +4396,42 @@ export function UktDashboard(props: Props) {
         />
       ) : null}
 
-      {showAdminReport && props.selectedPeriodId ? (
-        <UktAdminReportModal
-          open={showAdminReport}
-          onClose={() => setShowAdminReport(false)}
+      {showReportsHub && props.selectedPeriodId ? (
+        <UktReportsHubModal
+          open={showReportsHub}
+          onOpenChange={setShowReportsHub}
+          defaultTab={reportsHubTab}
           eventId={props.selectedPeriodId}
           semester={props.semester}
           year={props.year}
-          rows={rows.filter((r) => r.registrationId && isUktBillingPaid(r))}
-          notaBeltFees={beltFees}
+          rows={rows}
+          dojos={props.dojos}
           periodMeta={
             pengprovBeltFeesLocal
               ? {
-                  archived: Boolean(props.periodMeta?.archived),
-                  locked: Boolean(props.periodMeta?.locked),
-                  ...props.periodMeta,
+                  archived: Boolean(periodMeta?.archived),
+                  locked: Boolean(periodMeta?.locked),
+                  ...periodMeta,
                   pengprovBeltFees: pengprovBeltFeesLocal,
                 }
-              : props.periodMeta
+              : periodMeta
           }
-          examAt={props.periodMeta?.examAt ?? selectedPeriod?.startDate}
-          examLocation={props.periodMeta?.examLocation}
-          sekretariatAddress={props.orgProfile?.address}
-          onPengprovFeesSaved={setPengprovBeltFeesLocal}
-        />
-      ) : null}
-
-      {showExport ? (
-        <UktExportDialog
-          open={showExport}
-          onOpenChange={setShowExport}
-          rows={rows}
-          dojos={props.dojos}
-          semester={props.semester}
-          year={props.year}
+          isCabang={isCabang}
+          isDojoAdmin={isDojoAdmin}
+          lockDojoId={isDojoAdmin ? effectiveDojo || undefined : undefined}
           initialDojoId={effectiveDojo || undefined}
-          bidangUjianName={props.orgProfile?.bidangUjianName}
+          notaBeltFees={beltFees}
+          examAt={periodMeta?.examAt ?? selectedPeriod?.startDate}
+          examLocation={periodMeta?.examLocation}
           sekretariatAddress={props.orgProfile?.address}
+          bidangUjianName={
+            periodOfficers.bidangUjianName || props.orgProfile?.bidangUjianName
+          }
+          orgKetuaCabangName={props.orgProfile?.ketuaCabangName}
+          strukturKetuaName={props.strukturKetuaName}
+          pengprovHeadName={props.pengprovHeadName}
+          onPengprovFeesSaved={setPengprovBeltFeesLocal}
+          onPeriodMetaSaved={setPeriodMetaSaved}
         />
       ) : null}
 

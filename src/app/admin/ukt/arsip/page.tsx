@@ -17,6 +17,7 @@ import {
 import { fetchUktDashboardData } from "@/lib/inkai-api/admin-data";
 import { getBranchOrgProfile } from "@/lib/org-settings";
 import { getUktRegistrationPolicy } from "@/lib/ukt-registration-policy";
+import { loadUktTtdOrgHints } from "@/lib/ukt-ttd-org";
 import { requireAdminSession } from "@/lib/admin-session";
 import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
@@ -142,9 +143,11 @@ async function UktArsipDashboardSection({
   let registrationPolicy: Awaited<
     ReturnType<typeof getUktRegistrationPolicy>
   > | null = null;
+  let pengprovHeadName: string | null = null;
+  let strukturKetuaName: string | null = null;
 
   try {
-    const [profile, policy, data] = await Promise.all([
+    const [profile, policy, data, ttdHints] = await Promise.all([
       getBranchOrgProfile(),
       getUktRegistrationPolicy(),
       fetchUktDashboardData(token, user, {
@@ -153,9 +156,12 @@ async function UktArsipDashboardSection({
         year,
         viewMode: "archive",
       }),
+      loadUktTtdOrgHints(),
     ]);
     orgProfile = profile;
     registrationPolicy = policy;
+    pengprovHeadName = ttdHints.pengprovHeadName;
+    strukturKetuaName = ttdHints.strukturKetuaName;
     periods = data.periods;
     dojos = data.dojos;
     selectedPeriodId = data.selectedPeriodId;
@@ -239,6 +245,8 @@ async function UktArsipDashboardSection({
         bendaharaCabangName: orgProfile?.bendaharaCabangName,
         ketuaCabangName: orgProfile?.ketuaCabangName,
       }}
+      pengprovHeadName={pengprovHeadName}
+      strukturKetuaName={strukturKetuaName}
     />
   );
 }

@@ -12,6 +12,7 @@ import {
   type UktHasilUjianRecapRow,
   type UktSemester,
 } from "@/lib/ukt";
+import { UKT_TTD_DEFAULT_PENGUJI_SLOTS } from "@/lib/ukt-ttd";
 
 export type UktHasilUjianXlsxInput = {
   semester: UktSemester;
@@ -19,6 +20,16 @@ export type UktHasilUjianXlsxInput = {
   examAt?: string | null;
   ketuaCabangName?: string | null;
   bidangUjianName?: string | null;
+  pengdaKetua?: string | null;
+  pengdaKetuaTitle?: string | null;
+  mshKetua?: string | null;
+  mshKetuaTitle?: string | null;
+  pengujiNames?: string[] | null;
+  pengdaKetuaSignUrl?: string | null;
+  mshKetuaSignUrl?: string | null;
+  ketuaCabangSignUrl?: string | null;
+  bidangUjianSignUrl?: string | null;
+  pengujiSignUrls?: string[] | null;
   rows: UktHasilUjianRecapRow[];
 };
 
@@ -42,6 +53,21 @@ function applyHeaderCell(cell: ExcelJS.Cell) {
     fgColor: { argb: "FFD9E1F2" },
   };
   cell.border = THIN;
+}
+
+async function fetchImageBuffer(
+  url: string | null | undefined,
+): Promise<Buffer | null> {
+  const src = (url || "").trim();
+  if (!src || !/^https?:\/\//i.test(src)) return null;
+  try {
+    const res = await fetch(src);
+    if (!res.ok) return null;
+    const ab = await res.arrayBuffer();
+    return Buffer.from(ab);
+  } catch {
+    return null;
+  }
 }
 
 export async function buildUktHasilUjianXlsxBuffer(
@@ -188,17 +214,42 @@ export async function buildUktHasilUjianXlsxBuffer(
   ttd.getCell("E7").value = "Ketua,";
   ttd.getCell("G7").value = "Ketua,";
 
-  ttd.getCell("C11").value = UKT_HASIL_UJIAN_OFFICERS.pengdaKetua;
+  const pengda = (input.pengdaKetua || UKT_HASIL_UJIAN_OFFICERS.pengdaKetua).trim();
+  const pengdaTitle = (
+    input.pengdaKetuaTitle || UKT_HASIL_UJIAN_OFFICERS.pengdaKetuaTitle
+  ).trim();
+  const msh = (input.mshKetua || UKT_HASIL_UJIAN_OFFICERS.mshKetua).trim();
+  const mshTitle = (
+    input.mshKetuaTitle || UKT_HASIL_UJIAN_OFFICERS.mshKetuaTitle
+  ).trim();
+
+  ttd.getCell("C11").value = pengda;
   ttd.getCell("C11").font = { bold: true, underline: true };
-  ttd.getCell("E11").value = UKT_HASIL_UJIAN_OFFICERS.mshKetua;
+  ttd.getCell("E11").value = msh;
   ttd.getCell("E11").font = { bold: true, underline: true };
   ttd.getCell("G11").value = (input.ketuaCabangName || "").trim();
   ttd.getCell("G11").font = { bold: true, underline: true };
   ttd.getCell("J11").value = (input.bidangUjianName || "").trim();
   ttd.getCell("J11").font = { bold: true, underline: true };
 
-  ttd.getCell("C12").value = UKT_HASIL_UJIAN_OFFICERS.pengdaKetuaTitle;
-  ttd.getCell("E12").value = UKT_HASIL_UJIAN_OFFICERS.mshKetuaTitle;
+  ttd.getCell("C12").value = pengdaTitle;
+  ttd.getCell("E12").value = mshTitle;
+
+  const signEntries: Array<{ url?: string | null; col: number; row: number }> = [
+    { url: input.pengdaKetuaSignUrl, col: 3, row: 9 },
+    { url: input.mshKetuaSignUrl, col: 5, row: 9 },
+    { url: input.ketuaCabangSignUrl, col: 7, row: 9 },
+    { url: input.bidangUjianSignUrl, col: 10, row: 9 },
+  ];
+  for (const entry of signEntries) {
+    const buf = await fetchImageBuffer(entry.url);
+    if (!buf) continue;
+    const imgId = wb.addImage({ buffer: buf, extension: "png" });
+    ttd.addImage(imgId, {
+      tl: { col: entry.col - 1, row: entry.row - 1 },
+      ext: { width: 100, height: 36 },
+    });
+  }
 
   const counts = countUktHasilUjianSabuk(input.rows);
   const total = input.rows.length;
@@ -213,27 +264,39 @@ export async function buildUktHasilUjianXlsxBuffer(
   const sabukLines = UKT_HASIL_UJIAN_SABUK_ORDER.filter(
     (sabuk) => sabuk !== "HITAM" || counts.HITAM > 0,
   );
-  sabukLines.forEach((sabuk, idx) => {
-    const r = 17 + idx;
-    ttd.getCell(`A${r}`).value = `SABUK ${sabuk}`;
-    ttd.getCell(`C${r}`).value = "=";
-    ttd.getCell(`D${r}`).value = counts[sabuk];
-    ttd.getCell(`E${r}`).value = `${idx + 1}.`;
-  });
-  const totalRow = 17 + sabukLines.length;
-  ttd.getCell(`C${totalRow}`).value = "=";
-  ttd.getCell(`D${totalRow}`).value = total;
-  ttd.getCell(`D${totalRow}`).font = { bold: true };
+  const pengujiRaw = (input.pengujiNames || [])
+    .map((n) => n.trim())
+    .filter(Boolean);
+  const slotCount = Math.max(
+    UKT_TTD_DEFAULT_PENGUJI_SLOTS,
+    sabukLines.length,
+    pengujiRaw.length,
+  );
 
-  ttd.getCell(`A${totalRow + 2}`).value =
+  for (let i = 0; i < slotCount; i++) {
+    const r = 17 + i;
+    const sabuk = sabukLines[i];
+    if (sabuk != null) {
+      ttd.getCell(`A${r}`).value = `SABUK ${sabuk} = ${counts[sabuk]}`;
+      ttd.getCell(`A${r}`).font = { bold: true, name: "Calibri", size: 11 };
+    } else if (i === sabukLines.length) {
+      ttd.getCell(`A${r}`).value = `= ${total}`;
+      ttd.getCell(`A${r}`).font = { bold: true, name: "Calibri", size: 11 };
+    }
+    const name = pengujiRaw[i] || "";
+    ttd.getCell(`E${r}`).value = `${i + 1}. ${name}`.trimEnd();
+  }
+
+  const afterNotes = 17 + slotCount;
+  ttd.getCell(`A${afterNotes + 1}`).value =
     `JUMLAH RANTING YANG IKUT UJIAN : ${rantingCount} RANTING`;
-  ttd.getCell(`A${totalRow + 2}`).font = { bold: true };
+  ttd.getCell(`A${afterNotes + 1}`).font = { bold: true };
 
-  ttd.getCell(`C${totalRow + 5}`).value = lastNia;
-  ttd.getCell(`D${totalRow + 5}`).value = "NIA TERAKHIR";
-  ttd.getCell(`D${totalRow + 5}`).font = { bold: true };
+  ttd.getCell(`C${afterNotes + 4}`).value = lastNia;
+  ttd.getCell(`D${afterNotes + 4}`).value = "NIA TERAKHIR";
+  ttd.getCell(`D${afterNotes + 4}`).font = { bold: true };
 
-  for (const cell of ttd.getRows(5, 20) ?? []) {
+  for (const cell of ttd.getRows(5, 30) ?? []) {
     cell.eachCell((c) => {
       if (!c.font?.name) c.font = { ...(c.font || {}), name: "Calibri", size: 11 };
     });

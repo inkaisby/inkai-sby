@@ -808,6 +808,18 @@ export type UktPeriodMeta = {
   /** Pejabat dokumen untuk periode ini (fallback ke kebijakan cabang). */
   bidangUjianName?: string;
   bendaharaCabangName?: string;
+  /** Lembar TTD Pengda — pejabat + penguji (override per periode). */
+  pengdaKetua?: string;
+  pengdaKetuaTitle?: string;
+  mshKetua?: string;
+  mshKetuaTitle?: string;
+  ketuaCabangName?: string;
+  pengujiNames?: string[];
+  pengdaKetuaSignUrl?: string;
+  mshKetuaSignUrl?: string;
+  ketuaCabangSignUrl?: string;
+  bidangUjianSignUrl?: string;
+  pengujiSignUrls?: string[];
   /** Idempotensi notifikasi jadwal. */
   notifiedOpenAt?: string;
   notifiedCloseReminderAt?: string;
@@ -1046,6 +1058,50 @@ export function parseUktPeriodMetaValue(value: unknown): UktPeriodMeta {
       typeof v.bidangUjianName === "string" ? v.bidangUjianName : undefined,
     bendaharaCabangName:
       typeof v.bendaharaCabangName === "string" ? v.bendaharaCabangName : undefined,
+    pengdaKetua:
+      typeof v.pengdaKetua === "string" ? v.pengdaKetua.trim() || undefined : undefined,
+    pengdaKetuaTitle:
+      typeof v.pengdaKetuaTitle === "string"
+        ? v.pengdaKetuaTitle.trim() || undefined
+        : undefined,
+    mshKetua:
+      typeof v.mshKetua === "string" ? v.mshKetua.trim() || undefined : undefined,
+    mshKetuaTitle:
+      typeof v.mshKetuaTitle === "string"
+        ? v.mshKetuaTitle.trim() || undefined
+        : undefined,
+    ketuaCabangName:
+      typeof v.ketuaCabangName === "string"
+        ? v.ketuaCabangName.trim() || undefined
+        : undefined,
+    pengujiNames: Array.isArray(v.pengujiNames)
+      ? v.pengujiNames
+          .filter((n): n is string => typeof n === "string")
+          .map((n) => n.trim())
+          .filter(Boolean)
+          .slice(0, 20)
+      : undefined,
+    pengdaKetuaSignUrl:
+      typeof v.pengdaKetuaSignUrl === "string"
+        ? v.pengdaKetuaSignUrl.trim() || undefined
+        : undefined,
+    mshKetuaSignUrl:
+      typeof v.mshKetuaSignUrl === "string"
+        ? v.mshKetuaSignUrl.trim() || undefined
+        : undefined,
+    ketuaCabangSignUrl:
+      typeof v.ketuaCabangSignUrl === "string"
+        ? v.ketuaCabangSignUrl.trim() || undefined
+        : undefined,
+    bidangUjianSignUrl:
+      typeof v.bidangUjianSignUrl === "string"
+        ? v.bidangUjianSignUrl.trim() || undefined
+        : undefined,
+    pengujiSignUrls: Array.isArray(v.pengujiSignUrls)
+      ? v.pengujiSignUrls
+          .map((n) => (typeof n === "string" ? n.trim() : ""))
+          .slice(0, 20)
+      : undefined,
     notifiedOpenAt:
       typeof v.notifiedOpenAt === "string" ? v.notifiedOpenAt : undefined,
     notifiedCloseReminderAt:

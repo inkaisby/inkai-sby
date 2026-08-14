@@ -58,24 +58,44 @@ export async function saveUktPeriodMeta(
   return { ok: res.ok, status: res.status, errorData: data };
 }
 
+function trimOptional(value: string | null | undefined): string | undefined {
+  if (value === null) return undefined;
+  if (value === undefined) return undefined;
+  const t = value.trim();
+  return t || undefined;
+}
+
+export type UktPeriodMetaPatch = {
+  archived?: boolean;
+  locked?: boolean;
+  registrationOpenAt?: string | null;
+  examAt?: string | null;
+  examLocation?: string | null;
+  bidangUjianName?: string | null;
+  bendaharaCabangName?: string | null;
+  beltFees?: Partial<Record<BeltFeeKey, number>> | null;
+  komisiRanting?: number | null;
+  pengprovBeltFees?: Partial<Record<BeltFeeKey, number>> | null;
+  pengdaKetua?: string | null;
+  pengdaKetuaTitle?: string | null;
+  mshKetua?: string | null;
+  mshKetuaTitle?: string | null;
+  ketuaCabangName?: string | null;
+  pengujiNames?: string[] | null;
+  pengdaKetuaSignUrl?: string | null;
+  mshKetuaSignUrl?: string | null;
+  ketuaCabangSignUrl?: string | null;
+  bidangUjianSignUrl?: string | null;
+  pengujiSignUrls?: string[] | null;
+  notifiedOpenAt?: string | null;
+  notifiedCloseReminderAt?: string | null;
+  notifiedExtendedAt?: string | null;
+  by?: string;
+};
+
 export function mergeUktPeriodMeta(
   current: UktPeriodMeta,
-  patch: {
-    archived?: boolean;
-    locked?: boolean;
-    registrationOpenAt?: string | null;
-    examAt?: string | null;
-    examLocation?: string | null;
-    bidangUjianName?: string | null;
-    bendaharaCabangName?: string | null;
-    beltFees?: Partial<Record<BeltFeeKey, number>> | null;
-    komisiRanting?: number | null;
-    pengprovBeltFees?: Partial<Record<BeltFeeKey, number>> | null;
-    notifiedOpenAt?: string | null;
-    notifiedCloseReminderAt?: string | null;
-    notifiedExtendedAt?: string | null;
-    by?: string;
-  },
+  patch: UktPeriodMetaPatch,
 ): UktPeriodMeta {
   const now = new Date().toISOString();
   const next: UktPeriodMeta = {
@@ -105,10 +125,10 @@ export function mergeUktPeriodMeta(
     next.examLocation = patch.examLocation?.trim() || undefined;
   }
   if (patch.bidangUjianName !== undefined) {
-    next.bidangUjianName = patch.bidangUjianName?.trim() || undefined;
+    next.bidangUjianName = trimOptional(patch.bidangUjianName);
   }
   if (patch.bendaharaCabangName !== undefined) {
-    next.bendaharaCabangName = patch.bendaharaCabangName?.trim() || undefined;
+    next.bendaharaCabangName = trimOptional(patch.bendaharaCabangName);
   }
   if (patch.beltFees !== undefined) {
     next.beltFees = patch.beltFees || undefined;
@@ -119,6 +139,46 @@ export function mergeUktPeriodMeta(
   }
   if (patch.pengprovBeltFees !== undefined) {
     next.pengprovBeltFees = patch.pengprovBeltFees || undefined;
+  }
+  if (patch.pengdaKetua !== undefined) {
+    next.pengdaKetua = trimOptional(patch.pengdaKetua);
+  }
+  if (patch.pengdaKetuaTitle !== undefined) {
+    next.pengdaKetuaTitle = trimOptional(patch.pengdaKetuaTitle);
+  }
+  if (patch.mshKetua !== undefined) {
+    next.mshKetua = trimOptional(patch.mshKetua);
+  }
+  if (patch.mshKetuaTitle !== undefined) {
+    next.mshKetuaTitle = trimOptional(patch.mshKetuaTitle);
+  }
+  if (patch.ketuaCabangName !== undefined) {
+    next.ketuaCabangName = trimOptional(patch.ketuaCabangName);
+  }
+  if (patch.pengujiNames !== undefined) {
+    next.pengujiNames = patch.pengujiNames
+      ? patch.pengujiNames
+          .map((n) => n.trim())
+          .filter(Boolean)
+          .slice(0, 20)
+      : undefined;
+  }
+  if (patch.pengdaKetuaSignUrl !== undefined) {
+    next.pengdaKetuaSignUrl = trimOptional(patch.pengdaKetuaSignUrl);
+  }
+  if (patch.mshKetuaSignUrl !== undefined) {
+    next.mshKetuaSignUrl = trimOptional(patch.mshKetuaSignUrl);
+  }
+  if (patch.ketuaCabangSignUrl !== undefined) {
+    next.ketuaCabangSignUrl = trimOptional(patch.ketuaCabangSignUrl);
+  }
+  if (patch.bidangUjianSignUrl !== undefined) {
+    next.bidangUjianSignUrl = trimOptional(patch.bidangUjianSignUrl);
+  }
+  if (patch.pengujiSignUrls !== undefined) {
+    next.pengujiSignUrls = patch.pengujiSignUrls
+      ? patch.pengujiSignUrls.map((n) => n.trim()).slice(0, 20)
+      : undefined;
   }
   if (patch.notifiedOpenAt !== undefined) {
     next.notifiedOpenAt = patch.notifiedOpenAt || undefined;

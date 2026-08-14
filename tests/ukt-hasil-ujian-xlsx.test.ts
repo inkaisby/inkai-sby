@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 
-import { buildUktHasilUjianRecapRows, type UktMemberRow } from "../src/lib/ukt";
+import {
+  buildUktHasilUjianRecapRows,
+  UKT_HASIL_UJIAN_OFFICERS,
+  type UktMemberRow,
+} from "../src/lib/ukt";
 import { buildUktHasilUjianXlsxBuffer } from "../src/lib/ukt-hasil-ujian-xlsx";
 
-function row(partial: Partial<UktMemberRow> & Pick<UktMemberRow, "memberId" | "fullName">): UktMemberRow {
+function row(
+  partial: Partial<UktMemberRow> & Pick<UktMemberRow, "memberId" | "fullName">,
+): UktMemberRow {
   return {
     registrationId: `reg-${partial.memberId}`,
     photoUrl: null,
@@ -66,5 +72,38 @@ describe("buildUktHasilUjianXlsxBuffer", () => {
     const ttd = wb.getWorksheet("LEMBAR TTD");
     expect(String(ttd?.getCell("J5").value ?? "")).toContain("5 Oktober 2026");
     expect(String(ttd?.getCell("A16").value ?? "")).toContain("CATATAN");
+    expect(String(ttd?.getCell("A17").value ?? "")).toMatch(/SABUK .+ = /);
+    expect(String(ttd?.getCell("E16").value ?? "")).toContain("NAMA-NAMA PENGUJI");
+    expect(String(ttd?.getCell("E17").value ?? "")).toMatch(/^1\./);
+    expect(String(ttd?.getCell("C11").value ?? "")).toContain(
+      UKT_HASIL_UJIAN_OFFICERS.pengdaKetua,
+    );
+  });
+
+  it("memakai pejabat + penguji dari payload; sabuk = angka di satu sel", async () => {
+    const recap = buildUktHasilUjianRecapRows([
+      row({ memberId: "a", fullName: "Ana Putih" }),
+    ]);
+    const buffer = await buildUktHasilUjianXlsxBuffer({
+      semester: "I",
+      year: 2026,
+      pengdaKetua: "SUYANTO KASDI",
+      mshKetua: "S YAHRULLAH",
+      ketuaCabangName: "JONATHAN",
+      bidangUjianName: "SETIA BASUKI",
+      pengujiNames: ["Ahmad", "Budi"],
+      rows: recap,
+    });
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    const ttd = wb.getWorksheet("LEMBAR TTD");
+    expect(String(ttd?.getCell("C11").value ?? "")).toBe("SUYANTO KASDI");
+    expect(String(ttd?.getCell("E11").value ?? "")).toBe("S YAHRULLAH");
+    expect(String(ttd?.getCell("G11").value ?? "")).toBe("JONATHAN");
+    expect(String(ttd?.getCell("J11").value ?? "")).toBe("SETIA BASUKI");
+    expect(String(ttd?.getCell("E17").value ?? "")).toBe("1. Ahmad");
+    expect(String(ttd?.getCell("E18").value ?? "")).toBe("2. Budi");
+    expect(String(ttd?.getCell("A17").value ?? "")).toBe("SABUK PUTIH = 0");
+    expect(String(ttd?.getCell("A18").value ?? "")).toBe("SABUK KUNING = 1");
   });
 });

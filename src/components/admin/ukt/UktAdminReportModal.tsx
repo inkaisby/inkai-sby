@@ -33,8 +33,10 @@ import {
 import { showError, showSuccess } from "@/lib/client-toast";
 
 type Props = {
-  open: boolean;
-  onClose: () => void;
+  open?: boolean;
+  onClose?: () => void;
+  /** Tanpa Dialog — dipakai di hub Laporan. */
+  embedded?: boolean;
   eventId: string;
   semester: UktSemester;
   year: number;
@@ -80,8 +82,9 @@ function feesToDraft(fees: Record<BeltFeeKey, number>): Record<BeltFeeKey, strin
 }
 
 export function UktAdminReportModal({
-  open,
+  open = true,
   onClose,
+  embedded = false,
   eventId,
   semester,
   year,
@@ -122,7 +125,7 @@ export function UktAdminReportModal({
   const [savingFees, setSavingFees] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!embedded && !open) return;
     setFeeDrafts(feesToDraft(resolveUktPengprovBeltFees(periodMeta)));
     setTanggal(formatIdDate(examAt ?? periodMeta?.examAt));
     setTempat(examLocation?.trim() || periodMeta?.examLocation?.trim() || "");
@@ -134,7 +137,7 @@ export function UktAdminReportModal({
     setBukuBaru("");
     setBukuDipakai("");
     setBukuSisa("");
-  }, [open, periodMeta, examAt, examLocation]);
+  }, [open, embedded, periodMeta, examAt, examLocation]);
 
   const pengprovFees = useMemo(() => {
     const fees = {} as Record<BeltFeeKey, number>;
@@ -245,39 +248,36 @@ export function UktAdminReportModal({
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="flex h-[100dvh] max-h-[100dvh] w-full max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-auto sm:max-h-[92vh] sm:max-w-3xl sm:rounded-xl">
-        <DialogHeader className="sticky top-0 z-10 shrink-0 space-y-3 border-b bg-popover px-3 py-3 sm:px-4">
-          <DialogTitle className="text-base">Buat Laporan UKT</DialogTitle>
-          <div className="no-print grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full"
-              onClick={() => void handleSaveFees()}
-              disabled={savingFees}
-            >
-              <Save className="mr-1 h-4 w-4" />
-              {savingFees ? "Simpan…" : "Simpan Tarif"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full"
-              onClick={() => void handlePdf()}
-              disabled={pdfLoading}
-            >
-              <Download className="mr-1 h-4 w-4" />
-              {pdfLoading ? "PDF…" : "Unduh PDF"}
-            </Button>
-            <Button size="sm" className="w-full" onClick={() => void handlePrint()}>
-              <Printer className="mr-1 h-4 w-4" />
-              Print
-            </Button>
-          </div>
-        </DialogHeader>
+  const headerActions = (
+    <div className="no-print grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full"
+        onClick={() => void handleSaveFees()}
+        disabled={savingFees}
+      >
+        <Save className="mr-1 h-4 w-4" />
+        {savingFees ? "Simpan…" : "Simpan Tarif"}
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full"
+        onClick={() => void handlePdf()}
+        disabled={pdfLoading}
+      >
+        <Download className="mr-1 h-4 w-4" />
+        {pdfLoading ? "PDF…" : "Unduh PDF"}
+      </Button>
+      <Button size="sm" className="w-full" onClick={() => void handlePrint()}>
+        <Printer className="mr-1 h-4 w-4" />
+        Print
+      </Button>
+    </div>
+  );
 
+  const scrollBody = (
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-3 sm:p-4">
           <div className="no-print space-y-3 rounded-lg border p-3 text-sm">
             <p className="text-xs text-muted-foreground">
@@ -478,6 +478,25 @@ export function UktAdminReportModal({
             </div>
           </div>
         </div>
+  );
+
+  if (embedded) {
+    return (
+      <div className="space-y-3">
+        {headerActions}
+        {scrollBody}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose?.()}>
+      <DialogContent className="flex h-[100dvh] max-h-[100dvh] w-full max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-auto sm:max-h-[92vh] sm:max-w-3xl sm:rounded-xl">
+        <DialogHeader className="sticky top-0 z-10 shrink-0 space-y-3 border-b bg-popover px-3 py-3 sm:px-4">
+          <DialogTitle className="text-base">Buat Laporan UKT</DialogTitle>
+          {headerActions}
+        </DialogHeader>
+        {scrollBody}
       </DialogContent>
     </Dialog>
   );

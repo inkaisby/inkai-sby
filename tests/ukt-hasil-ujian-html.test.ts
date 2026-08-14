@@ -83,4 +83,58 @@ describe("buildUktHasilUjianPrintHtml", () => {
     expect(html.match(/class="page"/g)?.length).toBe(2);
     expect(html.match(/logo-inkai\.png/g)?.length).toBe(2);
   });
+
+  it("mencetak pejabat payload + penguji di kolom kanan CATATAN, sabuk rapat", () => {
+    const recap = buildUktHasilUjianRecapRows([
+      row({ memberId: "a", fullName: "Ana Putih" }),
+      row({
+        memberId: "b",
+        fullName: "Bima Kuning",
+        kyuLama: "Putih (Kyu 10)",
+        kyuBaru: "Kuning (Kyu 8)",
+      }),
+    ]);
+    const html = buildUktHasilUjianPrintHtml({
+      semester: "I",
+      year: 2026,
+      origin: "https://example.com",
+      pengdaKetua: "SUYANTO KASDI",
+      pengdaKetuaTitle: "DAN 7 INKAI MSH NO. 2702",
+      mshKetua: "S YAHRULLAH",
+      mshKetuaTitle: "DAN 6 INKAI MSH NO. 245",
+      ketuaCabangName: "JONATHAN",
+      bidangUjianName: "SETIA BASUKI",
+      pengujiNames: ["Ahmad Penguji", "Budi Penguji"],
+      pengdaKetuaSignUrl: "https://cdn.example.com/ukt-ttd/pengda.png",
+      rows: recap,
+    });
+
+    expect(html).toContain("SUYANTO KASDI");
+    expect(html).toContain("DAN 7 INKAI MSH NO. 2702");
+    expect(html).toContain("S YAHRULLAH");
+    expect(html).toContain("JONATHAN");
+    expect(html).toContain("NAMA-NAMA PENGUJI");
+    expect(html).toContain("1. Ahmad Penguji");
+    expect(html).toContain("2. Budi Penguji");
+    expect(html).toMatch(/SABUK KUNING = 2/);
+    expect(html).toMatch(/SABUK PUTIH = 0/);
+    expect(html).toContain('class="sign-img"');
+    expect(html).toContain("https://cdn.example.com/ukt-ttd/pengda.png");
+    expect(html).not.toContain("NAMA PELATIH");
+    expect(html).not.toContain("NAMA-NAMA PELATIH");
+  });
+
+  it("tanpa URL tanda tangan tetap ruang kosong (tanpa img)", () => {
+    const recap = buildUktHasilUjianRecapRows([
+      row({ memberId: "a", fullName: "Ana Putih" }),
+    ]);
+    const html = buildUktHasilUjianPrintHtml({
+      semester: "I",
+      year: 2026,
+      origin: "https://example.com",
+      rows: recap,
+    });
+    expect(html).toContain('class="sign-space"');
+    expect(html).not.toContain('class="sign-img"');
+  });
 });

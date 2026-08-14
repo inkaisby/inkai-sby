@@ -8,7 +8,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -30,14 +29,18 @@ import {
 type DojoOption = { id: string; name: string };
 
 type Props = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Tanpa Dialog wrapper — dipakai di hub Laporan. */
+  embedded?: boolean;
   rows: UktMemberRow[];
   dojos: DojoOption[];
   semester: UktSemester;
   year: number;
   /** Preselect ranting dari filter tabel (jika ada). */
   initialDojoId?: string;
+  /** Kunci ranting (admin ranting). */
+  lockDojoId?: string;
   bidangUjianName?: string;
   sekretariatAddress?: string;
 };
@@ -69,13 +72,15 @@ function formatPrintedPlaceDate(d = new Date()): string {
 }
 
 export function UktExportDialog({
-  open,
+  open = true,
   onOpenChange,
+  embedded = false,
   rows,
   dojos,
   semester,
   year,
   initialDojoId,
+  lockDojoId,
   bidangUjianName = "SETIA BASUKI",
   sekretariatAddress,
 }: Props) {
@@ -88,7 +93,7 @@ export function UktExportDialog({
 
   const availableDojos = useMemo(() => {
     const withPeserta = new Set(registered.map((r) => r.dojoId));
-    const listed = dojos.filter((d) => withPeserta.has(d.id));
+    let listed = dojos.filter((d) => withPeserta.has(d.id));
     const known = new Set(listed.map((d) => d.id));
     for (const r of registered) {
       if (!known.has(r.dojoId)) {
@@ -96,19 +101,26 @@ export function UktExportDialog({
         known.add(r.dojoId);
       }
     }
+    if (lockDojoId) {
+      listed = listed.filter((d) => d.id === lockDojoId);
+    }
     return listed.sort((a, b) => a.name.localeCompare(b.name, "id"));
-  }, [dojos, registered]);
+  }, [dojos, registered, lockDojoId]);
 
   const [selectedDojoIds, setSelectedDojoIds] = useState<Set<string>>(new Set());
 
+  const panelActive = embedded || open;
+
   useEffect(() => {
-    if (!open) return;
-    if (initialDojoId && availableDojos.some((d) => d.id === initialDojoId)) {
+    if (!panelActive) return;
+    if (lockDojoId && availableDojos.some((d) => d.id === lockDojoId)) {
+      setSelectedDojoIds(new Set([lockDojoId]));
+    } else if (initialDojoId && availableDojos.some((d) => d.id === initialDojoId)) {
       setSelectedDojoIds(new Set([initialDojoId]));
     } else {
       setSelectedDojoIds(new Set(availableDojos.map((d) => d.id)));
     }
-  }, [open, initialDojoId, availableDojos]);
+  }, [panelActive, initialDojoId, lockDojoId, availableDojos]);
 
   const filteredRows = useMemo(() => {
     if (selectedDojoIds.size === 0) return [];
@@ -217,26 +229,33 @@ export function UktExportDialog({
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Export daftar peserta</DialogTitle>
-          <DialogDescription>
-            Format formulir cabang. Pilih ranting, cek pratinjau, lalu Print
-            (termasuk Save as PDF) atau CSV.
-            {initialDojoId
-              ? " Filter ranting tabel diterapkan sebagai pilihan awal."
-              : " Default: semua ranting yang punya peserta."}
-          </DialogDescription>
-        </DialogHeader>
+  const body = (
+    <>
+        {!embedded ? (
+          <DialogHeader>
+            <DialogTitle>Export daftar peserta</DialogTitle>
+            <DialogDescription>
+              Format formulir cabang. Pilih ranting, cek pratinjau, lalu Print
+              (termasuk Save as PDF) atau CSV.
+              {initialDojoId
+                ? " Filter ranting tabel diterapkan sebagai pilihan awal."
+                : " Default: semua ranting yang punya peserta."}
+            </DialogDescription>
+          </DialogHeader>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Format formulir cabang. Pilih ranting, lalu CSV / PDF / Print.
+          </p>
+        )}
 
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-medium">Ranting</p>
-            <Button type="button" variant="ghost" size="sm" onClick={toggleAll}>
-              {allSelected ? "Hapus semua" : "Pilih semua"}
-            </Button>
+            {!lockDojoId ? (
+              <Button type="button" variant="ghost" size="sm" onClick={toggleAll}>
+                {allSelected ? "Hapus semua" : "Pilih semua"}
+              </Button>
+            ) : null}
           </div>
           <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
             {availableDojos.length === 0 ? (
@@ -255,6 +274,7 @@ export function UktExportDialog({
                       type="checkbox"
                       className="h-4 w-4 accent-inkai-red"
                       checked={selectedDojoIds.has(d.id)}
+                      disabled={Boolean(lockDojoId)}
                       onChange={() => toggleDojo(d.id)}
                     />
                     <span className="flex-1">{d.name}</span>
@@ -328,7 +348,7 @@ export function UktExportDialog({
           </p>
         </div>
 
-        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Button
             type="button"
             variant="outline"
@@ -356,7 +376,18 @@ export function UktExportDialog({
             <Printer className="mr-1 h-4 w-4" />
             Print
           </Button>
-        </DialogFooter>
+        </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="space-y-4">{body}</div>;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+        {body}
       </DialogContent>
     </Dialog>
   );

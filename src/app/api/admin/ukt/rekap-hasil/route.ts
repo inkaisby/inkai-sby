@@ -40,6 +40,16 @@ export async function POST(request: Request) {
     examAt: data.examAt,
     ketuaCabangName: data.ketuaCabangName,
     bidangUjianName: data.bidangUjianName,
+    pengdaKetua: data.pengdaKetua,
+    pengdaKetuaTitle: data.pengdaKetuaTitle,
+    mshKetua: data.mshKetua,
+    mshKetuaTitle: data.mshKetuaTitle,
+    pengujiNames: data.pengujiNames,
+    pengdaKetuaSignUrl: data.pengdaKetuaSignUrl,
+    mshKetuaSignUrl: data.mshKetuaSignUrl,
+    ketuaCabangSignUrl: data.ketuaCabangSignUrl,
+    bidangUjianSignUrl: data.bidangUjianSignUrl,
+    pengujiSignUrls: data.pengujiSignUrls,
     rows,
   });
   const filename = uktHasilUjianDownloadName({

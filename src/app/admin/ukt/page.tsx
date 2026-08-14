@@ -17,6 +17,7 @@ import {
 import { fetchUktDashboardData, resolveUktAdminPeriodId } from "@/lib/inkai-api/admin-data";
 import { getBranchOrgProfile } from "@/lib/org-settings";
 import { getUktRegistrationPolicy } from "@/lib/ukt-registration-policy";
+import { loadUktTtdOrgHints } from "@/lib/ukt-ttd-org";
 import { requireAdminSession } from "@/lib/admin-session";
 import { resolveAdminDojoClusterAllowlist } from "@/lib/account-peers";
 import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
@@ -156,6 +157,8 @@ async function UktDashboardSection({
   let registrationPolicy: Awaited<
     ReturnType<typeof getUktRegistrationPolicy>
   > | null = null;
+  let pengprovHeadName: string | null = null;
+  let strukturKetuaName: string | null = null;
   // dojoGroups cabang di-hydrate client (GET /api/admin/ukt/dojo-groups).
   const dojoGroups: [] = [];
 
@@ -194,7 +197,7 @@ async function UktDashboardSection({
       }
     }
 
-    const [profile, policy, data] = await Promise.all([
+    const [profile, policy, data, ttdHints] = await Promise.all([
       getBranchOrgProfile(),
       getUktRegistrationPolicy(),
       fetchUktDashboardData(token, user, {
@@ -204,9 +207,12 @@ async function UktDashboardSection({
         forceNoPeriod: createMode,
         viewMode: "registration",
       }),
+      loadUktTtdOrgHints(),
     ]);
     orgProfile = profile;
     registrationPolicy = policy;
+    pengprovHeadName = ttdHints.pengprovHeadName;
+    strukturKetuaName = ttdHints.strukturKetuaName;
     periods = data.periods;
     dojos = data.dojos;
     selectedPeriodId = createMode ? null : data.selectedPeriodId;
@@ -295,6 +301,8 @@ async function UktDashboardSection({
         bendaharaCabangName: orgProfile?.bendaharaCabangName,
         ketuaCabangName: orgProfile?.ketuaCabangName,
       }}
+      pengprovHeadName={pengprovHeadName}
+      strukturKetuaName={strukturKetuaName}
     />
   );
 }

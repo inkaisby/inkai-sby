@@ -446,6 +446,33 @@ export const uktDepositSchema = z.object({
   note: z.string().trim().max(500).optional().or(z.literal("")),
 });
 
+const uktSignUrlSchema = z.string().trim().max(500).optional().nullable();
+const uktPengujiNamesSchema = z
+  .array(z.string().trim().max(120))
+  .max(20)
+  .optional()
+  .nullable();
+const uktPengujiSignUrlsSchema = z
+  .array(z.string().trim().max(500))
+  .max(20)
+  .optional()
+  .nullable();
+
+export const uktTtdTemplateSchema = z.object({
+  pengdaKetua: z.string().trim().max(120).optional().nullable(),
+  pengdaKetuaTitle: z.string().trim().max(120).optional().nullable(),
+  mshKetua: z.string().trim().max(120).optional().nullable(),
+  mshKetuaTitle: z.string().trim().max(120).optional().nullable(),
+  ketuaCabangName: z.string().trim().max(120).optional().nullable(),
+  bidangUjianName: z.string().trim().max(120).optional().nullable(),
+  pengujiNames: uktPengujiNamesSchema,
+  pengdaKetuaSignUrl: uktSignUrlSchema,
+  mshKetuaSignUrl: uktSignUrlSchema,
+  ketuaCabangSignUrl: uktSignUrlSchema,
+  bidangUjianSignUrl: uktSignUrlSchema,
+  pengujiSignUrls: uktPengujiSignUrlsSchema,
+});
+
 export const uktPeriodMetaSchema = z.object({
   eventId: z.string().uuid(),
   archived: z.boolean().optional(),
@@ -474,6 +501,17 @@ export const uktPeriodMetaSchema = z.object({
       COKELAT: z.coerce.number().int().min(0).max(10_000_000),
     })
     .optional(),
+  pengdaKetua: z.string().trim().max(120).optional().nullable(),
+  pengdaKetuaTitle: z.string().trim().max(120).optional().nullable(),
+  mshKetua: z.string().trim().max(120).optional().nullable(),
+  mshKetuaTitle: z.string().trim().max(120).optional().nullable(),
+  ketuaCabangName: z.string().trim().max(120).optional().nullable(),
+  pengujiNames: uktPengujiNamesSchema,
+  pengdaKetuaSignUrl: uktSignUrlSchema,
+  mshKetuaSignUrl: uktSignUrlSchema,
+  ketuaCabangSignUrl: uktSignUrlSchema,
+  bidangUjianSignUrl: uktSignUrlSchema,
+  pengujiSignUrls: uktPengujiSignUrlsSchema,
   notifiedOpenAt: z.string().datetime().optional().nullable(),
   notifiedCloseReminderAt: z.string().datetime().optional().nullable(),
   notifiedExtendedAt: z.string().datetime().optional().nullable(),
@@ -494,6 +532,16 @@ export const uktHasilUjianRecapSchema = z.object({
   examAt: z.string().trim().max(40).optional().nullable(),
   ketuaCabangName: z.string().trim().max(120).optional().nullable(),
   bidangUjianName: z.string().trim().max(120).optional().nullable(),
+  pengdaKetua: z.string().trim().max(120).optional().nullable(),
+  pengdaKetuaTitle: z.string().trim().max(120).optional().nullable(),
+  mshKetua: z.string().trim().max(120).optional().nullable(),
+  mshKetuaTitle: z.string().trim().max(120).optional().nullable(),
+  pengujiNames: z.array(z.string().trim().max(120)).max(20).optional().nullable(),
+  pengdaKetuaSignUrl: z.string().trim().max(500).optional().nullable(),
+  mshKetuaSignUrl: z.string().trim().max(500).optional().nullable(),
+  ketuaCabangSignUrl: z.string().trim().max(500).optional().nullable(),
+  bidangUjianSignUrl: z.string().trim().max(500).optional().nullable(),
+  pengujiSignUrls: z.array(z.string().trim().max(500)).max(20).optional().nullable(),
   rows: z
     .array(
       z.object({
