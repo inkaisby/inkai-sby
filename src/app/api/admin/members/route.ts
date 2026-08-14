@@ -35,8 +35,17 @@ export async function GET(request: Request) {
       ? inactiveMonthsRaw
       : 0;
   const page = Math.max(1, Number(sp.get("page") || 1) || 1);
-  const pageSizeRaw = Number(sp.get("pageSize") || 25);
-  const pageSize = [25, 50, 100].includes(pageSizeRaw) ? pageSizeRaw : 25;
+  const pageSizeParam = sp.get("pageSize")?.trim() || "";
+  const isExport =
+    pageSizeParam === "export" || sp.get("export") === "1";
+  const pageSizeRaw = Number(pageSizeParam || 25);
+  const EXPORT_CAP = 2000;
+  const pageSize = isExport
+    ? EXPORT_CAP
+    : [25, 50, 100].includes(pageSizeRaw)
+      ? pageSizeRaw
+      : 25;
+  const effectivePage = isExport ? 1 : page;
   const sort = sp.get("sort")?.trim() || "";
   const sortDir = parseSortDir(sp.get("sortDir"));
   const includeCounts = sp.get("counts") !== "0";
@@ -61,7 +70,7 @@ export async function GET(request: Request) {
 
   const [result, statusCounts] = await Promise.all([
     fetchAdminMembersScoped(user, {
-      page,
+      page: effectivePage,
       limit: pageSize,
       search: q || undefined,
       status: status || undefined,

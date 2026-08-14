@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Archive } from "lucide-react";
-import { ExportCsvButton } from "@/components/admin/ExportCsvButton";
+import { AnggotaExportMenu } from "@/components/admin/anggota/AnggotaExportMenu";
 import {
   SettingsPagination,
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
@@ -67,38 +67,6 @@ function filtersToParams(f: FilterState): Record<string, string> {
     sort: f.sort !== "fullName" ? f.sort : "",
     sortDir: f.sortDir === "desc" ? "desc" : "",
   };
-}
-
-function formatExportDateTime(value: string | null | undefined) {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  const date = d.toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-  const time = d.toLocaleTimeString("id-ID", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return `${date} ${time}`;
-}
-
-function anggotaExportRows(members: AdminMemberRow[]) {
-  return members.map((m) => [
-    m.nia ?? "",
-    m.mshNumber ?? "",
-    m.fullName,
-    m.status,
-    m.currentRank,
-    m.dojo?.name ?? "",
-    m.dojo?.branch?.name ?? "",
-    formatExportDateTime(m.createdAt),
-    m.birthCertificateUrl ? "Ada" : "Belum",
-    m.bpjsCardUrl ? "Ada" : "Belum",
-  ]);
 }
 
 function parseHrefToFilters(
@@ -316,6 +284,19 @@ export function AnggotaBrowser({
     scopeHint ||
     "";
 
+  const exportParams = {
+    q: filters.q,
+    status: filters.status,
+    dojoId: filters.dojoId,
+    docs: filters.docs,
+    nia: filters.nia,
+    account: filters.account,
+    dup: filters.dup,
+    inactiveMonths: filters.inactiveMonths,
+    sort: filters.sort !== "fullName" ? filters.sort : "",
+    sortDir: filters.sortDir === "desc" ? "desc" : "",
+  };
+
   const kpis: AnggotaKpiItem[] = [
     {
       key: "all",
@@ -529,21 +510,10 @@ export function AnggotaBrowser({
             Lihat arsip
           </Link>
         ) : null}
-        <ExportCsvButton
-          filename="anggota-export.csv"
-          headers={[
-            "NIA",
-            "No. MSH",
-            "Nama",
-            "Status",
-            "Sabuk",
-            "Dojo",
-            "Cabang",
-            "Terdaftar",
-            "Dokumen Akte",
-            "Dokumen BPJS",
-          ]}
-          rows={anggotaExportRows(members)}
+        <AnggotaExportMenu
+          exportParams={exportParams}
+          total={total}
+          dojoName={activeDojoName || undefined}
         />
       </div>
 
