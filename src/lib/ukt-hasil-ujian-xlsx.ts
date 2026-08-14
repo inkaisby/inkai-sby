@@ -55,16 +55,16 @@ function applyHeaderCell(cell: ExcelJS.Cell) {
   cell.border = THIN;
 }
 
-async function fetchImageBuffer(
+async function fetchImageBytes(
   url: string | null | undefined,
-): Promise<Buffer | null> {
+): Promise<Uint8Array | null> {
   const src = (url || "").trim();
   if (!src || !/^https?:\/\//i.test(src)) return null;
   try {
     const res = await fetch(src);
     if (!res.ok) return null;
-    const ab = await res.arrayBuffer();
-    return Buffer.from(ab);
+    // Uint8Array avoids Node Buffer / @types/node mismatch with ExcelJS Media.
+    return new Uint8Array(await res.arrayBuffer());
   } catch {
     return null;
   }
@@ -242,9 +242,13 @@ export async function buildUktHasilUjianXlsxBuffer(
     { url: input.bidangUjianSignUrl, col: 10, row: 9 },
   ];
   for (const entry of signEntries) {
-    const buf = await fetchImageBuffer(entry.url);
-    if (!buf) continue;
-    const imgId = wb.addImage({ buffer: buf, extension: "png" });
+    const bytes = await fetchImageBytes(entry.url);
+    if (!bytes) continue;
+    const imgId = wb.addImage({
+      // ExcelJS types declare Buffer as ArrayBuffer; Node Buffer/Uint8Array clash on Vercel tsc.
+      buffer: bytes as unknown as ArrayBuffer,
+      extension: "png",
+    });
     ttd.addImage(imgId, {
       tl: { col: entry.col - 1, row: entry.row - 1 },
       ext: { width: 100, height: 36 },
