@@ -1,3 +1,4 @@
+import "server-only";
 import { randomUUID } from "crypto";
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";

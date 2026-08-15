@@ -1,3 +1,4 @@
+import "server-only";
 import { cookies } from "next/headers";
 
 export const INKAI_TOKEN_COOKIE = "inkai_token";
