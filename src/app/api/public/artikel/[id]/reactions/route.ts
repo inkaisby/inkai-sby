@@ -3,13 +3,15 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import {
   ARTICLE_REACTION_EMOJIS,
-  attachVisitorCookie,
   emptyReactionCounts,
   isArticleReactionEmoji,
-  resolveArticleVisitorId,
   type ArticleReactionCounts,
   type ArticleReactionEmoji,
 } from "@/lib/article-reactions";
+import {
+  attachVisitorCookie,
+  resolveArticleVisitorId,
+} from "@/lib/article-reactions.server";
 import { prisma } from "@/lib/prisma";
 import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import { getClientIp } from "@/lib/security/request";
