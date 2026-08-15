@@ -284,32 +284,35 @@ export async function ensureLatberBillingForAcceptedRegistration(opts: {
 }
 
 export async function setLatberBillingWaitingVerification(opts: {
-  token: string;
+  token?: string | null;
   billingId: string;
   note: string;
 }): Promise<"WAITING_VERIFICATION"> {
   const status = "WAITING_VERIFICATION" as const;
+  const token = opts.token?.trim() || "";
   let submitted = false;
-  for (const attempt of [
-    {
-      path: `/v1/billing/${opts.billingId}/status`,
-      method: "PATCH" as const,
-      body: { status, adminNotes: opts.note },
-    },
-    {
-      path: `/v1/billing/${opts.billingId}`,
-      method: "PATCH" as const,
-      body: { status, adminNotes: opts.note },
-    },
-  ]) {
-    const { res } = await inkaiFetch(
-      attempt.path,
-      { method: attempt.method, body: JSON.stringify(attempt.body) },
-      opts.token,
-    );
-    if (res.ok) {
-      submitted = true;
-      break;
+  if (token) {
+    for (const attempt of [
+      {
+        path: `/v1/billing/${opts.billingId}/status`,
+        method: "PATCH" as const,
+        body: { status, adminNotes: opts.note },
+      },
+      {
+        path: `/v1/billing/${opts.billingId}`,
+        method: "PATCH" as const,
+        body: { status, adminNotes: opts.note },
+      },
+    ]) {
+      const { res } = await inkaiFetch(
+        attempt.path,
+        { method: attempt.method, body: JSON.stringify(attempt.body) },
+        token,
+      );
+      if (res.ok) {
+        submitted = true;
+        break;
+      }
     }
   }
   if (!submitted) {

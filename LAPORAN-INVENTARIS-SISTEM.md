@@ -79,7 +79,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/reset-password` | Set password baru |
 | `/undangan/ukt/[periodId]` | **Undangan portal UKT** (publik): cover buka + musik, section Home/Acara/Galeri/Peta (auto-play + klik tab + scroll), CTA login ke `/admin/ukt`; tab **Peta** embed Google Maps (CSP `frame-src` Google) — lokasi Dispora Jatim → pin koordinat presisi via `src/lib/venue.ts` |
 | `/undangan/latber/[periodId]` | **Undangan portal Latber** (publik): cover buka + musik, section Home/Acara/Galeri/Peta, CTA **Daftar Latihan Bersama** → `/latber?period=…`; tab **Peta** sama (embed Google Maps + override Dispora Jatim) |
-| `/latber` | **Pendaftaran Latber walk-in (publik):** info login NIA + Pesan; cari/scan QR kartu; modal Tambah Anggota (= tab Daftar); tabel peserta (NIA, biaya unik); Bayar skeleton QRIS; batal via WA; `/admin/latber` tanpa sesi → sini |
+| `/latber` | **Pendaftaran Latber walk-in (publik):** info login NIA + Pesan; KPI status + KPI per ranting + grafik batang; cari/scan QR kartu; modal Tambah Anggota (= tab Daftar); tabel (NIA, biaya unik); **Bayar** = QRIS percobaan + Mandiri `1400024546344` a.n. HABIBUR RAHMAN (salin rekening/nominal) + **Sudah bayar** → Menunggu Verifikasi; batal WA; `/admin/latber` tanpa sesi → sini |
 
 ---
 
@@ -278,7 +278,7 @@ Pusat / Nasional
 9. Notifikasi: ranting/cabang + anggota pada daftar mandiri, konfirmasi bayar, terima, tolak (`latber-notify`, `notifyDojoAndBranchAdmins`).
 10. **Kelola Anggota** — dropdown pencarian: **Daftar UKT** / **Daftar Latber** ke periode aktif (`active-registration-periods`).
 11. **Kredit kehadiran:** peserta **Lunas** mendapat 1 hari absensi pada tanggal jadwal (`eventAt`, `method=LATBER`, Prisma); tampil di `/dashboard/absensi` + **Kehadiran Semester** (hari unik / 48, GPS menang jika hari sama); ditulis saat cabang Verifikasi bila hari H sudah lewat + cron `GET /api/cron/latber-attendance`; batal/hapus menghapus kredit LATBER.
-12. **Walk-in publik `/latber`:** tanpa login; cari/scan QR kartu `/v/{NIA\|UUID}`; daftar langsung **Belum Bayar** + `Billing.uniqueTail` (3 digit NIA / cadangan 1–999; `amount=45000+tail`; rekap/nota tetap 45.000); modal Tambah Anggota = `POST /api/auth/register` (+`memberId`) lalu auto-daftar; Bayar = “Pembayaran QRIS segera aktif” (Midtrans fase 2); Batal = WA `081331053100`; `/admin/latber` tanpa cookie sesi → `/latber`.
+12. **Walk-in publik `/latber`:** tanpa login; KPI status (Peserta/Belum Bayar/Menunggu Verifikasi/Lunas) + KPI per ranting + grafik batang stacked; cari/scan QR kartu `/v/{NIA\|UUID}`; daftar langsung **Belum Bayar** + `Billing.uniqueTail` (3 digit NIA / cadangan 1–999; `amount=45000+tail`; rekap/nota tetap 45.000); modal Tambah Anggota = `POST /api/auth/register` (+`memberId`) lalu auto-daftar; **Bayar** = QRIS Livin percobaan (`/images/latber-qris-trial.png`, 1 transaksi / kedaluwarsa 16 Agu 2026 10:26 WIB) + rekening Mandiri `1400024546344` HABIBUR RAHMAN (`LATBER_PAYMENT`) + salin nominal; **Sudah bayar** → `WAITING_VERIFICATION`; bendahara admin **Verifikasi** → Lunas; Batal = WA `081331053100`; `/admin/latber` tanpa cookie sesi → `/latber`.
 13. v1 **tanpa:** Kyu/hari-H, laporan Pengprov, fee per sabuk, halaman Pengaturan Latber penuh, Midtrans live.
 
 ### 9.4 Kegiatan & absensi
@@ -357,7 +357,7 @@ Pusat / Nasional
 | Status Latber anggota | Aktif | `/api/member/latber-status` + kartu: daftar mandiri, konfirmasi bayar (`eventId`), refetch; tanpa nominal biaya |
 | Notifikasi Latber | Aktif | Member + ranting/cabang pada daftar/konfirmasi/terima/tolak; rate limit member POST |
 | Undangan portal Latber | Aktif | `/undangan/latber/[periodId]`; snapshot `latber-invite:{id}`; CTA → `/latber`; Salin/WA di toolbar admin |
-| Latber walk-in publik | Aktif | `/latber` + `/api/public/latber/*`; uniqueTail; modal daftar = auth/register; Bayar QRIS skeleton; batal WA; Midtrans fase 2 |
+| Latber walk-in publik | Aktif | `/latber` + `/api/public/latber/*`; uniqueTail; KPI status+ranting+grafik; Bayar QRIS percobaan + transfer Mandiri; Sudah bayar → verifikasi admin; batal WA |
 | Filter/KPI UKT operasional | Aktif | Status UI selaras: Belum Bayar, Menunggu Verif/Ujian, Lulus, Selesai; kartu KPI **Gagal/Mengulang** memfilter kedua status |
 | Pengecualian UKT (waiver) | Aktif | Cabang kecualikan iuran/dokumen/absensi + catatan audit |
 | Kebijakan syarat UKT | Aktif | `/admin/pengaturan/ukt` — centang iuran/dokumen/absensi + enforce ranting/cabang (`AppSetting` `ukt.registration.policy`) |
@@ -449,10 +449,11 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/latber/suggest   GET autocomplete nama/NIA (scoped, clone UKT)
 /api/admin/latber/members   GET hydrate 1 anggota + `?periodId=` baris Belum Daftar (`latberRow`)
 /api/admin/latber/invite     POST refresh snapshot undangan publik Latber
-/api/public/latber/period    GET periode aktif + fee + ranting + `paymentEnabled:false` (walk-in)
+/api/public/latber/period    GET periode aktif + fee + ranting + `paymentEnabled` + `payment` (LATBER_PAYMENT / fallback kebijakan)
 /api/public/latber/registrants GET tabel peserta publik (NIA, amount unik, status)
 /api/public/latber/suggest   GET autocomplete nama/NIA/UUID (+ parse `/v/…`)
 /api/public/latber/register  POST daftar walk-in APPROVED + uniqueTail; rate limit + CSRF
+/api/public/latber/confirm-payment  POST Sudah bayar walk-in → billing WAITING_VERIFICATION; rate limit + CSRF; idempotent
 /api/member/latber/register POST daftar mandiri PENDING; rate limit; notif member+ranting
 /api/member/latber/confirm-payment  POST konfirmasi sudah bayar ke ranting (`eventId`); rate limit; notif
 /api/member/latber-status   GET status Latber periode aktif (kartu anggota)
@@ -1007,6 +1008,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 14 Agustus 2026 | **Cetak Nota UKT Gabungan:** dropdown modal — satu ranting atau **Gabungan** (multi-ranting / semua cabang); agregat Subtotal A − komisi; nomor `UKT/SBY/GABUNGAN/…`; selaras WA rinci, bukan tab Administrasi Pengprov; inventaris §9.3/§15 |
 | 14 Agustus 2026 | **Cetak Nota UKT multi-select:** dropdown → **daftar centang** ranting (Pilih/Hapus semua); subset atau semua → `GABUNGAN (nama…)`; inventaris §9.3/§15 |
 | 15 Agustus 2026 | **Latber walk-in publik `/latber`:** cari/scan QR kartu; modal Tambah Anggota (= `/login?tab=daftar`); tabel + biaya unik NIA; Bayar QRIS skeleton; batal WA; API `/api/public/latber/*`; redirect admin tanpa sesi; CTA undangan → `/latber`; inventaris §4/§9.3b/§11/§13/§15 |
+| 15 Agustus 2026 | **Latber Bayar + KPI publik:** QRIS percobaan Livin + Mandiri 1400024546344 HABIBUR RAHMAN; Sudah bayar → Menunggu Verifikasi; KPI status + ranting + grafik; hapus banner Midtrans; `POST /api/public/latber/confirm-payment`; inventaris §4/§9.3b/§11/§13/§15 |
 
 ---
 

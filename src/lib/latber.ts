@@ -5,6 +5,28 @@ export const DEFAULT_LATBER_KOMISI_RANTING = 5_000;
 export const LATBER_CATEGORY = "Pendaftaran Latihan Bersama";
 export const LATBER_EVENT_PREFIX = "Latihan Bersama";
 
+/** Rekening transfer Latber walk-in (QRIS percobaan Livin). */
+export const LATBER_PAYMENT = {
+  bankName: "Mandiri",
+  bankAccountNumber: "1400024546344",
+  bankAccountName: "HABIBUR RAHMAN",
+  paymentInstructions:
+    "Transfer nominal unik sesuai baris peserta. Cantumkan NIA atau nama di berita transfer.",
+  qrisImageUrl: "/images/latber-qris-trial.png",
+  qrisTrialNote: "QRIS percobaan — hanya 1 transaksi",
+  qrisExpiresAtLabel: "16 Agustus 2026, 10:26 WIB",
+} as const;
+
+export type LatberPaymentInfo = {
+  bankName: string;
+  bankAccountNumber: string;
+  bankAccountName: string;
+  paymentInstructions: string;
+  qrisImageUrl: string;
+  qrisTrialNote: string;
+  qrisExpiresAtLabel: string;
+};
+
 export type LatberPeriodSchedule = {
   startDate: string;
   endDate: string;

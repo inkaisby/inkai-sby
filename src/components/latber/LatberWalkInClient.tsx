@@ -1,12 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Camera,
+  Check,
+  Copy,
   Loader2,
   Search,
   UserPlus,
+  Users,
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +34,12 @@ import {
 } from "@/components/ui/table";
 import RegisterForm from "@/components/auth/RegisterForm";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
-import { formatLatberCurrency, formatLatberPeriodLabel } from "@/lib/latber";
+import {
+  formatLatberCurrency,
+  formatLatberPeriodLabel,
+  LATBER_PAYMENT,
+  type LatberPaymentInfo,
+} from "@/lib/latber";
 import { parseMemberCardScanPayload } from "@/lib/latber-card-scan";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { cn } from "@/lib/utils";
@@ -44,7 +53,8 @@ type PeriodPayload = {
   eventAt: string | null;
   eventLocation: string | null;
   feeAmount: number;
-  paymentEnabled: false;
+  paymentEnabled: boolean;
+  payment?: LatberPaymentInfo;
 };
 
 type Registrant = {
@@ -78,6 +88,10 @@ function buildBatalWaUrl(nama: string, ranting: string) {
   return `https://wa.me/${WA_ADMIN}?text=${encodeURIComponent(text)}`;
 }
 
+async function copyText(value: string) {
+  await navigator.clipboard.writeText(value);
+}
+
 type BarcodeDetectorLike = {
   detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>>;
 };
@@ -106,6 +120,11 @@ export function LatberWalkInClient({
   const [scanOpen, setScanOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [payRow, setPayRow] = useState<Registrant | null>(null);
+  const [confirmingPay, setConfirmingPay] = useState(false);
+  const [copiedField, setCopiedField] = useState<"account" | "amount" | null>(
+    null,
+  );
 
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const suggestDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -115,6 +134,15 @@ export function LatberWalkInClient({
 
   const periodId = period?.periodId ?? null;
   const registrationOpen = Boolean(period?.registrationOpen);
+  const payment: LatberPaymentInfo = period?.payment ?? {
+    bankName: LATBER_PAYMENT.bankName,
+    bankAccountNumber: LATBER_PAYMENT.bankAccountNumber,
+    bankAccountName: LATBER_PAYMENT.bankAccountName,
+    paymentInstructions: LATBER_PAYMENT.paymentInstructions,
+    qrisImageUrl: LATBER_PAYMENT.qrisImageUrl,
+    qrisTrialNote: LATBER_PAYMENT.qrisTrialNote,
+    qrisExpiresAtLabel: LATBER_PAYMENT.qrisExpiresAtLabel,
+  };
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -190,6 +218,62 @@ export function LatberWalkInClient({
     );
   }, [registrants, searchQ]);
 
+  const kpis = useMemo(() => {
+    let belumBayar = 0;
+    let menungguVerifikasi = 0;
+    let lunas = 0;
+    for (const r of registrants) {
+      if (r.displayStatus === "belum_bayar") belumBayar += 1;
+      else if (r.displayStatus === "menunggu_verifikasi") menungguVerifikasi += 1;
+      else if (r.displayStatus === "lunas") lunas += 1;
+    }
+    return {
+      total: registrants.length,
+      belumBayar,
+      menungguVerifikasi,
+      lunas,
+    };
+  }, [registrants]);
+
+  const rantingKpis = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of registrants) {
+      const name = r.dojoName?.trim() || "—";
+      map.set(name, (map.get(name) ?? 0) + 1);
+    }
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "id"));
+  }, [registrants]);
+
+  const chartSegments = useMemo(() => {
+    const total =
+      kpis.belumBayar + kpis.menungguVerifikasi + kpis.lunas || 1;
+    return [
+      {
+        key: "belum",
+        label: "Belum Bayar",
+        count: kpis.belumBayar,
+        pct: (kpis.belumBayar / total) * 100,
+        className: "bg-amber-500",
+      },
+      {
+        key: "tunggu",
+        label: "Menunggu Verifikasi",
+        count: kpis.menungguVerifikasi,
+        pct: (kpis.menungguVerifikasi / total) * 100,
+        className: "bg-sky-500",
+      },
+      {
+        key: "lunas",
+        label: "Lunas",
+        count: kpis.lunas,
+        pct: (kpis.lunas / total) * 100,
+        className: "bg-emerald-500",
+      },
+    ];
+  }, [kpis]);
+
   async function handleRegister(memberId: string) {
     if (!periodId || !registrationOpen) return;
     setRegistering(true);
@@ -216,6 +300,45 @@ export function LatberWalkInClient({
       showError(e instanceof Error ? e.message : "Gagal mendaftarkan");
     } finally {
       setRegistering(false);
+    }
+  }
+
+  async function handleConfirmPayment() {
+    if (!periodId || !payRow) return;
+    setConfirmingPay(true);
+    try {
+      const res = await fetch("/api/public/latber/confirm-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: periodId,
+          registrationId: payRow.registrationId,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal mengonfirmasi pembayaran");
+      }
+      showSuccess("Pembayaran dikonfirmasi — menunggu verifikasi bendahara");
+      setPayRow(null);
+      await reload();
+    } catch (e) {
+      showError(
+        e instanceof Error ? e.message : "Gagal mengonfirmasi pembayaran",
+      );
+    } finally {
+      setConfirmingPay(false);
+    }
+  }
+
+  async function handleCopy(field: "account" | "amount", value: string) {
+    try {
+      await copyText(value);
+      setCopiedField(field);
+      showSuccess(field === "account" ? "No. rekening disalin" : "Nominal disalin");
+      setTimeout(() => setCopiedField(null), 1500);
+    } catch {
+      showError("Gagal menyalin");
     }
   }
 
@@ -318,6 +441,12 @@ export function LatberWalkInClient({
     ? formatLatberPeriodLabel(period.title)
     : "Latihan Bersama";
 
+  const hasBank = Boolean(
+    payment.bankName.trim() &&
+      payment.bankAccountNumber.trim() &&
+      payment.bankAccountName.trim(),
+  );
+
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
       <header className="space-y-2">
@@ -327,7 +456,12 @@ export function LatberWalkInClient({
         </h1>
         {period?.eventLocation || period?.eventAt ? (
           <p className="text-sm text-muted-foreground">
-            {[period.eventLocation, period.eventAt ? new Date(period.eventAt).toLocaleString("id-ID") : null]
+            {[
+              period.eventLocation,
+              period.eventAt
+                ? new Date(period.eventAt).toLocaleString("id-ID")
+                : null,
+            ]
               .filter(Boolean)
               .join(" · ")}
           </p>
@@ -360,6 +494,88 @@ export function LatberWalkInClient({
           </Button>
         </div>
       </section>
+
+      {period?.periodId ? (
+        <section className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border bg-card p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Users className="h-4 w-4" />
+                Peserta
+              </div>
+              <p className="mt-1 text-2xl font-semibold">{kpis.total}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-sm text-muted-foreground">Belum Bayar</p>
+              <p className="mt-1 text-2xl font-semibold text-amber-700">
+                {kpis.belumBayar}
+              </p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-sm text-muted-foreground">Menunggu Verifikasi</p>
+              <p className="mt-1 text-2xl font-semibold">
+                {kpis.menungguVerifikasi}
+              </p>
+            </div>
+            <div className="rounded-xl border bg-card p-4">
+              <p className="text-sm text-muted-foreground">Lunas</p>
+              <p className="mt-1 text-2xl font-semibold text-emerald-700">
+                {kpis.lunas}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-card p-4">
+            <p className="text-sm font-medium text-foreground">Status pembayaran</p>
+            {kpis.total === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                Belum ada peserta.
+              </p>
+            ) : (
+              <>
+                <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-muted">
+                  {chartSegments.map((seg) =>
+                    seg.count > 0 ? (
+                      <div
+                        key={seg.key}
+                        className={cn("h-full transition-all", seg.className)}
+                        style={{ width: `${seg.pct}%` }}
+                        title={`${seg.label}: ${seg.count}`}
+                      />
+                    ) : null,
+                  )}
+                </div>
+                <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  {chartSegments.map((seg) => (
+                    <li key={seg.key} className="flex items-center gap-1.5">
+                      <span
+                        className={cn("inline-block h-2.5 w-2.5 rounded-sm", seg.className)}
+                      />
+                      {seg.label} ({seg.count})
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+
+          {rantingKpis.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Peserta per ranting</p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {rantingKpis.map((r) => (
+                  <div key={r.name} className="rounded-xl border bg-card p-4">
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {r.name}
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold">{r.count}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="space-y-2">
         <div ref={searchWrapRef} className="relative flex flex-wrap gap-2">
@@ -418,7 +634,11 @@ export function LatberWalkInClient({
                         {formatMemberName(s.fullName)}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {[s.nia, formatRankLabel(s.currentRank || "") || s.currentRank, s.dojoName]
+                        {[
+                          s.nia,
+                          formatRankLabel(s.currentRank || "") || s.currentRank,
+                          s.dojoName,
+                        ]
                           .filter(Boolean)
                           .join(" · ")}
                         {" · "}
@@ -473,11 +693,6 @@ export function LatberWalkInClient({
             mendaftarkan otomatis.
           </p>
         ) : null}
-      </div>
-
-      <div className="rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-        Pembayaran QRIS (Midtrans) sedang diaktifkan — daftar tetap bisa. Tombol
-        Bayar: <em>Pembayaran QRIS segera aktif</em>.
       </div>
 
       {pendingMember && registrationOpen ? (
@@ -536,13 +751,19 @@ export function LatberWalkInClient({
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={8}
+                  className="py-10 text-center text-muted-foreground"
+                >
                   Memuat peserta…
                 </TableCell>
               </TableRow>
             ) : filteredRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                <TableCell
+                  colSpan={8}
+                  className="py-10 text-center text-muted-foreground"
+                >
                   Belum ada peserta. Cari nama atau scan kartu lalu daftar.
                 </TableCell>
               </TableRow>
@@ -550,6 +771,7 @@ export function LatberWalkInClient({
               filteredRows.map((row, i) => {
                 const paid = row.displayStatus === "lunas";
                 const waiting = row.displayStatus === "menunggu_verifikasi";
+                const unpaid = row.displayStatus === "belum_bayar";
                 return (
                   <TableRow
                     key={row.registrationId}
@@ -571,10 +793,19 @@ export function LatberWalkInClient({
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {!paid ? (
-                          <Button size="sm" variant="outline" disabled title="Pembayaran QRIS segera aktif">
-                            Pembayaran QRIS segera aktif
+                        {unpaid ? (
+                          <Button
+                            size="sm"
+                            className="bg-inkai-red hover:bg-inkai-red/90"
+                            onClick={() => setPayRow(row)}
+                          >
+                            Bayar
                           </Button>
+                        ) : null}
+                        {waiting ? (
+                          <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
+                            Menunggu verifikasi
+                          </span>
                         ) : null}
                         {!paid ? (
                           <Button size="sm" variant="outline" asChild>
@@ -590,7 +821,6 @@ export function LatberWalkInClient({
                             </a>
                           </Button>
                         ) : null}
-                        {waiting ? null : null}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -625,6 +855,146 @@ export function LatberWalkInClient({
               }
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(payRow)}
+        onOpenChange={(o) => {
+          if (!o) setPayRow(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bayar Latihan Bersama</DialogTitle>
+            <DialogDescription>
+              {payRow
+                ? `${formatMemberName(payRow.fullName)}${payRow.nia ? ` · ${payRow.nia}` : ""}`
+                : "Transfer sesuai nominal unik."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {payRow ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="overflow-hidden rounded-lg border bg-white">
+                  <Image
+                    src={payment.qrisImageUrl}
+                    alt="QRIS Latber percobaan"
+                    width={720}
+                    height={960}
+                    className="mx-auto h-auto w-full max-w-sm object-contain"
+                    priority
+                  />
+                </div>
+                <p className="text-center text-xs font-medium text-amber-800 dark:text-amber-200">
+                  {payment.qrisTrialNote}
+                </p>
+                <p className="text-center text-xs text-muted-foreground">
+                  Berlaku hingga {payment.qrisExpiresAtLabel}
+                </p>
+              </div>
+
+              {hasBank ? (
+                <div className="space-y-2 rounded-lg border p-3 text-sm">
+                  <p>
+                    <span className="text-muted-foreground">Bank</span>
+                    <br />
+                    <span className="font-medium">{payment.bankName}</span>
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Atas nama</span>
+                    <br />
+                    <span className="font-medium">{payment.bankAccountName}</span>
+                  </p>
+                  <div className="flex items-end justify-between gap-2">
+                    <div>
+                      <span className="text-muted-foreground">No. rekening</span>
+                      <p className="font-mono text-base font-semibold tracking-wide">
+                        {payment.bankAccountNumber}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        void handleCopy("account", payment.bankAccountNumber)
+                      }
+                    >
+                      {copiedField === "account" ? (
+                        <Check className="mr-1 h-3.5 w-3.5" />
+                      ) : (
+                        <Copy className="mr-1 h-3.5 w-3.5" />
+                      )}
+                      Salin
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
+                  Rekening belum dikonfigurasi — hubungi panitia. Nominal tetap
+                  ditampilkan di bawah.
+                </p>
+              )}
+
+              <div className="flex items-end justify-between gap-2 rounded-lg border p-3">
+                <div>
+                  <span className="text-sm text-muted-foreground">Nominal</span>
+                  <p className="text-xl font-semibold text-inkai-red">
+                    {formatLatberCurrency(payRow.amount)}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    void handleCopy("amount", String(Math.round(payRow.amount)))
+                  }
+                >
+                  {copiedField === "amount" ? (
+                    <Check className="mr-1 h-3.5 w-3.5" />
+                  ) : (
+                    <Copy className="mr-1 h-3.5 w-3.5" />
+                  )}
+                  Salin
+                </Button>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                {payment.paymentInstructions ||
+                  "Transfer nominal unik sesuai baris. Cantumkan NIA atau nama di berita transfer."}
+                {payRow.nia ? ` Berita: ${payRow.nia}.` : ""}
+              </p>
+            </div>
+          ) : null}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={confirmingPay}
+              onClick={() => setPayRow(null)}
+            >
+              Tutup
+            </Button>
+            <Button
+              type="button"
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              disabled={confirmingPay || !payRow}
+              onClick={() => void handleConfirmPayment()}
+            >
+              {confirmingPay ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  Mengirim…
+                </>
+              ) : (
+                "Sudah bayar"
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

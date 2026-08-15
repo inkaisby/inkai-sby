@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatRankLabel } from "@/lib/belt";
 import {
   DEFAULT_LATBER_FEE,
+  LATBER_PAYMENT,
   findActiveLatberPeriod,
   isLatberEventTitle,
   isLatberRegistrationOpen,
@@ -13,6 +14,7 @@ import {
   resolveLatberDisplayStatus,
   resolveLatberPeriodFees,
   type LatberMemberRow,
+  type LatberPaymentInfo,
   type LatberPeriodMeta,
   type LatberPeriodOption,
 } from "@/lib/latber";
@@ -23,6 +25,7 @@ import {
   parseLatberSelfRegistrationMeta,
 } from "@/lib/latber-self-registration";
 import { getBranchDojosList } from "@/lib/public-data";
+import { getBranchOrgProfile } from "@/lib/org-settings";
 
 export type LatberPublicPeriodPayload = {
   periodId: string | null;
@@ -33,9 +36,44 @@ export type LatberPublicPeriodPayload = {
   eventAt: string | null;
   eventLocation: string | null;
   feeAmount: number;
-  paymentEnabled: false;
+  paymentEnabled: boolean;
+  payment: LatberPaymentInfo;
   dojos: Array<{ id: string; name: string }>;
 };
+
+async function resolveLatberPublicPayment(): Promise<LatberPaymentInfo> {
+  const fromConst = {
+    bankName: LATBER_PAYMENT.bankName.trim(),
+    bankAccountNumber: LATBER_PAYMENT.bankAccountNumber.trim(),
+    bankAccountName: LATBER_PAYMENT.bankAccountName.trim(),
+    paymentInstructions: LATBER_PAYMENT.paymentInstructions.trim(),
+    qrisImageUrl: LATBER_PAYMENT.qrisImageUrl,
+    qrisTrialNote: LATBER_PAYMENT.qrisTrialNote,
+    qrisExpiresAtLabel: LATBER_PAYMENT.qrisExpiresAtLabel,
+  };
+  if (
+    fromConst.bankName &&
+    fromConst.bankAccountNumber &&
+    fromConst.bankAccountName
+  ) {
+    return fromConst;
+  }
+  const profile = await getBranchOrgProfile();
+  return {
+    bankName: fromConst.bankName || profile.bankName.trim(),
+    bankAccountNumber:
+      fromConst.bankAccountNumber || profile.bankAccountNumber.trim(),
+    bankAccountName:
+      fromConst.bankAccountName || profile.bankAccountName.trim(),
+    paymentInstructions:
+      fromConst.paymentInstructions ||
+      profile.paymentInstructions.trim() ||
+      "",
+    qrisImageUrl: fromConst.qrisImageUrl,
+    qrisTrialNote: fromConst.qrisTrialNote,
+    qrisExpiresAtLabel: fromConst.qrisExpiresAtLabel,
+  };
+}
 
 export type LatberPublicRegistrant = {
   memberId: string;
@@ -137,8 +175,14 @@ export async function resolveActiveLatberPeriodId(
 
 export const getLatberPublicPeriod = cache(
   async (periodFromUrl?: string | null): Promise<LatberPublicPeriodPayload> => {
-    const dojosRaw = await getBranchDojosList();
+    const [dojosRaw, payment] = await Promise.all([
+      getBranchDojosList(),
+      resolveLatberPublicPayment(),
+    ]);
     const dojos = dojosRaw.map((d) => ({ id: d.id, name: d.name }));
+    const paymentEnabled = Boolean(
+      payment.bankAccountNumber.trim() || payment.qrisImageUrl,
+    );
 
     const { period, meta } = await resolveActiveLatberPeriodId(periodFromUrl);
     if (!period) {
@@ -151,7 +195,8 @@ export const getLatberPublicPeriod = cache(
         eventAt: null,
         eventLocation: null,
         feeAmount: DEFAULT_LATBER_FEE,
-        paymentEnabled: false,
+        paymentEnabled,
+        payment,
         dojos,
       };
     }
@@ -181,7 +226,8 @@ export const getLatberPublicPeriod = cache(
       eventLocation:
         invite?.eventLocation ?? meta.eventLocation ?? null,
       feeAmount: fees.feeAmount,
-      paymentEnabled: false,
+      paymentEnabled,
+      payment,
       dojos,
     };
   },
