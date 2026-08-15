@@ -1,20 +1,57 @@
 import { unstable_cache } from "next/cache";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
+import { youtubeVideoId } from "@/lib/youtube";
+
+export type ArticleMediaItem = {
+  type: "IMAGE" | "VIDEO";
+  url: string;
+  caption?: string;
+};
 
 export type ArticlePublic = {
   id: string;
   title: string;
   summary: string;
   photoUrl: string | null;
+  media: ArticleMediaItem[];
   publishedAt: string | null;
   order: number;
 };
+
+export function parseArticleMedia(raw: unknown): ArticleMediaItem[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ArticleMediaItem[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const rec = item as Record<string, unknown>;
+    const type = rec.type === "VIDEO" ? "VIDEO" : rec.type === "IMAGE" ? "IMAGE" : null;
+    const url = typeof rec.url === "string" ? rec.url.trim() : "";
+    if (!type || !url) continue;
+    if (type === "VIDEO" && !youtubeVideoId(url)) continue;
+    if (type === "IMAGE") {
+      try {
+        const u = new URL(url);
+        if (u.protocol !== "http:" && u.protocol !== "https:") continue;
+      } catch {
+        continue;
+      }
+    }
+    const caption =
+      typeof rec.caption === "string" && rec.caption.trim()
+        ? rec.caption.trim().slice(0, 200)
+        : undefined;
+    out.push(caption ? { type, url, caption } : { type, url });
+    if (out.length >= 20) break;
+  }
+  return out;
+}
 
 function mapRow(row: {
   id: string;
   title: string;
   summary: string;
   photoUrl: string | null;
+  media?: unknown;
   publishedAt: Date | null;
   order: number;
 }): ArticlePublic {
@@ -23,6 +60,7 @@ function mapRow(row: {
     title: row.title,
     summary: row.summary,
     photoUrl: row.photoUrl,
+    media: parseArticleMedia(row.media),
     publishedAt: row.publishedAt?.toISOString() ?? null,
     order: row.order,
   };
@@ -33,6 +71,7 @@ const selectFields = {
   title: true,
   summary: true,
   photoUrl: true,
+  media: true,
   publishedAt: true,
   order: true,
 } as const;
@@ -96,7 +135,7 @@ export function formatArticleDate(iso: string | null): string | null {
   });
 }
 
-/** Slug URL-friendly dari judul (untuk ?slug=). */
+/** Slug URL-friendly dari judul (untuk /artikel/[slug]). */
 export function articleSlug(title: string): string {
   return title
     .normalize("NFKD")
@@ -107,11 +146,11 @@ export function articleSlug(title: string): string {
     .slice(0, 80);
 }
 
-/** Path relatif yang bisa di-paste, mis. /artikel?slug=latihan-bersama-… */
+/** Path relatif kanonis, mis. /artikel/latihan-bersama-… */
 export function articlePublicPath(item: { title: string }): string {
   const slug = articleSlug(item.title);
   if (!slug) return "/artikel";
-  return `/artikel?slug=${encodeURIComponent(slug)}`;
+  return `/artikel/${encodeURIComponent(slug)}`;
 }
 
 export function findArticleBySlug(
@@ -121,5 +160,36 @@ export function findArticleBySlug(
   if (!slug) return null;
   const needle = articleSlug(slug);
   if (!needle) return null;
-  return items.find((i) => articleSlug(i.title) === needle) ?? null;
+  return (
+    items.find((i) => articleSlug(i.title) === needle) ??
+    items.find((i) => i.id === slug) ??
+    null
+  );
+}
+
+export async function getArticleBySlug(
+  slug: string,
+): Promise<ArticlePublic | null> {
+  const items = await listActiveArticles();
+  return findArticleBySlug(items, slug);
+}
+
+/** Kutipan singkat untuk daftar / kartu beranda. */
+export function articleExcerpt(summary: string, max = 220): string {
+  const flat = summary.replace(/\s+/g, " ").trim();
+  if (flat.length <= max) return flat;
+  return `${flat.slice(0, max).replace(/\s+\S*$/, "")}…`;
+}
+
+export function countArticleMedia(media: ArticleMediaItem[]): {
+  images: number;
+  videos: number;
+} {
+  let images = 0;
+  let videos = 0;
+  for (const m of media) {
+    if (m.type === "IMAGE") images += 1;
+    else videos += 1;
+  }
+  return { images, videos };
 }

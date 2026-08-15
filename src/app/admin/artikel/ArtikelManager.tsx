@@ -14,9 +14,14 @@ import {
 import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
 import { FileUploadField } from "@/components/admin/FileUploadField";
 import { showError, showSuccess } from "@/lib/client-toast";
-import { articlePublicPath } from "@/lib/articles";
+import {
+  parseArticleMedia,
+  articlePublicPath,
+  type ArticleMediaItem,
+} from "@/lib/articles";
 import { polishAppreciationSummary } from "@/lib/polish-summary";
-import { ArrowDown, ArrowUp, Sparkles } from "lucide-react";
+import { youtubeVideoId } from "@/lib/youtube";
+import { ArrowDown, ArrowUp, Plus, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type ArticleAdminItem = {
@@ -24,6 +29,7 @@ export type ArticleAdminItem = {
   title: string;
   summary: string;
   photoUrl: string | null;
+  media: ArticleMediaItem[];
   publishedAt: string | null;
   order: number;
   isActive: boolean;
@@ -41,6 +47,7 @@ type FormFields = {
   summary: string;
   photoUrl: string;
   publishedAt: string;
+  media: ArticleMediaItem[];
 };
 
 const emptyForm = (): FormFields => ({
@@ -48,6 +55,7 @@ const emptyForm = (): FormFields => ({
   summary: "",
   photoUrl: "",
   publishedAt: "",
+  media: [],
 });
 
 function SummaryField({
@@ -62,7 +70,7 @@ function SummaryField({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Label htmlFor={id}>Ringkasan</Label>
+        <Label htmlFor={id}>Isi artikel</Label>
         <Button
           type="button"
           size="sm"
@@ -77,17 +85,162 @@ function SummaryField({
       </div>
       <textarea
         id={id}
-        className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="flex min-h-[160px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required
-        rows={5}
-        placeholder="Ringkasan berita atau kegiatan (boleh beberapa paragraf)."
+        rows={7}
+        placeholder="Isi berita atau kegiatan (boleh beberapa paragraf)."
       />
       <p className="text-xs text-muted-foreground">
-        Teks tampil di /artikel dan cuplikan beranda. Rapikan teks merapikan
-        spasi dan kapitalisasi.
+        Teks penuh tampil di halaman detail. Daftar /artikel menampilkan kutipan
+        singkat.
       </p>
+    </div>
+  );
+}
+
+function MediaEditor({
+  value,
+  onChange,
+}: {
+  value: ArticleMediaItem[];
+  onChange: (next: ArticleMediaItem[]) => void;
+}) {
+  function updateAt(index: number, patch: Partial<ArticleMediaItem>) {
+    onChange(value.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  }
+
+  function move(index: number, dir: -1 | 1) {
+    const swap = index + dir;
+    if (swap < 0 || swap >= value.length) return;
+    const next = [...value];
+    [next[index], next[swap]] = [next[swap], next[index]];
+    onChange(next);
+  }
+
+  return (
+    <div className="space-y-3 sm:col-span-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <Label>Media tambahan (opsional)</Label>
+          <p className="text-xs text-muted-foreground">
+            Foto atau video YouTube (maks. 20). Tampil di halaman detail.
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="gap-1.5"
+          disabled={value.length >= 20}
+          onClick={() =>
+            onChange([...value, { type: "IMAGE", url: "", caption: "" }])
+          }
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Tambah media
+        </Button>
+      </div>
+
+      {value.length === 0 ? (
+        <p className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+          Belum ada media tambahan. Foto utama (di atas) tetap dipakai sebagai
+          thumbnail.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {value.map((item, index) => (
+            <div
+              key={`media-${index}`}
+              className="space-y-3 rounded-xl border border-border/80 p-3"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                  value={item.type}
+                  onChange={(e) =>
+                    updateAt(index, {
+                      type: e.target.value as "IMAGE" | "VIDEO",
+                      url: "",
+                    })
+                  }
+                >
+                  <option value="IMAGE">Foto</option>
+                  <option value="VIDEO">Video YouTube</option>
+                </select>
+                <div className="ml-auto flex gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={index === 0}
+                    onClick={() => move(index, -1)}
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={index >= value.length - 1}
+                    onClick={() => move(index, 1)}
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive"
+                    onClick={() =>
+                      onChange(value.filter((_, i) => i !== index))
+                    }
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+
+              {item.type === "IMAGE" ? (
+                <FileUploadField
+                  label={`Foto #${index + 1}`}
+                  value={item.url}
+                  onChange={(url) => updateAt(index, { url })}
+                  folder="artikel"
+                  accept="image/*"
+                />
+              ) : (
+                <div className="space-y-2">
+                  <Label>URL YouTube #{index + 1}</Label>
+                  <Input
+                    value={item.url}
+                    onChange={(e) => updateAt(index, { url: e.target.value })}
+                    placeholder="https://www.youtube.com/watch?v=… atau https://youtu.be/…"
+                  />
+                  {item.url && !youtubeVideoId(item.url) ? (
+                    <p className="text-xs text-destructive">
+                      URL YouTube tidak dikenali.
+                    </p>
+                  ) : null}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label>Caption (opsional)</Label>
+                <Input
+                  value={item.caption ?? ""}
+                  onChange={(e) =>
+                    updateAt(index, { caption: e.target.value })
+                  }
+                  placeholder="Keterangan singkat"
+                  maxLength={200}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -116,6 +269,27 @@ function ArticleThumb({
   );
 }
 
+function sanitizeMedia(media: ArticleMediaItem[]): ArticleMediaItem[] | null {
+  const cleaned = media
+    .map((m) => ({
+      type: m.type,
+      url: m.url.trim(),
+      ...(m.caption?.trim() ? { caption: m.caption.trim() } : {}),
+    }))
+    .filter((m) => {
+      if (!m.url) return false;
+      if (m.type === "VIDEO") return Boolean(youtubeVideoId(m.url));
+      try {
+        const u = new URL(m.url);
+        return u.protocol === "http:" || u.protocol === "https:";
+      } catch {
+        return false;
+      }
+    })
+    .slice(0, 20);
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 export function ArtikelManager({
   initialItems,
   degraded = false,
@@ -138,9 +312,16 @@ export function ArtikelManager({
       if (res.ok) {
         const data = await res.json();
         setItems(
-          data.sort(
-            (a: { order: number }, b: { order: number }) => a.order - b.order,
-          ),
+          data
+            .map(
+              (row: ArticleAdminItem & { media?: unknown }): ArticleAdminItem => ({
+                ...row,
+                media: parseArticleMedia(row.media),
+              }),
+            )
+            .sort(
+              (a: { order: number }, b: { order: number }) => a.order - b.order,
+            ),
         );
       }
     } catch (err) {
@@ -155,6 +336,7 @@ export function ArtikelManager({
       summary: item.summary,
       photoUrl: item.photoUrl ?? "",
       publishedAt: toDateInput(item.publishedAt),
+      media: item.media ?? [],
     });
   }
 
@@ -162,6 +344,7 @@ export function ArtikelManager({
     e.preventDefault();
     setLoading(true);
     const summary = polishAppreciationSummary(form.summary);
+    const media = sanitizeMedia(form.media);
     const res = await fetch("/api/admin/artikel", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -169,6 +352,7 @@ export function ArtikelManager({
         title: form.title,
         summary,
         photoUrl: form.photoUrl || null,
+        media,
         publishedAt: form.publishedAt || null,
         order: items.length,
       }),
@@ -188,6 +372,7 @@ export function ArtikelManager({
     if (!editing) return;
     setSavingEdit(true);
     const summary = polishAppreciationSummary(editForm.summary);
+    const media = sanitizeMedia(editForm.media);
     const res = await fetch(`/api/admin/artikel/${editing.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -195,6 +380,7 @@ export function ArtikelManager({
         title: editForm.title,
         summary,
         photoUrl: editForm.photoUrl || null,
+        media,
         publishedAt: editForm.publishedAt || null,
       }),
     });
@@ -209,6 +395,7 @@ export function ArtikelManager({
                 title: editForm.title,
                 summary,
                 photoUrl: editForm.photoUrl || null,
+                media: media ?? [],
                 publishedAt: editForm.publishedAt
                   ? new Date(editForm.publishedAt).toISOString()
                   : null,
@@ -300,8 +487,8 @@ export function ArtikelManager({
         <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
           <p className="text-sm font-medium">Tambah artikel</p>
           <p className="text-xs text-muted-foreground">
-            Judul singkat; narasi berparagraf di ringkasan. Foto landscape
-            disarankan.
+            Judul singkat; isi berparagraf. Foto utama untuk thumbnail &amp;
+            pratinjau WhatsApp. Media tambahan untuk galeri detail.
           </p>
         </div>
         <form
@@ -338,13 +525,18 @@ export function ArtikelManager({
           </div>
           <div className="space-y-2 sm:col-span-2">
             <FileUploadField
-              label="Foto (opsional)"
+              label="Foto utama (opsional)"
               value={form.photoUrl}
               onChange={(photoUrl) => setForm((f) => ({ ...f, photoUrl }))}
               folder="artikel"
               accept="image/*"
+              hint="Dipakai di daftar, beranda, dan gambar pratinjau tautan."
             />
           </div>
+          <MediaEditor
+            value={form.media}
+            onChange={(media) => setForm((f) => ({ ...f, media }))}
+          />
           <Button
             type="submit"
             disabled={loading}
@@ -369,6 +561,7 @@ export function ArtikelManager({
           ) : (
             items.map((item) => {
               const index = items.findIndex((i) => i.id === item.id);
+              const mediaCount = item.media?.length ?? 0;
               return (
                 <div
                   key={item.id}
@@ -390,6 +583,7 @@ export function ArtikelManager({
                           ? toDateInput(item.publishedAt)
                           : "Tanpa tanggal"}
                         {item.isActive ? " · Aktif" : " · Nonaktif"}
+                        {mediaCount > 0 ? ` · ${mediaCount} media` : ""}
                       </p>
                       <p className="mt-1 line-clamp-2 whitespace-pre-line text-sm text-muted-foreground">
                         {item.summary}
@@ -481,13 +675,17 @@ export function ArtikelManager({
               onChange={(summary) => setEditForm((f) => ({ ...f, summary }))}
             />
             <FileUploadField
-              label="Foto (opsional)"
+              label="Foto utama (opsional)"
               value={editForm.photoUrl}
               onChange={(photoUrl) =>
                 setEditForm((f) => ({ ...f, photoUrl }))
               }
               folder="artikel"
               accept="image/*"
+            />
+            <MediaEditor
+              value={editForm.media}
+              onChange={(media) => setEditForm((f) => ({ ...f, media }))}
             />
           </div>
           <DialogFooter>

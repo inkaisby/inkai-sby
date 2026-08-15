@@ -4,12 +4,13 @@ const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co https://api.qrserver.com https://*.blob.vercel-storage.com https://*.public.blob.vercel-storage.com",
+  "img-src 'self' data: blob: https://images.unsplash.com https://*.supabase.co https://api.qrserver.com https://*.blob.vercel-storage.com https://*.public.blob.vercel-storage.com https://i.ytimg.com",
   "font-src 'self'",
   "connect-src 'self'",
   "media-src 'self' blob:",
   // Pratinjau PDF/dokumen via blob: URL di <iframe>/<embed> (DocumentPreviewDialog)
-  "frame-src 'self' blob: https://www.google.com https://maps.google.com",
+  // YouTube embed (artikel + tutorial anggota)
+  "frame-src 'self' blob: https://www.google.com https://maps.google.com https://www.youtube.com https://www.youtube-nocookie.com",
   "object-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -47,6 +48,10 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "images.unsplash.com",
+      },
+      {
+        protocol: "https",
+        hostname: "i.ytimg.com",
       },
     ],
   },

@@ -480,6 +480,8 @@ model ArticleEntry {
   title       String
   summary     String    @db.Text
   photoUrl    String?
+  /// [{ type: "IMAGE" | "VIDEO", url: string, caption?: string }]
+  media       Json?
   publishedAt DateTime?
   isActive    Boolean   @default(true)
   order       Int       @default(0)

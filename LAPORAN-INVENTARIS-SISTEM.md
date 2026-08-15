@@ -68,7 +68,8 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/kegiatan` | Daftar kegiatan (+ badge **Masih terbuka** / **Berlangsung**; UKT terbuka → undangan) |
 | `/kegiatan/[id]` | Detail kegiatan |
 | `/apresiasi` | Kenangan & prestasi; filter `?jenis=`; deep-link pasteable `?jenis=kenangan&tokoh=slug-nama` |
-| `/artikel` | Berita & kegiatan publik (`ArticleEntry`); deep-link `?slug=` dari judul; kartu landscape |
+| `/artikel` | Daftar berita/kegiatan (`ArticleEntry`); kartu kutipan + paginasi `?page=`; foto klik lightbox; `?slug=` redirect ke detail |
+| `/artikel/[slug]` | Detail artikel + galeri media (foto lightbox, video YouTube klik-baru-muat); pratinjau tautan dinamis `opengraph-image` |
 | `/dojo` | Daftar dojo/ranting Cabang Surabaya (detail lengkap, tanpa jumlah anggota) |
 | `/dojo/[id]` | Profil ranting/dojo |
 | `/v/[id]` | Verifikasi kartu anggota (scan QR — UUID atau NIA) |
@@ -124,7 +125,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Absensi | **Progress** tabel klik→Sheet + harian + belum hadir; **tab client instan**; **filter tanggal/semester client-fetch** (`GET /api/admin/absensi` + `replaceState`); export; soft-backfill menu ranting |
 | Carousel Beranda | Upload gambar + aktif + **urutkan** (Prisma lokal; cabang); grup **Konten**; fallback beranda jika belum ada Artikel |
 | Apresiasi | CRUD kenangan & prestasi publik (`AppreciationEntry`); edit dialog + rapikan ringkasan; cabang saja; grup **Konten** |
-| Artikel | CRUD berita/kegiatan publik (`ArticleEntry`: judul, ringkasan, foto landscape, tanggal, urutan, aktif); salin tautan; cabang saja; grup **Konten**; SQL ops `prisma/sql/article-entry.sql` |
+| Artikel | CRUD berita/kegiatan publik (`ArticleEntry`: judul, isi, foto utama, `media` JSON foto/video YouTube, tanggal, urutan, aktif); salin tautan `/artikel/[slug]`; cabang saja; grup **Konten**; SQL ops `prisma/sql/article-entry.sql` + `article-media.sql` |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat); fetch awal **100** log (bukan 300) + pagination client |
 | Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; **cabut sesi / kunci / buka kunci**; **ambil alih (Mode A)** pusat/cabang; ranting tidak akses |
 | Notifikasi | Inbox admin (ada di nav); **ranting: rantingnya + ops cabang**; field `audience`; tanpa notif pribadi anggota; cabang lihat semua ranting |
@@ -323,7 +324,7 @@ Pusat / Nasional
 | MixRoute AI | Chat **Tanya INKAI** (`MIXROUTE_API_KEY`, `AI_BASE_URL=https://api.mixroute.ai/v1`, model default `gpt-4o-mini`; tanpa key → jawaban FAQ lokal dari tutorial/org) |
 | Verifikasi klaim | Fail-closed ke Inkai API + `assertDojoInScope` + audit |
 | Playwright | End-to-End (E2E) testing framework untuk pengujian UI otomatis |
-| CSP (`next.config.ts`) | Header keamanan global; `frame-src` mengizinkan `blob:` (pratinjau PDF) + `https://www.google.com` / `https://maps.google.com` (embed peta undangan UKT/Latber) |
+| CSP (`next.config.ts`) | Header keamanan global; `frame-src` mengizinkan `blob:` (pratinjau PDF) + Google Maps + `youtube.com` / `youtube-nocookie.com` (embed artikel/tutorial); `img-src` + `i.ytimg.com` |
 
 ---
 
@@ -467,7 +468,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/verifications/*  Proses klaim
 /api/admin/carousel/*       Carousel beranda (Prisma lokal)
 /api/admin/apresiasi/*      CRUD apresiasi publik (cabang)
-/api/admin/artikel/*        CRUD artikel publik (cabang; `ArticleEntry`)
+/api/admin/artikel/*        CRUD artikel publik (cabang; `ArticleEntry` + `media` JSON)
 /api/admin/upload           Upload ke Blob
 /api/admin/document-file    Proxy pratinjau dokumen anggota (modal + print)
 /api/admin/events           Buat event non-UKT (Cabang)
@@ -1016,6 +1017,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 15 Agustus 2026 | **Redirect undangan Latber:** `/undangan/latber/[periodId]` → `/latber?period=[periodId]` (hilangkan 404 snapshot); undangan UKT tidak berubah; inventaris §4/§9.3b/§11/§15 |
 | 15 Agustus 2026 | **Guard undangan UKT → Latber:** `/undangan/ukt/[periodId]` cek `prisma.event` + `isLatberEventTitle`; link Latber yang keliru pakai path UKT redirect ke `/latber?period=…` (fix 404 link beredar); inventaris §4/§15 |
 | 15 Agustus 2026 | **Fix Admin Artikel:** buat tabel `ArticleEntry` di produksi (`prisma db execute`); `/admin/artikel` + API pakai `withPrismaFallback` / tangani P2021 (banner degraded, GET `[]`, mutasi 503); inventaris §15 |
+| 15 Agustus 2026 | **Artikel detail + media:** `/artikel/[slug]` (kutipan di daftar, paginasi, redirect `?slug=`); kolom `media` JSON + SQL `article-media.sql`; galeri foto lightbox + video YouTube klik-baru-muat; OG image dinamis 1200×630; CSP YouTube/`i.ytimg.com`; inventaris §4/§6/§10/§13/§15 |
 
 ---
 

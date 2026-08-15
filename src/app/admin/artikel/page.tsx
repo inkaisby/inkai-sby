@@ -10,6 +10,7 @@ import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ArtikelManager, type ArticleAdminItem } from "./ArtikelManager";
+import { parseArticleMedia } from "@/lib/articles";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ async function AdminArtikelContent() {
           title: true,
           summary: true,
           photoUrl: true,
+          media: true,
           publishedAt: true,
           order: true,
           isActive: true,
@@ -52,6 +54,7 @@ async function AdminArtikelContent() {
     title: r.title,
     summary: r.summary,
     photoUrl: r.photoUrl,
+    media: parseArticleMedia(r.media),
     publishedAt: r.publishedAt?.toISOString() ?? null,
     order: r.order,
     isActive: r.isActive,

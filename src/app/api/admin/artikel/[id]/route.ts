@@ -6,9 +6,12 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { canAccessAdminPath } from "@/lib/admin-page-access";
 import { polishAppreciationSummary } from "@/lib/polish-summary";
 import { prisma } from "@/lib/prisma";
+import { youtubeVideoId } from "@/lib/youtube";
 
 const TABLE_MISSING_MSG =
   "Fitur artikel belum aktif. Tabel belum dibuat di database.";
+const COLUMN_MISSING_MSG =
+  "Kolom media belum siap di database. Jalankan SQL article-media.sql.";
 
 function isTableMissing(error: unknown): boolean {
   return (
@@ -17,10 +20,48 @@ function isTableMissing(error: unknown): boolean {
   );
 }
 
+function isColumnMissing(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2022"
+  );
+}
+
+const mediaItemSchema = z
+  .object({
+    type: z.enum(["IMAGE", "VIDEO"]),
+    url: z.string().trim().url().max(2000),
+    caption: z.string().trim().max(200).optional().or(z.literal("")),
+  })
+  .superRefine((val, ctx) => {
+    if (val.type === "VIDEO" && !youtubeVideoId(val.url)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "URL video harus dari YouTube",
+        path: ["url"],
+      });
+    }
+  });
+
+const mediaSchema = z.array(mediaItemSchema).max(20).optional().nullable();
+
+function normalizeMedia(
+  media: z.infer<typeof mediaSchema> | undefined,
+): Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined {
+  if (media === undefined) return undefined;
+  if (media == null || media.length === 0) return Prisma.JsonNull;
+  return media.map((m) => ({
+    type: m.type,
+    url: m.url,
+    ...(m.caption ? { caption: m.caption } : {}),
+  }));
+}
+
 const updateSchema = z.object({
   title: z.string().trim().min(2).max(200).optional(),
-  summary: z.string().trim().min(3).max(4000).optional(),
+  summary: z.string().trim().min(3).max(12000).optional(),
   photoUrl: z.string().url().optional().nullable().or(z.literal("")),
+  media: mediaSchema,
   publishedAt: z
     .string()
     .optional()
@@ -55,10 +96,13 @@ export async function PATCH(request: Request, ctx: Ctx) {
   let polishedSummary: string | undefined;
   if (d.summary !== undefined) {
     polishedSummary = polishAppreciationSummary(d.summary);
-    if (polishedSummary.length < 3 || polishedSummary.length > 4000) {
+    if (polishedSummary.length < 3 || polishedSummary.length > 12000) {
       return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
     }
   }
+
+  const mediaValue = normalizeMedia(d.media);
+
   try {
     const item = await prisma.articleEntry.update({
       where: { id },
@@ -66,6 +110,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
         ...(d.title !== undefined ? { title: d.title } : {}),
         ...(polishedSummary !== undefined ? { summary: polishedSummary } : {}),
         ...(d.photoUrl !== undefined ? { photoUrl: d.photoUrl || null } : {}),
+        ...(mediaValue !== undefined ? { media: mediaValue } : {}),
         ...(d.publishedAt !== undefined
           ? { publishedAt: d.publishedAt ? new Date(d.publishedAt) : null }
           : {}),
@@ -81,6 +126,9 @@ export async function PATCH(request: Request, ctx: Ctx) {
   } catch (error) {
     if (isTableMissing(error)) {
       return NextResponse.json({ error: TABLE_MISSING_MSG }, { status: 503 });
+    }
+    if (isColumnMissing(error)) {
+      return NextResponse.json({ error: COLUMN_MISSING_MSG }, { status: 503 });
     }
     return NextResponse.json({ error: "Tidak ditemukan" }, { status: 404 });
   }
