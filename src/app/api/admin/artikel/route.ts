@@ -4,14 +4,16 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { requireAdmin } from "@/lib/admin-auth";
 import { canAccessAdminPath } from "@/lib/admin-page-access";
+import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { normalizeSummaryText } from "@/lib/polish-summary";
 import { prisma } from "@/lib/prisma";
+import { getPrimaryAdminRole } from "@/lib/rbac";
 import { youtubeVideoId } from "@/lib/youtube";
 
 const TABLE_MISSING_MSG =
   "Fitur artikel belum aktif. Tabel belum dibuat di database.";
 const COLUMN_MISSING_MSG =
-  "Kolom media belum siap di database. Jalankan SQL article-media.sql.";
+  "Kolom moderasi/media belum siap. Jalankan SQL article-moderation.sql / article-media.sql.";
 
 function isTableMissing(error: unknown): boolean {
   return (
@@ -79,13 +81,40 @@ const createSchema = z.object({
 export async function GET() {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
-  if (!canAccessAdminPath(authResult.user.roles ?? [], "/admin/artikel")) {
+  if (
+    !canAccessAdminPath(
+      authResult.user.roles ?? [],
+      "/admin/artikel",
+      authResult.adminDojoGrants,
+    )
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const role = getPrimaryAdminRole(authResult.user.roles ?? []);
+  const managed = getManagedDojoIdsFromUser(authResult.user);
+
   try {
     const items = await prisma.articleEntry.findMany({
-      orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+      where:
+        role === "ADMIN_DOJO"
+          ? {
+              OR: [
+                { authorDojoId: { in: managed.length ? managed : ["__none__"] } },
+                {
+                  AND: [
+                    { status: "PENDING" },
+                    {
+                      authorDojoId: {
+                        in: managed.length ? managed : ["__none__"],
+                      },
+                    },
+                  ],
+                },
+              ],
+            }
+          : undefined,
+      orderBy: [{ status: "asc" }, { order: "asc" }, { createdAt: "desc" }],
       take: 200,
     });
     return NextResponse.json(items);
@@ -98,8 +127,22 @@ export async function GET() {
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
-  if (!canAccessAdminPath(authResult.user.roles ?? [], "/admin/artikel")) {
+  if (
+    !canAccessAdminPath(
+      authResult.user.roles ?? [],
+      "/admin/artikel",
+      authResult.adminDojoGrants,
+    )
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const role = getPrimaryAdminRole(authResult.user.roles ?? []);
+  if (role === "ADMIN_DOJO") {
+    return NextResponse.json(
+      { error: "Ranting hanya dapat menyetujui/menolak kiriman anggota." },
+      { status: 403 },
+    );
   }
 
   const parsed = createSchema.safeParse(await request.json());
@@ -122,9 +165,12 @@ export async function POST(request: Request) {
         summary,
         photoUrl: data.photoUrl || null,
         ...(mediaValue !== undefined ? { media: mediaValue } : {}),
-        publishedAt: data.publishedAt ? new Date(data.publishedAt) : null,
+        publishedAt: data.publishedAt ? new Date(data.publishedAt) : new Date(),
         order: data.order,
         isActive: data.isActive,
+        status: "PUBLISHED",
+        reviewedByUserId: authResult.user.id,
+        reviewedAt: new Date(),
       },
     });
 
@@ -134,16 +180,13 @@ export async function POST(request: Request) {
       { status: 201 },
     );
   } catch (error) {
+    console.error("[api/admin/artikel POST]", error);
     if (isTableMissing(error)) {
       return NextResponse.json({ error: TABLE_MISSING_MSG }, { status: 503 });
     }
     if (isColumnMissing(error)) {
       return NextResponse.json({ error: COLUMN_MISSING_MSG }, { status: 503 });
     }
-    console.error("[api/admin/artikel POST]", error);
-    return NextResponse.json(
-      { error: "Gagal menambah artikel" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Gagal menyimpan" }, { status: 500 });
   }
 }

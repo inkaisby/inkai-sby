@@ -166,7 +166,10 @@ export function getAdminNavLinks(
     { href: "/admin/absensi", label: "Absensi" },
     {
       label: "Konten",
-      children: [{ href: "/admin/materi", label: "Materi Digital" }],
+      children: [
+        { href: "/admin/materi", label: "Materi Digital" },
+        { href: "/admin/artikel", label: "Artikel" },
+      ],
     },
     {
       label: "Layanan",
@@ -190,6 +193,7 @@ export const MEMBER_LINKS: NavItem[] = [
   { href: "/dashboard/iuran", label: "Iuran" },
   { href: "/dashboard/kegiatan", label: "Kegiatan Saya" },
   { href: "/dashboard/prestasi", label: "Prestasi & Sabuk" },
+  { href: "/dashboard/artikel", label: "Artikel" },
   { href: "/dashboard/materi", label: "Materi Digital" },
   { href: "/dashboard/store", label: "Store" },
   { href: "/dashboard/pesan", label: "Pesan" },

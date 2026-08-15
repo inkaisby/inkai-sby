@@ -12,6 +12,7 @@ const DOJO_ALLOWED_PREFIXES = [
   "/admin/verifikasi",
   "/admin/kegiatan",
   "/admin/materi",
+  "/admin/artikel",
   "/admin/store",
   "/admin/pesan",
   "/admin/absensi",
@@ -23,7 +24,6 @@ const DOJO_BLOCKED_EXACT = new Set([
   "/admin/organisasi",
   "/admin/carousel",
   "/admin/apresiasi",
-  "/admin/artikel",
   "/admin/audit",
   "/admin/online",
 ]);

@@ -459,6 +459,13 @@ enum AppreciationKind {
   PRESTASI
 }
 
+enum ArticleStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
 model AppreciationEntry {
   id        String           @id @default(uuid())
   kind      AppreciationKind
@@ -476,20 +483,32 @@ model AppreciationEntry {
 }
 
 model ArticleEntry {
-  id          String    @id @default(uuid())
-  title       String
-  summary     String    @db.Text
-  photoUrl    String?
+  id               String          @id @default(uuid())
+  title            String
+  summary          String          @db.Text
+  photoUrl         String?
   /// [{ type: "IMAGE" | "VIDEO", url: string, caption?: string }]
-  media       Json?
-  publishedAt DateTime?
-  isActive    Boolean   @default(true)
-  order       Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  reactions   ArticleReaction[]
+  media            Json?
+  publishedAt      DateTime?
+  isActive         Boolean         @default(true)
+  order            Int             @default(0)
+  status           ArticleStatus   @default(PUBLISHED)
+  authorUserId     String?
+  authorMemberId   String?
+  authorDojoId     String?
+  authorName       String?
+  authorDojoName   String?
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  rejectReason     String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  reactions        ArticleReaction[]
 
   @@index([isActive, order])
+  @@index([status, createdAt])
+  @@index([authorUserId])
+  @@index([authorDojoId, status])
 }
 
 model ArticleReaction {

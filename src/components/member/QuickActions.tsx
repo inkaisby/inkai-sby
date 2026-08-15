@@ -15,6 +15,7 @@ import {
   GraduationCap,
   ArrowRightLeft,
   History,
+  Newspaper,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -34,6 +35,7 @@ type Action = {
 };
 
 const MORE_LINKS = [
+  { icon: Newspaper, label: "Artikel", href: "/dashboard/artikel" },
   { icon: ShoppingBag, label: "Store", href: "/dashboard/store" },
   { icon: Scroll, label: "Piagam", href: "/dashboard/prestasi?tab=Piagam" },
   {
@@ -52,11 +54,13 @@ export function QuickActions({
   unpaidIuran = 0,
   documentsIncomplete = false,
   unreadPesan = 0,
+  rejectedArticles = 0,
 }: {
   checkedInToday?: boolean;
   unpaidIuran?: number;
   documentsIncomplete?: boolean;
   unreadPesan?: number;
+  rejectedArticles?: number;
 }) {
   const actions: Action[] = [
     {
@@ -89,6 +93,13 @@ export function QuickActions({
       icon: Award,
       label: "Sabuk",
       href: "/dashboard/prestasi?tab=Sabuk",
+    },
+    {
+      icon: Newspaper,
+      label: "Artikel",
+      href: "/dashboard/artikel",
+      badge: rejectedArticles > 0 ? rejectedArticles : null,
+      emphasize: rejectedArticles > 0,
     },
     documentsIncomplete
       ? {

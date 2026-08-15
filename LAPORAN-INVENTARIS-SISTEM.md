@@ -125,13 +125,13 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Absensi | **Progress** tabel klik→Sheet + harian + belum hadir; **tab client instan**; **filter tanggal/semester client-fetch** (`GET /api/admin/absensi` + `replaceState`); export; soft-backfill menu ranting |
 | Carousel Beranda | Upload gambar + aktif + **urutkan** (Prisma lokal; cabang); grup **Konten**; fallback beranda jika belum ada Artikel |
 | Apresiasi | CRUD kenangan & prestasi publik (`AppreciationEntry`); edit dialog + rapikan ringkasan; cabang saja; grup **Konten** |
-| Artikel | CRUD berita/kegiatan publik (`ArticleEntry`: judul, isi, foto utama, `media` JSON foto/video YouTube, tanggal, urutan, aktif); reaksi publik `ArticleReaction` (emoji, 1/perangkat); salin tautan `/artikel/[slug]`; cabang saja; grup **Konten**; SQL ops `article-entry.sql` + `article-media.sql` + `article-reaction.sql` |
+| Artikel | CRUD berita/kegiatan publik (`ArticleEntry`: judul, isi, foto utama, `media` JSON, tanggal, urutan, aktif, **status** DRAFT/PENDING/PUBLISHED/REJECTED + penulis); reaksi publik; anggota kirim dari `/dashboard/artikel` (CRUD + re-moderasi); ranting/cabang setujui; SQL `article-entry.sql` + `article-media.sql` + `article-reaction.sql` + `article-moderation.sql` |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat); fetch awal **100** log (bukan 300) + pagination client |
 | Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; **cabut sesi / kunci / buka kunci**; **ambil alih (Mode A)** pusat/cabang; ranting tidak akses |
 | Notifikasi | Inbox admin (ada di nav); **ranting: rantingnya + ops cabang**; field `audience`; tanpa notif pribadi anggota; cabang lihat semua ranting |
 | Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; panel Akun: **Jadikan admin ranting** (email anggota existing → dual-role) + **centang hak akses** (edit profil, CRUD, menu sidebar); **Pengaturan Cabang** mendukung **Jadikan admin cabang** dari akun existing (mis. ketua cabang) tanpa akun baru + badge **Admin + Anggota / Admin saja**; admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, **Pengaturan UKT (syarat daftar)**, peran (**preset**), geofencing (**pratinjau peta**), akun; **arsip cabang: Pulihkan + Hapus permanen** (ditolak jika masih ada anggota / cabang SURABAYA) |
 
-**Batasan admin ranting:** tanpa Organisasi, Carousel, **Apresiasi**, **Artikel**, Audit, **Kehadiran akun**, serta sebagian submenu pengaturan tingkat cabang/pusat.
+**Batasan admin ranting:** tanpa Organisasi, Carousel, **Apresiasi**, Audit, **Kehadiran akun**, serta sebagian submenu pengaturan tingkat cabang/pusat. **Artikel** tersedia untuk review kiriman anggota ranting.
 
 ---
 
@@ -470,7 +470,8 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/verifications/*  Proses klaim
 /api/admin/carousel/*       Carousel beranda (Prisma lokal)
 /api/admin/apresiasi/*      CRUD apresiasi publik (cabang)
-/api/admin/artikel/*        CRUD artikel publik (cabang; `ArticleEntry` + `media` JSON)
+/api/admin/artikel/*        CRUD + approve/reject artikel (`ArticleEntry` + moderasi)
+/api/member/artikel/*       CRUD artikel anggota (draft/submit; re-moderasi jika edit terbit)
 /api/admin/upload           Upload ke Blob
 /api/admin/document-file    Proxy pratinjau dokumen anggota (modal + print)
 /api/admin/events           Buat event non-UKT (Cabang)
@@ -1023,6 +1024,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 15 Agustus 2026 | **Reaksi artikel publik:** emoji 👍❤️🔥🙏😮; `ArticleReaction` + cookie `inkai_artikel_vid` (1/perangkat); API `/api/public/artikel/[id]/reactions`; UI daftar+detail; SQL `article-reaction.sql`; inventaris §4/§6/§13/§15 |
 | 15 Agustus 2026 | **Pratinjau tautan semua tab publik:** helper `src/lib/og-image.tsx` (kartu 1200×630 berlabel) + konvensi `opengraph-image` di grup `(public)` & tiap tab (tutorial/sejarah/struktur/dojo/kegiatan/apresiasi/kontak/artikel); hapus `/logo-inkai.png` dari `og:image` root layout; inventaris §10/§15 |
 | 15 Agustus 2026 | **Editor Artikel + simpan teks apa adanya:** modal Ubah artikel `sm:max-w-3xl` + textarea lebih tinggi; simpan Artikel/Apresiasi hanya `normalizeSummaryText` (Enter/spasi tetap); Rapikan teks tetap opsional lewat tombol; inventaris §15 |
+| 15 Agustus 2026 | **Foto utuh + artikel anggota:** foto publik tanpa crop 16:9; isi detail `text-justify`; anggota CRUD `/dashboard/artikel` + Aksi Cepat; status moderasi + SQL `article-moderation.sql`; ranting/cabang setujui; slug unik id-suffix; inventaris §4/§6/§13/§15 |
 
 ---
 

@@ -54,7 +54,7 @@ export default async function MemberDashboard() {
   const userId = String(session.user.id);
   const memberIdHint =
     typeof session.user.memberId === "string" ? session.user.memberId : null;
-  const [member, notifications, attendances, billings, unreadPesanResult, opsDefaults] =
+  const [member, notifications, attendances, billings, unreadPesanResult, opsDefaults, rejectedArticlesResult] =
     await Promise.all([
       fetchMyMemberProfile(token, memberIdHint),
       fetchMyNotifications(token, 15, session.user.id),
@@ -75,6 +75,14 @@ export default async function MemberDashboard() {
         0,
       ),
       getOperationalDefaults(),
+      withPrismaFallback(
+        "member-artikel-rejected",
+        () =>
+          prisma.articleEntry.count({
+            where: { authorUserId: userId, status: "REJECTED" },
+          }),
+        0,
+      ),
     ]);
 
   const memberNia =
@@ -389,6 +397,7 @@ export default async function MemberDashboard() {
           unpaidIuran={unpaidMonthly}
           documentsIncomplete={!documentsOk}
           unreadPesan={unreadPesan}
+          rejectedArticles={rejectedArticlesResult.data}
         />
       </section>
     </div>

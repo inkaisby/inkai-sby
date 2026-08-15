@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { canAccessAdmin } from "@/lib/rbac";
+import { canAccessAdmin, getPrimaryAdminRole } from "@/lib/rbac";
 import {
   adminFallbackPath,
   canAccessAdminPath,
@@ -29,22 +29,15 @@ async function AdminArtikelContent() {
     redirect(adminFallbackPath(session.user.roles ?? []));
   }
 
+  const role = getPrimaryAdminRole(session.user.roles ?? []);
+  const roleMode = role === "ADMIN_DOJO" ? "dojo" : "branch";
+
   const { data: rows, failed } = await withPrismaFallback(
     "admin-artikel-page",
     () =>
       prisma.articleEntry.findMany({
         orderBy: [{ order: "asc" }, { createdAt: "desc" }],
         take: 200,
-        select: {
-          id: true,
-          title: true,
-          summary: true,
-          photoUrl: true,
-          media: true,
-          publishedAt: true,
-          order: true,
-          isActive: true,
-        },
       }),
     [],
   );
@@ -58,16 +51,28 @@ async function AdminArtikelContent() {
     publishedAt: r.publishedAt?.toISOString() ?? null,
     order: r.order,
     isActive: r.isActive,
+    status:
+      (r as { status?: ArticleAdminItem["status"] }).status ?? "PUBLISHED",
+    authorName: (r as { authorName?: string | null }).authorName ?? null,
+    authorDojoName:
+      (r as { authorDojoName?: string | null }).authorDojoName ?? null,
+    authorDojoId: (r as { authorDojoId?: string | null }).authorDojoId ?? null,
+    rejectReason: (r as { rejectReason?: string | null }).rejectReason ?? null,
   }));
 
   return (
     <>
       <AdminPageHeader title="Artikel publik" />
       <p className="mb-6 text-sm text-muted-foreground">
-        Kelola berita dan kegiatan untuk halaman publik /artikel serta cuplikan
-        beranda (Artikel Terbaru).
+        {roleMode === "dojo"
+          ? "Setujui atau tolak kiriman anggota ranting Anda sebelum tampil di /artikel."
+          : "Kelola berita/kegiatan publik dan antrean kiriman anggota. Setelah disetujui, tampil di /artikel dan beranda."}
       </p>
-      <ArtikelManager initialItems={items} degraded={failed} />
+      <ArtikelManager
+        initialItems={items}
+        degraded={failed}
+        roleMode={roleMode}
+      />
     </>
   );
 }

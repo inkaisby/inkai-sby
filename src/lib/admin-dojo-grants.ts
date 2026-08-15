@@ -22,6 +22,7 @@ export const ADMIN_DOJO_SIDEBAR_OPTIONS = [
   { path: "/admin/kegiatan", label: "Event & Kegiatan" },
   { path: "/admin/absensi", label: "Absensi" },
   { path: "/admin/materi", label: "Materi Digital" },
+  { path: "/admin/artikel", label: "Artikel" },
   { path: "/admin/store", label: "Store" },
   { path: "/admin/pesan", label: "Pesan" },
   { path: "/admin/notifikasi", label: "Notifikasi" },

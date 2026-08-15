@@ -157,6 +157,14 @@ export default async function ArtikelPage({ searchParams }: Props) {
                               {item.title}
                             </Link>
                           </h2>
+                          {item.authorName ? (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Ditulis oleh {item.authorName}
+                              {item.authorDojoName
+                                ? ` · ${item.authorDojoName}`
+                                : ""}
+                            </p>
+                          ) : null}
                           <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
                             {articleExcerpt(item.summary)}
                           </p>

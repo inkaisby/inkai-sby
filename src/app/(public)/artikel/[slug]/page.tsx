@@ -68,7 +68,10 @@ export default async function ArtikelDetailPage({ params }: Props) {
         className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-b from-inkai-red/[0.04] via-transparent to-inkai-yellow/[0.03]"
         aria-hidden
       />
-      <article className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
+      <article
+        lang="id"
+        className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16"
+      >
         <Link
           href="/artikel"
           prefetch
@@ -95,17 +98,24 @@ export default async function ArtikelDetailPage({ params }: Props) {
           {item.title}
         </h1>
 
+        {item.authorName ? (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Ditulis oleh {item.authorName}
+            {item.authorDojoName ? ` · ${item.authorDojoName}` : ""}
+          </p>
+        ) : null}
+
         {item.photoUrl ? (
           <div className="mt-6">
             <ArticlePhotoLightbox
               title={item.title}
               photoUrl={item.photoUrl}
-              className="aspect-video w-full sm:w-full"
+              className="w-full sm:w-full"
             />
           </div>
         ) : null}
 
-        <div className="mt-6 whitespace-pre-line text-base leading-relaxed text-foreground/90">
+        <div className="mt-6 whitespace-pre-line text-justify text-base leading-relaxed hyphens-auto text-foreground/90 sm:text-[1.05rem]">
           {item.summary}
         </div>
 

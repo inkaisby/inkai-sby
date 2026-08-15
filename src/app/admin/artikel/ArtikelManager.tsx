@@ -33,6 +33,11 @@ export type ArticleAdminItem = {
   publishedAt: string | null;
   order: number;
   isActive: boolean;
+  status?: "DRAFT" | "PENDING" | "PUBLISHED" | "REJECTED";
+  authorName?: string | null;
+  authorDojoName?: string | null;
+  authorDojoId?: string | null;
+  rejectReason?: string | null;
 };
 
 function toDateInput(iso: string | null) {
@@ -300,12 +305,18 @@ function sanitizeMedia(media: ArticleMediaItem[]): ArticleMediaItem[] | null {
 export function ArtikelManager({
   initialItems,
   degraded = false,
+  roleMode = "branch",
 }: {
   initialItems: ArticleAdminItem[];
   degraded?: boolean;
+  /** branch = CRUD penuh; dojo = review saja */
+  roleMode?: "branch" | "dojo";
 }) {
   const [items, setItems] = useState(
     [...initialItems].sort((a, b) => a.order - b.order),
+  );
+  const [tab, setTab] = useState<"pending" | "published">(
+    roleMode === "dojo" ? "pending" : "published",
   );
   const [form, setForm] = useState<FormFields>(emptyForm);
   const [loading, setLoading] = useState(false);
@@ -324,6 +335,11 @@ export function ArtikelManager({
               (row: ArticleAdminItem & { media?: unknown }): ArticleAdminItem => ({
                 ...row,
                 media: parseArticleMedia(row.media),
+                status: row.status ?? "PUBLISHED",
+                authorName: row.authorName ?? null,
+                authorDojoName: row.authorDojoName ?? null,
+                authorDojoId: row.authorDojoId ?? null,
+                rejectReason: row.rejectReason ?? null,
               }),
             )
             .sort(
@@ -333,6 +349,33 @@ export function ArtikelManager({
       }
     } catch (err) {
       console.error(err);
+    }
+  }
+
+  async function reviewArticle(
+    id: string,
+    action: "approve" | "reject",
+  ) {
+    let rejectReason: string | undefined;
+    if (action === "reject") {
+      const reason = window.prompt("Alasan penolakan (wajib):");
+      if (!reason || reason.trim().length < 3) {
+        showError("Alasan penolakan minimal 3 karakter");
+        return;
+      }
+      rejectReason = reason.trim();
+    }
+    const res = await fetch(`/api/admin/artikel/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, rejectReason }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      showSuccess(data.message || "Berhasil");
+      void load();
+    } else {
+      showError(data.error || "Gagal memproses");
     }
   }
 
@@ -479,6 +522,12 @@ export function ArtikelManager({
     }
   }
 
+  const pendingItems = items.filter((i) => (i.status ?? "PUBLISHED") === "PENDING");
+  const publishedItems = items.filter(
+    (i) => (i.status ?? "PUBLISHED") !== "PENDING",
+  );
+  const visibleItems = tab === "pending" ? pendingItems : publishedItems;
+
   return (
     <div className="space-y-8">
       {degraded ? (
@@ -490,6 +539,31 @@ export function ArtikelManager({
           Form tetap tersedia; simpan ulang setelah koneksi pulih.
         </div>
       ) : null}
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant={tab === "pending" ? "default" : "outline"}
+          className={tab === "pending" ? "bg-inkai-red hover:bg-inkai-red/90" : ""}
+          onClick={() => setTab("pending")}
+        >
+          Menunggu ({pendingItems.length})
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={tab === "published" ? "default" : "outline"}
+          className={
+            tab === "published" ? "bg-inkai-red hover:bg-inkai-red/90" : ""
+          }
+          onClick={() => setTab("published")}
+        >
+          Terbit / lainnya ({publishedItems.length})
+        </Button>
+      </div>
+
+      {roleMode === "branch" ? (
       <section className="overflow-hidden rounded-xl border border-border/80 bg-card">
         <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
           <p className="text-sm font-medium">Tambah artikel</p>
@@ -553,22 +627,30 @@ export function ArtikelManager({
           </Button>
         </form>
       </section>
+      ) : (
+        <p className="rounded-xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
+          Mode ranting: setujui atau tolak kiriman anggota. Penulisan langsung
+          hanya untuk cabang.
+        </p>
+      )}
 
       <div>
         <p className="mb-3 text-sm font-medium text-muted-foreground">
-          Daftar artikel
+          {tab === "pending" ? "Antrean persetujuan" : "Daftar artikel"}
         </p>
 
         <div className="space-y-3">
-          {items.length === 0 ? (
+          {visibleItems.length === 0 ? (
             <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Belum ada artikel. Tambahkan berita atau kegiatan di formulir di
-              atas.
+              {tab === "pending"
+                ? "Tidak ada artikel menunggu persetujuan."
+                : "Belum ada artikel. Tambahkan berita atau kegiatan di formulir di atas."}
             </p>
           ) : (
-            items.map((item) => {
+            visibleItems.map((item) => {
               const index = items.findIndex((i) => i.id === item.id);
               const mediaCount = item.media?.length ?? 0;
+              const status = item.status ?? "PUBLISHED";
               return (
                 <div
                   key={item.id}
@@ -586,9 +668,13 @@ export function ArtikelManager({
                     <div className="min-w-0">
                       <p className="font-medium">{item.title}</p>
                       <p className="text-xs text-muted-foreground">
+                        {status}
+                        {item.authorName
+                          ? ` · ${item.authorName}${item.authorDojoName ? ` · ${item.authorDojoName}` : ""}`
+                          : ""}
                         {item.publishedAt
-                          ? toDateInput(item.publishedAt)
-                          : "Tanpa tanggal"}
+                          ? ` · ${toDateInput(item.publishedAt)}`
+                          : ""}
                         {item.isActive ? " · Aktif" : " · Nonaktif"}
                         {mediaCount > 0 ? ` · ${mediaCount} media` : ""}
                       </p>
@@ -598,45 +684,67 @@ export function ArtikelManager({
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={index <= 0}
-                      onClick={() => void move(item.id, -1)}
-                    >
-                      <ArrowUp className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={index < 0 || index >= items.length - 1}
-                      onClick={() => void move(item.id, 1)}
-                    >
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </Button>
-                    <AdminMoreActions
-                      items={[
-                        {
-                          label: "Ubah",
-                          onSelect: () => openEdit(item),
-                        },
-                        {
-                          label: "Salin tautan",
-                          onSelect: () => void copyPublicLink(item),
-                        },
-                        {
-                          label: item.isActive ? "Nonaktifkan" : "Aktifkan",
-                          onSelect: () =>
-                            void toggleActive(item.id, item.isActive),
-                        },
-                        {
-                          label: "Hapus",
-                          onSelect: () => void handleDelete(item.id),
-                          destructive: true,
-                          separatorBefore: true,
-                        },
-                      ]}
-                    />
+                    {status === "PENDING" ? (
+                      <>
+                        <Button
+                          size="sm"
+                          className="bg-inkai-red hover:bg-inkai-red/90"
+                          onClick={() => void reviewArticle(item.id, "approve")}
+                        >
+                          Setujui
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void reviewArticle(item.id, "reject")}
+                        >
+                          Tolak
+                        </Button>
+                      </>
+                    ) : null}
+                    {roleMode === "branch" ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={index <= 0}
+                          onClick={() => void move(item.id, -1)}
+                        >
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={index < 0 || index >= items.length - 1}
+                          onClick={() => void move(item.id, 1)}
+                        >
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </Button>
+                        <AdminMoreActions
+                          items={[
+                            {
+                              label: "Ubah",
+                              onSelect: () => openEdit(item),
+                            },
+                            {
+                              label: "Salin tautan",
+                              onSelect: () => void copyPublicLink(item),
+                            },
+                            {
+                              label: item.isActive ? "Nonaktifkan" : "Aktifkan",
+                              onSelect: () =>
+                                void toggleActive(item.id, item.isActive),
+                            },
+                            {
+                              label: "Hapus",
+                              onSelect: () => void handleDelete(item.id),
+                              destructive: true,
+                              separatorBefore: true,
+                            },
+                          ]}
+                        />
+                      </>
+                    ) : null}
                   </div>
                 </div>
               );

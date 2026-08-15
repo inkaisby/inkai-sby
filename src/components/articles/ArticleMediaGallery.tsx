@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import {
   Dialog,
@@ -24,16 +23,15 @@ function ImageThumb({
     <button
       type="button"
       onClick={onOpen}
-      className="group relative aspect-video w-full overflow-hidden rounded-xl bg-muted/40 ring-1 ring-border/60 transition-opacity hover:opacity-95"
+      className="group relative w-full overflow-hidden rounded-xl bg-muted/40 ring-1 ring-border/60 transition-opacity hover:opacity-95"
       aria-label={item.caption ? `Lihat foto: ${item.caption}` : "Lihat foto"}
     >
-      <Image
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
         src={item.url}
         alt={item.caption || "Foto artikel"}
-        fill
-        className="object-cover"
-        sizes="(max-width: 768px) 100vw, 50vw"
-        unoptimized
+        className="h-auto w-full"
+        loading="lazy"
       />
       {item.caption ? (
         <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-2 py-1 text-left text-xs text-white">
@@ -183,15 +181,12 @@ export function ArticleMediaGallery({
           </DialogHeader>
           {current ? (
             <>
-              <div className="relative mx-auto aspect-video w-full max-h-[78vh] overflow-hidden rounded-lg">
-                <Image
+              <div className="mx-auto flex w-full max-h-[85vh] items-center justify-center overflow-hidden rounded-lg">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
                   src={current.url}
                   alt={current.caption || "Foto artikel"}
-                  fill
-                  className="object-contain"
-                  sizes="(max-width: 768px) 96vw, 56rem"
-                  unoptimized
-                  priority
+                  className="mx-auto block max-h-[85vh] w-auto max-w-full"
                 />
               </div>
               <div className="flex items-center justify-between gap-2">
@@ -269,18 +264,17 @@ export function ArticlePhotoLightbox({
         type="button"
         onClick={() => setOpen(true)}
         className={cn(
-          "relative block aspect-video w-full shrink-0 overflow-hidden rounded-xl bg-muted/40 transition-opacity hover:opacity-90 sm:w-44",
+          "relative block w-full shrink-0 overflow-hidden rounded-xl bg-muted/40 transition-opacity hover:opacity-90 sm:w-44",
           className,
         )}
         aria-label={`Lihat foto ${title}`}
       >
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={photoUrl}
           alt={title}
-          fill
-          className="object-cover"
-          sizes="176px"
-          unoptimized
+          className="h-auto w-full"
+          loading="lazy"
         />
       </button>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -291,15 +285,12 @@ export function ArticlePhotoLightbox({
           <DialogHeader className="sr-only">
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
-          <div className="relative mx-auto aspect-video w-full max-h-[75vh] overflow-hidden rounded-lg">
-            <Image
+          <div className="mx-auto flex w-full max-h-[85vh] items-center justify-center overflow-hidden rounded-lg">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={photoUrl}
               alt={title}
-              fill
-              className="object-contain"
-              sizes="(max-width: 768px) 92vw, 40rem"
-              unoptimized
-              priority
+              className="mx-auto block max-h-[85vh] w-auto max-w-full"
             />
           </div>
           <p className="truncate text-center text-sm text-white/80">{title}</p>
