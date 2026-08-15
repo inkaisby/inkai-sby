@@ -38,7 +38,6 @@ export const metadata: Metadata = {
     locale: "id_ID",
     type: "website",
     url: SITE_URL,
-    images: [{ url: "/logo-inkai.png", width: 512, height: 512, alt: "INKAI Surabaya" }],
   },
 };
 

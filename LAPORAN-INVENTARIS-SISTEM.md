@@ -325,6 +325,7 @@ Pusat / Nasional
 | Verifikasi klaim | Fail-closed ke Inkai API + `assertDojoInScope` + audit |
 | Playwright | End-to-End (E2E) testing framework untuk pengujian UI otomatis |
 | CSP (`next.config.ts`) | Header keamanan global; `frame-src` mengizinkan `blob:` (pratinjau PDF) + Google Maps + `youtube.com` / `youtube-nocookie.com` (embed artikel/tutorial); `img-src` + `i.ytimg.com` |
+| OG image publik | Kartu pratinjau tautan dinamis (`src/lib/og-image.tsx`, 1200×630) via konvensi `opengraph-image` di grup `(public)` (default + Beranda) & tiap tab (tutorial/sejarah/struktur/dojo/kegiatan/apresiasi/kontak/artikel); artikel `[slug]` pakai foto. Root layout tak lagi memakai `/logo-inkai.png` sebagai `og:image` |
 
 ---
 
@@ -1020,6 +1021,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 15 Agustus 2026 | **Fix Admin Artikel:** buat tabel `ArticleEntry` di produksi (`prisma db execute`); `/admin/artikel` + API pakai `withPrismaFallback` / tangani P2021 (banner degraded, GET `[]`, mutasi 503); inventaris §15 |
 | 15 Agustus 2026 | **Artikel detail + media:** `/artikel/[slug]` (kutipan di daftar, paginasi, redirect `?slug=`); kolom `media` JSON + SQL `article-media.sql`; galeri foto lightbox + video YouTube klik-baru-muat; OG image dinamis 1200×630; CSP YouTube/`i.ytimg.com`; inventaris §4/§6/§10/§13/§15 |
 | 15 Agustus 2026 | **Reaksi artikel publik:** emoji 👍❤️🔥🙏😮; `ArticleReaction` + cookie `inkai_artikel_vid` (1/perangkat); API `/api/public/artikel/[id]/reactions`; UI daftar+detail; SQL `article-reaction.sql`; inventaris §4/§6/§13/§15 |
+| 15 Agustus 2026 | **Pratinjau tautan semua tab publik:** helper `src/lib/og-image.tsx` (kartu 1200×630 berlabel) + konvensi `opengraph-image` di grup `(public)` & tiap tab (tutorial/sejarah/struktur/dojo/kegiatan/apresiasi/kontak/artikel); hapus `/logo-inkai.png` dari `og:image` root layout; inventaris §10/§15 |
 
 ---
 
