@@ -78,7 +78,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/daftar` | Redirect ke form daftar |
 | `/lupa-password` | Ajuan reset password |
 | `/reset-password` | Set password baru |
-| `/undangan/ukt/[periodId]` | **Undangan portal UKT** (publik): cover buka + musik, section Home/Acara/Galeri/Peta (auto-play + klik tab + scroll), CTA login ke `/admin/ukt`; tab **Peta** embed Google Maps (CSP `frame-src` Google) — lokasi Dispora Jatim → pin koordinat presisi via `src/lib/venue.ts` |
+| `/undangan/ukt/[periodId]` | **Undangan portal UKT** (publik): cover buka + musik, section Home/Acara/Galeri/Peta (auto-play + klik tab + scroll), CTA login ke `/admin/ukt`; tab **Peta** embed Google Maps (CSP `frame-src` Google) — lokasi Dispora Jatim → pin koordinat presisi via `src/lib/venue.ts`; **guard:** jika `periodId` ternyata periode Latber (`isLatberEventTitle`), redirect ke `/latber?period=…` |
 | `/undangan/latber/[periodId]` | **Kompatibilitas undangan Latber:** redirect server ke `/latber?period=[periodId]` (halaman walk-in publik); undangan visual UKT-style tidak lagi ditampilkan |
 | `/latber` | **Pendaftaran Latber walk-in (publik):** info login NIA + Pesan; KPI status + KPI per ranting + grafik batang; cari/scan QR kartu; modal Tambah Anggota (= tab Daftar); tabel (NIA, biaya unik); **Bayar** = QRIS percobaan + Mandiri `1400024546344` a.n. HABIBUR RAHMAN (salin rekening/nominal) + **Sudah bayar** → Menunggu Verifikasi; batal WA; `/admin/latber` tanpa sesi → sini |
 
@@ -1014,6 +1014,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 15 Agustus 2026 | **Latber Bayar + KPI publik:** QRIS percobaan Livin + Mandiri 1400024546344 HABIBUR RAHMAN; Sudah bayar → Menunggu Verifikasi; KPI status + ranting + grafik; hapus banner Midtrans; `POST /api/public/latber/confirm-payment`; inventaris §4/§9.3b/§11/§13/§15 |
 | 15 Agustus 2026 | **Modul Konten + Artikel:** sidebar grup **Konten** (Materi/Carousel/Apresiasi/Artikel) + **Layanan** (Store/Pesan/Notifikasi); `ArticleEntry` + `/admin/artikel` + `/artikel`; beranda Artikel Terbaru dari artikel (fallback Carousel); SQL ops `prisma/sql/article-entry.sql`; inventaris §4/§6/§13/§15 |
 | 15 Agustus 2026 | **Redirect undangan Latber:** `/undangan/latber/[periodId]` → `/latber?period=[periodId]` (hilangkan 404 snapshot); undangan UKT tidak berubah; inventaris §4/§9.3b/§11/§15 |
+| 15 Agustus 2026 | **Guard undangan UKT → Latber:** `/undangan/ukt/[periodId]` cek `prisma.event` + `isLatberEventTitle`; link Latber yang keliru pakai path UKT redirect ke `/latber?period=…` (fix 404 link beredar); inventaris §4/§15 |
 
 ---
 

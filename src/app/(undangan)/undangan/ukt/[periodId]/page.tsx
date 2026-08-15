@@ -1,8 +1,23 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { UktInviteExperience } from "@/components/undangan/ukt/UktInviteExperience";
 import { getUktInvitePublic, buildUktInviteUrl } from "@/lib/ukt-invite";
+import { isLatberEventTitle } from "@/lib/latber";
+import { prisma } from "@/lib/prisma";
 import { SITE_URL } from "@/lib/site";
+
+/** Link Latber yang keliru memakai path UKT diarahkan ke halaman walk-in publik. */
+async function isLatberPeriod(periodId: string): Promise<boolean> {
+  try {
+    const event = await prisma.event.findFirst({
+      where: { id: periodId, isDeleted: false },
+      select: { title: true },
+    });
+    return Boolean(event && isLatberEventTitle(event.title));
+  } catch {
+    return false;
+  }
+}
 
 type Props = { params: Promise<{ periodId: string }> };
 
@@ -45,6 +60,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function UktInvitePage({ params }: Props) {
   const { periodId } = await params;
+  if (await isLatberPeriod(periodId)) {
+    redirect(`/latber?period=${encodeURIComponent(periodId)}`);
+  }
+
   const invite = await getUktInvitePublic(periodId);
   if (!invite) notFound();
 
