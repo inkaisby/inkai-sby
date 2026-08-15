@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   Camera,
   Check,
+  ChevronDown,
   Copy,
   Loader2,
   Search,
@@ -125,10 +126,14 @@ export function LatberWalkInClient({
   const [copiedField, setCopiedField] = useState<"account" | "amount" | null>(
     null,
   );
-  /** Desktop (md+) vs mobile: hanya satu layout yang punya id scroll target. */
-  const [isMdUp, setIsMdUp] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   const searchWrapRef = useRef<HTMLDivElement>(null);
+  const tableWrapRef = useRef<HTMLDivElement>(null);
+  const summaryPanelRef = useRef<HTMLDivElement>(null);
+  const summaryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const summaryObserverRef = useRef<IntersectionObserver | null>(null);
+  const userScrolledRef = useRef(false);
   const suggestDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -171,13 +176,61 @@ export function LatberWalkInClient({
     void reload();
   }, [reload]);
 
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-    const sync = () => setIsMdUp(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
+  const closeSummary = useCallback(() => {
+    setSummaryOpen(false);
+    if (summaryTimerRef.current) {
+      clearTimeout(summaryTimerRef.current);
+      summaryTimerRef.current = null;
+    }
+    summaryObserverRef.current?.disconnect();
+    summaryObserverRef.current = null;
+    userScrolledRef.current = false;
   }, []);
+
+  useEffect(() => {
+    if (!summaryOpen) return;
+
+    userScrolledRef.current = false;
+    const onScroll = () => {
+      userScrolledRef.current = true;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    summaryTimerRef.current = setTimeout(() => {
+      closeSummary();
+    }, 4000);
+
+    const tableEl = tableWrapRef.current;
+    if (tableEl && typeof IntersectionObserver !== "undefined") {
+      summaryObserverRef.current = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[0];
+          if (!entry?.isIntersecting) return;
+          if (!userScrolledRef.current) return;
+          closeSummary();
+        },
+        { threshold: 0.15 },
+      );
+      summaryObserverRef.current.observe(tableEl);
+    }
+
+    const mq = window.matchMedia("(min-width: 768px)");
+    const onMq = () => {
+      if (mq.matches) closeSummary();
+    };
+    mq.addEventListener("change", onMq);
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (summaryTimerRef.current) {
+        clearTimeout(summaryTimerRef.current);
+        summaryTimerRef.current = null;
+      }
+      summaryObserverRef.current?.disconnect();
+      summaryObserverRef.current = null;
+      mq.removeEventListener("change", onMq);
+    };
+  }, [summaryOpen, closeSummary]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -457,20 +510,12 @@ export function LatberWalkInClient({
       payment.bankAccountName.trim(),
   );
 
-  function renderRowActions(
-    row: Registrant,
-    opts?: { wrap?: boolean },
-  ) {
+  function renderRowActions(row: Registrant) {
     const paid = row.displayStatus === "lunas";
     const waiting = row.displayStatus === "menunggu_verifikasi";
     const unpaid = row.displayStatus === "belum_bayar";
     return (
-      <div
-        className={cn(
-          "flex items-center gap-1",
-          opts?.wrap ? "flex-wrap" : "whitespace-nowrap",
-        )}
-      >
+      <div className="flex items-center gap-1 whitespace-nowrap">
         {unpaid ? (
           <Button
             size="sm"
@@ -500,6 +545,131 @@ export function LatberWalkInClient({
           </Button>
         ) : null}
       </div>
+    );
+  }
+
+  function bumpSummaryTimer() {
+    if (!summaryOpen) return;
+    if (summaryTimerRef.current) clearTimeout(summaryTimerRef.current);
+    summaryTimerRef.current = setTimeout(() => {
+      closeSummary();
+    }, 4000);
+  }
+
+  function renderInfoSection() {
+    return (
+      <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <h2 className="text-sm font-semibold text-foreground">Info anggota</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Login di portal dengan <strong>NIA</strong> atau email. Setelah masuk
+          dashboard keanggotaan, tersedia kartu anggota (NIA + QR) dan fitur{" "}
+          <strong>Pesan</strong> (pesan interaktif ke ranting/PIC).
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/login">Login</Link>
+          </Button>
+          <Button
+            asChild
+            size="sm"
+            className="bg-inkai-red hover:bg-inkai-red/90"
+          >
+            <Link href="/login?tab=daftar">Daftar</Link>
+          </Button>
+        </div>
+      </section>
+    );
+  }
+
+  function renderKpiSection() {
+    if (!period?.periodId) return null;
+    return (
+      <section className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border bg-card p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Users className="h-4 w-4" />
+              Peserta
+            </div>
+            <p className="mt-1 text-2xl font-semibold">{kpis.total}</p>
+          </div>
+          <div className="rounded-xl border bg-card p-4">
+            <p className="text-sm text-muted-foreground">Belum Bayar</p>
+            <p className="mt-1 text-2xl font-semibold text-amber-700">
+              {kpis.belumBayar}
+            </p>
+          </div>
+          <div className="rounded-xl border bg-card p-4">
+            <p className="text-sm text-muted-foreground">Menunggu Verifikasi</p>
+            <p className="mt-1 text-2xl font-semibold">
+              {kpis.menungguVerifikasi}
+            </p>
+          </div>
+          <div className="rounded-xl border bg-card p-4">
+            <p className="text-sm text-muted-foreground">Lunas</p>
+            <p className="mt-1 text-2xl font-semibold text-emerald-700">
+              {kpis.lunas}
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-sm font-medium text-foreground">
+            Status pembayaran
+          </p>
+          {kpis.total === 0 ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Belum ada peserta.
+            </p>
+          ) : (
+            <>
+              <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-muted">
+                {chartSegments.map((seg) =>
+                  seg.count > 0 ? (
+                    <div
+                      key={seg.key}
+                      className={cn("h-full transition-all", seg.className)}
+                      style={{ width: `${seg.pct}%` }}
+                      title={`${seg.label}: ${seg.count}`}
+                    />
+                  ) : null,
+                )}
+              </div>
+              <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                {chartSegments.map((seg) => (
+                  <li key={seg.key} className="flex items-center gap-1.5">
+                    <span
+                      className={cn(
+                        "inline-block h-2.5 w-2.5 rounded-sm",
+                        seg.className,
+                      )}
+                    />
+                    {seg.label} ({seg.count})
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+
+        {rantingKpis.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-foreground">
+              Peserta per ranting
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {rantingKpis.map((r) => (
+                <div key={r.name} className="rounded-xl border bg-card p-4">
+                  <p className="line-clamp-2 text-sm text-muted-foreground">
+                    {r.name}
+                  </p>
+                  <p className="mt-1 text-2xl font-semibold">{r.count}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </section>
     );
   }
 
@@ -534,108 +704,15 @@ export function LatberWalkInClient({
         ) : null}
       </header>
 
-      <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-foreground">Info anggota</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Login di portal dengan <strong>NIA</strong> atau email. Setelah masuk
-          dashboard keanggotaan, tersedia kartu anggota (NIA + QR) dan fitur{" "}
-          <strong>Pesan</strong> (pesan interaktif ke ranting/PIC).
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href="/login">Login</Link>
-          </Button>
-          <Button asChild size="sm" className="bg-inkai-red hover:bg-inkai-red/90">
-            <Link href="/login?tab=daftar">Daftar</Link>
-          </Button>
-        </div>
-      </section>
-
-      {period?.periodId ? (
-        <section className="space-y-3">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border bg-card p-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Users className="h-4 w-4" />
-                Peserta
-              </div>
-              <p className="mt-1 text-2xl font-semibold">{kpis.total}</p>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-sm text-muted-foreground">Belum Bayar</p>
-              <p className="mt-1 text-2xl font-semibold text-amber-700">
-                {kpis.belumBayar}
-              </p>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-sm text-muted-foreground">Menunggu Verifikasi</p>
-              <p className="mt-1 text-2xl font-semibold">
-                {kpis.menungguVerifikasi}
-              </p>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <p className="text-sm text-muted-foreground">Lunas</p>
-              <p className="mt-1 text-2xl font-semibold text-emerald-700">
-                {kpis.lunas}
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-card p-4">
-            <p className="text-sm font-medium text-foreground">Status pembayaran</p>
-            {kpis.total === 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">
-                Belum ada peserta.
-              </p>
-            ) : (
-              <>
-                <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-muted">
-                  {chartSegments.map((seg) =>
-                    seg.count > 0 ? (
-                      <div
-                        key={seg.key}
-                        className={cn("h-full transition-all", seg.className)}
-                        style={{ width: `${seg.pct}%` }}
-                        title={`${seg.label}: ${seg.count}`}
-                      />
-                    ) : null,
-                  )}
-                </div>
-                <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  {chartSegments.map((seg) => (
-                    <li key={seg.key} className="flex items-center gap-1.5">
-                      <span
-                        className={cn("inline-block h-2.5 w-2.5 rounded-sm", seg.className)}
-                      />
-                      {seg.label} ({seg.count})
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </div>
-
-          {rantingKpis.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-foreground">Peserta per ranting</p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {rantingKpis.map((r) => (
-                  <div key={r.name} className="rounded-xl border bg-card p-4">
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {r.name}
-                    </p>
-                    <p className="mt-1 text-2xl font-semibold">{r.count}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+      {/* Desktop: info + KPI di atas cari */}
+      <div className="hidden space-y-6 md:block">
+        {renderInfoSection()}
+        {renderKpiSection()}
+      </div>
 
       <div className="space-y-2">
-        <div ref={searchWrapRef} className="relative flex flex-wrap gap-2">
-          <div className="relative min-w-0 flex-1">
+        <div ref={searchWrapRef} className="flex flex-col gap-2 md:flex-row md:flex-wrap">
+          <div className="relative w-full md:min-w-0 md:flex-1">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchQ}
@@ -657,7 +734,7 @@ export function LatberWalkInClient({
                 }
               }}
               placeholder="Cari nama atau NIA… (atau scan kartu)"
-              className="h-10 pr-8 pl-9"
+              className="h-10 w-full pr-8 pl-9"
               autoComplete="off"
             />
             {searchQ ? (
@@ -706,27 +783,48 @@ export function LatberWalkInClient({
               </ul>
             ) : null}
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10"
-            disabled={!periodId}
-            onClick={() => void startScan()}
-          >
-            <Camera className="mr-1 h-4 w-4" />
-            Scan QR
-          </Button>
-          {registrationOpen ? (
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
               className="h-10"
-              onClick={() => setShowAddModal(true)}
+              disabled={!periodId}
+              onClick={() => void startScan()}
             >
-              <UserPlus className="mr-1 h-4 w-4" />
-              Tambah Anggota
+              <Camera className="mr-1 h-4 w-4" />
+              Scan QR
             </Button>
-          ) : null}
+            {registrationOpen ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                onClick={() => setShowAddModal(true)}
+              >
+                <UserPlus className="mr-1 h-4 w-4" />
+                Tambah Anggota
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 md:hidden"
+              aria-expanded={summaryOpen}
+              aria-controls="latber-summary-panel"
+              onClick={() => {
+                if (summaryOpen) closeSummary();
+                else setSummaryOpen(true);
+              }}
+            >
+              Ringkasan
+              <ChevronDown
+                className={cn(
+                  "ml-1 h-4 w-4 transition-transform",
+                  summaryOpen && "rotate-180",
+                )}
+              />
+            </Button>
+          </div>
         </div>
         {searchQ.trim().length >= 2 &&
         !suggestLoading &&
@@ -750,6 +848,19 @@ export function LatberWalkInClient({
           </p>
         ) : null}
       </div>
+
+      {/* Mobile: panel ringkasan di bawah baris tombol */}
+      {summaryOpen ? (
+        <div
+          id="latber-summary-panel"
+          ref={summaryPanelRef}
+          className="space-y-4 md:hidden"
+          onPointerDown={bumpSummaryTimer}
+        >
+          {renderInfoSection()}
+          {renderKpiSection()}
+        </div>
+      ) : null}
 
       {pendingMember && registrationOpen ? (
         <div className="rounded-xl border border-inkai-red/30 bg-inkai-red/5 p-4">
@@ -790,9 +901,8 @@ export function LatberWalkInClient({
         </div>
       ) : null}
 
-      {/* Desktop: tabel penuh */}
-      <div className="hidden rounded-xl border md:block">
-        <Table>
+      <div ref={tableWrapRef} className="rounded-xl border">
+        <Table className="min-w-[720px]">
           <TableHeader>
             <TableRow className="bg-muted/50">
               <TableHead className="w-10">No</TableHead>
@@ -828,9 +938,7 @@ export function LatberWalkInClient({
               filteredRows.map((row, i) => (
                 <TableRow
                   key={row.registrationId}
-                  id={
-                    isMdUp ? `latber-row-${row.memberId}` : undefined
-                  }
+                  id={`latber-row-${row.memberId}`}
                   className={cn(
                     highlightId === row.memberId && "bg-inkai-red/5",
                   )}
@@ -853,67 +961,9 @@ export function LatberWalkInClient({
           </TableBody>
         </Table>
       </div>
-
-      {/* Mobile: kartu — semua field, tanpa hide, tanpa scroll horizontal */}
-      <div className="space-y-3 md:hidden">
-        {loading ? (
-          <p className="rounded-xl border py-10 text-center text-sm text-muted-foreground">
-            Memuat peserta…
-          </p>
-        ) : filteredRows.length === 0 ? (
-          <p className="rounded-xl border py-10 text-center text-sm text-muted-foreground">
-            Belum ada peserta. Cari nama atau scan kartu lalu daftar.
-          </p>
-        ) : (
-          filteredRows.map((row, i) => (
-            <article
-              key={row.registrationId}
-              id={
-                !isMdUp ? `latber-row-${row.memberId}` : undefined
-              }
-              className={cn(
-                "rounded-xl border bg-card p-4 shadow-sm",
-                highlightId === row.memberId && "bg-inkai-red/5",
-              )}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">No. {i + 1}</p>
-                  <h3 className="text-base font-semibold break-words">
-                    {formatMemberName(row.fullName)}
-                  </h3>
-                </div>
-                <Badge variant="secondary" className="shrink-0">
-                  {row.statusLabel}
-                </Badge>
-              </div>
-              <dl className="mt-3 grid grid-cols-1 gap-2 text-sm">
-                <div>
-                  <dt className="text-xs text-muted-foreground">NIA</dt>
-                  <dd>{row.nia || "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Ranting</dt>
-                  <dd className="break-words">{row.dojoName}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Sabuk</dt>
-                  <dd>{row.currentRank || "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">Biaya</dt>
-                  <dd className="font-medium">
-                    {formatLatberCurrency(row.amount)}
-                  </dd>
-                </div>
-              </dl>
-              <div className="mt-4 border-t pt-3">
-                {renderRowActions(row, { wrap: true })}
-              </div>
-            </article>
-          ))
-        )}
-      </div>
+      <p className="text-xs text-muted-foreground md:hidden">
+        Geser tabel ke samping untuk kolom lain.
+      </p>
 
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
