@@ -3,11 +3,20 @@ import type { NextRequest } from "next/server";
 import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import {
   assertSameOrigin,
+  assertSameOriginLoose,
   getClientIp,
   isMutatingMethod,
 } from "@/lib/security/request";
+import { INKAI_TOKEN_COOKIE } from "@/lib/inkai-api/cookies";
 
 const BLOCKED_HEADERS = ["x-middleware-subrequest"];
+
+function hasSessionCookie(request: NextRequest): boolean {
+  if (request.cookies.get(INKAI_TOKEN_COOKIE)?.value) return true;
+  if (request.cookies.get("authjs.session-token")?.value) return true;
+  if (request.cookies.get("__Secure-authjs.session-token")?.value) return true;
+  return false;
+}
 
 export async function proxy(request: NextRequest) {
   for (const header of BLOCKED_HEADERS) {
@@ -19,12 +28,23 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const ip = getClientIp(request);
 
+  // Publik walk-in: /admin/latber tanpa sesi → /latber (arsip tetap admin)
+  if (
+    request.method === "GET" &&
+    (pathname === "/admin/latber" || pathname === "/admin/latber/")
+  ) {
+    if (!hasSessionCookie(request)) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/latber";
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (
     isMutatingMethod(request.method) &&
     pathname.startsWith("/api/admin")
   ) {
     if (!assertSameOrigin(request)) {
-      // Fire-and-forget; jangan await di critical path proxy
       void import("@/lib/security/security-events").then(({ writeSecurityEvent, bumpSecurityStrike }) => {
         writeSecurityEvent({
           action: "SECURITY_CSRF_REJECT",
@@ -34,6 +54,32 @@ export async function proxy(request: NextRequest) {
         void bumpSecurityStrike(`csrf:${ip}`, { max: 15, windowMs: 10 * 60_000 });
       });
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
+  if (
+    isMutatingMethod(request.method) &&
+    pathname.startsWith("/api/public/latber")
+  ) {
+    if (!assertSameOriginLoose(request)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    const limit = await rateLimitAsync(`latber-public-mutate:${ip}`, {
+      max: 30,
+      windowMs: 60_000,
+    });
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfterSec ?? 60);
+    }
+  }
+
+  if (pathname.startsWith("/api/public/latber")) {
+    const limit = await rateLimitAsync(`latber-public-get:${ip}`, {
+      max: 90,
+      windowMs: 60_000,
+    });
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfterSec ?? 60);
     }
   }
 

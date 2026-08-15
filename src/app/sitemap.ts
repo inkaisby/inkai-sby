@@ -14,6 +14,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/kegiatan",
     "/dojo",
     "/keamanan-siber",
+    "/latber",
     "/login",
     "/daftar",
   ];

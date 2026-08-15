@@ -170,8 +170,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Persist field lokal ke Prisma (MSH + sabuk) — fire-and-forget agar response cepat.
-    void persistRegisterLocal({
+    // Persist field lokal ke Prisma (MSH + sabuk); tunggu agar memberId tersedia untuk /latber.
+    const memberId = await persistRegisterLocal({
       msh,
       currentRank: rank,
       nik,
@@ -185,6 +185,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: "Registrasi berhasil, menunggu verifikasi admin",
+      ...(memberId ? { memberId } : {}),
     });
   } catch {
     return NextResponse.json({ error: "Terjadi kesalahan saat pendaftaran" }, { status: 500 });
@@ -200,7 +201,7 @@ async function persistRegisterLocal(opts: {
   dojoId: string;
   dojoName: string;
   registerPayload: unknown;
-}) {
+}): Promise<string | null> {
   try {
     const payload = opts.registerPayload as
       | {
@@ -254,7 +255,7 @@ async function persistRegisterLocal(opts: {
       }
     }
 
-    if (!memberId) return;
+    if (!memberId) return null;
 
     await prisma.member.update({
       where: { id: memberId },
@@ -271,7 +272,10 @@ async function persistRegisterLocal(opts: {
         content: `${fullName} (${dojoLabel}): No. MSH ${opts.msh} (daftar mandiri).`,
       });
     }
+
+    return memberId;
   } catch (err) {
     console.error("[register:local]", err);
+    return null;
   }
 }

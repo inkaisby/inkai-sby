@@ -836,7 +836,11 @@ export function LatberDashboard(props: LatberDashboardProps) {
                         <TableCell className="font-medium">{row.fullName}</TableCell>
                         <TableCell>{formatLatberRank(row)}</TableCell>
                         {!isDojoAdmin && <TableCell>{row.dojoName || "—"}</TableCell>}
-                        <TableCell>{formatLatberCurrency(props.feeAmount)}</TableCell>
+                        <TableCell>
+                          {formatLatberCurrency(
+                            row.billingAmount ?? props.feeAmount,
+                          )}
+                        </TableCell>
                         <TableCell>
                           <StatusBadge row={row} />
                         </TableCell>

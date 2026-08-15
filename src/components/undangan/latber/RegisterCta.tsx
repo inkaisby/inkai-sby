@@ -22,7 +22,7 @@ export function LatberRegisterCta({ invite, className }: RegisterCtaProps) {
 
   return (
     <Link href={href} className={`invite-ukt__cta ${className ?? ""}`}>
-      Daftarkan Anggota
+      Daftar Latihan Bersama
     </Link>
   );
 }

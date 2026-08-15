@@ -37,8 +37,7 @@ export function buildLatberInviteUrl(periodId: string): string {
 }
 
 export function buildLatberInviteLoginUrl(periodId: string): string {
-  const callbackUrl = `/admin/latber?period=${encodeURIComponent(periodId)}`;
-  return `/login?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+  return `/latber?period=${encodeURIComponent(periodId)}`;
 }
 
 export function buildLatberInviteMapsUrl(

@@ -27,6 +27,9 @@ type Dojo = { id: string; nama: string; cabang: { nama: string } };
 
 type RegisterFormProps = {
   preselectedDojo?: string;
+  /** Jika diisi: dipanggil setelah sukses (tanpa redirect ke /login). */
+  onSuccess?: (result: { memberId?: string; message: string }) => void | Promise<void>;
+  submitLabel?: string;
 };
 
 const emptyMemberFields = (): MemberFormFields => ({
@@ -42,7 +45,11 @@ const emptyMemberFields = (): MemberFormFields => ({
   mshNumber: "",
 });
 
-export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps) {
+export default function RegisterForm({
+  preselectedDojo = "",
+  onSuccess,
+  submitLabel = "Daftar Anggota",
+}: RegisterFormProps) {
   const router = useRouter();
   const [memberFields, setMemberFields] = useState<MemberFormFields>(emptyMemberFields);
   const [email, setEmail] = useState("");
@@ -177,7 +184,11 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
       }),
     });
 
-    const data = await res.json();
+    const data = (await res.json()) as {
+      error?: string;
+      message?: string;
+      memberId?: string;
+    };
     setLoading(false);
 
     if (!res.ok) {
@@ -191,6 +202,12 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
       "Pendaftaran berhasil! Akun Anda menunggu verifikasi admin sebelum bisa login.";
     setSuccess(successMsg);
     showSuccess(successMsg);
+
+    if (onSuccess) {
+      await onSuccess({ memberId: data.memberId, message: successMsg });
+      return;
+    }
+
     setTimeout(() => router.push("/login"), 2500);
   }
 
@@ -325,7 +342,7 @@ export default function RegisterForm({ preselectedDojo = "" }: RegisterFormProps
             Memproses...
           </>
         ) : (
-          "Daftar Anggota"
+          submitLabel
         )}
       </Button>
     </form>

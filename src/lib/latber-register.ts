@@ -77,10 +77,15 @@ export async function validateLatberRegistrationEligibility(
 export async function forceRegisterLatberInDb(opts: {
   eventId: string;
   memberId: string;
-  registeredByUserId: string;
+  registeredByUserId?: string | null;
   periodTitle: string;
   amount: number;
+  /** Base fee tanpa kode unik (rekap/nota). Default = amount. */
+  baseFeeAmount?: number;
+  uniqueTail?: number | null;
   status?: "APPROVED" | "PENDING";
+  /** Walk-in publik: upgrade PENDING mandiri → APPROVED + tagihan. */
+  approvePendingSelfReg?: boolean;
 }): Promise<
   | {
       ok: true;
@@ -93,6 +98,13 @@ export async function forceRegisterLatberInDb(opts: {
   | { ok: false; error: string }
 > {
   const amount = Math.max(0, Math.round(opts.amount));
+  const baseFeeAmount = Math.max(0, Math.round(opts.baseFeeAmount ?? amount));
+  const uniqueTail =
+    typeof opts.uniqueTail === "number" &&
+    opts.uniqueTail >= 1 &&
+    opts.uniqueTail <= 999
+      ? opts.uniqueTail
+      : null;
   const regStatus = opts.status ?? "APPROVED";
   try {
     const existing = await prisma.eventRegistration.findFirst({
@@ -103,13 +115,16 @@ export async function forceRegisterLatberInDb(opts: {
       const st = String(existing.status ?? "").toUpperCase();
       if (st !== "CANCELLED" && st !== "REJECTED") {
         if (st === "PENDING" && regStatus === "APPROVED") {
-          return {
-            ok: false,
-            error:
-              "Anggota sudah mengajukan daftar mandiri — gunakan tombol Terima",
-          };
-        }
-        if (st !== "PENDING") {
+          if (!opts.approvePendingSelfReg) {
+            return {
+              ok: false,
+              error:
+                "Anggota sudah mengajukan daftar mandiri — gunakan tombol Terima",
+            };
+          }
+        } else if (st === "PENDING" && regStatus === "PENDING") {
+          return { ok: false, error: "Anggota sudah terdaftar pada periode ini" };
+        } else if (st !== "PENDING") {
           return { ok: false, error: "Anggota sudah terdaftar pada periode ini" };
         }
       }
@@ -133,14 +148,14 @@ export async function forceRegisterLatberInDb(opts: {
           data: {
             status: regStatus,
             registeredRank: member.currentRank,
-            registeredByUserId: opts.registeredByUserId,
+            registeredByUserId: opts.registeredByUserId ?? null,
           },
         })
       : await prisma.eventRegistration.create({
           data: {
             eventId: opts.eventId,
             memberId: opts.memberId,
-            registeredByUserId: opts.registeredByUserId,
+            registeredByUserId: opts.registeredByUserId ?? null,
             status: regStatus,
             registeredRank: member.currentRank,
           },
@@ -157,6 +172,25 @@ export async function forceRegisterLatberInDb(opts: {
       };
     }
 
+    const existingBilling = await prisma.billing.findFirst({
+      where: {
+        registrationId: registration.id,
+        isDeleted: false,
+        status: { notIn: ["CANCELLED"] },
+      },
+      select: { id: true, amount: true, status: true },
+    });
+    if (existingBilling) {
+      return {
+        ok: true,
+        registrationId: registration.id,
+        billingId: existingBilling.id,
+        billingAmount: existingBilling.amount,
+        billingStatus: existingBilling.status,
+        memberName: member.fullName,
+      };
+    }
+
     const dueDate =
       event.registrationCloseAt ?? event.endDate ?? new Date();
     const desc = `LATBER — ${opts.periodTitle || event.title || "Pendaftaran"}`;
@@ -167,7 +201,8 @@ export async function forceRegisterLatberInDb(opts: {
         registrationId: registration.id,
         type: "EVENT",
         amount,
-        baseFeeAmount: amount,
+        baseFeeAmount,
+        uniqueTail,
         description: desc,
         dueDate,
         status: "PENDING",
@@ -179,7 +214,7 @@ export async function forceRegisterLatberInDb(opts: {
       ok: true,
       registrationId: registration.id,
       billingId: billing.id,
-      billingAmount: amount,
+      billingAmount: billing.amount,
       billingStatus: "PENDING",
       memberName: member.fullName,
     };
