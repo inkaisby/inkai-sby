@@ -58,7 +58,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 
 | Route | Fungsi |
 |-------|--------|
-| `/` | Beranda, **hero logo INKAI 3D CSS** (float/tilt/kilau + parallax mouse), carousel berita, **cuplikan Apresiasi**, CTA login/daftar; **floating chip kegiatan terbuka** di seluruh layout publik; **Tanya INKAI** (FAB chat AI global, kecuali undangan UKT) |
+| `/` | Beranda, **hero logo INKAI 3D CSS** (float/tilt/kilau + parallax mouse), **Artikel Terbaru** (dari `ArticleEntry`, fallback `NewsCarousel` jika belum ada artikel), **cuplikan Apresiasi**, CTA login/daftar; **floating chip kegiatan terbuka** di seluruh layout publik; **Tanya INKAI** (FAB chat AI global, kecuali undangan UKT) |
 | `/tutorial` | **Tutorial anggota** (langkah + slot embed YouTube): pendaftaran, menu dashboard, UKT, iuran, absensi; CTA Daftar/Masuk; nav header **Tutorial** |
 | `/sejarah` | Sejarah organisasi |
 | `/makna-lambang` | Filosofi lambang |
@@ -68,6 +68,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/kegiatan` | Daftar kegiatan (+ badge **Masih terbuka** / **Berlangsung**; UKT terbuka → undangan) |
 | `/kegiatan/[id]` | Detail kegiatan |
 | `/apresiasi` | Kenangan & prestasi; filter `?jenis=`; deep-link pasteable `?jenis=kenangan&tokoh=slug-nama` |
+| `/artikel` | Berita & kegiatan publik (`ArticleEntry`); deep-link `?slug=` dari judul; kartu landscape |
 | `/dojo` | Daftar dojo/ranting Cabang Surabaya (detail lengkap, tanpa jumlah anggota) |
 | `/dojo/[id]` | Profil ranting/dojo |
 | `/v/[id]` | Verifikasi kartu anggota (scan QR — UUID atau NIA) |
@@ -117,18 +118,19 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Organisasi | Wilayah & pengurus; **deep-link** ke Pengaturan cabang/ranting |
 | Verifikasi | Antrian klaim + **filter tipe/aging**; riwayat |
 | Event & Kegiatan | Buat + **ubah/tutup** event non-UKT + **roster pendaftar**; link UKT; **mutasi update state lokal** (tanpa `router.refresh`) |
-| Materi Digital | CRUD + **upload Blob** + **publish/draft** |
-| Store | CRUD produk (**edit/stok/aktif**) + status pesanan berlabel ID |
+| Materi Digital | CRUD + **upload Blob** + **publish/draft**; sidebar grup **Konten** |
+| Store | CRUD produk (**edit/stok/aktif**) + status pesanan berlabel ID; sidebar grup **Layanan** |
 | Pesan | Inbox + unread badge, cari, balas, **broadcast notifikasi** |
 | Absensi | **Progress** tabel klik→Sheet + harian + belum hadir; **tab client instan**; **filter tanggal/semester client-fetch** (`GET /api/admin/absensi` + `replaceState`); export; soft-backfill menu ranting |
-| Carousel Beranda | Upload gambar + aktif + **urutkan** (Prisma lokal; cabang) |
-| Apresiasi | CRUD kenangan & prestasi publik (`AppreciationEntry`); edit dialog + rapikan ringkasan; cabang saja |
+| Carousel Beranda | Upload gambar + aktif + **urutkan** (Prisma lokal; cabang); grup **Konten**; fallback beranda jika belum ada Artikel |
+| Apresiasi | CRUD kenangan & prestasi publik (`AppreciationEntry`); edit dialog + rapikan ringkasan; cabang saja; grup **Konten** |
+| Artikel | CRUD berita/kegiatan publik (`ArticleEntry`: judul, ringkasan, foto landscape, tanggal, urutan, aktif); salin tautan; cabang saja; grup **Konten**; SQL ops `prisma/sql/article-entry.sql` |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat); fetch awal **100** log (bukan 300) + pagination client |
 | Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; **cabut sesi / kunci / buka kunci**; **ambil alih (Mode A)** pusat/cabang; ranting tidak akses |
 | Notifikasi | Inbox admin (ada di nav); **ranting: rantingnya + ops cabang**; field `audience`; tanpa notif pribadi anggota; cabang lihat semua ranting |
 | Pengaturan | User digabung ke **Ranting & User**; cabang edit data ranting + **email/password** PIC di form Ubah Data; panel Akun: **Jadikan admin ranting** (email anggota existing → dual-role) + **centang hak akses** (edit profil, CRUD, menu sidebar); **Pengaturan Cabang** mendukung **Jadikan admin cabang** dari akun existing (mis. ketua cabang) tanpa akun baru + badge **Admin + Anggota / Admin saja**; admin ranting: form **Ubah Data** lengkap (multi-ranting) + **email/password** di **Akun Saya**; multi-akun (Akun), kebijakan, **Pengaturan UKT (syarat daftar)**, peran (**preset**), geofencing (**pratinjau peta**), akun; **arsip cabang: Pulihkan + Hapus permanen** (ditolak jika masih ada anggota / cabang SURABAYA) |
 
-**Batasan admin ranting:** tanpa Organisasi, Carousel, **Apresiasi**, Audit, **Kehadiran akun**, serta sebagian submenu pengaturan tingkat cabang/pusat.
+**Batasan admin ranting:** tanpa Organisasi, Carousel, **Apresiasi**, **Artikel**, Audit, **Kehadiran akun**, serta sebagian submenu pengaturan tingkat cabang/pusat.
 
 ---
 
@@ -329,7 +331,7 @@ Pusat / Nasional
 
 | Area | Status | Catatan untuk laporan / rencana |
 |------|--------|----------------------------------|
-| Portal publik | Lengkap | Konten organisasi, kegiatan terbuka (chip), apresiasi, carousel; **Tanya INKAI** FAB |
+| Portal publik | Lengkap | Konten organisasi, kegiatan terbuka (chip), apresiasi, **artikel**, carousel (fallback beranda); **Tanya INKAI** FAB |
 | Dashboard anggota inti | Lengkap | Beranda asisten: checklist, jadwal dojo, absen hari ini, PIC, aksi kontekstual; kegiatan via `/dashboard/kegiatan` |
 | Admin anggota / iuran / UKT | Lengkap | Iuran: **rekening koran** per anggota + Sheet pengaturan/mutasi/bayar + pengecualian event/UKT; anggota: pencarian filter tabel + klik baris detail; **sabuk tersimpan ke Prisma** saat create/`set_rank`; nonaktif/aktif/hapus arsip + **edit sabuk (cabang)**; UKT pakai gate iuran+dokumen+absensi, hasil ujian, rekap ranting, nota tanpa kode unik |
 | Verifikasi kartu (publik) | Aktif | `/v/[id]` — scan QR kartu anggota |
@@ -465,6 +467,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/verifications/*  Proses klaim
 /api/admin/carousel/*       Carousel beranda (Prisma lokal)
 /api/admin/apresiasi/*      CRUD apresiasi publik (cabang)
+/api/admin/artikel/*        CRUD artikel publik (cabang; `ArticleEntry`)
 /api/admin/upload           Upload ke Blob
 /api/admin/document-file    Proxy pratinjau dokumen anggota (modal + print)
 /api/admin/events           Buat event non-UKT (Cabang)
@@ -1009,6 +1012,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 14 Agustus 2026 | **Cetak Nota UKT multi-select:** dropdown → **daftar centang** ranting (Pilih/Hapus semua); subset atau semua → `GABUNGAN (nama…)`; inventaris §9.3/§15 |
 | 15 Agustus 2026 | **Latber walk-in publik `/latber`:** cari/scan QR kartu; modal Tambah Anggota (= `/login?tab=daftar`); tabel + biaya unik NIA; Bayar QRIS skeleton; batal WA; API `/api/public/latber/*`; redirect admin tanpa sesi; CTA undangan → `/latber`; inventaris §4/§9.3b/§11/§13/§15 |
 | 15 Agustus 2026 | **Latber Bayar + KPI publik:** QRIS percobaan Livin + Mandiri 1400024546344 HABIBUR RAHMAN; Sudah bayar → Menunggu Verifikasi; KPI status + ranting + grafik; hapus banner Midtrans; `POST /api/public/latber/confirm-payment`; inventaris §4/§9.3b/§11/§13/§15 |
+| 15 Agustus 2026 | **Modul Konten + Artikel:** sidebar grup **Konten** (Materi/Carousel/Apresiasi/Artikel) + **Layanan** (Store/Pesan/Notifikasi); `ArticleEntry` + `/admin/artikel` + `/artikel`; beranda Artikel Terbaru dari artikel (fallback Carousel); SQL ops `prisma/sql/article-entry.sql`; inventaris §4/§6/§13/§15 |
 
 ---
 

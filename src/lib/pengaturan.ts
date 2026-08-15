@@ -75,6 +75,12 @@ export const SETTINGS_SHORTCUTS = [
     kind: "konten" as const,
   },
   {
+    href: "/admin/artikel",
+    title: "Artikel",
+    description: "Berita & kegiatan untuk halaman publik",
+    kind: "konten" as const,
+  },
+  {
     href: "/admin/online",
     title: "Kehadiran akun",
     description: "Siapa yang sedang aktif di portal (cabang/pusat)",

@@ -475,6 +475,20 @@ model AppreciationEntry {
   @@index([isActive, kind, order])
 }
 
+model ArticleEntry {
+  id          String    @id @default(uuid())
+  title       String
+  summary     String    @db.Text
+  photoUrl    String?
+  publishedAt DateTime?
+  isActive    Boolean   @default(true)
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isActive, order])
+}
+
 model RankFeeTemplate {
   id        String   @id @default(uuid())
   rankName  String   @unique

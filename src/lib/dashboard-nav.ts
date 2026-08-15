@@ -97,13 +97,19 @@ export const ADMIN_LINKS: NavItem[] = [
   { href: "/admin/kegiatan", label: "Event & Kegiatan" },
   { href: "/admin/absensi", label: "Absensi" },
   {
-    label: "Konten & Layanan",
+    label: "Konten",
     children: [
       { href: "/admin/materi", label: "Materi Digital" },
-      { href: "/admin/store", label: "Store" },
-      { href: "/admin/pesan", label: "Pesan" },
       { href: "/admin/carousel", label: "Carousel Beranda" },
       { href: "/admin/apresiasi", label: "Apresiasi" },
+      { href: "/admin/artikel", label: "Artikel" },
+    ],
+  },
+  {
+    label: "Layanan",
+    children: [
+      { href: "/admin/store", label: "Store" },
+      { href: "/admin/pesan", label: "Pesan" },
       { href: "/admin/notifikasi", label: "Notifikasi" },
     ],
   },
@@ -159,9 +165,12 @@ export function getAdminNavLinks(
     { href: "/admin/kegiatan", label: "Event & Kegiatan" },
     { href: "/admin/absensi", label: "Absensi" },
     {
-      label: "Konten & Layanan",
+      label: "Konten",
+      children: [{ href: "/admin/materi", label: "Materi Digital" }],
+    },
+    {
+      label: "Layanan",
       children: [
-        { href: "/admin/materi", label: "Materi Digital" },
         { href: "/admin/store", label: "Store" },
         { href: "/admin/pesan", label: "Pesan" },
         { href: "/admin/notifikasi", label: "Notifikasi" },

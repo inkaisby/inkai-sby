@@ -158,6 +158,7 @@ export function answerTanyaInkaiLocal(question: string): string {
       "• Pendaftaran / daftar anggota → /tutorial atau /login?tab=daftar",
       "• Iuran, UKT, absensi → /tutorial",
       "• Sejarah, visi-misi, lambang → /sejarah, /visi-misi, /makna-lambang",
+      "• Berita / artikel → /artikel",
       "• Dojo & kontak → /dojo, /kontak",
       `Atau WhatsApp sekretariat: ${wa}`,
     ].join("\n");

@@ -49,6 +49,9 @@ export default function PublicFooter() {
               <Link href="/apresiasi" prefetch className="transition-colors hover:text-white">
                 Apresiasi
               </Link>
+              <Link href="/artikel" prefetch className="transition-colors hover:text-white">
+                Artikel
+              </Link>
               <Link href="/kontak" prefetch className="transition-colors hover:text-white">
                 Kontak
               </Link>

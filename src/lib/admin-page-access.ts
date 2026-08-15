@@ -23,6 +23,7 @@ const DOJO_BLOCKED_EXACT = new Set([
   "/admin/organisasi",
   "/admin/carousel",
   "/admin/apresiasi",
+  "/admin/artikel",
   "/admin/audit",
   "/admin/online",
 ]);
