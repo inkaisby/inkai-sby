@@ -19,7 +19,7 @@ import {
   articlePublicPath,
   type ArticleMediaItem,
 } from "@/lib/articles";
-import { polishAppreciationSummary } from "@/lib/polish-summary";
+import { polishAppreciationSummary, normalizeSummaryText } from "@/lib/polish-summary";
 import { youtubeVideoId } from "@/lib/youtube";
 import { ArrowDown, ArrowUp, Plus, Sparkles, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -62,10 +62,14 @@ function SummaryField({
   value,
   onChange,
   id,
+  rows = 7,
+  minHeightClass = "min-h-[160px]",
 }: {
   value: string;
   onChange: (v: string) => void;
   id: string;
+  rows?: number;
+  minHeightClass?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -85,16 +89,19 @@ function SummaryField({
       </div>
       <textarea
         id={id}
-        className="flex min-h-[160px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className={cn(
+          "flex w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+          minHeightClass,
+        )}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required
-        rows={7}
+        rows={rows}
         placeholder="Isi berita atau kegiatan (boleh beberapa paragraf)."
       />
       <p className="text-xs text-muted-foreground">
         Teks penuh tampil di halaman detail. Daftar /artikel menampilkan kutipan
-        singkat.
+        singkat. Tombol Rapikan teks opsional — simpan tidak mengubah Enter/spasi.
       </p>
     </div>
   );
@@ -343,7 +350,7 @@ export function ArtikelManager({
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const summary = polishAppreciationSummary(form.summary);
+    const summary = normalizeSummaryText(form.summary);
     const media = sanitizeMedia(form.media);
     const res = await fetch("/api/admin/artikel", {
       method: "POST",
@@ -371,7 +378,7 @@ export function ArtikelManager({
   async function handleUpdate() {
     if (!editing) return;
     setSavingEdit(true);
-    const summary = polishAppreciationSummary(editForm.summary);
+    const summary = normalizeSummaryText(editForm.summary);
     const media = sanitizeMedia(editForm.media);
     const res = await fetch(`/api/admin/artikel/${editing.id}`, {
       method: "PATCH",
@@ -644,11 +651,11 @@ export function ArtikelManager({
           if (!open) setEditing(null);
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Ubah artikel</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Judul</Label>
               <Input
@@ -669,20 +676,26 @@ export function ArtikelManager({
                 }
               />
             </div>
-            <SummaryField
-              id="edit-summary"
-              value={editForm.summary}
-              onChange={(summary) => setEditForm((f) => ({ ...f, summary }))}
-            />
-            <FileUploadField
-              label="Foto utama (opsional)"
-              value={editForm.photoUrl}
-              onChange={(photoUrl) =>
-                setEditForm((f) => ({ ...f, photoUrl }))
-              }
-              folder="artikel"
-              accept="image/*"
-            />
+            <div className="sm:col-span-2">
+              <SummaryField
+                id="edit-summary"
+                value={editForm.summary}
+                onChange={(summary) => setEditForm((f) => ({ ...f, summary }))}
+                rows={16}
+                minHeightClass="min-h-[320px]"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <FileUploadField
+                label="Foto utama (opsional)"
+                value={editForm.photoUrl}
+                onChange={(photoUrl) =>
+                  setEditForm((f) => ({ ...f, photoUrl }))
+                }
+                folder="artikel"
+                accept="image/*"
+              />
+            </div>
             <MediaEditor
               value={editForm.media}
               onChange={(media) => setEditForm((f) => ({ ...f, media }))}

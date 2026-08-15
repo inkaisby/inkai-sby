@@ -34,7 +34,20 @@ function tidyInlineSpaces(line: string): string {
 }
 
 /**
- * Rapikan ringkasan apresiasi untuk form admin & penyimpanan server.
+ * Normalisasi minimal untuk penyimpanan: akhir baris seragam, tanpa spasi menggantung.
+ * Tidak menggabungkan Enter tunggal atau merapikan tanda baca.
+ */
+export function normalizeSummaryText(raw: string): string {
+  return raw
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+$/, ""))
+    .join("\n")
+    .trim();
+}
+
+/**
+ * Rapikan ringkasan apresiasi (tombol "Rapikan teks" saja — bukan otomatis saat simpan).
  */
 export function polishAppreciationSummary(raw: string): string {
   let text = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();

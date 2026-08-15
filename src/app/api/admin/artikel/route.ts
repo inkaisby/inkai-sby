@@ -4,7 +4,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { requireAdmin } from "@/lib/admin-auth";
 import { canAccessAdminPath } from "@/lib/admin-page-access";
-import { polishAppreciationSummary } from "@/lib/polish-summary";
+import { normalizeSummaryText } from "@/lib/polish-summary";
 import { prisma } from "@/lib/prisma";
 import { youtubeVideoId } from "@/lib/youtube";
 
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
   }
 
   const data = parsed.data;
-  const summary = polishAppreciationSummary(data.summary);
+  const summary = normalizeSummaryText(data.summary);
   if (summary.length < 3 || summary.length > 12000) {
     return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
   }

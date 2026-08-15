@@ -962,7 +962,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 24 Juli 2026 | **UKT loader SLA:** hapus soft PUT `registrationOpenAt` pada load dashboard (hanya backfill in-memory); mode arsip skip pool anggota/billing/verifikasi/attendance dump; merge registrasi-first Prisma untuk peserta di luar cap 500; attendance dihitung setelah members final (filter ID relevan); inventaris §9/§11/§15 |
 | 24 Juli 2026 | **UKT streaming UI:** `/admin/ukt` & `/admin/ukt/arsip` — header + `UktTermNav` (semester/tahun) di luar Suspense data; KPI/tabel `UktDashboard` streaming menyusul (pola `/admin/iuran`); `hideStickyTermBar` anti-duplikat; dojo groups parallel dengan fetch dashboard |
 | 24 Juli 2026 | Floating chip **Masih terbuka** di layout publik `(public)` — tampil di semua tab/halaman publik, bukan hanya beranda |
-| 24 Juli 2026 | **Apresiasi:** UI **Ubah** (dialog PATCH) + Hapus; tombol **Rapikan teks** + polish server (`polish-summary.ts`); tip/placeholder copy Kenangan vs Prestasi; `/apresiasi` CSS-light (aksen jenis, `whitespace-pre-line`, empty state) |
+| 24 Juli 2026 | **Apresiasi:** UI **Ubah** (dialog PATCH) + Hapus; tombol **Rapikan teks** (`polish-summary.ts`, hanya manual — simpan tidak merapikan otomatis); tip/placeholder copy Kenangan vs Prestasi; `/apresiasi` CSS-light (aksen jenis, `whitespace-pre-line`, empty state) |
 | 24 Juli 2026 | **Apresiasi deep-link:** URL pasteable `?jenis=kenangan&tokoh=…` (scroll+highlight, OG metadata nama tokoh); Salin tautan di publik & admin; cuplikan beranda ke permalink entri; foto kartu publik → **lightbox view** (bukan navigasi scroll) |
 | 24 Juli 2026 | **UKT P0 + load:** period-lock percaya DB `eventId` (bukan hint klien); gate billing UKT; register allowlist fail-closed; blok Verifikasi cabang pada PENDING mandiri; redirect URL canonical via `resolveUktAdminPeriodId` sebelum fetch berat; docs+dues paralel |
 | 24 Juli 2026 | **UKT paket komplit:** registrants-first Pendaftaran (suggest+hydrate Belum Daftar); snapshot self-reg + append peserta; CANCELLED/REJECTED tidak ghost; periodLocked di Terima/Tolak/Bayar/Verifikasi/batal; KPI Peserta |
@@ -1022,6 +1022,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 15 Agustus 2026 | **Artikel detail + media:** `/artikel/[slug]` (kutipan di daftar, paginasi, redirect `?slug=`); kolom `media` JSON + SQL `article-media.sql`; galeri foto lightbox + video YouTube klik-baru-muat; OG image dinamis 1200×630; CSP YouTube/`i.ytimg.com`; inventaris §4/§6/§10/§13/§15 |
 | 15 Agustus 2026 | **Reaksi artikel publik:** emoji 👍❤️🔥🙏😮; `ArticleReaction` + cookie `inkai_artikel_vid` (1/perangkat); API `/api/public/artikel/[id]/reactions`; UI daftar+detail; SQL `article-reaction.sql`; inventaris §4/§6/§13/§15 |
 | 15 Agustus 2026 | **Pratinjau tautan semua tab publik:** helper `src/lib/og-image.tsx` (kartu 1200×630 berlabel) + konvensi `opengraph-image` di grup `(public)` & tiap tab (tutorial/sejarah/struktur/dojo/kegiatan/apresiasi/kontak/artikel); hapus `/logo-inkai.png` dari `og:image` root layout; inventaris §10/§15 |
+| 15 Agustus 2026 | **Editor Artikel + simpan teks apa adanya:** modal Ubah artikel `sm:max-w-3xl` + textarea lebih tinggi; simpan Artikel/Apresiasi hanya `normalizeSummaryText` (Enter/spasi tetap); Rapikan teks tetap opsional lewat tombol; inventaris §15 |
 
 ---
 

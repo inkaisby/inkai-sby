@@ -19,6 +19,7 @@ import { showError, showSuccess } from "@/lib/client-toast";
 import { appreciationPublicPath } from "@/lib/appreciation";
 import {
   polishAppreciationSummary,
+  normalizeSummaryText,
   summaryHintForKind,
   summaryPlaceholderForKind,
   titlePlaceholderForKind,
@@ -152,7 +153,7 @@ export function ApresiasiManager({
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const summary = polishAppreciationSummary(form.summary);
+    const summary = normalizeSummaryText(form.summary);
     const res = await fetch("/api/admin/apresiasi", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -180,7 +181,7 @@ export function ApresiasiManager({
   async function handleUpdate() {
     if (!editing) return;
     setSavingEdit(true);
-    const summary = polishAppreciationSummary(editForm.summary);
+    const summary = normalizeSummaryText(editForm.summary);
     const res = await fetch(`/api/admin/apresiasi/${editing.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
