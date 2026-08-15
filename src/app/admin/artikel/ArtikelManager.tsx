@@ -118,8 +118,10 @@ function ArticleThumb({
 
 export function ArtikelManager({
   initialItems,
+  degraded = false,
 }: {
   initialItems: ArticleAdminItem[];
+  degraded?: boolean;
 }) {
   const [items, setItems] = useState(
     [...initialItems].sort((a, b) => a.order - b.order),
@@ -285,6 +287,15 @@ export function ArtikelManager({
 
   return (
     <div className="space-y-8">
+      {degraded ? (
+        <div
+          role="status"
+          className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100"
+        >
+          Data artikel belum bisa dimuat (tabel belum siap / gangguan sementara).
+          Form tetap tersedia; simpan ulang setelah koneksi pulih.
+        </div>
+      ) : null}
       <section className="overflow-hidden rounded-xl border border-border/80 bg-card">
         <div className="border-b border-border/60 bg-muted/30 px-4 py-3">
           <p className="text-sm font-medium">Tambah artikel</p>

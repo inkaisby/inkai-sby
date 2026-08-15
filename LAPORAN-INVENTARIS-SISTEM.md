@@ -1015,6 +1015,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 15 Agustus 2026 | **Modul Konten + Artikel:** sidebar grup **Konten** (Materi/Carousel/Apresiasi/Artikel) + **Layanan** (Store/Pesan/Notifikasi); `ArticleEntry` + `/admin/artikel` + `/artikel`; beranda Artikel Terbaru dari artikel (fallback Carousel); SQL ops `prisma/sql/article-entry.sql`; inventaris §4/§6/§13/§15 |
 | 15 Agustus 2026 | **Redirect undangan Latber:** `/undangan/latber/[periodId]` → `/latber?period=[periodId]` (hilangkan 404 snapshot); undangan UKT tidak berubah; inventaris §4/§9.3b/§11/§15 |
 | 15 Agustus 2026 | **Guard undangan UKT → Latber:** `/undangan/ukt/[periodId]` cek `prisma.event` + `isLatberEventTitle`; link Latber yang keliru pakai path UKT redirect ke `/latber?period=…` (fix 404 link beredar); inventaris §4/§15 |
+| 15 Agustus 2026 | **Fix Admin Artikel:** buat tabel `ArticleEntry` di produksi (`prisma db execute`); `/admin/artikel` + API pakai `withPrismaFallback` / tangani P2021 (banner degraded, GET `[]`, mutasi 503); inventaris §15 |
 
 ---
 

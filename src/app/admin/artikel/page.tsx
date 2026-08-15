@@ -6,7 +6,7 @@ import {
   adminFallbackPath,
   canAccessAdminPath,
 } from "@/lib/admin-page-access";
-import { prisma } from "@/lib/prisma";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ArtikelManager, type ArticleAdminItem } from "./ArtikelManager";
@@ -28,19 +28,24 @@ async function AdminArtikelContent() {
     redirect(adminFallbackPath(session.user.roles ?? []));
   }
 
-  const rows = await prisma.articleEntry.findMany({
-    orderBy: [{ order: "asc" }, { createdAt: "desc" }],
-    take: 200,
-    select: {
-      id: true,
-      title: true,
-      summary: true,
-      photoUrl: true,
-      publishedAt: true,
-      order: true,
-      isActive: true,
-    },
-  });
+  const { data: rows, failed } = await withPrismaFallback(
+    "admin-artikel-page",
+    () =>
+      prisma.articleEntry.findMany({
+        orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+        take: 200,
+        select: {
+          id: true,
+          title: true,
+          summary: true,
+          photoUrl: true,
+          publishedAt: true,
+          order: true,
+          isActive: true,
+        },
+      }),
+    [],
+  );
 
   const items: ArticleAdminItem[] = rows.map((r) => ({
     id: r.id,
@@ -59,7 +64,7 @@ async function AdminArtikelContent() {
         Kelola berita dan kegiatan untuk halaman publik /artikel serta cuplikan
         beranda (Artikel Terbaru).
       </p>
-      <ArtikelManager initialItems={items} />
+      <ArtikelManager initialItems={items} degraded={failed} />
     </>
   );
 }

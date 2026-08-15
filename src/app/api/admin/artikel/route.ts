@@ -1,10 +1,21 @@
 import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { requireAdmin } from "@/lib/admin-auth";
 import { canAccessAdminPath } from "@/lib/admin-page-access";
 import { polishAppreciationSummary } from "@/lib/polish-summary";
 import { prisma } from "@/lib/prisma";
+
+const TABLE_MISSING_MSG =
+  "Fitur artikel belum aktif. Tabel belum dibuat di database.";
+
+function isTableMissing(error: unknown): boolean {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2021"
+  );
+}
 
 const createSchema = z.object({
   title: z.string().trim().min(2).max(200),
@@ -31,11 +42,16 @@ export async function GET() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const items = await prisma.articleEntry.findMany({
-    orderBy: [{ order: "asc" }, { createdAt: "desc" }],
-    take: 200,
-  });
-  return NextResponse.json(items);
+  try {
+    const items = await prisma.articleEntry.findMany({
+      orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+      take: 200,
+    });
+    return NextResponse.json(items);
+  } catch (error) {
+    console.error("[api/admin/artikel GET]", error);
+    return NextResponse.json([]);
+  }
 }
 
 export async function POST(request: Request) {
@@ -55,20 +71,32 @@ export async function POST(request: Request) {
   if (summary.length < 3 || summary.length > 4000) {
     return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
   }
-  const item = await prisma.articleEntry.create({
-    data: {
-      title: data.title,
-      summary,
-      photoUrl: data.photoUrl || null,
-      publishedAt: data.publishedAt ? new Date(data.publishedAt) : null,
-      order: data.order,
-      isActive: data.isActive,
-    },
-  });
 
-  revalidateTag("articles", "max");
-  return NextResponse.json(
-    { ...item, message: "Artikel berhasil ditambahkan" },
-    { status: 201 },
-  );
+  try {
+    const item = await prisma.articleEntry.create({
+      data: {
+        title: data.title,
+        summary,
+        photoUrl: data.photoUrl || null,
+        publishedAt: data.publishedAt ? new Date(data.publishedAt) : null,
+        order: data.order,
+        isActive: data.isActive,
+      },
+    });
+
+    revalidateTag("articles", "max");
+    return NextResponse.json(
+      { ...item, message: "Artikel berhasil ditambahkan" },
+      { status: 201 },
+    );
+  } catch (error) {
+    if (isTableMissing(error)) {
+      return NextResponse.json({ error: TABLE_MISSING_MSG }, { status: 503 });
+    }
+    console.error("[api/admin/artikel POST]", error);
+    return NextResponse.json(
+      { error: "Gagal menambah artikel" },
+      { status: 500 },
+    );
+  }
 }
