@@ -289,6 +289,7 @@ export default function RegisterForm({
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimal 8 karakter"
                 className="pl-9 pr-10"
                 minLength={8}
                 required
@@ -310,6 +311,7 @@ export default function RegisterForm({
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Ulangi password"
               minLength={8}
               required
             />
