@@ -125,6 +125,8 @@ export function LatberWalkInClient({
   const [copiedField, setCopiedField] = useState<"account" | "amount" | null>(
     null,
   );
+  /** Desktop (md+) vs mobile: hanya satu layout yang punya id scroll target. */
+  const [isMdUp, setIsMdUp] = useState(false);
 
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const suggestDebounce = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -168,6 +170,14 @@ export function LatberWalkInClient({
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const sync = () => setIsMdUp(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -447,8 +457,54 @@ export function LatberWalkInClient({
       payment.bankAccountName.trim(),
   );
 
+  function renderRowActions(
+    row: Registrant,
+    opts?: { wrap?: boolean },
+  ) {
+    const paid = row.displayStatus === "lunas";
+    const waiting = row.displayStatus === "menunggu_verifikasi";
+    const unpaid = row.displayStatus === "belum_bayar";
+    return (
+      <div
+        className={cn(
+          "flex items-center gap-1",
+          opts?.wrap ? "flex-wrap" : "whitespace-nowrap",
+        )}
+      >
+        {unpaid ? (
+          <Button
+            size="sm"
+            className="bg-inkai-red hover:bg-inkai-red/90"
+            onClick={() => setPayRow(row)}
+          >
+            Bayar
+          </Button>
+        ) : null}
+        {waiting ? (
+          <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
+            Menunggu verifikasi
+          </span>
+        ) : null}
+        {!paid ? (
+          <Button size="sm" variant="outline" asChild>
+            <a
+              href={buildBatalWaUrl(
+                formatMemberName(row.fullName),
+                row.dojoName,
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Batal
+            </a>
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6">
       <header className="space-y-2">
         <p className="text-sm font-medium text-inkai-red">Latihan Bersama</p>
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
@@ -734,7 +790,8 @@ export function LatberWalkInClient({
         </div>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border">
+      {/* Desktop: tabel penuh */}
+      <div className="hidden rounded-xl border md:block">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
@@ -745,7 +802,7 @@ export function LatberWalkInClient({
               <TableHead>Sabuk</TableHead>
               <TableHead>Biaya</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="min-w-[200px]">Aksi</TableHead>
+              <TableHead className="w-[220px]">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -768,67 +825,94 @@ export function LatberWalkInClient({
                 </TableCell>
               </TableRow>
             ) : (
-              filteredRows.map((row, i) => {
-                const paid = row.displayStatus === "lunas";
-                const waiting = row.displayStatus === "menunggu_verifikasi";
-                const unpaid = row.displayStatus === "belum_bayar";
-                return (
-                  <TableRow
-                    key={row.registrationId}
-                    id={`latber-row-${row.memberId}`}
-                    className={cn(
-                      highlightId === row.memberId && "bg-inkai-red/5",
-                    )}
-                  >
-                    <TableCell>{i + 1}</TableCell>
-                    <TableCell>{row.nia || "—"}</TableCell>
-                    <TableCell className="font-medium">
-                      {formatMemberName(row.fullName)}
-                    </TableCell>
-                    <TableCell>{row.dojoName}</TableCell>
-                    <TableCell>{row.currentRank || "—"}</TableCell>
-                    <TableCell>{formatLatberCurrency(row.amount)}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{row.statusLabel}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {unpaid ? (
-                          <Button
-                            size="sm"
-                            className="bg-inkai-red hover:bg-inkai-red/90"
-                            onClick={() => setPayRow(row)}
-                          >
-                            Bayar
-                          </Button>
-                        ) : null}
-                        {waiting ? (
-                          <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground">
-                            Menunggu verifikasi
-                          </span>
-                        ) : null}
-                        {!paid ? (
-                          <Button size="sm" variant="outline" asChild>
-                            <a
-                              href={buildBatalWaUrl(
-                                formatMemberName(row.fullName),
-                                row.dojoName,
-                              )}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              Batal
-                            </a>
-                          </Button>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+              filteredRows.map((row, i) => (
+                <TableRow
+                  key={row.registrationId}
+                  id={
+                    isMdUp ? `latber-row-${row.memberId}` : undefined
+                  }
+                  className={cn(
+                    highlightId === row.memberId && "bg-inkai-red/5",
+                  )}
+                >
+                  <TableCell>{i + 1}</TableCell>
+                  <TableCell>{row.nia || "—"}</TableCell>
+                  <TableCell className="font-medium">
+                    {formatMemberName(row.fullName)}
+                  </TableCell>
+                  <TableCell>{row.dojoName}</TableCell>
+                  <TableCell>{row.currentRank || "—"}</TableCell>
+                  <TableCell>{formatLatberCurrency(row.amount)}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary">{row.statusLabel}</Badge>
+                  </TableCell>
+                  <TableCell>{renderRowActions(row)}</TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Mobile: kartu — semua field, tanpa hide, tanpa scroll horizontal */}
+      <div className="space-y-3 md:hidden">
+        {loading ? (
+          <p className="rounded-xl border py-10 text-center text-sm text-muted-foreground">
+            Memuat peserta…
+          </p>
+        ) : filteredRows.length === 0 ? (
+          <p className="rounded-xl border py-10 text-center text-sm text-muted-foreground">
+            Belum ada peserta. Cari nama atau scan kartu lalu daftar.
+          </p>
+        ) : (
+          filteredRows.map((row, i) => (
+            <article
+              key={row.registrationId}
+              id={
+                !isMdUp ? `latber-row-${row.memberId}` : undefined
+              }
+              className={cn(
+                "rounded-xl border bg-card p-4 shadow-sm",
+                highlightId === row.memberId && "bg-inkai-red/5",
+              )}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground">No. {i + 1}</p>
+                  <h3 className="text-base font-semibold break-words">
+                    {formatMemberName(row.fullName)}
+                  </h3>
+                </div>
+                <Badge variant="secondary" className="shrink-0">
+                  {row.statusLabel}
+                </Badge>
+              </div>
+              <dl className="mt-3 grid grid-cols-1 gap-2 text-sm">
+                <div>
+                  <dt className="text-xs text-muted-foreground">NIA</dt>
+                  <dd>{row.nia || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Ranting</dt>
+                  <dd className="break-words">{row.dojoName}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Sabuk</dt>
+                  <dd>{row.currentRank || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-muted-foreground">Biaya</dt>
+                  <dd className="font-medium">
+                    {formatLatberCurrency(row.amount)}
+                  </dd>
+                </div>
+              </dl>
+              <div className="mt-4 border-t pt-3">
+                {renderRowActions(row, { wrap: true })}
+              </div>
+            </article>
+          ))
+        )}
       </div>
 
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
