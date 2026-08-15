@@ -68,8 +68,8 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/kegiatan` | Daftar kegiatan (+ badge **Masih terbuka** / **Berlangsung**; UKT terbuka → undangan) |
 | `/kegiatan/[id]` | Detail kegiatan |
 | `/apresiasi` | Kenangan & prestasi; filter `?jenis=`; deep-link pasteable `?jenis=kenangan&tokoh=slug-nama` |
-| `/artikel` | Daftar berita/kegiatan (`ArticleEntry`); kartu kutipan + paginasi `?page=`; foto klik lightbox; `?slug=` redirect ke detail |
-| `/artikel/[slug]` | Detail artikel + galeri media (foto lightbox, video YouTube klik-baru-muat); pratinjau tautan dinamis `opengraph-image` |
+| `/artikel` | Daftar berita/kegiatan (`ArticleEntry`); kartu kutipan + paginasi `?page=`; foto klik lightbox; reaksi emoji publik; `?slug=` redirect ke detail |
+| `/artikel/[slug]` | Detail artikel + galeri media (foto lightbox, video YouTube klik-baru-muat); reaksi emoji; pratinjau tautan dinamis `opengraph-image` |
 | `/dojo` | Daftar dojo/ranting Cabang Surabaya (detail lengkap, tanpa jumlah anggota) |
 | `/dojo/[id]` | Profil ranting/dojo |
 | `/v/[id]` | Verifikasi kartu anggota (scan QR — UUID atau NIA) |
@@ -125,7 +125,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | Absensi | **Progress** tabel klik→Sheet + harian + belum hadir; **tab client instan**; **filter tanggal/semester client-fetch** (`GET /api/admin/absensi` + `replaceState`); export; soft-backfill menu ranting |
 | Carousel Beranda | Upload gambar + aktif + **urutkan** (Prisma lokal; cabang); grup **Konten**; fallback beranda jika belum ada Artikel |
 | Apresiasi | CRUD kenangan & prestasi publik (`AppreciationEntry`); edit dialog + rapikan ringkasan; cabang saja; grup **Konten** |
-| Artikel | CRUD berita/kegiatan publik (`ArticleEntry`: judul, isi, foto utama, `media` JSON foto/video YouTube, tanggal, urutan, aktif); salin tautan `/artikel/[slug]`; cabang saja; grup **Konten**; SQL ops `prisma/sql/article-entry.sql` + `article-media.sql` |
+| Artikel | CRUD berita/kegiatan publik (`ArticleEntry`: judul, isi, foto utama, `media` JSON foto/video YouTube, tanggal, urutan, aktif); reaksi publik `ArticleReaction` (emoji, 1/perangkat); salin tautan `/artikel/[slug]`; cabang saja; grup **Konten**; SQL ops `article-entry.sql` + `article-media.sql` + `article-reaction.sql` |
 | Log Audit | Filter aksi/cari + **export CSV** (pusat); fetch awal **100** log (bukan 300) + pagination client |
 | Kehadiran akun | **Sedang aktif** + jejak audit (IP, perangkat, lokasi CDN, UA); heartbeat; **cabut sesi / kunci / buka kunci**; **ambil alih (Mode A)** pusat/cabang; ranting tidak akses |
 | Notifikasi | Inbox admin (ada di nav); **ranting: rantingnya + ops cabang**; field `audience`; tanpa notif pribadi anggota; cabang lihat semua ranting |
@@ -457,6 +457,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/public/latber/suggest   GET autocomplete nama/NIA/UUID (+ parse `/v/…`)
 /api/public/latber/register  POST daftar walk-in APPROVED + uniqueTail; rate limit + CSRF
 /api/public/latber/confirm-payment  POST Sudah bayar walk-in → billing WAITING_VERIFICATION; rate limit + CSRF; idempotent
+/api/public/artikel/[id]/reactions  GET/POST reaksi emoji publik (cookie visitorId, 1/perangkat, rate limit IP)
 /api/member/latber/register POST daftar mandiri PENDING; rate limit; notif member+ranting
 /api/member/latber/confirm-payment  POST konfirmasi sudah bayar ke ranting (`eventId`); rate limit; notif
 /api/member/latber-status   GET status Latber periode aktif (kartu anggota)
@@ -1018,6 +1019,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 15 Agustus 2026 | **Guard undangan UKT → Latber:** `/undangan/ukt/[periodId]` cek `prisma.event` + `isLatberEventTitle`; link Latber yang keliru pakai path UKT redirect ke `/latber?period=…` (fix 404 link beredar); inventaris §4/§15 |
 | 15 Agustus 2026 | **Fix Admin Artikel:** buat tabel `ArticleEntry` di produksi (`prisma db execute`); `/admin/artikel` + API pakai `withPrismaFallback` / tangani P2021 (banner degraded, GET `[]`, mutasi 503); inventaris §15 |
 | 15 Agustus 2026 | **Artikel detail + media:** `/artikel/[slug]` (kutipan di daftar, paginasi, redirect `?slug=`); kolom `media` JSON + SQL `article-media.sql`; galeri foto lightbox + video YouTube klik-baru-muat; OG image dinamis 1200×630; CSP YouTube/`i.ytimg.com`; inventaris §4/§6/§10/§13/§15 |
+| 15 Agustus 2026 | **Reaksi artikel publik:** emoji 👍❤️🔥🙏😮; `ArticleReaction` + cookie `inkai_artikel_vid` (1/perangkat); API `/api/public/artikel/[id]/reactions`; UI daftar+detail; SQL `article-reaction.sql`; inventaris §4/§6/§13/§15 |
 
 ---
 

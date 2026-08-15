@@ -7,12 +7,14 @@ import {
   ArticleMediaGallery,
   ArticlePhotoLightbox,
 } from "@/components/articles/ArticleMediaGallery";
+import { ArticleReactions } from "@/components/articles/ArticleReactions";
 import { Badge } from "@/components/ui/badge";
 import {
   articleExcerpt,
   articlePublicPath,
   formatArticleDate,
   getArticleBySlug,
+  getReactionCountsForArticles,
 } from "@/lib/articles";
 import { SITE_URL } from "@/lib/site";
 
@@ -58,6 +60,7 @@ export default async function ArtikelDetailPage({ params }: Props) {
 
   const dateLabel = formatArticleDate(item.publishedAt);
   const path = articlePublicPath(item);
+  const reactionMap = await getReactionCountsForArticles([item.id]);
 
   return (
     <div className="relative overflow-hidden">
@@ -105,6 +108,11 @@ export default async function ArtikelDetailPage({ params }: Props) {
         <div className="mt-6 whitespace-pre-line text-base leading-relaxed text-foreground/90">
           {item.summary}
         </div>
+
+        <ArticleReactions
+          articleId={item.id}
+          initialCounts={reactionMap[item.id]}
+        />
 
         {item.media.length > 0 ? (
           <section className="mt-10">

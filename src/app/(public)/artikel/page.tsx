@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArticleCopyLink } from "@/components/articles/ArticleDeepLink";
 import { ArticlePhotoLightbox } from "@/components/articles/ArticleMediaGallery";
+import { ArticleReactions } from "@/components/articles/ArticleReactions";
 import { PublicPageHeader } from "@/components/layout/PublicPageHeader";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,6 +13,7 @@ import {
   countArticleMedia,
   findArticleBySlug,
   formatArticleDate,
+  getReactionCountsForArticles,
   listActiveArticles,
 } from "@/lib/articles";
 import { cn } from "@/lib/utils";
@@ -64,6 +66,9 @@ export default async function ArtikelPage({ searchParams }: Props) {
     ? Math.min(Math.max(1, pageRaw), totalPages)
     : 1;
   const slice = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const reactionMap = await getReactionCountsForArticles(
+    slice.map((item) => item.id),
+  );
 
   return (
     <div className="relative overflow-hidden">
@@ -162,6 +167,11 @@ export default async function ArtikelPage({ searchParams }: Props) {
                           >
                             Baca selengkapnya →
                           </Link>
+                          <ArticleReactions
+                            articleId={item.id}
+                            initialCounts={reactionMap[item.id]}
+                            compact
+                          />
                         </div>
                       </div>
                     </article>

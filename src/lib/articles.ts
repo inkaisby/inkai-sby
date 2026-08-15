@@ -1,4 +1,9 @@
 import { unstable_cache } from "next/cache";
+import {
+  emptyReactionCounts,
+  isArticleReactionEmoji,
+  type ArticleReactionCounts,
+} from "@/lib/article-reactions";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { youtubeVideoId } from "@/lib/youtube";
 
@@ -192,4 +197,33 @@ export function countArticleMedia(media: ArticleMediaItem[]): {
     else videos += 1;
   }
   return { images, videos };
+}
+
+export async function getReactionCountsForArticles(
+  articleIds: string[],
+): Promise<Record<string, ArticleReactionCounts>> {
+  const result: Record<string, ArticleReactionCounts> = {};
+  for (const id of articleIds) {
+    result[id] = emptyReactionCounts();
+  }
+  if (articleIds.length === 0) return result;
+
+  const { data: rows } = await withPrismaFallback(
+    "article-reaction-counts",
+    () =>
+      prisma.articleReaction.groupBy({
+        by: ["articleId", "emoji"],
+        where: { articleId: { in: articleIds } },
+        _count: { _all: true },
+      }),
+    [],
+  );
+
+  for (const row of rows) {
+    if (!isArticleReactionEmoji(row.emoji)) continue;
+    const bucket = result[row.articleId] ?? emptyReactionCounts();
+    bucket[row.emoji] = row._count._all;
+    result[row.articleId] = bucket;
+  }
+  return result;
 }
