@@ -257,6 +257,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       success: true,
       billingId: billing.billingId,
       billingStatus,
+      status: "APPROVED",
     });
   }
 
@@ -346,7 +347,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         : "Pengajuan ditolak ranting.",
     }).catch((err) => console.error("[Latber reject] notify member", err));
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, status: "REJECTED" });
   }
 
   if (data.action === "mark_paid") {
@@ -389,7 +390,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
-    const billing = await prisma.billing.findFirst({
+    const unpaidBilling = await prisma.billing.findFirst({
       where: {
         registrationId: id,
         isDeleted: false,
@@ -398,12 +399,32 @@ export async function PATCH(request: Request, context: RouteContext) {
       select: { id: true },
       orderBy: { createdAt: "desc" },
     });
-    if (!billing) {
+
+    if (!unpaidBilling) {
+      const paidBilling = await prisma.billing.findFirst({
+        where: {
+          registrationId: id,
+          isDeleted: false,
+          status: { in: ["PAID", "SUCCESS"] },
+        },
+        select: { id: true },
+        orderBy: { createdAt: "desc" },
+      });
+      if (paidBilling) {
+        return NextResponse.json({
+          success: true,
+          alreadyPaid: true,
+          billingId: paidBilling.id,
+          billingStatus: "PAID",
+        });
+      }
       return NextResponse.json(
         { error: "Tagihan Latihan Bersama belum tersedia atau sudah lunas" },
         { status: 400 },
       );
     }
+
+    const billing = unpaidBilling;
 
     let verified = false;
     for (const attempt of [
@@ -437,7 +458,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       userId: authResult.user.id,
       email: authResult.user.email,
       action: "LATBER_MARK_PAID",
-      details: `Verified Latber payment reg=${id} billing=${billing.id}`,
+      details: `Verified Latber payment reg=${id} billing=${billing.id}${verified ? "" : " (local)"}`,
       ip: getClientIp(request),
       userAgent: request.headers.get("user-agent"),
       token: authResult.token,

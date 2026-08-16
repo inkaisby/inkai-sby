@@ -61,7 +61,9 @@ export async function POST(request: Request) {
   const invite = await getLatberInvitePublic(eventId);
   return NextResponse.json({
     ok: true,
-    url: buildLatberInviteUrl(eventId),
+    url: buildLatberInviteUrl(eventId, {
+      archivedOrLocked: Boolean(meta.archived || meta.locked),
+    }),
     invite,
   });
 }

@@ -14,11 +14,17 @@ const LOGO_URL = `${SITE_URL}/logo-inkai.png`;
 export function renderBrandedOgImage({
   title,
   eyebrow = "INKAI Cabang Surabaya",
+  subtitle,
 }: {
   title: string;
   eyebrow?: string;
+  subtitle?: string;
 }) {
   const safeTitle = title.length > 90 ? `${title.slice(0, 87)}…` : title;
+  const safeSubtitle =
+    subtitle && subtitle.length > 120
+      ? `${subtitle.slice(0, 117)}…`
+      : subtitle;
 
   return new ImageResponse(
     (
@@ -85,6 +91,19 @@ export function renderBrandedOgImage({
             >
               {safeTitle}
             </span>
+            {safeSubtitle ? (
+              <span
+                style={{
+                  fontSize: 28,
+                  fontWeight: 500,
+                  opacity: 0.92,
+                  maxWidth: 1040,
+                  lineHeight: 1.35,
+                }}
+              >
+                {safeSubtitle}
+              </span>
+            ) : null}
             <span
               style={{
                 height: 8,

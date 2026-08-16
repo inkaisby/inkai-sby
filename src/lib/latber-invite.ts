@@ -32,8 +32,15 @@ export type LatberInvitePublic = {
   mapsUrl: string | null;
 };
 
-export function buildLatberInviteUrl(periodId: string): string {
-  return `${SITE_URL}/undangan/latber/${periodId}`;
+export function buildLatberInviteUrl(
+  periodId: string,
+  opts?: { archivedOrLocked?: boolean },
+): string {
+  // Periode aktif: URL pendek agar mudah dibaca di WhatsApp.
+  if (!opts?.archivedOrLocked) {
+    return `${SITE_URL}/latber`;
+  }
+  return `${SITE_URL}/latber?period=${encodeURIComponent(periodId)}`;
 }
 
 export function buildLatberInviteLoginUrl(periodId: string): string {

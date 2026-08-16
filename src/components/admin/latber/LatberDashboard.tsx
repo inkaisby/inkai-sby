@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Archive,
@@ -164,6 +164,10 @@ export function LatberDashboard(props: LatberDashboardProps) {
   const [searchQ, setSearchQ] = useState("");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+
+  useEffect(() => {
+    setRows(props.rows);
+  }, [props.rows]);
   const [editOpen, setEditOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
@@ -254,9 +258,47 @@ export function LatberDashboard(props: LatberDashboardProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await parseApiJson<{ error?: string }>(res);
+      const data = await parseApiJson<{
+        error?: string;
+        billingStatus?: string;
+        status?: string;
+        alreadyPaid?: boolean;
+      }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal memproses");
-      showSuccess(successMsg);
+
+      const action = String(body.action ?? "");
+      setRows((prev) =>
+        prev.map((row) => {
+          if (row.registrationId !== registrationId) return row;
+          const next = { ...row };
+          if (typeof data.billingStatus === "string") {
+            next.billingStatus = data.billingStatus;
+          } else if (action === "mark_paid") {
+            next.billingStatus = "PAID";
+          } else if (action === "submit_for_verification") {
+            next.billingStatus = "WAITING_VERIFICATION";
+          } else if (action === "accept_self_registration") {
+            next.status = "APPROVED";
+            next.selfRegistration = false;
+            next.memberPaymentConfirmedAt = null;
+            if (!next.billingStatus || next.billingStatus === "NONE") {
+              next.billingStatus = "PENDING";
+            }
+          } else if (action === "reject_self_registration") {
+            next.status = "REJECTED";
+            next.selfRegistration = false;
+            next.memberPaymentConfirmedAt = null;
+          }
+          if (typeof data.status === "string") {
+            next.status = data.status;
+          }
+          return next;
+        }),
+      );
+
+      showSuccess(
+        data.alreadyPaid ? "Pembayaran sudah diverifikasi sebelumnya" : successMsg,
+      );
       refresh();
     } catch (e) {
       showError(e instanceof Error ? e.message : "Gagal memproses");
@@ -533,18 +575,39 @@ export function LatberDashboard(props: LatberDashboardProps) {
 
   function copyInvite() {
     if (!props.selectedPeriodId) return;
-    const url = buildLatberInviteUrl(props.selectedPeriodId);
+    const url = buildLatberInviteUrl(props.selectedPeriodId, {
+      archivedOrLocked: periodLocked || Boolean(props.isArchiveView),
+    });
     void navigator.clipboard.writeText(url);
     showSuccess("Link undangan disalin");
   }
 
   function waInvite() {
     if (!props.selectedPeriodId) return;
-    const url = buildLatberInviteUrl(props.selectedPeriodId);
-    const title = props.selectedPeriod?.title ?? "Latihan Bersama";
-    const text = encodeURIComponent(
-      `Undangan ${title} — INKAI Surabaya\nDaftarkan anggota ranting Anda:\n${url}`,
+    const url = buildLatberInviteUrl(props.selectedPeriodId, {
+      archivedOrLocked: periodLocked || Boolean(props.isArchiveView),
+    });
+    const title = formatLatberPeriodLabel(
+      props.selectedPeriod?.title ?? "Latihan Bersama",
     );
+    const eventAt = props.periodMeta.eventAt
+      ? new Date(props.periodMeta.eventAt).toLocaleString("id-ID", {
+          dateStyle: "long",
+          timeStyle: "short",
+        })
+      : null;
+    const location = props.periodMeta.eventLocation?.trim() || null;
+    const lines = [
+      `Undangan Latihan Bersama — ${title}`,
+      "INKAI Surabaya",
+      eventAt ? `Jadwal: ${eventAt}` : null,
+      location ? `Lokasi: ${location}` : null,
+      `Biaya: ${formatLatberCurrency(props.feeAmount)} / peserta`,
+      "",
+      "Daftar / bayar di portal:",
+      url,
+    ].filter((line): line is string => line != null);
+    const text = encodeURIComponent(lines.join("\n"));
     window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
   }
 
