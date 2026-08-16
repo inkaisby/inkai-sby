@@ -430,6 +430,8 @@ export function UktHasilUjianPanel({
                     pengdaKetua: item.fullName,
                     pengdaKetuaTitle: item.officerTitle || d.pengdaKetuaTitle,
                     pengdaKetuaMemberId: item.id,
+                    pengdaKetuaSignUrl:
+                      item.signatureUrl || d.pengdaKetuaSignUrl,
                   }))
                 }
               />
@@ -444,6 +446,7 @@ export function UktHasilUjianPanel({
               <UktSignaturePad
                 label="Ketua Umum Pengda"
                 valueUrl={draft.pengdaKetuaSignUrl}
+                memberId={draft.pengdaKetuaMemberId || null}
                 onChange={(url) =>
                   setDraft((d) => ({ ...d, pengdaKetuaSignUrl: url || "" }))
                 }
@@ -462,6 +465,7 @@ export function UktHasilUjianPanel({
                     mshKetua: item.fullName,
                     mshKetuaTitle: item.officerTitle || d.mshKetuaTitle,
                     mshKetuaMemberId: item.id,
+                    mshKetuaSignUrl: item.signatureUrl || d.mshKetuaSignUrl,
                   }))
                 }
               />
@@ -476,6 +480,7 @@ export function UktHasilUjianPanel({
               <UktSignaturePad
                 label="Ketua MSH"
                 valueUrl={draft.mshKetuaSignUrl}
+                memberId={draft.mshKetuaMemberId || null}
                 onChange={(url) =>
                   setDraft((d) => ({ ...d, mshKetuaSignUrl: url || "" }))
                 }
@@ -494,6 +499,8 @@ export function UktHasilUjianPanel({
                     ketuaCabangName: item.fullName,
                     ketuaCabangTitle: item.officerTitle || d.ketuaCabangTitle,
                     ketuaCabangMemberId: item.id,
+                    ketuaCabangSignUrl:
+                      item.signatureUrl || d.ketuaCabangSignUrl,
                   }))
                 }
               />
@@ -508,6 +515,7 @@ export function UktHasilUjianPanel({
               <UktSignaturePad
                 label="Ketua Cabang"
                 valueUrl={draft.ketuaCabangSignUrl}
+                memberId={draft.ketuaCabangMemberId || null}
                 onChange={(url) =>
                   setDraft((d) => ({ ...d, ketuaCabangSignUrl: url || "" }))
                 }
@@ -526,6 +534,8 @@ export function UktHasilUjianPanel({
                     bidangUjianName: item.fullName,
                     bidangUjianTitle: item.officerTitle || d.bidangUjianTitle,
                     bidangUjianMemberId: item.id,
+                    bidangUjianSignUrl:
+                      item.signatureUrl || d.bidangUjianSignUrl,
                   }))
                 }
               />
@@ -540,6 +550,7 @@ export function UktHasilUjianPanel({
               <UktSignaturePad
                 label="Koordinator Penguji"
                 valueUrl={draft.bidangUjianSignUrl}
+                memberId={draft.bidangUjianMemberId || null}
                 onChange={(url) =>
                   setDraft((d) => ({ ...d, bidangUjianSignUrl: url || "" }))
                 }
@@ -593,18 +604,25 @@ export function UktHasilUjianPanel({
                         const pengujiNames = [...d.pengujiNames];
                         const pengujiTitles = [...d.pengujiTitles];
                         const pengujiMemberIds = [...d.pengujiMemberIds];
+                        const pengujiSignUrls = [...d.pengujiSignUrls];
                         while (pengujiTitles.length <= idx) pengujiTitles.push("");
                         while (pengujiMemberIds.length <= idx)
                           pengujiMemberIds.push("");
+                        while (pengujiSignUrls.length <= idx)
+                          pengujiSignUrls.push("");
                         pengujiNames[idx] = item.fullName;
                         pengujiTitles[idx] =
                           item.officerTitle || pengujiTitles[idx] || "";
                         pengujiMemberIds[idx] = item.id;
+                        if (item.signatureUrl) {
+                          pengujiSignUrls[idx] = item.signatureUrl;
+                        }
                         return {
                           ...d,
                           pengujiNames,
                           pengujiTitles,
                           pengujiMemberIds,
+                          pengujiSignUrls,
                         };
                       })
                     }
@@ -625,6 +643,7 @@ export function UktHasilUjianPanel({
                   <UktSignaturePad
                     label={`Penguji ${idx + 1}`}
                     valueUrl={draft.pengujiSignUrls[idx]}
+                    memberId={draft.pengujiMemberIds[idx] || null}
                     onChange={(url) =>
                       setDraft((d) => {
                         const pengujiSignUrls = [...d.pengujiSignUrls];

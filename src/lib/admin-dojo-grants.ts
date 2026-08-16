@@ -15,6 +15,7 @@ export const ADMIN_DOJO_SIDEBAR_OPTIONS = [
   { path: "/admin/anggota", label: "Kelola Anggota" },
   { path: "/admin/verifikasi", label: "Verifikasi" },
   { path: "/admin/iuran", label: "Iuran Anggota" },
+  { path: "/admin/kwitansi", label: "Kwitansi Pembayaran" },
   { path: "/admin/ukt", label: "UKT — Pendaftaran" },
   { path: "/admin/ukt/arsip", label: "UKT — Arsip" },
   { path: "/admin/latber", label: "Latihan Bersama — Pendaftaran" },
@@ -71,6 +72,7 @@ export const ADMIN_DOJO_GRANT_PRESETS = [
       sidebarPaths: [
         "/admin",
         "/admin/iuran",
+        "/admin/kwitansi",
         "/admin/ukt",
         "/admin/latber",
         "/admin/latber/arsip",
@@ -82,11 +84,17 @@ export const ADMIN_DOJO_GRANT_PRESETS = [
 ] as const;
 
 const ABSENSI_PATH = "/admin/absensi";
+const KWITANSI_PATH = "/admin/kwitansi";
 const LATBER_PATHS = ["/admin/latber", "/admin/latber/arsip"] as const;
 
 /** Default lama sebelum Absensi masuk opsi sidebar (untuk soft-backfill). */
 const LEGACY_DEFAULT_WITHOUT_ABSENSI = DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS.filter(
-  (p) => p !== ABSENSI_PATH,
+  (p) => p !== ABSENSI_PATH && p !== KWITANSI_PATH,
+);
+
+/** Default lama sebelum Kwitansi masuk opsi sidebar (untuk soft-backfill). */
+const LEGACY_DEFAULT_WITHOUT_KWITANSI = DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS.filter(
+  (p) => p !== KWITANSI_PATH,
 );
 
 function samePathSet(a: string[], b: string[]) {
@@ -116,6 +124,35 @@ function softBackfillLatber(paths: string[]): string[] {
   return next;
 }
 
+/** Grant full-default lama tanpa Kwitansi → tambah Kwitansi; uncentang sengaja tidak dipaksa. */
+function softBackfillKwitansi(paths: string[]): string[] {
+  if (paths.includes(KWITANSI_PATH)) return paths;
+  if (
+    samePathSet(paths, LEGACY_DEFAULT_WITHOUT_KWITANSI) ||
+    samePathSet(paths, LEGACY_DEFAULT_WITHOUT_ABSENSI)
+  ) {
+    const next = [...paths];
+    if (!next.includes(KWITANSI_PATH)) next.push(KWITANSI_PATH);
+    return next;
+  }
+  // Bendahara lama yang punya iuran tapi belum kwitansi
+  if (paths.includes("/admin/iuran") && !paths.includes(KWITANSI_PATH)) {
+    const bendaharaCore = [
+      "/admin",
+      "/admin/iuran",
+      "/admin/ukt",
+      "/admin/latber",
+      "/admin/latber/arsip",
+      "/admin/notifikasi",
+      "/admin/pengaturan",
+    ];
+    if (samePathSet(paths, bendaharaCore)) {
+      return [...paths, KWITANSI_PATH];
+    }
+  }
+  return paths;
+}
+
 function normalizeSidebarPaths(paths: unknown): string[] {
   if (!Array.isArray(paths)) return [...DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS];
   const allowed = new Set<string>(DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS);
@@ -126,7 +163,9 @@ function normalizeSidebarPaths(paths: unknown): string[] {
     }
   }
   const normalized = out.length ? out : ["/admin"];
-  return softBackfillLatber(softBackfillAbsensi(normalized));
+  return softBackfillKwitansi(
+    softBackfillLatber(softBackfillAbsensi(normalized)),
+  );
 }
 
 export function parseAdminDojoGrants(raw: unknown): AdminDojoGrants | null {

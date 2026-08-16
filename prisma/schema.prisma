@@ -189,6 +189,9 @@ model Member {
   rankSelfEditedAt      DateTime?
   /// Anggota sudah 1x mengubah No. MSH sendiri → selanjutnya pengajuan
   mshSelfEditedAt       DateTime?
+  /// Arsip TTD digital anggota (shared UKT, kwitansi, dll.)
+  signatureUrl          String?
+  signatureUpdatedAt    DateTime?
   attendances           Attendance[]
   billings              Billing[]
   eventRegistrations    EventRegistration[]

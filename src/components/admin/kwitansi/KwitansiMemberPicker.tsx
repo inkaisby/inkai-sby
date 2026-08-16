@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-export type UktTtdSuggestItem = {
+export type KwitansiMemberSuggestItem = {
   id: string;
   fullName: string;
   nia: string | null;
@@ -18,22 +18,22 @@ export type UktTtdSuggestItem = {
 type Props = {
   value: string;
   onChange: (value: string) => void;
-  onPick?: (item: UktTtdSuggestItem) => void;
+  onPick?: (item: KwitansiMemberSuggestItem) => void;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
 };
 
-export function UktTtdMemberPicker({
+export function KwitansiMemberPicker({
   value,
   onChange,
   onPick,
-  placeholder = "Cari nama anggota (DAN)…",
+  placeholder = "Cari nama anggota…",
   disabled,
   className,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<UktTtdSuggestItem[]>([]);
+  const [items, setItems] = useState<KwitansiMemberSuggestItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(-1);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -59,10 +59,12 @@ export function UktTtdMemberPicker({
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       setLoading(true);
-      void fetch(`/api/admin/ukt/ttd-suggest?q=${encodeURIComponent(q)}`)
+      void fetch(
+        `/api/admin/kwitansi/member-suggest?q=${encodeURIComponent(q)}`,
+      )
         .then(async (res) => {
           const data = (await res.json().catch(() => ({}))) as {
-            suggestions?: UktTtdSuggestItem[];
+            suggestions?: KwitansiMemberSuggestItem[];
           };
           setItems(data.suggestions ?? []);
           setOpen(true);
@@ -72,7 +74,7 @@ export function UktTtdMemberPicker({
     return () => clearTimeout(debounceRef.current);
   }, [value]);
 
-  const pick = (item: UktTtdSuggestItem) => {
+  const pick = (item: KwitansiMemberSuggestItem) => {
     onChange(item.fullName);
     onPick?.(item);
     setOpen(false);
@@ -103,34 +105,31 @@ export function UktTtdMemberPicker({
           }
         }}
       />
-      {open && (items.length > 0 || loading) ? (
-        <ul className="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-popover p-1 text-sm shadow-md">
-          {loading && items.length === 0 ? (
-            <li className="px-2 py-1.5 text-muted-foreground">Mencari…</li>
-          ) : (
-            items.map((item, idx) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  className={cn(
-                    "flex w-full flex-col items-start rounded px-2 py-1.5 text-left hover:bg-muted",
-                    idx === active && "bg-muted",
-                  )}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    pick(item);
-                  }}
-                >
-                  <span className="font-medium">{item.fullName}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {item.currentRank}
-                    {item.mshNumber ? ` · MSH ${item.mshNumber}` : ""}
-                    {item.dojoName ? ` · ${item.dojoName}` : ""}
-                  </span>
-                </button>
-              </li>
-            ))
-          )}
+      {loading ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">Mencari…</p>
+      ) : null}
+      {open && items.length > 0 ? (
+        <ul className="absolute z-40 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-background shadow-md">
+          {items.map((item, idx) => (
+            <li key={item.id}>
+              <button
+                type="button"
+                className={cn(
+                  "flex w-full flex-col items-start px-3 py-2 text-left text-sm hover:bg-muted",
+                  idx === active && "bg-muted",
+                )}
+                onMouseEnter={() => setActive(idx)}
+                onClick={() => pick(item)}
+              >
+                <span className="font-medium">{item.fullName}</span>
+                <span className="text-xs text-muted-foreground">
+                  {[item.nia, item.currentRank, item.dojoName]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </button>
+            </li>
+          ))}
         </ul>
       ) : null}
     </div>

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/admin-auth";
-import { canEditKyuBaru, formatRankLabel, isBlackBeltRank } from "@/lib/belt";
+import { formatRankLabel } from "@/lib/belt";
 import { prisma } from "@/lib/prisma";
+import { buildMemberFilter } from "@/lib/rbac";
 import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import { formatUktOfficerTitle } from "@/lib/ukt-ttd";
 
@@ -13,14 +14,8 @@ const suggestQuerySchema = z.object({
 export async function GET(request: Request) {
   const authResult = await requireAdmin();
   if ("error" in authResult) return authResult.error;
-  if (!canEditKyuBaru(authResult.user.roles)) {
-    return NextResponse.json(
-      { error: "Hanya admin cabang yang dapat mencari pejabat/penguji" },
-      { status: 403 },
-    );
-  }
 
-  const rlKey = `ukt:ttd-suggest:${authResult.user.id}`;
+  const rlKey = `kwitansi:member-suggest:${authResult.user.id}`;
   const limited = await rateLimitAsync(rlKey, { max: 60, windowMs: 60_000 });
   if (!limited.success) {
     return rateLimitResponse(limited.retryAfterSec ?? 60, rlKey);
@@ -37,12 +32,15 @@ export async function GET(request: Request) {
 
   const members = await prisma.member.findMany({
     where: {
-      isDeleted: false,
-      userId: { not: null },
-      OR: [
-        { fullName: { contains: q, mode: "insensitive" } },
-        { nia: { contains: q, mode: "insensitive" } },
-        { mshNumber: { contains: q, mode: "insensitive" } },
+      AND: [
+        buildMemberFilter(authResult.user),
+        {
+          OR: [
+            { fullName: { contains: q, mode: "insensitive" } },
+            { nia: { contains: q, mode: "insensitive" } },
+            { mshNumber: { contains: q, mode: "insensitive" } },
+          ],
+        },
       ],
     },
     select: {
@@ -54,23 +52,20 @@ export async function GET(request: Request) {
       signatureUrl: true,
       dojo: { select: { name: true } },
     },
-    take: 40,
+    take: 20,
     orderBy: { fullName: "asc" },
   });
 
-  const suggestions = members
-    .filter((m) => isBlackBeltRank(m.currentRank))
-    .slice(0, 12)
-    .map((m) => ({
-      id: m.id,
-      fullName: m.fullName,
-      nia: m.nia,
-      mshNumber: m.mshNumber,
-      currentRank: formatRankLabel(m.currentRank),
-      dojoName: m.dojo?.name ?? "",
-      officerTitle: formatUktOfficerTitle(m.currentRank, m.mshNumber),
-      signatureUrl: m.signatureUrl,
-    }));
+  const suggestions = members.map((m) => ({
+    id: m.id,
+    fullName: m.fullName,
+    nia: m.nia,
+    mshNumber: m.mshNumber,
+    currentRank: formatRankLabel(m.currentRank),
+    dojoName: m.dojo?.name ?? "",
+    officerTitle: formatUktOfficerTitle(m.currentRank, m.mshNumber),
+    signatureUrl: m.signatureUrl,
+  }));
 
   return NextResponse.json({ suggestions });
 }
