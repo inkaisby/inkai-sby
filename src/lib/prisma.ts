@@ -13,7 +13,15 @@ function withServerlessPoolLimit(url: string | undefined) {
     const isSupabasePooler = host.includes("pooler.supabase.com");
 
     // Session pooler (:5432) cepat habis di Vercel — pakai Transaction (:6543).
-    if (isSupabasePooler && (!parsed.port || parsed.port === "5432")) {
+    // Local `next dev` is one long-lived process: keep :5432 so Prisma matches CLI.
+    const rewriteSessionToTransaction =
+      process.env.NODE_ENV !== "development" ||
+      process.env.PRISMA_USE_TRANSACTION_POOLER === "1";
+    if (
+      rewriteSessionToTransaction &&
+      isSupabasePooler &&
+      (!parsed.port || parsed.port === "5432")
+    ) {
       parsed.port = "6543";
     }
 
@@ -60,6 +68,8 @@ globalForPrisma.prisma = prisma;
 export {
   errorMessageOf,
   isPrismaBusyError,
+  isPrismaSchemaDriftError,
+  prismaUserFacingError,
   settingsUsernameLoadWarning,
 } from "@/lib/prisma-errors";
 

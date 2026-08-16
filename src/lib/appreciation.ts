@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import type { AppreciationKind } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
 
 export type AppreciationPublic = {
   id: string;
@@ -52,15 +52,20 @@ export async function listActiveAppreciations(
   const cacheKey = kind ?? "all";
   return unstable_cache(
     async () => {
-      const rows = await prisma.appreciationEntry.findMany({
-        where: {
-          isActive: true,
-          ...(kind ? { kind } : {}),
-        },
-        orderBy: [{ order: "asc" }, { eventDate: "desc" }, { createdAt: "desc" }],
-        take: 100,
-        select: selectFields,
-      });
+      const { data: rows } = await withPrismaFallback(
+        "active-appreciations",
+        () =>
+          prisma.appreciationEntry.findMany({
+            where: {
+              isActive: true,
+              ...(kind ? { kind } : {}),
+            },
+            orderBy: [{ order: "asc" }, { eventDate: "desc" }, { createdAt: "desc" }],
+            take: 100,
+            select: selectFields,
+          }),
+        [],
+      );
       return rows.map(mapRow);
     },
     ["active-appreciations", cacheKey],
@@ -70,12 +75,17 @@ export async function listActiveAppreciations(
 
 export const listHomeAppreciationSnippet = unstable_cache(
   async (limit = 4): Promise<AppreciationPublic[]> => {
-    const rows = await prisma.appreciationEntry.findMany({
-      where: { isActive: true },
-      orderBy: [{ order: "asc" }, { eventDate: "desc" }, { createdAt: "desc" }],
-      take: limit,
-      select: selectFields,
-    });
+    const { data: rows } = await withPrismaFallback(
+      "home-appreciation-snippet",
+      () =>
+        prisma.appreciationEntry.findMany({
+          where: { isActive: true },
+          orderBy: [{ order: "asc" }, { eventDate: "desc" }, { createdAt: "desc" }],
+          take: limit,
+          select: selectFields,
+        }),
+      [],
+    );
     return rows.map(mapRow);
   },
   ["home-appreciation-snippet"],

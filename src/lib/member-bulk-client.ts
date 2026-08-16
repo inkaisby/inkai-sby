@@ -120,9 +120,9 @@ export async function postMemberBulkChunked(
       lastError =
         data.error ||
         data.message ||
-        (res.status === 503 || res.status >= 500
+        (res.status === 503
           ? PRISMA_BUSY_USER_MESSAGE
-          : "Gagal memproses bulk");
+          : "Gagal memproses bulk. Muat ulang atau coba lagi.");
       failCount += memberIds.length;
       // Hentikan sisa chunk agar tidak memperburuk pool.
       if (looksBusy(lastError, res.status)) {

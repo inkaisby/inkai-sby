@@ -9,6 +9,10 @@ export function errorMessageOf(error: unknown): string {
 export const PRISMA_BUSY_USER_MESSAGE =
   "Database sibuk (batas koneksi). Tunggu beberapa detik lalu coba lagi.";
 
+/** Skema Prisma mendahului DB (kolom/tabel belum di-apply ke produksi). */
+export const PRISMA_SCHEMA_DRIFT_USER_MESSAGE =
+  "Skema database belum sinkron (kolom/tabel hilang). Hubungi admin teknis — jangan ulangi terus.";
+
 /** Pool exhaustion / unreachable DB — safe to tell users "database sibuk". */
 export function isPrismaBusyError(error: unknown): boolean {
   const lower = errorMessageOf(error).toLowerCase();
@@ -24,6 +28,32 @@ export function isPrismaBusyError(error: unknown): boolean {
     lower.includes("pool_timeout") ||
     (lower.includes("pool") && lower.includes("timeout"))
   );
+}
+
+/** Missing column/table vs Prisma schema (P2021/P2022). */
+export function isPrismaSchemaDriftError(error: unknown): boolean {
+  const lower = errorMessageOf(error).toLowerCase();
+  return (
+    lower.includes("p2022") ||
+    lower.includes("p2021") ||
+    lower.includes("does not exist in the current database") ||
+    (lower.includes("the column") && lower.includes("does not exist")) ||
+    (lower.includes("the table") && lower.includes("does not exist"))
+  );
+}
+
+/** Map unknown Prisma errors to a safe user-facing message. */
+export function prismaUserFacingError(
+  error: unknown,
+  fallback: string,
+): { error: string; status: number } {
+  if (isPrismaSchemaDriftError(error)) {
+    return { error: PRISMA_SCHEMA_DRIFT_USER_MESSAGE, status: 500 };
+  }
+  if (isPrismaBusyError(error)) {
+    return { error: PRISMA_BUSY_USER_MESSAGE, status: 503 };
+  }
+  return { error: fallback, status: 500 };
 }
 
 /** Warning for pengaturan cabang/ranting when username/admin emails fail to load. */

@@ -9,7 +9,13 @@ import {
 } from "@/lib/appreciation";
 
 export default async function HomeAppreciationSnippet() {
-  const items = await listHomeAppreciationSnippet(4);
+  let items: Awaited<ReturnType<typeof listHomeAppreciationSnippet>> = [];
+  try {
+    items = await listHomeAppreciationSnippet(4);
+  } catch (error) {
+    console.error("[HomeAppreciationSnippet]", error);
+    return null;
+  }
   if (items.length === 0) return null;
 
   return (

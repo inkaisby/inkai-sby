@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { inkaiFetch } from "@/lib/inkai-api/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
 
 export type CarouselItem = {
@@ -152,25 +152,25 @@ function mapEventSummary(raw: Record<string, unknown>): PublicEventSummary {
 }
 
 async function fetchCarousel(activeOnly: boolean, limit?: number): Promise<CarouselItem[]> {
-  try {
-    const rows = await prisma.newsCarousel.findMany({
-      where: activeOnly ? { isActive: true } : undefined,
-      orderBy: [{ order: "asc" }, { createdAt: "desc" }],
-      take: limit,
-    });
-    return rows.map((i) => ({
-      id: i.id,
-      title: i.title,
-      imageUrl: i.imageUrl,
-      targetUrl: i.targetUrl,
-      order: i.order,
-      isActive: i.isActive,
-      createdAt: i.createdAt.toISOString(),
-    }));
-  } catch (error) {
-    console.error("[fetchCarousel]", error);
-    return [];
-  }
+  const { data: rows } = await withPrismaFallback(
+    "fetchCarousel",
+    () =>
+      prisma.newsCarousel.findMany({
+        where: activeOnly ? { isActive: true } : undefined,
+        orderBy: [{ order: "asc" }, { createdAt: "desc" }],
+        take: limit,
+      }),
+    [],
+  );
+  return rows.map((i) => ({
+    id: i.id,
+    title: i.title,
+    imageUrl: i.imageUrl,
+    targetUrl: i.targetUrl,
+    order: i.order,
+    isActive: i.isActive,
+    createdAt: i.createdAt.toISOString(),
+  }));
 }
 
 export const getActiveNewsCarousel = unstable_cache(
@@ -188,8 +188,8 @@ export const getActiveNewsCarouselPreview = unstable_cache(
 async function fetchBranchStructure(): Promise<PublicBranchStructure | null> {
   try {
     const { res, data } = await inkaiFetch("/v1/org/provinces", {}, null, {
-      timeoutMs: 25_000,
-      retries: 1,
+      timeoutMs: 10_000,
+      retries: 0,
     });
     if (!res.ok) return null;
 

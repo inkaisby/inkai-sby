@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { buildUktAdminUrlFromEvent } from "@/lib/ukt";
 
 export type OpenEventSummary = {
@@ -185,7 +185,14 @@ async function listOpenOrOngoingEventsForPublicUncached(
 }
 
 export const listOpenOrOngoingEventsForPublic = unstable_cache(
-  listOpenOrOngoingEventsForPublicUncached,
+  async (limit = 5): Promise<PublicOpenEventSummary[]> => {
+    const { data } = await withPrismaFallback(
+      "public-open-events",
+      () => listOpenOrOngoingEventsForPublicUncached(limit),
+      [] as PublicOpenEventSummary[],
+    );
+    return data;
+  },
   ["public-open-or-ongoing-events"],
   { revalidate: 60, tags: ["events"] },
 );
@@ -202,16 +209,27 @@ export async function getPublicEventStatusMap(
   >();
   if (ids.length === 0) return map;
   const now = new Date();
-  const rows = await prisma.event.findMany({
-    where: { id: { in: ids }, isDeleted: false },
-    select: {
-      id: true,
-      title: true,
-      startDate: true,
-      endDate: true,
-      registrationCloseAt: true,
-    },
-  });
+  const { data: rows } = await withPrismaFallback(
+    "public-event-status-map",
+    () =>
+      prisma.event.findMany({
+        where: { id: { in: ids }, isDeleted: false },
+        select: {
+          id: true,
+          title: true,
+          startDate: true,
+          endDate: true,
+          registrationCloseAt: true,
+        },
+      }),
+    [] as Array<{
+      id: string;
+      title: string;
+      startDate: Date;
+      endDate: Date;
+      registrationCloseAt: Date | null;
+    }>,
+  );
   for (const e of rows) {
     map.set(e.id, {
       registrationOpen: isEventRegistrationOpen(e, now),

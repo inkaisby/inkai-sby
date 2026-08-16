@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
   isPrismaBusyError,
+  prismaUserFacingError,
   PRISMA_BUSY_USER_MESSAGE,
 } from "@/lib/prisma-errors";
 import { inkaiFetch } from "@/lib/inkai-api/server";
@@ -37,7 +38,8 @@ function namesMatch(a: string, b: string) {
 
 async function syncLinkedUserActive(userId: string | null, isActive: boolean) {
   if (!userId) return;
-  await prisma.user.update({
+  // updateMany: jangan P2025 jika baris User sudah hilang.
+  await prisma.user.updateMany({
     where: { id: userId },
     data: { isActive },
   });
@@ -119,10 +121,14 @@ export async function deactivateMember(opts: {
     }
 
     const targetStatus = opts.statusKind;
-    await prisma.member.update({
+    // updateMany: hindari RETURNING semua kolom (drift skema P2022).
+    const updated = await prisma.member.updateMany({
       where: { id: opts.memberId },
       data: { status: targetStatus },
     });
+    if (updated.count === 0) {
+      return { ok: false as const, error: "Anggota tidak ditemukan", status: 404 };
+    }
     await syncLinkedUserActive(member.userId, false);
 
     const changedAt = new Date().toISOString();
@@ -178,17 +184,11 @@ export async function deactivateMember(opts: {
     };
   } catch (err) {
     console.error("[deactivateMember]", err);
-    if (isPrismaBusyError(err)) {
-      return {
-        ok: false as const,
-        error: PRISMA_BUSY_USER_MESSAGE,
-        status: 503,
-      };
-    }
+    const mapped = prismaUserFacingError(err, "Gagal menonaktifkan anggota");
     return {
       ok: false as const,
-      error: "Gagal menonaktifkan anggota",
-      status: 500,
+      error: mapped.error,
+      status: mapped.status,
     };
   }
 }
@@ -200,58 +200,71 @@ export async function activateMember(opts: {
   ip?: string | null;
   userAgent?: string | null;
 }) {
-  const member = await findScopedMember(opts.user, opts.memberId);
-  if (!member) return { ok: false as const, error: "Anggota tidak ditemukan", status: 404 };
+  try {
+    const member = await findScopedMember(opts.user, opts.memberId);
+    if (!member) return { ok: false as const, error: "Anggota tidak ditemukan", status: 404 };
 
-  const current = normalizeStatus(member.status);
-  if (current !== "INACTIVE" && current !== "SUSPENDED") {
+    const current = normalizeStatus(member.status);
+    if (current !== "INACTIVE" && current !== "SUSPENDED") {
+      return {
+        ok: false as const,
+        error: "Hanya anggota nonaktif / ditangguhkan yang dapat diaktifkan ulang",
+        status: 400,
+      };
+    }
+
+    const updated = await prisma.member.updateMany({
+      where: { id: opts.memberId },
+      data: { status: "Active" },
+    });
+    if (updated.count === 0) {
+      return { ok: false as const, error: "Anggota tidak ditemukan", status: 404 };
+    }
+    await syncLinkedUserActive(member.userId, true);
+    await clearMemberLifecycle(opts.memberId);
+
+    await inkaiFetch(
+      `/v1/members/${opts.memberId}`,
+      { method: "PATCH", body: JSON.stringify({ status: "Active" }) },
+      opts.token,
+    );
+
+    writeAuditLog({
+      userId: opts.user.id,
+      email: opts.user.email,
+      action: "MEMBER_ACTIVATE",
+      details: JSON.stringify({
+        memberId: opts.memberId,
+        fullName: member.fullName,
+      }),
+      ip: opts.ip,
+      userAgent: opts.userAgent,
+      token: opts.token,
+    });
+
+    await notifyMemberLifecycle({
+      token: opts.token,
+      userId: member.userId,
+      title: "Keanggotaan diaktifkan kembali",
+      content:
+        "Status keanggotaan Anda kembali Aktif. Login dan layanan anggota sudah dibuka kembali.",
+      type: "SUCCESS",
+    });
+
+    return {
+      ok: true as const,
+      status: "Active",
+      message: "Anggota diaktifkan kembali",
+    };
+  } catch (err) {
+    console.error("[activateMember]", err);
+    const mapped = prismaUserFacingError(err, "Gagal mengaktifkan anggota");
     return {
       ok: false as const,
-      error: "Hanya anggota nonaktif / ditangguhkan yang dapat diaktifkan ulang",
-      status: 400,
+      error: mapped.error,
+      status: mapped.status,
     };
   }
-
-  await prisma.member.update({
-    where: { id: opts.memberId },
-    data: { status: "Active" },
-  });
-  await syncLinkedUserActive(member.userId, true);
-  await clearMemberLifecycle(opts.memberId);
-
-  await inkaiFetch(
-    `/v1/members/${opts.memberId}`,
-    { method: "PATCH", body: JSON.stringify({ status: "Active" }) },
-    opts.token,
-  );
-
-  writeAuditLog({
-    userId: opts.user.id,
-    email: opts.user.email,
-    action: "MEMBER_ACTIVATE",
-    details: JSON.stringify({
-      memberId: opts.memberId,
-      fullName: member.fullName,
-    }),
-    ip: opts.ip,
-    userAgent: opts.userAgent,
-    token: opts.token,
-  });
-
-  await notifyMemberLifecycle({
-    token: opts.token,
-    userId: member.userId,
-    title: "Keanggotaan diaktifkan kembali",
-    content:
-      "Status keanggotaan Anda kembali Aktif. Login dan layanan anggota sudah dibuka kembali.",
-    type: "SUCCESS",
-  });
-
-  return {
-    ok: true as const,
-    status: "Active",
-    message: "Anggota diaktifkan kembali",
-  };
 }
 
 const BULK_ARCHIVE_PHRASE = "ARSIPKAN";
@@ -310,11 +323,14 @@ export async function softDeleteMember(opts: {
       }
     }
 
-    // Hindari interactive $transaction (tahan koneksi session-mode lebih lama).
-    await prisma.member.update({
+    // Hindari interactive $transaction + update (RETURNING semua kolom).
+    const updated = await prisma.member.updateMany({
       where: { id: opts.memberId },
       data: { isDeleted: true, status: "INACTIVE" },
     });
+    if (updated.count === 0) {
+      return { ok: false as const, error: "Anggota tidak ditemukan", status: 404 };
+    }
     if (member.userId) {
       await prisma.user.updateMany({
         where: { id: member.userId },
@@ -389,17 +405,11 @@ export async function softDeleteMember(opts: {
     };
   } catch (err) {
     console.error("[softDeleteMember]", err);
-    if (isPrismaBusyError(err)) {
-      return {
-        ok: false as const,
-        error: PRISMA_BUSY_USER_MESSAGE,
-        status: 503,
-      };
-    }
+    const mapped = prismaUserFacingError(err, "Gagal mengarsipkan anggota");
     return {
       ok: false as const,
-      error: "Gagal mengarsipkan anggota",
-      status: 500,
+      error: mapped.error,
+      status: mapped.status,
     };
   }
 }
@@ -520,22 +530,14 @@ export async function softDeleteMembersBulk(opts: {
     return { results };
   } catch (err) {
     console.error("[softDeleteMembersBulk]", err);
-    if (isPrismaBusyError(err)) {
-      return {
-        results: ids.map((id) => ({
-          id,
-          ok: false as const,
-          error: PRISMA_BUSY_USER_MESSAGE,
-        })),
-        busy: true as const,
-      };
-    }
+    const mapped = prismaUserFacingError(err, "Gagal mengarsipkan anggota");
     return {
       results: ids.map((id) => ({
         id,
         ok: false as const,
-        error: "Gagal mengarsipkan anggota",
+        error: mapped.error,
       })),
+      busy: mapped.status === 503 ? (true as const) : undefined,
     };
   }
 }
@@ -547,67 +549,80 @@ export async function restoreMember(opts: {
   ip?: string | null;
   userAgent?: string | null;
 }) {
-  if (!isCabangAdmin(opts.user.roles)) {
+  try {
+    if (!isCabangAdmin(opts.user.roles)) {
+      return {
+        ok: false as const,
+        error: "Hanya pengurus cabang yang dapat memulihkan anggota dari arsip",
+        status: 403,
+      };
+    }
+
+    const member = await findScopedMember(opts.user, opts.memberId, {
+      includeDeleted: true,
+    });
+    if (!member || !member.isDeleted) {
+      return { ok: false as const, error: "Anggota arsip tidak ditemukan", status: 404 };
+    }
+
+    const updated = await prisma.member.updateMany({
+      where: { id: opts.memberId },
+      data: { isDeleted: false, status: "INACTIVE" },
+    });
+    if (updated.count === 0) {
+      return { ok: false as const, error: "Anggota arsip tidak ditemukan", status: 404 };
+    }
+    // Tetap nonaktif setelah restore — admin harus aktifkan ulang secara sadar
+    await syncLinkedUserActive(member.userId, false);
+
+    await setMemberLifecycle(opts.memberId, {
+      statusKind: "INACTIVE",
+      reasonCode: "LAINNYA",
+      reasonNote: "Dipulihkan dari arsip (masih nonaktif)",
+      changedAt: new Date().toISOString(),
+      changedByUserId: opts.user.id,
+      changedByEmail: opts.user.email ?? null,
+      changedByName: opts.user.name ?? null,
+      previousStatus: "ARCHIVED",
+    });
+
+    await inkaiFetch(
+      `/v1/members/${opts.memberId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ status: "INACTIVE", isDeleted: false }),
+      },
+      opts.token,
+    );
+
+    writeAuditLog({
+      userId: opts.user.id,
+      email: opts.user.email,
+      action: "MEMBER_RESTORE",
+      details: JSON.stringify({
+        memberId: opts.memberId,
+        fullName: member.fullName,
+      }),
+      ip: opts.ip,
+      userAgent: opts.userAgent,
+      token: opts.token,
+    });
+
+    return {
+      ok: true as const,
+      status: "INACTIVE",
+      message:
+        "Anggota dipulihkan dari arsip sebagai Nonaktif. Aktifkan kembali jika sudah siap.",
+    };
+  } catch (err) {
+    console.error("[restoreMember]", err);
+    const mapped = prismaUserFacingError(err, "Gagal memulihkan anggota dari arsip");
     return {
       ok: false as const,
-      error: "Hanya pengurus cabang yang dapat memulihkan anggota dari arsip",
-      status: 403,
+      error: mapped.error,
+      status: mapped.status,
     };
   }
-
-  const member = await findScopedMember(opts.user, opts.memberId, {
-    includeDeleted: true,
-  });
-  if (!member || !member.isDeleted) {
-    return { ok: false as const, error: "Anggota arsip tidak ditemukan", status: 404 };
-  }
-
-  await prisma.member.update({
-    where: { id: opts.memberId },
-    data: { isDeleted: false, status: "INACTIVE" },
-  });
-  // Tetap nonaktif setelah restore — admin harus aktifkan ulang secara sadar
-  await syncLinkedUserActive(member.userId, false);
-
-  await setMemberLifecycle(opts.memberId, {
-    statusKind: "INACTIVE",
-    reasonCode: "LAINNYA",
-    reasonNote: "Dipulihkan dari arsip (masih nonaktif)",
-    changedAt: new Date().toISOString(),
-    changedByUserId: opts.user.id,
-    changedByEmail: opts.user.email ?? null,
-    changedByName: opts.user.name ?? null,
-    previousStatus: "ARCHIVED",
-  });
-
-  await inkaiFetch(
-    `/v1/members/${opts.memberId}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({ status: "INACTIVE", isDeleted: false }),
-    },
-    opts.token,
-  );
-
-  writeAuditLog({
-    userId: opts.user.id,
-    email: opts.user.email,
-    action: "MEMBER_RESTORE",
-    details: JSON.stringify({
-      memberId: opts.memberId,
-      fullName: member.fullName,
-    }),
-    ip: opts.ip,
-    userAgent: opts.userAgent,
-    token: opts.token,
-  });
-
-  return {
-    ok: true as const,
-    status: "INACTIVE",
-    message:
-      "Anggota dipulihkan dari arsip sebagai Nonaktif. Aktifkan kembali jika sudah siap.",
-  };
 }
 
 const BULK_PURGE_PHRASE = "HAPUS";
@@ -739,22 +754,17 @@ export async function purgeArchivedMembersBulk(opts: {
     return { results };
   } catch (err) {
     console.error("[purgeArchivedMembersBulk]", err);
-    if (isPrismaBusyError(err)) {
-      return {
-        results: ids.map((id) => ({
-          id,
-          ok: false as const,
-          error: PRISMA_BUSY_USER_MESSAGE,
-        })),
-        busy: true as const,
-      };
-    }
+    const mapped = prismaUserFacingError(
+      err,
+      "Gagal menghapus permanen (ada data terkait)",
+    );
     return {
       results: ids.map((id) => ({
         id,
         ok: false as const,
-        error: "Gagal menghapus permanen (ada data terkait)",
+        error: mapped.error,
       })),
+      busy: mapped.status === 503 ? (true as const) : undefined,
     };
   }
 }

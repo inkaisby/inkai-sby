@@ -815,9 +815,9 @@ export const fetchAdminEvents = cache(async (token: string, limit = 50) => {
 
 export const fetchOrgStructure = cache(async (token: string) => {
   try {
-    // Full org tree can be slow under load — longer timeout + one retry.
+    // Full org tree can be slow under load — longer timeout + soft empty fallback.
     const { res, data } = await inkaiFetch("/v1/org/provinces", {}, token, {
-      timeoutMs: 25_000,
+      timeoutMs: 15_000,
       retries: 1,
     });
     if (!res.ok) return { provinces: [], branches: [], dojos: [] };

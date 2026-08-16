@@ -139,9 +139,9 @@ export function MemberActions({
       const msg =
         (typeof data.error === "string" && data.error) ||
         (typeof data.message === "string" && data.message) ||
-        (res.status === 503 || res.status >= 500
+        (res.status === 503
           ? PRISMA_BUSY_USER_MESSAGE
-          : "Gagal memproses aksi");
+          : "Gagal memproses aksi. Muat ulang atau coba lagi.");
       showError(msg);
     }
   }
