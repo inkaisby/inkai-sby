@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { forceRegisterLatberInDb } from "@/lib/latber-register";
-import { allocateLatberUniqueTail } from "@/lib/latber-unique-tail";
 import { validateLatberPublicEligibility } from "@/lib/latber-public";
 import { resolveLatberPeriodFees } from "@/lib/latber";
 import { notifyDojoAndBranchAdmins } from "@/lib/admin-notify-scope";
@@ -81,26 +80,7 @@ export async function POST(request: Request) {
     }
 
     const fees = resolveLatberPeriodFees(eligibility.meta);
-    let unique;
-    try {
-      unique = await allocateLatberUniqueTail({
-        eventId,
-        nia: member.nia,
-      });
-    } catch (e) {
-      return NextResponse.json(
-        {
-          error:
-            e instanceof Error ? e.message : "Gagal mengalokasikan kode unik",
-        },
-        { status: 409 },
-      );
-    }
-
-    const amount =
-      fees.feeAmount === unique.baseFeeAmount
-        ? unique.amount
-        : fees.feeAmount + unique.uniqueTail;
+    const amount = fees.feeAmount;
 
     const dbReg = await forceRegisterLatberInDb({
       eventId,
@@ -109,7 +89,7 @@ export async function POST(request: Request) {
       periodTitle: eligibility.title,
       amount,
       baseFeeAmount: fees.feeAmount,
-      uniqueTail: unique.uniqueTail,
+      uniqueTail: null,
       status: "APPROVED",
       approvePendingSelfReg: true,
     });
@@ -141,7 +121,7 @@ export async function POST(request: Request) {
 
     writeAuditLog({
       action: "LATBER_WALKIN_REGISTER",
-      details: `Walk-in register ${dbReg.memberName} (${memberId}) → ${eligibility.title} amount=${amount} tail=${unique.uniqueTail}`,
+      details: `Walk-in register ${dbReg.memberName} (${memberId}) → ${eligibility.title} amount=${amount}`,
       ip,
       userAgent: request.headers.get("user-agent"),
     });
@@ -151,7 +131,6 @@ export async function POST(request: Request) {
       registrationId: dbReg.registrationId,
       billingId: dbReg.billingId,
       billingAmount: dbReg.billingAmount,
-      uniqueTail: unique.uniqueTail,
       billingStatus: dbReg.billingStatus,
       memberName: dbReg.memberName,
     });

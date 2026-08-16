@@ -83,7 +83,6 @@ export type LatberPublicRegistrant = {
   dojoName: string;
   currentRank: string | null;
   amount: number;
-  uniqueTail: number | null;
   statusLabel: string;
   displayStatus: string;
 };
@@ -314,7 +313,6 @@ export async function loadLatberPublicRegistrants(
         registrationId: true,
         amount: true,
         baseFeeAmount: true,
-        uniqueTail: true,
         status: true,
         id: true,
       },
@@ -368,7 +366,6 @@ export async function loadLatberPublicRegistrants(
       currentRank:
         formatRankLabel(r.member.currentRank) || r.member.currentRank || null,
       amount: billing?.amount ?? fees.feeAmount,
-      uniqueTail: billing?.uniqueTail ?? null,
       statusLabel: latberDisplayStatusLabel(displayStatus),
       displayStatus,
     };

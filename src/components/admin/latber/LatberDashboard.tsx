@@ -9,6 +9,7 @@ import {
   Download,
   FileSpreadsheet,
   MessageCircle,
+  Pencil,
   Plus,
   Printer,
   RefreshCw,
@@ -56,6 +57,8 @@ import {
   buildLatberRekapFilename,
   buildLatberRekapRows,
   buildLatberRantingWaReportText,
+  DEFAULT_LATBER_FEE,
+  DEFAULT_LATBER_KOMISI_RANTING,
   filterLatberApprovedRows,
   formatLatberCurrency,
   formatLatberPeriodLabel,
@@ -72,7 +75,7 @@ import {
   printLatberRekapDocument,
 } from "@/lib/latber-rekap-html";
 import { countLatberKpis } from "@/lib/latber-data";
-import { combineDateAndTimeLocal } from "@/lib/ukt";
+import { combineDateAndTimeLocal, toDateInput, toTimeInput } from "@/lib/ukt";
 import { Time24Fields } from "@/components/admin/Time24Fields";
 import { parseApiJson } from "@/lib/api-client";
 import { showError, showSuccess } from "@/lib/client-toast";
@@ -161,6 +164,8 @@ export function LatberDashboard(props: LatberDashboardProps) {
   const [searchQ, setSearchQ] = useState("");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{
@@ -173,7 +178,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
   const [cabangWaSelectedDojoId, setCabangWaSelectedDojoId] = useState<
     string | null
   >(null);
-  const [createForm, setCreateForm] = useState({
+  const emptyPeriodForm = {
     title: "",
     openDate: "",
     openTime: "00:00",
@@ -182,7 +187,9 @@ export function LatberDashboard(props: LatberDashboardProps) {
     eventDate: "",
     eventTime: "08:00",
     eventLocation: "",
-  });
+  };
+  const [createForm, setCreateForm] = useState(emptyPeriodForm);
+  const [editForm, setEditForm] = useState(emptyPeriodForm);
 
   const isCabang = canEditKyuBaru(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
@@ -446,6 +453,84 @@ export function LatberDashboard(props: LatberDashboardProps) {
     }
   }
 
+  function openEditPeriod() {
+    if (!props.selectedPeriod) return;
+    const closeIso =
+      props.selectedPeriod.registrationCloseAt ||
+      props.selectedPeriod.endDate ||
+      props.selectedPeriod.startDate ||
+      "";
+    const openIso =
+      props.periodMeta.registrationOpenAt ||
+      props.selectedPeriod.startDate ||
+      "";
+    const eventIso = props.periodMeta.eventAt || "";
+    setEditForm({
+      title: formatLatberPeriodLabel(props.selectedPeriod.title),
+      openDate: openIso ? toDateInput(openIso) : "",
+      openTime: openIso ? toTimeInput(openIso) : "00:00",
+      closeDate: closeIso ? toDateInput(closeIso) : "",
+      closeTime: closeIso ? toTimeInput(closeIso) : "23:59",
+      eventDate: eventIso ? toDateInput(eventIso) : "",
+      eventTime: eventIso ? toTimeInput(eventIso) : "08:00",
+      eventLocation: props.periodMeta.eventLocation ?? "",
+    });
+    setEditOpen(true);
+  }
+
+  async function handleEditPeriod() {
+    if (!props.selectedPeriodId) return;
+    setEditSaving(true);
+    try {
+      const toIso = (date: string, time: string, label: string) => {
+        if (!date || !time) return undefined;
+        const d = combineDateAndTimeLocal(date, time);
+        if (Number.isNaN(d.getTime())) {
+          throw new Error(`${label} tidak valid`);
+        }
+        return d.toISOString();
+      };
+
+      const registrationOpenAt = toIso(
+        editForm.openDate,
+        editForm.openTime,
+        "Tanggal buka pendaftaran",
+      );
+      const registrationCloseAt = toIso(
+        editForm.closeDate,
+        editForm.closeTime,
+        "Batas pendaftaran",
+      );
+      const eventAt = toIso(
+        editForm.eventDate,
+        editForm.eventTime,
+        "Waktu latihan",
+      );
+
+      const res = await fetch("/api/admin/latber/period", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: props.selectedPeriodId,
+          title: editForm.title || undefined,
+          registrationOpenAt: registrationOpenAt ?? null,
+          registrationCloseAt,
+          eventAt: eventAt ?? null,
+          eventLocation: editForm.eventLocation.trim() || null,
+        }),
+      });
+      const data = await parseApiJson<{ error?: string }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal mengubah periode");
+      showSuccess("Periode Latihan Bersama diperbarui");
+      setEditOpen(false);
+      refresh();
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "Gagal mengubah periode");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   function copyInvite() {
     if (!props.selectedPeriodId) return;
     const url = buildLatberInviteUrl(props.selectedPeriodId);
@@ -655,6 +740,16 @@ export function LatberDashboard(props: LatberDashboardProps) {
           </Button>
         )}
 
+        {isCabang &&
+          props.selectedPeriodId &&
+          !props.isArchiveView &&
+          !periodLocked && (
+            <Button type="button" variant="outline" onClick={openEditPeriod}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit Periode
+            </Button>
+          )}
+
         {props.selectedPeriodId && (
           <>
             <LatberRekapMenu
@@ -837,9 +932,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
                         <TableCell>{formatLatberRank(row)}</TableCell>
                         {!isDojoAdmin && <TableCell>{row.dojoName || "—"}</TableCell>}
                         <TableCell>
-                          {formatLatberCurrency(
-                            row.billingAmount ?? props.feeAmount,
-                          )}
+                          {formatLatberCurrency(props.feeAmount)}
                         </TableCell>
                         <TableCell>
                           <StatusBadge row={row} />
@@ -1018,6 +1111,10 @@ export function LatberDashboard(props: LatberDashboardProps) {
                 }
               />
             </div>
+            <p className="text-sm text-muted-foreground">
+              Biaya peserta {formatLatberCurrency(DEFAULT_LATBER_FEE)} (tetap) · Komisi
+              ranting {formatLatberCurrency(DEFAULT_LATBER_KOMISI_RANTING)}
+            </p>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
@@ -1026,6 +1123,88 @@ export function LatberDashboard(props: LatberDashboardProps) {
             <Button type="button" onClick={handleCreatePeriod}>
               <Calendar className="mr-2 h-4 w-4" />
               Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Periode Latihan Bersama</DialogTitle>
+            <DialogDescription>
+              Ubah nama, jadwal pendaftaran, waktu latihan, dan lokasi. Tarif tetap{" "}
+              {formatLatberCurrency(DEFAULT_LATBER_FEE)}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="latber-edit-title">Nama periode</Label>
+              <Input
+                id="latber-edit-title"
+                placeholder="Latihan Bersama Maret 2026"
+                value={editForm.title}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, title: e.target.value }))
+                }
+              />
+            </div>
+            <Time24Fields
+              dateId="latber-edit-open-date"
+              dateLabel="Tanggal buka pendaftaran"
+              date={editForm.openDate}
+              time={editForm.openTime}
+              onDateChange={(openDate) => setEditForm((f) => ({ ...f, openDate }))}
+              onTimeChange={(openTime) => setEditForm((f) => ({ ...f, openTime }))}
+            />
+            <Time24Fields
+              dateId="latber-edit-close-date"
+              dateLabel="Tanggal batas pendaftaran"
+              date={editForm.closeDate}
+              time={editForm.closeTime}
+              onDateChange={(closeDate) => setEditForm((f) => ({ ...f, closeDate }))}
+              onTimeChange={(closeTime) => setEditForm((f) => ({ ...f, closeTime }))}
+            />
+            <Time24Fields
+              dateId="latber-edit-event-date"
+              dateLabel="Tanggal latihan"
+              date={editForm.eventDate}
+              time={editForm.eventTime}
+              onDateChange={(eventDate) => setEditForm((f) => ({ ...f, eventDate }))}
+              onTimeChange={(eventTime) => setEditForm((f) => ({ ...f, eventTime }))}
+            />
+            <div>
+              <Label htmlFor="latber-edit-loc">Lokasi</Label>
+              <Input
+                id="latber-edit-loc"
+                placeholder="Alamat / venue"
+                value={editForm.eventLocation}
+                onChange={(e) =>
+                  setEditForm((f) => ({ ...f, eventLocation: e.target.value }))
+                }
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Biaya peserta {formatLatberCurrency(DEFAULT_LATBER_FEE)} (tidak dapat diubah) ·
+              Komisi ranting {formatLatberCurrency(DEFAULT_LATBER_KOMISI_RANTING)}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={editSaving}
+              onClick={() => setEditOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              disabled={editSaving}
+              onClick={() => void handleEditPeriod()}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              {editSaving ? "Menyimpan…" : "Simpan"}
             </Button>
           </DialogFooter>
         </DialogContent>

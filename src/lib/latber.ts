@@ -11,7 +11,7 @@ export const LATBER_PAYMENT = {
   bankAccountNumber: "1400024546344",
   bankAccountName: "HABIBUR RAHMAN",
   paymentInstructions:
-    "Transfer nominal unik sesuai baris peserta. Cantumkan NIA atau nama di berita transfer.",
+    "Transfer Rp45.000 per peserta. Cantumkan NIA atau nama di berita transfer.",
   qrisImageUrl: "/images/latber-qris-trial.png",
   qrisTrialNote: "QRIS percobaan — hanya 1 transaksi",
   qrisExpiresAtLabel: "16 Agustus 2026, 10:26 WIB",
@@ -130,10 +130,8 @@ export function resolveLatberPeriodFees(meta?: LatberPeriodMeta | null): {
   komisiRanting: number;
 } {
   return {
-    feeAmount:
-      typeof meta?.feeAmount === "number" && meta.feeAmount >= 0
-        ? Math.round(meta.feeAmount)
-        : DEFAULT_LATBER_FEE,
+    // Tarif Latber flat — tanpa kode unik; meta feeAmount diabaikan.
+    feeAmount: DEFAULT_LATBER_FEE,
     komisiRanting:
       typeof meta?.komisiRanting === "number" && meta.komisiRanting >= 0
         ? Math.round(meta.komisiRanting)

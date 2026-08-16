@@ -17,6 +17,7 @@ import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
 import { writeAuditLog } from "@/lib/audit";
 import { getClientIp } from "@/lib/security/request";
 import {
+  assertLatberPeriodMutable,
   loadLatberPeriodMeta,
   mergeLatberPeriodMeta,
   saveLatberPeriodMeta,
@@ -112,9 +113,10 @@ export async function POST(request: Request) {
     registrationOpenAt: openAtInput,
     eventAt,
     eventLocation,
-    feeAmount,
-    komisiRanting,
   } = parsed.data;
+  // Tarif Latber dikunci flat (tanpa kode unik).
+  const feeAmount = DEFAULT_LATBER_FEE;
+  const komisiRanting = DEFAULT_LATBER_KOMISI_RANTING;
 
   if (!canCreateEventsByWilayah(authResult.user.roles)) {
     return NextResponse.json(
@@ -255,8 +257,8 @@ export async function POST(request: Request) {
         registrationOpenAt: dates.registrationOpenAt.toISOString(),
         eventAt: eventAt ?? null,
         eventLocation: eventLocation ?? null,
-        feeAmount: feeAmount ?? DEFAULT_LATBER_FEE,
-        komisiRanting: komisiRanting ?? DEFAULT_LATBER_KOMISI_RANTING,
+        feeAmount,
+        komisiRanting,
         by: authResult.user.email,
       },
     );
@@ -310,13 +312,22 @@ export async function PATCH(request: Request) {
     registrationOpenAt,
     eventAt,
     eventLocation,
-    feeAmount,
-    komisiRanting,
     archived,
     locked,
   } = parsed.data;
 
   const hasArchivePatch = archived !== undefined || locked !== undefined;
+  const hasContentPatch =
+    Boolean(title) ||
+    Boolean(registrationCloseAt) ||
+    registrationOpenAt !== undefined ||
+    eventAt !== undefined ||
+    eventLocation !== undefined;
+  // Selalu jaga fee flat pada setiap update konten / unarchive.
+  const feeAmount = hasContentPatch || archived === false ? DEFAULT_LATBER_FEE : undefined;
+  const komisiRanting =
+    hasContentPatch || archived === false ? DEFAULT_LATBER_KOMISI_RANTING : undefined;
+
   const hasMetaPatch =
     registrationOpenAt !== undefined ||
     eventAt !== undefined ||
@@ -342,6 +353,13 @@ export async function PATCH(request: Request) {
   }
   if (!isLatberEventTitle(String(existing.title ?? ""))) {
     return NextResponse.json({ error: "Event bukan periode Latihan Bersama" }, { status: 400 });
+  }
+
+  if (hasContentPatch) {
+    const mutable = await assertLatberPeriodMutable(authResult.token, eventId);
+    if (!mutable.ok) {
+      return NextResponse.json({ error: mutable.error }, { status: mutable.status });
+    }
   }
 
   const prevClose = existing.registrationCloseAt

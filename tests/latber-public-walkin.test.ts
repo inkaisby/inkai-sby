@@ -1,17 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { uniqueTailFromNia } from "@/lib/latber-unique-tail";
+import { DEFAULT_LATBER_FEE, resolveLatberPeriodFees } from "@/lib/latber";
 import { parseMemberCardScanPayload } from "@/lib/latber-card-scan";
 
-describe("uniqueTailFromNia", () => {
-  it("takes last 3 digits", () => {
-    expect(uniqueTailFromNia("36.12312")).toBe(312);
-    expect(uniqueTailFromNia("123012")).toBe(12);
-  });
-
-  it("rejects 000 and empty", () => {
-    expect(uniqueTailFromNia("ABC000")).toBeNull();
-    expect(uniqueTailFromNia("")).toBeNull();
-    expect(uniqueTailFromNia(null)).toBeNull();
+describe("Latber flat fee", () => {
+  it("defaults to Rp45.000 without unique tail", () => {
+    expect(DEFAULT_LATBER_FEE).toBe(45_000);
+    expect(resolveLatberPeriodFees(null).feeAmount).toBe(45_000);
+    expect(resolveLatberPeriodFees({ archived: false, locked: false }).feeAmount).toBe(
+      45_000,
+    );
   });
 });
 

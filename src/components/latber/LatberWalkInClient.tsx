@@ -36,6 +36,7 @@ import {
 import RegisterForm from "@/components/auth/RegisterForm";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import {
+  DEFAULT_LATBER_FEE,
   formatLatberCurrency,
   formatLatberPeriodLabel,
   LATBER_PAYMENT,
@@ -66,7 +67,6 @@ type Registrant = {
   dojoName: string;
   currentRank: string | null;
   amount: number;
-  uniqueTail: number | null;
   statusLabel: string;
   displayStatus: string;
 };
@@ -141,6 +141,7 @@ export function LatberWalkInClient({
 
   const periodId = period?.periodId ?? null;
   const registrationOpen = Boolean(period?.registrationOpen);
+  const feeAmount = period?.feeAmount ?? DEFAULT_LATBER_FEE;
   const payment: LatberPaymentInfo = period?.payment ?? {
     bankName: LATBER_PAYMENT.bankName,
     bankAccountNumber: LATBER_PAYMENT.bankAccountNumber,
@@ -950,7 +951,7 @@ export function LatberWalkInClient({
                   </TableCell>
                   <TableCell>{row.dojoName}</TableCell>
                   <TableCell>{row.currentRank || "—"}</TableCell>
-                  <TableCell>{formatLatberCurrency(row.amount)}</TableCell>
+                  <TableCell>{formatLatberCurrency(feeAmount)}</TableCell>
                   <TableCell>
                     <Badge variant="secondary">{row.statusLabel}</Badge>
                   </TableCell>
@@ -1004,7 +1005,7 @@ export function LatberWalkInClient({
             <DialogDescription>
               {payRow
                 ? `${formatMemberName(payRow.fullName)}${payRow.nia ? ` · ${payRow.nia}` : ""}`
-                : "Transfer sesuai nominal unik."}
+                : "Transfer Rp45.000."}
             </DialogDescription>
           </DialogHeader>
 
@@ -1076,7 +1077,7 @@ export function LatberWalkInClient({
                 <div>
                   <span className="text-sm text-muted-foreground">Nominal</span>
                   <p className="text-xl font-semibold text-inkai-red">
-                    {formatLatberCurrency(payRow.amount)}
+                    {formatLatberCurrency(feeAmount)}
                   </p>
                 </div>
                 <Button
@@ -1084,7 +1085,7 @@ export function LatberWalkInClient({
                   size="sm"
                   variant="outline"
                   onClick={() =>
-                    void handleCopy("amount", String(Math.round(payRow.amount)))
+                    void handleCopy("amount", String(Math.round(feeAmount)))
                   }
                 >
                   {copiedField === "amount" ? (
@@ -1098,7 +1099,7 @@ export function LatberWalkInClient({
 
               <p className="text-xs text-muted-foreground">
                 {payment.paymentInstructions ||
-                  "Transfer nominal unik sesuai baris. Cantumkan NIA atau nama di berita transfer."}
+                  "Transfer Rp45.000. Cantumkan NIA atau nama di berita transfer."}
                 {payRow.nia ? ` Berita: ${payRow.nia}.` : ""}
               </p>
             </div>
