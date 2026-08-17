@@ -21,6 +21,7 @@
     "db:local:assert": "tsx scripts/assert-local-database.ts",
     "db:local:bootstrap": "tsx scripts/bootstrap-local.ts",
     "db:local:seed": "tsx scripts/seed-local.ts",
+    "db:local:dump-from-prod": "tsx scripts/dump-prod-to-local.ts",
     "db:check-drift": "prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code",
     "db:backfill:latber-flat-fee": "tsx scripts/backfill-latber-flat-fee.ts"
   },
