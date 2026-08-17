@@ -39,9 +39,11 @@ import { RantingCheckboxFilter } from "@/components/public/RantingCheckboxFilter
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import {
   DEFAULT_LATBER_FEE,
+  buildLatberPublicCormatWaText,
   formatLatberCurrency,
   formatLatberPeriodLabel,
   LATBER_PAYMENT,
+  latberStatusBadgeClass,
   type LatberPaymentInfo,
 } from "@/lib/latber";
 import { parseMemberCardScanPayload } from "@/lib/latber-card-scan";
@@ -336,6 +338,14 @@ export function LatberWalkInClient({
     );
   }, [registrants, searchQ, selectedRanting]);
 
+  const waScopeRows = useMemo(
+    () =>
+      registrants.filter((r) =>
+        matchesRantingFilter(r.dojoName, selectedRanting),
+      ),
+    [registrants, selectedRanting],
+  );
+
   const rantingOptions = useMemo(
     () =>
       buildRantingOptions(
@@ -464,6 +474,20 @@ export function LatberWalkInClient({
       setCopiedField(field);
       showSuccess(field === "account" ? "No. rekening disalin" : "Nominal disalin");
       setTimeout(() => setCopiedField(null), 1500);
+    } catch {
+      showError("Gagal menyalin");
+    }
+  }
+
+  async function handleCopyWa() {
+    const text = buildLatberPublicCormatWaText({
+      registrationCloseAt: period?.registrationCloseAt ?? null,
+      eventAt: period?.eventAt ?? null,
+      rows: waScopeRows,
+    });
+    try {
+      await copyText(text);
+      showSuccess("Format WA disalin");
     } catch {
       showError("Gagal menyalin");
     }
@@ -918,6 +942,16 @@ export function LatberWalkInClient({
               type="button"
               variant="outline"
               className="h-10"
+              disabled={!periodId || waScopeRows.length === 0}
+              onClick={() => void handleCopyWa()}
+            >
+              <Copy className="mr-1 h-4 w-4" />
+              Salin WA
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10"
               disabled={!periodId}
               onClick={() => void startScan()}
             >
@@ -1094,7 +1128,9 @@ export function LatberWalkInClient({
                   <TableCell>{row.currentRank || "—"}</TableCell>
                   <TableCell>{formatLatberCurrency(feeAmount)}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{row.statusLabel}</Badge>
+                    <Badge className={latberStatusBadgeClass(row.displayStatus)}>
+                      {row.statusLabel}
+                    </Badge>
                   </TableCell>
                   <TableCell>{renderRowActions(row)}</TableCell>
                 </TableRow>

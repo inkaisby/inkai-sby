@@ -233,6 +233,24 @@ export function latberDisplayStatusLabel(status: LatberDisplayStatus): string {
   return labels[status];
 }
 
+/** Warna badge status Latber — dipakai admin dan roster publik. */
+export function latberStatusBadgeClass(status: string): string {
+  if (status === "lunas") return "bg-emerald-600 text-white";
+  if (status === "menunggu_verifikasi" || status === "belum_bayar") {
+    return "bg-amber-500/15 text-amber-800";
+  }
+  if (
+    status === "menunggu_terima_ranting" ||
+    status === "menunggu_konfirmasi_ranting"
+  ) {
+    return "bg-blue-500/15 text-blue-800";
+  }
+  if (status === "ditolak" || status === "batal") {
+    return "bg-red-500/15 text-red-700";
+  }
+  return "bg-muted text-muted-foreground";
+}
+
 export function filterLatberRowsByDisplayStatus(
   rows: LatberMemberRow[],
   status: LatberDisplayStatus,
@@ -375,10 +393,16 @@ function formatLatberWaParticipantLine(row: LatberMemberRow, index: number): str
   return `${index + 1}. ${formatMemberName(row.fullName)}${rk && rk !== "—" ? ` ${rk}` : ""}`;
 }
 
-function latberWaRankBucketLabel(row: LatberMemberRow): string {
-  const short = shortRankLabel(row.currentRank);
+function latberWaRankBucketLabelFromRank(
+  currentRank?: string | null,
+): string {
+  const short = shortRankLabel(currentRank);
   if (!short) return "Lainnya";
   return short.toLowerCase();
+}
+
+function latberWaRankBucketLabel(row: LatberMemberRow): string {
+  return latberWaRankBucketLabelFromRank(row.currentRank);
 }
 
 function compareLatberWaRankBuckets(a: string, b: string): number {
@@ -476,6 +500,114 @@ export function buildLatberCabangWaReportText(
     "",
     `*TOTAL SEMUA: ${approvedRows.length} peserta*`,
   ].join("\n");
+}
+
+const LATBER_WIB = "Asia/Jakarta";
+
+export type LatberPublicCormatRow = {
+  dojoName: string;
+  currentRank?: string | null;
+  displayStatus: string;
+};
+
+function formatLatberWibDate(iso: string): string | null {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const formatted = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: LATBER_WIB,
+  }).format(d);
+  return formatted.replace(/ /g, "-");
+}
+
+function formatLatberEventCountdown(
+  eventAtIso: string,
+  nowMs = Date.now(),
+): string {
+  const target = new Date(eventAtIso).getTime();
+  if (Number.isNaN(target)) return "";
+  const diff = target - nowMs;
+  if (diff <= 0) return "_Sudah dilaksanakan_";
+  const days = Math.floor(diff / 86_400_000);
+  const hours = Math.floor((diff % 86_400_000) / 3_600_000);
+  const minutes = Math.floor((diff % 3_600_000) / 60_000);
+  const seconds = Math.floor((diff % 60_000) / 1_000);
+  return `_${days} Hari: ${hours} Jam: ${minutes} Menit: ${seconds} Detik_`;
+}
+
+/** Ringkasan publik format Cormat (batas daftar, countdown, ranting, kyu, status). */
+export function buildLatberPublicCormatWaText(opts: {
+  registrationCloseAt?: string | null;
+  eventAt?: string | null;
+  rows: LatberPublicCormatRow[];
+}): string {
+  const closeAt = opts.registrationCloseAt?.trim() || "";
+  const closeLabel = closeAt
+    ? formatLatberWibDate(closeAt) ?? "Belum ditetapkan"
+    : "Belum ditetapkan";
+
+  const byDojo = new Map<string, number>();
+  const byRank = new Map<string, number>();
+  let lunas = 0;
+  let belumBayar = 0;
+  let menungguVerifikasi = 0;
+
+  for (const row of opts.rows) {
+    const name = row.dojoName?.trim() || "—";
+    byDojo.set(name, (byDojo.get(name) ?? 0) + 1);
+    const rank = latberWaRankBucketLabelFromRank(row.currentRank);
+    byRank.set(rank, (byRank.get(rank) ?? 0) + 1);
+    if (row.displayStatus === "lunas") lunas += 1;
+    else if (row.displayStatus === "menunggu_verifikasi") menungguVerifikasi += 1;
+    else if (row.displayStatus === "belum_bayar") belumBayar += 1;
+  }
+
+  const rantingList = [...byDojo.entries()].sort(([a], [b]) =>
+    a.localeCompare(b, "id"),
+  );
+  const rankList = [...byRank.entries()].sort(([a], [b]) =>
+    compareLatberWaRankBuckets(a, b),
+  );
+
+  const lines: string[] = [
+    "*Batas Pendaftaran Latber:*",
+    `_${closeLabel}_`,
+    "",
+  ];
+
+  const eventAt = opts.eventAt?.trim() || "";
+  if (eventAt) {
+    const countdown = formatLatberEventCountdown(eventAt);
+    if (countdown) {
+      lines.push("*Pelaksanaan Latihan Bersama*", countdown, "");
+    }
+  }
+
+  lines.push(
+    `*Total Ranting : ${rantingList.length}*`,
+    "",
+    "*List Ranting*",
+    ...rantingList.map(
+      ([name, count], i) => `${i + 1}. ${name} = _${count} peserta_`,
+    ),
+    "",
+    "*Jumlah*",
+    ...rankList.map(([label, count]) => `${label} = _${count} peserta_`),
+    "",
+    `*TOTAL SEMUA: ${opts.rows.length} peserta*`,
+    "",
+    "*Status:*",
+    `Lunas: _${lunas} peserta_`,
+    `Belum Bayar: _${belumBayar} peserta_`,
+  );
+
+  if (menungguVerifikasi > 0) {
+    lines.push(`Menunggu Verifikasi: _${menungguVerifikasi} peserta_`);
+  }
+
+  return lines.join("\n");
 }
 
 export type LatberRekapRow = {

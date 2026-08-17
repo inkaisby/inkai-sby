@@ -64,6 +64,7 @@ import {
   formatLatberPeriodLabel,
   formatLatberRank,
   latberDisplayStatusLabel,
+  latberStatusBadgeClass,
   resolveLatberDisplayStatus,
   resolveLatberWaDojoLabel,
   type LatberMemberRow,
@@ -127,18 +128,7 @@ async function fetchWithTimeout(
 function StatusBadge({ row }: { row: LatberMemberRow }) {
   const status = resolveLatberDisplayStatus(row);
   const label = latberDisplayStatusLabel(status);
-  const className =
-    status === "lunas"
-      ? "bg-emerald-600 text-white"
-      : status === "menunggu_verifikasi" || status === "belum_bayar"
-        ? "bg-amber-500/15 text-amber-800"
-        : status === "menunggu_terima_ranting" ||
-            status === "menunggu_konfirmasi_ranting"
-          ? "bg-blue-500/15 text-blue-800"
-          : status === "ditolak" || status === "batal"
-            ? "bg-red-500/15 text-red-700"
-            : "bg-muted text-muted-foreground";
-  return <Badge className={className}>{label}</Badge>;
+  return <Badge className={latberStatusBadgeClass(status)}>{label}</Badge>;
 }
 
 function LatberRekapMenu({
