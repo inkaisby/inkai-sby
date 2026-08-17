@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
+import { memberPhotoSelect } from "@/lib/prisma-columns";
 import { buildMemberFilter, getPrimaryAdminRole } from "@/lib/rbac";
 import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { formatRankLabel } from "@/lib/belt";
@@ -93,7 +94,7 @@ export async function GET(request: Request) {
       address: true,
       birthCertificateUrl: true,
       bpjsCardUrl: true,
-      photoUrl: true,
+      ...(await memberPhotoSelect()),
       dojo: { select: { name: true } },
       user: { select: { photoUrl: true } },
     },

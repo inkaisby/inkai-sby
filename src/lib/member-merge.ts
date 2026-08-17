@@ -7,6 +7,7 @@ import { isCabangAdmin, isRantingAdmin } from "@/lib/wilayah-rbac";
 import { setMemberLifecycle } from "@/lib/member-lifecycle";
 import { hardDuplicates, findMemberDuplicates } from "@/lib/member-duplicate";
 import { resolveMemberPhotoUrl } from "@/lib/member-photo";
+import { memberPhotoSelect } from "@/lib/prisma-columns";
 
 export function canMergeMembers(roles: string[]) {
   return isCabangAdmin(roles) || isRantingAdmin(roles);
@@ -120,6 +121,7 @@ export function isMergePairEligible(
 }
 
 async function loadMergeMember(user: SessionUser, id: string) {
+  const photoSelect = await memberPhotoSelect();
   return prisma.member.findFirst({
     where: {
       AND: [{ id }, buildMemberFilter(user)],
@@ -138,7 +140,7 @@ async function loadMergeMember(user: SessionUser, id: string) {
       birthDate: true,
       address: true,
       currentRank: true,
-      photoUrl: true,
+      ...photoSelect,
       birthCertificateUrl: true,
       bpjsCardUrl: true,
       bpjsCardNumber: true,

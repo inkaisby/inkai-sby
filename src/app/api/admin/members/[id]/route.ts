@@ -26,6 +26,7 @@ import {
 import { buildMemberFilter, type SessionUser } from "@/lib/rbac";
 import { adminDojoGrantBlocksMemberAction } from "@/lib/admin-dojo-grants";
 import { prisma, prismaUserFacingError, withPrismaFallback } from "@/lib/prisma";
+import { memberPhotoSelect } from "@/lib/prisma-columns";
 import { assertDojoInScope } from "@/lib/pengaturan";
 import {
   mshAllowedForRank,
@@ -165,7 +166,7 @@ export async function GET(_request: Request, context: RouteContext) {
   // Overlay dokumen + akun login dari Prisma lokal (Inkai sering tidak kirim nested user)
   const localExtras = await withPrismaFallback(
     "member-detail-local-extras",
-    () =>
+    async () =>
       prisma.member.findFirst({
         where: {
           AND: [{ id }, buildMemberFilter(authResult.user, { anyDeleted: true })],
@@ -177,7 +178,7 @@ export async function GET(_request: Request, context: RouteContext) {
           bpjsCardUrl: true,
           bpjsCardNumber: true,
           mshNumber: true,
-          photoUrl: true,
+          ...(await memberPhotoSelect()),
           user: {
             select: { email: true, phoneNumber: true, photoUrl: true },
           },

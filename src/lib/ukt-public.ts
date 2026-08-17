@@ -1,12 +1,9 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
+import { memberPhotoSelect } from "@/lib/prisma-columns";
 import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import { formatRankLabel, resolveUktRankColumns } from "@/lib/belt";
 import { isLatberEventTitle } from "@/lib/latber";
-import {
-  isPrismaBusyError,
-  isPrismaSchemaDriftError,
-} from "@/lib/prisma-errors";
 import {
   buildUktExamResultMap,
   currentSemester,
@@ -171,17 +168,7 @@ type RegRow = {
   category: { name: string } | null;
 };
 
-const memberSelectWithPhoto = {
-  id: true,
-  fullName: true,
-  nia: true,
-  currentRank: true,
-  photoUrl: true,
-  dojo: { select: { name: true } },
-  user: { select: { photoUrl: true } },
-} as const;
-
-const memberSelectWithoutPhoto = {
+const memberSelectBase = {
   id: true,
   fullName: true,
   nia: true,
@@ -193,48 +180,23 @@ const memberSelectWithoutPhoto = {
 async function fetchUktPublicRegistrationRows(
   eventId: string,
 ): Promise<RegRow[]> {
-  try {
-    return (await prisma.eventRegistration.findMany({
-      where: {
-        eventId,
-        status: { notIn: ["CANCELLED", "REJECTED"] },
-      },
-      select: {
-        id: true,
-        status: true,
-        registeredRank: true,
-        memberId: true,
-        member: { select: memberSelectWithPhoto },
-        category: { select: { name: true } },
-      },
-      orderBy: { createdAt: "asc" },
-      take: 800,
-    })) as RegRow[];
-  } catch (error) {
-    if (!isPrismaSchemaDriftError(error) && !isPrismaBusyError(error)) {
-      throw error;
-    }
-    console.error(
-      "[ukt-public] photoUrl drift/busy on registrants; retry without Member.photoUrl",
-      error,
-    );
-    return (await prisma.eventRegistration.findMany({
-      where: {
-        eventId,
-        status: { notIn: ["CANCELLED", "REJECTED"] },
-      },
-      select: {
-        id: true,
-        status: true,
-        registeredRank: true,
-        memberId: true,
-        member: { select: memberSelectWithoutPhoto },
-        category: { select: { name: true } },
-      },
-      orderBy: { createdAt: "asc" },
-      take: 800,
-    })) as RegRow[];
-  }
+  const photoSelect = await memberPhotoSelect();
+  return (await prisma.eventRegistration.findMany({
+    where: {
+      eventId,
+      status: { notIn: ["CANCELLED", "REJECTED"] },
+    },
+    select: {
+      id: true,
+      status: true,
+      registeredRank: true,
+      memberId: true,
+      member: { select: { ...memberSelectBase, ...photoSelect } },
+      category: { select: { name: true } },
+    },
+    orderBy: { createdAt: "asc" },
+    take: 800,
+  })) as RegRow[];
 }
 
 export async function loadUktPublicRegistrants(

@@ -293,6 +293,8 @@ type Props = {
   managedDojoIds?: string[];
   /** Kebijakan syarat daftar dari Pengaturan UKT cabang. */
   registrationPolicy?: UktRegistrationPolicy;
+  /** Identitas Prisma gagal di-hydrate (kolom Tempat/TTL/dll. mungkin "-"). */
+  identityDegraded?: boolean;
 };
 
 const PAGE_SIZES = [25, 50, 100] as const;
@@ -646,6 +648,7 @@ export function UktDashboard(props: Props) {
           error?: string;
           participants?: UktRegistrationSnapshotItem[];
           depositMap?: Record<string, UktDepositRecord>;
+          identityDegraded?: boolean;
         }>(res);
         if (!res.ok) throw new Error(data.error || "Gagal memuat ulang tabel");
         pendingServerRowsSyncRef.current = false;
@@ -656,7 +659,13 @@ export function UktDashboard(props: Props) {
           ),
         );
         setDepositMap(data.depositMap ?? {});
-        if (!opts?.silent) toast.success("Tabel diperbarui");
+        if (data.identityDegraded) {
+          toast.warning(
+            "Sebagian data identitas anggota gagal dimuat. Kolom Tempat/Tgl Lahir/JK/Alamat/Ranting mungkin tampil \"-\". Coba refresh.",
+          );
+        } else if (!opts?.silent) {
+          toast.success("Tabel diperbarui");
+        }
       } catch (e) {
         if (!opts?.silent) {
           toast.error(
@@ -673,6 +682,13 @@ export function UktDashboard(props: Props) {
   useEffect(() => {
     setYearInput(String(props.year));
   }, [props.year]);
+
+  useEffect(() => {
+    if (!props.identityDegraded) return;
+    toast.warning(
+      "Sebagian data identitas anggota gagal dimuat. Kolom Tempat/Tgl Lahir/JK/Alamat/Ranting mungkin tampil \"-\". Coba refresh.",
+    );
+  }, [props.identityDegraded, props.selectedPeriodId]);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 639px)");

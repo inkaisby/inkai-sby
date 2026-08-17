@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { isPrismaSchemaDriftError } from "@/lib/prisma-errors";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -73,16 +74,22 @@ export {
   settingsUsernameLoadWarning,
 } from "@/lib/prisma-errors";
 
-/** Run a Prisma query; on pool/timeout errors return fallback instead of crashing SSR. */
+/** Run a Prisma query; on error return fallback instead of crashing SSR. */
 export async function withPrismaFallback<T>(
   label: string,
   fn: () => Promise<T>,
   fallback: T,
-): Promise<{ data: T; failed: boolean; error?: unknown }> {
+): Promise<{ data: T; failed: boolean; degraded: boolean; error?: unknown }> {
   try {
-    return { data: await fn(), failed: false };
+    return { data: await fn(), failed: false, degraded: false };
   } catch (error) {
     console.error(`[prisma:${label}]`, error);
-    return { data: fallback, failed: true, error };
+    if (isPrismaSchemaDriftError(error)) {
+      // Lazy import avoids circular dep with prisma-columns → prisma.
+      void import("@/lib/prisma-columns").then((m) =>
+        m.invalidateMemberPhotoColumnCache(),
+      );
+    }
+    return { data: fallback, failed: true, degraded: true, error };
   }
 }

@@ -42,6 +42,7 @@ export async function GET(request: Request) {
       periodId: data.periodId,
       participants: data.participants,
       depositMap: data.depositMap,
+      identityDegraded: Boolean(data.identityDegraded),
     });
   } catch (error) {
     console.error("[UKT table refresh]", error);

@@ -4,6 +4,7 @@ import { inkaiFetch } from "@/lib/inkai-api/server";
 import { uktMemberCreateSchema } from "@/lib/security/schemas";
 import { createAdminMember } from "@/lib/admin-member-create";
 import { prisma } from "@/lib/prisma";
+import { memberPhotoSelect } from "@/lib/prisma-columns";
 import { buildMemberFilter, getPrimaryAdminRole } from "@/lib/rbac";
 import { resolveAdminDojoClusterAllowlist } from "@/lib/account-peers";
 import { formatRankLabel } from "@/lib/belt";
@@ -73,6 +74,7 @@ export async function GET(request: Request) {
   }
 
   // Verifikasi anggota berada dalam cakupan RBAC sebelum meneruskan ke Inkai (anti-IDOR).
+  const photoSelect = await memberPhotoSelect();
   const scopedMember = await prisma.member.findFirst({
     where: { AND: [{ id: memberId }, buildMemberFilter(scopedUser)] },
     select: {
@@ -87,7 +89,7 @@ export async function GET(request: Request) {
       address: true,
       birthCertificateUrl: true,
       bpjsCardUrl: true,
-      photoUrl: true,
+      ...photoSelect,
       dojo: { select: { name: true } },
       user: { select: { photoUrl: true } },
     },

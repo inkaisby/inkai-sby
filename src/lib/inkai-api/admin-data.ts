@@ -18,6 +18,7 @@ import {
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { fetchDuesExemptMemberIds } from "@/lib/member-local-fields";
 import { resolveMemberPhotoUrl } from "@/lib/member-photo";
+import { memberPhotoSelect } from "@/lib/prisma-columns";
 import { loadUktSelfRegistrationMetaMap } from "@/lib/ukt-self-registration";
 import {
   memberOrderBy,
@@ -384,6 +385,7 @@ export async function fetchAdminMembersScoped(
   const sortKey = parseMemberSortKey(opts.sort);
   const sortDir = parseSortDir(opts.sortDir);
   const orderBy = memberOrderBy(sortKey, sortDir);
+  const photoSelect = await memberPhotoSelect();
 
   const dupIds = opts.duplicateIdentity
     ? await findDuplicateIdentityMemberIds()
@@ -443,7 +445,7 @@ export async function fetchAdminMembersScoped(
           birthCertificateUrl: true,
           bpjsCardUrl: true,
           bpjsCardNumber: true,
-          photoUrl: true,
+          ...(photoSelect),
           createdAt: true,
           monthlyDuesAmount: true,
           dojo: {
@@ -1278,6 +1280,9 @@ export async function fetchUktDashboardData(
   const rantingAllowlistEmpty =
     primaryRole === "ADMIN_DOJO" && dojoAllowlist.length === 0;
 
+  const photoSelect = await memberPhotoSelect();
+  let identityDegraded = false;
+
   // Ranting (termasuk multi): peserta diisi lewat registrasi-first merge Prisma.
   // Archive & registration: skip pool anggota penuh (250/500).
   const membersPromise = skipMemberPool
@@ -1743,7 +1748,7 @@ export async function fetchUktDashboardData(
                 birthCertificateUrl: true,
                 bpjsCardUrl: true,
                 bpjsCardNumber: true,
-                photoUrl: true,
+                ...(photoSelect),
                 monthlyDuesAmount: true,
                 createdAt: true,
                 dojo: {
@@ -1791,6 +1796,7 @@ export async function fetchUktDashboardData(
       }>,
     );
 
+    if (prismaRegs.degraded) identityDegraded = true;
     const memberIds = new Set(members.map((m) => m.id));
     for (const reg of prismaRegs.data ?? []) {
       const mid = reg.memberId;
@@ -2023,7 +2029,7 @@ export async function fetchUktDashboardData(
               birthCertificateUrl: true,
               bpjsCardUrl: true,
               bpjsCardNumber: true,
-              photoUrl: true,
+              ...(photoSelect),
               monthlyDuesAmount: true,
               createdAt: true,
               dojo: {
@@ -2062,6 +2068,7 @@ export async function fetchUktDashboardData(
           user: { photoUrl: string | null } | null;
         }>,
       );
+      if (missingMembers.degraded) identityDegraded = true;
       for (const m of missingMembers.data ?? []) {
         if (existingMemberIds.has(m.id)) continue;
         existingMemberIds.add(m.id);
@@ -2208,6 +2215,7 @@ export async function fetchUktDashboardData(
       UktDepositRecord
     >,
     periodMeta,
+    identityDegraded,
     ok: Array.isArray(eventsData) || membersResult.ok,
   };
 }
@@ -2227,8 +2235,11 @@ export async function fetchUktTableRefreshSnapshot(
   periodId: string;
   participants: UktRegistrationSnapshotItem[];
   depositMap: Record<string, UktDepositRecord>;
+  identityDegraded?: boolean;
 }> {
   const dojoAllowlist = opts?.dojoAllowlist?.filter(Boolean) ?? [];
+  const photoSelect = await memberPhotoSelect();
+  let identityDegraded = false;
   const [
     eventDetail,
     billingsRes,
@@ -2287,7 +2298,7 @@ export async function fetchUktTableRefreshSnapshot(
                 fullName: true,
                 nia: true,
                 dojoId: true,
-                photoUrl: true,
+                ...(photoSelect),
                 dojo: { select: { name: true } },
                 user: { select: { photoUrl: true } },
               },
@@ -2312,6 +2323,7 @@ export async function fetchUktTableRefreshSnapshot(
         };
       }>,
     );
+    if (prismaRegs.degraded) identityDegraded = true;
     for (const reg of prismaRegs.data ?? []) {
       if (seenRegIds.has(reg.id)) continue;
       seenRegIds.add(reg.id);
@@ -2523,7 +2535,7 @@ export async function fetchUktTableRefreshSnapshot(
             address: true,
             birthCertificateUrl: true,
             bpjsCardUrl: true,
-            photoUrl: true,
+            ...(photoSelect),
             dojo: { select: { name: true } },
             user: { select: { photoUrl: true } },
           },
@@ -2546,6 +2558,7 @@ export async function fetchUktTableRefreshSnapshot(
         user: { photoUrl: string | null } | null;
       }>,
     );
+    if (identityRows.degraded) identityDegraded = true;
     const byId = new Map((identityRows.data ?? []).map((m) => [m.id, m]));
     for (const p of participants) {
       const m = byId.get(p.memberId);
@@ -2580,6 +2593,7 @@ export async function fetchUktTableRefreshSnapshot(
       string,
       UktDepositRecord
     >,
+    identityDegraded,
   };
 }
 

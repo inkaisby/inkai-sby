@@ -1,33 +1,36 @@
 import { prisma } from "@/lib/prisma";
+import { memberPhotoSelect } from "@/lib/prisma-columns";
 import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 
-const MEMBER_LOCAL_SELECT = {
-  allowEventWithoutDues: true,
-  monthlyDuesAmount: true,
-  birthCertificateUrl: true,
-  bpjsCardUrl: true,
-  bpjsCardNumber: true,
-  nik: true,
-  gender: true,
-  birthPlace: true,
-  birthDate: true,
-  address: true,
-  nia: true,
-  mshNumber: true,
-  currentRank: true,
-  photoUrl: true,
-  emailSelfEditedAt: true,
-  niaSelfEditedAt: true,
-  rankSelfEditedAt: true,
-  mshSelfEditedAt: true,
-  user: {
-    select: {
-      email: true,
-      phoneNumber: true,
-      photoUrl: true,
+async function memberLocalSelect() {
+  return {
+    allowEventWithoutDues: true,
+    monthlyDuesAmount: true,
+    birthCertificateUrl: true,
+    bpjsCardUrl: true,
+    bpjsCardNumber: true,
+    nik: true,
+    gender: true,
+    birthPlace: true,
+    birthDate: true,
+    address: true,
+    nia: true,
+    mshNumber: true,
+    currentRank: true,
+    ...(await memberPhotoSelect()),
+    emailSelfEditedAt: true,
+    niaSelfEditedAt: true,
+    rankSelfEditedAt: true,
+    mshSelfEditedAt: true,
+    user: {
+      select: {
+        email: true,
+        phoneNumber: true,
+        photoUrl: true,
+      },
     },
-  },
-} as const;
+  } as const;
+}
 
 export type MemberLocalOverlay = {
   allowEventWithoutDues: boolean;
@@ -61,8 +64,8 @@ export async function fetchMemberLocalOverlay(
 ): Promise<MemberLocalOverlay | null> {
   return prisma.member.findUnique({
     where: { id: memberId },
-    select: MEMBER_LOCAL_SELECT,
-  });
+    select: await memberLocalSelect(),
+  }) as Promise<MemberLocalOverlay | null>;
 }
 
 export function applyMemberLocalOverlay(

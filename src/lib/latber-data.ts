@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { memberPhotoSelect } from "@/lib/prisma-columns";
 import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import { inkaiFetch } from "@/lib/inkai-api/server";
 import { getPrimaryAdminRole } from "@/lib/rbac";
@@ -192,6 +193,7 @@ export async function fetchLatberDashboardData(
 
   let rows: LatberMemberRow[] = [];
   if (selectedPeriodId && !rantingAllowlistEmpty) {
+    const photoSelect = await memberPhotoSelect();
     const registrations = await prisma.eventRegistration.findMany({
       where: {
         eventId: selectedPeriodId,
@@ -209,7 +211,7 @@ export async function fetchLatberDashboardData(
             nia: true,
             currentRank: true,
             dojoId: true,
-            photoUrl: true,
+            ...photoSelect,
             dojo: { select: { name: true } },
             user: { select: { photoUrl: true } },
           },
@@ -272,7 +274,10 @@ export async function fetchLatberDashboardData(
         currentRank: m.currentRank,
         dojoId: m.dojoId,
         dojoName: m.dojo?.name ?? null,
-        photoUrl: resolveMemberPhotoUrl(m.photoUrl, m.user?.photoUrl),
+        photoUrl: resolveMemberPhotoUrl(
+          "photoUrl" in m ? (m.photoUrl as string | null) : null,
+          m.user?.photoUrl,
+        ),
         status: reg.status,
         billingId: bill?.id ?? null,
         billingAmount: bill?.amount ?? fees.feeAmount,

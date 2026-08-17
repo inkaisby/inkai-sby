@@ -26,3 +26,28 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  # Optional pre-release drift check. Set GitHub Actions secret PROD_DATABASE_URL
+  # to the portal production DB (project ref ztrryuhhdoqdglajukuw). Job no-ops
+  # when the secret is unset.
+  schema-drift:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.PROD_DATABASE_URL }}
+      AUTH_SECRET: ci-test-secret-minimum-32-characters-long
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - name: Install deps
+        if: ${{ env.DATABASE_URL != '' }}
+        run: npm ci
+      - name: Check Prisma schema drift vs production
+        if: ${{ env.DATABASE_URL != '' }}
+        run: npm run db:check-drift
+      - name: Skip when PROD_DATABASE_URL unset
+        if: ${{ env.DATABASE_URL == '' }}
+        run: echo "Skip schema-drift (set secret PROD_DATABASE_URL to enable)"

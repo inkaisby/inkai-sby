@@ -139,6 +139,7 @@ async function UktArsipDashboardSection({
   let feesFromSnapshot = false;
   let depositMap: Record<string, UktDepositRecord> = {};
   let periodMeta: UktPeriodMeta = { archived: false, locked: false };
+  let identityDegraded = false;
   let orgProfile: Awaited<ReturnType<typeof getBranchOrgProfile>> | null = null;
   let registrationPolicy: Awaited<
     ReturnType<typeof getUktRegistrationPolicy>
@@ -191,6 +192,7 @@ async function UktArsipDashboardSection({
     feesFromSnapshot = Boolean(data.feesFromSnapshot);
     depositMap = data.depositMap ?? {};
     periodMeta = data.periodMeta ?? { archived: false, locked: false };
+    identityDegraded = Boolean(data.identityDegraded);
     if (!data.ok) dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
   } catch (error) {
     if (isNextRedirectError(error)) throw error;
@@ -237,6 +239,7 @@ async function UktArsipDashboardSection({
       feesFromSnapshot={feesFromSnapshot}
       depositMap={depositMap}
       periodMeta={periodMeta}
+      identityDegraded={identityDegraded}
       viewMode="archive"
       registrationPolicy={registrationPolicy ?? undefined}
       orgProfile={{
