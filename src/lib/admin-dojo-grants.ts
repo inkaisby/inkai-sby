@@ -287,6 +287,7 @@ export function summarizeAdminDojoGrants(
 
 const EDIT_PROFILE_ACTIONS = new Set([
   "set_documents",
+  "set_photo",
   "set_dues",
   "set_dues_exemption",
   "set_msh",

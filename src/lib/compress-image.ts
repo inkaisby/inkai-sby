@@ -121,3 +121,48 @@ export async function compressUploadFile(
     lastModified: Date.now(),
   });
 }
+
+export async function getImageDimensions(
+  file: File,
+): Promise<{ width: number; height: number }> {
+  const img = await loadImage(file);
+  return { width: img.width, height: img.height };
+}
+
+export function isNearlySquare(
+  width: number,
+  height: number,
+  tolerance = 0.05,
+): boolean {
+  if (width < 1 || height < 1) return false;
+  const ratio = width / height;
+  return ratio >= 1 - tolerance && ratio <= 1 + tolerance;
+}
+
+/** Crop persegi dari file gambar (koordinat sumber piksel). */
+export async function cropImageFile(
+  file: File,
+  crop: { sx: number; sy: number; size: number },
+  outputPx = 800,
+): Promise<File> {
+  const img = await loadImage(file);
+  const size = Math.max(1, Math.round(crop.size));
+  const sx = Math.max(0, Math.min(img.width - 1, Math.round(crop.sx)));
+  const sy = Math.max(0, Math.min(img.height - 1, Math.round(crop.sy)));
+  const canvas = document.createElement("canvas");
+  canvas.width = outputPx;
+  canvas.height = outputPx;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas tidak tersedia");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, outputPx, outputPx);
+  ctx.drawImage(img, sx, sy, size, size, 0, 0, outputPx, outputPx);
+  const blob = await canvasToBlob(canvas, "image/jpeg", 0.92);
+  if (!blob) throw new Error("Gagal memotong foto");
+  const base = file.name.replace(/\.[^.]+$/, "") || "foto";
+  const name = `${base.replace(/[^\w.\-]+/g, "_").slice(0, 60)}.jpg`;
+  return new File([blob], name, {
+    type: "image/jpeg",
+    lastModified: Date.now(),
+  });
+}

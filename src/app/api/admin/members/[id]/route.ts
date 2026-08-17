@@ -207,6 +207,10 @@ export async function GET(_request: Request, context: RouteContext) {
       mshNumber:
         localExtras.data.mshNumber ??
         (typeof member.mshNumber === "string" ? member.mshNumber : null),
+      photoUrl:
+        localUser?.photoUrl ||
+        (typeof existingUser.photoUrl === "string" && existingUser.photoUrl) ||
+        (typeof member.photoUrl === "string" ? member.photoUrl : null),
       user: localUser
         ? {
             ...existingUser,
@@ -218,9 +222,10 @@ export async function GET(_request: Request, context: RouteContext) {
                 existingUser.phoneNumber) ||
               localUser.phoneNumber,
             photoUrl:
+              localUser.photoUrl ||
               (typeof existingUser.photoUrl === "string" &&
                 existingUser.photoUrl) ||
-              localUser.photoUrl,
+              null,
           }
         : member.user ?? null,
     };
@@ -1160,6 +1165,87 @@ export async function PATCH(request: Request, context: RouteContext) {
       bpjsCardUrl: nextBpjs,
       bpjsCardNumber: nextBpjsNo,
       message: "Dokumen anggota disimpan",
+    });
+  }
+
+  if (action === "set_photo") {
+    if (!canManageIuranByWilayah(roles)) {
+      return NextResponse.json(
+        { error: "Anda tidak berwenang mengubah foto anggota" },
+        { status: 403 },
+      );
+    }
+    const photoRaw = parsed.data.photoUrl;
+    const photoUrl =
+      photoRaw == null || String(photoRaw).trim() === ""
+        ? null
+        : String(photoRaw).trim();
+    if (photoUrl && !/^https?:\/\//i.test(photoUrl)) {
+      return NextResponse.json(
+        { error: "URL foto tidak valid" },
+        { status: 400 },
+      );
+    }
+
+    const scoped = await prisma.member.findFirst({
+      where: {
+        AND: [{ id }, buildMemberFilter(authResult.user, { anyDeleted: true })],
+      },
+      select: { id: true, fullName: true, userId: true },
+    });
+    if (!scoped) {
+      logScopeDenied(authResult.user.id, "set_photo");
+      return NextResponse.json(
+        { error: "Anggota tidak ditemukan di cakupan Anda" },
+        { status: 404 },
+      );
+    }
+
+    const { res, data } = await inkaiFetch(
+      `/v1/members/${id}`,
+      { method: "PATCH", body: JSON.stringify({ photoUrl }) },
+      token,
+    );
+
+    let localOk = false;
+    if (scoped.userId) {
+      try {
+        await prisma.user.update({
+          where: { id: scoped.userId },
+          data: { photoUrl },
+          select: { id: true, photoUrl: true },
+        });
+        localOk = true;
+      } catch (err) {
+        console.error("[set_photo] prisma user update failed:", err);
+      }
+    }
+
+    if (!res.ok && !localOk) {
+      return NextResponse.json(
+        {
+          error: scoped.userId
+            ? inkaiErrorMessage(data, "Gagal menyimpan foto anggota")
+            : "Buat akun login atau hubungi teknis",
+        },
+        { status: res.ok ? 500 : res.status },
+      );
+    }
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "MEMBER_SET_PHOTO",
+      details: `Set photo ${photoUrl ? "url" : "(hapus)"} for ${scoped.fullName} (${id})`,
+      ip,
+      userAgent,
+      token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      photoUrl,
+      message: photoUrl ? "Foto anggota disimpan" : "Foto anggota dihapus",
     });
   }
 

@@ -31,6 +31,7 @@ import {
 import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
 import { DocumentPreviewDialog } from "@/components/admin/DocumentPreviewDialog";
 import { MemberDocumentsEditor } from "@/components/admin/MemberDocumentsEditor";
+import { FileUploadField } from "@/components/admin/FileUploadField";
 import {
   MergeMemberDialog,
   type MergeCandidate,
@@ -854,6 +855,56 @@ export function MembersTable({
     }
   }
 
+  function applyMemberPhoto(memberId: string, next: string | null) {
+    setMembers((prev) =>
+      prev.map((m) => (m.id === memberId ? { ...m, photoUrl: next } : m)),
+    );
+    setDetail((prev) => {
+      if (!prev) return prev;
+      const prevUser =
+        prev.user && typeof prev.user === "object"
+          ? (prev.user as Record<string, unknown>)
+          : {};
+      return {
+        ...prev,
+        photoUrl: next,
+        user: { ...prevUser, photoUrl: next },
+      };
+    });
+  }
+
+  async function handleSetPhoto(photoUrl: string | null) {
+    if (!selectedId || !canEditDocuments) return;
+    try {
+      const res = await fetch(`/api/admin/members/${selectedId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_photo", photoUrl }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        photoUrl?: string | null;
+      };
+      if (!res.ok) {
+        showAdminFetchError(res, data, "Gagal menyimpan foto anggota");
+        return;
+      }
+      const next =
+        typeof data.photoUrl === "string"
+          ? data.photoUrl
+          : data.photoUrl === null
+            ? null
+            : photoUrl;
+      applyMemberPhoto(selectedId, next);
+      if (!next) {
+        showSuccess(data.message || "Foto anggota dihapus");
+      }
+    } catch {
+      showError("Gagal menyimpan foto anggota");
+    }
+  }
+
   const dojo = detail?.dojo as
     | { name?: string; branch?: { name?: string } }
     | undefined;
@@ -1270,12 +1321,36 @@ export function MembersTable({
         >
           <SheetHeader className="border-b">
             <SheetTitle className="flex items-center gap-3 pr-8">
-              <MemberAvatarRing
-                fullName={fullName || "Anggota"}
-                currentRank={currentRank || null}
-                photoUrl={photoUrl}
-                size="lg"
-              />
+              {canEditDocuments && selectedId ? (
+                <FileUploadField
+                  label="Foto anggota"
+                  value={photoUrl ?? ""}
+                  folder="members/photo"
+                  hideUrl
+                  variant="avatar"
+                  listenWindowPaste
+                  accept="image/jpeg,image/png,image/webp"
+                  hint="Klik, lepas, atau tempel foto (Ctrl+V)"
+                  onChange={(url) => {
+                    if (!url.trim()) void handleSetPhoto(null);
+                  }}
+                  onUploaded={(url) => void handleSetPhoto(url)}
+                >
+                  <MemberAvatarRing
+                    fullName={fullName || "Anggota"}
+                    currentRank={currentRank || null}
+                    photoUrl={photoUrl}
+                    size="lg"
+                  />
+                </FileUploadField>
+              ) : (
+                <MemberAvatarRing
+                  fullName={fullName || "Anggota"}
+                  currentRank={currentRank || null}
+                  photoUrl={photoUrl}
+                  size="lg"
+                />
+              )}
               <span className="leading-tight">
                 {formatMemberName(fullName) || "Detail Anggota"}
               </span>

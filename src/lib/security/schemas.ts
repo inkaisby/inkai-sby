@@ -81,6 +81,7 @@ export const memberActionSchema = z.object({
     "set_dues",
     "set_dues_exemption",
     "set_documents",
+    "set_photo",
     "set_dojo",
     "reset_password",
     "deactivate",
@@ -105,6 +106,8 @@ export const memberActionSchema = z.object({
   birthCertificateUrl: z.string().trim().max(2048).optional().nullable(),
   bpjsCardUrl: z.string().trim().max(2048).optional().nullable(),
   bpjsCardNumber: z.string().trim().max(32).optional().nullable(),
+  /** Foto profil anggota (URL Blob). Kosong/null = hapus. */
+  photoUrl: z.string().trim().max(2048).optional().nullable(),
   /** Konfirmasi hapus: ketik nama anggota (untuk anggota aktif / ber-NIA). */
   confirmName: z.string().trim().max(120).optional(),
   /** Nonaktif / ditangguhkan */
