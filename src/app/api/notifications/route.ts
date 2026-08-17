@@ -9,6 +9,7 @@ import {
   filterNotificationsForMemberInbox,
   withFilterStats,
 } from "@/lib/admin-notify-scope";
+import { SESSION_EXPIRED_MESSAGE } from "@/lib/session-expired";
 
 type NotifRow = {
   id: string;
@@ -25,7 +26,10 @@ export async function GET(request: Request) {
   const session = await auth();
   const token = await getInkaiAccessToken();
   if (!session || !token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { error: SESSION_EXPIRED_MESSAGE },
+      { status: 401 },
+    );
   }
 
   const countOnly = new URL(request.url).searchParams.get("countOnly") === "1";
@@ -76,7 +80,10 @@ export async function PATCH(request: Request) {
   const session = await auth();
   const token = await getInkaiAccessToken();
   if (!session || !token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      { error: SESSION_EXPIRED_MESSAGE },
+      { status: 401 },
+    );
   }
 
   const body = (await request.json()) as { markAll?: boolean };

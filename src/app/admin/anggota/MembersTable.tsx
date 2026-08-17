@@ -36,6 +36,7 @@ import {
   type MergeCandidate,
 } from "@/components/admin/MergeMemberDialog";
 import { showError, showSuccess } from "@/lib/client-toast";
+import { showAdminFetchError } from "@/lib/admin-client-error";
 import type { AdminMemberRow } from "@/lib/inkai-api/admin-data";
 import { SITE_BRANCH_NAME } from "@/lib/site";
 import {
@@ -446,7 +447,7 @@ export function MembersTable({
         member?: MemberDetail;
       };
       if (!res.ok) {
-        showError(data.error || "Gagal memuat detail anggota");
+        showAdminFetchError(res, data, "Gagal memuat detail anggota");
         return;
       }
       if (data.member) {
@@ -521,7 +522,7 @@ export function MembersTable({
         currentRank?: string;
       };
       if (!res.ok) {
-        showError(data.error || "Gagal memperbarui sabuk");
+        showAdminFetchError(res, data, "Gagal memperbarui sabuk");
         return;
       }
       showSuccess(data.message || `Sabuk diperbarui: ${currentRank}`);
@@ -564,7 +565,7 @@ export function MembersTable({
         fullName?: string;
       };
       if (!res.ok) {
-        showError(data.error || "Gagal menyimpan nama");
+        showAdminFetchError(res, data, "Gagal menyimpan nama");
         return;
       }
       const next = data.fullName || fullName;
@@ -611,7 +612,7 @@ export function MembersTable({
         accountProvisioned?: boolean;
       };
       if (!res.ok) {
-        showError(data.error || "Gagal menyimpan NIA");
+        showAdminFetchError(res, data, "Gagal menyimpan NIA");
         if (selectedId === memberId) setNiaDraft(current);
         return;
       }
@@ -663,7 +664,7 @@ export function MembersTable({
         member?: { mshNumber?: string | null };
       };
       if (!res.ok) {
-        showError(data.error || "Gagal menyimpan No. MSH");
+        showAdminFetchError(res, data, "Gagal menyimpan No. MSH");
         return;
       }
       const saved = data.member?.mshNumber ?? (next || null);
@@ -701,7 +702,7 @@ export function MembersTable({
         dojoName?: string;
       };
       if (!res.ok) {
-        showError(data.error || "Gagal memindahkan ranting");
+        showAdminFetchError(res, data, "Gagal memindahkan ranting");
         return;
       }
       showSuccess(data.message || "Ranting diperbarui");
@@ -756,7 +757,7 @@ export function MembersTable({
         monthlyDuesAmount?: number;
       };
       if (!res.ok) {
-        showError(data.error || "Gagal menyimpan iuran/bln");
+        showAdminFetchError(res, data, "Gagal menyimpan iuran/bln");
         return;
       }
       const saved = data.monthlyDuesAmount ?? amount;
@@ -790,7 +791,7 @@ export function MembersTable({
         allowEventWithoutDues?: boolean;
       };
       if (!res.ok) {
-        showError(data.error || "Gagal menyimpan pengecualian iuran");
+        showAdminFetchError(res, data, "Gagal menyimpan pengecualian iuran");
         return;
       }
       const saved = data.allowEventWithoutDues ?? checked;
@@ -826,7 +827,7 @@ export function MembersTable({
         email?: string;
       };
       if (!res.ok) {
-        showError(data.error || "Gagal reset password");
+        showAdminFetchError(res, data, "Gagal reset password");
         return;
       }
       if (data.temporaryPassword) {

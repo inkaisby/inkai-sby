@@ -581,6 +581,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       await prisma.member.update({
         where: { id },
         data: { fullName },
+        select: { id: true, fullName: true },
       });
     } catch (err) {
       console.error("[set_name] prisma update failed:", err);
@@ -663,6 +664,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       await prisma.member.update({
         where: { id },
         data: { currentRank },
+        select: { id: true, currentRank: true },
       });
     } catch (err) {
       console.error("[set_rank] failed to sync local Prisma currentRank:", err);
@@ -762,6 +764,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       await prisma.member.update({
         where: { id },
         data: { dojoId: nextDojoId },
+        select: { id: true, dojoId: true },
       });
     } catch (err) {
       console.error("[set_dojo] prisma update failed:", err);
@@ -836,6 +839,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       await prisma.member.update({
         where: { id },
         data: { monthlyDuesAmount: amount },
+        select: { id: true, monthlyDuesAmount: true },
       });
     } catch (err) {
       console.error("[set_dues] prisma update failed:", err);
@@ -1107,6 +1111,12 @@ export async function PATCH(request: Request, context: RouteContext) {
           birthCertificateUrl: nextAkte,
           bpjsCardUrl: nextBpjs,
           bpjsCardNumber: nextBpjsNo,
+        },
+        select: {
+          id: true,
+          birthCertificateUrl: true,
+          bpjsCardUrl: true,
+          bpjsCardNumber: true,
         },
       });
     } catch (err) {

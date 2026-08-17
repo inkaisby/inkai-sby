@@ -355,6 +355,13 @@ async function finalizeCreatedMember(opts: {
           ...(nia ? { nia } : {}),
           ...(msh ? { mshNumber: msh } : {}),
         },
+        select: {
+          id: true,
+          nik: true,
+          nia: true,
+          mshNumber: true,
+          currentRank: true,
+        },
       });
       const inkaiRank = String(member.currentRank ?? "").trim();
       if (inkaiRank !== currentRank) {
