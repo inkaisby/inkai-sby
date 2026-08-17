@@ -25,6 +25,7 @@ import type {
 type Payload = {
   period: UktPublicPeriod;
   registrants: UktPublicRegistrant[];
+  loadError?: boolean;
 };
 
 const POLL_MS = 30_000;
@@ -49,6 +50,8 @@ export function UktPublicRosterClient() {
   const [period, setPeriod] = useState<UktPublicPeriod | null>(null);
   const [registrants, setRegistrants] = useState<UktPublicRegistrant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [fetchFailed, setFetchFailed] = useState(false);
   const [searchQ, setSearchQ] = useState("");
   const [summaryOpen, setSummaryOpen] = useState(false);
 
@@ -65,11 +68,17 @@ export function UktPublicRosterClient() {
       const res = await fetch("/api/public/ukt/registrants", {
         cache: "no-store",
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setFetchFailed(true);
+        return;
+      }
       const data = (await res.json()) as Payload;
       setPeriod(data.period);
       setRegistrants(data.registrants ?? []);
+      setLoadError(Boolean(data.loadError));
+      setFetchFailed(false);
     } catch {
+      setFetchFailed(true);
       /* poll senyap: jangan toast */
     } finally {
       if (!silent) setLoading(false);
@@ -377,7 +386,12 @@ export function UktPublicRosterClient() {
               .join(" · ")}
           </p>
         ) : null}
-        {!loading && !period?.periodId ? (
+        {!loading && (fetchFailed || loadError) ? (
+          <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-900 dark:text-red-200">
+            Gagal memuat daftar peserta. Coba refresh.
+          </p>
+        ) : null}
+        {!loading && !fetchFailed && !loadError && !period?.periodId ? (
           <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
             Belum ada periode UKT aktif.
           </p>

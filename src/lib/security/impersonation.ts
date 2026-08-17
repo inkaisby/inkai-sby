@@ -156,11 +156,12 @@ async function loadSessionUser(userId: string): Promise<SessionUser | null> {
       managedBranchId: true,
       managedDojoId: true,
       roles: { select: { name: true } },
-      member: { select: { id: true, photoUrl: true } },
+      // Jangan select Member.photoUrl — drift P2022 tidak boleh gagalkan impersonasi.
+      member: { select: { id: true } },
     },
   });
   if (!user) return null;
-  const photoUrl = resolveMemberPhotoUrl(user.member?.photoUrl, user.photoUrl);
+  const photoUrl = resolveMemberPhotoUrl(null, user.photoUrl);
   return {
     id: user.id,
     email: user.email,
@@ -282,7 +283,8 @@ export async function startImpersonation(
       managedBranchId: true,
       managedDojoId: true,
       roles: { select: { name: true } },
-      member: { select: { id: true, photoUrl: true } },
+      // Jangan select Member.photoUrl — drift P2022 tidak boleh gagalkan impersonasi.
+      member: { select: { id: true } },
     },
   });
   if (!targetRow || !targetRow.isActive) {
@@ -322,10 +324,7 @@ export async function startImpersonation(
     exp,
   });
 
-  const photoUrl = resolveMemberPhotoUrl(
-    targetRow.member?.photoUrl,
-    targetRow.photoUrl,
-  );
+  const photoUrl = resolveMemberPhotoUrl(null, targetRow.photoUrl);
   const target: SessionUser = {
     id: targetRow.id,
     email: targetRow.email,

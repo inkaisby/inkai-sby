@@ -4,6 +4,10 @@ import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import { formatRankLabel, resolveUktRankColumns } from "@/lib/belt";
 import { isLatberEventTitle } from "@/lib/latber";
 import {
+  isPrismaBusyError,
+  isPrismaSchemaDriftError,
+} from "@/lib/prisma-errors";
+import {
   buildUktExamResultMap,
   currentSemester,
   findUktPeriodForTerm,
@@ -49,6 +53,8 @@ export type UktPublicRegistrant = {
 export type UktPublicPayload = {
   period: UktPublicPeriod;
   registrants: UktPublicRegistrant[];
+  /** True bila periode ketemu tetapi daftar peserta gagal dimuat (bukan "tidak ada periode"). */
+  loadError?: boolean;
 };
 
 function isUktEventTitle(title: string): boolean {
@@ -148,35 +154,93 @@ async function loadExamResultMap(
   }
 }
 
+type RegRow = {
+  id: string;
+  status: string;
+  registeredRank: string | null;
+  memberId: string;
+  member: {
+    id: string;
+    fullName: string;
+    nia: string | null;
+    currentRank: string;
+    photoUrl?: string | null;
+    dojo: { name: string } | null;
+    user: { photoUrl: string | null } | null;
+  };
+  category: { name: string } | null;
+};
+
+const memberSelectWithPhoto = {
+  id: true,
+  fullName: true,
+  nia: true,
+  currentRank: true,
+  photoUrl: true,
+  dojo: { select: { name: true } },
+  user: { select: { photoUrl: true } },
+} as const;
+
+const memberSelectWithoutPhoto = {
+  id: true,
+  fullName: true,
+  nia: true,
+  currentRank: true,
+  dojo: { select: { name: true } },
+  user: { select: { photoUrl: true } },
+} as const;
+
+async function fetchUktPublicRegistrationRows(
+  eventId: string,
+): Promise<RegRow[]> {
+  try {
+    return (await prisma.eventRegistration.findMany({
+      where: {
+        eventId,
+        status: { notIn: ["CANCELLED", "REJECTED"] },
+      },
+      select: {
+        id: true,
+        status: true,
+        registeredRank: true,
+        memberId: true,
+        member: { select: memberSelectWithPhoto },
+        category: { select: { name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+      take: 800,
+    })) as RegRow[];
+  } catch (error) {
+    if (!isPrismaSchemaDriftError(error) && !isPrismaBusyError(error)) {
+      throw error;
+    }
+    console.error(
+      "[ukt-public] photoUrl drift/busy on registrants; retry without Member.photoUrl",
+      error,
+    );
+    return (await prisma.eventRegistration.findMany({
+      where: {
+        eventId,
+        status: { notIn: ["CANCELLED", "REJECTED"] },
+      },
+      select: {
+        id: true,
+        status: true,
+        registeredRank: true,
+        memberId: true,
+        member: { select: memberSelectWithoutPhoto },
+        category: { select: { name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+      take: 800,
+    })) as RegRow[];
+  }
+}
+
 export async function loadUktPublicRegistrants(
   eventId: string,
 ): Promise<UktPublicRegistrant[]> {
-  const regs = await prisma.eventRegistration.findMany({
-    where: {
-      eventId,
-      status: { notIn: ["CANCELLED", "REJECTED"] },
-    },
-    select: {
-      id: true,
-      status: true,
-      registeredRank: true,
-      memberId: true,
-      member: {
-        select: {
-          id: true,
-          fullName: true,
-          nia: true,
-          currentRank: true,
-          photoUrl: true,
-          dojo: { select: { name: true } },
-          user: { select: { photoUrl: true } },
-        },
-      },
-      category: { select: { name: true } },
-    },
-    orderBy: { createdAt: "asc" },
-    take: 800,
-  });
+  const regs = await fetchUktPublicRegistrationRows(eventId);
 
   if (regs.length === 0) return [];
 
@@ -277,40 +341,69 @@ export async function loadUktPublicRegistrants(
   return out;
 }
 
+/** Bangun payload publik — periode tetap ada meski load peserta gagal. */
+export function buildUktPublicPayload(args: {
+  period: UktPeriodOption | null;
+  meta: UktPeriodMeta;
+  registrants?: UktPublicRegistrant[];
+  loadError?: boolean;
+}): UktPublicPayload {
+  const { period, meta, registrants = [], loadError = false } = args;
+  if (!period) {
+    return {
+      period: {
+        periodId: null,
+        title: null,
+        semester: null,
+        year: null,
+        examAt: null,
+        examLocation: null,
+        archived: false,
+        locked: false,
+      },
+      registrants: [],
+      ...(loadError ? { loadError: true } : {}),
+    };
+  }
+
+  const parsed = period.title.match(/semester\s*(I|II)\s*[-/]\s*(\d{4})/i);
+  return {
+    period: {
+      periodId: period.id,
+      title: period.title,
+      semester: parsed?.[1]?.toUpperCase() ?? null,
+      year: parsed?.[2] ? parseInt(parsed[2], 10) : null,
+      examAt: meta.examAt ?? null,
+      examLocation: meta.examLocation ?? null,
+      archived: Boolean(meta.archived),
+      locked: Boolean(meta.locked),
+    },
+    registrants,
+    ...(loadError ? { loadError: true } : {}),
+  };
+}
+
 export const getUktPublicRoster = cache(
   async (): Promise<UktPublicPayload> => {
     const { period, meta } = await resolvePublicUktPeriod();
     if (!period) {
-      return {
-        period: {
-          periodId: null,
-          title: null,
-          semester: null,
-          year: null,
-          examAt: null,
-          examLocation: null,
-          archived: false,
-          locked: false,
-        },
-        registrants: [],
-      };
+      return buildUktPublicPayload({ period: null, meta });
     }
 
-    const registrants = await loadUktPublicRegistrants(period.id);
-    const parsed = period.title.match(/semester\s*(I|II)\s*[-/]\s*(\d{4})/i);
-
-    return {
-      period: {
-        periodId: period.id,
-        title: period.title,
-        semester: parsed?.[1]?.toUpperCase() ?? null,
-        year: parsed?.[2] ? parseInt(parsed[2], 10) : null,
-        examAt: meta.examAt ?? null,
-        examLocation: meta.examLocation ?? null,
-        archived: Boolean(meta.archived),
-        locked: Boolean(meta.locked),
-      },
-      registrants,
-    };
+    try {
+      const registrants = await loadUktPublicRegistrants(period.id);
+      return buildUktPublicPayload({ period, meta, registrants });
+    } catch (error) {
+      console.error(
+        "[ukt-public] registrants load failed; keeping period",
+        error,
+      );
+      return buildUktPublicPayload({
+        period,
+        meta,
+        registrants: [],
+        loadError: true,
+      });
+    }
   },
 );

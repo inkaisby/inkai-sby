@@ -11,7 +11,11 @@ import {
 import { isMemberLoginBlocked } from "@/lib/security/member-status";
 import { clearPresence, markUserLogin } from "@/lib/presence";
 import { snapshotFromNextHeaders } from "@/lib/session-audit";
-import { loadSessionClaimsFromDb } from "@/lib/session-refresh";
+import {
+  applyJwtClaimsRefreshOutcome,
+  loadSessionClaimsFromDb,
+  type JwtClaimsRefreshOutcome,
+} from "@/lib/session-refresh";
 import { LOGIN_ERROR_CODE } from "@/lib/auth/login-errors";
 import { resolveLoginIdentifier } from "@/lib/auth/parse-login-identifier";
 import { prisma } from "@/lib/prisma";
@@ -23,6 +27,10 @@ import {
 import { rateLimitAsync } from "@/lib/security/rate-limit";
 import { resolveImpersonationOverlay } from "@/lib/security/impersonation";
 import { resolvePostLoginPath } from "@/lib/rbac";
+import {
+  isPrismaBusyError,
+  isPrismaSchemaDriftError,
+} from "@/lib/prisma-errors";
 
 /** Short-lived client-readable hint so LoginForm can skip /dashboard→/admin hop. */
 export const POST_LOGIN_PATH_COOKIE = "inkai_entry";
@@ -127,35 +135,28 @@ const nextAuth = NextAuth({
       // nested auth() during the same first-paint (root + layout + page).
       if (!stale) return token;
 
-      const blocked = await isUserBlocked(userId);
-      if (blocked.blocked) {
-        return {
-          ...token,
-          sub: undefined,
-          error: "SessionBlocked",
-          claimsUpdatedAt: Date.now(),
-        };
+      let outcome: JwtClaimsRefreshOutcome;
+      try {
+        const blocked = await isUserBlocked(userId);
+        if (blocked.blocked) {
+          outcome = { kind: "blocked" };
+        } else {
+          const claims = await loadSessionClaimsFromDb(userId);
+          outcome = claims
+            ? { kind: "ok", claims }
+            : { kind: "missing" };
+        }
+      } catch (error) {
+        const drift = isPrismaSchemaDriftError(error);
+        const busy = isPrismaBusyError(error);
+        console.error(
+          `[auth.jwt] claims refresh failed; keeping session drift=${drift} busy=${busy}`,
+          error,
+        );
+        outcome = { kind: "error", error };
       }
 
-      const claims = await loadSessionClaimsFromDb(userId);
-      if (!claims) {
-        return {
-          ...token,
-          sub: undefined,
-          error: "SessionBlocked",
-          claimsUpdatedAt: Date.now(),
-        };
-      }
-
-      token.roles = claims.roles;
-      token.managedProvinceId = claims.managedProvinceId;
-      token.managedBranchId = claims.managedBranchId;
-      token.managedDojoId = claims.managedDojoId;
-      token.memberId = claims.memberId;
-      if (claims.name) token.name = claims.name;
-      token.photoUrl = claims.photoUrl ?? null;
-      token.claimsUpdatedAt = Date.now();
-      return token;
+      return applyJwtClaimsRefreshOutcome(token, outcome);
     },
     async session({ session, token }) {
       if (token.error || !token.sub) {
@@ -315,7 +316,9 @@ const nextAuth = NextAuth({
                 isActive: true,
                 photoUrl: true,
                 fullName: true,
-                member: { select: { photoUrl: true } },
+                // Jangan select Member.photoUrl di jalur login — drift P2022
+                // tidak boleh menggagalkan authorize (sudah di-.catch, tetap slim).
+                member: { select: { id: true } },
               },
             })
             .catch(() => null),
@@ -352,7 +355,7 @@ const nextAuth = NextAuth({
           .catch(() => markUserLogin(userId));
 
         const photoUrl = resolveMemberPhotoUrl(
-          localGate?.member?.photoUrl,
+          null,
           localGate?.photoUrl,
           user.photoUrl || user.member?.photoUrl || null,
         );

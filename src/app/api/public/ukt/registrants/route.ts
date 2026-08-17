@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   }
 
   const now = Date.now();
-  if (cache && now - cache.at < CACHE_MS) {
+  if (cache && now - cache.at < CACHE_MS && !cache.body.loadError) {
     return NextResponse.json(cache.body, {
       headers: {
         "Cache-Control": "public, max-age=5, s-maxage=10, stale-while-revalidate=30",
@@ -30,11 +30,40 @@ export async function GET(request: Request) {
     });
   }
 
-  const body = await getUktPublicRoster();
-  cache = { at: now, body };
-  return NextResponse.json(body, {
-    headers: {
-      "Cache-Control": "public, max-age=5, s-maxage=10, stale-while-revalidate=30",
-    },
-  });
+  try {
+    const body = await getUktPublicRoster();
+    // Jangan cache payload error — hindari sticky empty/loadError palsu.
+    if (!body.loadError) {
+      cache = { at: now, body };
+    }
+    return NextResponse.json(body, {
+      headers: {
+        "Cache-Control": body.loadError
+          ? "no-store"
+          : "public, max-age=5, s-maxage=10, stale-while-revalidate=30",
+      },
+    });
+  } catch (error) {
+    console.error("[ukt-public] GET /registrants failed", error);
+    return NextResponse.json(
+      {
+        period: {
+          periodId: null,
+          title: null,
+          semester: null,
+          year: null,
+          examAt: null,
+          examLocation: null,
+          archived: false,
+          locked: false,
+        },
+        registrants: [],
+        loadError: true,
+      },
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store" },
+      },
+    );
+  }
 }
