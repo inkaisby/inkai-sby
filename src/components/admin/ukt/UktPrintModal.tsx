@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, Printer } from "lucide-react";
+import { Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,11 +19,7 @@ import {
   type UktMemberRow,
   type UktSemester,
 } from "@/lib/ukt";
-import {
-  downloadUktNotaPdf,
-  printUktNotaDocument,
-} from "@/lib/ukt-print-html";
-import { showError, showSuccess } from "@/lib/client-toast";
+import { printUktNotaDocument } from "@/lib/ukt-print-html";
 
 /** Sentinel default — pilih semua ranting di modal. */
 export const UKT_NOTA_GABUNGAN_ID = "gabungan";
@@ -135,7 +131,7 @@ export function UktPrintModal({
   const [selectedDojoIds, setSelectedDojoIds] = useState<Set<string>>(
     () => resolveDefaultSelectedIds(),
   );
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const [printBusy, setPrintBusy] = useState(false);
   const [config, setConfig] = useState<PrintConfig>(() =>
     buildInitialConfig(resolveDefaultSelectedIds()),
   );
@@ -211,11 +207,6 @@ export function UktPrintModal({
     setConfig((prev) => ({ ...prev, [field]: value }));
   };
 
-  const pdfFilename =
-    selectedDojoIds.size > 1
-      ? "nota-ukt-gabungan.pdf"
-      : `nota-ukt-${displayDojoName.replace(/\s+/g, "-").toLowerCase()}.pdf`;
-
   const notaPayload = () => ({
     notaNo: config.notaNo,
     semester: config.semester,
@@ -242,20 +233,12 @@ export function UktPrintModal({
   });
 
   const handlePrint = () => {
-    if (!canPrint) return;
-    printUktNotaDocument(notaPayload());
-  };
-
-  const handleDownloadPdf = async () => {
-    if (!canPrint) return;
-    setPdfLoading(true);
+    if (!canPrint || printBusy) return;
+    setPrintBusy(true);
     try {
-      await downloadUktNotaPdf(notaPayload(), pdfFilename);
-      showSuccess("PDF nota diunduh");
-    } catch {
-      showError("Gagal membuat PDF. Coba Print / Save as PDF.");
+      printUktNotaDocument(notaPayload());
     } finally {
-      setPdfLoading(false);
+      setTimeout(() => setPrintBusy(false), 1500);
     }
   };
 
@@ -270,14 +253,9 @@ export function UktPrintModal({
             <span className="flex gap-2">
               <Button
                 size="sm"
-                variant="outline"
-                onClick={() => void handleDownloadPdf()}
-                disabled={pdfLoading || !canPrint}
+                onClick={handlePrint}
+                disabled={!canPrint || printBusy}
               >
-                <Download className="mr-1 h-4 w-4" />
-                {pdfLoading ? "PDF…" : "Unduh PDF"}
-              </Button>
-              <Button size="sm" onClick={handlePrint} disabled={!canPrint}>
                 <Printer className="mr-1 h-4 w-4" />
                 Print
               </Button>

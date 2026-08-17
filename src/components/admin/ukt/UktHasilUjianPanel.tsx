@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Download,
   FileSpreadsheet,
   Plus,
   Printer,
@@ -23,10 +22,7 @@ import {
   type UktPeriodMeta,
   type UktSemester,
 } from "@/lib/ukt";
-import {
-  downloadUktHasilUjianPdf,
-  printUktHasilUjianDocument,
-} from "@/lib/ukt-hasil-ujian-html";
+import { printUktHasilUjianDocument } from "@/lib/ukt-hasil-ujian-html";
 import { parseApiJson } from "@/lib/api-client";
 import {
   collectUktTtdMemberIds,
@@ -348,31 +344,6 @@ export function UktHasilUjianPanel({
       toast.success(`${recap.length} peserta direkap ke Excel`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal mengunduh rekap");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const runPdf = async () => {
-    const recap = ensureRecap("pdf");
-    if (!recap) return;
-    setBusy(true);
-    try {
-      const saved = await persistMeta();
-      if (!saved && isCabang) return;
-      const d = saved ?? draft;
-      await downloadUktHasilUjianPdf(
-        payload(recap, d),
-        buildUktHasilUjianFilename(
-          semester,
-          year,
-          examAt ?? periodMeta?.examAt,
-          "pdf",
-        ),
-      );
-      toast.success(`${recap.length} peserta diunduh sebagai PDF`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal membuat PDF");
     } finally {
       setBusy(false);
     }
@@ -724,15 +695,6 @@ export function UktHasilUjianPanel({
         >
           <FileSpreadsheet className="mr-1 h-4 w-4" />
           Excel
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={!canRecap || busy}
-          onClick={() => void runPdf()}
-        >
-          <Download className="mr-1 h-4 w-4" />
-          Unduh PDF
         </Button>
         <Button
           type="button"

@@ -2009,6 +2009,10 @@ export async function fetchUktDashboardData(
               currentRank: true,
               status: true,
               dojoId: true,
+              birthPlace: true,
+              birthDate: true,
+              gender: true,
+              address: true,
               birthCertificateUrl: true,
               bpjsCardUrl: true,
               bpjsCardNumber: true,
@@ -2032,6 +2036,10 @@ export async function fetchUktDashboardData(
           currentRank: string;
           status: string;
           dojoId: string;
+          birthPlace: string | null;
+          birthDate: Date | null;
+          gender: string | null;
+          address: string | null;
           birthCertificateUrl: string | null;
           bpjsCardUrl: string | null;
           bpjsCardNumber: string | null;
@@ -2060,6 +2068,10 @@ export async function fetchUktDashboardData(
             isDeleted: m.dojo.isDeleted,
             branch: m.dojo.branch ? { name: m.dojo.branch.name } : undefined,
           },
+          birthPlace: m.birthPlace,
+          birthDate: m.birthDate?.toISOString() ?? null,
+          gender: m.gender,
+          address: m.address,
           birthCertificateUrl: m.birthCertificateUrl,
           bpjsCardUrl: m.bpjsCardUrl,
           bpjsCardNumber: m.bpjsCardNumber,
@@ -2119,17 +2131,33 @@ export async function fetchUktDashboardData(
     return {
       memberId: m.id,
       registrationId: reg?.id ? String(reg.id) : null,
-      photoUrl: memberUser?.user?.photoUrl ?? null,
+      photoUrl:
+        memberUser?.user?.photoUrl ??
+        (typeof (m as { photoUrl?: string | null }).photoUrl === "string"
+          ? (m as { photoUrl?: string | null }).photoUrl
+          : null) ??
+        null,
       nia: m.nia,
       fullName: m.fullName,
-      birthPlace: (memberData.birthPlace as string | null) ?? null,
-      birthDate: memberData.birthDate ? String(memberData.birthDate) : null,
-      gender: (memberData.gender as string | null) ?? null,
-      address: (memberData.address as string | null) ?? null,
+      birthPlace:
+        (memberData.birthPlace as string | null) ??
+        ((m as { birthPlace?: string | null }).birthPlace ?? null),
+      birthDate: memberData.birthDate
+        ? String(memberData.birthDate)
+        : ((m as { birthDate?: string | null }).birthDate ?? null),
+      gender:
+        (memberData.gender as string | null) ??
+        ((m as { gender?: string | null }).gender ?? null),
+      address:
+        (memberData.address as string | null) ??
+        ((m as { address?: string | null }).address ?? null),
       kyuLama,
       kyuBaru,
       memberCurrentRank: formatRankLabel(m.currentRank) || m.currentRank || null,
-      birthCertificateUrl: (memberData.birthCertificateUrl as string | null) ?? null,
+      birthCertificateUrl:
+        (memberData.birthCertificateUrl as string | null) ??
+        m.birthCertificateUrl ??
+        null,
       bpjsCardUrl: (memberData.bpjsCardUrl as string | null) ?? null,
       dojoName: m.dojo?.name ?? "—",
       dojoId: String((m as Record<string, unknown>).dojoId ?? ""),
@@ -2458,6 +2486,73 @@ export async function fetchUktTableRefreshSnapshot(
       photoUrl: member?.photoUrl ?? null,
       memberCurrentRank: formatRankLabel(memberRank) || memberRank || null,
     });
+  }
+
+  // Hydrate identitas Prisma untuk semua peserta (Tempat/TTL/JK/Alamat/Foto/dokumen).
+  // Inkai event detail sering tidak membawa field ini → Refresh tampil "-".
+  const hydrateIds = [
+    ...new Set(participants.map((p) => p.memberId).filter(Boolean)),
+  ].slice(0, 800);
+  if (hydrateIds.length > 0) {
+    const identityRows = await withPrismaFallback(
+      "ukt-refresh-identity",
+      () =>
+        prisma.member.findMany({
+          where: { id: { in: hydrateIds }, isDeleted: false },
+          select: {
+            id: true,
+            fullName: true,
+            nia: true,
+            currentRank: true,
+            dojoId: true,
+            birthPlace: true,
+            birthDate: true,
+            gender: true,
+            address: true,
+            birthCertificateUrl: true,
+            bpjsCardUrl: true,
+            dojo: { select: { name: true } },
+            user: { select: { photoUrl: true } },
+          },
+          take: 800,
+        }),
+      [] as Array<{
+        id: string;
+        fullName: string;
+        nia: string | null;
+        currentRank: string;
+        dojoId: string;
+        birthPlace: string | null;
+        birthDate: Date | null;
+        gender: string | null;
+        address: string | null;
+        birthCertificateUrl: string | null;
+        bpjsCardUrl: string | null;
+        dojo: { name: string } | null;
+        user: { photoUrl: string | null } | null;
+      }>,
+    );
+    const byId = new Map((identityRows.data ?? []).map((m) => [m.id, m]));
+    for (const p of participants) {
+      const m = byId.get(p.memberId);
+      if (!m) continue;
+      p.fullName = m.fullName || p.fullName;
+      p.nia = m.nia ?? p.nia ?? null;
+      p.dojoId = m.dojoId || p.dojoId || null;
+      p.dojoName = m.dojo?.name || p.dojoName || null;
+      p.photoUrl = m.user?.photoUrl ?? p.photoUrl ?? null;
+      p.memberCurrentRank =
+        formatRankLabel(m.currentRank) ||
+        m.currentRank ||
+        p.memberCurrentRank ||
+        null;
+      p.birthPlace = m.birthPlace;
+      p.birthDate = m.birthDate?.toISOString() ?? null;
+      p.gender = m.gender;
+      p.address = m.address;
+      p.birthCertificateUrl = m.birthCertificateUrl;
+      p.bpjsCardUrl = m.bpjsCardUrl;
+    }
   }
 
   return {

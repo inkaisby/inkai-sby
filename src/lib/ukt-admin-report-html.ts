@@ -4,7 +4,7 @@ import {
   formatRupiahNota,
   type BeltFeeKey,
 } from "@/lib/ukt";
-import { downloadPdfFromHtml } from "@/lib/ukt-print-html";
+import { openHtmlPrintWindow } from "@/lib/ukt-print-html";
 
 function escapeHtml(value: string): string {
   return value
@@ -273,42 +273,6 @@ export function buildUktAdminReportPrintHtml(data: UktAdminReportPrintData): str
 </html>`;
 }
 
-function openHtmlPrintWindow(html: string): void {
-  const iframe = document.createElement("iframe");
-  iframe.setAttribute("aria-hidden", "true");
-  iframe.style.cssText =
-    "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;";
-  document.body.appendChild(iframe);
-
-  const win = iframe.contentWindow;
-  const doc = win?.document;
-  if (!win || !doc) {
-    iframe.remove();
-    return;
-  }
-
-  doc.open();
-  doc.write(html);
-  doc.close();
-
-  const cleanup = () => {
-    setTimeout(() => iframe.remove(), 1000);
-  };
-
-  win.onafterprint = cleanup;
-  setTimeout(() => {
-    win.focus();
-    win.print();
-  }, 250);
-}
-
 export function printUktAdminReportDocument(data: UktAdminReportPrintData): void {
   openHtmlPrintWindow(buildUktAdminReportPrintHtml(data));
-}
-
-export async function downloadUktAdminReportPdf(
-  data: UktAdminReportPrintData,
-  filename = "perincian-administrasi-ukt.pdf",
-): Promise<void> {
-  await downloadPdfFromHtml(buildUktAdminReportPrintHtml(data), filename);
 }

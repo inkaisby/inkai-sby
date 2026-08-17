@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, Printer, Save } from "lucide-react";
+import { Printer, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,7 +26,6 @@ import {
   type UktSemester,
 } from "@/lib/ukt";
 import {
-  downloadUktAdminReportPdf,
   printUktAdminReportDocument,
   type UktAdminReportPrintData,
 } from "@/lib/ukt-admin-report-html";
@@ -121,7 +120,7 @@ export function UktAdminReportModal({
   const [bukuBaru, setBukuBaru] = useState("");
   const [bukuDipakai, setBukuDipakai] = useState("");
   const [bukuSisa, setBukuSisa] = useState("");
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const [printBusy, setPrintBusy] = useState(false);
   const [savingFees, setSavingFees] = useState(false);
 
   useEffect(() => {
@@ -228,28 +227,18 @@ export function UktAdminReportModal({
   };
 
   const handlePrint = async () => {
-    await persistPengprovFees();
-    printUktAdminReportDocument(buildPayload());
-  };
-
-  const handlePdf = async () => {
-    setPdfLoading(true);
+    if (printBusy) return;
+    setPrintBusy(true);
     try {
       await persistPengprovFees();
-      await downloadUktAdminReportPdf(
-        buildPayload(),
-        `perincian-administrasi-ukt-${semester}-${year}.pdf`,
-      );
-      showSuccess("PDF diunduh");
-    } catch {
-      showError("Gagal mengunduh PDF");
+      printUktAdminReportDocument(buildPayload());
     } finally {
-      setPdfLoading(false);
+      setTimeout(() => setPrintBusy(false), 1500);
     }
   };
 
   const headerActions = (
-    <div className="no-print grid grid-cols-1 gap-2 sm:grid-cols-3">
+    <div className="no-print grid grid-cols-1 gap-2 sm:grid-cols-2">
       <Button
         size="sm"
         variant="outline"
@@ -262,15 +251,10 @@ export function UktAdminReportModal({
       </Button>
       <Button
         size="sm"
-        variant="outline"
         className="w-full"
-        onClick={() => void handlePdf()}
-        disabled={pdfLoading}
+        onClick={() => void handlePrint()}
+        disabled={printBusy}
       >
-        <Download className="mr-1 h-4 w-4" />
-        {pdfLoading ? "PDF…" : "Unduh PDF"}
-      </Button>
-      <Button size="sm" className="w-full" onClick={() => void handlePrint()}>
         <Printer className="mr-1 h-4 w-4" />
         Print
       </Button>

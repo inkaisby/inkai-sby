@@ -83,6 +83,16 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  if (pathname.startsWith("/api/public/ukt")) {
+    const limit = await rateLimitAsync(`ukt-public-get:${ip}`, {
+      max: 90,
+      windowMs: 60_000,
+    });
+    if (!limit.success) {
+      return rateLimitResponse(limit.retryAfterSec ?? 60);
+    }
+  }
+
   if (
     request.method === "POST" &&
     (pathname.startsWith("/api/auth") || pathname === "/api/auth/register")

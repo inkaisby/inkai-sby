@@ -228,11 +228,36 @@ export function buildUktNotaPrintHtml(data: UktNotaPrintData): string {
 </html>`;
 }
 
+/** Cetak HTML lewat iframe off-screen — satu sesi, sapu orphan, Cancel tidak print lagi. */
+const PRINT_FRAME_ATTR = "data-inkai-print-frame";
+const PDF_FRAME_ATTR = "data-inkai-pdf-frame";
+
+let printSessionToken = 0;
+
+function sweepInkaiFrames(attr: string): void {
+  document
+    .querySelectorAll(`iframe[${attr}="1"]`)
+    .forEach((el) => {
+      try {
+        el.remove();
+      } catch {
+        /* ignore */
+      }
+    });
+}
+
 export function openHtmlPrintWindow(html: string): void {
+  // Batalkan sesi lama + sapu iframe cetak liar sebelum membuat yang baru.
+  printSessionToken += 1;
+  const session = printSessionToken;
+  sweepInkaiFrames(PRINT_FRAME_ATTR);
+
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
+  iframe.setAttribute(PRINT_FRAME_ATTR, "1");
+  // Off-screen (bukan display:none / 0×0) agar Safari/WebKit tetap mencetak.
   iframe.style.cssText =
-    "position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none;";
+    "position:fixed;left:-10000px;top:0;width:1024px;height:768px;border:0;opacity:0;pointer-events:none;";
   document.body.appendChild(iframe);
 
   const win = iframe.contentWindow;
@@ -246,24 +271,129 @@ export function openHtmlPrintWindow(html: string): void {
   doc.write(html);
   doc.close();
 
+  let printed = false;
+  let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+  let cleanupTimer: ReturnType<typeof setTimeout> | undefined;
+  let mediaQuery: MediaQueryList | null = null;
+  let onMediaChange: ((e: MediaQueryListEvent) => void) | null = null;
+
+  const isSessionAlive = () =>
+    session === printSessionToken && iframe.isConnected;
+
   const cleanup = () => {
-    setTimeout(() => iframe.remove(), 800);
+    if (fallbackTimer) {
+      clearTimeout(fallbackTimer);
+      fallbackTimer = undefined;
+    }
+    if (cleanupTimer) clearTimeout(cleanupTimer);
+    if (mediaQuery && onMediaChange) {
+      try {
+        mediaQuery.removeEventListener("change", onMediaChange);
+      } catch {
+        /* ignore */
+      }
+      mediaQuery = null;
+      onMediaChange = null;
+    }
+    try {
+      win.onafterprint = null;
+    } catch {
+      /* ignore */
+    }
+    cleanupTimer = setTimeout(() => {
+      try {
+        iframe.remove();
+      } catch {
+        /* ignore */
+      }
+    }, 800);
   };
 
   const doPrint = () => {
-    win.focus();
-    win.print();
-    cleanup();
+    if (printed || !isSessionAlive()) return;
+    printed = true;
+    if (fallbackTimer) {
+      clearTimeout(fallbackTimer);
+      fallbackTimer = undefined;
+    }
+
+    // afterprint / matchMedia: hapus iframe setelah dialog selesai (Cancel atau Print).
+    win.onafterprint = () => {
+      if (isSessionAlive()) cleanup();
+    };
+    try {
+      mediaQuery = win.matchMedia("print");
+      onMediaChange = (e: MediaQueryListEvent) => {
+        if (!e.matches && isSessionAlive()) cleanup();
+      };
+      mediaQuery.addEventListener("change", onMediaChange);
+    } catch {
+      /* ignore */
+    }
+    // Timeout aman jika browser tidak memicu afterprint.
+    setTimeout(() => {
+      if (isSessionAlive()) cleanup();
+    }, 60_000);
+
+    // setTimeout(0): jangan menumpuk print di stack click yang sama.
+    setTimeout(() => {
+      if (!isSessionAlive()) return;
+      try {
+        win.focus();
+        win.print();
+      } catch {
+        // Safari/WebKit: fallback popup hanya jika print() throw sebelum dialog.
+        try {
+          const blob = new Blob([html], { type: "text/html" });
+          const url = URL.createObjectURL(blob);
+          const popup = window.open(url, "_blank", "noopener,noreferrer");
+          if (popup) {
+            popup.onload = () => {
+              try {
+                popup.focus();
+                popup.print();
+              } catch {
+                /* ignore */
+              }
+              setTimeout(() => URL.revokeObjectURL(url), 2000);
+            };
+          } else {
+            URL.revokeObjectURL(url);
+          }
+        } catch {
+          /* ignore */
+        }
+        cleanup();
+      }
+    }, 0);
   };
 
-  const img = doc.querySelector("img");
-  if (img && !img.complete) {
-    img.addEventListener("load", () => setTimeout(doPrint, 80), { once: true });
-    img.addEventListener("error", () => setTimeout(doPrint, 80), { once: true });
-    setTimeout(doPrint, 1200);
-  } else {
-    setTimeout(doPrint, 120);
-  }
+  const waitImagesThenPrint = () => {
+    if (!isSessionAlive()) return;
+    const images = Array.from(doc.images);
+    if (images.length === 0) {
+      setTimeout(doPrint, 120);
+      return;
+    }
+    let pending = images.filter((img) => !img.complete).length;
+    if (pending === 0) {
+      setTimeout(doPrint, 80);
+      return;
+    }
+    const onDone = () => {
+      pending -= 1;
+      if (pending <= 0) setTimeout(doPrint, 80);
+    };
+    for (const img of images) {
+      if (img.complete) continue;
+      img.addEventListener("load", onDone, { once: true });
+      img.addEventListener("error", onDone, { once: true });
+    }
+    // Fallback jika load macet — tetap sekali saja berkat guard `printed` + session
+    fallbackTimer = setTimeout(doPrint, 2500);
+  };
+
+  waitImagesThenPrint();
 }
 
 export function printUktNotaDocument(data: UktNotaPrintData): void {
@@ -504,11 +634,14 @@ export async function downloadPdfFromHtml(
   filename: string,
   options?: DownloadPdfFromHtmlOptions,
 ): Promise<void> {
+  sweepInkaiFrames(PDF_FRAME_ATTR);
+
   const orientation = options?.orientation ?? "portrait";
   const iframeW = orientation === "landscape" ? "297mm" : "210mm";
   const iframeH = orientation === "landscape" ? "210mm" : "297mm";
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
+  iframe.setAttribute(PDF_FRAME_ATTR, "1");
   iframe.style.cssText =
     `position:fixed;left:-12000px;top:0;width:${iframeW};height:${iframeH};border:0;opacity:0;pointer-events:none;`;
   document.body.appendChild(iframe);
@@ -572,20 +705,10 @@ export async function downloadPdfFromHtml(
     const safeName = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
     pdf.save(safeName);
   } finally {
-    iframe.remove();
+    try {
+      iframe.remove();
+    } catch {
+      /* ignore */
+    }
   }
-}
-
-export async function downloadUktNotaPdf(
-  data: UktNotaPrintData,
-  filename = "nota-ukt.pdf",
-): Promise<void> {
-  await downloadPdfFromHtml(buildUktNotaPrintHtml(data), filename);
-}
-
-export async function downloadUktPesertaPdf(
-  data: UktPesertaPrintData,
-  filename = "daftar-peserta-ukt.pdf",
-): Promise<void> {
-  await downloadPdfFromHtml(buildUktPesertaPrintHtml(data), filename);
 }

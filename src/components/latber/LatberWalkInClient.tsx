@@ -152,8 +152,9 @@ export function LatberWalkInClient({
     qrisExpiresAtLabel: LATBER_PAYMENT.qrisExpiresAtLabel,
   };
 
-  const reload = useCallback(async () => {
-    setLoading(true);
+  const reload = useCallback(async (opts?: { silent?: boolean }) => {
+    const silent = Boolean(opts?.silent);
+    if (!silent) setLoading(true);
     try {
       const qs = initialPeriod
         ? `?period=${encodeURIComponent(initialPeriod)}`
@@ -167,14 +168,50 @@ export function LatberWalkInClient({
       setPeriod(pData);
       setRegistrants(rData.registrants ?? []);
     } catch {
-      showError("Gagal memuat data Latihan Bersama");
+      if (!silent) showError("Gagal memuat data Latihan Bersama");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [initialPeriod]);
 
   useEffect(() => {
     void reload();
+  }, [reload]);
+
+  // Poll senyap ~30s + refetch saat tab fokus; jeda saat tab tersembunyi.
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const POLL_MS = 30_000;
+
+    const start = () => {
+      if (timer) return;
+      timer = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          void reload({ silent: true });
+        }
+      }, POLL_MS);
+    };
+    const stop = () => {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void reload({ silent: true });
+        start();
+      } else {
+        stop();
+      }
+    };
+
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [reload]);
 
   const closeSummary = useCallback(() => {

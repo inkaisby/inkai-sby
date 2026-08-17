@@ -1,5 +1,4 @@
 import {
-  buildUktHasilUjianFilename,
   countUktHasilUjianRanting,
   countUktHasilUjianSabuk,
   formatUktExamDateLong,
@@ -9,10 +8,7 @@ import {
   type UktHasilUjianRecapRow,
   type UktSemester,
 } from "@/lib/ukt";
-import {
-  downloadPdfFromHtml,
-  openHtmlPrintWindow,
-} from "@/lib/ukt-print-html";
+import { openHtmlPrintWindow } from "@/lib/ukt-print-html";
 import { UKT_TTD_DEFAULT_PENGUJI_SLOTS } from "@/lib/ukt-ttd";
 
 export type UktHasilUjianPrintData = {
@@ -364,16 +360,4 @@ export function buildUktHasilUjianPrintHtml(data: UktHasilUjianPrintData): strin
 
 export function printUktHasilUjianDocument(data: UktHasilUjianPrintData): void {
   openHtmlPrintWindow(buildUktHasilUjianPrintHtml(data));
-}
-
-export async function downloadUktHasilUjianPdf(
-  data: UktHasilUjianPrintData,
-  filename?: string,
-): Promise<void> {
-  const name =
-    filename ||
-    buildUktHasilUjianFilename(data.semester, data.year, data.examAt, "pdf");
-  await downloadPdfFromHtml(buildUktHasilUjianPrintHtml(data), name, {
-    orientation: "landscape",
-  });
 }

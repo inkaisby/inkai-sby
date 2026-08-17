@@ -2414,7 +2414,7 @@ export function UktDashboard(props: Props) {
                   className={periodActionBtn}
                 >
                   <FileText className="mr-1 h-4 w-4" />
-                  Laporan
+                  Laporan/Rekapan
                 </Button>
                 <Button
                   variant="outline"
@@ -2523,7 +2523,7 @@ export function UktDashboard(props: Props) {
                   className={periodActionBtn}
                 >
                   <FileText className="mr-1 h-4 w-4" />
-                  Laporan
+                  Laporan/Rekapan
                 </Button>
                 <Button
                   variant="outline"

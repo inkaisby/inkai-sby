@@ -558,7 +558,7 @@ export type UktMemberRow = {
   registrationWaiver?: UktRegistrationWaiver | null;
 };
 
-/** Item snapshot refresh cepat — hanya field pendaftaran/tagihan periode. */
+/** Item snapshot refresh cepat — field pendaftaran/tagihan + identitas Prisma. */
 export type UktRegistrationSnapshotItem = {
   memberId: string;
   registrationId: string;
@@ -573,14 +573,30 @@ export type UktRegistrationSnapshotItem = {
   registrationWaiver: UktRegistrationWaiver | null;
   selfRegistration?: boolean;
   memberPaymentConfirmedAt?: string | null;
-  /** Identity untuk append peserta baru (registrants-first). */
+  /** Identity untuk append / hydrate peserta (registrants-first). */
   fullName?: string;
   nia?: string | null;
   dojoId?: string | null;
   dojoName?: string | null;
   photoUrl?: string | null;
   memberCurrentRank?: string | null;
+  birthPlace?: string | null;
+  birthDate?: string | null;
+  gender?: string | null;
+  address?: string | null;
+  birthCertificateUrl?: string | null;
+  bpjsCardUrl?: string | null;
 };
+
+function coalesceIdentity(
+  next: string | null | undefined,
+  prev: string | null | undefined,
+): string | null {
+  const n = typeof next === "string" ? next.trim() : "";
+  if (n) return next as string;
+  const p = typeof prev === "string" ? prev.trim() : "";
+  return p ? (prev as string) : null;
+}
 
 /**
  * Gabungkan snapshot registrasi ke baris yang sudah ada di UI.
@@ -628,6 +644,21 @@ export function applyUktRegistrationSnapshotToRows(
         p.memberPaymentConfirmedAt !== undefined
           ? p.memberPaymentConfirmedAt
           : r.memberPaymentConfirmedAt,
+      fullName: p.fullName?.trim() ? p.fullName : r.fullName,
+      nia: coalesceIdentity(p.nia, r.nia),
+      dojoId: p.dojoId?.trim() ? p.dojoId : r.dojoId,
+      dojoName: p.dojoName?.trim() ? p.dojoName : r.dojoName,
+      photoUrl: coalesceIdentity(p.photoUrl, r.photoUrl),
+      memberCurrentRank: coalesceIdentity(p.memberCurrentRank, r.memberCurrentRank),
+      birthPlace: coalesceIdentity(p.birthPlace, r.birthPlace),
+      birthDate: coalesceIdentity(p.birthDate, r.birthDate),
+      gender: coalesceIdentity(p.gender, r.gender),
+      address: coalesceIdentity(p.address, r.address),
+      birthCertificateUrl: coalesceIdentity(
+        p.birthCertificateUrl,
+        r.birthCertificateUrl,
+      ),
+      bpjsCardUrl: coalesceIdentity(p.bpjsCardUrl, r.bpjsCardUrl),
     };
   });
 
@@ -641,15 +672,15 @@ export function applyUktRegistrationSnapshotToRows(
       photoUrl: p.photoUrl ?? null,
       nia: p.nia ?? null,
       fullName: p.fullName || "Peserta",
-      birthPlace: null,
-      birthDate: null,
-      gender: null,
-      address: null,
+      birthPlace: p.birthPlace ?? null,
+      birthDate: p.birthDate ?? null,
+      gender: p.gender ?? null,
+      address: p.address ?? null,
       kyuLama: p.kyuLama?.trim() || "—",
       kyuBaru: p.kyuBaru,
       memberCurrentRank: p.memberCurrentRank ?? null,
-      birthCertificateUrl: null,
-      bpjsCardUrl: null,
+      birthCertificateUrl: p.birthCertificateUrl ?? null,
+      bpjsCardUrl: p.bpjsCardUrl ?? null,
       dojoName: p.dojoName || "—",
       dojoId: p.dojoId || "",
       status: p.status,
