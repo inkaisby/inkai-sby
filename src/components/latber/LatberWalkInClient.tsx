@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/table";
 import RegisterForm from "@/components/auth/RegisterForm";
 import { UktFloatingCountdown } from "@/components/admin/ukt/UktFloatingCountdown";
+import { RantingCheckboxFilter } from "@/components/public/RantingCheckboxFilter";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import {
   DEFAULT_LATBER_FEE,
@@ -45,6 +46,13 @@ import {
 } from "@/lib/latber";
 import { parseMemberCardScanPayload } from "@/lib/latber-card-scan";
 import { showError, showSuccess } from "@/lib/client-toast";
+import {
+  buildRantingOptions,
+  matchesRantingFilter,
+  matchesSearchFilter,
+  pruneSelectedRanting,
+  PUBLIC_STICKY_TOOLBAR_CLASS,
+} from "@/lib/public-ranting-filter";
 import { cn } from "@/lib/utils";
 
 type PeriodPayload = {
@@ -133,6 +141,9 @@ export function LatberWalkInClient({
     null,
   );
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [selectedRanting, setSelectedRanting] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const tableWrapRef = useRef<HTMLDivElement>(null);
@@ -315,43 +326,52 @@ export function LatberWalkInClient({
   );
 
   const filteredRows = useMemo(() => {
-    const q = searchQ.trim().toLowerCase();
-    if (q.length < 2) return registrants;
     return registrants.filter(
       (r) =>
-        r.fullName.toLowerCase().includes(q) ||
-        (r.nia?.toLowerCase().includes(q) ?? false) ||
-        r.dojoName.toLowerCase().includes(q),
+        matchesSearchFilter(searchQ, {
+          fullName: r.fullName,
+          nia: r.nia,
+          rantingName: r.dojoName,
+        }) && matchesRantingFilter(r.dojoName, selectedRanting),
     );
-  }, [registrants, searchQ]);
+  }, [registrants, searchQ, selectedRanting]);
+
+  const rantingOptions = useMemo(
+    () =>
+      buildRantingOptions(
+        registrants.map((r) => ({ rantingName: r.dojoName })),
+      ),
+    [registrants],
+  );
+
+  useEffect(() => {
+    setSelectedRanting((prev) => pruneSelectedRanting(prev, rantingOptions));
+  }, [rantingOptions]);
 
   const kpis = useMemo(() => {
     let belumBayar = 0;
     let menungguVerifikasi = 0;
     let lunas = 0;
-    for (const r of registrants) {
+    for (const r of filteredRows) {
       if (r.displayStatus === "belum_bayar") belumBayar += 1;
       else if (r.displayStatus === "menunggu_verifikasi") menungguVerifikasi += 1;
       else if (r.displayStatus === "lunas") lunas += 1;
     }
     return {
-      total: registrants.length,
+      total: filteredRows.length,
       belumBayar,
       menungguVerifikasi,
       lunas,
     };
-  }, [registrants]);
+  }, [filteredRows]);
 
-  const rantingKpis = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const r of registrants) {
-      const name = r.dojoName?.trim() || "—";
-      map.set(name, (map.get(name) ?? 0) + 1);
-    }
-    return Array.from(map.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "id"));
-  }, [registrants]);
+  const rantingKpis = useMemo(
+    () =>
+      buildRantingOptions(
+        registrants.map((r) => ({ rantingName: r.dojoName })),
+      ),
+    [registrants],
+  );
 
   const chartSegments = useMemo(() => {
     const total =
@@ -453,6 +473,14 @@ export function LatberWalkInClient({
     setSearchQ(s.fullName);
     setSuggestOpen(false);
     if (s.registered) {
+      if (s.dojoName?.trim()) {
+        const name = s.dojoName.trim();
+        setSelectedRanting((prev) => {
+          const next = new Set(prev);
+          next.add(name);
+          return next;
+        });
+      }
       setHighlightId(s.id);
       setTimeout(() => {
         document
@@ -600,6 +628,31 @@ export function LatberWalkInClient({
     }, 4000);
   }
 
+  function toggleRantingCard(name: string) {
+    setSelectedRanting((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
+  const hasSearch = searchQ.trim().length >= 2;
+  const hasRantingFilter = selectedRanting.size > 0;
+
+  function tableEmptyMessage(): string {
+    if (!period?.periodId) return "Tidak ada data.";
+    if (registrants.length === 0) {
+      return "Belum ada peserta. Cari nama atau scan kartu lalu daftar.";
+    }
+    if (hasSearch && hasRantingFilter) {
+      return "Tidak ada peserta cocok dengan cari dan filter ranting.";
+    }
+    if (hasRantingFilter) return "Tidak ada peserta di ranting terpilih.";
+    if (hasSearch) return "Tidak ada peserta cocok.";
+    return "Belum ada peserta. Cari nama atau scan kartu lalu daftar.";
+  }
+
   function renderInfoSection() {
     return (
       <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
@@ -634,6 +687,9 @@ export function LatberWalkInClient({
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Users className="h-4 w-4" />
               Peserta
+              {hasRantingFilter || hasSearch ? (
+                <span className="text-xs">(filter)</span>
+              ) : null}
             </div>
             <p className="mt-1 text-2xl font-semibold">{kpis.total}</p>
           </div>
@@ -663,7 +719,9 @@ export function LatberWalkInClient({
           </p>
           {kpis.total === 0 ? (
             <p className="mt-3 text-sm text-muted-foreground">
-              Belum ada peserta.
+              {hasRantingFilter || hasSearch
+                ? "Tidak ada peserta sesuai filter."
+                : "Belum ada peserta."}
             </p>
           ) : (
             <>
@@ -702,14 +760,25 @@ export function LatberWalkInClient({
               Peserta per ranting
             </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {rantingKpis.map((r) => (
-                <div key={r.name} className="rounded-xl border bg-card p-4">
-                  <p className="line-clamp-2 text-sm text-muted-foreground">
-                    {r.name}
-                  </p>
-                  <p className="mt-1 text-2xl font-semibold">{r.count}</p>
-                </div>
-              ))}
+              {rantingKpis.map((r) => {
+                const active = selectedRanting.has(r.name);
+                return (
+                  <button
+                    key={r.name}
+                    type="button"
+                    onClick={() => toggleRantingCard(r.name)}
+                    className={cn(
+                      "rounded-xl border bg-card p-4 text-left transition-colors hover:bg-muted/30",
+                      active && "ring-2 ring-inkai-red/40",
+                    )}
+                  >
+                    <p className="line-clamp-2 text-sm text-muted-foreground">
+                      {r.name}
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold">{r.count}</p>
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -748,22 +817,25 @@ export function LatberWalkInClient({
         ) : null}
       </header>
 
-      {period?.periodId && period.registrationCloseAt ? (
-        <UktFloatingCountdown
-          targetIso={period.registrationCloseAt}
-          className="w-full max-w-xl"
-        />
-      ) : null}
-
-      {/* Desktop: info + KPI di atas cari */}
+      {/* Desktop: info + KPI di atas sticky bar */}
       <div className="hidden space-y-6 md:block">
         {renderInfoSection()}
         {renderKpiSection()}
       </div>
 
-      <div className="space-y-2">
-        <div ref={searchWrapRef} className="flex flex-col gap-2 md:flex-row md:flex-wrap">
-          <div className="relative w-full md:min-w-0 md:flex-1">
+      <div className={PUBLIC_STICKY_TOOLBAR_CLASS}>
+        {period?.periodId && period.registrationCloseAt ? (
+          <UktFloatingCountdown
+            targetIso={period.registrationCloseAt}
+            compact
+            className="w-full md:max-w-xl"
+          />
+        ) : null}
+
+        <div className="space-y-2">
+          <div ref={searchWrapRef} className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+              <div className="relative min-w-0 w-full md:flex-1">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchQ}
@@ -833,8 +905,15 @@ export function LatberWalkInClient({
                 ))}
               </ul>
             ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
+              </div>
+              <RantingCheckboxFilter
+                options={rantingOptions}
+                selected={selectedRanting}
+                onChange={setSelectedRanting}
+                disabled={!periodId}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
@@ -875,29 +954,35 @@ export function LatberWalkInClient({
                 )}
               />
             </Button>
+            </div>
           </div>
+          {searchQ.trim().length >= 2 &&
+          !suggestLoading &&
+          suggestions.length === 0 &&
+          registrationOpen ? (
+            <p className="text-xs text-muted-foreground">
+              Nama tidak ditemukan —{" "}
+              <button
+                type="button"
+                className="font-medium text-inkai-red underline"
+                onClick={() => setShowAddModal(true)}
+              >
+                Tambah Anggota
+              </button>
+            </p>
+          ) : null}
+          {(hasSearch || hasRantingFilter) && filteredRows.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              {tableEmptyMessage()}
+            </p>
+          ) : null}
+          {registrationOpen ? (
+            <p className="text-xs text-muted-foreground">
+              Pilih saran lalu konfirmasi <b>Daftar</b>. Scan QR kartu tidak
+              mendaftarkan otomatis.
+            </p>
+          ) : null}
         </div>
-        {searchQ.trim().length >= 2 &&
-        !suggestLoading &&
-        suggestions.length === 0 &&
-        registrationOpen ? (
-          <p className="text-xs text-muted-foreground">
-            Nama tidak ditemukan —{" "}
-            <button
-              type="button"
-              className="font-medium text-inkai-red underline"
-              onClick={() => setShowAddModal(true)}
-            >
-              Tambah Anggota
-            </button>
-          </p>
-        ) : null}
-        {registrationOpen ? (
-          <p className="text-xs text-muted-foreground">
-            Pilih saran lalu konfirmasi <b>Daftar</b>. Scan QR kartu tidak
-            mendaftarkan otomatis.
-          </p>
-        ) : null}
       </div>
 
       {/* Mobile: panel ringkasan di bawah baris tombol */}
@@ -982,7 +1067,7 @@ export function LatberWalkInClient({
                   colSpan={8}
                   className="py-10 text-center text-muted-foreground"
                 >
-                  Belum ada peserta. Cari nama atau scan kartu lalu daftar.
+                  {tableEmptyMessage()}
                 </TableCell>
               </TableRow>
             ) : (

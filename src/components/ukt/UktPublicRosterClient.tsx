@@ -15,7 +15,15 @@ import {
 } from "@/components/ui/table";
 import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
 import { UktFloatingCountdown } from "@/components/admin/ukt/UktFloatingCountdown";
+import { RantingCheckboxFilter } from "@/components/public/RantingCheckboxFilter";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
+import {
+  buildRantingOptions,
+  matchesRantingFilter,
+  matchesSearchFilter,
+  pruneSelectedRanting,
+  PUBLIC_STICKY_TOOLBAR_CLASS,
+} from "@/lib/public-ranting-filter";
 import { cn } from "@/lib/utils";
 import type { UktDisplayStatus } from "@/lib/ukt";
 import type {
@@ -52,6 +60,29 @@ function statusBadgeClass(status: UktDisplayStatus): string {
   return map[status] ?? "bg-muted text-muted-foreground";
 }
 
+function computeKpis(rows: UktPublicRegistrant[]) {
+  let belumBayar = 0;
+  let menungguVerifikasi = 0;
+  let menungguUjian = 0;
+  let selesai = 0;
+  let lainnya = 0;
+  for (const r of rows) {
+    if (r.status === "belum_bayar") belumBayar += 1;
+    else if (r.status === "menunggu_verifikasi") menungguVerifikasi += 1;
+    else if (r.status === "menunggu_ujian") menungguUjian += 1;
+    else if (r.status === "selesai" || r.status === "lulus") selesai += 1;
+    else lainnya += 1;
+  }
+  return {
+    total: rows.length,
+    belumBayar,
+    menungguVerifikasi,
+    menungguUjian,
+    selesai,
+    lainnya,
+  };
+}
+
 export function UktPublicRosterClient() {
   const [period, setPeriod] = useState<UktPublicPeriod | null>(null);
   const [registrants, setRegistrants] = useState<UktPublicRegistrant[]>([]);
@@ -59,6 +90,9 @@ export function UktPublicRosterClient() {
   const [loadError, setLoadError] = useState(false);
   const [fetchFailed, setFetchFailed] = useState(false);
   const [searchQ, setSearchQ] = useState("");
+  const [selectedRanting, setSelectedRanting] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [summaryOpen, setSummaryOpen] = useState(false);
 
   const summaryPanelRef = useRef<HTMLDivElement>(null);
@@ -85,7 +119,6 @@ export function UktPublicRosterClient() {
       setFetchFailed(false);
     } catch {
       setFetchFailed(true);
-      /* poll senyap: jangan toast */
     } finally {
       if (!silent) setLoading(false);
     }
@@ -95,7 +128,6 @@ export function UktPublicRosterClient() {
     void reload();
   }, [reload]);
 
-  // Poll senyap ~30s + refetch saat tab fokus; jeda saat tab tersembunyi.
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -130,6 +162,18 @@ export function UktPublicRosterClient() {
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [reload]);
+
+  const rantingOptions = useMemo(
+    () =>
+      buildRantingOptions(
+        registrants.map((r) => ({ rantingName: r.ranting })),
+      ),
+    [registrants],
+  );
+
+  useEffect(() => {
+    setSelectedRanting((prev) => pruneSelectedRanting(prev, rantingOptions));
+  }, [rantingOptions]);
 
   const closeSummary = useCallback(() => {
     setSummaryOpen(false);
@@ -187,50 +231,35 @@ export function UktPublicRosterClient() {
     }, 4000);
   }
 
+  function toggleRantingCard(name: string) {
+    setSelectedRanting((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
+
   const filteredRows = useMemo(() => {
-    const q = searchQ.trim().toLowerCase();
-    if (q.length < 2) return registrants;
     return registrants.filter(
       (r) =>
-        r.fullName.toLowerCase().includes(q) ||
-        (r.nia?.toLowerCase().includes(q) ?? false) ||
-        r.ranting.toLowerCase().includes(q),
+        matchesSearchFilter(searchQ, {
+          fullName: r.fullName,
+          nia: r.nia,
+          rantingName: r.ranting,
+        }) && matchesRantingFilter(r.ranting, selectedRanting),
     );
-  }, [registrants, searchQ]);
+  }, [registrants, searchQ, selectedRanting]);
 
-  const kpis = useMemo(() => {
-    let belumBayar = 0;
-    let menungguVerifikasi = 0;
-    let menungguUjian = 0;
-    let selesai = 0;
-    let lainnya = 0;
-    for (const r of registrants) {
-      if (r.status === "belum_bayar") belumBayar += 1;
-      else if (r.status === "menunggu_verifikasi") menungguVerifikasi += 1;
-      else if (r.status === "menunggu_ujian") menungguUjian += 1;
-      else if (r.status === "selesai" || r.status === "lulus") selesai += 1;
-      else lainnya += 1;
-    }
-    return {
-      total: registrants.length,
-      belumBayar,
-      menungguVerifikasi,
-      menungguUjian,
-      selesai,
-      lainnya,
-    };
-  }, [registrants]);
+  const kpis = useMemo(() => computeKpis(filteredRows), [filteredRows]);
 
-  const rantingKpis = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const r of registrants) {
-      const name = r.ranting?.trim() || "—";
-      map.set(name, (map.get(name) ?? 0) + 1);
-    }
-    return Array.from(map.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "id"));
-  }, [registrants]);
+  const rantingKpis = useMemo(
+    () =>
+      buildRantingOptions(
+        registrants.map((r) => ({ rantingName: r.ranting })),
+      ),
+    [registrants],
+  );
 
   const chartSegments = useMemo(() => {
     const total = kpis.total || 1;
@@ -274,6 +303,19 @@ export function UktPublicRosterClient() {
   }, [kpis]);
 
   const titleLabel = period?.title?.trim() || "Pendaftaran UKT";
+  const hasSearch = searchQ.trim().length >= 2;
+  const hasRantingFilter = selectedRanting.size > 0;
+
+  function tableEmptyMessage(): string {
+    if (!period?.periodId) return "Tidak ada data.";
+    if (registrants.length === 0) return "Belum ada peserta terdaftar.";
+    if (hasSearch && hasRantingFilter) {
+      return "Tidak ada peserta cocok dengan cari dan filter ranting.";
+    }
+    if (hasRantingFilter) return "Tidak ada peserta di ranting terpilih.";
+    if (hasSearch) return "Tidak ada peserta cocok.";
+    return "Belum ada peserta terdaftar.";
+  }
 
   function renderKpiSection() {
     if (!period?.periodId) return null;
@@ -284,6 +326,9 @@ export function UktPublicRosterClient() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Users className="h-4 w-4" />
               Peserta
+              {hasRantingFilter || hasSearch ? (
+                <span className="text-xs">(filter)</span>
+              ) : null}
             </div>
             <p className="mt-1 text-2xl font-semibold">{kpis.total}</p>
           </div>
@@ -317,7 +362,9 @@ export function UktPublicRosterClient() {
           <p className="text-sm font-medium text-foreground">Status peserta</p>
           {kpis.total === 0 ? (
             <p className="mt-3 text-sm text-muted-foreground">
-              Belum ada peserta.
+              {hasRantingFilter || hasSearch
+                ? "Tidak ada peserta sesuai filter."
+                : "Belum ada peserta."}
             </p>
           ) : (
             <>
@@ -356,14 +403,25 @@ export function UktPublicRosterClient() {
               Peserta per ranting
             </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {rantingKpis.map((r) => (
-                <div key={r.name} className="rounded-xl border bg-card p-4">
-                  <p className="line-clamp-2 text-sm text-muted-foreground">
-                    {r.name}
-                  </p>
-                  <p className="mt-1 text-2xl font-semibold">{r.count}</p>
-                </div>
-              ))}
+              {rantingKpis.map((r) => {
+                const active = selectedRanting.has(r.name);
+                return (
+                  <button
+                    key={r.name}
+                    type="button"
+                    onClick={() => toggleRantingCard(r.name)}
+                    className={cn(
+                      "rounded-xl border bg-card p-4 text-left transition-colors hover:bg-muted/30",
+                      active && "ring-2 ring-inkai-red/40",
+                    )}
+                  >
+                    <p className="line-clamp-2 text-sm text-muted-foreground">
+                      {r.name}
+                    </p>
+                    <p className="mt-1 text-2xl font-semibold">{r.count}</p>
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -408,64 +466,73 @@ export function UktPublicRosterClient() {
         </p>
       </header>
 
-      {period?.periodId && period.registrationCloseAt ? (
-        <UktFloatingCountdown
-          targetIso={period.registrationCloseAt}
-          className="w-full max-w-xl"
-        />
-      ) : null}
-
       <div className="hidden space-y-6 md:block">{renderKpiSection()}</div>
 
-      <div className="space-y-2">
-        <div className="flex flex-col gap-2 md:flex-row md:flex-wrap">
-          <div className="relative w-full md:min-w-0 md:flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchQ}
-              disabled={!period?.periodId}
-              onChange={(e) => setSearchQ(e.target.value)}
-              placeholder="Cari nama, NIA, atau ranting…"
-              className="h-10 w-full pr-8 pl-9"
-              autoComplete="off"
-            />
-            {searchQ ? (
-              <button
-                type="button"
-                className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                onClick={() => setSearchQ("")}
-                aria-label="Hapus pencarian"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            ) : null}
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 md:hidden"
-            aria-expanded={summaryOpen}
-            aria-controls="ukt-summary-panel"
-            disabled={!period?.periodId}
-            onClick={() => {
-              if (summaryOpen) closeSummary();
-              else setSummaryOpen(true);
-            }}
-          >
-            Ringkasan
-            <ChevronDown
-              className={cn(
-                "ml-1 h-4 w-4 transition-transform",
-                summaryOpen && "rotate-180",
-              )}
-            />
-          </Button>
-        </div>
-        {searchQ.trim().length >= 2 && filteredRows.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            Tidak ada peserta cocok.
-          </p>
+      <div className={PUBLIC_STICKY_TOOLBAR_CLASS}>
+        {period?.periodId && period.registrationCloseAt ? (
+          <UktFloatingCountdown
+            targetIso={period.registrationCloseAt}
+            compact
+            className="w-full md:max-w-xl"
+          />
         ) : null}
+
+        <div className="space-y-2">
+          <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+            <div className="relative min-w-0 w-full md:flex-1">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQ}
+                disabled={!period?.periodId}
+                onChange={(e) => setSearchQ(e.target.value)}
+                placeholder="Cari nama, NIA, atau ranting…"
+                className="h-10 w-full pr-8 pl-9"
+                autoComplete="off"
+              />
+              {searchQ ? (
+                <button
+                  type="button"
+                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                  onClick={() => setSearchQ("")}
+                  aria-label="Hapus pencarian"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+            <RantingCheckboxFilter
+              options={rantingOptions}
+              selected={selectedRanting}
+              onChange={setSelectedRanting}
+              disabled={!period?.periodId}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 md:hidden"
+              aria-expanded={summaryOpen}
+              aria-controls="ukt-summary-panel"
+              disabled={!period?.periodId}
+              onClick={() => {
+                if (summaryOpen) closeSummary();
+                else setSummaryOpen(true);
+              }}
+            >
+              Ringkasan
+              <ChevronDown
+                className={cn(
+                  "ml-1 h-4 w-4 transition-transform",
+                  summaryOpen && "rotate-180",
+                )}
+              />
+            </Button>
+          </div>
+          {(hasSearch || hasRantingFilter) && filteredRows.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              {tableEmptyMessage()}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {summaryOpen ? (
@@ -509,11 +576,7 @@ export function UktPublicRosterClient() {
                   colSpan={8}
                   className="py-10 text-center text-muted-foreground"
                 >
-                  {period?.periodId
-                    ? searchQ.trim().length >= 2
-                      ? "Tidak ada peserta cocok."
-                      : "Belum ada peserta terdaftar."
-                    : "Tidak ada data."}
+                  {tableEmptyMessage()}
                 </TableCell>
               </TableRow>
             ) : (

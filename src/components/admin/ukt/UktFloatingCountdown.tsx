@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 type Props = {
   targetIso: string;
   className?: string;
+  /** Versi ringkas untuk sticky bar publik HP — tanpa ms, font lebih kecil. */
+  compact?: boolean;
 };
 
 type Remaining = {
@@ -43,22 +45,28 @@ function Unit({
   emergency,
   wide,
   valueRef,
+  compact,
 }: {
   value: string;
   label: string;
   emergency?: boolean;
   wide?: boolean;
   valueRef?: React.RefObject<HTMLSpanElement | null>;
+  compact?: boolean;
 }) {
   return (
     <div className="flex min-w-0 flex-col items-center gap-0.5 sm:gap-1">
       <span
         ref={valueRef}
         className={cn(
-          "rounded-md bg-background/80 px-1.5 py-1 font-mono text-lg font-semibold tabular-nums tracking-tight shadow-sm ring-1 ring-black/[0.04] sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-3xl",
-          wide
-            ? "min-w-[2.5rem] sm:min-w-[3.25rem]"
-            : "min-w-[2rem] sm:min-w-[2.75rem]",
+          "rounded-md bg-background/80 font-mono font-semibold tabular-nums tracking-tight shadow-sm ring-1 ring-black/[0.04]",
+          compact
+            ? "px-1 py-0.5 text-sm min-w-[1.75rem]"
+            : "px-1.5 py-1 text-lg sm:rounded-lg sm:px-2.5 sm:py-1.5 sm:text-3xl",
+          !compact &&
+            (wide
+              ? "min-w-[2.5rem] sm:min-w-[3.25rem]"
+              : "min-w-[2rem] sm:min-w-[2.75rem]"),
           emergency ? "text-inkai-red ring-inkai-red/20" : "text-foreground",
         )}
       >
@@ -66,7 +74,10 @@ function Unit({
       </span>
       <span
         className={cn(
-          "text-[9px] font-medium uppercase tracking-[0.14em] sm:text-[10px] sm:tracking-[0.16em]",
+          "font-medium uppercase tracking-[0.14em]",
+          compact
+            ? "text-[8px] tracking-[0.12em]"
+            : "text-[9px] sm:text-[10px] sm:tracking-[0.16em]",
           emergency ? "text-inkai-red/70" : "text-muted-foreground",
         )}
       >
@@ -76,11 +87,18 @@ function Unit({
   );
 }
 
-function Sep({ emergency }: { emergency?: boolean }) {
+function Sep({
+  emergency,
+  compact,
+}: {
+  emergency?: boolean;
+  compact?: boolean;
+}) {
   return (
     <span
       className={cn(
-        "mb-4 self-center text-base font-light sm:mb-5 sm:text-xl",
+        "self-center font-light",
+        compact ? "mb-3 text-sm" : "mb-4 text-base sm:mb-5 sm:text-xl",
         emergency ? "text-inkai-red/50" : "text-muted-foreground/40",
       )}
       aria-hidden
@@ -94,7 +112,11 @@ function Sep({ emergency }: { emergency?: boolean }) {
  * Timer batas pendaftaran — hari–detik via React state (~1 Hz),
  * milidetik via DOM ref (tanpa setState per frame).
  */
-export function UktFloatingCountdown({ targetIso, className }: Props) {
+export function UktFloatingCountdown({
+  targetIso,
+  className,
+  compact = false,
+}: Props) {
   const targetMs = new Date(targetIso).getTime();
   const [ready, setReady] = useState(false);
   const [expired, setExpired] = useState(false);
@@ -200,10 +222,17 @@ export function UktFloatingCountdown({ targetIso, className }: Props) {
 
   const emergency = !expired && parts.totalMs > 0 && parts.totalMs <= H2_MS;
 
+  const title = expired
+    ? "Pendaftaran ditutup"
+    : emergency
+      ? "H-2 · Batas hampir tutup"
+      : "Batas pendaftaran";
+
   return (
     <div
       className={cn(
-        "relative w-full min-w-0 overflow-hidden rounded-xl border px-3 py-2.5 sm:flex-1 sm:px-4 sm:py-3",
+        "relative w-full min-w-0 overflow-hidden rounded-xl border",
+        compact ? "px-2 py-1.5 sm:px-3 sm:py-2" : "px-3 py-2.5 sm:flex-1 sm:px-4 sm:py-3",
         emergency
           ? "ukt-timer-emergency border-inkai-red/40 bg-gradient-to-br from-inkai-red/10 via-background to-inkai-red/[0.06]"
           : "border-border/50 bg-gradient-to-br from-background via-muted/30 to-inkai-red/[0.03]",
@@ -224,7 +253,10 @@ export function UktFloatingCountdown({ targetIso, className }: Props) {
 
       <p
         className={cn(
-          "mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] sm:mb-2.5",
+          "font-semibold uppercase tracking-[0.18em]",
+          compact
+            ? "mb-1 text-[9px] tracking-[0.14em]"
+            : "mb-1.5 text-[10px] sm:mb-2.5",
           expired
             ? "text-muted-foreground"
             : emergency
@@ -232,34 +264,56 @@ export function UktFloatingCountdown({ targetIso, className }: Props) {
               : "text-muted-foreground",
         )}
       >
-        {expired
-          ? "Pendaftaran ditutup"
-          : emergency
-            ? "H-2 · Batas hampir tutup"
-            : "Batas pendaftaran"}
+        {title}
       </p>
 
-      <div className="flex flex-wrap items-end justify-center gap-1 sm:gap-2.5">
+      <div
+        className={cn(
+          "flex flex-wrap items-end justify-center",
+          compact ? "gap-0.5" : "gap-1 sm:gap-2.5",
+        )}
+      >
         <Unit
           value={pad(parts.days, parts.days >= 100 ? 3 : 2)}
           label="Hari"
           wide
           emergency={emergency}
+          compact={compact}
         />
-        <Sep emergency={emergency} />
-        <Unit value={pad(parts.hours)} label="Jam" emergency={emergency} />
-        <Sep emergency={emergency} />
-        <Unit value={pad(parts.minutes)} label="Menit" emergency={emergency} />
-        <Sep emergency={emergency} />
-        <Unit value={pad(parts.seconds)} label="Detik" emergency={emergency} />
-        <Sep emergency={emergency} />
+        <Sep emergency={emergency} compact={compact} />
         <Unit
-          value={pad(parts.ms, 3)}
-          label="ms"
-          wide
+          value={pad(parts.hours)}
+          label="Jam"
           emergency={emergency}
-          valueRef={msRef}
+          compact={compact}
         />
+        <Sep emergency={emergency} compact={compact} />
+        <Unit
+          value={pad(parts.minutes)}
+          label="Menit"
+          emergency={emergency}
+          compact={compact}
+        />
+        <Sep emergency={emergency} compact={compact} />
+        <Unit
+          value={pad(parts.seconds)}
+          label="Detik"
+          emergency={emergency}
+          compact={compact}
+        />
+        {!compact ? (
+          <>
+            <Sep emergency={emergency} compact={compact} />
+            <Unit
+              value={pad(parts.ms, 3)}
+              label="ms"
+              wide
+              emergency={emergency}
+              valueRef={msRef}
+              compact={compact}
+            />
+          </>
+        ) : null}
       </div>
     </div>
   );
