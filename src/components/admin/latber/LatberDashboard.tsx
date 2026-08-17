@@ -103,6 +103,27 @@ type LatberDashboardProps = {
   };
 };
 
+const FETCH_TIMEOUT_MS = 28_000;
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  timeoutMs = FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error("Permintaan timeout — coba lagi");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function StatusBadge({ row }: { row: LatberMemberRow }) {
   const status = resolveLatberDisplayStatus(row);
   const label = latberDisplayStatusLabel(status);
@@ -311,7 +332,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
     if (!props.selectedPeriodId) return;
     setPendingId(memberId);
     try {
-      const res = await fetch("/api/admin/latber/register", {
+      const res = await fetchWithTimeout("/api/admin/latber/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -408,7 +429,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
             memberId: member.id,
             periodId: props.selectedPeriodId!,
           });
-          const res = await fetch(`/api/admin/latber/members?${params}`);
+          const res = await fetchWithTimeout(`/api/admin/latber/members?${params}`);
           const data = await parseApiJson<{
             error?: string;
             latberRow?: LatberMemberRow & {
@@ -1008,7 +1029,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
                                 disabled={busy}
                                 onClick={() => handleRegister(row.memberId)}
                               >
-                                Daftar
+                                {busy ? "Mendaftar…" : "Daftar"}
                               </Button>
                             )}
                             {(status === "menunggu_terima_ranting" ||

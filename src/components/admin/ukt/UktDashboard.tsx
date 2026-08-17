@@ -301,6 +301,11 @@ type Props = {
 
 const PAGE_SIZES = [25, 50, 100] as const;
 
+const UKT_NAME_STICKY_HEAD =
+  "sticky left-0 z-20 min-w-[9rem] bg-muted/50 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)]";
+const UKT_NAME_STICKY_CELL =
+  "sticky left-0 z-10 min-w-[9rem] max-w-[11rem] bg-background shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)] group-hover:bg-muted/30";
+
 function formatDate(d: string | null) {
   if (!d) return "-";
   return new Date(d).toLocaleDateString("id-ID", {
@@ -3558,7 +3563,7 @@ export function UktDashboard(props: Props) {
       ) : null}
 
       {/* Table */}
-      <div className="mt-2 overflow-x-auto rounded-xl border shadow-sm">
+      <div className="mt-2 rounded-xl border shadow-sm">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
@@ -3587,6 +3592,7 @@ export function UktDashboard(props: Props) {
                 activeKey={sort.key}
                 activeDir={sort.dir}
                 onSort={handleSort}
+                className={UKT_NAME_STICKY_HEAD}
               />
               {!compactView && !isDojoAdmin && (
                 <>
@@ -3764,10 +3770,11 @@ export function UktDashboard(props: Props) {
                       row.nia || "-"
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className={UKT_NAME_STICKY_CELL}>
                     <button
                       type="button"
-                      className="text-left font-medium text-inkai-red hover:underline"
+                      className="max-w-full truncate text-left font-medium text-inkai-red hover:underline"
+                      title={row.fullName}
                       onClick={() => {
                         setSelectedMember(row);
                         loadMemberHistory(row.memberId);

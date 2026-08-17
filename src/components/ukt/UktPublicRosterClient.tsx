@@ -29,6 +29,11 @@ type Payload = {
   loadError?: boolean;
 };
 
+const UKT_NAME_STICKY_HEAD =
+  "sticky left-0 z-20 min-w-[9rem] bg-muted/50 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)]";
+const UKT_NAME_STICKY_CELL =
+  "sticky left-0 z-10 min-w-[9rem] max-w-[11rem] truncate bg-card font-medium shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]";
+
 const POLL_MS = 30_000;
 
 function statusBadgeClass(status: UktDisplayStatus): string {
@@ -474,14 +479,14 @@ export function UktPublicRosterClient() {
         </div>
       ) : null}
 
-      <div ref={tableWrapRef} className="overflow-x-auto rounded-xl border bg-card">
+      <div ref={tableWrapRef} className="rounded-xl border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-12">No</TableHead>
               <TableHead className="w-14">Foto</TableHead>
               <TableHead>NIA</TableHead>
-              <TableHead>Nama Lengkap</TableHead>
+              <TableHead className={UKT_NAME_STICKY_HEAD}>Nama Lengkap</TableHead>
               <TableHead>Kyu Lama</TableHead>
               <TableHead>Kyu Baru</TableHead>
               <TableHead>Ranting</TableHead>
@@ -528,7 +533,7 @@ export function UktPublicRosterClient() {
                   <TableCell className="font-mono text-xs">
                     {row.nia || "—"}
                   </TableCell>
-                  <TableCell className="font-medium">
+                  <TableCell className={UKT_NAME_STICKY_CELL} title={row.fullName}>
                     {formatMemberName(row.fullName)}
                   </TableCell>
                   <TableCell>

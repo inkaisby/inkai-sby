@@ -85,6 +85,11 @@ type Suggestion = {
 
 const WA_ADMIN = "6281331053100";
 
+const LATBER_NAME_STICKY_HEAD =
+  "sticky left-0 z-20 min-w-[9rem] bg-muted/50 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)]";
+const LATBER_NAME_STICKY_CELL =
+  "sticky left-0 z-10 min-w-[9rem] max-w-[11rem] truncate bg-background font-medium shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]";
+
 function buildBatalWaUrl(nama: string, ranting: string) {
   const text = `batal ikut latber ${nama}, ${ranting}`;
   return `https://wa.me/${WA_ADMIN}?text=${encodeURIComponent(text)}`;
@@ -953,7 +958,7 @@ export function LatberWalkInClient({
             <TableRow className="bg-muted/50">
               <TableHead className="w-10">No</TableHead>
               <TableHead>NIA</TableHead>
-              <TableHead>Nama</TableHead>
+              <TableHead className={LATBER_NAME_STICKY_HEAD}>Nama</TableHead>
               <TableHead>Ranting</TableHead>
               <TableHead>Sabuk</TableHead>
               <TableHead>Biaya</TableHead>
@@ -991,7 +996,13 @@ export function LatberWalkInClient({
                 >
                   <TableCell>{i + 1}</TableCell>
                   <TableCell>{row.nia || "—"}</TableCell>
-                  <TableCell className="font-medium">
+                  <TableCell
+                    className={cn(
+                      LATBER_NAME_STICKY_CELL,
+                      highlightId === row.memberId && "bg-inkai-red/5",
+                    )}
+                    title={row.fullName}
+                  >
                     {formatMemberName(row.fullName)}
                   </TableCell>
                   <TableCell>{row.dojoName}</TableCell>
