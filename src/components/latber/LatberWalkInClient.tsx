@@ -34,6 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import RegisterForm from "@/components/auth/RegisterForm";
+import { UktFloatingCountdown } from "@/components/admin/ukt/UktFloatingCountdown";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import {
   DEFAULT_LATBER_FEE,
@@ -741,6 +742,13 @@ export function LatberWalkInClient({
           </p>
         ) : null}
       </header>
+
+      {period?.periodId && period.registrationCloseAt ? (
+        <UktFloatingCountdown
+          targetIso={period.registrationCloseAt}
+          className="w-full max-w-xl"
+        />
+      ) : null}
 
       {/* Desktop: info + KPI di atas cari */}
       <div className="hidden space-y-6 md:block">

@@ -8,6 +8,7 @@ import {
   buildUktExamResultMap,
   currentSemester,
   findUktPeriodForTerm,
+  getUktRegistrationDeadline,
   isUktPeriodActiveView,
   parseUktPeriodMetaValue,
   resolveUktDisplayStatus,
@@ -28,6 +29,7 @@ export type UktPublicPeriod = {
   year: number | null;
   examAt: string | null;
   examLocation: string | null;
+  registrationCloseAt: string | null;
   archived: boolean;
   locked: boolean;
 };
@@ -320,6 +322,7 @@ export function buildUktPublicPayload(args: {
         year: null,
         examAt: null,
         examLocation: null,
+        registrationCloseAt: null,
         archived: false,
         locked: false,
       },
@@ -329,6 +332,12 @@ export function buildUktPublicPayload(args: {
   }
 
   const parsed = period.title.match(/semester\s*(I|II)\s*[-/]\s*(\d{4})/i);
+  const registrationCloseAt = getUktRegistrationDeadline({
+    startDate: period.startDate,
+    endDate: period.endDate,
+    registrationCloseAt: period.registrationCloseAt,
+    registrationOpenAt: meta.registrationOpenAt ?? null,
+  }).toISOString();
   return {
     period: {
       periodId: period.id,
@@ -337,6 +346,7 @@ export function buildUktPublicPayload(args: {
       year: parsed?.[2] ? parseInt(parsed[2], 10) : null,
       examAt: meta.examAt ?? null,
       examLocation: meta.examLocation ?? null,
+      registrationCloseAt,
       archived: Boolean(meta.archived),
       locked: Boolean(meta.locked),
     },

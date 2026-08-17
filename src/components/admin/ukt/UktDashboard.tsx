@@ -13,6 +13,7 @@ import {
   MessageCircle,
   Printer,
   FileText,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   UserPlus,
@@ -74,6 +75,7 @@ import { UktSearchBar } from "@/components/admin/ukt/UktSearchBar";
 import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
 import dynamic from "next/dynamic";
 import { buildUktInviteUrl } from "@/lib/ukt-invite";
+import { cn } from "@/lib/utils";
 
 const UktPrintModal = dynamic(
   () =>
@@ -444,6 +446,7 @@ export function UktDashboard(props: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [printOnlySelected, setPrintOnlySelected] = useState(false);
   const [compactView, setCompactView] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const [alurOpen, setAlurOpen] = useState(false);
   const [jadwalOpen, setJadwalOpen] = useState(true);
   const [showExamDay, setShowExamDay] = useState(false);
@@ -510,6 +513,17 @@ export function UktDashboard(props: Props) {
   useEffect(() => {
     if (isDojoAdmin) setCompactView(true);
   }, [isDojoAdmin]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 639px)");
+    const syncCompact = () => {
+      if (mq.matches) setCompactView(true);
+    };
+    syncCompact();
+    mq.addEventListener("change", syncCompact);
+    return () => mq.removeEventListener("change", syncCompact);
+  }, []);
 
   useEffect(() => {
     setBeltFees(props.beltFees);
@@ -1123,6 +1137,12 @@ export function UktDashboard(props: Props) {
       !filter || filter === "all" || localView === filter ? "" : filter;
     setLocalView(next);
     setLocalPage(1);
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 639px)").matches
+    ) {
+      setSummaryOpen(false);
+    }
   };
 
   const selectedUnpaidCount = useMemo(
@@ -2292,6 +2312,28 @@ export function UktDashboard(props: Props) {
     toast.success("WhatsApp dibuka — bagikan undangan UKT");
   };
 
+  const pendingDepositCount = useMemo(() => {
+    if (!isCabang || !props.selectedPeriodId) return 0;
+    return props.dojos.filter((d) => {
+      const hasParticipants = rows.some(
+        (r) => r.dojoId === d.id && r.registrationId,
+      );
+      if (!hasParticipants) return false;
+      const status = depositMap[d.id]?.status ?? "PENDING";
+      return status !== "RECEIVED";
+    }).length;
+  }, [isCabang, props.selectedPeriodId, props.dojos, rows, depositMap]);
+
+  const hasActiveFilters = Boolean(
+    localQ.trim() ||
+      localStatus ||
+      localView ||
+      (localDojo &&
+        localDojo !== (isDojoAdmin ? "" : props.defaultDojoFilter || "")),
+  );
+
+  const summaryPanelClass = summaryOpen ? "block" : "hidden sm:block";
+
   const kpiCards = [
     {
       label: "Peserta",
@@ -2375,6 +2417,131 @@ export function UktDashboard(props: Props) {
                 className="w-full sm:min-w-[min(100%,18rem)] sm:max-w-xl"
               />
             )}
+          {props.selectedPeriodId && !props.createMode ? (
+            <div className="flex w-full gap-2 sm:hidden">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 min-h-10 flex-1"
+                aria-expanded={summaryOpen}
+                aria-controls="ukt-admin-summary-panel"
+                onClick={() => setSummaryOpen((v) => !v)}
+              >
+                Ringkasan
+                {isCabang && pendingDepositCount > 0 ? (
+                  <Badge
+                    variant="destructive"
+                    className="ml-1.5 h-5 min-w-5 rounded-full px-1 text-[10px]"
+                  >
+                    {pendingDepositCount}
+                  </Badge>
+                ) : null}
+                <ChevronDown
+                  className={cn(
+                    "ml-1 h-4 w-4 shrink-0 transition-transform",
+                    summaryOpen && "rotate-180",
+                  )}
+                />
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    aria-label="Aksi lainnya"
+                    className="h-10 min-h-10 flex-1"
+                  >
+                    <MoreHorizontal className="mr-1 h-4 w-4" />
+                    Lainnya
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="max-h-[min(24rem,70vh)] min-w-48 overflow-y-auto"
+                >
+                  {isCabang && props.selectedPeriodId && (
+                    <DropdownMenuItem
+                      onClick={() => setShowExamDay(true)}
+                      disabled={periodLocked}
+                    >
+                      <ClipboardCheck className="h-4 w-4" />
+                      Hari-H
+                    </DropdownMenuItem>
+                  )}
+                  {(isCabang || isDojoAdmin) && (
+                    <DropdownMenuItem onClick={() => openReportsHub()}>
+                      <FileText className="h-4 w-4" />
+                      Laporan/Rekapan
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={buildWaReport}>
+                    <MessageCircle className="h-4 w-4" />
+                    Laporan WA
+                  </DropdownMenuItem>
+                  {props.selectedPeriodId && (
+                    <>
+                      <DropdownMenuItem onClick={() => void copyInviteLink()}>
+                        <Link2 className="h-4 w-4" />
+                        Salin Undangan
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={shareInviteWa}>
+                        <Share2 className="h-4 w-4" />
+                        WA Undangan
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuItem onClick={() => openPrintNota(false)}>
+                    <Printer className="h-4 w-4" />
+                    Cetak Nota
+                  </DropdownMenuItem>
+                  {isCabang && viewMode === "registration" && (
+                    <DropdownMenuItem
+                      onClick={() => router.push("/admin/pengaturan/ukt")}
+                    >
+                      <Settings2 className="h-4 w-4" />
+                      Syarat UKT
+                    </DropdownMenuItem>
+                  )}
+                  {isCabang && props.selectedPeriodId && (
+                    <DropdownMenuItem onClick={() => setEditingTitle(true)}>
+                      <Pencil className="h-4 w-4" />
+                      Ubah judul
+                    </DropdownMenuItem>
+                  )}
+                  {isCabang && props.selectedPeriodId && (
+                    <DropdownMenuItem
+                      onClick={openBeltFeesDialog}
+                      disabled={periodLocked}
+                    >
+                      <Wallet className="h-4 w-4" />
+                      Biaya Sabuk
+                    </DropdownMenuItem>
+                  )}
+                  {isCabang && props.selectedPeriodId && (
+                    <>
+                      <DropdownMenuSeparator />
+                      {periodLocked ? (
+                        <DropdownMenuItem
+                          onClick={() => void handlePeriodArchive(false)}
+                          disabled={loading}
+                        >
+                          <Archive className="h-4 w-4" />
+                          Buka arsip
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          onClick={() => void handlePeriodArchive(true)}
+                          disabled={loading}
+                        >
+                          <Archive className="h-4 w-4" />
+                          Arsipkan
+                        </DropdownMenuItem>
+                      )}
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : null}
           <div className="grid w-full grid-cols-2 gap-2 sm:ml-auto sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             {selectablePeriodsForTerm.length > 1 && (
               <Select
@@ -2439,7 +2606,7 @@ export function UktDashboard(props: Props) {
                 variant="outline"
                 onClick={() => setShowExamDay(true)}
                 disabled={periodLocked}
-                className={periodActionBtn}
+                className={`hidden sm:inline-flex ${periodActionBtn}`}
               >
                 <ClipboardCheck className="mr-1 h-4 w-4" />
                 Hari-H
@@ -2450,7 +2617,7 @@ export function UktDashboard(props: Props) {
                 <Button
                   variant="outline"
                   onClick={() => openReportsHub()}
-                  className={periodActionBtn}
+                  className={`hidden sm:inline-flex ${periodActionBtn}`}
                 >
                   <FileText className="mr-1 h-4 w-4" />
                   Laporan/Rekapan
@@ -2458,7 +2625,7 @@ export function UktDashboard(props: Props) {
                 <Button
                   variant="outline"
                   onClick={buildWaReport}
-                  className={periodActionBtn}
+                  className={`hidden sm:inline-flex ${periodActionBtn}`}
                 >
                   <MessageCircle className="mr-1 h-4 w-4" />
                   Laporan WA
@@ -2468,7 +2635,7 @@ export function UktDashboard(props: Props) {
                     <Button
                       variant="outline"
                       onClick={() => void copyInviteLink()}
-                      className={periodActionBtn}
+                      className={`hidden sm:inline-flex ${periodActionBtn}`}
                     >
                       <Link2 className="mr-1 h-4 w-4" />
                       Salin Undangan
@@ -2476,7 +2643,7 @@ export function UktDashboard(props: Props) {
                     <Button
                       variant="outline"
                       onClick={shareInviteWa}
-                      className={periodActionBtn}
+                      className={`hidden sm:inline-flex ${periodActionBtn}`}
                     >
                       <Share2 className="mr-1 h-4 w-4" />
                       WA Undangan
@@ -2486,7 +2653,7 @@ export function UktDashboard(props: Props) {
                 <Button
                   variant="outline"
                   onClick={() => openPrintNota(false)}
-                  className={periodActionBtn}
+                  className={`hidden sm:inline-flex ${periodActionBtn}`}
                 >
                   <Printer className="mr-1 h-4 w-4" />
                   Cetak Nota
@@ -2497,13 +2664,16 @@ export function UktDashboard(props: Props) {
                       <Button
                         variant="outline"
                         aria-label="Aksi lainnya"
-                        className={periodActionBtn}
+                        className={`hidden sm:inline-flex ${periodActionBtn}`}
                       >
                         <MoreHorizontal className="mr-1 h-4 w-4" />
                         Lainnya
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-48">
+                    <DropdownMenuContent
+                      align="end"
+                      className="max-h-[min(24rem,70vh)] min-w-48 overflow-y-auto"
+                    >
                       {viewMode === "registration" && (
                         <DropdownMenuItem
                           onClick={() => router.push("/admin/pengaturan/ukt")}
@@ -2559,7 +2729,7 @@ export function UktDashboard(props: Props) {
                 <Button
                   variant="outline"
                   onClick={() => openReportsHub()}
-                  className={periodActionBtn}
+                  className={`hidden sm:inline-flex ${periodActionBtn}`}
                 >
                   <FileText className="mr-1 h-4 w-4" />
                   Laporan/Rekapan
@@ -2567,7 +2737,7 @@ export function UktDashboard(props: Props) {
                 <Button
                   variant="outline"
                   onClick={buildWaReport}
-                  className={periodActionBtn}
+                  className={`hidden sm:inline-flex ${periodActionBtn}`}
                 >
                   <MessageCircle className="mr-1 h-4 w-4" />
                   Laporan WA
@@ -2575,7 +2745,7 @@ export function UktDashboard(props: Props) {
                 <Button
                   variant="outline"
                   onClick={() => void copyInviteLink()}
-                  className={periodActionBtn}
+                  className={`hidden sm:inline-flex ${periodActionBtn}`}
                 >
                   <Link2 className="mr-1 h-4 w-4" />
                   Salin Undangan
@@ -2583,7 +2753,7 @@ export function UktDashboard(props: Props) {
                 <Button
                   variant="outline"
                   onClick={shareInviteWa}
-                  className={periodActionBtn}
+                  className={`hidden sm:inline-flex ${periodActionBtn}`}
                 >
                   <Share2 className="mr-1 h-4 w-4" />
                   WA Undangan
@@ -2591,7 +2761,7 @@ export function UktDashboard(props: Props) {
                 <Button
                   variant="outline"
                   onClick={() => openPrintNota(false)}
-                  className={periodActionBtn}
+                  className={`hidden sm:inline-flex ${periodActionBtn}`}
                 >
                   <Printer className="mr-1 h-4 w-4" />
                   Cetak Nota
@@ -2603,7 +2773,7 @@ export function UktDashboard(props: Props) {
                 <Button
                   variant="outline"
                   onClick={buildWaReport}
-                  className={periodActionBtn}
+                  className={`hidden sm:inline-flex ${periodActionBtn}`}
                 >
                   <MessageCircle className="mr-1 h-4 w-4" />
                   Laporan WA
@@ -2613,7 +2783,7 @@ export function UktDashboard(props: Props) {
                     <Button
                       variant="outline"
                       onClick={() => void copyInviteLink()}
-                      className={periodActionBtn}
+                      className={`hidden sm:inline-flex ${periodActionBtn}`}
                     >
                       <Link2 className="mr-1 h-4 w-4" />
                       Salin Undangan
@@ -2621,7 +2791,7 @@ export function UktDashboard(props: Props) {
                     <Button
                       variant="outline"
                       onClick={shareInviteWa}
-                      className={periodActionBtn}
+                      className={`hidden sm:inline-flex ${periodActionBtn}`}
                     >
                       <Share2 className="mr-1 h-4 w-4" />
                       WA Undangan
@@ -2631,7 +2801,7 @@ export function UktDashboard(props: Props) {
                 <Button
                   variant="outline"
                   onClick={() => openPrintNota(false)}
-                  className={periodActionBtn}
+                  className={`hidden sm:inline-flex ${periodActionBtn}`}
                 >
                   <Printer className="mr-1 h-4 w-4" />
                   Cetak Nota
@@ -2675,113 +2845,6 @@ export function UktDashboard(props: Props) {
             </span>
           </CardContent>
         </Card>
-      )}
-
-      {props.selectedPeriodId && selectedPeriod && (
-        <details
-          className="rounded-xl border border-muted bg-card"
-          open={jadwalOpen}
-          onToggle={(e) => setJadwalOpen((e.target as HTMLDetailsElement).open)}
-        >
-          <summary className="cursor-pointer list-none px-4 py-3 marker:content-none [&::-webkit-details-marker]:hidden">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <CalendarClock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  Jadwal periode
-                </span>
-              </div>
-              <span className="text-xs font-normal text-muted-foreground sm:hidden">
-                {jadwalOpen ? "Sembunyikan" : "Tampilkan"}
-              </span>
-            </div>
-            {!jadwalOpen && (
-              <p className="mt-1.5 text-sm font-medium text-foreground sm:hidden">
-                Batas:{" "}
-                {registrationDeadlineIso
-                  ? formatUktRegistrationDeadline(registrationDeadlineIso)
-                  : "—"}
-                {registrationOpen ? " · terbuka" : ""}
-              </p>
-            )}
-          </summary>
-          <div className="border-t px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Buka pendaftaran</p>
-                <p className="text-base font-semibold tracking-tight text-foreground">
-                  {registrationOpenIso
-                    ? formatUktRegistrationDeadline(registrationOpenIso)
-                    : "—"}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xs text-muted-foreground">Batas pendaftaran</p>
-                  <Badge
-                    variant={registrationOpen ? "default" : "secondary"}
-                    className={registrationOpen ? "ukt-open-badge gap-1.5" : undefined}
-                  >
-                    {registrationOpen && (
-                      <span className="ukt-open-badge-dot" aria-hidden />
-                    )}
-                    {registrationOpen
-                      ? "Masih terbuka"
-                      : registrationNotYetOpen
-                        ? "Belum dibuka"
-                        : "Sudah tutup"}
-                  </Badge>
-                  {isCabang && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-7 px-2"
-                      onClick={openRegistrationDeadlineDialog}
-                      disabled={loading}
-                    >
-                      <Pencil className="mr-1 h-3 w-3" />
-                      Atur
-                    </Button>
-                  )}
-                </div>
-                <p className="text-base font-semibold tracking-tight text-foreground">
-                  {registrationDeadlineIso
-                    ? formatUktRegistrationDeadline(registrationDeadlineIso)
-                    : "—"}
-                </p>
-              </div>
-              {(periodMeta?.examAt || periodMeta?.examLocation) && (
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Ujian</p>
-                  <p className="text-base font-semibold tracking-tight text-foreground">
-                    {periodMeta?.examAt
-                      ? formatUktRegistrationDeadline(periodMeta.examAt)
-                      : "—"}
-                  </p>
-                  {periodMeta?.examLocation ? (
-                    <p className="text-xs leading-relaxed text-muted-foreground">
-                      {periodMeta.examLocation}
-                    </p>
-                  ) : null}
-                </div>
-              )}
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Pejabat</p>
-                <p className="text-sm font-medium text-foreground">
-                  Bidang Ujian{" "}
-                  <span className="font-semibold">{periodOfficers.bidangUjianName}</span>
-                </p>
-                <p className="text-sm font-medium text-foreground">
-                  Bendahara{" "}
-                  <span className="font-semibold">
-                    {periodOfficers.bendaharaCabangName}
-                  </span>
-                </p>
-              </div>
-            </div>
-          </div>
-        </details>
       )}
 
       {props.selectedPeriodId && !registrationOpen && (
@@ -2925,6 +2988,139 @@ export function UktDashboard(props: Props) {
         </Card>
       )}
 
+      {props.dbError && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>{props.dbError}</span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void requestServerRowsSync()}
+              disabled={tableRefreshing}
+            >
+              <RefreshCw
+                className={`mr-1 h-4 w-4 ${tableRefreshing ? "animate-spin" : ""}`}
+              />
+              {tableRefreshing ? "Memuat…" : "Muat Ulang"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <div
+        id="ukt-admin-summary-panel"
+        className={cn("space-y-4", summaryPanelClass)}
+      >
+      {props.selectedPeriodId && selectedPeriod && (
+        <details
+          className="rounded-xl border border-muted bg-card"
+          open={summaryOpen || jadwalOpen}
+          onToggle={(e) => setJadwalOpen((e.target as HTMLDetailsElement).open)}
+        >
+          <summary className="cursor-pointer list-none px-4 py-3 marker:content-none [&::-webkit-details-marker]:hidden">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  Jadwal periode
+                </span>
+              </div>
+              <span className="text-xs font-normal text-muted-foreground sm:hidden">
+                {(summaryOpen || jadwalOpen) ? "Sembunyikan" : "Tampilkan"}
+              </span>
+            </div>
+            {!(summaryOpen || jadwalOpen) && (
+              <p className="mt-1.5 text-sm font-medium text-foreground sm:hidden">
+                Batas:{" "}
+                {registrationDeadlineIso
+                  ? formatUktRegistrationDeadline(registrationDeadlineIso)
+                  : "—"}
+                {registrationOpen ? " · terbuka" : ""}
+              </p>
+            )}
+          </summary>
+          <div className="border-t px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Buka pendaftaran</p>
+                <p className="text-base font-semibold tracking-tight text-foreground">
+                  {registrationOpenIso
+                    ? formatUktRegistrationDeadline(registrationOpenIso)
+                    : "—"}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs text-muted-foreground">Batas pendaftaran</p>
+                  <Badge
+                    variant={registrationOpen ? "default" : "secondary"}
+                    className={registrationOpen ? "ukt-open-badge gap-1.5" : undefined}
+                  >
+                    {registrationOpen && (
+                      <span className="ukt-open-badge-dot" aria-hidden />
+                    )}
+                    {registrationOpen
+                      ? "Masih terbuka"
+                      : registrationNotYetOpen
+                        ? "Belum dibuka"
+                        : "Sudah tutup"}
+                  </Badge>
+                  {isCabang && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2"
+                      onClick={openRegistrationDeadlineDialog}
+                      disabled={loading}
+                    >
+                      <Pencil className="mr-1 h-3 w-3" />
+                      Atur
+                    </Button>
+                  )}
+                </div>
+                <p className="text-base font-semibold tracking-tight text-foreground">
+                  {registrationDeadlineIso
+                    ? formatUktRegistrationDeadline(registrationDeadlineIso)
+                    : "—"}
+                </p>
+              </div>
+              {(periodMeta?.examAt || periodMeta?.examLocation) && (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Ujian</p>
+                  <p className="text-base font-semibold tracking-tight text-foreground">
+                    {periodMeta?.examAt
+                      ? formatUktRegistrationDeadline(periodMeta.examAt)
+                      : "—"}
+                  </p>
+                  {periodMeta?.examLocation ? (
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {periodMeta.examLocation}
+                    </p>
+                  ) : null}
+                </div>
+              )}
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Pejabat</p>
+                <p className="text-sm font-medium text-foreground">
+                  Bidang Ujian{" "}
+                  <span className="font-semibold">{periodOfficers.bidangUjianName}</span>
+                </p>
+                <p className="text-sm font-medium text-foreground">
+                  Bendahara{" "}
+                  <span className="font-semibold">
+                    {periodOfficers.bendaharaCabangName}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </details>
+      )}
+
       {props.selectedPeriodId && isCabang && (
         <Card className="border-muted">
           <CardContent className="space-y-3 p-4">
@@ -3050,29 +3246,68 @@ export function UktDashboard(props: Props) {
         })}
       </div>
 
-      {props.dbError && (
-        <Card className="border-destructive/40 bg-destructive/5">
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-            <div className="flex items-center gap-2 text-sm text-destructive">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span>{props.dbError}</span>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => void requestServerRowsSync()}
-              disabled={tableRefreshing}
-            >
-              <RefreshCw
-                className={`mr-1 h-4 w-4 ${tableRefreshing ? "animate-spin" : ""}`}
-              />
-              {tableRefreshing ? "Memuat…" : "Muat Ulang"}
-            </Button>
-          </CardContent>
-        </Card>
+      {isDojoAdmin && (
+        <details
+          className="rounded-xl border border-muted bg-card open:pb-0"
+          open={alurOpen}
+          onToggle={(e) => setAlurOpen((e.target as HTMLDetailsElement).open)}
+        >
+          <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center justify-between gap-2">
+              Panduan aksi ranting
+              <span className="text-xs font-normal text-muted-foreground">
+                {alurOpen ? "Sembunyikan" : "Tampilkan"}
+              </span>
+            </span>
+          </summary>
+          <div className="space-y-1 border-t px-3 py-3 text-sm text-muted-foreground">
+            <p>
+              Aksi ranting: <b>Daftar UKT</b>, <b>Terima</b>/<b>Tolak</b>{" "}
+              (daftar mandiri), <b>Batal UKT</b> (hanya sebelum{" "}
+              <b>Menunggu Ujian</b>), dan <b>Bayar UKT</b>. Cetak nota &amp;
+              laporan WA lewat toolbar (manual).
+            </p>
+            <p>
+              <b>Terima</b> = terima pendaftaran mandiri + konfirmasi uang,
+              lalu teruskan ke cabang. <b>Bayar UKT</b> = ajukan ke cabang (
+              <b>Menunggu Verifikasi</b>), bukan lunas. Cabang yang
+              memverifikasi pembayaran, lalu mengisi hasil ujian &amp; Kyu
+              Baru. Setelah <b>Menunggu Ujian</b>, batal/refund hanya lewat
+              cabang.
+            </p>
+          </div>
+        </details>
       )}
 
-      {/* Search & inline filters */}
+      {isCabang && (
+        <details
+          className="rounded-xl border border-muted bg-card"
+          open={alurOpen}
+          onToggle={(e) => setAlurOpen((e.target as HTMLDetailsElement).open)}
+        >
+          <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center justify-between gap-2">
+              Alur pendaftaran UKT
+              <span className="text-xs font-normal text-muted-foreground">
+                {alurOpen ? "Sembunyikan" : "Tampilkan"}
+              </span>
+            </span>
+          </summary>
+          <div className="border-t px-3 py-3 text-sm text-muted-foreground">
+            Alur: ranting daftar (<b>Belum Bayar</b>) → ranting{" "}
+            <b>Bayar UKT</b> (<b>Menunggu Verifikasi</b>) → cabang{" "}
+            <b>Verifikasi</b> (<b>Menunggu Ujian</b>) → isi <b>Kyu Baru</b>{" "}
+            (<b>Selesai</b>, otomatis Lulus). Jalur mandiri: anggota daftar →
+            ranting <b>Terima</b> dulu (bukan Verifikasi cabang). Batal dari
+            ranting (termasuk yang sudah lunas) akan memberi notifikasi ke
+            cabang — sesuaikan pengembalian uang di luar sistem bila perlu.
+          </div>
+        </details>
+      )}
+      </div>
+
+      {/* Search & inline filters — sticky di HP, menempel di atas tabel */}
+      <div className="sticky top-12 z-20 -mx-3 space-y-2 border-b border-border/40 bg-background/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:static sm:top-auto sm:z-auto sm:mx-0 sm:border-b-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="min-w-0 w-full sm:w-auto sm:min-w-[14rem] sm:flex-1 sm:max-w-md">
           <UktSearchBar
@@ -3213,7 +3448,7 @@ export function UktDashboard(props: Props) {
           <Button
             type="button"
             variant="outline"
-            className="h-10 sm:h-8"
+            className="hidden h-10 sm:inline-flex sm:h-8"
             onClick={() => setCompactView((v) => !v)}
             title={compactView ? "Tampilan lengkap" : "Tampilan ringkas"}
           >
@@ -3221,29 +3456,33 @@ export function UktDashboard(props: Props) {
             {compactView ? "Lengkap" : "Ringkas"}
           </Button>
 
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 sm:h-8"
-            onClick={() => resetTableFilters()}
-            title="Reset filter status, cari, dan ranting"
-            disabled={tableRefreshing}
-          >
-            Reset filter
-          </Button>
+          {hasActiveFilters ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 sm:h-8"
+              onClick={() => resetTableFilters()}
+              title="Reset filter status, cari, dan ranting"
+              disabled={tableRefreshing}
+            >
+              Reset filter
+            </Button>
+          ) : null}
 
           <Button
             type="button"
             variant="outline"
-            className="h-10 sm:h-8"
+            className="h-10 px-2 sm:h-8 sm:px-3"
             onClick={() => void requestServerRowsSync()}
             title="Muat ulang data tabel tanpa refresh halaman"
             disabled={tableRefreshing || loading}
           >
             <RefreshCw
-              className={`mr-1 h-4 w-4 ${tableRefreshing ? "animate-spin" : ""}`}
+              className={`h-4 w-4 ${tableRefreshing ? "animate-spin" : ""} sm:mr-1`}
             />
-            {tableRefreshing ? "Memuat…" : "Refresh"}
+            <span className="hidden sm:inline">
+              {tableRefreshing ? "Memuat…" : "Refresh"}
+            </span>
           </Button>
 
           {(!isDojoAdmin || isMultiDojoAdmin) && (
@@ -3283,7 +3522,7 @@ export function UktDashboard(props: Props) {
               setLocalPage(1);
             }}
           >
-            <SelectTrigger className="h-10 w-full sm:h-8 sm:w-28">
+            <SelectTrigger className="hidden h-10 w-full sm:flex sm:h-8 sm:w-28">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -3308,73 +3547,15 @@ export function UktDashboard(props: Props) {
           )}
         </div>
       </div>
+      </div>
 
       {!isArchiveView ? (
-        <p className="text-xs text-muted-foreground">
+        <p className="hidden text-xs text-muted-foreground sm:block">
           Tabel default = peserta terdaftar. Untuk <b>Belum Daftar</b>: pilih
           filter status <b>Belum Daftar</b>, atau ketik nama di kotak cari →
           pilih saran → <b>Daftar UKT</b>.
         </p>
       ) : null}
-
-      {isDojoAdmin && (
-        <details
-          className="rounded-xl border border-muted bg-card open:pb-0"
-          open={alurOpen}
-          onToggle={(e) => setAlurOpen((e.target as HTMLDetailsElement).open)}
-        >
-          <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
-            <span className="flex items-center justify-between gap-2">
-              Panduan aksi ranting
-              <span className="text-xs font-normal text-muted-foreground">
-                {alurOpen ? "Sembunyikan" : "Tampilkan"}
-              </span>
-            </span>
-          </summary>
-          <div className="space-y-1 border-t px-3 py-3 text-sm text-muted-foreground">
-            <p>
-              Aksi ranting: <b>Daftar UKT</b>, <b>Terima</b>/<b>Tolak</b>{" "}
-              (daftar mandiri), <b>Batal UKT</b> (hanya sebelum{" "}
-              <b>Menunggu Ujian</b>), dan <b>Bayar UKT</b>. Cetak nota &amp;
-              laporan WA lewat toolbar (manual).
-            </p>
-            <p>
-              <b>Terima</b> = terima pendaftaran mandiri + konfirmasi uang,
-              lalu teruskan ke cabang. <b>Bayar UKT</b> = ajukan ke cabang (
-              <b>Menunggu Verifikasi</b>), bukan lunas. Cabang yang
-              memverifikasi pembayaran, lalu mengisi hasil ujian &amp; Kyu
-              Baru. Setelah <b>Menunggu Ujian</b>, batal/refund hanya lewat
-              cabang.
-            </p>
-          </div>
-        </details>
-      )}
-
-      {isCabang && (
-        <details
-          className="rounded-xl border border-muted bg-card"
-          open={alurOpen}
-          onToggle={(e) => setAlurOpen((e.target as HTMLDetailsElement).open)}
-        >
-          <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium text-foreground marker:content-none [&::-webkit-details-marker]:hidden">
-            <span className="flex items-center justify-between gap-2">
-              Alur pendaftaran UKT
-              <span className="text-xs font-normal text-muted-foreground">
-                {alurOpen ? "Sembunyikan" : "Tampilkan"}
-              </span>
-            </span>
-          </summary>
-          <div className="border-t px-3 py-3 text-sm text-muted-foreground">
-            Alur: ranting daftar (<b>Belum Bayar</b>) → ranting{" "}
-            <b>Bayar UKT</b> (<b>Menunggu Verifikasi</b>) → cabang{" "}
-            <b>Verifikasi</b> (<b>Menunggu Ujian</b>) → isi <b>Kyu Baru</b>{" "}
-            (<b>Selesai</b>, otomatis Lulus). Jalur mandiri: anggota daftar →
-            ranting <b>Terima</b> dulu (bukan Verifikasi cabang). Batal dari
-            ranting (termasuk yang sudah lunas) akan memberi notifikasi ke
-            cabang — sesuaikan pengembalian uang di luar sistem bila perlu.
-          </div>
-        </details>
-      )}
 
       {/* Table */}
       <div className="mt-2 overflow-x-auto rounded-xl border shadow-sm">
