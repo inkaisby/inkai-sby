@@ -332,12 +332,17 @@ export function buildUktPublicPayload(args: {
   }
 
   const parsed = period.title.match(/semester\s*(I|II)\s*[-/]\s*(\d{4})/i);
-  const registrationCloseAt = getUktRegistrationDeadline({
-    startDate: period.startDate,
-    endDate: period.endDate,
-    registrationCloseAt: period.registrationCloseAt,
-    registrationOpenAt: meta.registrationOpenAt ?? null,
-  }).toISOString();
+  const startDate = period.startDate ?? period.endDate ?? "";
+  const endDate = period.endDate ?? period.startDate ?? startDate;
+  const registrationCloseAt =
+    startDate || period.registrationCloseAt
+      ? getUktRegistrationDeadline({
+          startDate,
+          endDate,
+          registrationCloseAt: period.registrationCloseAt,
+          registrationOpenAt: meta.registrationOpenAt ?? null,
+        }).toISOString()
+      : null;
   return {
     period: {
       periodId: period.id,
