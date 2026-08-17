@@ -39,6 +39,7 @@ import {
 import { showError, showSuccess } from "@/lib/client-toast";
 import { showAdminFetchError } from "@/lib/admin-client-error";
 import type { AdminMemberRow } from "@/lib/inkai-api/admin-data";
+import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import { SITE_BRANCH_NAME } from "@/lib/site";
 import {
   BELT_RANK_OPTIONS,
@@ -281,11 +282,10 @@ function MemberStatusBadge({ status }: { status: string }) {
 }
 
 function memberPhotoUrl(member: AdminMemberRow) {
-  if (member.photoUrl) return member.photoUrl;
   const nested = member as AdminMemberRow & {
     user?: { photoUrl?: string | null };
   };
-  return nested.user?.photoUrl ?? null;
+  return resolveMemberPhotoUrl(member.photoUrl, nested.user?.photoUrl);
 }
 
 function CopyableValue({ value }: { value: string }) {
@@ -922,9 +922,10 @@ export function MembersTable({
 
   const fullName = str(detail?.fullName, "");
   const currentRank = str(detail?.currentRank, "");
-  const photoUrl =
-    user?.photoUrl ??
-    (typeof detail?.photoUrl === "string" ? detail.photoUrl : null);
+  const photoUrl = resolveMemberPhotoUrl(
+    typeof detail?.photoUrl === "string" ? detail.photoUrl : null,
+    user?.photoUrl,
+  );
   const birthCertificateUrl =
     typeof detail?.birthCertificateUrl === "string"
       ? detail.birthCertificateUrl

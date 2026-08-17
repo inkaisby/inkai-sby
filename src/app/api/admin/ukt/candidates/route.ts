@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { buildMemberFilter, getPrimaryAdminRole } from "@/lib/rbac";
 import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { formatRankLabel } from "@/lib/belt";
+import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 
 /**
  * On-demand Belum Daftar stubs for registrants-first UI.
@@ -92,6 +93,7 @@ export async function GET(request: Request) {
       address: true,
       birthCertificateUrl: true,
       bpjsCardUrl: true,
+      photoUrl: true,
       dojo: { select: { name: true } },
       user: { select: { photoUrl: true } },
     },
@@ -116,7 +118,7 @@ export async function GET(request: Request) {
   const candidates = members.map((m) => ({
     memberId: m.id,
     registrationId: null as string | null,
-    photoUrl: m.user?.photoUrl ?? null,
+    photoUrl: resolveMemberPhotoUrl(m.photoUrl, m.user?.photoUrl),
     nia: m.nia,
     fullName: m.fullName,
     birthPlace: m.birthPlace,

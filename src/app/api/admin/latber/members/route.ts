@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { buildMemberFilter, getPrimaryAdminRole } from "@/lib/rbac";
 import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import { formatRankLabel } from "@/lib/belt";
+import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import { isLatberEventTitle } from "@/lib/latber";
 import {
   resolveLatberRegisterFeeAmount,
@@ -43,6 +44,7 @@ export async function GET(request: Request) {
       nia: true,
       currentRank: true,
       dojoId: true,
+      photoUrl: true,
       dojo: { select: { name: true } },
       user: { select: { photoUrl: true } },
     },
@@ -81,7 +83,10 @@ export async function GET(request: Request) {
     const latberRow = {
       memberId: scopedMember.id,
       registrationId: null as string | null,
-      photoUrl: scopedMember.user?.photoUrl ?? null,
+      photoUrl: resolveMemberPhotoUrl(
+        scopedMember.photoUrl,
+        scopedMember.user?.photoUrl,
+      ),
       nia: scopedMember.nia,
       fullName: scopedMember.fullName,
       currentRank:

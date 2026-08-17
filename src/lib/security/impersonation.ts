@@ -10,6 +10,7 @@ import {
 } from "@/lib/rbac";
 import { buildPresenceScopeWhere } from "@/lib/presence";
 import { writeLocalAuditLog } from "@/lib/audit";
+import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 
 import { IMPERSONATION_CONFIRM_PHRASE } from "@/lib/security/impersonation-constants";
 export { IMPERSONATION_CONFIRM_PHRASE } from "@/lib/security/impersonation-constants";
@@ -155,10 +156,11 @@ async function loadSessionUser(userId: string): Promise<SessionUser | null> {
       managedBranchId: true,
       managedDojoId: true,
       roles: { select: { name: true } },
-      member: { select: { id: true } },
+      member: { select: { id: true, photoUrl: true } },
     },
   });
   if (!user) return null;
+  const photoUrl = resolveMemberPhotoUrl(user.member?.photoUrl, user.photoUrl);
   return {
     id: user.id,
     email: user.email,
@@ -168,8 +170,8 @@ async function loadSessionUser(userId: string): Promise<SessionUser | null> {
     managedBranchId: user.managedBranchId,
     managedDojoId: user.managedDojoId,
     memberId: user.member?.id ?? null,
-    photoUrl: user.photoUrl,
-    image: user.photoUrl,
+    photoUrl,
+    image: photoUrl,
   };
 }
 
@@ -280,7 +282,7 @@ export async function startImpersonation(
       managedBranchId: true,
       managedDojoId: true,
       roles: { select: { name: true } },
-      member: { select: { id: true } },
+      member: { select: { id: true, photoUrl: true } },
     },
   });
   if (!targetRow || !targetRow.isActive) {
@@ -320,6 +322,10 @@ export async function startImpersonation(
     exp,
   });
 
+  const photoUrl = resolveMemberPhotoUrl(
+    targetRow.member?.photoUrl,
+    targetRow.photoUrl,
+  );
   const target: SessionUser = {
     id: targetRow.id,
     email: targetRow.email,
@@ -329,8 +335,8 @@ export async function startImpersonation(
     managedBranchId: targetRow.managedBranchId,
     managedDojoId: targetRow.managedDojoId,
     memberId: targetRow.member?.id ?? null,
-    photoUrl: targetRow.photoUrl,
-    image: targetRow.photoUrl,
+    photoUrl,
+    image: photoUrl,
   };
 
   writeLocalAuditLog({

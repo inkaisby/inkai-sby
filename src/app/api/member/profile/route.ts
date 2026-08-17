@@ -206,6 +206,7 @@ export async function PATCH(request: Request) {
   if (hasOwn(body, "photoUrl")) {
     const photo = normalizeUrl(body.photoUrl);
     inkaiPatch.photoUrl = photo;
+    prismaMember.photoUrl = photo;
     prismaUser.photoUrl = photo;
   }
   if (hasOwn(body, "birthCertificateUrl")) {

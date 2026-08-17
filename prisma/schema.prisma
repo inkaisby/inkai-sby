@@ -189,6 +189,8 @@ model Member {
   rankSelfEditedAt      DateTime?
   /// Anggota sudah 1x mengubah No. MSH sendiri → selanjutnya pengajuan
   mshSelfEditedAt       DateTime?
+  /// Foto profil kanonis anggota (tanpa akun login pun tetap tersimpan)
+  photoUrl              String?
   /// Arsip TTD digital anggota (shared UKT, kwitansi, dll.)
   signatureUrl          String?
   signatureUpdatedAt    DateTime?

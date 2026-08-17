@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 
 const MEMBER_LOCAL_SELECT = {
   allowEventWithoutDues: true,
@@ -14,6 +15,7 @@ const MEMBER_LOCAL_SELECT = {
   nia: true,
   mshNumber: true,
   currentRank: true,
+  photoUrl: true,
   emailSelfEditedAt: true,
   niaSelfEditedAt: true,
   rankSelfEditedAt: true,
@@ -41,6 +43,7 @@ export type MemberLocalOverlay = {
   nia: string | null;
   mshNumber: string | null;
   currentRank: string;
+  photoUrl: string | null;
   emailSelfEditedAt: Date | null;
   niaSelfEditedAt: Date | null;
   rankSelfEditedAt: Date | null;
@@ -100,10 +103,14 @@ export function applyMemberLocalOverlay(
       local.user?.phoneNumber ||
       null,
     photoUrl:
-      (typeof member.photoUrl === "string" && member.photoUrl) ||
-      inkaiUser?.photoUrl ||
-      local.user?.photoUrl ||
-      null,
+      resolveMemberPhotoUrl(
+        local.photoUrl,
+        local.user?.photoUrl,
+        resolveMemberPhotoUrl(
+          typeof member.photoUrl === "string" ? member.photoUrl : null,
+          inkaiUser?.photoUrl,
+        ),
+      ),
   };
 }
 

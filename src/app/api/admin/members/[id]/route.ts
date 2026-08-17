@@ -33,6 +33,7 @@ import {
   normalizeNia,
 } from "@/lib/member-profile-locks";
 import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
+import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import { writeSecurityEvent } from "@/lib/security/security-events";
 import { tryProvisionMemberNiaLogin } from "@/lib/member-nia-login";
 
@@ -176,6 +177,7 @@ export async function GET(_request: Request, context: RouteContext) {
           bpjsCardUrl: true,
           bpjsCardNumber: true,
           mshNumber: true,
+          photoUrl: true,
           user: {
             select: { email: true, phoneNumber: true, photoUrl: true },
           },
@@ -198,6 +200,15 @@ export async function GET(_request: Request, context: RouteContext) {
         ? (member.user as Record<string, unknown>)
         : {};
     const localUser = localExtras.data.user;
+    const resolvedPhotoUrl = resolveMemberPhotoUrl(
+      localExtras.data.photoUrl,
+      localUser?.photoUrl,
+      typeof member.photoUrl === "string"
+        ? member.photoUrl
+        : typeof existingUser.photoUrl === "string"
+          ? existingUser.photoUrl
+          : null,
+    );
     member = {
       ...member,
       birthCertificateUrl: localExtras.data.birthCertificateUrl,
@@ -207,10 +218,7 @@ export async function GET(_request: Request, context: RouteContext) {
       mshNumber:
         localExtras.data.mshNumber ??
         (typeof member.mshNumber === "string" ? member.mshNumber : null),
-      photoUrl:
-        localUser?.photoUrl ||
-        (typeof existingUser.photoUrl === "string" && existingUser.photoUrl) ||
-        (typeof member.photoUrl === "string" ? member.photoUrl : null),
+      photoUrl: resolvedPhotoUrl,
       user: localUser
         ? {
             ...existingUser,
@@ -221,11 +229,7 @@ export async function GET(_request: Request, context: RouteContext) {
               (typeof existingUser.phoneNumber === "string" &&
                 existingUser.phoneNumber) ||
               localUser.phoneNumber,
-            photoUrl:
-              localUser.photoUrl ||
-              (typeof existingUser.photoUrl === "string" &&
-                existingUser.photoUrl) ||
-              null,
+            photoUrl: resolvedPhotoUrl,
           }
         : member.user ?? null,
     };
@@ -1208,6 +1212,16 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
 
     let localOk = false;
+    try {
+      await prisma.member.update({
+        where: { id: scoped.id },
+        data: { photoUrl },
+        select: { id: true, photoUrl: true },
+      });
+      localOk = true;
+    } catch (err) {
+      console.error("[set_photo] prisma member update failed:", err);
+    }
     if (scoped.userId) {
       try {
         await prisma.user.update({
@@ -1215,18 +1229,15 @@ export async function PATCH(request: Request, context: RouteContext) {
           data: { photoUrl },
           select: { id: true, photoUrl: true },
         });
-        localOk = true;
       } catch (err) {
-        console.error("[set_photo] prisma user update failed:", err);
+        console.error("[set_photo] prisma user mirror failed:", err);
       }
     }
 
     if (!res.ok && !localOk) {
       return NextResponse.json(
         {
-          error: scoped.userId
-            ? inkaiErrorMessage(data, "Gagal menyimpan foto anggota")
-            : "Buat akun login atau hubungi teknis",
+          error: inkaiErrorMessage(data, "Gagal menyimpan foto anggota"),
         },
         { status: res.ok ? 500 : res.status },
       );

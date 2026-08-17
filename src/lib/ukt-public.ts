@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
+import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import { formatRankLabel, resolveUktRankColumns } from "@/lib/belt";
 import { isLatberEventTitle } from "@/lib/latber";
 import {
@@ -166,6 +167,7 @@ export async function loadUktPublicRegistrants(
           fullName: true,
           nia: true,
           currentRank: true,
+          photoUrl: true,
           dojo: { select: { name: true } },
           user: { select: { photoUrl: true } },
         },
@@ -221,7 +223,10 @@ export async function loadUktPublicRegistrants(
     const row: UktMemberRow = {
       memberId: r.memberId,
       registrationId: r.id,
-      photoUrl: r.member.user?.photoUrl ?? null,
+      photoUrl: resolveMemberPhotoUrl(
+        r.member.photoUrl,
+        r.member.user?.photoUrl,
+      ),
       nia: r.member.nia,
       fullName: r.member.fullName,
       birthPlace: null,

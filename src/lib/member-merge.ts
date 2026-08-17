@@ -6,6 +6,7 @@ import { buildMemberFilter, type SessionUser } from "@/lib/rbac";
 import { isCabangAdmin, isRantingAdmin } from "@/lib/wilayah-rbac";
 import { setMemberLifecycle } from "@/lib/member-lifecycle";
 import { hardDuplicates, findMemberDuplicates } from "@/lib/member-duplicate";
+import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 
 export function canMergeMembers(roles: string[]) {
   return isCabangAdmin(roles) || isRantingAdmin(roles);
@@ -25,12 +26,18 @@ type MergeMemberRow = {
   birthDate: Date | null;
   address: string | null;
   currentRank: string;
+  photoUrl: string | null;
   birthCertificateUrl: string | null;
   bpjsCardUrl: string | null;
   bpjsCardNumber: string | null;
   bpjsOcrExtracted: unknown;
   createdAt: Date;
-  user: { id: string; email: string | null; phoneNumber: string | null } | null;
+  user: {
+    id: string;
+    email: string | null;
+    phoneNumber: string | null;
+    photoUrl: string | null;
+  } | null;
   _count: {
     billings: number;
     attendances: number;
@@ -131,12 +138,15 @@ async function loadMergeMember(user: SessionUser, id: string) {
       birthDate: true,
       address: true,
       currentRank: true,
+      photoUrl: true,
       birthCertificateUrl: true,
       bpjsCardUrl: true,
       bpjsCardNumber: true,
       bpjsOcrExtracted: true,
       createdAt: true,
-      user: { select: { id: true, email: true, phoneNumber: true } },
+      user: {
+        select: { id: true, email: true, phoneNumber: true, photoUrl: true },
+      },
       _count: {
         select: {
           billings: true,
@@ -181,8 +191,8 @@ export async function mergeMembers(opts: {
   }
 
   // Hormati preferensi keep/merge dari klien, tapi validasi pasangan
-  let keep = rawA;
-  let merge = rawB;
+  const keep = rawA;
+  const merge = rawB;
   // Jika klien kirim IDs terbalik dari skor, tetap hormati keepMemberId sebagai yang dipertahankan
   const eligibility = isMergePairEligible(keep, merge, opts.user.roles);
   if (!eligibility.ok) {
@@ -230,6 +240,17 @@ export async function mergeMembers(opts: {
 
   const keepId = keep.id;
   const mergeId = merge.id;
+  const linkedUserPhoto =
+    linkedUserId === merge.userId
+      ? merge.user?.photoUrl
+      : linkedUserId === keep.userId
+        ? keep.user?.photoUrl
+        : keep.user?.photoUrl ?? merge.user?.photoUrl;
+  const mergedPhotoUrl = resolveMemberPhotoUrl(
+    keep.photoUrl,
+    merge.photoUrl,
+    linkedUserPhoto,
+  );
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -307,6 +328,7 @@ export async function mergeMembers(opts: {
           birthPlace: pickScalar(keep.birthPlace, merge.birthPlace),
           birthDate: keep.birthDate ?? merge.birthDate,
           address: pickScalar(keep.address, merge.address),
+          photoUrl: mergedPhotoUrl,
           birthCertificateUrl: pickScalar(
             keep.birthCertificateUrl,
             merge.birthCertificateUrl,
@@ -333,7 +355,7 @@ export async function mergeMembers(opts: {
       if (linkedUserId) {
         await tx.user.update({
           where: { id: linkedUserId },
-          data: { isActive: true },
+          data: { isActive: true, photoUrl: mergedPhotoUrl },
         });
       }
       if (deactivateUserId && deactivateUserId !== linkedUserId) {

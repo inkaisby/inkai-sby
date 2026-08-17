@@ -17,6 +17,7 @@ import {
 } from "@/lib/belt";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { fetchDuesExemptMemberIds } from "@/lib/member-local-fields";
+import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import { loadUktSelfRegistrationMetaMap } from "@/lib/ukt-self-registration";
 import {
   memberOrderBy,
@@ -442,6 +443,7 @@ export async function fetchAdminMembersScoped(
           birthCertificateUrl: true,
           bpjsCardUrl: true,
           bpjsCardNumber: true,
+          photoUrl: true,
           createdAt: true,
           monthlyDuesAmount: true,
           dojo: {
@@ -475,7 +477,7 @@ export async function fetchAdminMembersScoped(
       birthCertificateUrl: m.birthCertificateUrl,
       bpjsCardUrl: m.bpjsCardUrl,
       bpjsCardNumber: m.bpjsCardNumber,
-      photoUrl: m.user?.photoUrl ?? null,
+      photoUrl: resolveMemberPhotoUrl(m.photoUrl, m.user?.photoUrl),
       createdAt: m.createdAt.toISOString(),
       monthlyDuesAmount: m.monthlyDuesAmount,
       hasAccount: Boolean(m.userId),
@@ -565,7 +567,7 @@ export async function fetchAdminMembersForDojoIds(
       birthCertificateUrl: m.birthCertificateUrl,
       bpjsCardUrl: m.bpjsCardUrl,
       bpjsCardNumber: m.bpjsCardNumber,
-      photoUrl: m.user?.photoUrl ?? null,
+      photoUrl: resolveMemberPhotoUrl(m.photoUrl, m.user?.photoUrl),
       createdAt: m.createdAt.toISOString(),
       monthlyDuesAmount: m.monthlyDuesAmount,
     }));
@@ -1564,7 +1566,7 @@ export async function fetchUktDashboardData(
   const beltFees = resolvedFees.beltFees;
   const effectiveKomisi = resolvedFees.komisiRanting;
 
-  let members = (membersResult.ok ? membersResult.members : []) as Array<
+  const members = (membersResult.ok ? membersResult.members : []) as Array<
     AdminMemberRow & Record<string, unknown>
   >;
 
@@ -1741,6 +1743,7 @@ export async function fetchUktDashboardData(
                 birthCertificateUrl: true,
                 bpjsCardUrl: true,
                 bpjsCardNumber: true,
+                photoUrl: true,
                 monthlyDuesAmount: true,
                 createdAt: true,
                 dojo: {
@@ -1775,6 +1778,7 @@ export async function fetchUktDashboardData(
           birthCertificateUrl: string | null;
           bpjsCardUrl: string | null;
           bpjsCardNumber: string | null;
+          photoUrl: string | null;
           monthlyDuesAmount: number;
           createdAt: Date;
           dojo: {
@@ -1828,7 +1832,10 @@ export async function fetchUktDashboardData(
           birthCertificateUrl: reg.member.birthCertificateUrl,
           bpjsCardUrl: reg.member.bpjsCardUrl,
           bpjsCardNumber: reg.member.bpjsCardNumber,
-          photoUrl: reg.member.user?.photoUrl ?? null,
+          photoUrl: resolveMemberPhotoUrl(
+            reg.member.photoUrl,
+            reg.member.user?.photoUrl,
+          ),
           createdAt: reg.member.createdAt.toISOString(),
           monthlyDuesAmount: reg.member.monthlyDuesAmount,
         });
@@ -2016,6 +2023,7 @@ export async function fetchUktDashboardData(
               birthCertificateUrl: true,
               bpjsCardUrl: true,
               bpjsCardNumber: true,
+              photoUrl: true,
               monthlyDuesAmount: true,
               createdAt: true,
               dojo: {
@@ -2043,6 +2051,7 @@ export async function fetchUktDashboardData(
           birthCertificateUrl: string | null;
           bpjsCardUrl: string | null;
           bpjsCardNumber: string | null;
+          photoUrl: string | null;
           monthlyDuesAmount: number;
           createdAt: Date;
           dojo: {
@@ -2075,7 +2084,7 @@ export async function fetchUktDashboardData(
           birthCertificateUrl: m.birthCertificateUrl,
           bpjsCardUrl: m.bpjsCardUrl,
           bpjsCardNumber: m.bpjsCardNumber,
-          photoUrl: m.user?.photoUrl ?? null,
+          photoUrl: resolveMemberPhotoUrl(m.photoUrl, m.user?.photoUrl),
           createdAt: m.createdAt.toISOString(),
           monthlyDuesAmount: m.monthlyDuesAmount,
         });
@@ -2104,7 +2113,6 @@ export async function fetchUktDashboardData(
     const reg = regMap.get(m.id);
     const regBilling = reg ? billingMap.get(String(reg.id)) : null;
     const category = reg?.category as { name?: string } | null | undefined;
-    const memberUser = reg?.member as { user?: { photoUrl?: string } } | undefined;
     const memberData = (reg?.member as Record<string, unknown> | undefined) ?? m;
     const registeredRank =
       typeof reg?.registeredRank === "string" ? reg.registeredRank : null;
@@ -2131,12 +2139,11 @@ export async function fetchUktDashboardData(
     return {
       memberId: m.id,
       registrationId: reg?.id ? String(reg.id) : null,
-      photoUrl:
-        memberUser?.user?.photoUrl ??
-        (typeof (m as { photoUrl?: string | null }).photoUrl === "string"
-          ? (m as { photoUrl?: string | null }).photoUrl
-          : null) ??
-        null,
+      photoUrl: resolveMemberPhotoUrl(
+        m.photoUrl,
+        undefined,
+        typeof memberData.photoUrl === "string" ? memberData.photoUrl : null,
+      ),
       nia: m.nia,
       fullName: m.fullName,
       birthPlace:
@@ -2280,6 +2287,7 @@ export async function fetchUktTableRefreshSnapshot(
                 fullName: true,
                 nia: true,
                 dojoId: true,
+                photoUrl: true,
                 dojo: { select: { name: true } },
                 user: { select: { photoUrl: true } },
               },
@@ -2298,6 +2306,7 @@ export async function fetchUktTableRefreshSnapshot(
           fullName: string;
           nia: string | null;
           dojoId: string;
+          photoUrl: string | null;
           dojo: { name: string } | null;
           user: { photoUrl: string | null } | null;
         };
@@ -2318,7 +2327,10 @@ export async function fetchUktTableRefreshSnapshot(
           nia: reg.member.nia,
           dojoId: reg.member.dojoId,
           dojoName: reg.member.dojo?.name,
-          photoUrl: reg.member.user?.photoUrl,
+          photoUrl: resolveMemberPhotoUrl(
+            reg.member.photoUrl,
+            reg.member.user?.photoUrl,
+          ),
         },
       });
     }
@@ -2511,6 +2523,7 @@ export async function fetchUktTableRefreshSnapshot(
             address: true,
             birthCertificateUrl: true,
             bpjsCardUrl: true,
+            photoUrl: true,
             dojo: { select: { name: true } },
             user: { select: { photoUrl: true } },
           },
@@ -2528,6 +2541,7 @@ export async function fetchUktTableRefreshSnapshot(
         address: string | null;
         birthCertificateUrl: string | null;
         bpjsCardUrl: string | null;
+        photoUrl: string | null;
         dojo: { name: string } | null;
         user: { photoUrl: string | null } | null;
       }>,
@@ -2540,7 +2554,11 @@ export async function fetchUktTableRefreshSnapshot(
       p.nia = m.nia ?? p.nia ?? null;
       p.dojoId = m.dojoId || p.dojoId || null;
       p.dojoName = m.dojo?.name || p.dojoName || null;
-      p.photoUrl = m.user?.photoUrl ?? p.photoUrl ?? null;
+      p.photoUrl = resolveMemberPhotoUrl(
+        m.photoUrl,
+        m.user?.photoUrl,
+        p.photoUrl,
+      );
       p.memberCurrentRank =
         formatRankLabel(m.currentRank) ||
         m.currentRank ||

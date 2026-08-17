@@ -154,6 +154,7 @@ const MEMBER_SCALAR_KEYS = [
   "niaSelfEditedAt",
   "rankSelfEditedAt",
   "mshSelfEditedAt",
+  "photoUrl",
   "signatureUrl",
   "signatureUpdatedAt",
 ] as const;

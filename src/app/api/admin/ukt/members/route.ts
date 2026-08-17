@@ -10,6 +10,7 @@ import { formatRankLabel } from "@/lib/belt";
 import { parseUktEventTitle } from "@/lib/ukt";
 import { validateUktRegistrationEligibility } from "@/lib/ukt-register";
 import { fetchDuesExemptMemberIds } from "@/lib/member-local-fields";
+import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
@@ -86,6 +87,7 @@ export async function GET(request: Request) {
       address: true,
       birthCertificateUrl: true,
       bpjsCardUrl: true,
+      photoUrl: true,
       dojo: { select: { name: true } },
       user: { select: { photoUrl: true } },
     },
@@ -144,7 +146,10 @@ export async function GET(request: Request) {
     const uktRow = {
       memberId: scopedMember.id,
       registrationId: null as string | null,
-      photoUrl: scopedMember.user?.photoUrl ?? null,
+      photoUrl: resolveMemberPhotoUrl(
+        scopedMember.photoUrl,
+        scopedMember.user?.photoUrl,
+      ),
       nia: scopedMember.nia,
       fullName: scopedMember.fullName,
       birthPlace: scopedMember.birthPlace,

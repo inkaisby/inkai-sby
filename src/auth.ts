@@ -15,6 +15,7 @@ import { loadSessionClaimsFromDb } from "@/lib/session-refresh";
 import { LOGIN_ERROR_CODE } from "@/lib/auth/login-errors";
 import { resolveLoginIdentifier } from "@/lib/auth/parse-login-identifier";
 import { prisma } from "@/lib/prisma";
+import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import {
   clearUserRevocation,
   isUserBlocked,
@@ -310,7 +311,12 @@ const nextAuth = NextAuth({
           prisma.user
             .findFirst({
               where: { id: userId, isDeleted: false },
-              select: { isActive: true, photoUrl: true, fullName: true },
+              select: {
+                isActive: true,
+                photoUrl: true,
+                fullName: true,
+                member: { select: { photoUrl: true } },
+              },
             })
             .catch(() => null),
           isUserBlocked(userId),
@@ -345,11 +351,11 @@ const nextAuth = NextAuth({
           .then((snap) => markUserLogin(userId, snap))
           .catch(() => markUserLogin(userId));
 
-        const photoUrl =
-          localGate?.photoUrl ||
-          user.photoUrl ||
-          user.member?.photoUrl ||
-          null;
+        const photoUrl = resolveMemberPhotoUrl(
+          localGate?.member?.photoUrl,
+          localGate?.photoUrl,
+          user.photoUrl || user.member?.photoUrl || null,
+        );
 
         return {
           id: userId,

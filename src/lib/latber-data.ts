@@ -1,11 +1,10 @@
 import { prisma } from "@/lib/prisma";
+import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import { inkaiFetch } from "@/lib/inkai-api/server";
 import { getPrimaryAdminRole } from "@/lib/rbac";
 import type { SessionUser } from "@/lib/rbac";
 import { fetchAdminDojosScopedCached } from "@/lib/inkai-api/admin-data";
 import {
-  DEFAULT_LATBER_FEE,
-  DEFAULT_LATBER_KOMISI_RANTING,
   findActiveLatberPeriod,
   isLatberEventTitle,
   isLatberRegistrationOpen,
@@ -210,6 +209,7 @@ export async function fetchLatberDashboardData(
             nia: true,
             currentRank: true,
             dojoId: true,
+            photoUrl: true,
             dojo: { select: { name: true } },
             user: { select: { photoUrl: true } },
           },
@@ -272,7 +272,7 @@ export async function fetchLatberDashboardData(
         currentRank: m.currentRank,
         dojoId: m.dojoId,
         dojoName: m.dojo?.name ?? null,
-        photoUrl: m.user?.photoUrl ?? null,
+        photoUrl: resolveMemberPhotoUrl(m.photoUrl, m.user?.photoUrl),
         status: reg.status,
         billingId: bill?.id ?? null,
         billingAmount: bill?.amount ?? fees.feeAmount,
