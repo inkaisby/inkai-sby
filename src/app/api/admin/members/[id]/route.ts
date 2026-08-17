@@ -25,7 +25,7 @@ import {
 } from "@/lib/wilayah-rbac";
 import { buildMemberFilter, type SessionUser } from "@/lib/rbac";
 import { adminDojoGrantBlocksMemberAction } from "@/lib/admin-dojo-grants";
-import { prisma, withPrismaFallback } from "@/lib/prisma";
+import { prisma, prismaUserFacingError, withPrismaFallback } from "@/lib/prisma";
 import { assertDojoInScope } from "@/lib/pengaturan";
 import {
   mshAllowedForRank,
@@ -318,9 +318,11 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     try {
+      // select: hindari RETURNING kolom drift (mis. signatureUrl) di DB produksi.
       await prisma.member.update({
         where: { id },
         data: { nia },
+        select: { id: true, nia: true },
       });
     } catch (err) {
       console.error("[set_nia] failed to sync local Prisma nia:", err);
@@ -479,10 +481,21 @@ export async function PATCH(request: Request, context: RouteContext) {
       });
     }
 
-    await prisma.member.update({
-      where: { id },
-      data: { mshNumber: msh },
-    });
+    try {
+      // select: hindari RETURNING signatureUrl saat kolom belum ada di DB (P2022).
+      await prisma.member.update({
+        where: { id },
+        data: { mshNumber: msh },
+        select: { id: true, mshNumber: true },
+      });
+    } catch (err) {
+      console.error("[set_msh] prisma update failed:", err);
+      const mapped = prismaUserFacingError(err, "Gagal menyimpan No. MSH");
+      return NextResponse.json(
+        { error: mapped.error },
+        { status: mapped.status },
+      );
+    }
 
     writeAuditLog({
       userId: authResult.user.id,
@@ -884,10 +897,24 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    await prisma.member.update({
-      where: { id },
-      data: { allowEventWithoutDues },
-    });
+    try {
+      // select: hindari RETURNING signatureUrl saat kolom belum ada di DB (P2022).
+      await prisma.member.update({
+        where: { id },
+        data: { allowEventWithoutDues },
+        select: { id: true, allowEventWithoutDues: true },
+      });
+    } catch (err) {
+      console.error("[set_dues_exemption] prisma update failed:", err);
+      const mapped = prismaUserFacingError(
+        err,
+        "Gagal menyimpan pengecualian iuran",
+      );
+      return NextResponse.json(
+        { error: mapped.error },
+        { status: mapped.status },
+      );
+    }
 
     writeAuditLog({
       userId: authResult.user.id,

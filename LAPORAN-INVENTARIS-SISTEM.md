@@ -395,7 +395,7 @@ Pusat / Nasional
 
 | Index Prisma | Ditambah | Member/Billing/Attendance/Verification/Message + Billing(registrationId, memberId+isDeleted+type) / Event(isDeleted+endDate|registrationCloseAt) / EventRegistration(eventId+status) / AppreciationEntry / AuditLog(action+createdAt) — migrate `20260724120000_admin_perf_security_indexes` |
 | Pool DB Supabase | Diperkuat | Production: Transaction `:6543`+`pgbouncer`; `connection_limit=5`/`pool_timeout=20`; **dev:** tetap session `:5432` (selaras Prisma CLI); `instrumentation.ts` `ipv4first` anti-P1001 IPv6; override `PRISMA_USE_TRANSACTION_POOLER=1`; soft-delete/restore/activate/deactivate via **`updateMany`** (hindari RETURNING drift); toast sibuk **hanya HTTP 503**; drift skema (P2021/P2022) pesan terpisah |
-| Drift skema Prisma | Proses | Setiap ubah `prisma/schema.prisma` wajib `prisma/sql/*.sql` (ADD IF NOT EXISTS) + apply ke produksi sebelum/bersamaan deploy field baru; gate lokal `npm run db:check-drift` (hanya vs `DATABASE_URL` yang dituju) |
+| Drift skema Prisma | Proses | Setiap ubah `prisma/schema.prisma` wajib `prisma/sql/*.sql` (ADD IF NOT EXISTS) + apply ke produksi sebelum/bersamaan deploy field baru; gate lokal `npm run db:check-drift` (hanya vs `DATABASE_URL` yang dituju); **`set_msh` / `set_dues_exemption` / sync `set_nia`** pakai `update`+`select` (hindari RETURNING kolom drift) + `prismaUserFacingError` |
 | SSR publik Inkai | Diperkuat | `/v1/org/provinces` publik timeout **10s / 0 retry** (cache); admin org tree **15s**; gagal → struktur kosong, halaman tetap render |
 | SSR publik degrade | Diperkuat | Chip kegiatan + carousel + cuplikan apresiasi memakai `withPrismaFallback`/try-catch — DB unreachable tidak menjatuhkan `/login` via `error.tsx` |
 | Login latency (pasca migrasi Supabase) | Diperkuat | Bottleneck utama = **inkai-backend** (`POST /v1/auth/login`) + region Vercel vs DB; portal `vercel.json` **regions: sin1** (dekat `inkai-db` ap-southeast-1); `/login` warm-up `GET /api/auth/health` (pakai `getInkaiApiBaseUrl`); skip `getSession` + cookie hint `inkai_entry` (admin-only → `/admin`); authorize gate paralel; JWT block check hanya saat claims stale (~30s) + `React.cache(auth)`; home SSR Inkai `8s/0 retry`; defer PresenceHeartbeat 20s; index perf di `inkai-db` |
@@ -1045,6 +1045,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 16 Agustus 2026 | **Fix drift `Member.signatureUrl`:** SQL `prisma/sql/member-signature.sql` + apply produksi; arsip/pulihkan/nonaktif via `updateMany`; pesan P2022 vs pool terpisah; toast sibuk hanya 503; provinces publik 10s; `db:check-drift`; inventaris §11/§15 |
 | 17 Agustus 2026 | **Dump prod→lokal Fase 1 + cadangan ops Fase 2:** CLI `db:local:dump-from-prod` (one-way, sanitize, tanpa sync dua arah); runbook backup Supabase/PITR di inventaris; inventaris §11/§15 |
 | 17 Agustus 2026 | **UKT Laporan/Rekapan + roster publik:** label toolbar **Laporan/Rekapan**; hapus Unduh PDF hub/nota; fix iframe print Cancel; Refresh isi identitas Prisma; `/ukt` KPI+cari+poll; Latber poll senyap; inventaris §4/§6/§9.3/§11/§13/§15 |
+| 17 Agustus 2026 | **Fix gagal simpan No. MSH:** `set_msh`/`set_dues_exemption`/`set_nia` sync Prisma pakai `update`+`select` (hindari P2022 `signatureUrl`); `prismaUserFacingError`; re-apply `member-signature.sql` ke inkai-db; inventaris §11/§15 |
 
 ---
 
