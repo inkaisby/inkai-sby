@@ -136,6 +136,7 @@ import {
   getUktRegistrationBlockersWithWaiver,
   isNotaParticipant,
   isUktBillingUnpaid,
+  isUktBillingPaid,
   isUktPaymentDocumentRow,
   canRantingSubmitUktPayment,
   canCabangVerifyUktPayment,
@@ -3846,7 +3847,7 @@ export function UktDashboard(props: Props) {
                         );
                       }
 
-                      if (isCabang && row.billingId) {
+                      if (isCabang && row.billingId && isUktBillingPaid(row)) {
                         moreItems.push({
                           label: "Hapus tagihan",
                           onSelect: () =>
@@ -4006,7 +4007,7 @@ export function UktDashboard(props: Props) {
                           )}
                           {/* Desktop: aksi sekunder inline */}
                           <span className="hidden sm:contents">
-                            {isCabang && row.billingId && (
+                            {isCabang && row.billingId && isUktBillingPaid(row) && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -4185,7 +4186,9 @@ export function UktDashboard(props: Props) {
                 )}
               </div>
               <DialogFooter className="gap-2 sm:gap-0">
-                {isCabang && selectedMember.billingId && (
+                {isCabang &&
+                  selectedMember.billingId &&
+                  isUktBillingPaid(selectedMember) && (
                   <Button
                     variant="outline"
                     onClick={() =>
