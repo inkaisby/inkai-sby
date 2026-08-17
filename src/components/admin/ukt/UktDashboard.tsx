@@ -134,10 +134,9 @@ import {
   formatUktRegistrationBlockers,
   formatRupiahNota,
   getUktRegistrationBlockersWithWaiver,
-  isRegistrationApproved,
   isNotaParticipant,
   isUktBillingUnpaid,
-  isUktBillingPaid,
+  isUktPaymentDocumentRow,
   canRantingSubmitUktPayment,
   canCabangVerifyUktPayment,
   isUktSelesai,
@@ -580,13 +579,13 @@ export function UktDashboard(props: Props) {
 
   // Cabang: untuk picker WA rinci, butuh daftar ranting yang punya peserta approved,
   // tanpa bergantung pada filter tabel saat ini.
-  const cabangApprovedRowsAll = useMemo(() => {
-    return rows.filter((r) => r.registrationId && isRegistrationApproved(r.status));
+  const cabangPaymentRowsAll = useMemo(() => {
+    return rows.filter((r) => isUktPaymentDocumentRow(r));
   }, [rows]);
 
   const cabangWaDojoOptions = useMemo(() => {
     const byDojo = new Map<string, { dojoId: string; dojoName: string; count: number }>();
-    for (const r of cabangApprovedRowsAll) {
+    for (const r of cabangPaymentRowsAll) {
       const dojoId = r.dojoId;
       const existing = byDojo.get(dojoId);
       if (existing) {
@@ -602,7 +601,7 @@ export function UktDashboard(props: Props) {
     return [...byDojo.values()].sort((a, b) =>
       a.dojoName.localeCompare(b.dojoName, "id"),
     );
-  }, [cabangApprovedRowsAll]);
+  }, [cabangPaymentRowsAll]);
 
   const normalizeRows = useCallback((list: UktMemberRow[]) => {
     const cleared = locallyClearedMemberIdsRef.current;
@@ -1706,18 +1705,44 @@ export function UktDashboard(props: Props) {
       const res = await fetch(`/api/admin/billing/${billingId}${qs}`, {
         method: "DELETE",
       });
-      const data = await parseApiJson<{ error?: string; message?: string }>(res);
+      const data = await parseApiJson<{
+        error?: string;
+        message?: string;
+        billingId?: string | null;
+        billingStatus?: string | null;
+        billingAmount?: number | null;
+        status?: string | null;
+      }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal menghapus tagihan");
+      const nextBillingId = data.billingId ? String(data.billingId) : null;
+      const nextBillingStatus = nextBillingId
+        ? String(data.billingStatus || "PENDING")
+        : null;
+      const parsedAmount =
+        data.billingAmount != null ? Number(data.billingAmount) : NaN;
+      const nextBillingAmount =
+        nextBillingId && Number.isFinite(parsedAmount) ? parsedAmount : null;
+      const nextStatus = data.status ? String(data.status) : "APPROVED";
       patchRow(memberId, {
-        billingId: null,
-        billingStatus: null,
-        billingAmount: null,
+        billingId: nextBillingId,
+        billingStatus: nextBillingStatus,
+        billingAmount: nextBillingAmount,
+        status: nextStatus,
       });
-      toast.success(data.message || "Tagihan UKT berhasil dihapus");
+      toast.success(
+        data.message ||
+          "Tagihan dihapus — status Belum Bayar, ranting dapat Bayar UKT lagi",
+      );
       setDeleteBillingTarget(null);
       setSelectedMember((prev) =>
         prev && prev.memberId === memberId
-          ? { ...prev, billingId: null, billingStatus: null, billingAmount: null }
+          ? {
+              ...prev,
+              billingId: nextBillingId,
+              billingStatus: nextBillingStatus,
+              billingAmount: nextBillingAmount,
+              status: nextStatus,
+            }
           : prev,
       );
     } catch (e) {
@@ -2091,8 +2116,8 @@ export function UktDashboard(props: Props) {
       toast.error("Pilih periode UKT terlebih dahulu");
       return;
     }
-    if (cabangApprovedRowsAll.length === 0) {
-      toast.error("Belum ada peserta disetujui");
+    if (cabangPaymentRowsAll.length === 0) {
+      toast.error("Belum ada peserta pada tagihan pembayaran");
       return;
     }
 
@@ -2107,9 +2132,9 @@ export function UktDashboard(props: Props) {
 
   const sendCabangWaReport = (dojoId: string | null) => {
     const title = selectedPeriod?.title || periodTitle;
-    const approvedAll = cabangApprovedRowsAll;
+    const approvedAll = cabangPaymentRowsAll;
     if (approvedAll.length === 0) {
-      toast.error("Belum ada peserta disetujui");
+      toast.error("Belum ada peserta pada tagihan pembayaran");
       return;
     }
 
@@ -2134,7 +2159,7 @@ export function UktDashboard(props: Props) {
         : (() => {
             const approved = approvedAll.filter((r) => r.dojoId === dojoId);
             if (approved.length === 0) {
-              toast.error("Ranting terpilih tidak punya peserta disetujui");
+              toast.error("Ranting terpilih tidak punya peserta pada tagihan pembayaran");
               return "";
             }
             const dojoName =
@@ -2170,13 +2195,10 @@ export function UktDashboard(props: Props) {
 
     const title = selectedPeriod?.title || periodTitle;
     const approved = rows.filter(
-      (r) =>
-        r.registrationId &&
-        isRegistrationApproved(r.status) &&
-        matchesDojoFilter(r.dojoId),
+      (r) => isUktPaymentDocumentRow(r) && matchesDojoFilter(r.dojoId),
     );
     if (approved.length === 0) {
-      toast.error("Belum ada peserta disetujui");
+      toast.error("Belum ada peserta pada tagihan pembayaran");
       return;
     }
     const text = buildUktRantingWaReportText(
@@ -4352,11 +4374,13 @@ export function UktDashboard(props: Props) {
             <DialogTitle>Hapus Tagihan UKT?</DialogTitle>
             <DialogDescription>
               Tagihan UKT untuk <strong>{deleteBillingTarget?.name}</strong> akan
-              dihapus.
+              dihapus. Pendaftaran tetap — status kembali{" "}
+              <strong>Belum Bayar</strong> agar ranting dapat{" "}
+              <strong>Bayar UKT</strong> lagi (salah hapus atau refund).
               {deleteBillingTarget?.billingStatus === "PAID" ||
               deleteBillingTarget?.billingStatus === "SUCCESS"
                 ? " Tagihan ini sudah lunas — penghapusan paksa hanya untuk admin cabang."
-                : " Pendaftaran UKT peserta tetap ada."}{" "}
+                : ""}{" "}
               Tindakan ini tidak dapat dibatalkan.
             </DialogDescription>
           </DialogHeader>
@@ -4410,9 +4434,7 @@ export function UktDashboard(props: Props) {
           rows={(printOnlySelected && selectedRows.length > 0
             ? selectedRows
             : rows
-          ).filter(
-            (r) => r.registrationId && isNotaParticipant(r.status),
-          )}
+          ).filter((r) => isUktPaymentDocumentRow(r))}
           dojos={props.dojos}
           dojoFilter={
             effectiveDojoIds && effectiveDojoIds.length === 1

@@ -16,6 +16,7 @@ import { notifyUktBranchAdmins } from "@/lib/ukt-period-notify";
 import { writeSecurityEvent } from "@/lib/security/security-events";
 import { assertUktPeriodMutable } from "@/lib/ukt-period-meta-store";
 import { isUktEventBilling } from "@/lib/ukt-self-registration";
+import { recreatePendingUktBillingAfterDelete } from "@/lib/ukt-register";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -543,6 +544,9 @@ export async function DELETE(request: Request, context: RouteContext) {
     );
   }
 
+  const capturedRegistrationId = scope.billing?.registrationId ?? null;
+  const capturedMemberId = scope.billing?.member?.id ?? null;
+
   const result = await deleteBillingHard(authResult.token, id, {
     continueOnFailure: false,
   });
@@ -575,6 +579,30 @@ export async function DELETE(request: Request, context: RouteContext) {
     }
   }
 
+  let recreated:
+    | {
+        billingId: string;
+        billingStatus: string;
+        billingAmount: number;
+        status: string;
+      }
+    | null = null;
+  if (capturedRegistrationId && capturedMemberId && isCabang) {
+    const reset = await recreatePendingUktBillingAfterDelete({
+      token: authResult.token,
+      registrationId: capturedRegistrationId,
+      memberId: capturedMemberId,
+    });
+    if (reset.ok) {
+      recreated = {
+        billingId: reset.billingId,
+        billingStatus: reset.billingStatus,
+        billingAmount: reset.billingAmount,
+        status: reset.status,
+      };
+    }
+  }
+
   writeBillingAudit({
     userId: authResult.user.id,
     email: authResult.user.email,
@@ -588,7 +616,7 @@ export async function DELETE(request: Request, context: RouteContext) {
         billingId: id,
         billingAction: "delete",
       },
-      `${force || isPaid ? "[force]" : ""}${usedDbForce ? " [db-force]" : ""}`,
+      `${force || isPaid ? "[force]" : ""}${usedDbForce ? " [db-force]" : ""}${recreated ? " [ukt-reset]" : ""}`,
     ),
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
@@ -597,6 +625,16 @@ export async function DELETE(request: Request, context: RouteContext) {
 
   return NextResponse.json({
     success: true,
-    message: "Tagihan berhasil dihapus",
+    message: recreated
+      ? "Tagihan dihapus — status Belum Bayar, ranting dapat Bayar UKT lagi"
+      : "Tagihan berhasil dihapus",
+    ...(recreated
+      ? {
+          billingId: recreated.billingId,
+          billingStatus: recreated.billingStatus,
+          billingAmount: recreated.billingAmount,
+          status: recreated.status,
+        }
+      : {}),
   });
 }

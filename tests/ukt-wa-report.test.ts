@@ -4,6 +4,7 @@ import {
   buildUktCabangWaReportText,
   countNotaBeltGroups,
   extractUktRankNumber,
+  isUktPaymentDocumentRow,
 } from "../src/lib/ukt";
 import { resolveUktRankColumns, shortRankLabel } from "../src/lib/belt";
 
@@ -76,6 +77,57 @@ describe("resolveUktRankColumns guard categoryName", () => {
     const out = shortRankLabel("PENDAN 8");
     // Harus tidak di-normalisasi jadi "Dan 8".
     expect(out.toLowerCase()).not.toBe("dan 8");
+  });
+
+  it("Laporan WA setor: Belum Bayar disaring, Menunggu Verifikasi/lunas masuk", () => {
+    const rows = [
+      {
+        memberId: "m1",
+        registrationId: "r1",
+        fullName: "Belum Bayar",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Kuning (Kyu 7)",
+        status: "APPROVED",
+        billingStatus: "PENDING",
+      },
+      {
+        memberId: "m2",
+        registrationId: "r2",
+        fullName: "Sudah Ajukan",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Hijau (Kyu 6)",
+        status: "APPROVED",
+        billingStatus: "WAITING_VERIFICATION",
+      },
+      {
+        memberId: "m3",
+        registrationId: "r3",
+        fullName: "Lunas",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Biru (Kyu 5)",
+        status: "APPROVED",
+        billingStatus: "PAID",
+      },
+      {
+        memberId: "m4",
+        registrationId: null,
+        fullName: "Dihapus",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Putih (Kyu 10)",
+        status: "BELUM_DAFTAR",
+        billingStatus: null,
+      },
+    ] as any[];
+
+    const paymentRows = rows.filter((r) => isUktPaymentDocumentRow(r));
+    expect(paymentRows.map((r) => r.fullName)).toEqual(["Sudah Ajukan", "Lunas"]);
+    const text = buildUktCabangWaReportText("UKT Semester II-2026", paymentRows);
+    expect(text).toContain("TOTAL SEMUA: 2 peserta");
+    expect(text.toLowerCase()).not.toContain("belum bayar");
   });
 });
 

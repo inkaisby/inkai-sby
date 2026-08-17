@@ -1637,6 +1637,20 @@ export function isUktBillingUnpaid(row: UktMemberRow): boolean {
   return true;
 }
 
+/**
+ * Baris yang masuk Cetak Nota / Laporan WA rincian setor:
+ * Menunggu Verifikasi atau sudah lunas — bukan Belum Bayar.
+ */
+export function isUktPaymentDocumentRow(row: UktMemberRow): boolean {
+  if (!row.registrationId) return false;
+  const st = String(row.status ?? "").toUpperCase();
+  if (st === "REJECTED" || st === "BELUM_DAFTAR" || st === "CANCELLED") {
+    return false;
+  }
+  if (row.billingStatus === "WAITING_VERIFICATION") return true;
+  return isUktBillingPaid(row);
+}
+
 /** Ranting boleh ajukan Bayar UKT (Menunggu Verifikasi) — belum lunas & belum diajukan. */
 export function canRantingSubmitUktPayment(row: UktMemberRow): boolean {
   if (!isUktBillingUnpaid(row)) return false;

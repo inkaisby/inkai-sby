@@ -1,5 +1,6 @@
 import { inkaiFetch } from "@/lib/inkai-api/server";
-import { getBeltGroup } from "@/lib/belt";
+import { DEFAULT_MEMBER_RANK, formatRankLabel, getBeltGroup } from "@/lib/belt";
+import { assertUktPeriodMutable } from "@/lib/ukt-period-meta-store";
 import { prisma } from "@/lib/prisma";
 import { isMemberDuesExempt } from "@/lib/member-local-fields";
 import {
@@ -646,6 +647,16 @@ export async function forceRegisterUktPendingInDb(opts: {
   }
 }
 
+export type EnsureUktBillingResult =
+  | {
+      ok: true;
+      billingId: string;
+      created: boolean;
+      billingAmount: number;
+      billingStatus: string;
+    }
+  | { ok: false; error: string };
+
 /** Setelah ranting Terima: pastikan satu billing PENDING lalu siap diajukan. */
 export async function ensureUktBillingForAcceptedRegistration(opts: {
   eventId: string;
@@ -654,21 +665,28 @@ export async function ensureUktBillingForAcceptedRegistration(opts: {
   memberRank: string;
   periodTitle: string;
   token: string;
-}): Promise<
-  | { ok: true; billingId: string; created: boolean }
-  | { ok: false; error: string }
-> {
+  /** Setelah hapus tagihan: jangan reuse tagihan lunas yang tertinggal. */
+  unpaidOnly?: boolean;
+}): Promise<EnsureUktBillingResult> {
   const existing = await prisma.billing.findFirst({
     where: {
       registrationId: opts.registrationId,
       isDeleted: false,
-      status: { notIn: ["CANCELLED", "REJECTED"] },
+      status: opts.unpaidOnly
+        ? { in: ["PENDING", "WAITING_VERIFICATION"] }
+        : { notIn: ["CANCELLED", "REJECTED"] },
     },
-    select: { id: true, status: true },
+    select: { id: true, status: true, amount: true },
     orderBy: { createdAt: "desc" },
   });
   if (existing) {
-    return { ok: true, billingId: existing.id, created: false };
+    return {
+      ok: true,
+      billingId: existing.id,
+      created: false,
+      billingAmount: Math.max(0, Math.round(existing.amount)),
+      billingStatus: existing.status,
+    };
   }
 
   const amount = await resolveUktRegisterFeeAmount({
@@ -697,7 +715,13 @@ export async function ensureUktBillingForAcceptedRegistration(opts: {
         isDeleted: false,
       },
     });
-    return { ok: true, billingId: billing.id, created: true };
+    return {
+      ok: true,
+      billingId: billing.id,
+      created: true,
+      billingAmount: Math.max(0, Math.round(amount)),
+      billingStatus: "PENDING",
+    };
   } catch (error) {
     console.error("[ukt-register] ensureUktBilling failed", error);
     return {
@@ -706,4 +730,81 @@ export async function ensureUktBillingForAcceptedRegistration(opts: {
         error instanceof Error ? error.message : "Gagal membuat tagihan UKT",
     };
   }
+}
+
+function isUktPeriodEventTitle(title: string): boolean {
+  if (parseUktEventTitle(title)) return true;
+  const upper = title.toUpperCase();
+  return upper.includes("UKT") && !upper.includes("LATBER") && !upper.includes("LATIHAN BERSAMA");
+}
+
+/**
+ * Setelah cabang Hapus tagihan UKT: reset registrasi lunas → APPROVED
+ * dan buat tagihan PENDING baru agar ranting bisa Bayar UKT lagi.
+ */
+export async function recreatePendingUktBillingAfterDelete(opts: {
+  token: string;
+  registrationId: string;
+  memberId: string;
+}): Promise<
+  | {
+      ok: true;
+      billingId: string;
+      billingStatus: string;
+      billingAmount: number;
+      status: string;
+    }
+  | { ok: false }
+> {
+  const registration = await prisma.eventRegistration.findFirst({
+    where: { id: opts.registrationId, memberId: opts.memberId },
+    select: {
+      id: true,
+      status: true,
+      eventId: true,
+      event: { select: { title: true } },
+      member: { select: { currentRank: true } },
+    },
+  });
+  if (!registration) return { ok: false };
+  const title = registration.event.title ?? "";
+  if (!isUktPeriodEventTitle(title)) return { ok: false };
+
+  const period = await assertUktPeriodMutable(opts.token, registration.eventId);
+  if (!period.ok) return { ok: false };
+
+  const currentStatus = String(registration.status ?? "").toUpperCase();
+  let nextStatus = registration.status;
+  if (currentStatus === "PAID" || currentStatus === "SUCCESS") {
+    await prisma.eventRegistration.update({
+      where: { id: registration.id },
+      data: { status: "APPROVED" },
+    });
+    nextStatus = "APPROVED";
+  }
+
+  const memberRank =
+    formatRankLabel(registration.member.currentRank) ||
+    registration.member.currentRank ||
+    DEFAULT_MEMBER_RANK;
+  const ensured = await ensureUktBillingForAcceptedRegistration({
+    eventId: registration.eventId,
+    memberId: opts.memberId,
+    registrationId: registration.id,
+    memberRank,
+    periodTitle: title,
+    token: opts.token,
+    unpaidOnly: true,
+  });
+  if (!ensured.ok) {
+    console.error("[ukt-register] recreatePendingUktBillingAfterDelete", ensured.error);
+    return { ok: false };
+  }
+  return {
+    ok: true,
+    billingId: ensured.billingId,
+    billingStatus: ensured.created ? "PENDING" : ensured.billingStatus,
+    billingAmount: ensured.billingAmount,
+    status: nextStatus === "PAID" || nextStatus === "SUCCESS" ? "APPROVED" : nextStatus,
+  };
 }

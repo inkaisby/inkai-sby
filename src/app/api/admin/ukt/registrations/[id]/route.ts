@@ -1109,6 +1109,40 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     if (!billingId) {
+      const localReg = await prisma.eventRegistration.findFirst({
+        where: { id },
+        select: {
+          eventId: true,
+          memberId: true,
+          event: { select: { title: true } },
+          member: { select: { currentRank: true } },
+        },
+      });
+      const eventId = String(
+        localReg?.eventId ??
+          (registration.event as { id?: string } | undefined)?.id ??
+          "",
+      );
+      const ensureMemberId = String(localReg?.memberId ?? memberId);
+      if (eventId && ensureMemberId) {
+        const kyuLama =
+          formatRankLabel(localReg?.member.currentRank) ||
+          localReg?.member.currentRank ||
+          DEFAULT_MEMBER_RANK;
+        const ensured = await ensureUktBillingForAcceptedRegistration({
+          eventId,
+          memberId: ensureMemberId,
+          registrationId: id,
+          memberRank: kyuLama,
+          periodTitle: String(event?.title ?? localReg?.event.title ?? "UKT"),
+          token: authResult.token,
+          unpaidOnly: true,
+        });
+        if (ensured.ok) billingId = ensured.billingId;
+      }
+    }
+
+    if (!billingId) {
       return NextResponse.json(
         {
           error:
