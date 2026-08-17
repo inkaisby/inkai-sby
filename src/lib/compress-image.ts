@@ -1,6 +1,9 @@
 /** Target ukuran dokumen anggota setelah kompresi (150 KB). */
 export const DOCUMENT_COMPRESS_MAX_BYTES = 150 * 1024;
 
+/** Target ukuran foto profil/anggota setelah kompresi (100 KB). */
+export const PHOTO_COMPRESS_MAX_BYTES = 100 * 1024;
+
 const MAX_EDGE_PX = 1600;
 
 function loadImage(file: File): Promise<HTMLImageElement> {

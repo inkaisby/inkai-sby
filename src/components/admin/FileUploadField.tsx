@@ -10,6 +10,14 @@ import {
 } from "react";
 import { ImageCropDialog } from "@/components/admin/ImageCropDialog";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { showAdminFetchError } from "@/lib/admin-client-error";
@@ -17,6 +25,7 @@ import { showError, showSuccess } from "@/lib/client-toast";
 import {
   compressUploadFile,
   DOCUMENT_COMPRESS_MAX_BYTES,
+  PHOTO_COMPRESS_MAX_BYTES,
   getImageDimensions,
   isNearlySquare,
 } from "@/lib/compress-image";
@@ -80,15 +89,13 @@ export function FileUploadField({
   hint,
   /** Sembunyikan URL di input (dokumen anggota — cegah bocor URL Blob). */
   hideUrl = false,
-  /** Kompres otomatis ke ~150 KB sebelum unggah (dokumen Akte/BPJS). */
+  /** Kompres otomatis sebelum unggah (dokumen ~150 KB; foto ~100 KB). */
   compressToMaxBytes,
   /** Default admin; anggota pakai `/api/member/upload`. */
   uploadEndpoint = "/api/admin/upload",
-  /** Zona avatar: children jadi target klik/drop. */
+  /** Zona avatar: children jadi target klik (modal) / drop. */
   variant = "field",
   children,
-  /** Tempel gambar di mana saja (skip input teks). */
-  listenWindowPaste = false,
 }: {
   label: string;
   value?: string;
@@ -103,12 +110,12 @@ export function FileUploadField({
   uploadEndpoint?: string;
   variant?: "field" | "avatar";
   children?: ReactNode;
-  listenWindowPaste?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const ingestRef = useRef<(file: File | null) => Promise<void>>(
     async () => {},
@@ -122,7 +129,9 @@ export function FileUploadField({
     folder === "akte" ||
     folder === "bpjs" ||
     photoFolder;
-  const maxBytes = compressToMaxBytes ?? DOCUMENT_COMPRESS_MAX_BYTES;
+  const maxBytes =
+    compressToMaxBytes ??
+    (photoFolder ? PHOTO_COMPRESS_MAX_BYTES : DOCUMENT_COMPRESS_MAX_BYTES);
   const dropHint = photoFolder
     ? "Lepas foto di sini, atau tempel (Ctrl+V)"
     : "Lepas file di sini, atau tempel gambar (Ctrl+V)";
@@ -138,7 +147,10 @@ export function FileUploadField({
       body.set("file", toUpload);
       body.set("folder", folder);
       const res = await fetch(uploadEndpoint, { method: "POST", body });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; url?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        url?: string;
+      };
       if (!res.ok) {
         showAdminFetchError(res, data, "Gagal upload");
         return;
@@ -179,6 +191,8 @@ export function FileUploadField({
       showError("Hanya file gambar (JPG/PNG/WebP)");
       return;
     }
+    setUploadOpen(false);
+    setDragging(false);
     if (photoFolder && file.type.startsWith("image/")) {
       try {
         const { width, height } = await getImageDimensions(file);
@@ -232,7 +246,7 @@ export function FileUploadField({
   }
 
   useEffect(() => {
-    if (!listenWindowPaste) return;
+    if (!uploadOpen) return;
     function onPaste(e: ClipboardEvent) {
       if (pasteTargetIsField(e.target)) return;
       const file = imageFromClipboard(e);
@@ -242,13 +256,17 @@ export function FileUploadField({
     }
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-  }, [listenWindowPaste]);
+  }, [uploadOpen]);
 
-  const dropProps = {
+  const dragProps = {
     onDragEnter,
     onDragOver,
     onDragLeave,
     onDrop,
+  };
+
+  const dropProps = {
+    ...dragProps,
     onPaste: onPasteLocal,
   };
 
@@ -277,23 +295,85 @@ export function FileUploadField({
     />
   );
 
+  const uploadDialog = (
+    <Dialog
+      open={uploadOpen}
+      onOpenChange={(next) => {
+        if (uploading || cropFile) return;
+        setUploadOpen(next);
+        if (!next) setDragging(false);
+      }}
+    >
+      <DialogContent className="sm:max-w-md" showCloseButton={!uploading}>
+        <DialogHeader>
+          <DialogTitle>Unggah foto</DialogTitle>
+          <DialogDescription>
+            Lepas foto di sini, tempel (Ctrl+V), atau pilih dari perangkat.
+            Dikompres otomatis maks. ~100 KB.
+          </DialogDescription>
+        </DialogHeader>
+        <div
+          tabIndex={0}
+          className={`flex min-h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed px-4 py-6 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inkai-red ${
+            dragging
+              ? "border-inkai-red bg-inkai-red/5"
+              : "border-muted-foreground/30 bg-muted/30"
+          }`}
+          {...dropProps}
+        >
+          {uploading ? (
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          ) : (
+            <Upload className="h-8 w-8 text-muted-foreground" />
+          )}
+          <p className="text-sm text-muted-foreground">{dropHint}</p>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={uploading}
+            className="gap-1.5"
+            onClick={() => inputRef.current?.click()}
+          >
+            {uploading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="h-4 w-4" />
+            )}
+            Pilih dari perangkat
+          </Button>
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={uploading}
+            onClick={() => setUploadOpen(false)}
+          >
+            Batal
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   if (variant === "avatar") {
     return (
       <div className="relative shrink-0">
         {cropDialog}
+        {uploadDialog}
         {fileInput}
         <button
           type="button"
           disabled={uploading}
           aria-label={label}
-          title={hint || dropHint}
+          title={hint || "Klik untuk unggah foto"}
           tabIndex={0}
           className={`group relative block rounded-full outline-none focus-visible:ring-2 focus-visible:ring-inkai-red ${
             dragging ? "ring-2 ring-inkai-red ring-offset-2" : ""
           }`}
-          {...dropProps}
+          {...dragProps}
           onClick={() => {
-            if (!uploading) inputRef.current?.click();
+            if (!uploading && !cropFile) setUploadOpen(true);
           }}
         >
           {children}
@@ -337,9 +417,7 @@ export function FileUploadField({
       <div
         tabIndex={0}
         className={`rounded-md border border-dashed p-2 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inkai-red ${
-          dragging
-            ? "border-inkai-red bg-inkai-red/5"
-            : "border-transparent"
+          dragging ? "border-inkai-red bg-inkai-red/5" : "border-transparent"
         }`}
         {...dropProps}
       >

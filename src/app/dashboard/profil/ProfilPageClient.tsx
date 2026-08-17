@@ -397,9 +397,8 @@ export default function ProfilPageClient({
             folder="photo"
             uploadEndpoint="/api/member/upload"
             hideUrl
-            compressToMaxBytes={150 * 1024}
             accept="image/jpeg,image/png,image/webp"
-            hint="JPG/PNG/WebP, dikompres otomatis maks. ~150 KB"
+            hint="JPG/PNG/WebP, dikompres otomatis maks. ~100 KB"
             onChange={setPhotoUrl}
             onUploaded={(url) => void onPhotoUploaded(url)}
           />

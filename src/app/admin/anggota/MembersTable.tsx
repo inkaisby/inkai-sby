@@ -1328,9 +1328,8 @@ export function MembersTable({
                   folder="members/photo"
                   hideUrl
                   variant="avatar"
-                  listenWindowPaste
                   accept="image/jpeg,image/png,image/webp"
-                  hint="Klik, lepas, atau tempel foto (Ctrl+V)"
+                  hint="Klik untuk unggah foto"
                   onChange={(url) => {
                     if (!url.trim()) void handleSetPhoto(null);
                   }}
