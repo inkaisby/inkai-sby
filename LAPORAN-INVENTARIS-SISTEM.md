@@ -1049,7 +1049,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 17 Agustus 2026 | **Unauthorized admin + drift create:** login 401 Inkai = password salah (bukan regresi MSH); `requireAdmin`/notif 401 pesan sesi berakhir + toast/redirect `/login`; create/sync anggota + PATCH nama/sabuk/dojo/iuran/dokumen `update`+`select`; re-apply `member-signature.sql` inkai-db; inventaris §11/§15 |
 | 17 Agustus 2026 | **Admin upload foto anggota:** sheet Kelola Anggota klik/drop/paste + crop 1:1 (tanpa lib); `set_photo` → Blob + Inkai PATCH + `User.photoUrl` (`update`+`select`); grant `editProfile`; inventaris §6/§9/§11/§13/§15 |
 | 17 Agustus 2026 | **Modal unggah foto anggota:** klik avatar buka modal (bukan explorer); drop/paste/pilih file di modal; crop 1:1 tidak ditumpuk; foto kompres ~100 KB (Akte/BPJS tetap 150 KB); inventaris §6/§9/§15 |
-| 17 Agustus 2026 | **Foto anggota persisten + tampil UKT/Latber:** `Member.photoUrl` jadi sumber kanonis untuk anggota tanpa akun; mirror/fallback `User.photoUrl`; trim URL kosong; hydrate daftar anggota, UKT admin/publik, dan Latber; merge anggota mempertahankan foto; SQL aman `member-photo.sql`; inventaris §4/§6/§8/§9/§11/§13/§15 |
+| 17 Agustus 2026 | **Foto anggota persisten + tampil UKT/Latber:** `Member.photoUrl` jadi sumber kanonis untuk anggota tanpa akun; mirror/fallback `User.photoUrl`; trim URL kosong; hydrate daftar anggota, UKT admin/publik, dan Latber; merge anggota mempertahankan foto; SQL aman `member-photo.sql` (applied ke `inkai-db` sebagai migration `member_photo_url` + backfill 7 anggota ber-akun, dan ke Postgres Docker lokal); inventaris §4/§6/§8/§9/§11/§13/§15 |
 
 ---
 
