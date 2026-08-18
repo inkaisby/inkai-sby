@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { PRESENCE_HEARTBEAT_RATE_MAX } from "@/lib/presence-constants";
 import {
   clearPresence,
   touchPresence,
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
   }
 
   const limit = await rateLimitAsync(`presence:hb:${userId}`, {
-    max: 30,
+    max: PRESENCE_HEARTBEAT_RATE_MAX,
     windowMs: 60_000,
   });
   if (!limit.success) {

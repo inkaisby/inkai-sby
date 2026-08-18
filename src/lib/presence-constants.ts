@@ -8,8 +8,10 @@ export const HEARTBEAT_INTERVAL_VISIBLE_MS = 90_000;
 export const HEARTBEAT_INTERVAL_HIDDEN_MS = 180_000;
 /** TTL key Redis presence. */
 export const REDIS_PRESENCE_TTL_SEC = 120;
-/** Batasi write lastSeenAt ke DB (hindari spam pool). */
-export const DB_LAST_SEEN_THROTTLE_MS = 60_000;
+/** Batasi write lastSeenAt ke DB (hindari spam pool / lock convoy). */
+export const DB_LAST_SEEN_THROTTLE_MS = 180_000;
+/** Rate limit POST /api/presence per user per menit. */
+export const PRESENCE_HEARTBEAT_RATE_MAX = 8;
 /** Cakupan daftar “login 24 jam”. */
 export const LOGIN_24H_MS = 24 * 60 * 60 * 1000;
 

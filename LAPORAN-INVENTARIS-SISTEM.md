@@ -353,7 +353,7 @@ Pusat / Nasional
 | Deteksi duplikat anggota | Aktif | Keras: NIK / NIA / nama+TTL (termasuk arsip untuk NIK/NIA); lunak: nama; admin create melepas NIA/NIK arsip bila hanya bentrok nomor; blok create admin & daftar publik; UI peringatan |
 | Gabungkan duplikat | Aktif | Ranting/cabang: pindahkan akun login + riwayat ke data operasional; arsipkan duplikat |
 | Audit admin | Aktif | Filter + preset **Keamanan** (`SECURITY_*`/IMPERSONATE/upload/broadcast) + pagination client (25/50/100) + fetch awal 100 log + export CSV di `/admin/audit`; hapus jejak iuran lokal menolak `SECURITY_*` |
-| Kehadiran akun | Aktif | `/admin/online` — pusat & cabang; heartbeat `/api/presence`; Redis opsional + DB fallback; jejak `UserSession`; **cabut sesi / kunci akun**; **impersonasi Mode A** (`inkai_impersonation` cookie) |
+| Kehadiran akun | Aktif | `/admin/online` — pusat & cabang; heartbeat `/api/presence` (throttle DB **180s**, rate **8/menit**, `updateMany`/SQL kondisional + `lock_timeout` 250ms); Redis opsional + DB fallback; jejak `UserSession`; **cabut sesi / kunci akun**; **impersonasi Mode A** (`inkai_impersonation` cookie) |
 | Nominal UKT | Tanpa kode unik | Frontend tidak menulis `uniqueTail`; tampilan pakai `uktBaseFeeAmount` (+ strip data lama). Sinkron backend Inkai (opsional) |
 | Unduh PDF UKT | Dihapus (hub/nota) | Tombol **Unduh PDF** di hub Laporan/Rekapan & Cetak Nota dihapus; Print + Save as PDF browser; `downloadPdfFromHtml` tetap untuk Latber/Kwitansi/Anggota |
 | Export rekap UKT | Aktif | Hub **Laporan/Rekapan**: tab Peserta (Print/CSV + ranting + pratinjau); tab Hasil Ujian Excel/Print Pengda (pejabat+penguji+TTD opsional, CATATAN rapat); tab Administrasi setor Pengprov (cabang); iframe print tunggal + sapu orphan |
@@ -421,7 +421,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 
 ```
 /api/auth/*                 Login, register (+ identitas/sabuk lengkap), check-duplicate, forgot/reset password
-/api/presence               POST heartbeat kehadiran; DELETE clear (logout/ganti akun)
+/api/presence               POST heartbeat (rate 8/menit, throttle DB 180s); DELETE clear (logout/ganti akun)
 /api/admin/presence         GET daftar sedang aktif / login 24 jam (pusat & cabang, scoped)
 /api/admin/presence/revoke  POST cabut sesi user (pusat/cabang, scoped) + audit SECURITY_SESSION_REVOKE
 /api/admin/presence/lock    POST kunci akun (isActive=false) + cabut sesi + audit SECURITY_SESSION_LOCK
@@ -1058,6 +1058,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 17 Agustus 2026 | **Fix schema drift produksi (salah sasaran DB):** migrasi `member-photo`/`member-signature` sempat mendarat di `inkai-db` (`mzmdh…`) yang ternyata salinan lama; app Vercel memakai ref **`ztrryuhhdoqdglajukuw`** → P2022 blank kolom UKT / gagal anggota / error boundary Latber. Apply SQL ke DB benar + `db:check-drift` exit 0; `memberPhotoSelect` + `degraded` toast; CI job opsional `PROD_DATABASE_URL`; koreksi catatan project ref; backend `inkai-ecosystem` wajib cek `DATABASE_URL` sama (belum terbaca dari MCP/CLI lokal) |
 | 17 Agustus 2026 | **UKT Hapus tagihan reset bayar:** cabang hapus tagihan (salah hapus/refund dari Menunggu Ujian) → tagihan PENDING baru, status Belum Bayar, ranting Bayar UKT; `submit_for_verification` ensure billing bila hilang; Nota+Laporan WA hanya `WAITING_VERIFICATION`/lunas; inventaris §9.3/§13/§15 |
 | 17 Agustus 2026 | **UKT Hapus tagihan hanya lunas:** tombol cabang **Hapus tagihan** hanya tampil jika `isUktBillingPaid` (Menunggu Ujian+); disembunyikan di Belum Bayar / Menunggu Verifikasi; inventaris §9.3/§15 |
+| 18 Agustus 2026 | **Fix heartbeat lock `User.lastSeenAt`:** throttle DB 180s (Redis nx + Map in-process); POST `/api/presence` rate 8/menit; tulis `lastSeenAt` via `updateMany`/SQL kondisional + `lock_timeout` 250ms (tanpa RETURNING `passwordHash`); deploy kode saja (tanpa `db push`); inventaris §6/§11/§15 |
 
 ---
 

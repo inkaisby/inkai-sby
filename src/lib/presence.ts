@@ -13,6 +13,11 @@ import {
 } from "@/lib/presence-constants";
 import type { SessionAuditSnapshot } from "@/lib/session-audit-parse";
 import { deviceSummary } from "@/lib/session-audit-parse";
+import {
+  consumeMemoryDbTouch,
+  writeUserLastSeenAt,
+  writeUserLoginTimestamps,
+} from "@/lib/presence-db";
 
 export {
   ONLINE_THRESHOLD_MS,
@@ -86,14 +91,7 @@ export async function markUserLogin(
   snap?: SessionAuditSnapshot | null,
 ) {
   const now = new Date();
-  try {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { lastLoginAt: now, lastSeenAt: now },
-    });
-  } catch (error) {
-    console.error("[presence] markUserLogin", error);
-  }
+  await writeUserLoginTimestamps(userId, now, true);
 
   if (snap) {
     try {
@@ -164,10 +162,10 @@ export async function touchPresence(
       });
       shouldWriteDb = touched != null;
     } catch {
-      shouldWriteDb = true;
+      shouldWriteDb = consumeMemoryDbTouch(userId, now);
     }
   } else if (!shouldWriteDb && !redis) {
-    shouldWriteDb = true;
+    shouldWriteDb = consumeMemoryDbTouch(userId, now);
   }
 
   // Snapshot sesi: bootstrap bila belum ada, atau perbarui jejak.
@@ -184,13 +182,7 @@ export async function touchPresence(
           where: { id: userId },
           select: { lastLoginAt: true },
         });
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            lastSeenAt: stamp,
-            ...(user?.lastLoginAt ? {} : { lastLoginAt: stamp }),
-          },
-        });
+        await writeUserLoginTimestamps(userId, stamp, !user?.lastLoginAt);
         await prisma.userSession.create({
           data: {
             userId,
@@ -243,14 +235,9 @@ export async function touchPresence(
 
   if (!shouldWriteDb) return;
 
-  try {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { lastSeenAt: new Date(now) },
-    });
-  } catch (error) {
-    console.error("[presence] lastSeenAt", error);
-  }
+  await writeUserLastSeenAt(userId, new Date(now), {
+    force: Boolean(opts?.forceDb),
+  });
 }
 
 /** Hapus sinyal online segera (logout / ganti akun). */
@@ -267,7 +254,7 @@ export async function clearPresence(userId: string) {
   const now = new Date();
   const offlineAt = new Date(Date.now() - ONLINE_THRESHOLD_MS - 1000);
   try {
-    await prisma.user.update({
+    await prisma.user.updateMany({
       where: { id: userId },
       data: { lastSeenAt: offlineAt },
     });
