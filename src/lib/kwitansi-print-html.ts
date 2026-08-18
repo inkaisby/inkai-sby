@@ -23,6 +23,8 @@ export type KwitansiPrintData = {
   penerimaSignUrl?: string | null;
   penyetorSignUrl?: string | null;
   origin: string;
+  /** Watermark DRAFT (default true selama wireframe). */
+  draft?: boolean;
 };
 
 export type DaftarPenerimaPrintRow = {
@@ -41,6 +43,7 @@ export type DaftarPenerimaPrintData = {
   total: number;
   origin: string;
   sekretariatAddress?: string;
+  draft?: boolean;
 };
 
 export type NotaItemPrintRow = {
@@ -67,62 +70,45 @@ export type NotaPengeluaranPrintData = {
   origin: string;
   sekretariatAddress?: string;
   contactPhone?: string;
+  draft?: boolean;
 };
 
 function signImg(url: string | null | undefined, alt: string): string {
   if (!url) return "";
-  return `<img src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" style="max-height:48px;max-width:140px;object-fit:contain;" />`;
+  return `<img src="${escapeHtml(url)}" alt="${escapeHtml(alt)}" style="max-height:64px;max-width:180px;object-fit:contain;" />`;
 }
 
-/** Kwitansi klasik landscape — fidelity gambar (tanpa kop penuh). */
-export function buildKwitansiPrintHtml(data: KwitansiPrintData): string {
+function draftCss(): string {
+  return `
+  .draft-wrap { position: relative; }
+  .draft-mark {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    pointer-events: none; z-index: 5;
+    font-size: 72px; font-weight: 700; letter-spacing: 0.12em;
+    color: rgba(185, 28, 28, 0.12); transform: rotate(-28deg);
+    font-family: Arial, Helvetica, sans-serif;
+  }`;
+}
+
+function draftMark(draft?: boolean): string {
+  if (draft === false) return "";
+  return `<div class="draft-mark" aria-hidden="true">DRAFT</div>`;
+}
+
+function kwitansiSheetInner(data: KwitansiPrintData): string {
   const terbilang = terbilangId(data.jumlah);
   const rp = formatRp(data.jumlah);
-  return `<!DOCTYPE html>
-<html lang="id">
-<head>
-<meta charset="utf-8"/>
-<title>Kwitansi ${escapeHtml(data.no)}</title>
-<style>
-  @page { size: A4 landscape; margin: 12mm; }
-  * { box-sizing: border-box; }
-  body { font-family: "Times New Roman", Times, serif; color: #111; margin: 0; }
-  .sheet { display: flex; width: 100%; min-height: 160mm; border: 1.5px solid #222; }
-  .stub {
-    width: 32%; padding: 10px 12px; border-right: 2px dashed #444;
-    font-size: 11px; line-height: 1.45;
-  }
-  .stub h2 { font-size: 13px; margin: 0 0 10px; letter-spacing: 0.04em; }
-  .body { flex: 1; padding: 12px 16px; position: relative; }
-  .title { text-align: center; font-size: 22px; font-weight: 700; letter-spacing: 0.08em; margin: 0 0 14px; }
-  .row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 13px; }
-  .field { margin: 8px 0; font-size: 13px; }
-  .dots { border-bottom: 1px dotted #333; min-height: 1.2em; flex: 1; margin-left: 6px; }
-  .inline { display: flex; align-items: flex-end; gap: 4px; }
-  .terbilang { font-style: italic; margin: 10px 0; font-size: 13px; }
-  .rp-box {
-    display: inline-block; margin-top: 10px; padding: 6px 18px 6px 14px;
-    border: 2px solid #111; font-weight: 700; font-size: 16px;
-    transform: skewX(-8deg);
-  }
-  .rp-box span { display: inline-block; transform: skewX(8deg); }
-  .signs { display: flex; justify-content: space-between; margin-top: 28px; gap: 24px; }
-  .sign { width: 42%; text-align: center; font-size: 12px; }
-  .sign-space { min-height: 56px; display: flex; align-items: flex-end; justify-content: center; }
-  .sign-line { border-top: 1px solid #333; margin-top: 4px; padding-top: 4px; }
-  .muted { color: #444; font-size: 11px; }
-</style>
-</head>
-<body>
-  <div class="sheet">
+  return `
+  <div class="sheet draft-wrap">
+    ${draftMark(data.draft)}
     <aside class="stub">
       <h2>KWITANSI</h2>
       <div>No. ${escapeHtml(data.no)}</div>
       <div>Tanggal: ${escapeHtml(data.tanggal)}</div>
-      <div style="margin-top:8px">Terima dari:<br/><strong>${escapeHtml(data.terimaDari || "—")}</strong></div>
-      <div style="margin-top:8px">Jumlah: <strong>${escapeHtml(rp)}</strong></div>
-      <div class="muted" style="margin-top:6px">${escapeHtml(terbilang)}</div>
-      <div style="margin-top:8px">Untuk pembayaran:<br/>${escapeHtml(data.untukPembayaran || "—")}</div>
+      <div style="margin-top:6px">Terima dari:<br/><strong>${escapeHtml(data.terimaDari || "—")}</strong></div>
+      <div style="margin-top:6px">Jumlah: <strong>${escapeHtml(rp)}</strong></div>
+      <div class="muted" style="margin-top:4px">${escapeHtml(terbilang)}</div>
+      <div style="margin-top:6px">Untuk pembayaran:<br/>${escapeHtml(data.untukPembayaran || "—")}</div>
     </aside>
     <section class="body">
       <h1 class="title">KWITANSI PEMBAYARAN</h1>
@@ -147,7 +133,87 @@ export function buildKwitansiPrintHtml(data: KwitansiPrintData): string {
         </div>
       </div>
     </section>
-  </div>
+  </div>`;
+}
+
+function kwitansiStyles(): string {
+  return `
+  @page { size: A4 landscape; margin: 8mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Times New Roman", Times, serif; color: #111; margin: 0;
+    display: flex; flex-direction: column; align-items: flex-start;
+  }
+  .sheet {
+    display: flex; width: 100%; height: auto; border: 1.5px solid #222;
+    page-break-after: always; break-after: page;
+  }
+  .sheet:last-child { page-break-after: auto; break-after: auto; }
+  .stub {
+    width: 32%; padding: 8px 10px; border-right: 2px dashed #444;
+    font-size: 11px; line-height: 1.4;
+  }
+  .stub h2 { font-size: 13px; margin: 0 0 8px; letter-spacing: 0.04em; }
+  .body { flex: 1; padding: 10px 14px; position: relative; }
+  .title { text-align: center; font-size: 20px; font-weight: 700; letter-spacing: 0.08em; margin: 0 0 10px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; font-size: 13px; }
+  .field { margin: 6px 0; font-size: 13px; }
+  .dots { border-bottom: 1px dotted #333; min-height: 1.1em; flex: 1; margin-left: 6px; }
+  .inline { display: flex; align-items: flex-end; gap: 4px; }
+  .terbilang { font-style: italic; margin: 8px 0; font-size: 13px; }
+  .rp-box {
+    display: inline-block; margin-top: 8px; padding: 5px 16px 5px 12px;
+    border: 2px solid #111; font-weight: 700; font-size: 15px;
+    transform: skewX(-8deg);
+  }
+  .rp-box span { display: inline-block; transform: skewX(8deg); }
+  .signs { display: flex; justify-content: space-between; margin-top: 16px; gap: 20px; }
+  .sign { width: 42%; text-align: center; font-size: 12px; }
+  .sign-space { min-height: 64px; display: flex; align-items: flex-end; justify-content: center; }
+  .sign-line { border-top: 1px solid #333; margin-top: 4px; padding-top: 4px; }
+  .muted { color: #444; font-size: 11px; }
+  ${draftCss()}`;
+}
+
+/** Kwitansi klasik landscape — tinggi mengikuti konten. */
+export function buildKwitansiPrintHtml(data: KwitansiPrintData): string {
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<title>Kwitansi ${escapeHtml(data.no)}</title>
+<style>${kwitansiStyles()}</style>
+</head>
+<body>
+  ${kwitansiSheetInner(data)}
+</body>
+</html>`;
+}
+
+/** Beberapa lembar kwitansi dalam satu dokumen (satu dialog print). */
+export function buildKwitansiBatchPrintHtml(
+  items: KwitansiPrintData[],
+): string {
+  if (items.length === 0) return buildKwitansiPrintHtml({
+    no: "",
+    tanggal: "",
+    terimaDari: "",
+    jumlah: 0,
+    untukPembayaran: "",
+    origin: "",
+  });
+  if (items.length === 1) return buildKwitansiPrintHtml(items[0]!);
+  const sheets = items.map((d) => kwitansiSheetInner(d)).join("\n");
+  const title = items.map((d) => d.no).filter(Boolean).join(", ");
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<title>Kwitansi ${escapeHtml(title)}</title>
+<style>${kwitansiStyles()}</style>
+</head>
+<body>
+  ${sheets}
 </body>
 </html>`;
 }
@@ -190,9 +256,13 @@ export function buildDaftarPenerimaPrintHtml(
   th { background: #f3f4f6; }
   tfoot td { font-weight: 700; }
   .foot { margin-top: 18px; font-size: 11px; color: #444; }
+  .page { position: relative; }
+  ${draftCss()}
 </style>
 </head>
 <body>
+  <div class="page draft-wrap">
+    ${draftMark(data.draft)}
   <div class="kop">
     <img src="${escapeHtml(logoUrl)}" alt="Logo INKAI" />
     <div>
@@ -222,6 +292,7 @@ export function buildDaftarPenerimaPrintHtml(
     </tfoot>
   </table>
   <p class="foot">${escapeHtml(sekretariat)}</p>
+  </div>
 </body>
 </html>`;
 }
@@ -279,12 +350,16 @@ export function buildNotaPengeluaranPrintHtml(
   .summary td.label { background: #b91c1c; color: #fff; font-weight: 600; width: 55%; }
   .signs { display: flex; justify-content: space-between; margin-top: 28px; }
   .sign { width: 40%; text-align: center; }
-  .sign-space { min-height: 56px; display: flex; align-items: flex-end; justify-content: center; }
+  .sign-space { min-height: 64px; display: flex; align-items: flex-end; justify-content: center; }
   .sign-line { border-top: 1px solid #333; margin-top: 4px; padding-top: 4px; }
   .footer { margin-top: 20px; background: #b91c1c; color: #fff; padding: 8px 12px; display: flex; justify-content: space-between; font-size: 11px; }
+  .page { position: relative; }
+  ${draftCss()}
 </style>
 </head>
 <body>
+  <div class="page draft-wrap">
+    ${draftMark(data.draft)}
   <div class="head">
     <img src="${escapeHtml(logoUrl)}" alt="Logo INKAI" />
     <h1>NOTA<br/>PENGELUARAN</h1>
@@ -332,39 +407,66 @@ export function buildNotaPengeluaranPrintHtml(
     <span>${phone ? escapeHtml(phone) : ""}</span>
     <span>${escapeHtml(sekretariat)}</span>
   </div>
+  </div>
 </body>
 </html>`;
 }
 
 export function printKwitansi(data: KwitansiPrintData) {
-  openHtmlPrintWindow(buildKwitansiPrintHtml(data));
+  openHtmlPrintWindow(buildKwitansiPrintHtml({ ...data, draft: data.draft !== false }));
+}
+
+export function printKwitansiBatch(items: KwitansiPrintData[]) {
+  const withDraft = items.map((d) => ({ ...d, draft: d.draft !== false }));
+  openHtmlPrintWindow(buildKwitansiBatchPrintHtml(withDraft));
 }
 
 export async function downloadKwitansiPdf(
   data: KwitansiPrintData,
   filename: string,
 ) {
-  await downloadPdfFromHtml(buildKwitansiPrintHtml(data), filename);
+  await downloadPdfFromHtml(
+    buildKwitansiPrintHtml({ ...data, draft: data.draft !== false }),
+    filename,
+  );
+}
+
+export async function downloadKwitansiBatchPdf(
+  items: KwitansiPrintData[],
+  filename: string,
+) {
+  const withDraft = items.map((d) => ({ ...d, draft: d.draft !== false }));
+  await downloadPdfFromHtml(buildKwitansiBatchPrintHtml(withDraft), filename);
 }
 
 export function printDaftarPenerima(data: DaftarPenerimaPrintData) {
-  openHtmlPrintWindow(buildDaftarPenerimaPrintHtml(data));
+  openHtmlPrintWindow(
+    buildDaftarPenerimaPrintHtml({ ...data, draft: data.draft !== false }),
+  );
 }
 
 export async function downloadDaftarPenerimaPdf(
   data: DaftarPenerimaPrintData,
   filename: string,
 ) {
-  await downloadPdfFromHtml(buildDaftarPenerimaPrintHtml(data), filename);
+  await downloadPdfFromHtml(
+    buildDaftarPenerimaPrintHtml({ ...data, draft: data.draft !== false }),
+    filename,
+  );
 }
 
 export function printNotaPengeluaran(data: NotaPengeluaranPrintData) {
-  openHtmlPrintWindow(buildNotaPengeluaranPrintHtml(data));
+  openHtmlPrintWindow(
+    buildNotaPengeluaranPrintHtml({ ...data, draft: data.draft !== false }),
+  );
 }
 
 export async function downloadNotaPengeluaranPdf(
   data: NotaPengeluaranPrintData,
   filename: string,
 ) {
-  await downloadPdfFromHtml(buildNotaPengeluaranPrintHtml(data), filename);
+  await downloadPdfFromHtml(
+    buildNotaPengeluaranPrintHtml({ ...data, draft: data.draft !== false }),
+    filename,
+  );
 }

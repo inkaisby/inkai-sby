@@ -19,6 +19,8 @@ type Props = {
   /** Jika diisi, TTD di-upload ke folder member-ttd dan di-persist ke Member.signatureUrl */
   memberId?: string | null;
   uploadFolder?: string;
+  /** sm = default UKT; md = kwitansi (thumbnail kecil tapi jelas) */
+  previewSize?: "sm" | "md";
 };
 
 const EXPORT_MAX_W = 400;
@@ -106,6 +108,7 @@ export function SignaturePadField({
   disabled,
   memberId,
   uploadFolder,
+  previewSize = "sm",
 }: Props) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -354,7 +357,11 @@ export function SignaturePadField({
         <img
           src={valueUrl}
           alt={`TTD ${label}`}
-          className="h-10 max-w-[140px] object-contain"
+          className={
+            previewSize === "md"
+              ? "h-12 max-w-[160px] rounded-sm border border-zinc-200 bg-white object-contain p-0.5"
+              : "h-10 max-w-[140px] object-contain"
+          }
         />
       ) : (
         <p className="text-[11px] text-muted-foreground">Belum ada TTD digital</p>

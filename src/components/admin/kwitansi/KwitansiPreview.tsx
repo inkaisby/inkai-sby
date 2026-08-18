@@ -32,7 +32,7 @@ export function KwitansiPreview({ data, className }: Props) {
         className,
       )}
     >
-      <div className="flex min-h-[280px] flex-col md:flex-row">
+      <div className="flex min-h-0 flex-col md:flex-row">
         <aside className="border-b border-dashed border-zinc-500 p-3 text-[11px] leading-relaxed md:w-[32%] md:border-b-0 md:border-r">
           <p className="mb-2 text-xs font-bold tracking-wide">KWITANSI</p>
           <p>No. {data.no || "—"}</p>
@@ -82,15 +82,15 @@ export function KwitansiPreview({ data, className }: Props) {
             </span>
           </div>
 
-          <div className="mt-8 flex justify-between gap-6">
+          <div className="mt-6 flex justify-between gap-6">
             <div className="w-[42%] text-center text-xs">
-              <div className="flex min-h-14 items-end justify-center">
+              <div className="flex min-h-24 items-end justify-center rounded-sm bg-white">
                 {data.penerimaSignUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={data.penerimaSignUrl}
                     alt="TTD Penerima"
-                    className="max-h-12 max-w-[140px] object-contain"
+                    className="max-h-24 max-w-[200px] object-contain"
                   />
                 ) : null}
               </div>
@@ -100,13 +100,13 @@ export function KwitansiPreview({ data, className }: Props) {
               <div>{data.penerimaLabel || "Penerima"}</div>
             </div>
             <div className="w-[42%] text-center text-xs">
-              <div className="flex min-h-14 items-end justify-center">
+              <div className="flex min-h-24 items-end justify-center rounded-sm bg-white">
                 {data.penyetorSignUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={data.penyetorSignUrl}
                     alt="TTD Penyetor"
-                    className="max-h-12 max-w-[140px] object-contain"
+                    className="max-h-24 max-w-[200px] object-contain"
                   />
                 ) : null}
               </div>

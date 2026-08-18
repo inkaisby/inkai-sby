@@ -72,6 +72,8 @@ export type LatberMemberRow = {
   billingStatus?: string | null;
   selfRegistration?: boolean;
   memberPaymentConfirmedAt?: string | null;
+  /** ISO `EventRegistration.createdAt`; null untuk Belum Daftar. */
+  registeredAt?: string | null;
 };
 
 export type LatberPeriodOption = {
@@ -579,9 +581,13 @@ export function buildLatberPublicCormatWaText(opts: {
 
   const eventAt = opts.eventAt?.trim() || "";
   if (eventAt) {
+    const eventDateLabel = formatLatberWibDate(eventAt);
     const countdown = formatLatberEventCountdown(eventAt);
-    if (countdown) {
-      lines.push("*Pelaksanaan Latihan Bersama*", countdown, "");
+    if (eventDateLabel || countdown) {
+      lines.push("*Pelaksanaan Latihan Bersama*");
+      if (eventDateLabel) lines.push(`_${eventDateLabel}_`);
+      if (countdown) lines.push(countdown);
+      lines.push("");
     }
   }
 

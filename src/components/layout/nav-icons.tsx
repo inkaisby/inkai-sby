@@ -41,6 +41,8 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   Keanggotaan: Users,
   "Iuran Anggota": Wallet,
   "Kwitansi Pembayaran": ReceiptText,
+  Pembuatan: ReceiptText,
+  Arsip: Archive,
   "UKT (Ujian Kenaikan Tingkat)": GraduationCap,
   "Latihan Bersama": Swords,
   "Event & Kegiatan": CalendarDays,

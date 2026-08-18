@@ -1,4 +1,5 @@
 import { formatLatberCurrency } from "@/lib/latber";
+import { openHtmlPrintWindow } from "@/lib/ukt-print-html";
 
 function escapeHtml(value: string): string {
   return value
@@ -139,51 +140,6 @@ export function buildLatberNotaPrintHtml(data: LatberNotaPrintData): string {
   </div>
 </body>
 </html>`;
-}
-
-function openHtmlPrintWindow(html: string): void {
-  const iframe = document.createElement("iframe");
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "none";
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
-  if (!doc) {
-    iframe.remove();
-    return;
-  }
-  doc.open();
-  doc.write(html);
-  doc.close();
-
-  const win = iframe.contentWindow;
-  if (!win) {
-    iframe.remove();
-    return;
-  }
-
-  const cleanup = () => {
-    setTimeout(() => iframe.remove(), 800);
-  };
-
-  const doPrint = () => {
-    win.focus();
-    win.print();
-    cleanup();
-  };
-
-  const img = doc.querySelector("img");
-  if (img && !img.complete) {
-    img.addEventListener("load", () => setTimeout(doPrint, 80), { once: true });
-    img.addEventListener("error", () => setTimeout(doPrint, 80), { once: true });
-    setTimeout(doPrint, 1200);
-  } else {
-    setTimeout(doPrint, 120);
-  }
 }
 
 export function printLatberNotaDocument(data: LatberNotaPrintData): void {

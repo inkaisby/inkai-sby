@@ -102,6 +102,7 @@ export async function GET(request: Request) {
       billingAmount: feeAmount,
       selfRegistration: false,
       memberPaymentConfirmedAt: null,
+      registeredAt: null,
       hydrateOk: eligibility.ok,
       hydrateError: eligibility.ok ? null : eligibility.error,
     };

@@ -37,6 +37,8 @@ type Props = {
   onPdf: () => void;
   onFillFromSelected?: () => void;
   showBatchActions?: boolean;
+  /** Mode A: tampilkan baris Total terpilih jika ada centang */
+  showSelectedTotal?: boolean;
 };
 
 function newId() {
@@ -51,6 +53,7 @@ export function KwitansiPenerimaTable({
   onPdf,
   onFillFromSelected,
   showBatchActions,
+  showSelectedTotal,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -61,6 +64,11 @@ export function KwitansiPenerimaTable({
   const [signUrl, setSignUrl] = useState<string | null>(null);
 
   const total = rows.reduce((s, r) => s + (Number(r.nominal) || 0), 0);
+  const selected = rows.filter((r) => r.selected);
+  const selectedTotal = selected.reduce(
+    (s, r) => s + (Number(r.nominal) || 0),
+    0,
+  );
 
   const resetForm = () => {
     setEditingId(null);
@@ -135,7 +143,12 @@ export function KwitansiPenerimaTable({
         <h3 className="text-sm font-semibold">Daftar Penerima</h3>
         <div className="flex flex-wrap gap-2">
           {showBatchActions && onFillFromSelected ? (
-            <Button type="button" size="sm" variant="secondary" onClick={onFillFromSelected}>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={onFillFromSelected}
+            >
               Isi / pratinjau dari terpilih
             </Button>
           ) : null}
@@ -168,7 +181,10 @@ export function KwitansiPenerimaTable({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-muted-foreground">
+                <td
+                  colSpan={7}
+                  className="p-6 text-center text-muted-foreground"
+                >
                   Belum ada penerima — Tambah penerima
                 </td>
               </tr>
@@ -200,6 +216,7 @@ export function KwitansiPenerimaTable({
                       label={row.namaLengkap}
                       valueUrl={row.signUrl}
                       memberId={row.memberId}
+                      previewSize="md"
                       onChange={(url) =>
                         onChange(
                           rows.map((r) =>
@@ -245,12 +262,21 @@ export function KwitansiPenerimaTable({
               <td className="p-2 text-right">{formatRp(total)}</td>
               <td colSpan={2}></td>
             </tr>
+            {showSelectedTotal && selected.length > 0 ? (
+              <tr className="font-semibold text-inkai-red">
+                <td colSpan={4} className="p-2 text-right">
+                  Total terpilih ({selected.length})
+                </td>
+                <td className="p-2 text-right">{formatRp(selectedTotal)}</td>
+                <td colSpan={2}></td>
+              </tr>
+            ) : null}
           </tfoot>
         </table>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="overflow-visible">
           <DialogHeader>
             <DialogTitle>
               {editingId ? "Edit penerima" : "Tambah penerima"}
@@ -266,14 +292,18 @@ export function KwitansiPenerimaTable({
                   setMemberId(null);
                 }}
                 onPick={onPick}
+                placeholder="Cari nama anggota (≥2 huruf)…"
               />
               <p className="text-[11px] text-muted-foreground">
-                Ketik nama bebas jika bukan anggota.
+                Ketik ≥2 huruf untuk cari anggota, atau nama bebas.
               </p>
             </div>
             <div className="space-y-1">
               <Label>{roleColumnLabel}</Label>
-              <Input value={jabatan} onChange={(e) => setJabatan(e.target.value)} />
+              <Input
+                value={jabatan}
+                onChange={(e) => setJabatan(e.target.value)}
+              />
             </div>
             <div className="space-y-1">
               <Label>Nominal</Label>
@@ -290,12 +320,17 @@ export function KwitansiPenerimaTable({
                 label={nama || "Penerima"}
                 valueUrl={signUrl}
                 memberId={memberId}
+                previewSize="md"
                 onChange={setSignUrl}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
               Batal
             </Button>
             <Button type="button" onClick={save} disabled={!nama.trim()}>

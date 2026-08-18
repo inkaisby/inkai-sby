@@ -555,6 +555,8 @@ export type UktMemberRow = {
   selfRegistration?: boolean;
   /** Anggota sudah konfirmasi bayar ke ranting (flag saja). */
   memberPaymentConfirmedAt?: string | null;
+  /** ISO `EventRegistration.createdAt`; null untuk Belum Daftar. */
+  registeredAt?: string | null;
   registrationWaiver?: UktRegistrationWaiver | null;
 };
 
@@ -573,6 +575,8 @@ export type UktRegistrationSnapshotItem = {
   registrationWaiver: UktRegistrationWaiver | null;
   selfRegistration?: boolean;
   memberPaymentConfirmedAt?: string | null;
+  /** ISO `EventRegistration.createdAt`. */
+  registeredAt?: string | null;
   /** Identity untuk append / hydrate peserta (registrants-first). */
   fullName?: string;
   nia?: string | null;
@@ -625,6 +629,7 @@ export function applyUktRegistrationSnapshotToRows(
         registrationWaiver: null,
         selfRegistration: false,
         memberPaymentConfirmedAt: null,
+        registeredAt: null,
       };
     }
     return {
@@ -644,6 +649,8 @@ export function applyUktRegistrationSnapshotToRows(
         p.memberPaymentConfirmedAt !== undefined
           ? p.memberPaymentConfirmedAt
           : r.memberPaymentConfirmedAt,
+      registeredAt:
+        p.registeredAt !== undefined ? p.registeredAt : r.registeredAt,
       fullName: p.fullName?.trim() ? p.fullName : r.fullName,
       nia: coalesceIdentity(p.nia, r.nia),
       dojoId: p.dojoId?.trim() ? p.dojoId : r.dojoId,
@@ -696,6 +703,7 @@ export function applyUktRegistrationSnapshotToRows(
       registrationWaiver: p.registrationWaiver,
       selfRegistration: p.selfRegistration ?? false,
       memberPaymentConfirmedAt: p.memberPaymentConfirmedAt ?? null,
+      registeredAt: p.registeredAt ?? null,
     });
   }
   return appended.length > 0 ? [...mapped, ...appended] : mapped;

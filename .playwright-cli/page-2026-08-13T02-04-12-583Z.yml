@@ -1,0 +1,133 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link [ref=e5] [cursor=pointer]:
+          - /url: /
+          - img "Logo INKAI" [ref=e6]
+          - generic [ref=e7]:
+            - paragraph [ref=e8]: INKAI Surabaya
+            - paragraph [ref=e9]: Institut Karate-Do Indonesia
+        - navigation [ref=e10]:
+          - link "Beranda" [ref=e11] [cursor=pointer]:
+            - /url: /
+          - link "Tutorial" [ref=e12] [cursor=pointer]:
+            - /url: /tutorial
+          - link "Sejarah" [ref=e13] [cursor=pointer]:
+            - /url: /sejarah
+          - link "Struktur" [ref=e14] [cursor=pointer]:
+            - /url: /struktur
+          - link "Dojo / Ranting" [ref=e15] [cursor=pointer]:
+            - /url: /dojo
+          - link "Kegiatan" [ref=e16] [cursor=pointer]:
+            - /url: /kegiatan
+          - link "Apresiasi" [ref=e17] [cursor=pointer]:
+            - /url: /apresiasi
+          - link "Kontak" [ref=e18] [cursor=pointer]:
+            - /url: /kontak
+        - generic [ref=e19]:
+          - button "Tema" [ref=e20]
+          - generic [ref=e21]:
+            - button "Login" [ref=e22]
+            - link "Daftar" [ref=e23] [cursor=pointer]:
+              - /url: /daftar
+    - main [ref=e24]:
+      - generic [ref=e25]:
+        - generic [ref=e31]:
+          - img "Logo INKAI" [ref=e38]
+          - generic [ref=e39]:
+            - heading "Institut Karate-Do Indonesia" [level=1] [ref=e40]:
+              - text: Institut Karate-Do
+              - generic [ref=e41]: Indonesia
+            - generic [ref=e44]:
+              - img "Lambang Kota Surabaya" [ref=e45]
+              - generic [ref=e46]:
+                - paragraph [ref=e47]: Kota Pahlawan
+                - paragraph [ref=e48]: Kota Surabaya
+            - paragraph [ref=e49]: Membentuk karateka berintegritas, tangguh, dan rendah hati melalui disiplin, dedikasi, dan nilai-nilai budo karate.
+            - generic [ref=e50]:
+              - link "Daftar Anggota" [ref=e51] [cursor=pointer]:
+                - /url: /daftar
+              - button "Login Anggota" [ref=e52]
+              - link "Pelajari Sejarah" [ref=e53] [cursor=pointer]:
+                - /url: /sejarah
+        - generic [ref=e56]:
+          - generic [ref=e57]:
+            - generic [ref=e58]: Tentang INKAI
+            - heading "Karate-Do untuk Generasi Tangguh" [level=2] [ref=e59]
+            - paragraph [ref=e60]: Kenali lebih dekat organisasi, nilai, dan perjalanan INKAI Cabang Surabaya.
+          - generic [ref=e62]:
+            - link [ref=e63] [cursor=pointer]:
+              - /url: /sejarah
+              - heading "Sejarah" [level=3] [ref=e67]
+              - paragraph [ref=e68]: Perjalanan INKAI dari masa ke masa
+              - generic [ref=e69]: Selengkapnya
+            - link [ref=e72] [cursor=pointer]:
+              - /url: /makna-lambang
+              - heading "Makna Lambang" [level=3] [ref=e76]
+              - paragraph [ref=e77]: Filosofi setiap elemen lambang INKAI
+              - generic [ref=e78]: Selengkapnya
+            - link [ref=e81] [cursor=pointer]:
+              - /url: /struktur
+              - heading "Struktur Organisasi" [level=3] [ref=e88]
+              - paragraph [ref=e89]: Dojo dan ranting Cabang Surabaya
+              - generic [ref=e90]: Selengkapnya
+            - link [ref=e93] [cursor=pointer]:
+              - /url: /visi-misi
+              - heading "Visi & Misi" [level=3] [ref=e99]
+              - paragraph [ref=e100]: Arah dan tujuan organisasi INKAI
+              - generic [ref=e101]: Selengkapnya
+        - generic [ref=e105]:
+          - generic [ref=e106]:
+            - generic [ref=e107]: Apresiasi
+            - heading "Kenangan & Prestasi" [level=2] [ref=e108]
+            - paragraph [ref=e109]: Menghormati yang mendahului dan merayakan pencapaian karateka.
+          - list [ref=e111]:
+            - listitem [ref=e112]:
+              - 'link "Kenangan Sensei Maria Magdalena Linda Luwuk #Obituari | Requiescat in Pace, Sensei Linda" [ref=e113] [cursor=pointer]':
+                - /url: /apresiasi?jenis=kenangan&tokoh=sensei-maria-magdalena-linda-luwuk
+                - generic [ref=e115]:
+                  - paragraph [ref=e116]: Kenangan
+                  - paragraph [ref=e117]: Sensei Maria Magdalena Linda Luwuk
+                  - paragraph [ref=e118]: "#Obituari | Requiescat in Pace, Sensei Linda"
+          - link "Lihat semua" [ref=e120] [cursor=pointer]:
+            - /url: /apresiasi
+        - generic [ref=e126]:
+          - paragraph [ref=e127]: Motto INKAI
+          - blockquote [ref=e128]: “Karate-Ka INKAI senantiasa memiliki Integritas tinggi, Tangguh dan Rendah Hati”
+    - contentinfo [ref=e129]:
+      - generic [ref=e130]:
+        - generic [ref=e131]:
+          - generic [ref=e132]:
+            - img "Logo INKAI" [ref=e133]
+            - paragraph [ref=e134]: INKAI Surabaya
+            - paragraph [ref=e135]: Institut Karate-Do IndonesiaCabang Surabaya, Jawa Timur
+          - generic [ref=e136]:
+            - paragraph [ref=e137]: Navigasi
+            - navigation [ref=e138]:
+              - link "Sejarah" [ref=e139] [cursor=pointer]:
+                - /url: /sejarah
+              - link "Makna Lambang" [ref=e140] [cursor=pointer]:
+                - /url: /makna-lambang
+              - link "Struktur Organisasi" [ref=e141] [cursor=pointer]:
+                - /url: /struktur
+              - link "Visi & Misi" [ref=e142] [cursor=pointer]:
+                - /url: /visi-misi
+              - link "Kegiatan" [ref=e143] [cursor=pointer]:
+                - /url: /kegiatan
+              - link "Apresiasi" [ref=e144] [cursor=pointer]:
+                - /url: /apresiasi
+              - link "Kontak" [ref=e145] [cursor=pointer]:
+                - /url: /kontak
+          - generic [ref=e146]:
+            - paragraph [ref=e147]: Kontak
+            - generic [ref=e148]:
+              - link "081331053100 (WA)" [ref=e149] [cursor=pointer]:
+                - /url: https://wa.me/6281331053100
+              - link "inkai.sby@gmail.com" [ref=e150] [cursor=pointer]:
+                - /url: mailto:inkai.sby@gmail.com
+          - generic [ref=e151]:
+            - paragraph [ref=e152]: Motto INKAI
+            - paragraph [ref=e153]: “Karate-Ka INKAI senantiasa memiliki Integritas tinggi, Tangguh dan Rendah Hati”
+        - generic [ref=e154]: © 2026 INKAI Surabaya. All rights reserved.
+  - region "Notifications alt+T"

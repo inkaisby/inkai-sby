@@ -146,6 +146,7 @@ export async function GET(request: Request) {
     registrationWaiver: null,
     selfRegistration: false,
     memberPaymentConfirmedAt: null,
+    registeredAt: null,
   }));
 
   return NextResponse.json({ candidates });

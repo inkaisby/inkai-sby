@@ -1,0 +1,10 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e4]:
+    - img "INKAI Surabaya" [ref=f3e5]
+    - paragraph [ref=f3e6]: INKAI Surabaya
+    - paragraph [ref=f3e7]: Kepada Yth. Pengurus Ranting
+    - heading "UKT Semester II-2026" [level=1] [ref=f3e8]
+    - paragraph [ref=f3e12]: Undangan Ujian Kenaikan Tingkat — cabang Surabaya
+    - button "Buka Undangan" [ref=f3e13] [cursor=pointer]
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f3e19] [cursor=pointer]

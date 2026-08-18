@@ -184,6 +184,7 @@ export async function GET(request: Request) {
       registrationWaiver: null,
       selfRegistration: false,
       memberPaymentConfirmedAt: null,
+      registeredAt: null,
       hydrateOk: eligibility.ok,
       hydrateBlockers: blockers,
       hydrateHasDocs: hasDocs,

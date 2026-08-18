@@ -1,0 +1,23 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - heading "Gagal memuat halaman" [level=2] [ref=e6]
+    - paragraph [ref=e7]: Koneksi database sibuk. Tunggu beberapa detik lalu coba lagi.
+    - generic [ref=e8]:
+      - button "Coba Lagi" [ref=e9]
+      - link "Beranda" [ref=e10] [cursor=pointer]:
+        - /url: /
+  - button "Buka Tanya INKAI" [ref=e11]:
+    - generic [ref=e14]: Tanya INKAI
+  - region "Notifications alt+T"
+  - generic [ref=e19] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e20]
+    - generic [ref=e24]:
+      - button "Open issues overlay" [ref=e25]:
+        - generic [ref=e26]:
+          - generic [ref=e27]: "2"
+          - generic [ref=e28]: "3"
+        - generic [ref=e29]:
+          - text: Issue
+          - generic [ref=e30]: s
+      - button "Collapse issues badge" [ref=e31]
+  - alert [ref=e34]

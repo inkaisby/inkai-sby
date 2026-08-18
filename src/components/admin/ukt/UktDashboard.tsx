@@ -192,6 +192,7 @@ import {
   toggleSortKey,
   type SortDir,
 } from "@/lib/table-sort";
+import { formatRegisteredAtWib } from "@/lib/format-wib";
 
 function compareUktRows(
   a: UktMemberRow,
@@ -204,6 +205,8 @@ function compareUktRows(
       return compareStrings(a.nia, b.nia, dir);
     case "fullName":
       return compareStrings(a.fullName, b.fullName, dir);
+    case "registeredAt":
+      return compareDates(a.registeredAt, b.registeredAt, dir);
     case "birthPlace":
       return compareStrings(a.birthPlace, b.birthPlace, dir);
     case "birthDate":
@@ -3594,6 +3597,14 @@ export function UktDashboard(props: Props) {
                 onSort={handleSort}
                 className={UKT_NAME_STICKY_HEAD}
               />
+              <SortableTableHead
+                label="Tanggal daftar"
+                sortKey="registeredAt"
+                activeKey={sort.key}
+                activeDir={sort.dir}
+                onSort={handleSort}
+                className="whitespace-nowrap"
+              />
               {!compactView && !isDojoAdmin && (
                 <>
                   <SortableTableHead
@@ -3787,6 +3798,9 @@ export function UktDashboard(props: Props) {
                         <AlertTriangle className="h-3.5 w-3.5" />
                       </span>
                     )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">
+                    {formatRegisteredAtWib(row.registeredAt)}
                   </TableCell>
                   {!compactView && !isDojoAdmin && (
                     <>

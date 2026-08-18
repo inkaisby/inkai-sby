@@ -284,6 +284,7 @@ export async function fetchLatberDashboardData(
         billingStatus: bill?.status ?? (isPending ? null : "PENDING"),
         selfRegistration: isPending && Boolean(selfMeta),
         memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,
+        registeredAt: reg.createdAt.toISOString(),
       };
     });
   }

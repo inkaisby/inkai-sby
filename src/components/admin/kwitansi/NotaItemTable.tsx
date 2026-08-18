@@ -300,8 +300,11 @@ export function NotaItemTable({
               onBidangUjianMemberId(item.id);
               if (item.signatureUrl) onBidangUjianSignUrl(item.signatureUrl);
             }}
-            placeholder="Cari Bidang Ujian…"
+            placeholder="Cari Bidang Ujian (≥2 huruf)…"
           />
+          <p className="text-[11px] text-muted-foreground">
+            Ketik ≥2 huruf untuk cari pejabat dari keanggotaan.
+          </p>
           <SignaturePadField
             label="Bidang Ujian"
             valueUrl={bidangUjianSignUrl}
@@ -322,8 +325,11 @@ export function NotaItemTable({
               onBendaharaMemberId(item.id);
               if (item.signatureUrl) onBendaharaSignUrl(item.signatureUrl);
             }}
-            placeholder="Cari Bendahara…"
+            placeholder="Cari Bendahara (≥2 huruf)…"
           />
+          <p className="text-[11px] text-muted-foreground">
+            Ketik ≥2 huruf untuk cari pejabat dari keanggotaan.
+          </p>
           <SignaturePadField
             label="Bendahara"
             valueUrl={bendaharaSignUrl}
@@ -334,7 +340,7 @@ export function NotaItemTable({
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="overflow-visible">
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit item" : "Tambah item"}</DialogTitle>
           </DialogHeader>
@@ -378,7 +384,11 @@ export function NotaItemTable({
                   setPetugas(item.fullName);
                   setPetugasMemberId(item.id);
                 }}
+                placeholder="Cari nama anggota (≥2 huruf)…"
               />
+              <p className="text-[11px] text-muted-foreground">
+                Ketik ≥2 huruf untuk autofill dari keanggotaan, atau nama bebas.
+              </p>
             </div>
           </div>
           <DialogFooter>

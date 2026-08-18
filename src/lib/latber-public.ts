@@ -85,6 +85,7 @@ export type LatberPublicRegistrant = {
   amount: number;
   statusLabel: string;
   displayStatus: string;
+  createdAt: string;
 };
 
 async function loadMetaForEvent(
@@ -284,6 +285,7 @@ export async function loadLatberPublicRegistrants(
       id: true,
       status: true,
       memberId: true,
+      createdAt: true,
       member: {
         select: {
           id: true,
@@ -355,6 +357,7 @@ export async function loadLatberPublicRegistrants(
       billingStatus: billing?.status ?? null,
       selfRegistration: Boolean(selfMeta),
       memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,
+      registeredAt: r.createdAt.toISOString(),
     };
     const displayStatus = resolveLatberDisplayStatus(row);
     return {
@@ -368,6 +371,7 @@ export async function loadLatberPublicRegistrants(
       amount: billing?.amount ?? fees.feeAmount,
       statusLabel: latberDisplayStatusLabel(displayStatus),
       displayStatus,
+      createdAt: r.createdAt.toISOString(),
     };
   });
 }

@@ -1,0 +1,78 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e3]:
+      - generic [ref=f2e4]:
+        - link [ref=f2e5] [cursor=pointer]:
+          - /url: /
+          - img "Logo INKAI" [ref=f2e6]
+          - generic [ref=f2e7]:
+            - paragraph [ref=f2e8]: INKAI Surabaya
+            - paragraph [ref=f2e9]: Institut Karate-Do Indonesia
+        - navigation [ref=f2e10]:
+          - link "Beranda" [ref=f2e11] [cursor=pointer]:
+            - /url: /
+          - link "Tutorial" [ref=f2e12] [cursor=pointer]:
+            - /url: /tutorial
+          - link "Sejarah" [ref=f2e13] [cursor=pointer]:
+            - /url: /sejarah
+          - link "Struktur" [ref=f2e14] [cursor=pointer]:
+            - /url: /struktur
+          - link "Dojo / Ranting" [ref=f2e15] [cursor=pointer]:
+            - /url: /dojo
+          - link "Kegiatan" [ref=f2e16] [cursor=pointer]:
+            - /url: /kegiatan
+          - link "Apresiasi" [ref=f2e17] [cursor=pointer]:
+            - /url: /apresiasi
+          - link "Kontak" [ref=f2e18] [cursor=pointer]:
+            - /url: /kontak
+        - generic [ref=f2e19]:
+          - button "Tema" [ref=f2e20]
+          - generic [ref=f2e21]:
+            - button "Login" [ref=f2e22]
+            - link "Daftar" [ref=f2e23] [cursor=pointer]:
+              - /url: /daftar
+    - main [ref=f2e24]:
+      - generic [ref=f2e26]:
+        - generic [ref=f2e27]:
+          - generic [ref=f2e28]: Kegiatan
+          - generic [ref=f2e31]:
+            - heading "Kegiatan INKAI Surabaya" [level=1] [ref=f2e32]
+            - paragraph [ref=f2e33]: Jadwal kegiatan, latihan bersama, dan kompetisi Cabang Surabaya.
+        - generic [ref=f2e34]: Belum ada kegiatan terjadwal. Pantau halaman ini secara berkala.
+    - contentinfo [ref=f2e36]:
+      - generic [ref=f2e37]:
+        - generic [ref=f2e38]:
+          - generic [ref=f2e39]:
+            - img "Logo INKAI" [ref=f2e40]
+            - paragraph [ref=f2e41]: INKAI Surabaya
+            - paragraph [ref=f2e42]: Institut Karate-Do IndonesiaCabang Surabaya, Jawa Timur
+          - generic [ref=f2e43]:
+            - paragraph [ref=f2e44]: Navigasi
+            - navigation [ref=f2e45]:
+              - link "Sejarah" [ref=f2e46] [cursor=pointer]:
+                - /url: /sejarah
+              - link "Makna Lambang" [ref=f2e47] [cursor=pointer]:
+                - /url: /makna-lambang
+              - link "Struktur Organisasi" [ref=f2e48] [cursor=pointer]:
+                - /url: /struktur
+              - link "Visi & Misi" [ref=f2e49] [cursor=pointer]:
+                - /url: /visi-misi
+              - link "Kegiatan" [ref=f2e50] [cursor=pointer]:
+                - /url: /kegiatan
+              - link "Apresiasi" [ref=f2e51] [cursor=pointer]:
+                - /url: /apresiasi
+              - link "Kontak" [ref=f2e52] [cursor=pointer]:
+                - /url: /kontak
+          - generic [ref=f2e53]:
+            - paragraph [ref=f2e54]: Kontak
+            - generic [ref=f2e55]:
+              - link "081331053100 (WA)" [ref=f2e56] [cursor=pointer]:
+                - /url: https://wa.me/6281331053100
+              - link "inkai.sby@gmail.com" [ref=f2e57] [cursor=pointer]:
+                - /url: mailto:inkai.sby@gmail.com
+          - generic [ref=f2e58]:
+            - paragraph [ref=f2e59]: Motto INKAI
+            - paragraph [ref=f2e60]: “Karate-Ka INKAI senantiasa memiliki Integritas tinggi, Tangguh dan Rendah Hati”
+        - generic [ref=f2e61]: © 2026 INKAI Surabaya. All rights reserved.
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f2e67] [cursor=pointer]

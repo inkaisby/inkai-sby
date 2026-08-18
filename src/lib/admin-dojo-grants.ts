@@ -15,7 +15,8 @@ export const ADMIN_DOJO_SIDEBAR_OPTIONS = [
   { path: "/admin/anggota", label: "Kelola Anggota" },
   { path: "/admin/verifikasi", label: "Verifikasi" },
   { path: "/admin/iuran", label: "Iuran Anggota" },
-  { path: "/admin/kwitansi", label: "Kwitansi Pembayaran" },
+  { path: "/admin/kwitansi", label: "Kwitansi — Pembuatan" },
+  { path: "/admin/kwitansi/arsip", label: "Kwitansi — Arsip" },
   { path: "/admin/ukt", label: "UKT — Pendaftaran" },
   { path: "/admin/ukt/arsip", label: "UKT — Arsip" },
   { path: "/admin/latber", label: "Latihan Bersama — Pendaftaran" },
@@ -73,6 +74,7 @@ export const ADMIN_DOJO_GRANT_PRESETS = [
         "/admin",
         "/admin/iuran",
         "/admin/kwitansi",
+        "/admin/kwitansi/arsip",
         "/admin/ukt",
         "/admin/latber",
         "/admin/latber/arsip",
@@ -85,16 +87,18 @@ export const ADMIN_DOJO_GRANT_PRESETS = [
 
 const ABSENSI_PATH = "/admin/absensi";
 const KWITANSI_PATH = "/admin/kwitansi";
+const KWITANSI_ARSIP_PATH = "/admin/kwitansi/arsip";
 const LATBER_PATHS = ["/admin/latber", "/admin/latber/arsip"] as const;
 
 /** Default lama sebelum Absensi masuk opsi sidebar (untuk soft-backfill). */
 const LEGACY_DEFAULT_WITHOUT_ABSENSI = DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS.filter(
-  (p) => p !== ABSENSI_PATH && p !== KWITANSI_PATH,
+  (p) =>
+    p !== ABSENSI_PATH && p !== KWITANSI_PATH && p !== KWITANSI_ARSIP_PATH,
 );
 
 /** Default lama sebelum Kwitansi masuk opsi sidebar (untuk soft-backfill). */
 const LEGACY_DEFAULT_WITHOUT_KWITANSI = DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS.filter(
-  (p) => p !== KWITANSI_PATH,
+  (p) => p !== KWITANSI_PATH && p !== KWITANSI_ARSIP_PATH,
 );
 
 function samePathSet(a: string[], b: string[]) {
@@ -124,19 +128,18 @@ function softBackfillLatber(paths: string[]): string[] {
   return next;
 }
 
-/** Grant full-default lama tanpa Kwitansi → tambah Kwitansi; uncentang sengaja tidak dipaksa. */
+/** Grant full-default lama tanpa Kwitansi → tambah Kwitansi + Arsip; uncentang sengaja tidak dipaksa. */
 function softBackfillKwitansi(paths: string[]): string[] {
-  if (paths.includes(KWITANSI_PATH)) return paths;
+  let next = [...paths];
   if (
-    samePathSet(paths, LEGACY_DEFAULT_WITHOUT_KWITANSI) ||
-    samePathSet(paths, LEGACY_DEFAULT_WITHOUT_ABSENSI)
+    !next.includes(KWITANSI_PATH) &&
+    (samePathSet(paths, LEGACY_DEFAULT_WITHOUT_KWITANSI) ||
+      samePathSet(paths, LEGACY_DEFAULT_WITHOUT_ABSENSI))
   ) {
-    const next = [...paths];
-    if (!next.includes(KWITANSI_PATH)) next.push(KWITANSI_PATH);
-    return next;
+    next.push(KWITANSI_PATH);
   }
   // Bendahara lama yang punya iuran tapi belum kwitansi
-  if (paths.includes("/admin/iuran") && !paths.includes(KWITANSI_PATH)) {
+  if (!next.includes(KWITANSI_PATH) && paths.includes("/admin/iuran")) {
     const bendaharaCore = [
       "/admin",
       "/admin/iuran",
@@ -147,10 +150,14 @@ function softBackfillKwitansi(paths: string[]): string[] {
       "/admin/pengaturan",
     ];
     if (samePathSet(paths, bendaharaCore)) {
-      return [...paths, KWITANSI_PATH];
+      next = [...next, KWITANSI_PATH];
     }
   }
-  return paths;
+  // Sudah punya pembuatan → ikutkan arsip
+  if (next.includes(KWITANSI_PATH) && !next.includes(KWITANSI_ARSIP_PATH)) {
+    next.push(KWITANSI_ARSIP_PATH);
+  }
+  return next;
 }
 
 function normalizeSidebarPaths(paths: unknown): string[] {

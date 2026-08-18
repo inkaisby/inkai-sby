@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +29,7 @@ export function KwitansiMemberPicker({
   value,
   onChange,
   onPick,
-  placeholder = "Cari nama anggota…",
+  placeholder = "Cari nama anggota (≥2 huruf)…",
   disabled,
   className,
 }: Props) {
@@ -54,6 +55,7 @@ export function KwitansiMemberPicker({
     const q = value.trim();
     if (q.length < 2) {
       setItems([]);
+      setOpen(false);
       return;
     }
     clearTimeout(debounceRef.current);
@@ -63,11 +65,20 @@ export function KwitansiMemberPicker({
         `/api/admin/kwitansi/member-suggest?q=${encodeURIComponent(q)}`,
       )
         .then(async (res) => {
+          if (!res.ok) {
+            toast.error("Gagal mencari anggota");
+            setItems([]);
+            return;
+          }
           const data = (await res.json().catch(() => ({}))) as {
             suggestions?: KwitansiMemberSuggestItem[];
           };
           setItems(data.suggestions ?? []);
           setOpen(true);
+        })
+        .catch(() => {
+          toast.error("Jaringan error — coba lagi");
+          setItems([]);
         })
         .finally(() => setLoading(false));
     }, 250);
@@ -82,7 +93,7 @@ export function KwitansiMemberPicker({
   };
 
   return (
-    <div ref={wrapRef} className={cn("relative", className)}>
+    <div ref={wrapRef} className={cn("relative z-[80]", className)}>
       <Input
         value={value}
         disabled={disabled}
@@ -109,7 +120,7 @@ export function KwitansiMemberPicker({
         <p className="mt-1 text-[11px] text-muted-foreground">Mencari…</p>
       ) : null}
       {open && items.length > 0 ? (
-        <ul className="absolute z-40 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-background shadow-md">
+        <ul className="absolute z-[90] mt-1 max-h-56 w-full overflow-auto rounded-md border bg-background shadow-lg">
           {items.map((item, idx) => (
             <li key={item.id}>
               <button

@@ -48,6 +48,7 @@ import {
 } from "@/lib/latber";
 import { parseMemberCardScanPayload } from "@/lib/latber-card-scan";
 import { showError, showSuccess } from "@/lib/client-toast";
+import { formatRegisteredAtWib } from "@/lib/format-wib";
 import {
   buildRantingOptions,
   matchesRantingFilter,
@@ -80,6 +81,7 @@ type Registrant = {
   amount: number;
   statusLabel: string;
   displayStatus: string;
+  createdAt: string;
 };
 
 type Suggestion = {
@@ -1072,12 +1074,13 @@ export function LatberWalkInClient({
       ) : null}
 
       <div ref={tableWrapRef} className="rounded-xl border">
-        <Table className="min-w-[720px]">
+        <Table className="min-w-[820px]">
           <TableHeader>
             <TableRow className="bg-muted/50">
               <TableHead className="w-10">No</TableHead>
               <TableHead>NIA</TableHead>
               <TableHead className={LATBER_NAME_STICKY_HEAD}>Nama</TableHead>
+              <TableHead className="whitespace-nowrap">Tanggal daftar</TableHead>
               <TableHead>Ranting</TableHead>
               <TableHead>Sabuk</TableHead>
               <TableHead>Biaya</TableHead>
@@ -1089,7 +1092,7 @@ export function LatberWalkInClient({
             {loading ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={9}
                   className="py-10 text-center text-muted-foreground"
                 >
                   Memuat peserta…
@@ -1098,7 +1101,7 @@ export function LatberWalkInClient({
             ) : filteredRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={9}
                   className="py-10 text-center text-muted-foreground"
                 >
                   {tableEmptyMessage()}
@@ -1123,6 +1126,9 @@ export function LatberWalkInClient({
                     title={row.fullName}
                   >
                     {formatMemberName(row.fullName)}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">
+                    {formatRegisteredAtWib(row.createdAt)}
                   </TableCell>
                   <TableCell>{row.dojoName}</TableCell>
                   <TableCell>{row.currentRank || "—"}</TableCell>

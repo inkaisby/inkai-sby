@@ -76,6 +76,7 @@ import {
   printLatberRekapDocument,
 } from "@/lib/latber-rekap-html";
 import { countLatberKpis } from "@/lib/latber-data";
+import { formatRegisteredAtWib } from "@/lib/format-wib";
 import { combineDateAndTimeLocal, toDateInput, toTimeInput } from "@/lib/ukt";
 import { Time24Fields } from "@/components/admin/Time24Fields";
 import { parseApiJson } from "@/lib/api-client";
@@ -978,6 +979,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
                   <TableHead className="w-10">No</TableHead>
                   <TableHead>NIA</TableHead>
                   <TableHead>Nama</TableHead>
+                  <TableHead className="whitespace-nowrap">Tanggal daftar</TableHead>
                   <TableHead>Sabuk</TableHead>
                   {!isDojoAdmin && <TableHead>Ranting</TableHead>}
                   <TableHead>Biaya</TableHead>
@@ -988,7 +990,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
               <TableBody>
                 {displayRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                    <TableCell colSpan={isDojoAdmin ? 8 : 9} className="py-10 text-center text-muted-foreground">
                       {props.dbError
                         ? "Gagal memuat data."
                         : "Belum ada peserta. Cari anggota lalu daftar."}
@@ -1003,6 +1005,9 @@ export function LatberDashboard(props: LatberDashboardProps) {
                         <TableCell>{i + 1}</TableCell>
                         <TableCell>{row.nia || "—"}</TableCell>
                         <TableCell className="font-medium">{row.fullName}</TableCell>
+                        <TableCell className="whitespace-nowrap text-sm">
+                          {formatRegisteredAtWib(row.registeredAt)}
+                        </TableCell>
                         <TableCell>{formatLatberRank(row)}</TableCell>
                         {!isDojoAdmin && <TableCell>{row.dojoName || "—"}</TableCell>}
                         <TableCell>

@@ -47,6 +47,7 @@ export type UktPublicRegistrant = {
   statusLabel: string;
   /** Untuk cincin sabuk avatar. */
   rankForRing: string | null;
+  createdAt: string;
 };
 
 export type UktPublicPayload = {
@@ -158,6 +159,7 @@ type RegRow = {
   status: string;
   registeredRank: string | null;
   memberId: string;
+  createdAt: Date;
   member: {
     id: string;
     fullName: string;
@@ -193,6 +195,7 @@ async function fetchUktPublicRegistrationRows(
       status: true,
       registeredRank: true,
       memberId: true,
+      createdAt: true,
       member: { select: { ...memberSelectBase, ...photoSelect } },
       category: { select: { name: true } },
     },
@@ -280,6 +283,7 @@ export async function loadUktPublicRegistrants(
       examPresent: null,
       selfRegistration: Boolean(selfMeta),
       memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,
+      registeredAt: r.createdAt.toISOString(),
     };
 
     const status = resolveUktDisplayStatus(row, examResult);
@@ -294,6 +298,7 @@ export async function loadUktPublicRegistrants(
       status,
       statusLabel: uktDisplayStatusLabel(status),
       rankForRing: row.kyuLama || row.memberCurrentRank || null,
+      createdAt: r.createdAt.toISOString(),
     });
   }
 

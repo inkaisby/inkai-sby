@@ -150,6 +150,7 @@ export async function getMemberUktStatus(
         id: true,
         status: true,
         registeredRank: true,
+        createdAt: true,
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -190,6 +191,7 @@ export async function getMemberUktStatus(
       examPresent: null,
       selfRegistration: true,
       memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,
+      registeredAt: localReg.createdAt.toISOString(),
     };
     const displayStatus = resolveUktDisplayStatus(row);
     return {
@@ -301,6 +303,7 @@ export async function getMemberUktStatus(
     examPresent: null,
     selfRegistration: Boolean(selfMeta),
     memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,
+    registeredAt: localReg.createdAt.toISOString(),
   };
 
   const displayStatus = resolveUktDisplayStatus(row);

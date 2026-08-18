@@ -1,0 +1,103 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - banner [ref=f1e3]:
+      - generic [ref=f1e4]:
+        - link [ref=f1e5] [cursor=pointer]:
+          - /url: /
+          - img "Logo INKAI" [ref=f1e6]
+          - generic [ref=f1e7]:
+            - paragraph [ref=f1e8]: INKAI Surabaya
+            - paragraph [ref=f1e9]: Institut Karate-Do Indonesia
+        - navigation [ref=f1e10]:
+          - link "Beranda" [ref=f1e11] [cursor=pointer]:
+            - /url: /
+          - link "Tutorial" [ref=f1e12] [cursor=pointer]:
+            - /url: /tutorial
+          - link "Sejarah" [ref=f1e13] [cursor=pointer]:
+            - /url: /sejarah
+          - link "Struktur" [ref=f1e14] [cursor=pointer]:
+            - /url: /struktur
+          - link "Dojo / Ranting" [ref=f1e15] [cursor=pointer]:
+            - /url: /dojo
+          - link "Kegiatan" [ref=f1e16] [cursor=pointer]:
+            - /url: /kegiatan
+          - link "Apresiasi" [ref=f1e17] [cursor=pointer]:
+            - /url: /apresiasi
+          - link "Kontak" [ref=f1e18] [cursor=pointer]:
+            - /url: /kontak
+        - generic [ref=f1e19]:
+          - button "Tema" [ref=f1e20]
+          - generic [ref=f1e21]:
+            - button "Login" [ref=f1e22]
+            - link "Daftar" [ref=f1e23] [cursor=pointer]:
+              - /url: /daftar
+    - main [ref=f1e24]:
+      - generic [ref=f1e29]:
+        - link [ref=f1e31] [cursor=pointer]:
+          - /url: /
+          - img "Logo INKAI" [ref=f1e32]
+          - generic [ref=f1e33]:
+            - heading "INKAI Surabaya" [level=1] [ref=f1e34]
+            - paragraph [ref=f1e35]: Masuk atau daftar sebagai anggota Institut Karate-Do Indonesia
+        - generic [ref=f1e36]:
+          - generic [ref=f1e37]:
+            - link "Login" [ref=f1e38] [cursor=pointer]:
+              - /url: /login
+            - link "Daftar" [ref=f1e39] [cursor=pointer]:
+              - /url: /login?tab=daftar
+          - generic [ref=f1e40]:
+            - generic [ref=f1e41]:
+              - generic [ref=f1e42]: Email atau NIA
+              - textbox "Email atau NIA" [ref=f1e44]:
+                - /placeholder: nama@email.com atau NIA
+              - paragraph [ref=f1e45]: "Login pertama ber-NIA: isi NIA sebagai username dan password, lalu ganti password di Profil agar akun lebih aman. Email tanpa NIA tetap bisa dipakai login."
+            - generic [ref=f1e46]:
+              - generic [ref=f1e47]: Password
+              - generic [ref=f1e48]:
+                - textbox "Password" [ref=f1e49]:
+                  - /placeholder: Masukkan password
+                - button "Tampilkan password" [ref=f1e50]
+              - button "Lupa password?" [ref=f1e55]
+            - button "Login" [ref=f1e56]
+          - paragraph [ref=f1e57]:
+            - text: Belum punya akun?
+            - link "Daftar di sini" [ref=f1e58] [cursor=pointer]:
+              - /url: /login?tab=daftar
+        - paragraph [ref=f1e59]: Data akun tersimpan aman di Supabase PostgreSQL
+    - contentinfo [ref=f1e60]:
+      - generic [ref=f1e61]:
+        - generic [ref=f1e62]:
+          - generic [ref=f1e63]:
+            - img "Logo INKAI" [ref=f1e64]
+            - paragraph [ref=f1e65]: INKAI Surabaya
+            - paragraph [ref=f1e66]: Institut Karate-Do IndonesiaCabang Surabaya, Jawa Timur
+          - generic [ref=f1e67]:
+            - paragraph [ref=f1e68]: Navigasi
+            - navigation [ref=f1e69]:
+              - link "Sejarah" [ref=f1e70] [cursor=pointer]:
+                - /url: /sejarah
+              - link "Makna Lambang" [ref=f1e71] [cursor=pointer]:
+                - /url: /makna-lambang
+              - link "Struktur Organisasi" [ref=f1e72] [cursor=pointer]:
+                - /url: /struktur
+              - link "Visi & Misi" [ref=f1e73] [cursor=pointer]:
+                - /url: /visi-misi
+              - link "Kegiatan" [ref=f1e74] [cursor=pointer]:
+                - /url: /kegiatan
+              - link "Apresiasi" [ref=f1e75] [cursor=pointer]:
+                - /url: /apresiasi
+              - link "Kontak" [ref=f1e76] [cursor=pointer]:
+                - /url: /kontak
+          - generic [ref=f1e77]:
+            - paragraph [ref=f1e78]: Kontak
+            - generic [ref=f1e79]:
+              - link "081331053100 (WA)" [ref=f1e80] [cursor=pointer]:
+                - /url: https://wa.me/6281331053100
+              - link "inkai.sby@gmail.com" [ref=f1e81] [cursor=pointer]:
+                - /url: mailto:inkai.sby@gmail.com
+          - generic [ref=f1e82]:
+            - paragraph [ref=f1e83]: Motto INKAI
+            - paragraph [ref=f1e84]: “Karate-Ka INKAI senantiasa memiliki Integritas tinggi, Tangguh dan Rendah Hati”
+        - generic [ref=f1e85]: © 2026 INKAI Surabaya. All rights reserved.
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f1e91] [cursor=pointer]

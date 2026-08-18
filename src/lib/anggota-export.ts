@@ -1,7 +1,10 @@
 import type { AdminMemberRow } from "@/lib/inkai-api/admin-data";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import { triggerCsvDownload } from "@/lib/ukt";
-import { downloadPdfFromHtml } from "@/lib/ukt-print-html";
+import {
+  downloadPdfFromHtml,
+  openHtmlPrintWindow,
+} from "@/lib/ukt-print-html";
 
 export const ANGGOTA_EXPORT_CAP = 2000;
 
@@ -134,44 +137,6 @@ export function buildAnggotaRosterHtml(data: AnggotaRosterPrintData): string {
   </div>
 </body>
 </html>`;
-}
-
-function openHtmlPrintWindow(html: string): void {
-  const iframe = document.createElement("iframe");
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "none";
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
-  if (!doc) {
-    iframe.remove();
-    return;
-  }
-  doc.open();
-  doc.write(html);
-  doc.close();
-
-  const win = iframe.contentWindow;
-  if (!win) {
-    iframe.remove();
-    return;
-  }
-
-  const cleanup = () => {
-    setTimeout(() => iframe.remove(), 800);
-  };
-
-  const doPrint = () => {
-    win.focus();
-    win.print();
-    cleanup();
-  };
-
-  setTimeout(doPrint, 120);
 }
 
 export function buildAnggotaRosterPrintData(

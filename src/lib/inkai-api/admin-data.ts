@@ -2200,6 +2200,25 @@ export async function fetchUktDashboardData(
     };
   });
 
+  if (selectedPeriodId && allRows.length > 0) {
+    const dateRows = await withPrismaFallback(
+      "ukt-reg-createdAt",
+      () =>
+        prisma.eventRegistration.findMany({
+          where: { eventId: selectedPeriodId },
+          select: { memberId: true, createdAt: true },
+          take: 800,
+        }),
+      [] as Array<{ memberId: string; createdAt: Date }>,
+    );
+    const byMember = new Map(
+      (dateRows.data ?? []).map((r) => [r.memberId, r.createdAt.toISOString()]),
+    );
+    for (const row of allRows) {
+      row.registeredAt = byMember.get(row.memberId) ?? null;
+    }
+  }
+
   return {
     periods,
     selectedPeriodId,
@@ -2583,6 +2602,25 @@ export async function fetchUktTableRefreshSnapshot(
       p.address = m.address;
       p.birthCertificateUrl = m.birthCertificateUrl;
       p.bpjsCardUrl = m.bpjsCardUrl;
+    }
+  }
+
+  if (participants.length > 0) {
+    const dateRows = await withPrismaFallback(
+      "ukt-refresh-reg-createdAt",
+      () =>
+        prisma.eventRegistration.findMany({
+          where: { eventId: periodId },
+          select: { memberId: true, createdAt: true },
+          take: 800,
+        }),
+      [] as Array<{ memberId: string; createdAt: Date }>,
+    );
+    const byMember = new Map(
+      (dateRows.data ?? []).map((r) => [r.memberId, r.createdAt.toISOString()]),
+    );
+    for (const p of participants) {
+      p.registeredAt = byMember.get(p.memberId) ?? null;
     }
   }
 

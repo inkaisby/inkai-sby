@@ -25,6 +25,7 @@ import {
   PUBLIC_STICKY_TOOLBAR_CLASS,
 } from "@/lib/public-ranting-filter";
 import { cn } from "@/lib/utils";
+import { formatRegisteredAtWib } from "@/lib/format-wib";
 import type { UktDisplayStatus } from "@/lib/ukt";
 import type {
   UktPublicPeriod,
@@ -554,6 +555,7 @@ export function UktPublicRosterClient() {
               <TableHead className="w-14">Foto</TableHead>
               <TableHead>NIA</TableHead>
               <TableHead className={UKT_NAME_STICKY_HEAD}>Nama Lengkap</TableHead>
+              <TableHead className="whitespace-nowrap">Tanggal daftar</TableHead>
               <TableHead>Kyu Lama</TableHead>
               <TableHead>Kyu Baru</TableHead>
               <TableHead>Ranting</TableHead>
@@ -564,7 +566,7 @@ export function UktPublicRosterClient() {
             {loading && registrants.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={9}
                   className="py-10 text-center text-muted-foreground"
                 >
                   Memuat peserta…
@@ -573,7 +575,7 @@ export function UktPublicRosterClient() {
             ) : filteredRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={9}
                   className="py-10 text-center text-muted-foreground"
                 >
                   {tableEmptyMessage()}
@@ -598,6 +600,9 @@ export function UktPublicRosterClient() {
                   </TableCell>
                   <TableCell className={UKT_NAME_STICKY_CELL} title={row.fullName}>
                     {formatMemberName(row.fullName)}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm">
+                    {formatRegisteredAtWib(row.createdAt)}
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="font-normal">

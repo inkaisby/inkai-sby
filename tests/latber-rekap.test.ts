@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 
 import {
   buildLatberCabangWaReportText,
+  buildLatberPublicCormatWaText,
   buildLatberRekapFilename,
   buildLatberRekapRows,
   buildLatberRantingWaReportText,
@@ -72,6 +73,17 @@ describe("latber WA/rekap", () => {
     expect(text).toContain("*Total Ranting : 2*");
     expect(text).toContain("GADING = _1 peserta_");
     expect(text).toContain("*TOTAL SEMUA: 2 peserta*");
+  });
+
+  it("Salin WA Cormat menampilkan tanggal pelaksanaan sebelum countdown", () => {
+    const text = buildLatberPublicCormatWaText({
+      registrationCloseAt: "2026-08-25T17:00:00.000Z",
+      eventAt: "2026-08-30T03:00:00.000Z",
+      rows: [],
+    });
+    expect(text).toContain("*Pelaksanaan Latihan Bersama*");
+    expect(text).toContain("_30-Aug-2026_");
+    expect(text.indexOf("_30-Aug-2026_")).toBeLessThan(text.indexOf("Hari:"));
   });
 
   it("buildLatberRekapRows mengisi status UI", () => {
