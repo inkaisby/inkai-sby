@@ -333,7 +333,7 @@ export function KwitansiArsipTable() {
         title="Hapus Arsip Kwitansi?"
         description={`Apakah Anda yakin ingin menghapus arsip kwitansi ${deleteTarget?.no ?? ""} (${deleteTarget?.periodeNama ?? ""})? Action ini tidak dapat dibatalkan.`}
         confirmLabel="Ya, Hapus"
-        variant="destructive"
+        variant="danger"
         onConfirm={confirmDelete}
       />
     </div>
