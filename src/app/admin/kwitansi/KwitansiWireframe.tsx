@@ -436,7 +436,7 @@ export function KwitansiWireframe({
       mode === "b" && row ? row.signUrl : previewPenerimaSign,
     penyetorSignUrl,
     origin,
-    draft: true as const,
+    draft: false,
   });
 
   const validateKwitansiPrint = () => {
@@ -509,7 +509,7 @@ export function KwitansiWireframe({
     })),
     total: daftarRowsSource.reduce((s, r) => s + (Number(r.nominal) || 0), 0),
     origin,
-    draft: true as const,
+    draft: false,
   });
 
   const onCetakDaftar = () => {
@@ -580,7 +580,7 @@ export function KwitansiWireframe({
     bidangUjianSignUrl,
     bendaharaSignUrl,
     origin,
-    draft: true as const,
+    draft: false,
   });
 
   const validateNota = () => {
@@ -698,9 +698,6 @@ export function KwitansiWireframe({
 
       {isNota ? (
         <>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            Contoh — belum tersimpan ke server. Simpan arsip nota = fase 2.
-          </div>
           <NotaItemTable
             noNota={noNota}
             tanggal={notaTanggal}
@@ -854,10 +851,6 @@ export function KwitansiWireframe({
                 }}
               />
             </div>
-          </div>
-
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            Contoh — belum tersimpan ke server. Arsip = fase 2.
           </div>
 
           <KwitansiPenerimaTable

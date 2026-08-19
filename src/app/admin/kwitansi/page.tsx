@@ -87,7 +87,7 @@ async function AdminKwitansiContent({
     <>
       <AdminPageHeader
         title="Kwitansi Pembayaran"
-        description="Wireframe cetak kwitansi & nota pengeluaran. Arsip tersimpan = fase 2."
+        description="Cetak kwitansi & nota pengeluaran."
       />
       <KwitansiWireframe
         scopeLabel={scopeLabel}

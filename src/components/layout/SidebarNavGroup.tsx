@@ -21,9 +21,10 @@ export function SidebarNavGroup({
   const pathname = usePathname();
   const childActive = items.some((c) => {
     const path = hrefPathname(c.href);
-    // /admin/ukt & /admin/latber (Pendaftaran) exact — jangan ikut arsip
+    // /admin/ukt, /admin/latber, & /admin/kwitansi (Pendaftaran/Pembuatan) exact — jangan ikut arsip
     if (path === "/admin/ukt") return pathname === "/admin/ukt";
     if (path === "/admin/latber") return pathname === "/admin/latber";
+    if (path === "/admin/kwitansi") return pathname === "/admin/kwitansi";
     return pathname === path || pathname.startsWith(`${path}/`);
   });
   // Buka grup jika di salah satu child (termasuk nested path di bawah UKT)
@@ -65,11 +66,12 @@ export function SidebarNavGroup({
         <div className="ml-2 mt-0.5 space-y-0.5 border-l border-border pl-2">
           {items.map((link) => {
             const path = hrefPathname(link.href);
-            // Exact-only: parent paths that have sibling sub-routes (UKT Pendaftaran vs Arsip)
+            // Exact-only: parent paths that have sibling sub-routes (UKT Pendaftaran vs Arsip, Kwitansi Pembuatan vs Arsip)
             const exactOnly =
               path === "/admin/pengaturan" ||
               path === "/admin/ukt" ||
-              path === "/admin/latber";
+              path === "/admin/latber" ||
+              path === "/admin/kwitansi";
             const isActive =
               pathname === path ||
               (!exactOnly && pathname.startsWith(`${path}/`));

@@ -23,7 +23,7 @@ export type KwitansiPrintData = {
   penerimaSignUrl?: string | null;
   penyetorSignUrl?: string | null;
   origin: string;
-  /** Watermark DRAFT (default true selama wireframe). */
+  /** Watermark DRAFT (default false). */
   draft?: boolean;
 };
 
@@ -91,7 +91,7 @@ function draftCss(): string {
 }
 
 function draftMark(draft?: boolean): string {
-  if (draft === false) return "";
+  if (!draft) return "";
   return `<div class="draft-mark" aria-hidden="true">DRAFT</div>`;
 }
 
@@ -413,11 +413,11 @@ export function buildNotaPengeluaranPrintHtml(
 }
 
 export function printKwitansi(data: KwitansiPrintData) {
-  openHtmlPrintWindow(buildKwitansiPrintHtml({ ...data, draft: data.draft !== false }));
+  openHtmlPrintWindow(buildKwitansiPrintHtml({ ...data, draft: Boolean(data.draft) }));
 }
 
 export function printKwitansiBatch(items: KwitansiPrintData[]) {
-  const withDraft = items.map((d) => ({ ...d, draft: d.draft !== false }));
+  const withDraft = items.map((d) => ({ ...d, draft: Boolean(d.draft) }));
   openHtmlPrintWindow(buildKwitansiBatchPrintHtml(withDraft));
 }
 
@@ -426,7 +426,7 @@ export async function downloadKwitansiPdf(
   filename: string,
 ) {
   await downloadPdfFromHtml(
-    buildKwitansiPrintHtml({ ...data, draft: data.draft !== false }),
+    buildKwitansiPrintHtml({ ...data, draft: Boolean(data.draft) }),
     filename,
   );
 }
@@ -435,13 +435,13 @@ export async function downloadKwitansiBatchPdf(
   items: KwitansiPrintData[],
   filename: string,
 ) {
-  const withDraft = items.map((d) => ({ ...d, draft: d.draft !== false }));
+  const withDraft = items.map((d) => ({ ...d, draft: Boolean(d.draft) }));
   await downloadPdfFromHtml(buildKwitansiBatchPrintHtml(withDraft), filename);
 }
 
 export function printDaftarPenerima(data: DaftarPenerimaPrintData) {
   openHtmlPrintWindow(
-    buildDaftarPenerimaPrintHtml({ ...data, draft: data.draft !== false }),
+    buildDaftarPenerimaPrintHtml({ ...data, draft: Boolean(data.draft) }),
   );
 }
 
@@ -450,14 +450,14 @@ export async function downloadDaftarPenerimaPdf(
   filename: string,
 ) {
   await downloadPdfFromHtml(
-    buildDaftarPenerimaPrintHtml({ ...data, draft: data.draft !== false }),
+    buildDaftarPenerimaPrintHtml({ ...data, draft: Boolean(data.draft) }),
     filename,
   );
 }
 
 export function printNotaPengeluaran(data: NotaPengeluaranPrintData) {
   openHtmlPrintWindow(
-    buildNotaPengeluaranPrintHtml({ ...data, draft: data.draft !== false }),
+    buildNotaPengeluaranPrintHtml({ ...data, draft: Boolean(data.draft) }),
   );
 }
 
@@ -466,7 +466,7 @@ export async function downloadNotaPengeluaranPdf(
   filename: string,
 ) {
   await downloadPdfFromHtml(
-    buildNotaPengeluaranPrintHtml({ ...data, draft: data.draft !== false }),
+    buildNotaPengeluaranPrintHtml({ ...data, draft: Boolean(data.draft) }),
     filename,
   );
 }

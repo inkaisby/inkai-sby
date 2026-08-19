@@ -65,11 +65,8 @@ async function AdminKwitansiArsipContent() {
     <>
       <AdminPageHeader
         title="Arsip Kwitansi"
-        description="Riwayat cetak (wireframe). Persist ke server = fase 2."
+        description="Riwayat cetak kwitansi & nota pengeluaran."
       />
-      <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-        Contoh — belum tersimpan ke server. Data di bawah hanya contoh UI.
-      </div>
       <div className="mb-4 flex justify-end">
         <Button asChild className="bg-inkai-red hover:bg-inkai-red/90">
           <Link href="/admin/kwitansi">Buat kwitansi</Link>
