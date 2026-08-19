@@ -972,3 +972,36 @@ export const memberAttendanceCheckinSchema = z.object({
   dojoId: z.string().uuid().optional(),
   eventId: z.string().uuid().optional(),
 });
+
+export const kasEntryInputSchema = z.object({
+  txnDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  description: z.string().trim().min(1).max(500),
+  kegiatan: z.string().trim().max(120).optional().default(""),
+  direction: z.enum(["in", "out"]),
+  amount: z.coerce.number().int().positive().max(1_000_000_000),
+});
+
+export const kasPostSchema = z.object({
+  entries: z.array(kasEntryInputSchema).min(1).max(50),
+  sourceType: z.enum(["manual", "kwitansi"]).optional().default("manual"),
+  sourceId: z.string().trim().min(1).max(180).optional(),
+});
+
+export const kasImportSchema = z.object({
+  entries: z.array(kasEntryInputSchema).min(1).max(500),
+});
+
+export const kasPatchSchema = z.object({
+  reconStatus: z.enum(["open", "matched"]).optional(),
+  txnDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  description: z.string().trim().min(1).max(500).optional(),
+  kegiatan: z.string().trim().max(120).optional(),
+  direction: z.enum(["in", "out"]).optional(),
+  amount: z.coerce.number().int().positive().max(1_000_000_000).optional(),
+});
+
+export const kasLockSchema = z.object({
+  yearMonth: z.string().regex(/^\d{4}-\d{2}$/),
+  lock: z.boolean(),
+  reason: z.string().trim().max(300).optional(),
+});

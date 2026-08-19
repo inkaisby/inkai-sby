@@ -551,3 +551,40 @@ model AuditLog {
 
   @@index([action, createdAt])
 }
+
+/// Buku kas per cabang/ranting — nominal Integer rupiah.
+model KasEntry {
+  id          String   @id @default(uuid())
+  scopeType   String
+  scopeId     String
+  txnDate     DateTime @db.Date
+  description String
+  kegiatan    String   @default("")
+  amountIn    Int      @default(0)
+  amountOut   Int      @default(0)
+  sourceType  String
+  sourceId    String
+  sourceHref  String?
+  reconStatus String   @default("open")
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([sourceType, sourceId, scopeId])
+  @@index([scopeType, scopeId, txnDate, createdAt])
+  @@index([scopeType, scopeId, kegiatan])
+}
+
+model KasPeriodLock {
+  id           String    @id @default(uuid())
+  scopeType    String
+  scopeId      String
+  yearMonth    String
+  lockedAt     DateTime  @default(now())
+  lockedById   String?
+  unlockReason String?
+  unlockedAt   DateTime?
+
+  @@unique([scopeType, scopeId, yearMonth])
+  @@index([scopeType, scopeId])
+}

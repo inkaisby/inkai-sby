@@ -22,6 +22,7 @@ import { uktExamResultKey } from "@/lib/ukt";
 import { assertUktPeriodMutable } from "@/lib/ukt-period-meta-store";
 import { notifyUktStatusChange } from "@/lib/ukt-notify";
 import { notifyUktBranchAdmins } from "@/lib/ukt-period-notify";
+import { postKasFromUktPaid } from "@/lib/kas-hooks";
 import {
   deleteBillingsHard,
   forceDeleteRegistrationInDb,
@@ -1450,6 +1451,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       | { id?: string; fullName?: string; billings?: Array<{ id: string; status: string }> }
       | undefined;
     const billing = member?.billings?.find((b) => b.status === "PENDING");
+    const memberId = String(member?.id ?? registration.memberId ?? "");
+    const event = registration.event as { title?: string } | undefined;
     if (billing) {
       await inkaiFetch(
         "/v1/billing/verify",
@@ -1459,9 +1462,24 @@ export async function PATCH(request: Request, context: RouteContext) {
         },
         authResult.token,
       );
+      const localBilling = await prisma.billing.findFirst({
+        where: { id: billing.id },
+        select: { amount: true },
+      });
+      const memberRow = await prisma.member.findFirst({
+        where: { id: memberId || undefined },
+        select: { dojoId: true, nia: true, fullName: true },
+      });
+      await postKasFromUktPaid({
+        user: authResult.user,
+        billingId: billing.id,
+        amount: localBilling?.amount ?? 0,
+        memberName: String(member?.fullName ?? memberRow?.fullName ?? "Anggota"),
+        memberNia: memberRow?.nia,
+        periodTitle: String(event?.title ?? "UKT"),
+        memberDojoId: memberRow?.dojoId ?? null,
+      }).catch((err) => console.error("[UKT mark_paid] kas", err));
     }
-    const memberId = String(member?.id ?? registration.memberId ?? "");
-    const event = registration.event as { title?: string } | undefined;
     if (memberId) {
       await notifyUktStatusChange({
         token: authResult.token,

@@ -27,6 +27,7 @@ export function SidebarNavGroup({
     if (path === "/admin/ukt") return pathname === "/admin/ukt";
     if (path === "/admin/latber") return pathname === "/admin/latber";
     if (path === "/admin/kwitansi") return pathname === "/admin/kwitansi";
+    if (path === "/admin/kas") return pathname === "/admin/kas";
     return pathname === path || pathname.startsWith(`${path}/`);
   });
   // Buka grup jika di salah satu child (termasuk nested path di bawah UKT)
@@ -85,7 +86,8 @@ export function SidebarNavGroup({
               path === "/admin/pengaturan" ||
               path === "/admin/ukt" ||
               path === "/admin/latber" ||
-              path === "/admin/kwitansi";
+              path === "/admin/kwitansi" ||
+              path === "/admin/kas";
             const isActive =
               pathname === path ||
               (!exactOnly && pathname.startsWith(`${path}/`));

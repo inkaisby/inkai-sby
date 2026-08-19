@@ -592,7 +592,7 @@ export function KwitansiWireframe({
     return true;
   };
 
-  const handleSimpanArsip = () => {
+  const handleSimpanArsip = async () => {
     try {
       const STORAGE_KEY = "inkai_kwitansi_arsip_list";
       const savedRaw = localStorage.getItem(STORAGE_KEY);
@@ -612,6 +612,36 @@ export function KwitansiWireframe({
       };
       const updated = [newEntry, ...existing];
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      if (jenis !== "iuran") {
+        const nominal = Math.round(isNota ? notaGrand : jumlah);
+        if (nominal > 0) {
+          const kasRes = await fetch("/api/admin/kas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sourceType: "kwitansi",
+              sourceId: newEntry.id,
+              entries: [
+                {
+                  txnDate: isNota ? notaTanggal : tanggal,
+                  description: `${newEntry.no} — ${newEntry.untukPembayaran || newEntry.periodeNama}`,
+                  kegiatan: newEntry.periodeNama,
+                  direction: isNota ? "out" : "in",
+                  amount: nominal,
+                },
+              ],
+            }),
+          });
+          if (!kasRes.ok) {
+            const err = await kasRes.json().catch(() => ({}));
+            toast.error(
+              typeof err.error === "string"
+                ? `Arsip tersimpan, kas: ${err.error}`
+                : "Arsip tersimpan, jurnal kas gagal",
+            );
+          }
+        }
+      }
       toast.success(`Kwitansi ${newEntry.no} berhasil disimpan ke Arsip!`);
     } catch {
       toast.error("Gagal menyimpan ke arsip");

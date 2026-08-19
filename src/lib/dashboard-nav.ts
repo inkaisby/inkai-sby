@@ -63,10 +63,11 @@ function withFreshUktHref(items: NavItem[]): NavItem[] {
   });
 }
 
-const KWITANSI_NAV_GROUP: NavGroup = {
-  label: "Kwitansi Pembayaran",
+const KEUANGAN_NAV_GROUP: NavGroup = {
+  label: "Keuangan",
   children: [
-    { href: "/admin/kwitansi", label: "Pembuatan" },
+    { href: "/admin/kas", label: "Kas" },
+    { href: "/admin/kwitansi", label: "Kwitansi" },
     { href: "/admin/kwitansi/arsip", label: "Arsip" },
   ],
 };
@@ -100,7 +101,7 @@ export const ADMIN_LINKS: NavItem[] = [
     ],
   },
   { href: "/admin/iuran", label: "Iuran Anggota" },
-  KWITANSI_NAV_GROUP,
+  KEUANGAN_NAV_GROUP,
   UKT_NAV_GROUP,
   LATBER_NAV_GROUP,
   { href: "/admin/kegiatan", label: "Event & Kegiatan" },
@@ -169,7 +170,7 @@ export function getAdminNavLinks(
       ],
     },
     { href: "/admin/iuran", label: "Iuran Anggota" },
-    KWITANSI_NAV_GROUP,
+    KEUANGAN_NAV_GROUP,
     UKT_NAV_GROUP,
     LATBER_NAV_GROUP,
     { href: "/admin/kegiatan", label: "Event & Kegiatan" },

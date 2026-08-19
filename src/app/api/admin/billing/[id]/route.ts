@@ -17,6 +17,12 @@ import { writeSecurityEvent } from "@/lib/security/security-events";
 import { assertUktPeriodMutable } from "@/lib/ukt-period-meta-store";
 import { isUktEventBilling } from "@/lib/ukt-self-registration";
 import { recreatePendingUktBillingAfterDelete } from "@/lib/ukt-register";
+import {
+  classifyBillingForKas,
+  postKasFromIuranPaid,
+  postKasFromUktPaid,
+  voidKasFromBilling,
+} from "@/lib/kas-hooks";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -24,7 +30,7 @@ async function assertBillingInScope(user: SessionUser, billingId: string) {
   const billing = await prisma.billing.findFirst({
     where: { id: billingId, isDeleted: false },
     include: {
-      member: { select: { id: true, dojoId: true, fullName: true } },
+      member: { select: { id: true, dojoId: true, fullName: true, nia: true } },
     },
   });
 
@@ -459,6 +465,48 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
+  if (scope.billing && (data.action === "approve" || data.action === "mark_paid" || data.action === "reject")) {
+    const kind = classifyBillingForKas(scope.billing);
+    try {
+      if (data.action === "reject") {
+        await voidKasFromBilling(id, authResult.user.id);
+      } else if (kind === "iuran") {
+        await postKasFromIuranPaid({
+          user: authResult.user,
+          billingId: id,
+          amount: scope.billing.amount,
+          description: scope.billing.description,
+          dueDate: scope.billing.dueDate,
+          memberDojoId: scope.billing.member.dojoId,
+          memberId: scope.billing.member.id,
+          memberName: scope.billing.member.fullName,
+          action: data.action === "mark_paid" ? "mark_paid" : "approve",
+        });
+      } else if (kind === "ukt") {
+        await postKasFromUktPaid({
+          user: authResult.user,
+          billingId: id,
+          amount: scope.billing.amount,
+          memberName: scope.billing.member.fullName,
+          memberNia: scope.billing.member.nia,
+          periodTitle: scope.billing.description || "UKT",
+          memberDojoId: scope.billing.member.dojoId,
+        });
+      }
+    } catch (error) {
+      console.error("[BILLING] kas post failed", error);
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Tagihan lunas, tetapi jurnal kas gagal",
+        },
+        { status: 409 },
+      );
+    }
+  }
+
   writeBillingAudit({
     userId: authResult.user.id,
     email: authResult.user.email,
@@ -578,6 +626,10 @@ export async function DELETE(request: Request, context: RouteContext) {
       /* ignore */
     }
   }
+
+  await voidKasFromBilling(id, authResult.user.id).catch((err) =>
+    console.error("[BILLING] kas void failed", err),
+  );
 
   let recreated:
     | {

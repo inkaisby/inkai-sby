@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { buildMemberFilter, getPrimaryAdminRole } from "@/lib/rbac";
 import { getClientIp } from "@/lib/security/request";
 import { canManageIuranByWilayah } from "@/lib/wilayah-rbac";
+import { postKasFromIuranPaid } from "@/lib/kas-hooks";
 
 export const maxDuration = 60;
 
@@ -167,6 +168,18 @@ export async function POST(request: Request) {
     }
     if (ok) {
       paid += 1;
+      const member = scopedMembers.find((m) => m.id === b.memberId);
+      await postKasFromIuranPaid({
+        user: authResult.user,
+        billingId: b.id,
+        amount: b.amount,
+        description: b.description,
+        dueDate: b.dueDate,
+        memberDojoId: member?.dojoId ?? null,
+        memberId: b.memberId,
+        memberName: member?.fullName,
+        action: "mark_paid",
+      }).catch((err) => console.error("[bulk-mark-paid] kas", err));
       writeBillingAudit({
         userId: authResult.user.id,
         email: authResult.user.email,

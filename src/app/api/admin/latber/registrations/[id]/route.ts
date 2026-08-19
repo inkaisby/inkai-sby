@@ -24,6 +24,8 @@ import {
   notifyLatberStatusChange,
 } from "@/lib/latber-notify";
 import { loadLatberPeriodMeta } from "@/lib/latber-period-meta-store";
+import { resolveLatberPeriodFees } from "@/lib/latber";
+import { postKasFromLatberPaid } from "@/lib/kas-hooks";
 import {
   creditLatberAttendanceForPaidRegistration,
   removeLatberAttendanceCredit,
@@ -364,7 +366,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         status: true,
         memberId: true,
         eventId: true,
-        member: { select: { dojoId: true } },
+        member: { select: { dojoId: true, fullName: true, nia: true } },
       },
     });
     if (localReg) {
@@ -396,7 +398,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         isDeleted: false,
         status: { notIn: ["PAID", "SUCCESS", "CANCELLED"] },
       },
-      select: { id: true },
+      select: { id: true, amount: true },
       orderBy: { createdAt: "desc" },
     });
 
@@ -469,6 +471,20 @@ export async function PATCH(request: Request, context: RouteContext) {
         authResult.token,
         localReg.eventId,
       );
+      const fees = resolveLatberPeriodFees(periodMeta);
+      const eventTitle = await prisma.event
+        .findFirst({ where: { id: localReg.eventId }, select: { title: true } })
+        .then((e) => e?.title ?? "Latihan Bersama");
+      await postKasFromLatberPaid({
+        user: authResult.user,
+        billingId: billing.id,
+        feeAmount: unpaidBilling.amount ?? fees.feeAmount,
+        komisiRanting: fees.komisiRanting,
+        memberName: localReg.member.fullName ?? "Peserta",
+        memberNia: localReg.member.nia,
+        periodTitle: eventTitle,
+        memberDojoId: localReg.member.dojoId,
+      }).catch((err) => console.error("[Latber mark_paid] kas", err));
       void creditLatberAttendanceForPaidRegistration({
         memberId: localReg.memberId,
         eventId: localReg.eventId,
