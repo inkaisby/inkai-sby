@@ -3545,8 +3545,7 @@ export function UktDashboard(props: Props) {
           {!isDojoAdmin && (
             <Button
               type="button"
-              variant="outline"
-              className="h-10 sm:h-8"
+              className="h-10 bg-inkai-red text-white hover:bg-inkai-red/90 sm:h-8"
               onClick={() => setShowAddMember(true)}
             >
               <UserPlus className="mr-1 h-4 w-4" />

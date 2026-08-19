@@ -206,18 +206,19 @@ export function AddMemberDialog({
             </div>
           ) : null}
 
+          <MemberBeltSection
+            idPrefix="add-member"
+            form={form}
+            onChange={setField}
+            autoFocus
+          />
+
           <MemberIdentitySection
             idPrefix="add-member"
             form={form}
             onChange={setField}
             suggestions={suggestions}
             duplicateBlocked={duplicateBlocked}
-          />
-
-          <MemberBeltSection
-            idPrefix="add-member"
-            form={form}
-            onChange={setField}
           />
         </div>
 

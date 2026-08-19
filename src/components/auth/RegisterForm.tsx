@@ -242,6 +242,12 @@ export default function RegisterForm({
         </div>
       </section>
 
+      <MemberBeltSection
+        idPrefix="register"
+        form={memberFields}
+        onChange={setMemberField}
+      />
+
       <MemberIdentitySection
         idPrefix="register"
         form={memberFields}
@@ -249,12 +255,6 @@ export default function RegisterForm({
         suggestions={suggestions}
         duplicateBlocked={duplicateBlocked}
         requireCompleteIdentity
-      />
-
-      <MemberBeltSection
-        idPrefix="register"
-        form={memberFields}
-        onChange={setMemberField}
       />
 
       <section className="space-y-3">

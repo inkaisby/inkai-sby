@@ -1060,6 +1060,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 17 Agustus 2026 | **UKT Hapus tagihan reset bayar:** cabang hapus tagihan (salah hapus/refund dari Menunggu Ujian) → tagihan PENDING baru, status Belum Bayar, ranting Bayar UKT; `submit_for_verification` ensure billing bila hilang; Nota+Laporan WA hanya `WAITING_VERIFICATION`/lunas; inventaris §9.3/§13/§15 |
 | 17 Agustus 2026 | **UKT Hapus tagihan hanya lunas:** tombol cabang **Hapus tagihan** hanya tampil jika `isUktBillingPaid` (Menunggu Ujian+); disembunyikan di Belum Bayar / Menunggu Verifikasi; inventaris §9.3/§15 |
 | 18 Agustus 2026 | **Fix heartbeat lock `User.lastSeenAt`:** throttle DB 180s (Redis nx + Map in-process); POST `/api/presence` rate 8/menit; tulis `lastSeenAt` via `updateMany`/SQL kondisional + `lock_timeout` 250ms (tanpa RETURNING `passwordHash`); deploy kode saja (tanpa `db push`); inventaris §6/§11/§15 |
+| 19 Agustus 2026 | **Modal Tambah Anggota Baru UX:** pindah seksi **SABUK** (*Tingkatan Kyu / DAN*) ke paling atas modal `AddMemberDialog` + `autoFocus` + selaras `RegisterForm`; tombol **Tambah Anggota** di `/admin/ukt` dan `/latber` diubah ke warna merah (`bg-inkai-red text-white`); inventaris §6/§9/§15 |
 
 ---
 

@@ -356,7 +356,10 @@ export function MemberBeltSection({
   idPrefix,
   form,
   onChange,
-}: Pick<MemberFormSectionProps, "idPrefix" | "form" | "onChange">) {
+  autoFocus = false,
+}: Pick<MemberFormSectionProps, "idPrefix" | "form" | "onChange"> & {
+  autoFocus?: boolean;
+}) {
   const showMsh = mshAllowedForRank(form.currentRank);
 
   return (
@@ -370,6 +373,7 @@ export function MemberBeltSection({
           id={`${idPrefix}-rank`}
           className={selectClassName}
           value={form.currentRank}
+          autoFocus={autoFocus}
           onChange={(e) => {
             const next = e.target.value;
             onChange("currentRank", next);

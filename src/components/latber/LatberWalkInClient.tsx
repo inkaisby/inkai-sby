@@ -963,8 +963,7 @@ export function LatberWalkInClient({
             {registrationOpen ? (
               <Button
                 type="button"
-                variant="outline"
-                className="h-10"
+                className="h-10 bg-inkai-red text-white hover:bg-inkai-red/90"
                 onClick={() => setShowAddModal(true)}
               >
                 <UserPlus className="mr-1 h-4 w-4" />
