@@ -132,8 +132,10 @@ export function resolveLatberPeriodFees(meta?: LatberPeriodMeta | null): {
   komisiRanting: number;
 } {
   return {
-    // Tarif Latber flat — tanpa kode unik; meta feeAmount diabaikan.
-    feeAmount: DEFAULT_LATBER_FEE,
+    feeAmount:
+      typeof meta?.feeAmount === "number" && meta.feeAmount >= 0
+        ? Math.round(meta.feeAmount)
+        : DEFAULT_LATBER_FEE,
     komisiRanting:
       typeof meta?.komisiRanting === "number" && meta.komisiRanting >= 0
         ? Math.round(meta.komisiRanting)

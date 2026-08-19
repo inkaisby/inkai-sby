@@ -203,6 +203,8 @@ export function LatberDashboard(props: LatberDashboardProps) {
     eventDate: "",
     eventTime: "08:00",
     eventLocation: "",
+    feeAmount: 45000,
+    komisiRanting: 5000,
   };
   const [createForm, setCreateForm] = useState(emptyPeriodForm);
   const [editForm, setEditForm] = useState(emptyPeriodForm);
@@ -335,8 +337,22 @@ export function LatberDashboard(props: LatberDashboardProps) {
         error?: string;
         registrationId?: string;
         billingStatus?: string;
+        billingAmount?: number;
       }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal mendaftar");
+      setRows((prev) =>
+        prev.map((r) => {
+          if (r.memberId !== memberId) return r;
+          return {
+            ...r,
+            registrationId: data.registrationId ?? r.registrationId,
+            status: "APPROVED",
+            billingStatus: data.billingStatus ?? "PENDING",
+            billingAmount: data.billingAmount ?? props.feeAmount,
+            registeredAt: new Date().toISOString(),
+          };
+        }),
+      );
       showSuccess("Anggota didaftarkan — status Belum Bayar");
       refresh();
     } catch (e) {
@@ -528,6 +544,8 @@ export function LatberDashboard(props: LatberDashboardProps) {
       eventDate: eventIso ? toDateInput(eventIso) : "",
       eventTime: eventIso ? toTimeInput(eventIso) : "08:00",
       eventLocation: props.periodMeta.eventLocation ?? "",
+      feeAmount: props.feeAmount ?? 45000,
+      komisiRanting: props.komisiRanting ?? 5000,
     });
     setEditOpen(true);
   }
@@ -571,6 +589,8 @@ export function LatberDashboard(props: LatberDashboardProps) {
           registrationCloseAt,
           eventAt: eventAt ?? null,
           eventLocation: editForm.eventLocation.trim() || null,
+          feeAmount: editForm.feeAmount,
+          komisiRanting: editForm.komisiRanting,
         }),
       });
       const data = await parseApiJson<{ error?: string }>(res);
@@ -1263,10 +1283,38 @@ export function LatberDashboard(props: LatberDashboardProps) {
                 }
               />
             </div>
-            <p className="text-sm text-muted-foreground">
-              Biaya peserta {formatLatberCurrency(DEFAULT_LATBER_FEE)} (tidak dapat diubah) ·
-              Komisi ranting {formatLatberCurrency(DEFAULT_LATBER_KOMISI_RANTING)}
-            </p>
+            <div>
+              <Label htmlFor="latber-edit-fee">Tarif tetap Peserta (Rp)</Label>
+              <Input
+                id="latber-edit-fee"
+                type="number"
+                min={0}
+                step={1000}
+                value={editForm.feeAmount}
+                onChange={(e) =>
+                  setEditForm((f) => ({
+                    ...f,
+                    feeAmount: Math.max(0, parseInt(e.target.value, 10) || 0),
+                  }))
+                }
+              />
+            </div>
+            <div>
+              <Label htmlFor="latber-edit-komisi">Komisi Ranting per Peserta (Rp)</Label>
+              <Input
+                id="latber-edit-komisi"
+                type="number"
+                min={0}
+                step={500}
+                value={editForm.komisiRanting}
+                onChange={(e) =>
+                  setEditForm((f) => ({
+                    ...f,
+                    komisiRanting: Math.max(0, parseInt(e.target.value, 10) || 0),
+                  }))
+                }
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -1295,6 +1343,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
           onOpenChange={setPrintOpen}
           periodTitle={props.selectedPeriod.title}
           rows={rows.filter((r) => resolveLatberDisplayStatus(r) === "lunas")}
+          dojos={props.dojos}
           feeAmount={props.feeAmount}
           komisiRanting={props.komisiRanting}
           totals={notaTotals}

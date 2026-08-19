@@ -113,10 +113,11 @@ export async function POST(request: Request) {
     registrationOpenAt: openAtInput,
     eventAt,
     eventLocation,
+    feeAmount: feeInput,
+    komisiRanting: komisiInput,
   } = parsed.data;
-  // Tarif Latber dikunci flat (tanpa kode unik).
-  const feeAmount = DEFAULT_LATBER_FEE;
-  const komisiRanting = DEFAULT_LATBER_KOMISI_RANTING;
+  const feeAmount = feeInput ?? DEFAULT_LATBER_FEE;
+  const komisiRanting = komisiInput ?? DEFAULT_LATBER_KOMISI_RANTING;
 
   if (!canCreateEventsByWilayah(authResult.user.roles)) {
     return NextResponse.json(
@@ -312,21 +313,23 @@ export async function PATCH(request: Request) {
     registrationOpenAt,
     eventAt,
     eventLocation,
+    feeAmount: feeInput,
+    komisiRanting: komisiInput,
     archived,
     locked,
   } = parsed.data;
 
   const hasArchivePatch = archived !== undefined || locked !== undefined;
+  const feeAmount = feeInput !== undefined ? (feeInput ?? undefined) : undefined;
+  const komisiRanting = komisiInput !== undefined ? (komisiInput ?? undefined) : undefined;
   const hasContentPatch =
     Boolean(title) ||
     Boolean(registrationCloseAt) ||
     registrationOpenAt !== undefined ||
     eventAt !== undefined ||
-    eventLocation !== undefined;
-  // Selalu jaga fee flat pada setiap update konten / unarchive.
-  const feeAmount = hasContentPatch || archived === false ? DEFAULT_LATBER_FEE : undefined;
-  const komisiRanting =
-    hasContentPatch || archived === false ? DEFAULT_LATBER_KOMISI_RANTING : undefined;
+    eventLocation !== undefined ||
+    feeAmount !== undefined ||
+    komisiRanting !== undefined;
 
   const hasMetaPatch =
     registrationOpenAt !== undefined ||

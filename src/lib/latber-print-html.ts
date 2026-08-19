@@ -11,6 +11,8 @@ function escapeHtml(value: string): string {
 
 export type LatberNotaPrintData = {
   periodTitle: string;
+  dojoName?: string;
+  komisiPerPerson?: string;
   rows: Array<{
     no: number;
     nia: string;
@@ -50,6 +52,13 @@ export function buildLatberNotaPrintHtml(data: LatberNotaPrintData): string {
         </tr>`,
           )
           .join("");
+
+  const dojoLine = data.dojoName
+    ? `<div style="font-weight:bold;text-transform:uppercase;">RANTING : ${escapeHtml(data.dojoName)}</div>`
+    : "";
+  const komisiLabel = data.komisiPerPerson
+    ? `Komisi ranting (${data.paidCount} × ${escapeHtml(data.komisiPerPerson)})`
+    : `Komisi ranting`;
 
   return `<!DOCTYPE html>
 <html lang="id">
@@ -107,6 +116,7 @@ export function buildLatberNotaPrintHtml(data: LatberNotaPrintData): string {
     <h1 class="doc-title">Nota Latihan Bersama</h1>
     <div class="meta">
       <div>Agenda : ${escapeHtml(data.periodTitle)}</div>
+      ${dojoLine}
       <div>Peserta lunas : ${data.paidCount} orang</div>
     </div>
     <table>
@@ -123,7 +133,7 @@ export function buildLatberNotaPrintHtml(data: LatberNotaPrintData): string {
     </table>
     <div class="totals">
       <div class="totals-row"><span>Subtotal</span><span>${escapeHtml(data.subtotal)}</span></div>
-      <div class="totals-row"><span>Komisi ranting</span><span>− ${escapeHtml(data.komisiTotal)}</span></div>
+      <div class="totals-row"><span>${komisiLabel}</span><span>− ${escapeHtml(data.komisiTotal)}</span></div>
       <div class="totals-row total"><span>Setor cabang</span><span>${escapeHtml(data.grandTotal)}</span></div>
     </div>
     <div class="signatures">
