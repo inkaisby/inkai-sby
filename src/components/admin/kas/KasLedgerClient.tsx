@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import {
   Download,
   Lock,
+  Pencil,
   Plus,
   Printer,
   Trash2,
@@ -79,6 +80,7 @@ export function KasLedgerClient({
   const [data, setData] = useState<KasPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [massOpen, setMassOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -158,18 +160,62 @@ export function KasLedgerClient({
         },
       ]);
       toast.success("Mutasi kas tersimpan");
-      setAddOpen(false);
-      setForm({
-        txnDate: ymdWib(),
-        description: "",
-        kegiatan: "",
-        direction: "in",
-        amount: "",
-      });
+      closeMutasiDialog();
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Gagal simpan");
     }
+  }
+
+  function closeMutasiDialog() {
+    setAddOpen(false);
+    setEditId(null);
+    setForm({
+      txnDate: ymdWib(),
+      description: "",
+      kegiatan: "",
+      direction: "in",
+      amount: "",
+    });
+  }
+
+  function openEdit(row: KasLedgerRow) {
+    setEditId(row.id);
+    setAddOpen(false);
+    setForm({
+      txnDate: row.txnDate,
+      description: row.description,
+      kegiatan: row.kegiatan,
+      direction: row.amountOut > 0 ? "out" : "in",
+      amount: String(row.amountIn || row.amountOut),
+    });
+  }
+
+  async function handleEdit() {
+    if (!editId) return;
+    const res = await fetch(`/api/admin/kas/${editId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        txnDate: form.txnDate,
+        description: form.description,
+        kegiatan: form.kegiatan,
+        direction: form.direction,
+        amount: Number(form.amount),
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error(json.error || "Gagal mengubah");
+      return;
+    }
+    toast.success("Mutasi diperbarui");
+    closeMutasiDialog();
+    await load();
+  }
+
+  function monthLocked(ymd: string) {
+    return Boolean(data?.lockedMonths.includes(ymd.slice(0, 7)));
   }
 
   async function handleMass() {
@@ -487,16 +533,29 @@ export function KasLedgerClient({
                         >
                           {row.reconStatus === "matched" ? "Cocok" : "Belum"}
                         </Button>
-                        {data?.canWrite && row.sourceType === "manual" ? (
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8"
-                            onClick={() => setDeleteId(row.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                        {data?.canWrite && row.sourceType === "manual" && !monthLocked(row.txnDate) ? (
+                          <>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              aria-label="Ubah"
+                              onClick={() => openEdit(row)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              aria-label="Hapus"
+                              onClick={() => setDeleteId(row.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
                         ) : null}
                       </div>
                     </td>
@@ -508,10 +567,15 @@ export function KasLedgerClient({
         </table>
       </div>
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+      <Dialog
+        open={addOpen || Boolean(editId)}
+        onOpenChange={(o) => {
+          if (!o) closeMutasiDialog();
+        }}
+      >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Tambah mutasi</DialogTitle>
+            <DialogTitle>{editId ? "Ubah mutasi" : "Tambah mutasi"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Tanggal">
@@ -557,10 +621,14 @@ export function KasLedgerClient({
             </Field>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
+            <Button type="button" variant="outline" onClick={closeMutasiDialog}>
               Batal
             </Button>
-            <Button type="button" className="bg-inkai-red hover:bg-inkai-red/90" onClick={() => void handleAdd()}>
+            <Button
+              type="button"
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              onClick={() => void (editId ? handleEdit() : handleAdd())}
+            >
               Simpan
             </Button>
           </DialogFooter>
