@@ -46,13 +46,14 @@ async function AdminKasContent() {
     redirect(adminFallbackPath(user.roles ?? [], adminDojoGrants));
   }
   const scopeLabel = await resolveScopeLabel(user);
+  const isRanting = getPrimaryAdminRole(user.roles ?? []) === "ADMIN_DOJO";
+  const description = isRanting
+    ? `${scopeLabel}. Buku ranting: iuran yang dilunasi di ranting + komisi Latber. UKT dan nett Latber cabang ada di Kas cabang. Filter periode awal–akhir; tanpa backfill riwayat lama.`
+    : `${scopeLabel}. Buku cabang: setoran iuran ranting, UKT, nett Latber, kwitansi non-iuran, plus Tambah manual. Kas ranting terpisah.`;
   return (
     <div>
-      <AdminPageHeader
-        title="Kas"
-        description={`${scopeLabel}. Buku kas otomatis dari iuran/UKT/Latber yang sudah diverifikasi, plus Tambah manual.`}
-      />
-      <KasLedgerClient scopeLabel={scopeLabel} />
+      <AdminPageHeader title="Kas" description={description} />
+      <KasLedgerClient scopeLabel={scopeLabel} isRanting={isRanting} />
     </div>
   );
 }

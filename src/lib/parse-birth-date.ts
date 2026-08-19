@@ -156,3 +156,13 @@ export function parseBirthPlaceAndDate(raw: string): {
 
   return { birthPlace: text.toUpperCase(), birthDate: null };
 }
+
+const WEEKDAY_PREFIX =
+  /^(senin|selasa|rabu|kamis|jumat|jum['’]?at|sabtu|minggu|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*,?\s+/i;
+
+/** Tanggal laporan Kas: `Selasa, 27 Januari 2026` → `2026-01-27`. */
+export function parseFlexibleIdDate(raw: string): string | null {
+  const text = raw.trim().replace(/\s+/g, " ");
+  if (!text) return null;
+  return parseFlexibleBirthDate(text.replace(WEEKDAY_PREFIX, ""));
+}

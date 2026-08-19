@@ -133,7 +133,26 @@ export function filterMonth(
 ): KasLedgerInput[] {
   if (!year || !month) return rows;
   const { from, to } = monthBounds(year, month);
-  return rows.filter((r) => r.txnDate >= from && r.txnDate <= to);
+  return filterRange(rows, from, to);
+}
+
+/** Inclusive YYYY-MM-DD range. Null/empty bound = unbounded on that side. */
+export function filterRange(
+  rows: KasLedgerInput[],
+  from: string | null,
+  to: string | null,
+): KasLedgerInput[] {
+  const start = from?.trim() || null;
+  const end = to?.trim() || null;
+  return rows.filter((r) => {
+    if (start && r.txnDate < start) return false;
+    if (end && r.txnDate > end) return false;
+    return true;
+  });
+}
+
+export function firstOfMonthWib(date = new Date()): string {
+  return `${ymdWib(date).slice(0, 7)}-01`;
 }
 
 export function groupKasTable(rows: KasLedgerRow[]): KasTableRow[] {

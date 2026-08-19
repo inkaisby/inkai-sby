@@ -5,9 +5,10 @@ import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import { kasPostSchema } from "@/lib/security/schemas";
 import {
   KAS_MAX_BATCH,
-  filterMonth,
+  filterRange,
   groupKasTable,
   kasKpis,
+  monthBounds,
   sumBefore,
   withRunningSaldo,
   yearMonthWib,
@@ -33,19 +34,30 @@ export async function GET(request: Request) {
   try {
     const scope = await resolveKasScope(authResult.user);
     const url = new URL(request.url);
+    const fromRaw = (url.searchParams.get("from") || "").trim();
+    const toRaw = (url.searchParams.get("to") || "").trim();
     const year = Number(url.searchParams.get("year") || "") || null;
     const month = Number(url.searchParams.get("month") || "") || null;
+    const iso = (s: string) => (/^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "");
+    let from = iso(fromRaw);
+    let to = iso(toRaw);
+    if (!from && !to && year && month) {
+      const b = monthBounds(year, month);
+      from = b.from;
+      to = b.to;
+    }
+    if (from && to && from > to) {
+      const swap = from;
+      from = to;
+      to = swap;
+    }
     const kegiatan = (url.searchParams.get("kegiatan") || "").trim();
     const source = (url.searchParams.get("source") || "all").trim();
     const recon = (url.searchParams.get("recon") || "all").trim();
 
     const all = await listKasEntries(scope);
-    let opening = 0;
-    if (year && month) {
-      const from = `${year}-${String(month).padStart(2, "0")}-01`;
-      opening = sumBefore(all, from);
-    }
-    let filtered = filterMonth(all, year, month);
+    const opening = from ? sumBefore(all, from) : 0;
+    let filtered = filterRange(all, from || null, to || null);
     if (kegiatan) {
       filtered = filtered.filter((r) => r.kegiatan === kegiatan);
     }

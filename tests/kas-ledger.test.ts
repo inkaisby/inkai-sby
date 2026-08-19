@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   filterMonth,
+  filterRange,
+  formatKasDateId,
   groupKasTable,
   parseKasImportTsv,
   skipKwitansiJenis,
@@ -8,6 +10,7 @@ import {
   withRunningSaldo,
   type KasLedgerInput,
 } from "@/lib/kas";
+import { parseFlexibleIdDate } from "@/lib/parse-birth-date";
 
 function row(
   partial: Partial<KasLedgerInput> & Pick<KasLedgerInput, "id" | "txnDate">,
@@ -104,5 +107,27 @@ describe("kas ledger", () => {
     expect(drafts).toHaveLength(2);
     expect(drafts[0].direction).toBe("out");
     expect(drafts[0].amount).toBe(200000);
+  });
+
+  it("parses Indonesian report dates including weekday", () => {
+    expect(parseFlexibleIdDate("Selasa, 27 Januari 2026")).toBe("2026-01-27");
+    expect(parseFlexibleIdDate("27 Januari 2026")).toBe("2026-01-27");
+    expect(parseFlexibleIdDate("2026-01-27")).toBe("2026-01-27");
+    expect(parseFlexibleIdDate(formatKasDateId("2026-01-27"))).toBe("2026-01-27");
+  });
+
+  it("filterRange is inclusive and carry-forward uses from exclusive", () => {
+    const all = [
+      row({ id: "a", txnDate: "2025-12-31", amountIn: 5000 }),
+      row({ id: "b", txnDate: "2026-01-01", amountOut: 1000 }),
+      row({ id: "c", txnDate: "2026-01-15", amountIn: 200 }),
+      row({ id: "d", txnDate: "2026-02-01", amountIn: 50 }),
+    ];
+    const mid = filterRange(all, "2026-01-01", "2026-01-31");
+    expect(mid.map((r) => r.id)).toEqual(["b", "c"]);
+    expect(sumBefore(all, "2026-01-01")).toBe(5000);
+    const withOpen = withRunningSaldo(mid, 5000);
+    expect(withOpen[0].saldo).toBe(4000);
+    expect(filterRange(all, null, null)).toHaveLength(4);
   });
 });

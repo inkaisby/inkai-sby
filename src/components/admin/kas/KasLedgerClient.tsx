@@ -31,6 +31,7 @@ import {
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 import { formatRp } from "@/lib/terbilang";
 import {
+  firstOfMonthWib,
   formatKasDateId,
   parseKasImportTsv,
   ymdWib,
@@ -38,6 +39,7 @@ import {
   type KasTableRow,
 } from "@/lib/kas";
 import { printKasDocument } from "@/lib/kas-print-html";
+import { KasDateField } from "@/components/admin/kas/KasDateField";
 
 type KasPayload = {
   canWrite: boolean;
@@ -62,10 +64,15 @@ type DraftRow = {
   amount: string;
 };
 
-export function KasLedgerClient({ scopeLabel }: { scopeLabel: string }) {
-  const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
+export function KasLedgerClient({
+  scopeLabel,
+  isRanting,
+}: {
+  scopeLabel: string;
+  isRanting?: boolean;
+}) {
+  const [fromYmd, setFromYmd] = useState(firstOfMonthWib);
+  const [toYmd, setToYmd] = useState(ymdWib);
   const [kegiatan, setKegiatan] = useState("");
   const [source, setSource] = useState("all");
   const [recon, setRecon] = useState("all");
@@ -89,13 +96,15 @@ export function KasLedgerClient({ scopeLabel }: { scopeLabel: string }) {
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
-    p.set("year", String(year));
-    p.set("month", String(month));
+    const from = fromYmd <= toYmd ? fromYmd : toYmd;
+    const to = fromYmd <= toYmd ? toYmd : fromYmd;
+    if (from) p.set("from", from);
+    if (to) p.set("to", to);
     if (kegiatan) p.set("kegiatan", kegiatan);
     if (source !== "all") p.set("source", source);
     if (recon !== "all") p.set("recon", recon);
     return p.toString();
-  }, [year, month, kegiatan, source, recon]);
+  }, [fromYmd, toYmd, kegiatan, source, recon]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,7 +124,8 @@ export function KasLedgerClient({ scopeLabel }: { scopeLabel: string }) {
     void load();
   }, [load]);
 
-  const locked = Boolean(data?.lockedMonths.includes(`${year}-${String(month).padStart(2, "0")}`));
+  const lockMonth = (fromYmd <= toYmd ? toYmd : fromYmd).slice(0, 7);
+  const locked = Boolean(data?.lockedMonths.includes(lockMonth));
 
   async function postEntries(
     entries: Array<{
@@ -214,7 +224,7 @@ export function KasLedgerClient({ scopeLabel }: { scopeLabel: string }) {
   }
 
   async function toggleLock() {
-    const yearMonth = `${year}-${String(month).padStart(2, "0")}`;
+    const yearMonth = lockMonth;
     const res = await fetch("/api/admin/kas/lock", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -245,7 +255,7 @@ export function KasLedgerClient({ scopeLabel }: { scopeLabel: string }) {
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `kas-${year}-${String(month).padStart(2, "0")}.csv`;
+    a.download = `kas-${fromYmd}_${toYmd}.csv`;
     a.click();
   }
 
@@ -284,7 +294,7 @@ export function KasLedgerClient({ scopeLabel }: { scopeLabel: string }) {
     printKasDocument({
       origin: window.location.origin,
       scopeLabel,
-      periodLabel: `${month}/${year}`,
+      periodLabel: `${formatKasDateId(fromYmd)} – ${formatKasDateId(toYmd)}`,
       printedAt: `${ymdWib()} WIB`,
       saldoAkhir: data?.kpis.saldoAkhir ?? 0,
       rows: data?.rows ?? [],
@@ -305,30 +315,19 @@ export function KasLedgerClient({ scopeLabel }: { scopeLabel: string }) {
         />
       </div>
       <p className="text-xs text-muted-foreground">
-        Saldo bawa bulan ini {formatRp(data?.kpis.opening ?? 0)} · Belum rekon{" "}
+        Saldo bawa sebelum periode {formatRp(data?.kpis.opening ?? 0)} · Belum rekon{" "}
         {data?.kpis.unmatched ?? 0}
-        {locked ? " · Buku bulan ini dikunci" : ""}
+        {locked ? ` · Buku ${lockMonth} dikunci` : ""}
       </p>
 
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-2">
-          <select
-            className="h-10 rounded-md border bg-background px-2 text-sm"
-            value={month}
-            onChange={(e) => setMonth(Number(e.target.value))}
-          >
-            {Array.from({ length: 12 }, (_, i) => (
-              <option key={i + 1} value={i + 1}>
-                {new Date(2026, i, 1).toLocaleDateString("id-ID", { month: "long" })}
-              </option>
-            ))}
-          </select>
-          <Input
-            type="number"
-            className="w-24"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-          />
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label="Periode awal">
+            <KasDateField value={fromYmd} onChange={setFromYmd} />
+          </Field>
+          <Field label="Periode akhir">
+            <KasDateField value={toYmd} onChange={setToYmd} />
+          </Field>
           <select
             className="h-10 rounded-md border bg-background px-2 text-sm"
             value={kegiatan}
@@ -435,8 +434,11 @@ export function KasLedgerClient({ scopeLabel }: { scopeLabel: string }) {
             ) : groups.length === 0 ? (
               <tr>
                 <td colSpan={8} className="p-6 text-center text-muted-foreground">
-                  Belum ada mutasi. Gunakan Tambah, Tambah massal, atau tunggu
-                  verifikasi iuran/UKT/Latber. Isi Saldo awal sekali jika pindah dari Excel.
+                  Belum ada mutasi pada periode ini.{" "}
+                  {isRanting
+                    ? "Ranting hanya melihat iuran lunas di ranting dan komisi Latber (bukan UKT cabang). "
+                    : ""}
+                  Gunakan Tambah, Tambah massal, atau tunggu verifikasi. Isi Saldo awal sekali jika pindah dari Excel.
                 </td>
               </tr>
             ) : (
@@ -507,29 +509,15 @@ export function KasLedgerClient({ scopeLabel }: { scopeLabel: string }) {
       </div>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Tambah mutasi</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Tanggal">
-              <Input
-                type="date"
+              <KasDateField
                 value={form.txnDate}
-                onChange={(e) => setForm({ ...form, txnDate: e.target.value })}
-              />
-            </Field>
-            <Field label="Keterangan">
-              <Input
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-              />
-            </Field>
-            <Field label="Kegiatan">
-              <Input
-                value={form.kegiatan}
-                onChange={(e) => setForm({ ...form, kegiatan: e.target.value })}
-                placeholder="MUSKOT, Iuran, Saldo awal"
+                onChange={(txnDate) => setForm({ ...form, txnDate })}
               />
             </Field>
             <Field label="Arah">
@@ -543,6 +531,21 @@ export function KasLedgerClient({ scopeLabel }: { scopeLabel: string }) {
                 <option value="in">Masuk</option>
                 <option value="out">Keluar</option>
               </select>
+            </Field>
+            <div className="sm:col-span-2">
+            <Field label="Keterangan">
+              <Input
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+              />
+            </Field>
+            </div>
+            <Field label="Kegiatan">
+              <Input
+                value={form.kegiatan}
+                onChange={(e) => setForm({ ...form, kegiatan: e.target.value })}
+                placeholder="MUSKOT, Iuran, Saldo awal"
+              />
             </Field>
             <Field label="Nominal">
               <Input
@@ -565,21 +568,24 @@ export function KasLedgerClient({ scopeLabel }: { scopeLabel: string }) {
       </Dialog>
 
       <Dialog open={massOpen} onOpenChange={setMassOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Tambah massal</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Tanggal bersama">
-              <Input type="date" value={massDate} onChange={(e) => setMassDate(e.target.value)} />
+              <KasDateField value={massDate} onChange={setMassDate} />
             </Field>
             <Field label="Kegiatan bersama">
               <Input value={massKegiatan} onChange={(e) => setMassKegiatan(e.target.value)} />
             </Field>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 overflow-x-auto">
             {massRows.map((row, i) => (
-              <div key={i} className="grid grid-cols-[1fr_7rem_7rem_2rem] gap-2">
+              <div
+                key={i}
+                className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(12rem,1fr)_8rem_8rem_2.5rem]"
+              >
                 <Input
                   placeholder="Keterangan"
                   value={row.description}
