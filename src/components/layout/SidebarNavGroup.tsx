@@ -14,9 +14,11 @@ function hrefPathname(href: string) {
 export function SidebarNavGroup({
   label,
   items,
+  collapsed = false,
 }: {
   label: string;
   items: NavLink[];
+  collapsed?: boolean;
 }) {
   const pathname = usePathname();
   const childActive = items.some((c) => {
@@ -46,7 +48,9 @@ export function SidebarNavGroup({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+        className={`flex w-full items-center ${
+          collapsed ? "justify-center px-2 py-2.5" : "gap-2 px-3 py-2"
+        } rounded-lg text-sm font-medium transition-colors ${
           groupOpen
             ? "bg-muted text-foreground"
             : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -55,15 +59,25 @@ export function SidebarNavGroup({
         title={label}
       >
         {Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden /> : null}
-        <span className="min-w-0 flex-1 text-left leading-tight" title={label}>
-          {label}
-        </span>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
-        />
+        {!collapsed ? (
+          <>
+            <span className="min-w-0 flex-1 text-left leading-tight" title={label}>
+              {label}
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+            />
+          </>
+        ) : null}
       </button>
       {open ? (
-        <div className="ml-2 mt-0.5 space-y-0.5 border-l border-border pl-2">
+        <div
+          className={
+            collapsed
+              ? "mt-0.5 space-y-0.5"
+              : "ml-2 mt-0.5 space-y-0.5 border-l border-border pl-2"
+          }
+        >
           {items.map((link) => {
             const path = hrefPathname(link.href);
             // Exact-only: parent paths that have sibling sub-routes (UKT Pendaftaran vs Arsip, Kwitansi Pembuatan vs Arsip)
@@ -82,6 +96,7 @@ export function SidebarNavGroup({
                 label={link.label}
                 isActive={isActive}
                 badge={link.badge}
+                collapsed={collapsed}
               />
             );
           })}

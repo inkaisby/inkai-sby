@@ -22,7 +22,7 @@ import { isNavGroup, type NavItem } from "@/lib/dashboard-nav";
 import {
   rememberSwitchAccount,
 } from "@/lib/switch-accounts-storage";
-import { LogOut, Home, User, Bell, ArrowLeftRight, Check } from "lucide-react";
+import { LogOut, Home, User, Bell, ArrowLeftRight, Check, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 type PeerAccount = {
   email: string;
@@ -275,25 +275,76 @@ export function AppSidebar({
   links: NavItem[];
 }) {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("inkai_sidebar_collapsed");
+      if (saved !== null) {
+        setCollapsed(saved === "true");
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("inkai_sidebar_collapsed", String(next));
+      } catch {
+        // Ignore localStorage errors
+      }
+      return next;
+    });
+  };
 
   return (
-    <aside className="admin-sidebar hidden h-svh w-72 shrink-0 flex-col border-r border-border/60 bg-gradient-to-b from-muted/40 via-background to-background lg:flex">
-      <div className="flex h-16 shrink-0 items-center gap-2.5 border-b border-border/60 px-4">
-        <Image
-          src="/logo-inkai.png"
-          alt="INKAI"
-          width={36}
-          height={36}
-          className="rounded-full shadow-sm ring-2 ring-inkai-red/15"
-        />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold tracking-tight">{title}</p>
-          <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-            INKAI Surabaya
-          </p>
+    <aside
+      className={`admin-sidebar hidden h-svh ${
+        collapsed ? "w-16" : "w-72"
+      } shrink-0 flex-col border-r border-border/60 bg-gradient-to-b from-muted/40 via-background to-background transition-all duration-200 lg:flex`}
+    >
+      <div
+        className={`flex h-16 shrink-0 items-center border-b border-border/60 ${
+          collapsed ? "justify-center px-2" : "justify-between px-3"
+        }`}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Image
+            src="/logo-inkai.png"
+            alt="INKAI"
+            width={36}
+            height={36}
+            className="rounded-full shadow-sm ring-2 ring-inkai-red/15 shrink-0"
+          />
+          {!collapsed ? (
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold tracking-tight">{title}</p>
+              <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                INKAI Surabaya
+              </p>
+            </div>
+          ) : null}
         </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+          onClick={toggleCollapsed}
+          title={collapsed ? "Buka Sidebar" : "Tutup Sidebar"}
+          aria-label={collapsed ? "Buka Sidebar" : "Tutup Sidebar"}
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="h-4 w-4" />
+          ) : (
+            <PanelLeftClose className="h-4 w-4" />
+          )}
+        </Button>
       </div>
-      <nav className="min-h-0 flex-1 overflow-y-auto p-3">
+      <nav className={`min-h-0 flex-1 overflow-y-auto ${collapsed ? "p-1.5" : "p-3"}`}>
         {links.map((item) => {
           if (isNavGroup(item)) {
             return (
@@ -301,6 +352,7 @@ export function AppSidebar({
                 key={item.label}
                 label={item.label}
                 items={item.children}
+                collapsed={collapsed}
               />
             );
           }
@@ -316,6 +368,7 @@ export function AppSidebar({
               label={item.label}
               isActive={isActive}
               badge={item.badge}
+              collapsed={collapsed}
             />
           );
         })}
