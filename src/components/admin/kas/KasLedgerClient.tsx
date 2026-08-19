@@ -10,6 +10,8 @@ import {
 import Link from "next/link";
 import { toast } from "sonner";
 import {
+  ChevronDown,
+  ChevronRight,
   Download,
   Lock,
   Pencil,
@@ -35,6 +37,7 @@ import {
   firstOfMonthWib,
   formatKasDateId,
   parseKasImportTsv,
+  visibleKasTableRows,
   ymdWib,
   type KasLedgerRow,
   type KasTableRow,
@@ -77,6 +80,8 @@ export function KasLedgerClient({
   const [kegiatan, setKegiatan] = useState("");
   const [source, setSource] = useState("all");
   const [recon, setRecon] = useState("all");
+  const [collapsedKegiatan, setCollapsedKegiatan] = useState<string[]>([]);
+  const [massRowsOpen, setMassRowsOpen] = useState(true);
   const [data, setData] = useState<KasPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
@@ -98,8 +103,13 @@ export function KasLedgerClient({
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
-    const from = fromYmd <= toYmd ? fromYmd : toYmd;
-    const to = fromYmd <= toYmd ? toYmd : fromYmd;
+    let from = fromYmd;
+    let to = toYmd;
+    if (from && to && from > to) {
+      const swap = from;
+      from = to;
+      to = swap;
+    }
     if (from) p.set("from", from);
     if (to) p.set("to", to);
     if (kegiatan) p.set("kegiatan", kegiatan);
@@ -126,7 +136,7 @@ export function KasLedgerClient({
     void load();
   }, [load]);
 
-  const lockMonth = (fromYmd <= toYmd ? toYmd : fromYmd).slice(0, 7);
+  const lockMonth = (toYmd || fromYmd || ymdWib()).slice(0, 7);
   const locked = Boolean(data?.lockedMonths.includes(lockMonth));
 
   async function postEntries(
@@ -301,7 +311,8 @@ export function KasLedgerClient({
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `kas-${fromYmd}_${toYmd}.csv`;
+    a.download =
+      fromYmd || toYmd ? `kas-${fromYmd || "awal"}_${toYmd || "akhir"}.csv` : "kas-semua.csv";
     a.click();
   }
 
@@ -336,44 +347,86 @@ export function KasLedgerClient({
     await load();
   }
 
+  const periodCaption =
+    fromYmd && toYmd
+      ? `${formatKasDateId(fromYmd)} – ${formatKasDateId(toYmd)}`
+      : fromYmd
+        ? `Dari ${formatKasDateId(fromYmd)}`
+        : toYmd
+          ? `Sampai ${formatKasDateId(toYmd)}`
+          : "Semua tanggal";
+  const extraFilterOn =
+    Boolean(kegiatan) || source !== "all" || recon !== "all";
+
   function handlePrint() {
     printKasDocument({
       origin: window.location.origin,
       scopeLabel,
-      periodLabel: `${formatKasDateId(fromYmd)} – ${formatKasDateId(toYmd)}`,
+      periodLabel: periodCaption,
       printedAt: `${ymdWib()} WIB`,
       saldoAkhir: data?.kpis.saldoAkhir ?? 0,
       rows: data?.rows ?? [],
     });
   }
 
-  const groups = data?.groups ?? [];
+  const groups = visibleKasTableRows(data?.groups ?? [], collapsedKegiatan);
+
+  function toggleCollapsed(name: string) {
+    setCollapsedKegiatan((prev) =>
+      prev.includes(name) ? prev.filter((k) => k !== name) : [...prev, name],
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
-        <Kpi label="Total masuk" value={formatRp(data?.kpis.totalIn ?? 0)} />
-        <Kpi label="Total keluar" value={formatRp(data?.kpis.totalOut ?? 0)} />
+        <Kpi
+          label="Total masuk"
+          caption={periodCaption}
+          value={formatRp(data?.kpis.totalIn ?? 0)}
+          tone="in"
+        />
+        <Kpi
+          label="Total keluar"
+          caption={periodCaption}
+          value={formatRp(data?.kpis.totalOut ?? 0)}
+          tone="out"
+        />
         <Kpi
           label="Saldo akhir"
+          caption={periodCaption}
           value={formatRp(data?.kpis.saldoAkhir ?? 0)}
-          accent
+          tone={(data?.kpis.saldoAkhir ?? 0) < 0 ? "negative" : "saldo"}
         />
       </div>
       <p className="text-xs text-muted-foreground">
         Saldo bawa sebelum periode {formatRp(data?.kpis.opening ?? 0)} · Belum rekon{" "}
         {data?.kpis.unmatched ?? 0}
         {locked ? ` · Buku ${lockMonth} dikunci` : ""}
+        {extraFilterOn
+          ? " · Saldo bawa dihitung dari seluruh buku, bukan filter kegiatan/sumber/rekon."
+          : ""}
       </p>
 
       <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-wrap items-end gap-2">
           <Field label="Periode awal">
-            <KasDateField value={fromYmd} onChange={setFromYmd} />
+            <KasDateField allowEmpty value={fromYmd} onChange={setFromYmd} />
           </Field>
           <Field label="Periode akhir">
-            <KasDateField value={toYmd} onChange={setToYmd} />
+            <KasDateField allowEmpty value={toYmd} onChange={setToYmd} />
           </Field>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 text-xs"
+            onClick={() => {
+              setFromYmd("");
+              setToYmd("");
+            }}
+          >
+            Semua tanggal
+          </Button>
           <select
             className="h-10 rounded-md border bg-background px-2 text-sm"
             value={kegiatan}
@@ -404,8 +457,8 @@ export function KasLedgerClient({
             onChange={(e) => setRecon(e.target.value)}
           >
             <option value="all">Rekon semua</option>
-            <option value="open">Belum</option>
-            <option value="matched">Cocok</option>
+            <option value="open">Belum rekon</option>
+            <option value="matched">Cocok rekening</option>
           </select>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -492,7 +545,30 @@ export function KasLedgerClient({
                 row.kind === "group" ? (
                   <tr key={`g-${row.kegiatan}-${idx}`} className="bg-muted/50 font-medium">
                     <td colSpan={3} className="p-3">
-                      {row.kegiatan}
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 text-left"
+                        aria-expanded={!collapsedKegiatan.includes(row.kegiatan)}
+                        aria-label={
+                          collapsedKegiatan.includes(row.kegiatan)
+                            ? `Buka grup ${row.kegiatan}`
+                            : `Lipat grup ${row.kegiatan}`
+                        }
+                        onClick={() => toggleCollapsed(row.kegiatan)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleCollapsed(row.kegiatan);
+                          }
+                        }}
+                      >
+                        {collapsedKegiatan.includes(row.kegiatan) ? (
+                          <ChevronRight className="h-4 w-4 shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 shrink-0" />
+                        )}
+                        {row.kegiatan}
+                      </button>
                     </td>
                     <td className="p-3 text-right">{formatRp(row.totalIn)}</td>
                     <td className="p-3 text-right">{formatRp(row.totalOut)}</td>
@@ -528,10 +604,15 @@ export function KasLedgerClient({
                           type="button"
                           size="sm"
                           variant="ghost"
-                          className="h-8 text-[11px]"
+                          title="Dicocokkan manual ke mutasi rekening. Tidak mengubah Masuk, Keluar, atau Saldo."
+                          className={`h-8 text-[11px] ${
+                            row.reconStatus === "matched"
+                              ? "text-green-700 dark:text-green-400"
+                              : "text-muted-foreground"
+                          }`}
                           onClick={() => void toggleRecon(row)}
                         >
-                          {row.reconStatus === "matched" ? "Cocok" : "Belum"}
+                          {row.reconStatus === "matched" ? "Cocok rekening" : "Belum rekon"}
                         </Button>
                         {data?.canWrite && row.sourceType === "manual" && !monthLocked(row.txnDate) ? (
                           <>
@@ -645,9 +726,31 @@ export function KasLedgerClient({
               <KasDateField value={massDate} onChange={setMassDate} />
             </Field>
             <Field label="Kegiatan bersama">
-              <Input value={massKegiatan} onChange={(e) => setMassKegiatan(e.target.value)} />
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-10 w-10 shrink-0"
+                  aria-expanded={massRowsOpen}
+                  aria-label={massRowsOpen ? "Lipat daftar baris" : "Buka daftar baris"}
+                  onClick={() => setMassRowsOpen((o) => !o)}
+                >
+                  {massRowsOpen ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                </Button>
+                <Input
+                  className="min-w-0 flex-1"
+                  value={massKegiatan}
+                  onChange={(e) => setMassKegiatan(e.target.value)}
+                />
+              </div>
             </Field>
           </div>
+          {massRowsOpen ? (
           <div className="space-y-2 overflow-x-auto">
             {massRows.map((row, i) => (
               <div
@@ -695,6 +798,8 @@ export function KasLedgerClient({
                 </Button>
               </div>
             ))}
+          </div>
+          ) : null}
             <Button
               type="button"
               variant="outline"
@@ -705,7 +810,6 @@ export function KasLedgerClient({
             >
               + Baris
             </Button>
-          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setMassOpen(false)}>
               Batal
@@ -733,19 +837,34 @@ export function KasLedgerClient({
 
 function Kpi({
   label,
+  caption,
   value,
-  accent,
+  tone,
 }: {
   label: string;
+  caption?: string;
   value: string;
-  accent?: boolean;
+  tone: "in" | "out" | "saldo" | "negative";
 }) {
+  const box =
+    tone === "in"
+      ? "border-teal-700/40 bg-teal-50 dark:bg-teal-950/20"
+      : tone === "out"
+        ? "border-inkai-red/40 bg-red-50 dark:bg-red-950/20"
+        : tone === "negative"
+          ? "border-inkai-red/40 bg-red-50 dark:bg-red-950/20"
+          : "border-green-700/40 bg-green-50 dark:bg-green-950/20";
+  const amount =
+    tone === "in"
+      ? "text-teal-800 dark:text-teal-300"
+      : tone === "out" || tone === "negative"
+        ? "text-inkai-red"
+        : "text-green-800 dark:text-green-300";
   return (
-    <div
-      className={`rounded-lg border p-3 ${accent ? "border-green-700/40 bg-green-50 dark:bg-green-950/20" : "bg-card"}`}
-    >
+    <div className={`rounded-lg border p-3 ${box}`}>
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="text-lg font-semibold">{value}</p>
+      {caption ? <p className="text-[11px] text-muted-foreground">{caption}</p> : null}
+      <p className={`text-lg font-semibold ${amount}`}>{value}</p>
     </div>
   );
 }

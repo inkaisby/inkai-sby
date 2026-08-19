@@ -9,10 +9,12 @@ export function KasDateField({
   value,
   onChange,
   id,
+  allowEmpty,
 }: {
   value: string;
   onChange: (ymd: string) => void;
   id?: string;
+  allowEmpty?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
 
@@ -21,6 +23,12 @@ export function KasDateField({
   }, [value]);
 
   function commit(raw: string) {
+    const trimmed = raw.trim();
+    if (!trimmed && allowEmpty) {
+      onChange("");
+      setDraft("");
+      return;
+    }
     const parsed = parseFlexibleIdDate(raw);
     if (parsed) {
       onChange(parsed);

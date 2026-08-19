@@ -184,6 +184,28 @@ export function groupKasTable(rows: KasLedgerRow[]): KasTableRow[] {
   return out;
 }
 
+/** Hide grouped entries when collapsed. Standalone / empty-kegiatan rows stay visible. */
+export function visibleKasTableRows(
+  groups: KasTableRow[],
+  collapsed: readonly string[],
+): KasTableRow[] {
+  const hide = new Set(collapsed);
+  const out: KasTableRow[] = [];
+  let skipKegiatan: string | null = null;
+  for (const row of groups) {
+    if (row.kind === "group") {
+      skipKegiatan = hide.has(row.kegiatan) ? row.kegiatan : null;
+      out.push(row);
+      continue;
+    }
+    const k = row.kegiatan.trim();
+    if (skipKegiatan && k === skipKegiatan) continue;
+    skipKegiatan = null;
+    out.push(row);
+  }
+  return out;
+}
+
 export function skipKwitansiJenis(jenis: string): boolean {
   const j = jenis.trim().toLowerCase();
   return j === "iuran" || j.startsWith("iuran");

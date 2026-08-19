@@ -7,6 +7,7 @@ import {
   parseKasImportTsv,
   skipKwitansiJenis,
   sumBefore,
+  visibleKasTableRows,
   withRunningSaldo,
   type KasLedgerInput,
 } from "@/lib/kas";
@@ -129,5 +130,17 @@ describe("kas ledger", () => {
     const withOpen = withRunningSaldo(mid, 5000);
     expect(withOpen[0].saldo).toBe(4000);
     expect(filterRange(all, null, null)).toHaveLength(4);
+  });
+
+  it("collapse hides grouped entries but not empty-kegiatan rows", () => {
+    const rows = withRunningSaldo([
+      row({ id: "1", txnDate: "2026-02-10", kegiatan: "Porprov", amountOut: 100 }),
+      row({ id: "2", txnDate: "2026-02-10", kegiatan: "Porprov", amountOut: 50 }),
+      row({ id: "3", txnDate: "2026-03-14", kegiatan: "", amountOut: 20 }),
+    ]);
+    const table = groupKasTable(rows);
+    const folded = visibleKasTableRows(table, ["Porprov"]);
+    expect(folded.filter((r) => r.kind === "group")).toHaveLength(1);
+    expect(folded.filter((r) => r.kind === "entry").map((r) => r.id)).toEqual(["3"]);
   });
 });
