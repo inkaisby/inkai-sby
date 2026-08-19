@@ -102,7 +102,13 @@ function kwitansiSheetInner(data: KwitansiPrintData): string {
   <div class="sheet draft-wrap">
     ${draftMark(data.draft)}
     <aside class="stub">
-      <h2>KWITANSI</h2>
+      <div class="stub-head">
+        <img src="${data.origin}/logo-inkai.png" alt="INKAI" class="stub-logo" />
+        <div>
+          <h2>KWITANSI</h2>
+          <div class="stub-sub">INKAI SURABAYA</div>
+        </div>
+      </div>
       <div>No. ${escapeHtml(data.no)}</div>
       <div>Tanggal: ${escapeHtml(data.tanggal)}</div>
       <div style="margin-top:6px">Terima dari:<br/><strong>${escapeHtml(data.terimaDari || "—")}</strong></div>
@@ -111,7 +117,13 @@ function kwitansiSheetInner(data: KwitansiPrintData): string {
       <div style="margin-top:6px">Untuk pembayaran:<br/>${escapeHtml(data.untukPembayaran || "—")}</div>
     </aside>
     <section class="body">
-      <h1 class="title">KWITANSI PEMBAYARAN</h1>
+      <div class="header-wrap">
+        <img src="${data.origin}/logo-inkai.png" alt="INKAI" class="header-logo" />
+        <div class="header-titles">
+          <h1 class="title">KWITANSI PEMBAYARAN</h1>
+          <div class="subtitle">INSTITUT KARATE-DO INDONESIA (INKAI) CABANG SURABAYA</div>
+        </div>
+      </div>
       <div class="row">
         <div>No. ${escapeHtml(data.no)}</div>
         <div>Tanggal: ${escapeHtml(data.tanggal)}</div>
@@ -119,7 +131,10 @@ function kwitansiSheetInner(data: KwitansiPrintData): string {
       <div class="field inline"><span>Sudah terima dari</span><span class="dots">${escapeHtml(data.terimaDari || "")}</span></div>
       <div class="terbilang">Terbilang: ${escapeHtml(terbilang)}</div>
       <div class="field inline"><span>Untuk pembayaran</span><span class="dots">${escapeHtml(data.untukPembayaran || "")}</span></div>
-      <div class="rp-box"><span>RP. ${escapeHtml(rp.replace(/^Rp\s?/, ""))}</span></div>
+      <div class="amount-row">
+        <div class="rp-box"><span>RP. ${escapeHtml(rp.replace(/^Rp\s?/, ""))}</span></div>
+        <div class="stamp-lunas">LUNAS</div>
+      </div>
       <div class="signs">
         <div class="sign">
           <div class="sign-space">${signImg(data.penerimaSignUrl, "TTD Penerima")}</div>
@@ -153,20 +168,33 @@ function kwitansiStyles(): string {
     width: 32%; padding: 8px 10px; border-right: 2px dashed #444;
     font-size: 11px; line-height: 1.4;
   }
-  .stub h2 { font-size: 13px; margin: 0 0 8px; letter-spacing: 0.04em; }
+  .stub-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .stub-logo { width: 24px; height: 24px; object-fit: contain; }
+  .stub-sub { font-size: 9px; color: #555; font-weight: 600; }
+  .stub h2 { font-size: 13px; margin: 0; letter-spacing: 0.04em; }
   .body { flex: 1; padding: 10px 14px; position: relative; }
-  .title { text-align: center; font-size: 20px; font-weight: 700; letter-spacing: 0.08em; margin: 0 0 10px; }
+  .header-wrap { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 8px; min-height: 44px; }
+  .header-logo { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 42px; height: 42px; object-fit: contain; }
+  .header-titles { text-align: center; }
+  .title { text-align: center; font-size: 19px; font-weight: 700; letter-spacing: 0.06em; margin: 0; }
+  .subtitle { font-size: 10px; font-weight: 600; letter-spacing: 0.05em; color: #444; margin-top: 2px; }
   .row { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; font-size: 13px; }
   .field { margin: 6px 0; font-size: 13px; }
   .dots { border-bottom: 1px dotted #333; min-height: 1.1em; flex: 1; margin-left: 6px; }
   .inline { display: flex; align-items: flex-end; gap: 4px; }
   .terbilang { font-style: italic; margin: 8px 0; font-size: 13px; }
+  .amount-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
   .rp-box {
-    display: inline-block; margin-top: 8px; padding: 5px 16px 5px 12px;
+    display: inline-block; padding: 5px 16px 5px 12px;
     border: 2px solid #111; font-weight: 700; font-size: 15px;
     transform: skewX(-8deg);
   }
   .rp-box span { display: inline-block; transform: skewX(8deg); }
+  .stamp-lunas {
+    border: 2px solid #15803d; color: #15803d; font-size: 13px; font-weight: 800;
+    letter-spacing: 0.15em; padding: 3px 12px; border-radius: 4px; transform: rotate(-5deg);
+    font-family: Arial, Helvetica, sans-serif;
+  }
   .signs { display: flex; justify-content: space-between; margin-top: 16px; gap: 20px; }
   .sign { width: 42%; text-align: center; font-size: 12px; }
   .sign-space { min-height: 64px; display: flex; align-items: flex-end; justify-content: center; }

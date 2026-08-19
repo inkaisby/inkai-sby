@@ -592,29 +592,54 @@ export function KwitansiWireframe({
     return true;
   };
 
+  const handleSimpanArsip = () => {
+    try {
+      const STORAGE_KEY = "inkai_kwitansi_arsip_list";
+      const savedRaw = localStorage.getItem(STORAGE_KEY);
+      const existing = savedRaw ? JSON.parse(savedRaw) : [];
+      const newEntry = {
+        id: `kw-${Date.now()}`,
+        no: isNota ? noNota : no,
+        periodeNama: periodeNama.trim() || (isNota ? "Nota Pengeluaran" : "Kwitansi Pembayaran"),
+        jenis: JENIS_OPTIONS.find((j) => j.id === jenis)?.label || "Iuran/tagihan",
+        tanggal: formatTanggalId(isNota ? notaTanggal : tanggal),
+        terimaDari: previewTerimaDari,
+        total: isNota ? notaGrand : jumlah,
+        scope: scopeLabel,
+        untukPembayaran: untukWithEvent,
+        penerimaName: previewPenerimaName,
+        penyetorName: penyetorName,
+      };
+      const updated = [newEntry, ...existing];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      toast.success(`Kwitansi ${newEntry.no} berhasil disimpan ke Arsip!`);
+    } catch {
+      toast.error("Gagal menyimpan ke arsip");
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{scopeLabel}</Badge>
-          <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-            DRAFT
-          </Badge>
           {!isNota ? (
             <div className="flex flex-wrap gap-1 rounded-md border p-1 text-xs">
               <button
                 type="button"
-                className={`rounded px-2 py-1 ${mode === "a" ? "bg-inkai-red text-white" : "hover:bg-muted"}`}
-                onClick={() => setMode("a")}
+                className={`rounded px-2.5 py-1 ${mode === "b" ? "bg-inkai-red text-white font-medium" : "hover:bg-muted"}`}
+                onClick={() => setMode("b")}
+                title="Cetak kwitansi terpisah untuk tiap penerima (Multi-halaman)"
               >
-                Satu kwitansi + rincian
+                Per Penerima (Multi-halaman)
               </button>
               <button
                 type="button"
-                className={`rounded px-2 py-1 ${mode === "b" ? "bg-inkai-red text-white" : "hover:bg-muted"}`}
-                onClick={() => setMode("b")}
+                className={`rounded px-2.5 py-1 ${mode === "a" ? "bg-inkai-red text-white font-medium" : "hover:bg-muted"}`}
+                onClick={() => setMode("a")}
+                title="Satu kwitansi rangkuman untuk semua penerima"
               >
-                Batch per penerima
+                Rangkuman 1 Lembar
               </button>
             </div>
           ) : null}
@@ -639,6 +664,14 @@ export function KwitansiWireframe({
             }
           >
             Cetak
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleSimpanArsip}
+            className="border-emerald-600 text-emerald-700 hover:bg-emerald-50"
+          >
+            Simpan ke Arsip
           </Button>
           <Button
             type="button"
