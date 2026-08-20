@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { kasLockSchema } from "@/lib/security/schemas";
 import {
   canLockKasPeriod,
-  resolveKasScope,
+  resolveKasScopeForView,
   setKasPeriodLock,
 } from "@/lib/kas-store";
 
@@ -20,7 +20,10 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Periode tidak valid" }, { status: 400 });
   }
-  const scope = await resolveKasScope(authResult.user);
+  const scope = await resolveKasScopeForView(authResult.user, {
+    type: request.headers.get("x-kas-scope-type"),
+    id: request.headers.get("x-kas-scope-id"),
+  });
   await setKasPeriodLock({
     scope,
     yearMonth: parsed.data.yearMonth,

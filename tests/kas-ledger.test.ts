@@ -12,6 +12,7 @@ import {
   type KasLedgerInput,
 } from "@/lib/kas";
 import { parseFlexibleIdDate } from "@/lib/parse-birth-date";
+import { kasTransferSchema } from "@/lib/security/schemas";
 
 function row(
   partial: Partial<KasLedgerInput> & Pick<KasLedgerInput, "id" | "txnDate">,
@@ -142,5 +143,20 @@ describe("kas ledger", () => {
     const folded = visibleKasTableRows(table, ["Porprov"]);
     expect(folded.filter((r) => r.kind === "group")).toHaveLength(1);
     expect(folded.filter((r) => r.kind === "entry").map((r) => r.id)).toEqual(["3"]);
+  });
+
+  it("validates transfer payload", () => {
+    expect(
+      kasTransferSchema.safeParse({
+        targetScopeType: "branch",
+        targetScopeId: "scope-1",
+      }).success,
+    ).toBe(true);
+    expect(
+      kasTransferSchema.safeParse({
+        targetScopeType: "dojo",
+        targetScopeId: "",
+      }).success,
+    ).toBe(false);
   });
 });

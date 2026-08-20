@@ -7,7 +7,7 @@ import {
   KasPeriodLockedError,
   canWriteKas,
   postKasBatch,
-  resolveKasScope,
+  resolveKasScopeForView,
 } from "@/lib/kas-store";
 
 export async function POST(request: Request) {
@@ -27,7 +27,10 @@ export async function POST(request: Request) {
     );
   }
   try {
-    const scope = await resolveKasScope(authResult.user);
+    const scope = await resolveKasScopeForView(authResult.user, {
+      type: request.headers.get("x-kas-scope-type"),
+      id: request.headers.get("x-kas-scope-id"),
+    });
     const result = await postKasBatch(
       parsed.data.entries.map((e) => ({
         scope,

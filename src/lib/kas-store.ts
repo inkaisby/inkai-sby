@@ -1,7 +1,12 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { writeAuditLog } from "@/lib/audit";
-import { getPrimaryAdminRole, type SessionUser } from "@/lib/rbac";
+import {
+  buildBranchFilter,
+  buildDojoFilter,
+  getPrimaryAdminRole,
+  type SessionUser,
+} from "@/lib/rbac";
 import { SITE_BRANCH_NAME } from "@/lib/site";
 import type { AdminDojoGrants } from "@/lib/admin-dojo-grants";
 import { isAdminPathAllowedByGrants } from "@/lib/admin-dojo-grants";
@@ -68,6 +73,10 @@ export function canWriteKas(
 export function canLockKasPeriod(user: SessionUser): boolean {
   const role = getPrimaryAdminRole(user.roles ?? []);
   return role !== "ADMIN_DOJO";
+}
+
+export function canTransferKas(user: SessionUser): boolean {
+  return canLockKasPeriod(user);
 }
 
 export async function isKasMonthLocked(
@@ -219,6 +228,59 @@ export async function listKasEntries(scope: KasScope) {
   }));
 }
 
+export async function listKasScopes(user: SessionUser): Promise<
+  Array<{ type: "branch" | "dojo"; id: string; label: string }>
+> {
+  const role = getPrimaryAdminRole(user.roles ?? []);
+  if (role === "ADMIN_DOJO") {
+    const scope = await resolveKasScope(user);
+    return [{ type: scope.type, id: scope.id, label: "Ranting" }];
+  }
+
+  const out: Array<{ type: "branch" | "dojo"; id: string; label: string }> = [];
+  const branches = await prisma.branch.findMany({
+    where: buildBranchFilter(user),
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  for (const branch of branches) {
+    out.push({
+      type: "branch",
+      id: branch.id,
+      label: `Cabang ${branch.name || "Surabaya"}`,
+    });
+  }
+
+  const dojos = await prisma.dojo.findMany({
+    where: buildDojoFilter(user),
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  for (const dojo of dojos) {
+    out.push({
+      type: "dojo",
+      id: dojo.id,
+      label: `Ranting ${dojo.name || "Tanpa nama"}`,
+    });
+  }
+  return out;
+}
+
+export async function resolveKasScopeForView(
+  user: SessionUser,
+  override?: { type?: string | null; id?: string | null },
+): Promise<KasScope> {
+  const fallback = await resolveKasScope(user);
+  const type = override?.type === "branch" || override?.type === "dojo" ? override.type : null;
+  const id = override?.id?.trim() || null;
+  if (!type || !id || !canTransferKas(user)) return fallback;
+
+  const allowed = await listKasScopes(user);
+  const match = allowed.find((s) => s.type === type && s.id === id);
+  if (!match) throw new KasScopeError("Buku kas di luar wilayah Anda");
+  return { type, id };
+}
+
 export async function setKasRecon(id: string, scope: KasScope, reconStatus: "open" | "matched") {
   const updated = await prisma.kasEntry.updateMany({
     where: { id, scopeType: scope.type, scopeId: scope.id },
@@ -268,6 +330,66 @@ export async function updateManualKas(
       amountOut: direction === "out" ? amount : 0,
     },
   });
+}
+
+export async function transferManualKas(opts: {
+  id: string;
+  sourceScope: KasScope;
+  targetScope: KasScope;
+  user: SessionUser;
+  token?: string | null;
+  email?: string | null;
+}) {
+  if (!canTransferKas(opts.user)) {
+    throw new Error("Tidak berhak memindahkan lokasi kas");
+  }
+  if (
+    opts.sourceScope.type === opts.targetScope.type &&
+    opts.sourceScope.id === opts.targetScope.id
+  ) {
+    throw new Error("Buku tujuan sama dengan buku asal");
+  }
+
+  const row = await prisma.kasEntry.findFirst({
+    where: {
+      id: opts.id,
+      scopeType: opts.sourceScope.type,
+      scopeId: opts.sourceScope.id,
+      sourceType: "manual",
+    },
+  });
+  if (!row) return null;
+
+  const allowed = await listKasScopes(opts.user);
+  const targetAllowed = allowed.some(
+    (s) => s.type === opts.targetScope.type && s.id === opts.targetScope.id,
+  );
+  if (!targetAllowed) {
+    throw new KasScopeError("Buku tujuan di luar wilayah Anda");
+  }
+
+  const txnDate = row.txnDate.toISOString().slice(0, 10);
+  await assertKasMonthWritable(opts.targetScope, txnDate);
+
+  const updated = await prisma.kasEntry.update({
+    where: { id: row.id },
+    data: {
+      scopeType: opts.targetScope.type,
+      scopeId: opts.targetScope.id,
+    },
+  });
+
+  writeAuditLog({
+    userId: opts.user.id,
+    email: opts.email,
+    action: "KAS_TRANSFER",
+    details:
+      `${row.id} ${opts.sourceScope.type}:${opts.sourceScope.id}` +
+      ` -> ${opts.targetScope.type}:${opts.targetScope.id}`,
+    token: opts.token,
+  });
+
+  return updated;
 }
 
 export async function listKasLocks(scope: KasScope) {

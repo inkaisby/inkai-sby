@@ -17,11 +17,13 @@ import {
   KasPeriodLockedError,
   KasScopeError,
   canAccessKas,
+  canTransferKas,
   canWriteKas,
   listKasEntries,
   listKasLocks,
+  listKasScopes,
   postKasBatch,
-  resolveKasScope,
+  resolveKasScopeForView,
 } from "@/lib/kas-store";
 
 export async function GET(request: Request) {
@@ -32,8 +34,11 @@ export async function GET(request: Request) {
   }
 
   try {
-    const scope = await resolveKasScope(authResult.user);
     const url = new URL(request.url);
+    const scope = await resolveKasScopeForView(authResult.user, {
+      type: url.searchParams.get("scopeType"),
+      id: url.searchParams.get("scopeId"),
+    });
     const fromRaw = (url.searchParams.get("from") || "").trim();
     const toRaw = (url.searchParams.get("to") || "").trim();
     const year = Number(url.searchParams.get("year") || "") || null;
@@ -82,6 +87,7 @@ export async function GET(request: Request) {
       success: true,
       scope,
       canWrite: canWriteKas(authResult.user, authResult.adminDojoGrants),
+      canTransfer: canTransferKas(authResult.user),
       canLock: authResult.user.roles?.includes("ADMIN_BRANCH") ||
         authResult.user.roles?.includes("ADMINISTRATOR") ||
         authResult.user.roles?.includes("ADMIN_PUSAT") ||
@@ -92,6 +98,7 @@ export async function GET(request: Request) {
       kegiatanOptions,
       lockedMonths,
       currentMonth: yearMonthWib(),
+      scopes: await listKasScopes(authResult.user),
     });
   } catch (error) {
     const msg = error instanceof KasScopeError ? error.message : "Gagal memuat kas";
@@ -121,7 +128,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    const scope = await resolveKasScope(authResult.user);
+    const scope = await resolveKasScopeForView(authResult.user, {
+      type: request.headers.get("x-kas-scope-type"),
+      id: request.headers.get("x-kas-scope-id"),
+    });
     const result = await postKasBatch(
       parsed.data.entries.map((e, i) => ({
         scope,

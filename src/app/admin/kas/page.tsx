@@ -49,7 +49,7 @@ async function AdminKasContent() {
   const isRanting = getPrimaryAdminRole(user.roles ?? []) === "ADMIN_DOJO";
   const description = isRanting
     ? `${scopeLabel}. Buku ranting: iuran yang dilunasi di ranting + komisi Latber. UKT dan nett Latber cabang ada di Kas cabang. Filter periode awal–akhir; tanpa backfill riwayat lama.`
-    : `${scopeLabel}. Buku cabang: setoran iuran ranting, UKT, nett Latber, kwitansi non-iuran, plus Tambah manual. Kas ranting terpisah.`;
+    : `${scopeLabel}. Buku cabang: setoran iuran ranting, UKT, nett Latber, kwitansi non-iuran, plus Tambah manual. Cabang juga bisa koreksi lokasi baris manual antar buku wilayah.`;
   return (
     <div>
       <AdminPageHeader title="Kas" description={description} />

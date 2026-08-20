@@ -1000,6 +1000,11 @@ export const kasPatchSchema = z.object({
   amount: z.coerce.number().int().positive().max(1_000_000_000).optional(),
 });
 
+export const kasTransferSchema = z.object({
+  targetScopeType: z.enum(["branch", "dojo"]),
+  targetScopeId: z.string().trim().min(1).max(64),
+});
+
 export const kasLockSchema = z.object({
   yearMonth: z.string().regex(/^\d{4}-\d{2}$/),
   lock: z.boolean(),

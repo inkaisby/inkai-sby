@@ -48,6 +48,7 @@ import { KasDateField } from "@/components/admin/kas/KasDateField";
 type KasPayload = {
   canWrite: boolean;
   canLock: boolean;
+  canTransfer?: boolean;
   rows: KasLedgerRow[];
   groups: KasTableRow[];
   kpis: {
@@ -60,6 +61,8 @@ type KasPayload = {
   kegiatanOptions: string[];
   lockedMonths: string[];
   currentMonth: string;
+  scope: { type: "branch" | "dojo"; id: string };
+  scopes?: Array<{ type: "branch" | "dojo"; id: string; label: string }>;
 };
 
 type DraftRow = {
@@ -88,6 +91,9 @@ export function KasLedgerClient({
   const [editId, setEditId] = useState<string | null>(null);
   const [massOpen, setMassOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [scopeKey, setScopeKey] = useState("");
+  const [moveScopeKey, setMoveScopeKey] = useState("");
+  const [moveOpen, setMoveOpen] = useState(false);
   const [form, setForm] = useState({
     txnDate: ymdWib(),
     description: "",
@@ -112,11 +118,18 @@ export function KasLedgerClient({
     }
     if (from) p.set("from", from);
     if (to) p.set("to", to);
+    if (scopeKey) {
+      const [scopeType, scopeId] = scopeKey.split(":", 2);
+      if (scopeType && scopeId) {
+        p.set("scopeType", scopeType);
+        p.set("scopeId", scopeId);
+      }
+    }
     if (kegiatan) p.set("kegiatan", kegiatan);
     if (source !== "all") p.set("source", source);
     if (recon !== "all") p.set("recon", recon);
     return p.toString();
-  }, [fromYmd, toYmd, kegiatan, source, recon]);
+  }, [fromYmd, toYmd, scopeKey, kegiatan, source, recon]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -125,6 +138,8 @@ export function KasLedgerClient({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Gagal memuat");
       setData(json);
+      const nextScopeKey = `${json.scope.type}:${json.scope.id}`;
+      setScopeKey((prev) => prev || nextScopeKey);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Gagal memuat kas");
     } finally {
@@ -133,7 +148,10 @@ export function KasLedgerClient({
   }, [qs]);
 
   useEffect(() => {
-    void load();
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   const lockMonth = (toYmd || fromYmd || ymdWib()).slice(0, 7);
@@ -148,9 +166,14 @@ export function KasLedgerClient({
       amount: number;
     }>,
   ) {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (data?.scope) {
+      headers["x-kas-scope-type"] = data.scope.type;
+      headers["x-kas-scope-id"] = data.scope.id;
+    }
     const res = await fetch("/api/admin/kas", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ entries }),
     });
     const json = await res.json();
@@ -180,6 +203,8 @@ export function KasLedgerClient({
   function closeMutasiDialog() {
     setAddOpen(false);
     setEditId(null);
+    setMoveOpen(false);
+    setMoveScopeKey("");
     setForm({
       txnDate: ymdWib(),
       description: "",
@@ -199,13 +224,19 @@ export function KasLedgerClient({
       direction: row.amountOut > 0 ? "out" : "in",
       amount: String(row.amountIn || row.amountOut),
     });
+    setMoveScopeKey("");
+    setMoveOpen(false);
   }
 
   async function handleEdit() {
     if (!editId) return;
     const res = await fetch(`/api/admin/kas/${editId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-kas-scope-type": data?.scope.type ?? "",
+        "x-kas-scope-id": data?.scope.id ?? "",
+      },
       body: JSON.stringify({
         txnDate: form.txnDate,
         description: form.description,
@@ -220,6 +251,28 @@ export function KasLedgerClient({
       return;
     }
     toast.success("Mutasi diperbarui");
+    closeMutasiDialog();
+    await load();
+  }
+
+  async function handleTransfer() {
+    if (!editId || !moveScopeKey || !data?.scope) return;
+    const [targetScopeType, targetScopeId] = moveScopeKey.split(":", 2);
+    const res = await fetch(`/api/admin/kas/${editId}/transfer`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-kas-scope-type": data.scope.type,
+        "x-kas-scope-id": data.scope.id,
+      },
+      body: JSON.stringify({ targetScopeType, targetScopeId }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error(json.error || "Gagal memindahkan baris");
+      return;
+    }
+    toast.success("Baris dipindahkan ke buku tujuan");
     closeMutasiDialog();
     await load();
   }
@@ -254,7 +307,13 @@ export function KasLedgerClient({
 
   async function handleDelete() {
     if (!deleteId) return;
-    const res = await fetch(`/api/admin/kas/${deleteId}`, { method: "DELETE" });
+    const res = await fetch(`/api/admin/kas/${deleteId}`, {
+      method: "DELETE",
+      headers: {
+        "x-kas-scope-type": data?.scope.type ?? "",
+        "x-kas-scope-id": data?.scope.id ?? "",
+      },
+    });
     const json = await res.json();
     if (!res.ok) {
       toast.error(json.error || "Gagal hapus");
@@ -269,7 +328,11 @@ export function KasLedgerClient({
     const next = row.reconStatus === "matched" ? "open" : "matched";
     const res = await fetch(`/api/admin/kas/${row.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-kas-scope-type": data?.scope.type ?? "",
+        "x-kas-scope-id": data?.scope.id ?? "",
+      },
       body: JSON.stringify({ reconStatus: next }),
     });
     if (!res.ok) {
@@ -283,7 +346,11 @@ export function KasLedgerClient({
     const yearMonth = lockMonth;
     const res = await fetch("/api/admin/kas/lock", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-kas-scope-type": data?.scope.type ?? "",
+        "x-kas-scope-id": data?.scope.id ?? "",
+      },
       body: JSON.stringify({
         yearMonth,
         lock: !locked,
@@ -327,7 +394,11 @@ export function KasLedgerClient({
     }
     const res = await fetch("/api/admin/kas/import", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-kas-scope-type": data?.scope.type ?? "",
+        "x-kas-scope-id": data?.scope.id ?? "",
+      },
       body: JSON.stringify({
         entries: drafts.map((d) => ({
           txnDate: d.txnDate,
@@ -357,11 +428,14 @@ export function KasLedgerClient({
           : "Semua tanggal";
   const extraFilterOn =
     Boolean(kegiatan) || source !== "all" || recon !== "all";
+  const activeScopeLabel =
+    data?.scopes?.find((scope) => scope.type === data.scope.type && scope.id === data.scope.id)
+      ?.label ?? scopeLabel;
 
   function handlePrint() {
     printKasDocument({
       origin: window.location.origin,
-      scopeLabel,
+      scopeLabel: activeScopeLabel,
       periodLabel: periodCaption,
       printedAt: `${ymdWib()} WIB`,
       saldoAkhir: data?.kpis.saldoAkhir ?? 0,
@@ -416,6 +490,21 @@ export function KasLedgerClient({
           <Field label="Periode akhir">
             <KasDateField allowEmpty value={toYmd} onChange={setToYmd} />
           </Field>
+          {!isRanting && (data?.scopes?.length ?? 0) > 1 ? (
+            <Field label="Buku kas">
+              <select
+                className="h-10 rounded-md border bg-background px-2 text-sm"
+                value={scopeKey}
+                onChange={(e) => setScopeKey(e.target.value)}
+              >
+                {(data?.scopes ?? []).map((scope) => (
+                  <option key={`${scope.type}:${scope.id}`} value={`${scope.type}:${scope.id}`}>
+                    {scope.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -700,11 +789,56 @@ export function KasLedgerClient({
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
               />
             </Field>
+            {editId && data?.canTransfer && !isRanting ? (
+              <div className="sm:col-span-2 rounded-md border border-dashed p-3">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={moveOpen}
+                    onChange={(e) => setMoveOpen(e.target.checked)}
+                  />
+                  Pindah ke buku lain
+                </label>
+                {moveOpen ? (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <Field label="Buku tujuan">
+                      <select
+                        className="h-10 rounded-md border bg-background px-2 text-sm"
+                        value={moveScopeKey}
+                        onChange={(e) => setMoveScopeKey(e.target.value)}
+                      >
+                        <option value="">Pilih buku tujuan</option>
+                        {(data?.scopes ?? [])
+                          .filter((scope) => `${scope.type}:${scope.id}` !== scopeKey)
+                          .map((scope) => (
+                            <option key={`${scope.type}:${scope.id}`} value={`${scope.type}:${scope.id}`}>
+                              {scope.label}
+                            </option>
+                          ))}
+                      </select>
+                    </Field>
+                    <p className="text-xs text-muted-foreground">
+                      Baris akan hilang dari buku saat ini dan muncul di buku tujuan.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={closeMutasiDialog}>
               Batal
             </Button>
+            {editId && moveOpen ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleTransfer()}
+                disabled={!moveScopeKey}
+              >
+                Pindahkan
+              </Button>
+            ) : null}
             <Button
               type="button"
               className="bg-inkai-red hover:bg-inkai-red/90"

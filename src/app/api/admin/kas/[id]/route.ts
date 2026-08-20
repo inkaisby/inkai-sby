@@ -5,7 +5,7 @@ import {
   KasPeriodLockedError,
   canWriteKas,
   deleteManualKas,
-  resolveKasScope,
+  resolveKasScopeForView,
   setKasRecon,
   updateManualKas,
 } from "@/lib/kas-store";
@@ -24,7 +24,10 @@ export async function PATCH(request: Request, context: Ctx) {
     return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
   }
   try {
-    const scope = await resolveKasScope(authResult.user);
+    const scope = await resolveKasScopeForView(authResult.user, {
+      type: request.headers.get("x-kas-scope-type"),
+      id: request.headers.get("x-kas-scope-id"),
+    });
     if (parsed.data.reconStatus) {
       const ok = await setKasRecon(id, scope, parsed.data.reconStatus);
       if (!ok) return NextResponse.json({ error: "Baris tidak ditemukan" }, { status: 404 });
@@ -61,7 +64,10 @@ export async function DELETE(_request: Request, context: Ctx) {
   }
   const { id } = await context.params;
   try {
-    const scope = await resolveKasScope(authResult.user);
+    const scope = await resolveKasScopeForView(authResult.user, {
+      type: _request.headers.get("x-kas-scope-type"),
+      id: _request.headers.get("x-kas-scope-id"),
+    });
     const ok = await deleteManualKas(id, scope);
     if (!ok) {
       return NextResponse.json(
