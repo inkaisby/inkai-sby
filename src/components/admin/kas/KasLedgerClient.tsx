@@ -1102,10 +1102,18 @@ export function KasLedgerClient({
             </div>
             <Field label="Kegiatan">
               <Input
+                list="kas-kegiatan-options"
                 value={form.kegiatan}
                 onChange={(e) => setForm({ ...form, kegiatan: e.target.value })}
-                placeholder="MUSKOT, Iuran, Saldo awal"
+                placeholder="Pilih atau ketik kegiatan"
+                maxLength={120}
+                autoComplete="off"
               />
+              <datalist id="kas-kegiatan-options">
+                {(data?.kegiatanOptions ?? []).map((k) => (
+                  <option key={k} value={k} />
+                ))}
+              </datalist>
             </Field>
             <Field label="Nominal">
               <Input
@@ -1351,9 +1359,18 @@ export function KasLedgerClient({
                 </Button>
                 <Input
                   className="min-w-0 flex-1"
+                  list="kas-kegiatan-massal"
                   value={massKegiatan}
                   onChange={(e) => setMassKegiatan(e.target.value)}
+                  placeholder="Pilih atau ketik kegiatan"
+                  maxLength={120}
+                  autoComplete="off"
                 />
+                <datalist id="kas-kegiatan-massal">
+                  {(data?.kegiatanOptions ?? []).map((k) => (
+                    <option key={k} value={k} />
+                  ))}
+                </datalist>
               </div>
             </Field>
             {canPickLokasi() ? (
