@@ -261,6 +261,96 @@ export function parseKasImportTsv(text: string): KasImportDraft[] {
   return out;
 }
 
+/** Paste Excel/TSV ke Tambah massal: 2 kolom (ket+nominal) pakai defaultDirection. */
+export function parseKasMassPaste(
+  text: string,
+  opts?: { defaultDirection?: KasDirection; defaultTxnDate?: string },
+): KasImportDraft[] {
+  const defaultDirection = opts?.defaultDirection ?? "out";
+  const defaultTxnDate = opts?.defaultTxnDate ?? ymdWib();
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const out: KasImportDraft[] = [];
+
+  for (const line of lines) {
+    let parts = line.split("\t").map((p) => p.trim());
+    if (parts.length === 1 && /\s{2,}|\s+Rp/i.test(line)) {
+      parts = line.split(/\s{2,}|\t/).map((p) => p.trim()).filter(Boolean);
+    }
+    if (parts.length >= 2 && /^(?:\d+\.?|#)$/.test(parts[0])) {
+      parts = parts.slice(1);
+    }
+    if (parts.length < 2) continue;
+    const maybeHeader = parts[0].toLowerCase();
+    if (
+      maybeHeader === "tanggal" ||
+      maybeHeader === "keterangan" ||
+      maybeHeader === "uraian" ||
+      maybeHeader === "item"
+    ) {
+      continue;
+    }
+
+    let txnDate = defaultTxnDate;
+    let description = "";
+    let amountIn = 0;
+    let amountOut = 0;
+    let kegiatan = "";
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(parts[0]) || /^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/.test(parts[0])) {
+      txnDate = normalizeImportDate(parts[0]) ?? defaultTxnDate;
+      description = parts[1] ?? "";
+      amountIn = parseMoney(parts[2]);
+      amountOut = parseMoney(parts[3]);
+      kegiatan = parts[4] ?? "";
+      if (!description) continue;
+      if (amountIn > 0 && amountOut > 0) continue;
+      if (amountIn <= 0 && amountOut <= 0) continue;
+      out.push({
+        txnDate,
+        description,
+        kegiatan,
+        direction: amountIn > 0 ? "in" : "out",
+        amount: amountIn > 0 ? amountIn : amountOut,
+      });
+      continue;
+    }
+
+    description = parts[0] ?? "";
+    if (parts.length >= 3 && parseMoney(parts[1]) > 0 && parseMoney(parts[2]) > 0) {
+      continue;
+    }
+    if (parts.length >= 3 && (parseMoney(parts[1]) > 0 || parseMoney(parts[2]) > 0)) {
+      amountIn = parseMoney(parts[1]);
+      amountOut = parseMoney(parts[2]);
+      kegiatan = parts[3] ?? "";
+      if (!description) continue;
+      if (amountIn <= 0 && amountOut <= 0) continue;
+      out.push({
+        txnDate: defaultTxnDate,
+        description,
+        kegiatan,
+        direction: amountIn > 0 ? "in" : "out",
+        amount: amountIn > 0 ? amountIn : amountOut,
+      });
+      continue;
+    }
+
+    const amount = parseMoney(parts[1]);
+    if (!description || amount <= 0) continue;
+    out.push({
+      txnDate: defaultTxnDate,
+      description,
+      kegiatan: parts[2] ?? "",
+      direction: defaultDirection,
+      amount,
+    });
+  }
+  return out;
+}
+
 function parseMoney(raw: string | undefined): number {
   if (!raw) return 0;
   const cleaned = raw.replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");

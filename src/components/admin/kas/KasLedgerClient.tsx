@@ -37,7 +37,9 @@ import { formatRp } from "@/lib/terbilang";
 import {
   firstOfMonthWib,
   formatKasDateId,
+  KAS_MAX_BATCH,
   parseKasImportTsv,
+  parseKasMassPaste,
   visibleKasTableRows,
   ymdWib,
   type KasLedgerRow,
@@ -113,6 +115,9 @@ export function KasLedgerClient({
   const [massRows, setMassRows] = useState<DraftRow[]>([
     { description: "", direction: "out", amount: "" },
   ]);
+  const [postScopeKey, setPostScopeKey] = useState("");
+  const [massPasteText, setMassPasteText] = useState("");
+  const [massPasteDirection, setMassPasteDirection] = useState<"in" | "out">("out");
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -178,9 +183,15 @@ export function KasLedgerClient({
       direction: "in" | "out";
       amount: number;
     }>,
+    scopeKeyOverride?: string,
   ) {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (data?.scope) {
+    const key = scopeKeyOverride || postScopeKey || scopeKey;
+    const [scopeType, scopeId] = key.split(":", 2);
+    if (scopeType && scopeId) {
+      headers["x-kas-scope-type"] = scopeType;
+      headers["x-kas-scope-id"] = scopeId;
+    } else if (data?.scope) {
       headers["x-kas-scope-type"] = data.scope.type;
       headers["x-kas-scope-id"] = data.scope.id;
     }
@@ -194,18 +205,40 @@ export function KasLedgerClient({
     return json;
   }
 
+  function postScopeLabel(key: string) {
+    return (
+      data?.scopes?.find((s) => `${s.type}:${s.id}` === key)?.label ??
+      activeScopeLabel
+    );
+  }
+
+  function canPickLokasi() {
+    return Boolean(
+      data?.canTransfer && !isRanting && (data?.scopes?.length ?? 0) > 1,
+    );
+  }
+
   async function handleAdd() {
     try {
-      await postEntries([
-        {
-          txnDate: form.txnDate,
-          description: form.description,
-          kegiatan: form.kegiatan,
-          direction: form.direction,
-          amount: Number(form.amount),
-        },
-      ]);
-      toast.success("Mutasi kas tersimpan");
+      await postEntries(
+        [
+          {
+            txnDate: form.txnDate,
+            description: form.description,
+            kegiatan: form.kegiatan,
+            direction: form.direction,
+            amount: Number(form.amount),
+          },
+        ],
+        postScopeKey || scopeKey,
+      );
+      const key = postScopeKey || scopeKey;
+      const sameBook = key === scopeKey || key === `${data?.scope.type}:${data?.scope.id}`;
+      toast.success(
+        sameBook
+          ? "Mutasi kas tersimpan"
+          : `Mutasi tersimpan ke ${postScopeLabel(key)}`,
+      );
       closeMutasiDialog();
       await load();
     } catch (error) {
@@ -218,6 +251,7 @@ export function KasLedgerClient({
     setEditId(null);
     setMoveOpen(false);
     setMoveScopeKey("");
+    setPostScopeKey("");
     setForm({
       txnDate: ymdWib(),
       description: "",
@@ -225,6 +259,18 @@ export function KasLedgerClient({
       direction: "in",
       amount: "",
     });
+  }
+
+  function openAddDialog() {
+    setPostScopeKey(scopeKey || `${data?.scope.type}:${data?.scope.id}`);
+    setAddOpen(true);
+  }
+
+  function openMassDialog() {
+    setPostScopeKey(scopeKey || `${data?.scope.type}:${data?.scope.id}`);
+    setMassPasteText("");
+    setMassPasteDirection("out");
+    setMassOpen(true);
   }
 
   function openEdit(row: KasLedgerRow) {
@@ -384,13 +430,44 @@ export function KasLedgerClient({
       return;
     }
     try {
-      await postEntries(entries);
-      toast.success(`${entries.length} baris tersimpan`);
+      const key = postScopeKey || scopeKey;
+      await postEntries(entries, key);
+      const sameBook = key === scopeKey || key === `${data?.scope.type}:${data?.scope.id}`;
+      toast.success(
+        sameBook
+          ? `${entries.length} baris tersimpan`
+          : `${entries.length} baris tersimpan ke ${postScopeLabel(key)}`,
+      );
       setMassOpen(false);
+      setMassPasteText("");
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Gagal simpan");
     }
+  }
+
+  function applyMassPaste() {
+    const parsed = parseKasMassPaste(massPasteText, {
+      defaultDirection: massPasteDirection,
+      defaultTxnDate: massDate,
+    });
+    if (!parsed.length) {
+      toast.error("Tidak ada baris valid dari tempel");
+      return;
+    }
+    if (parsed.length > KAS_MAX_BATCH) {
+      toast.error(`Maksimal ${KAS_MAX_BATCH} baris per simpan`);
+      return;
+    }
+    setMassRows(
+      parsed.map((r) => ({
+        description: r.description,
+        direction: r.direction,
+        amount: String(r.amount),
+      })),
+    );
+    setMassRowsOpen(true);
+    toast.success(`${parsed.length} baris diisi dari tempel`);
   }
 
   async function handleDelete() {
@@ -719,14 +796,14 @@ export function KasLedgerClient({
                     }}
                   />
                 </label>
-                <Button type="button" variant="outline" className="text-xs" onClick={() => setMassOpen(true)}>
+                <Button type="button" variant="outline" className="text-xs" onClick={openMassDialog}>
                   <Plus className="h-4 w-4" />
                   Tambah massal
                 </Button>
                 <Button
                   type="button"
                   className="bg-inkai-red text-xs hover:bg-inkai-red/90"
-                  onClick={() => setAddOpen(true)}
+                  onClick={openAddDialog}
                 >
                   <Plus className="h-4 w-4" />
                   Tambah
@@ -997,6 +1074,26 @@ export function KasLedgerClient({
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
               />
             </Field>
+            {!editId && canPickLokasi() ? (
+              <div className="sm:col-span-2">
+                <Field label="Lokasi">
+                  <select
+                    className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+                    value={postScopeKey}
+                    onChange={(e) => setPostScopeKey(e.target.value)}
+                  >
+                    {(data?.scopes ?? []).map((scope) => (
+                      <option
+                        key={`${scope.type}:${scope.id}`}
+                        value={`${scope.type}:${scope.id}`}
+                      >
+                        {scope.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            ) : null}
             {editId && data?.canTransfer && !isRanting ? (
               <div className="sm:col-span-2 rounded-md border border-dashed p-3">
                 <label className="flex items-center gap-2 text-sm font-medium">
@@ -1179,7 +1276,13 @@ export function KasLedgerClient({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={massOpen} onOpenChange={setMassOpen}>
+      <Dialog
+        open={massOpen}
+        onOpenChange={(open) => {
+          setMassOpen(open);
+          if (!open) setMassPasteText("");
+        }}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Tambah massal</DialogTitle>
@@ -1212,6 +1315,63 @@ export function KasLedgerClient({
                 />
               </div>
             </Field>
+            {canPickLokasi() ? (
+              <div className="sm:col-span-2">
+                <Field label="Lokasi">
+                  <select
+                    className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+                    value={postScopeKey}
+                    onChange={(e) => setPostScopeKey(e.target.value)}
+                  >
+                    {(data?.scopes ?? []).map((scope) => (
+                      <option
+                        key={`${scope.type}:${scope.id}`}
+                        value={`${scope.type}:${scope.id}`}
+                      >
+                        {scope.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            ) : null}
+            <div className="sm:col-span-2 space-y-2 rounded-md border border-dashed p-3">
+              <Field label="Tempel dari Excel">
+                <textarea
+                  className="min-h-[88px] w-full rounded-md border bg-background px-2 py-2 font-mono text-xs"
+                  placeholder={"Beli Roti\tRp333.500\nBeli Minuman\tRp50.000"}
+                  value={massPasteText}
+                  onChange={(e) => setMassPasteText(e.target.value)}
+                  onPaste={(e) => {
+                    const text = e.clipboardData.getData("text");
+                    if (text.includes("\t") || text.includes("\n")) {
+                      e.preventDefault();
+                      setMassPasteText(text);
+                    }
+                  }}
+                />
+              </Field>
+              <div className="flex flex-wrap items-end gap-2">
+                <Field label="Arah paste">
+                  <select
+                    className="h-10 rounded-md border bg-background px-2 text-sm"
+                    value={massPasteDirection}
+                    onChange={(e) =>
+                      setMassPasteDirection(e.target.value as "in" | "out")
+                    }
+                  >
+                    <option value="out">Keluar</option>
+                    <option value="in">Masuk</option>
+                  </select>
+                </Field>
+                <Button type="button" variant="outline" size="sm" onClick={applyMassPaste}>
+                  Isi dari tempel
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Salin kolom keterangan + nominal dari Excel (tab). Maks {KAS_MAX_BATCH} baris.
+                </p>
+              </div>
+            </div>
           </div>
           {massRowsOpen ? (
           <div className="space-y-2 overflow-x-auto">

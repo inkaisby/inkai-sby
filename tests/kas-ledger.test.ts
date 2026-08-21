@@ -5,6 +5,7 @@ import {
   formatKasDateId,
   groupKasTable,
   parseKasImportTsv,
+  parseKasMassPaste,
   skipKwitansiJenis,
   sumBefore,
   visibleKasTableRows,
@@ -221,5 +222,27 @@ describe("kas ledger", () => {
       (r) => r.sourceType === "manual" && deduped.includes(r.id),
     );
     expect(moved.map((r) => r.id)).toEqual(["m1"]);
+  });
+
+  it("parses mass paste two-column description and Rp amount as keluar", () => {
+    const rows = parseKasMassPaste("Beli Roti\tRp333.500\nBeli Minuman\tRp50.000", {
+      defaultDirection: "out",
+    });
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      description: "Beli Roti",
+      direction: "out",
+      amount: 333500,
+    });
+    expect(rows[1].amount).toBe(50000);
+  });
+
+  it("strips leading row numbers from mass paste", () => {
+    const rows = parseKasMassPaste("1\tBeli Baterai\tRp36.500", {
+      defaultDirection: "out",
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].description).toBe("Beli Baterai");
+    expect(rows[0].amount).toBe(36500);
   });
 });
