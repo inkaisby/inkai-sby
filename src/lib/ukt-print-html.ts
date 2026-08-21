@@ -1,7 +1,6 @@
 import {
-  BELT_FEE_KEYS,
   formatRupiahNota,
-  type BeltFeeKey,
+  type NotaBeltLine,
 } from "@/lib/ukt";
 
 function escapeHtml(value: string): string {
@@ -18,8 +17,7 @@ export type UktNotaPrintData = {
   dojoName: string;
   periodTitle: string;
   registeredCount: number;
-  counts: Record<BeltFeeKey, number>;
-  beltFees: Record<BeltFeeKey, number>;
+  lines: NotaBeltLine[];
   komisiRanting: number;
   rusak: number;
   hilang: number;
@@ -27,6 +25,8 @@ export type UktNotaPrintData = {
   subtotalB: number;
   totalC: number;
   grandTotal: number;
+  unpaidCount?: number;
+  unpaidAmount?: number;
   origin: string;
   printedAt: string;
   sekretariatAddress?: string;
@@ -34,27 +34,35 @@ export type UktNotaPrintData = {
 };
 
 export function buildUktNotaPrintHtml(data: UktNotaPrintData): string {
-  const beltRows = BELT_FEE_KEYS.filter((belt) => data.counts[belt] > 0);
   const logoUrl = `${data.origin}/logo-inkai.png`;
   const sekretariat =
     data.sekretariatAddress?.trim() ||
     "Sekretariat: Jl. Raya Kertajaya Indah No. 77 Surabaya";
   const bendahara = data.bendaharaCabangName?.trim() || "Habibur Rahman";
+  const unpaidCount = data.unpaidCount ?? 0;
+  const unpaidAmount = data.unpaidAmount ?? 0;
 
   const tableRows =
-    beltRows.length === 0
+    data.lines.length === 0
       ? `<tr><td colspan="4" style="text-align:center;padding:8px 0;">Belum ada peserta terdaftar</td></tr>`
-      : beltRows
+      : data.lines
           .map(
-            (belt) => `
+            (line) => `
         <tr>
-          <td style="padding:2px 0;">${belt}</td>
-          <td style="padding:2px 0;text-align:right;">${data.counts[belt]}</td>
-          <td style="padding:2px 0;text-align:right;">${formatRupiahNota(data.beltFees[belt])}</td>
-          <td style="padding:2px 0;text-align:right;">${formatRupiahNota(data.counts[belt] * data.beltFees[belt])}</td>
+          <td style="padding:2px 0;">${escapeHtml(line.belt)}</td>
+          <td style="padding:2px 0;text-align:right;">${line.count}</td>
+          <td style="padding:2px 0;text-align:right;">${formatRupiahNota(line.unitFee)}</td>
+          <td style="padding:2px 0;text-align:right;">${formatRupiahNota(line.subtotal)}</td>
         </tr>`,
           )
           .join("");
+
+  const unpaidMeta =
+    unpaidCount > 0
+      ? `<div class="meta-row" style="grid-column:1/-1;font-size:11px;">
+        Termasuk ${unpaidCount} Belum Bayar (${formatRupiahNota(unpaidAmount)})
+      </div>`
+      : "";
 
   return `<!DOCTYPE html>
 <html lang="id">
@@ -178,6 +186,7 @@ export function buildUktNotaPrintHtml(data: UktNotaPrintData): string {
       </div>
       <div class="meta-row" style="grid-column:1/-1;">Agenda : ${data.periodTitle}</div>
       <div class="meta-row" style="grid-column:1/-1;">Jumlah Peserta : ${data.registeredCount} anggota</div>
+      ${unpaidMeta}
     </div>
 
     <table>

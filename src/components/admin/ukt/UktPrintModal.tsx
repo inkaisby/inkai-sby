@@ -11,10 +11,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  BELT_FEE_KEYS,
+  buildNotaBeltLines,
   buildNotaNumber,
-  countNotaBeltGroups,
   formatRupiahNota,
+  rowMatchesNotaDojoSelection,
   type BeltFeeKey,
   type UktMemberRow,
   type UktSemester,
@@ -156,17 +156,20 @@ export function UktPrintModal({
   }, [selectedNames]);
 
   const list = useMemo(
-    () => rows.filter((r) => selectedDojoIds.has(r.dojoId)),
-    [rows, selectedDojoIds],
+    () =>
+      rows.filter((r) =>
+        rowMatchesNotaDojoSelection(r, selectedDojoIds, dojoOptions),
+      ),
+    [rows, selectedDojoIds, dojoOptions],
   );
 
-  const counts = useMemo(() => countNotaBeltGroups(list, beltFees), [list, beltFees]);
-  const registeredCount = list.length;
-
-  const subtotalA = BELT_FEE_KEYS.reduce(
-    (sum, belt) => sum + counts[belt] * beltFees[belt],
-    0,
+  const notaBuild = useMemo(
+    () => buildNotaBeltLines(list, beltFees),
+    [list, beltFees],
   );
+  const { lines, subtotalA, registeredCount, unpaidCount, unpaidAmount } =
+    notaBuild;
+
   const subtotalB = config.rusak * 15000 + config.hilang * 100000;
   const totalC = registeredCount * komisiRanting;
   const grandTotal = subtotalA + subtotalB - totalC;
@@ -207,14 +210,20 @@ export function UktPrintModal({
     setConfig((prev) => ({ ...prev, [field]: value }));
   };
 
+  const countForDojo = (dojoId: string, dojoName: string) =>
+    rows.filter((r) =>
+      rowMatchesNotaDojoSelection(r, new Set([dojoId]), [
+        { id: dojoId, name: dojoName },
+      ]),
+    ).length;
+
   const notaPayload = () => ({
     notaNo: config.notaNo,
     semester: config.semester,
     dojoName: displayDojoName,
     periodTitle,
     registeredCount,
-    counts,
-    beltFees,
+    lines,
     komisiRanting,
     rusak: config.rusak,
     hilang: config.hilang,
@@ -222,6 +231,8 @@ export function UktPrintModal({
     subtotalB,
     totalC,
     grandTotal,
+    unpaidCount,
+    unpaidAmount,
     origin: window.location.origin,
     printedAt: new Date().toLocaleDateString("id-ID", {
       day: "numeric",
@@ -241,8 +252,6 @@ export function UktPrintModal({
       setTimeout(() => setPrintBusy(false), 1500);
     }
   };
-
-  const beltRows = BELT_FEE_KEYS.filter((belt) => counts[belt] > 0);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -281,7 +290,7 @@ export function UktPrintModal({
                   </p>
                 ) : (
                   dojoOptions.map((d) => {
-                    const count = rows.filter((r) => r.dojoId === d.id).length;
+                    const count = countForDojo(d.id, d.name);
                     return (
                       <label
                         key={d.id}
@@ -335,11 +344,25 @@ export function UktPrintModal({
                 onChange={(e) => updateConfig("hilang", parseInt(e.target.value, 10) || 0)}
               />
             </div>
-            <div className="col-span-2 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-              Terdaftar: <span className="font-medium text-foreground">{registeredCount} anggota</span>
-              {" · "}
-              Komisi: <span className="font-medium text-foreground">{formatRupiahNota(komisiRanting)} / orang</span>
-              {isDojoAdmin && " (diatur cabang)"}
+            <div className="col-span-2 space-y-1 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              <div>
+                Peserta nota:{" "}
+                <span className="font-medium text-foreground">
+                  {registeredCount} anggota
+                </span>{" "}
+                (semua terdaftar)
+                {" · "}
+                Komisi:{" "}
+                <span className="font-medium text-foreground">
+                  {formatRupiahNota(komisiRanting)} / orang
+                </span>
+                {isDojoAdmin && " (diatur cabang)"}
+              </div>
+              {unpaidCount > 0 ? (
+                <div className="text-amber-800">
+                  Termasuk {unpaidCount} Belum Bayar ({formatRupiahNota(unpaidAmount)})
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -373,6 +396,11 @@ export function UktPrintModal({
               <div className="col-span-2 font-bold uppercase">RANTING : {displayDojoName || "—"}</div>
               <div className="col-span-2">Agenda : {periodTitle}</div>
               <div className="col-span-2">Jumlah Peserta : {registeredCount} anggota</div>
+              {unpaidCount > 0 ? (
+                <div className="col-span-2 text-xs">
+                  Termasuk {unpaidCount} Belum Bayar ({formatRupiahNota(unpaidAmount)})
+                </div>
+              ) : null}
             </div>
 
             <table className="mb-4 w-full text-sm">
@@ -385,20 +413,20 @@ export function UktPrintModal({
                 </tr>
               </thead>
               <tbody>
-                {beltRows.length === 0 ? (
+                {lines.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="py-2 text-center text-muted-foreground">
                       Belum ada peserta terdaftar
                     </td>
                   </tr>
                 ) : (
-                  beltRows.map((belt) => (
-                    <tr key={belt}>
-                      <td className="py-0.5">{belt}</td>
-                      <td className="py-0.5 text-right">{counts[belt]}</td>
-                      <td className="py-0.5 text-right">{formatRupiahNota(beltFees[belt])}</td>
+                  lines.map((line) => (
+                    <tr key={`${line.belt}-${line.unitFee}`}>
+                      <td className="py-0.5">{line.belt}</td>
+                      <td className="py-0.5 text-right">{line.count}</td>
+                      <td className="py-0.5 text-right">{formatRupiahNota(line.unitFee)}</td>
                       <td className="py-0.5 text-right">
-                        {formatRupiahNota(counts[belt] * beltFees[belt])}
+                        {formatRupiahNota(line.subtotal)}
                       </td>
                     </tr>
                   ))

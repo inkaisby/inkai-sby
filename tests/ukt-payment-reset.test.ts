@@ -4,6 +4,7 @@ import {
   canCabangVerifyUktPayment,
   canRantingCancelUkt,
   canRantingSubmitUktPayment,
+  isUktNotaRow,
   isUktPaymentDocumentRow,
   resolveUktDisplayStatus,
   type UktMemberRow,
@@ -76,8 +77,8 @@ describe("UKT reset setelah Hapus tagihan", () => {
   });
 });
 
-describe("isUktPaymentDocumentRow (nota / Laporan WA)", () => {
-  it("Belum Bayar tidak masuk nota/WA setor", () => {
+describe("isUktPaymentDocumentRow (Laporan WA setor)", () => {
+  it("Belum Bayar tidak masuk WA setor", () => {
     expect(isUktPaymentDocumentRow(row({ billingStatus: "PENDING" }))).toBe(
       false,
     );
@@ -96,5 +97,9 @@ describe("isUktPaymentDocumentRow (nota / Laporan WA)", () => {
         row({ registrationId: null, billingId: null, billingStatus: null }),
       ),
     ).toBe(false);
+  });
+
+  it("isUktNotaRow: Belum Bayar masuk nota", () => {
+    expect(isUktNotaRow(row({ billingStatus: "PENDING" }))).toBe(true);
   });
 });

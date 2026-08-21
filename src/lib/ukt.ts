@@ -479,6 +479,10 @@ function beltGroupFromBilling(
   return null;
 }
 
+/**
+ * Grouping legacy (WA setor / Laporan Pengprov): prefer cocok billing ke tarif snapshot.
+ * Cetak Nota memakai `resolveNotaBeltGroupFromKyu` + `buildNotaBeltLines`.
+ */
 export function resolveNotaBeltGroup(
   row: UktMemberRow,
   beltFees: Record<BeltFeeKey, number>,
@@ -490,6 +494,124 @@ export function resolveNotaBeltGroup(
   if (fromLama !== "LAINNYA") return fromLama as BeltFeeKey;
 
   return beltGroupFromKyuText(row.kyuLama);
+}
+
+/** Grouping Cetak Nota: Kyu Lama dulu; billing hanya fallback bila sabuk tidak terdeteksi. */
+export function resolveNotaBeltGroupFromKyu(
+  row: Pick<UktMemberRow, "kyuLama" | "billingAmount">,
+  beltFees: Record<BeltFeeKey, number>,
+): BeltFeeKey | "LAINNYA" {
+  const fromLama = getBeltGroup(row.kyuLama);
+  if (fromLama !== "LAINNYA") return fromLama as BeltFeeKey;
+
+  const fromKyu = beltGroupFromKyuText(row.kyuLama);
+  if (fromKyu) return fromKyu;
+
+  const fromBilling = beltGroupFromBilling(row.billingAmount, beltFees);
+  if (fromBilling) return fromBilling;
+
+  return "LAINNYA";
+}
+
+export type NotaBeltLine = {
+  belt: BeltFeeKey | "LAINNYA";
+  count: number;
+  unitFee: number;
+  subtotal: number;
+};
+
+export type NotaBeltBuildResult = {
+  lines: NotaBeltLine[];
+  subtotalA: number;
+  registeredCount: number;
+  unpaidCount: number;
+  unpaidAmount: number;
+};
+
+/**
+ * Baris sabuk Cetak Nota: jumlahkan `billingAmount` aktual (kolom Rp tabel).
+ * Satu sabuk dengan nominal berbeda → pecah baris per unitFee.
+ * `billingAmount` null → fallback tarif snapshot sabuk itu (bukan Rp 0).
+ */
+export function buildNotaBeltLines(
+  rows: UktMemberRow[],
+  fallbackFees: Record<BeltFeeKey, number>,
+): NotaBeltBuildResult {
+  /** key = `${belt}|${unitFee}` */
+  const buckets = new Map<
+    string,
+    { belt: BeltFeeKey | "LAINNYA"; unitFee: number; count: number; subtotal: number }
+  >();
+
+  let unpaidCount = 0;
+  let unpaidAmount = 0;
+
+  for (const row of rows) {
+    const belt = resolveNotaBeltGroupFromKyu(row, fallbackFees);
+    const base = uktBaseFeeAmount(row.billingAmount);
+    const unitFee = Math.round(
+      base != null
+        ? base
+        : belt === "LAINNYA"
+          ? fallbackFees.PUTIH
+          : fallbackFees[belt],
+    );
+    const key = `${belt}|${unitFee}`;
+    const existing = buckets.get(key);
+    if (existing) {
+      existing.count += 1;
+      existing.subtotal += unitFee;
+    } else {
+      buckets.set(key, { belt, unitFee, count: 1, subtotal: unitFee });
+    }
+
+    const bs = String(row.billingStatus ?? "").toUpperCase();
+    if (bs === "PENDING") {
+      unpaidCount += 1;
+      unpaidAmount += unitFee;
+    }
+  }
+
+  const beltOrder: Array<BeltFeeKey | "LAINNYA"> = [...BELT_FEE_KEYS, "LAINNYA"];
+  const lines: NotaBeltLine[] = [...buckets.values()]
+    .sort((a, b) => {
+      const ai = beltOrder.indexOf(a.belt);
+      const bi = beltOrder.indexOf(b.belt);
+      if (ai !== bi) return ai - bi;
+      return a.unitFee - b.unitFee;
+    })
+    .map((b) => ({
+      belt: b.belt,
+      count: b.count,
+      unitFee: b.unitFee,
+      subtotal: b.subtotal,
+    }));
+
+  const subtotalA = lines.reduce((sum, l) => sum + l.subtotal, 0);
+
+  return {
+    lines,
+    subtotalA,
+    registeredCount: rows.length,
+    unpaidCount,
+    unpaidAmount,
+  };
+}
+
+/** Cocokkan ranting nota: dojoId dulu, fallback nama (trim, case-insensitive). */
+export function rowMatchesNotaDojoSelection(
+  row: Pick<UktMemberRow, "dojoId" | "dojoName">,
+  selectedIds: Set<string>,
+  dojoOptions: Array<{ id: string; name: string }>,
+): boolean {
+  if (selectedIds.has(row.dojoId)) return true;
+  const selectedNames = new Set(
+    dojoOptions
+      .filter((d) => selectedIds.has(d.id))
+      .map((d) => d.name.trim().toLowerCase()),
+  );
+  const name = (row.dojoName || "").trim().toLowerCase();
+  return Boolean(name && selectedNames.has(name));
 }
 
 export function countNotaBeltGroups(
@@ -1646,8 +1768,9 @@ export function isUktBillingUnpaid(row: UktMemberRow): boolean {
 }
 
 /**
- * Baris yang masuk Cetak Nota / Laporan WA rincian setor:
+ * Baris Laporan WA rincian setor (bukan Cetak Nota):
  * Menunggu Verifikasi atau sudah lunas — bukan Belum Bayar.
+ * Cetak Nota memakai `isUktNotaRow`.
  */
 export function isUktPaymentDocumentRow(row: UktMemberRow): boolean {
   if (!row.registrationId) return false;
@@ -1657,6 +1780,32 @@ export function isUktPaymentDocumentRow(row: UktMemberRow): boolean {
   }
   if (row.billingStatus === "WAITING_VERIFICATION") return true;
   return isUktBillingPaid(row);
+}
+
+/**
+ * Baris Cetak Nota: semua peserta terdaftar yang punya tagihan
+ * (Belum Bayar / Menunggu Verifikasi / Lunas). Bukan Belum Daftar,
+ * Ditolak, Batal, atau daftar mandiri PENDING tanpa tagihan.
+ */
+export function isUktNotaRow(row: UktMemberRow): boolean {
+  if (!row.registrationId) return false;
+  const st = String(row.status ?? "").toUpperCase();
+  if (st === "REJECTED" || st === "BELUM_DAFTAR" || st === "CANCELLED") {
+    return false;
+  }
+  // Daftar mandiri PENDING tanpa tagihan: belum diterima ranting
+  if (
+    isUktSelfRegistrationPendingStatus(row.status) &&
+    (row.selfRegistration === true || !row.billingId)
+  ) {
+    return false;
+  }
+  if (!row.billingId && row.billingAmount == null) return false;
+  const bs = String(row.billingStatus ?? "").toUpperCase();
+  if (bs === "PENDING" || bs === "WAITING_VERIFICATION") return true;
+  if (isUktBillingPaid(row)) return true;
+  // Tagihan ada tapi status belum jelas — tetap masuk bila ada nominal
+  return row.billingAmount != null || Boolean(row.billingId);
 }
 
 /** Ranting boleh ajukan Bayar UKT (Menunggu Verifikasi) — belum lunas & belum diajukan. */

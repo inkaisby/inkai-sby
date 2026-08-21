@@ -364,7 +364,7 @@ export function getBeltGroup(rankRaw: string | null | undefined): BeltGroup {
   if (r.includes("kuning") || r.includes("oranye")) return "KUNING";
   if (r.includes("hijau")) return "HIJAU";
   if (r.includes("biru")) return "BIRU";
-  if (r.includes("coklat")) return "COKELAT";
+  if (r.includes("cokelat") || r.includes("coklat")) return "COKELAT";
   return "LAINNYA";
 }
 

@@ -140,6 +140,7 @@ import {
   isUktBillingUnpaid,
   isUktBillingPaid,
   isUktPaymentDocumentRow,
+  isUktNotaRow,
   canRantingSubmitUktPayment,
   canCabangVerifyUktPayment,
   isUktSelesai,
@@ -4638,7 +4639,7 @@ export function UktDashboard(props: Props) {
           rows={(printOnlySelected && selectedRows.length > 0
             ? selectedRows
             : rows
-          ).filter((r) => isUktPaymentDocumentRow(r))}
+          ).filter((r) => isUktNotaRow(r))}
           dojos={props.dojos}
           dojoFilter={
             effectiveDojoIds && effectiveDojoIds.length === 1
