@@ -94,6 +94,8 @@ export function KasLedgerClient({
   const [scopeKey, setScopeKey] = useState("");
   const [moveScopeKey, setMoveScopeKey] = useState("");
   const [moveOpen, setMoveOpen] = useState(false);
+  const [transferKegiatan, setTransferKegiatan] = useState<string | null>(null);
+  const [transferKegiatanTarget, setTransferKegiatanTarget] = useState("");
   const [form, setForm] = useState({
     txnDate: ymdWib(),
     description: "",
@@ -274,6 +276,49 @@ export function KasLedgerClient({
     }
     toast.success("Baris dipindahkan ke buku tujuan");
     closeMutasiDialog();
+    await load();
+  }
+
+  function countManualForKegiatan(kegiatanName: string) {
+    return (data?.rows ?? []).filter(
+      (r) => r.sourceType === "manual" && r.kegiatan === kegiatanName,
+    ).length;
+  }
+
+  function openTransferKegiatan(kegiatanName: string) {
+    const n = countManualForKegiatan(kegiatanName);
+    if (n === 0) {
+      toast.error("Tidak ada baris manual");
+      return;
+    }
+    setTransferKegiatan(kegiatanName);
+    setTransferKegiatanTarget("");
+  }
+
+  async function handleTransferKegiatan() {
+    if (!transferKegiatan || !transferKegiatanTarget || !data?.scope) return;
+    const [targetScopeType, targetScopeId] = transferKegiatanTarget.split(":", 2);
+    const res = await fetch("/api/admin/kas/transfer-kegiatan", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-kas-scope-type": data.scope.type,
+        "x-kas-scope-id": data.scope.id,
+      },
+      body: JSON.stringify({
+        kegiatan: transferKegiatan,
+        targetScopeType,
+        targetScopeId,
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error(json.error || "Gagal memindahkan kegiatan");
+      return;
+    }
+    toast.success(`${json.moved} baris dipindahkan`);
+    setTransferKegiatan(null);
+    setTransferKegiatanTarget("");
     await load();
   }
 
@@ -634,30 +679,43 @@ export function KasLedgerClient({
                 row.kind === "group" ? (
                   <tr key={`g-${row.kegiatan}-${idx}`} className="bg-muted/50 font-medium">
                     <td colSpan={3} className="p-3">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 text-left"
-                        aria-expanded={!collapsedKegiatan.includes(row.kegiatan)}
-                        aria-label={
-                          collapsedKegiatan.includes(row.kegiatan)
-                            ? `Buka grup ${row.kegiatan}`
-                            : `Lipat grup ${row.kegiatan}`
-                        }
-                        onClick={() => toggleCollapsed(row.kegiatan)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            toggleCollapsed(row.kegiatan);
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-left"
+                          aria-expanded={!collapsedKegiatan.includes(row.kegiatan)}
+                          aria-label={
+                            collapsedKegiatan.includes(row.kegiatan)
+                              ? `Buka grup ${row.kegiatan}`
+                              : `Lipat grup ${row.kegiatan}`
                           }
-                        }}
-                      >
-                        {collapsedKegiatan.includes(row.kegiatan) ? (
-                          <ChevronRight className="h-4 w-4 shrink-0" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 shrink-0" />
-                        )}
-                        {row.kegiatan}
-                      </button>
+                          onClick={() => toggleCollapsed(row.kegiatan)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              toggleCollapsed(row.kegiatan);
+                            }
+                          }}
+                        >
+                          {collapsedKegiatan.includes(row.kegiatan) ? (
+                            <ChevronRight className="h-4 w-4 shrink-0" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 shrink-0" />
+                          )}
+                          {row.kegiatan}
+                        </button>
+                        {data?.canTransfer && !isRanting ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => openTransferKegiatan(row.kegiatan)}
+                          >
+                            Pindah kegiatan
+                          </Button>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="p-3 text-right">{formatRp(row.totalIn)}</td>
                     <td className="p-3 text-right">{formatRp(row.totalOut)}</td>
@@ -845,6 +903,69 @@ export function KasLedgerClient({
               onClick={() => void (editId ? handleEdit() : handleAdd())}
             >
               Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(transferKegiatan)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTransferKegiatan(null);
+            setTransferKegiatanTarget("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pindah kegiatan</DialogTitle>
+          </DialogHeader>
+          {transferKegiatan ? (
+            <div className="grid gap-3">
+              <p className="text-sm text-muted-foreground">
+                Memindahkan {countManualForKegiatan(transferKegiatan)} baris manual
+                kegiatan {transferKegiatan}. Baris otomatis tidak ikut.
+              </p>
+              <Field label="Buku tujuan">
+                <select
+                  className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+                  value={transferKegiatanTarget}
+                  onChange={(e) => setTransferKegiatanTarget(e.target.value)}
+                >
+                  <option value="">Pilih buku tujuan</option>
+                  {(data?.scopes ?? [])
+                    .filter((scope) => `${scope.type}:${scope.id}` !== scopeKey)
+                    .map((scope) => (
+                      <option
+                        key={`${scope.type}:${scope.id}`}
+                        value={`${scope.type}:${scope.id}`}
+                      >
+                        {scope.label}
+                      </option>
+                    ))}
+                </select>
+              </Field>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setTransferKegiatan(null);
+                setTransferKegiatanTarget("");
+              }}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              disabled={!transferKegiatanTarget}
+              onClick={() => void handleTransferKegiatan()}
+            >
+              Pindahkan
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -12,7 +12,7 @@ import {
   type KasLedgerInput,
 } from "@/lib/kas";
 import { parseFlexibleIdDate } from "@/lib/parse-birth-date";
-import { kasTransferSchema } from "@/lib/security/schemas";
+import { kasTransferSchema, kasTransferKegiatanSchema } from "@/lib/security/schemas";
 
 function row(
   partial: Partial<KasLedgerInput> & Pick<KasLedgerInput, "id" | "txnDate">,
@@ -158,5 +158,32 @@ describe("kas ledger", () => {
         targetScopeId: "",
       }).success,
     ).toBe(false);
+  });
+
+  it("transfer kegiatan schema and filters only manual rows", () => {
+    expect(
+      kasTransferKegiatanSchema.safeParse({
+        kegiatan: "MUSKOT",
+        targetScopeType: "dojo",
+        targetScopeId: "ranting-1",
+      }).success,
+    ).toBe(true);
+    expect(
+      kasTransferKegiatanSchema.safeParse({
+        kegiatan: "  ",
+        targetScopeType: "branch",
+        targetScopeId: "cab",
+      }).success,
+    ).toBe(false);
+
+    const rows = [
+      row({ id: "m1", txnDate: "2026-03-01", kegiatan: "MUSKOT", sourceType: "manual" }),
+      row({ id: "a1", txnDate: "2026-03-01", kegiatan: "MUSKOT", sourceType: "iuran" }),
+      row({ id: "m2", txnDate: "2026-03-02", kegiatan: "Lain", sourceType: "manual" }),
+    ];
+    const moved = rows.filter(
+      (r) => r.sourceType === "manual" && r.kegiatan === "MUSKOT",
+    );
+    expect(moved.map((r) => r.id)).toEqual(["m1"]);
   });
 });
