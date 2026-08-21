@@ -94,6 +94,7 @@ export function KasLedgerClient({
   const [editId, setEditId] = useState<string | null>(null);
   const [massOpen, setMassOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
   const [scopeKey, setScopeKey] = useState("");
   const [moveScopeKey, setMoveScopeKey] = useState("");
   const [moveOpen, setMoveOpen] = useState(false);
@@ -270,6 +271,8 @@ export function KasLedgerClient({
     setPostScopeKey(scopeKey || `${data?.scope.type}:${data?.scope.id}`);
     setMassPasteText("");
     setMassPasteDirection("out");
+    setMassRows([{ description: "", direction: "out", amount: "" }]);
+    setMassRowsOpen(true);
     setMassOpen(true);
   }
 
@@ -440,6 +443,7 @@ export function KasLedgerClient({
       );
       setMassOpen(false);
       setMassPasteText("");
+      setMassRows([{ description: "", direction: "out", amount: "" }]);
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Gagal simpan");
@@ -486,6 +490,32 @@ export function KasLedgerClient({
     }
     toast.success("Baris dihapus");
     setDeleteId(null);
+    await load();
+  }
+
+  async function handleBatchDelete() {
+    if (!data?.scope || selectedIds.length === 0) return;
+    if (selectedIds.length > 100) {
+      toast.error("Maksimal 100 baris per penghapusan");
+      return;
+    }
+    const res = await fetch("/api/admin/kas/delete-batch", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-kas-scope-type": data.scope.type,
+        "x-kas-scope-id": data.scope.id,
+      },
+      body: JSON.stringify({ ids: selectedIds }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error(json.error || "Gagal menghapus baris");
+      return;
+    }
+    toast.success(`${json.deleted} baris dihapus`);
+    setBatchDeleteOpen(false);
+    setSelectedIds([]);
     await load();
   }
 
@@ -997,7 +1027,7 @@ export function KasLedgerClient({
         </div>
         {canSelect && selectedIds.length > 0 ? (
           <div className="pointer-events-none absolute bottom-3 left-3 z-20 print:hidden">
-            <div className="pointer-events-auto inline-flex max-w-[min(100%,20rem)] items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-md">
+            <div className="pointer-events-auto inline-flex max-w-[min(100%,24rem)] items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-md">
               <span className="text-xs font-medium">{selectedIds.length} dipilih</span>
               <Button
                 type="button"
@@ -1007,6 +1037,17 @@ export function KasLedgerClient({
               >
                 Pindah lokasi
               </Button>
+              {data?.canWrite ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2 text-xs text-destructive"
+                  onClick={() => setBatchDeleteOpen(true)}
+                >
+                  Hapus
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 size="icon"
@@ -1453,6 +1494,17 @@ export function KasLedgerClient({
         description="Hanya baris manual yang dihapus. Jurnal otomatis tidak bisa dihapus dari sini."
         confirmLabel="Hapus"
         onConfirm={() => void handleDelete()}
+      />
+
+      <InkaiConfirmDialog
+        open={batchDeleteOpen}
+        onOpenChange={(o) => {
+          if (!o) setBatchDeleteOpen(false);
+        }}
+        title={`Hapus ${selectedIds.length} baris manual?`}
+        description="Baris terpilih akan dihapus permanen dari buku ini. Jurnal otomatis tidak ikut."
+        confirmLabel="Hapus"
+        onConfirm={() => void handleBatchDelete()}
       />
     </div>
   );

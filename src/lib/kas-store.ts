@@ -299,6 +299,48 @@ export async function deleteManualKas(id: string, scope: KasScope) {
   return true;
 }
 
+export async function deleteManualKasByIds(opts: {
+  ids: string[];
+  scope: KasScope;
+  user: SessionUser;
+  token?: string | null;
+  email?: string | null;
+}): Promise<{ deleted: number }> {
+  const ids = [...new Set(opts.ids.map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) return { deleted: 0 };
+  if (ids.length > 100) {
+    throw new Error("Maksimal 100 baris per penghapusan");
+  }
+
+  const rows = await prisma.kasEntry.findMany({
+    where: {
+      id: { in: ids },
+      scopeType: opts.scope.type,
+      scopeId: opts.scope.id,
+      sourceType: "manual",
+    },
+  });
+  if (rows.length === 0) return { deleted: 0 };
+
+  await prisma.$transaction(async (tx) => {
+    for (const row of rows) {
+      const txnDate = row.txnDate.toISOString().slice(0, 10);
+      await assertKasMonthWritable(opts.scope, txnDate);
+      await tx.kasEntry.delete({ where: { id: row.id } });
+    }
+  });
+
+  writeAuditLog({
+    userId: opts.user.id,
+    email: opts.email,
+    action: "KAS_DELETE_BATCH",
+    details: `x${rows.length} ${opts.scope.type}:${opts.scope.id}`,
+    token: opts.token,
+  });
+
+  return { deleted: rows.length };
+}
+
 export async function updateManualKas(
   id: string,
   scope: KasScope,

@@ -1,6 +1,6 @@
 const WIB = "Asia/Jakarta";
 
-export const KAS_MAX_BATCH = 50;
+export const KAS_MAX_BATCH = 500;
 export const KAS_MAX_IMPORT = 500;
 export const KAS_OPENING_KEGIATAN = "Saldo awal";
 

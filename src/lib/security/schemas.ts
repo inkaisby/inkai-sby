@@ -982,7 +982,7 @@ export const kasEntryInputSchema = z.object({
 });
 
 export const kasPostSchema = z.object({
-  entries: z.array(kasEntryInputSchema).min(1).max(50),
+  entries: z.array(kasEntryInputSchema).min(1).max(500),
   sourceType: z.enum(["manual", "kwitansi"]).optional().default("manual"),
   sourceId: z.string().trim().min(1).max(180).optional(),
 });
@@ -1018,6 +1018,13 @@ export const kasTransferBatchSchema = z.object({
     .max(100),
   targetScopeType: z.enum(["branch", "dojo"]),
   targetScopeId: z.string().trim().min(1).max(64),
+});
+
+export const kasDeleteBatchSchema = z.object({
+  ids: z
+    .array(z.string().trim().min(1).max(64))
+    .min(1)
+    .max(100),
 });
 
 export const kasLockSchema = z.object({
