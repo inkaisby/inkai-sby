@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { canAccessAdmin, hasMemberPortal } from "@/lib/rbac";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
 import { MemberMobileShell } from "@/components/member/MemberMobileShell";
+import { authBounceReason, logAuthBounce } from "@/lib/auth/auth-bounce";
 
 export default async function DashboardLayout({
   children,
@@ -14,17 +15,23 @@ export default async function DashboardLayout({
       auth(),
       getInkaiAccessToken(),
     ]);
-    if (!session) redirect("/login");
-    if (!token) redirect("/login");
-    if (canAccessAdmin(session.user) && !hasMemberPortal(session.user)) {
+    const bounce = authBounceReason({
+      hasSession: Boolean(session),
+      hasInkaiToken: Boolean(token),
+    });
+    if (bounce) {
+      logAuthBounce("dashboard.layout", bounce);
+      redirect("/login");
+    }
+    if (canAccessAdmin(session!.user) && !hasMemberPortal(session!.user)) {
       redirect("/admin");
     }
 
     return (
       <MemberMobileShell
-        impersonating={Boolean(session.impersonatorId)}
-        userName={session.user.name || session.user.email || ""}
-        userEmail={session.user.email || ""}
+        impersonating={Boolean(session!.impersonatorId)}
+        userName={session!.user.name || session!.user.email || ""}
+        userEmail={session!.user.email || ""}
       >
         {children}
       </MemberMobileShell>
@@ -39,7 +46,8 @@ export default async function DashboardLayout({
     ) {
       throw error;
     }
+    // Data/runtime errors → error.tsx (not a fake logout to /login).
     console.error("[DashboardLayout]", error);
-    redirect("/login");
+    throw error;
   }
 }

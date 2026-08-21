@@ -8,7 +8,10 @@ export async function getInkaiTokenFromCookies(): Promise<string | null> {
   return jar.get(INKAI_TOKEN_COOKIE)?.value ?? null;
 }
 
-export function getInkaiTokenCookieOptions(maxAge = 60 * 60 * 24) {
+/** Align with Auth.js JWT session default (~30 days). Backend JWT may expire sooner. */
+export const INKAI_TOKEN_MAX_AGE_SEC = 60 * 60 * 24 * 30;
+
+export function getInkaiTokenCookieOptions(maxAge = INKAI_TOKEN_MAX_AGE_SEC) {
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

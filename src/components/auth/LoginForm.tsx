@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,28 +10,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthTransitionOverlay } from "@/components/auth/AuthTransitionOverlay";
 import { loginErrorMessage } from "@/lib/auth/login-errors";
+import { safeCallbackUrl } from "@/lib/auth/safe-callback-url";
 import { showError } from "@/lib/client-toast";
 
 type LoginFormProps = {
   idPrefix?: string;
   onSuccess?: () => void;
   onForgotPassword?: () => void;
+  /** Shown when Auth.js cookie exists but inkai_token is gone. */
+  sessionExpiredHint?: boolean;
 };
 
 type LoginPhase = "idle" | "signing-in" | "entering";
-
-function safeCallbackUrl(raw: string | null): string | null {
-  if (!raw) return null;
-  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
-  return raw;
-}
 
 function LoginFormInner({
   idPrefix = "login",
   onSuccess,
   onForgotPassword,
+  sessionExpiredHint = false,
 }: LoginFormProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = safeCallbackUrl(searchParams.get("callbackUrl"));
   const [identifier, setIdentifier] = useState("");
@@ -48,6 +45,17 @@ function LoginFormInner({
       signal: controller.signal,
     }).catch(() => {});
     return () => controller.abort();
+  }, []);
+
+  // Back / bfcache must not leave the form stuck on "Membuka dashboard…".
+  useEffect(() => {
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) {
+        setPhase("idle");
+      }
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
   function readEntryHint(): string | null {
@@ -95,7 +103,9 @@ function LoginFormInner({
     const destination = callbackUrl ?? readEntryHint() ?? "/dashboard";
 
     onSuccess?.();
-    router.push(destination);
+    // Full navigation so App Router does not reuse a pre-login RSC cache
+    // that redirects back to /login while cookies are already set.
+    window.location.assign(destination);
   }
 
   const loading = phase !== "idle";
@@ -107,6 +117,12 @@ function LoginFormInner({
       <AuthTransitionOverlay active={loading} message={overlayMessage} />
 
       <form onSubmit={handleSubmit} className="space-y-5">
+        {sessionExpiredHint && (
+          <p className="rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
+            Sesi kedaluwarsa. Masuk ulang untuk melanjutkan.
+          </p>
+        )}
+
         <div className="space-y-2">
           <Label htmlFor={`${idPrefix}-identifier`}>Email atau NIA</Label>
           <div className="relative">

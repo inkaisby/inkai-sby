@@ -118,6 +118,15 @@ const nextAuth = NextAuth({
         token.memberId = user.memberId;
         token.name = user.name;
         token.photoUrl = user.photoUrl ?? null;
+        // Server-only JWT field — never copy to session (would leak via /api/auth/session).
+        if (user.accessToken && user.accessToken.length < 3500) {
+          token.accessToken = user.accessToken;
+        } else if (user.accessToken) {
+          console.info(
+            `[auth.jwt] inkai token len=${user.accessToken.length}; cookie-only (skip JWT embed)`,
+          );
+          delete token.accessToken;
+        }
         token.claimsUpdatedAt = Date.now();
         delete token.error;
         return token;
@@ -164,6 +173,9 @@ const nextAuth = NextAuth({
         return null as unknown as typeof session;
       }
 
+      // Never expose Inkai API JWT to the client session payload.
+      delete (session as { accessToken?: string }).accessToken;
+
       if (session.user) {
         session.user.id = token.sub;
         session.user.name = (token.name as string) || session.user.name;
@@ -203,6 +215,25 @@ const nextAuth = NextAuth({
     },
   },
   events: {
+    async signIn(message) {
+      // Re-set inkai_token here — cookies().set inside authorize often does not
+      // attach to the Auth.js callback response in v5.
+      const accessToken =
+        message.user && "accessToken" in message.user
+          ? (message.user.accessToken as string | undefined)
+          : undefined;
+      if (accessToken) {
+        const cookieStore = await cookies();
+        cookieStore.set(
+          INKAI_TOKEN_COOKIE,
+          accessToken,
+          getInkaiTokenCookieOptions(),
+        );
+        console.info(
+          `[auth.signIn] inkai_token set len=${accessToken.length}`,
+        );
+      }
+    },
     async signOut(message) {
       const cookieStore = await cookies();
       cookieStore.delete(INKAI_TOKEN_COOKIE);
@@ -360,6 +391,8 @@ const nextAuth = NextAuth({
           user.photoUrl || user.member?.photoUrl || null,
         );
 
+        console.info(`[auth.authorize] inkai token len=${token.length}`);
+
         return {
           id: userId,
           email: user.email,
@@ -370,6 +403,7 @@ const nextAuth = NextAuth({
           managedBranchId: user.managedBranchId ?? null,
           managedDojoId: user.managedDojoId ?? null,
           memberId,
+          accessToken: token,
         };
       },
     }),

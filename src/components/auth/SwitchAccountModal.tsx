@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSession, signIn, signOut } from "next-auth/react";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { ArrowLeftRight, Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 import {
   Dialog,
@@ -36,7 +36,6 @@ export function SwitchAccountModal({
   /** Prefill dari daftar akun gabungan / riwayat. */
   initialEmail?: string;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
 
   const [identifier, setIdentifier] = useState("");
@@ -69,7 +68,18 @@ export function SwitchAccountModal({
     }
   }, [open, initialEmail, resetForm, phase]);
 
-  // Setelah navigasi selesai, bersihkan state overlay.
+  // Back / bfcache: jangan biarkan overlay “Mengganti akun…” terkunci.
+  useEffect(() => {
+    function onPageShow(event: PageTransitionEvent) {
+      if (event.persisted) {
+        resetForm();
+      }
+    }
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, [resetForm]);
+
+  // Setelah soft-nav (path sama), bersihkan state overlay.
   useEffect(() => {
     if (phase === "adapting" || phase === "switching") {
       resetForm();
@@ -116,7 +126,7 @@ export function SwitchAccountModal({
         setPhase("idle");
         const msg = loginErrorMessage(result.code);
         showError(msg);
-        router.push("/login");
+        window.location.assign("/login");
         return;
       }
 
@@ -141,9 +151,13 @@ export function SwitchAccountModal({
       if (currentEmail) rememberSwitchAccount(currentEmail);
 
       if (targetPath !== fullCurrentPath) {
-        router.push(targetPath);
+        // Full load so new cookies + RSC are not stale from the previous account.
+        window.location.assign(targetPath);
       } else {
-        window.setTimeout(() => resetForm(), 350);
+        window.setTimeout(() => {
+          resetForm();
+          window.location.reload();
+        }, 350);
       }
     } catch {
       setPhase("idle");

@@ -75,7 +75,7 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
 | `/v/[id]` | Verifikasi kartu anggota (scan QR — UUID atau NIA) |
 | `/kontak` | Kontak sekretariat |
 | `/keamanan-siber` | Kebijakan keamanan siber |
-| `/login` | Login & registrasi (form selaras admin: **Dojo → Identitas → Sabuk → Akun**; No. MSH opsional di Sabuk jika Hitam/DAN); **dual-role** (admin + anggota terhubung) default masuk `/dashboard`, pilih **Panel Admin** manual |
+| `/login` | Login & registrasi (form selaras admin: **Dojo → Identitas → Sabuk → Akun**; No. MSH opsional di Sabuk jika Hitam/DAN); **dual-role** (admin + anggota terhubung) default masuk `/dashboard`, pilih **Panel Admin** manual; server gate: sesi+token → portal; sesi tanpa token API → form + “Sesi kedaluwarsa”; pasca-submit **full navigation** |
 | `/daftar` | Redirect ke form daftar |
 | `/lupa-password` | Ajuan reset password |
 | `/reset-password` | Set password baru |
@@ -401,6 +401,7 @@ Pusat / Nasional
 | SSR publik Inkai | Diperkuat | `/v1/org/provinces` publik timeout **10s / 0 retry** (cache); admin org tree **15s**; gagal → struktur kosong, halaman tetap render |
 | SSR publik degrade | Diperkuat | Chip kegiatan + carousel + cuplikan apresiasi memakai `withPrismaFallback`/try-catch — DB unreachable tidak menjatuhkan `/login` via `error.tsx` |
 | Login latency (pasca migrasi Supabase) | Diperkuat | Bottleneck utama = **inkai-backend** (`POST /v1/auth/login`) + region Vercel vs DB; portal `vercel.json` **regions: sin1** (dekat Supabase ap-southeast-1 / ref `ztrryuhhdoqdglajukuw`); `/login` warm-up `GET /api/auth/health`; skip `getSession` + cookie hint `inkai_entry`; authorize gate paralel; JWT block check hanya saat claims stale (~30s) + `React.cache(auth)`; **JWT claims refresh fail-open**; home SSR Inkai `8s/0 retry`; defer PresenceHeartbeat 20s |
+| Login bounce pasca-submit | Diperkuat | **Full nav** `location.assign` setelah `signIn` (hindari RSC cache → balik `/login`); cookie `inkai_token` httpOnly di `authorize` **+ `events.signIn`** (maxAge ~30 hari); JWT server-only (tidak di `/api/auth/session`); gate server `/login` (sesi+token → portal; sesi tanpa token → “Sesi kedaluwarsa”); dashboard layout error non-auth → `error.tsx` (bukan logout palsu); log bounce `missing_session` / `missing_inkai_token` |
 
 ---
 
@@ -555,6 +556,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 
 | Tanggal | Keterangan |
 |---------|------------|
+| 21 Agustus 2026 | **Fix login bounce produksi:** `location.assign` pasca-login; `inkai_token` di `events.signIn` + JWT server-only (bukan session klien); gate `/login`; dashboard error ≠ logout; tes helper auth |
 | 18 Agustus 2026 | **Kolom Tanggal daftar** `/latber` `/ukt` `/admin/latber` `/admin/ukt` (`EventRegistration.createdAt`, format WIB); Salin WA Cormat `/latber` menampilkan tanggal pelaksanaan sebelum countdown |
 | 17 Agustus 2026 | **Salin WA Cormat + badge status `/latber`:** tombol Salin WA (batas daftar WIB, countdown pelaksanaan, list ranting/kyu, status bayar — scope filter ranting, bukan cari); badge Status berwarna mirror admin (`latberStatusBadgeClass`) |
 | 17 Agustus 2026 | **Filter ranting + sticky bar publik:** `/ukt` + `/latber` — centang multi-ranting (client-side), KPI/tabel ikut filter; sticky timer compact HP + cari + filter di bawah nav (`PublicHeader`); kartu per ranting klik toggle; Latber cari/daftar tetap cabang penuh |
