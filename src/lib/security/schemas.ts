@@ -1011,6 +1011,15 @@ export const kasTransferKegiatanSchema = z.object({
   targetScopeId: z.string().trim().min(1).max(64),
 });
 
+export const kasTransferBatchSchema = z.object({
+  ids: z
+    .array(z.string().trim().min(1).max(64))
+    .min(1)
+    .max(100),
+  targetScopeType: z.enum(["branch", "dojo"]),
+  targetScopeId: z.string().trim().min(1).max(64),
+});
+
 export const kasLockSchema = z.object({
   yearMonth: z.string().regex(/^\d{4}-\d{2}$/),
   lock: z.boolean(),

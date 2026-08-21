@@ -829,6 +829,20 @@
     );
 }
 
+/* Kas ledger: isi tinggi main, scroll hanya di tabel */
+.admin-surface:has([data-kas-fill]) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.admin-surface:has([data-kas-fill]) > [data-kas-fill] {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .admin-topbar {
   position: relative;
 }

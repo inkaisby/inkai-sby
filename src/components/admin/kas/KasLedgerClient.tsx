@@ -20,6 +20,7 @@ import {
   Trash2,
   Unlock,
   Upload,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,6 +97,10 @@ export function KasLedgerClient({
   const [moveOpen, setMoveOpen] = useState(false);
   const [transferKegiatan, setTransferKegiatan] = useState<string | null>(null);
   const [transferKegiatanTarget, setTransferKegiatanTarget] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [batchTransferOpen, setBatchTransferOpen] = useState(false);
+  const [batchTarget, setBatchTarget] = useState("");
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const [form, setForm] = useState({
     txnDate: ymdWib(),
     description: "",
@@ -132,6 +137,12 @@ export function KasLedgerClient({
     if (recon !== "all") p.set("recon", recon);
     return p.toString();
   }, [fromYmd, toYmd, scopeKey, kegiatan, source, recon]);
+
+  const [selectionQs, setSelectionQs] = useState(qs);
+  if (qs !== selectionQs) {
+    setSelectionQs(qs);
+    setSelectedIds([]);
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -322,6 +333,38 @@ export function KasLedgerClient({
     await load();
   }
 
+  async function handleBatchTransfer() {
+    if (!batchTarget || !data?.scope || selectedIds.length === 0) return;
+    if (selectedIds.length > 100) {
+      toast.error("Maksimal 100 baris per pemindahan");
+      return;
+    }
+    const [targetScopeType, targetScopeId] = batchTarget.split(":", 2);
+    const res = await fetch("/api/admin/kas/transfer-batch", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-kas-scope-type": data.scope.type,
+        "x-kas-scope-id": data.scope.id,
+      },
+      body: JSON.stringify({
+        ids: selectedIds,
+        targetScopeType,
+        targetScopeId,
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error(json.error || "Gagal memindahkan baris");
+      return;
+    }
+    toast.success(`${json.moved} baris dipindahkan`);
+    setBatchTransferOpen(false);
+    setBatchTarget("");
+    setSelectedIds([]);
+    await load();
+  }
+
   function monthLocked(ymd: string) {
     return Boolean(data?.lockedMonths.includes(ymd.slice(0, 7)));
   }
@@ -489,6 +532,17 @@ export function KasLedgerClient({
   }
 
   const groups = visibleKasTableRows(data?.groups ?? [], collapsedKegiatan);
+  const canSelect = Boolean(data?.canTransfer && !isRanting);
+  const visibleManualIds = groups
+    .filter(
+      (row): row is Extract<KasTableRow, { kind: "entry" }> =>
+        row.kind === "entry" && row.sourceType === "manual",
+    )
+    .map((row) => row.id);
+  const allVisibleSelected =
+    visibleManualIds.length > 0 &&
+    visibleManualIds.every((id) => selectedIds.includes(id));
+  const colSpan = canSelect ? 9 : 8;
 
   function toggleCollapsed(name: string) {
     setCollapsedKegiatan((prev) =>
@@ -496,177 +550,235 @@ export function KasLedgerClient({
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Kpi
-          label="Total masuk"
-          caption={periodCaption}
-          value={formatRp(data?.kpis.totalIn ?? 0)}
-          tone="in"
-        />
-        <Kpi
-          label="Total keluar"
-          caption={periodCaption}
-          value={formatRp(data?.kpis.totalOut ?? 0)}
-          tone="out"
-        />
-        <Kpi
-          label="Saldo akhir"
-          caption={periodCaption}
-          value={formatRp(data?.kpis.saldoAkhir ?? 0)}
-          tone={(data?.kpis.saldoAkhir ?? 0) < 0 ? "negative" : "saldo"}
-        />
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Saldo bawa sebelum periode {formatRp(data?.kpis.opening ?? 0)} · Belum rekon{" "}
-        {data?.kpis.unmatched ?? 0}
-        {locked ? ` · Buku ${lockMonth} dikunci` : ""}
-        {extraFilterOn
-          ? " · Saldo bawa dihitung dari seluruh buku, bukan filter kegiatan/sumber/rekon."
-          : ""}
-      </p>
+  function toggleSelectId(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
 
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex flex-wrap items-end gap-2">
-          <Field label="Periode awal">
-            <KasDateField allowEmpty value={fromYmd} onChange={setFromYmd} />
-          </Field>
-          <Field label="Periode akhir">
-            <KasDateField allowEmpty value={toYmd} onChange={setToYmd} />
-          </Field>
-          {!isRanting && (data?.scopes?.length ?? 0) > 1 ? (
-            <Field label="Buku kas">
-              <select
-                className="h-10 rounded-md border bg-background px-2 text-sm"
-                value={scopeKey}
-                onChange={(e) => setScopeKey(e.target.value)}
-              >
-                {(data?.scopes ?? []).map((scope) => (
-                  <option key={`${scope.type}:${scope.id}`} value={`${scope.type}:${scope.id}`}>
-                    {scope.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          ) : null}
+  function toggleSelectAllVisible() {
+    if (allVisibleSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !visibleManualIds.includes(id)));
+      return;
+    }
+    setSelectedIds((prev) => [...new Set([...prev, ...visibleManualIds])]);
+  }
+
+  function openBatchTransfer() {
+    if (selectedIds.length === 0) return;
+    if (selectedIds.length > 100) {
+      toast.error("Maksimal 100 baris per pemindahan");
+      return;
+    }
+    setBatchTarget("");
+    setBatchTransferOpen(true);
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3 md:gap-4">
+      <div className="shrink-0 space-y-3 md:space-y-4">
+        <div className="md:hidden">
           <Button
             type="button"
             variant="outline"
-            className="h-10 text-xs"
-            onClick={() => {
-              setFromYmd("");
-              setToYmd("");
-            }}
+            size="sm"
+            className="h-8 text-xs"
+            aria-expanded={summaryOpen}
+            onClick={() => setSummaryOpen((o) => !o)}
           >
-            Semua tanggal
+            {summaryOpen ? (
+              <ChevronDown className="mr-1 h-4 w-4" />
+            ) : (
+              <ChevronRight className="mr-1 h-4 w-4" />
+            )}
+            Ringkasan
           </Button>
-          <select
-            className="h-10 rounded-md border bg-background px-2 text-sm"
-            value={kegiatan}
-            onChange={(e) => setKegiatan(e.target.value)}
-          >
-            <option value="">Semua kegiatan</option>
-            {(data?.kegiatanOptions ?? []).map((k) => (
-              <option key={k} value={k}>
-                {k}
-              </option>
-            ))}
-          </select>
-          <select
-            className="h-10 rounded-md border bg-background px-2 text-sm"
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-          >
-            <option value="all">Semua sumber</option>
-            <option value="manual">Manual</option>
-            <option value="iuran">Iuran</option>
-            <option value="ukt">UKT</option>
-            <option value="latber">Latber</option>
-            <option value="kwitansi">Kwitansi</option>
-          </select>
-          <select
-            className="h-10 rounded-md border bg-background px-2 text-sm"
-            value={recon}
-            onChange={(e) => setRecon(e.target.value)}
-          >
-            <option value="all">Rekon semua</option>
-            <option value="open">Belum rekon</option>
-            <option value="matched">Cocok rekening</option>
-          </select>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" className="text-xs" onClick={handlePrint}>
-            <Printer className="h-4 w-4" />
-            Cetak
-          </Button>
-          <Button type="button" variant="outline" className="text-xs" onClick={exportCsv}>
-            <Download className="h-4 w-4" />
-            CSV
-          </Button>
-          {data?.canWrite ? (
-            <>
-              <label className="inline-flex h-10 cursor-pointer items-center gap-1 rounded-md border px-3 text-xs">
-                <Upload className="h-4 w-4" />
-                Impor
-                <input
-                  type="file"
-                  accept=".csv,.tsv,.txt"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void handleImportFile(f);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-              <Button type="button" variant="outline" className="text-xs" onClick={() => setMassOpen(true)}>
-                <Plus className="h-4 w-4" />
-                Tambah massal
-              </Button>
-              <Button
-                type="button"
-                className="bg-inkai-red text-xs hover:bg-inkai-red/90"
-                onClick={() => setAddOpen(true)}
-              >
-                <Plus className="h-4 w-4" />
-                Tambah
-              </Button>
-            </>
-          ) : null}
-          {data?.canLock ? (
-            <Button type="button" variant="outline" className="text-xs" onClick={() => void toggleLock()}>
-              {locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-              {locked ? "Buka buku" : "Tutup buku"}
+
+        <div className={`${summaryOpen ? "block" : "hidden"} space-y-2 md:block`}>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Kpi
+              label="Total masuk"
+              caption={periodCaption}
+              value={formatRp(data?.kpis.totalIn ?? 0)}
+              tone="in"
+            />
+            <Kpi
+              label="Total keluar"
+              caption={periodCaption}
+              value={formatRp(data?.kpis.totalOut ?? 0)}
+              tone="out"
+            />
+            <Kpi
+              label="Saldo akhir"
+              caption={periodCaption}
+              value={formatRp(data?.kpis.saldoAkhir ?? 0)}
+              tone={(data?.kpis.saldoAkhir ?? 0) < 0 ? "negative" : "saldo"}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Saldo bawa sebelum periode {formatRp(data?.kpis.opening ?? 0)} · Belum rekon{" "}
+            {data?.kpis.unmatched ?? 0}
+            {locked ? ` · Buku ${lockMonth} dikunci` : ""}
+            {extraFilterOn
+              ? " · Saldo bawa dihitung dari seluruh buku, bukan filter kegiatan/sumber/rekon."
+              : ""}
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+          <div className="-mx-1 flex items-end gap-2 overflow-x-auto px-1 pb-1 md:flex-wrap md:overflow-visible">
+            <Field label="Periode awal">
+              <KasDateField allowEmpty value={fromYmd} onChange={setFromYmd} />
+            </Field>
+            <Field label="Periode akhir">
+              <KasDateField allowEmpty value={toYmd} onChange={setToYmd} />
+            </Field>
+            {!isRanting && (data?.scopes?.length ?? 0) > 1 ? (
+              <Field label="Buku kas">
+                <select
+                  className="h-10 rounded-md border bg-background px-2 text-sm"
+                  value={scopeKey}
+                  onChange={(e) => setScopeKey(e.target.value)}
+                >
+                  {(data?.scopes ?? []).map((scope) => (
+                    <option key={`${scope.type}:${scope.id}`} value={`${scope.type}:${scope.id}`}>
+                      {scope.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 shrink-0 text-xs"
+              onClick={() => {
+                setFromYmd("");
+                setToYmd("");
+              }}
+            >
+              Semua tanggal
             </Button>
-          ) : null}
+            <select
+              className="h-10 shrink-0 rounded-md border bg-background px-2 text-sm"
+              value={kegiatan}
+              onChange={(e) => setKegiatan(e.target.value)}
+            >
+              <option value="">Semua kegiatan</option>
+              {(data?.kegiatanOptions ?? []).map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+            <select
+              className="h-10 shrink-0 rounded-md border bg-background px-2 text-sm"
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+            >
+              <option value="all">Semua sumber</option>
+              <option value="manual">Manual</option>
+              <option value="iuran">Iuran</option>
+              <option value="ukt">UKT</option>
+              <option value="latber">Latber</option>
+              <option value="kwitansi">Kwitansi</option>
+            </select>
+            <select
+              className="h-10 shrink-0 rounded-md border bg-background px-2 text-sm"
+              value={recon}
+              onChange={(e) => setRecon(e.target.value)}
+            >
+              <option value="all">Rekon semua</option>
+              <option value="open">Belum rekon</option>
+              <option value="matched">Cocok rekening</option>
+            </select>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" className="text-xs" onClick={handlePrint}>
+              <Printer className="h-4 w-4" />
+              Cetak
+            </Button>
+            <Button type="button" variant="outline" className="text-xs" onClick={exportCsv}>
+              <Download className="h-4 w-4" />
+              CSV
+            </Button>
+            {data?.canWrite ? (
+              <>
+                <label className="inline-flex h-10 cursor-pointer items-center gap-1 rounded-md border px-3 text-xs">
+                  <Upload className="h-4 w-4" />
+                  Impor
+                  <input
+                    type="file"
+                    accept=".csv,.tsv,.txt"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void handleImportFile(f);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <Button type="button" variant="outline" className="text-xs" onClick={() => setMassOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Tambah massal
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-inkai-red text-xs hover:bg-inkai-red/90"
+                  onClick={() => setAddOpen(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                  Tambah
+                </Button>
+              </>
+            ) : null}
+            {data?.canLock ? (
+              <Button type="button" variant="outline" className="text-xs" onClick={() => void toggleLock()}>
+                {locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                {locked ? "Buka buku" : "Tutup buku"}
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border bg-card">
-        <table className="w-full min-w-[920px] border-collapse text-sm">
-          <thead>
-            <tr className="border-b bg-muted/40 text-left text-muted-foreground">
-              <th className="p-3">No</th>
-              <th className="p-3">Tanggal</th>
-              <th className="p-3">Keterangan</th>
-              <th className="p-3 text-right">Masuk</th>
-              <th className="p-3 text-right">Keluar</th>
-              <th className="p-3 text-right">Saldo</th>
-              <th className="p-3">Kegiatan</th>
-              <th className="p-3 text-center">Aksi</th>
-            </tr>
-          </thead>
+      <div className="relative min-h-0 flex-1">
+        <div className="h-full overflow-auto rounded-lg border bg-card">
+          <table className="w-full min-w-[920px] border-collapse text-sm">
+            <thead>
+              <tr className="sticky top-0 z-10 border-b bg-muted/95 text-left text-muted-foreground backdrop-blur">
+                {canSelect ? (
+                  <th className="w-10 p-3">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      disabled={visibleManualIds.length === 0}
+                      aria-label="Pilih semua baris manual tampil"
+                      onChange={toggleSelectAllVisible}
+                    />
+                  </th>
+                ) : null}
+                <th className="p-3">No</th>
+                <th className="p-3">Tanggal</th>
+                <th className="p-3">Keterangan</th>
+                <th className="p-3 text-right">Masuk</th>
+                <th className="p-3 text-right">Keluar</th>
+                <th className="p-3 text-right">Saldo</th>
+                <th className="p-3">Kegiatan</th>
+                <th className="p-3 text-center">Aksi</th>
+              </tr>
+            </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                <td colSpan={colSpan} className="p-6 text-center text-muted-foreground">
                   Memuat…
                 </td>
               </tr>
             ) : groups.length === 0 ? (
               <tr>
-                <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                <td colSpan={colSpan} className="p-6 text-center text-muted-foreground">
                   Belum ada mutasi pada periode ini.{" "}
                   {isRanting
                     ? "Ranting hanya melihat iuran lunas di ranting dan komisi Latber (bukan UKT cabang). "
@@ -678,7 +790,7 @@ export function KasLedgerClient({
               groups.map((row, idx) =>
                 row.kind === "group" ? (
                   <tr key={`g-${row.kegiatan}-${idx}`} className="bg-muted/50 font-medium">
-                    <td colSpan={3} className="p-3">
+                    <td colSpan={canSelect ? 4 : 3} className="p-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
@@ -723,6 +835,18 @@ export function KasLedgerClient({
                   </tr>
                 ) : (
                   <tr key={row.id} className="border-b">
+                    {canSelect ? (
+                      <td className="p-3">
+                        {row.sourceType === "manual" ? (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(row.id)}
+                            aria-label={`Pilih baris ${row.no}`}
+                            onChange={() => toggleSelectId(row.id)}
+                          />
+                        ) : null}
+                      </td>
+                    ) : null}
                     <td className="p-3">{row.no}</td>
                     <td className="p-3 whitespace-nowrap">{formatKasDateId(row.txnDate)}</td>
                     <td className="p-3">
@@ -792,7 +916,33 @@ export function KasLedgerClient({
               )
             )}
           </tbody>
-        </table>
+          </table>
+        </div>
+        {canSelect && selectedIds.length > 0 ? (
+          <div className="pointer-events-none absolute bottom-3 left-3 z-20 print:hidden">
+            <div className="pointer-events-auto inline-flex max-w-[min(100%,20rem)] items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-md">
+              <span className="text-xs font-medium">{selectedIds.length} dipilih</span>
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 bg-inkai-red px-2 text-xs hover:bg-inkai-red/90"
+                onClick={openBatchTransfer}
+              >
+                Pindah lokasi
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7"
+                aria-label="Batalkan pilihan"
+                onClick={() => setSelectedIds([])}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <Dialog
@@ -903,6 +1053,64 @@ export function KasLedgerClient({
               onClick={() => void (editId ? handleEdit() : handleAdd())}
             >
               Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={batchTransferOpen}
+        onOpenChange={(open) => {
+          setBatchTransferOpen(open);
+          if (!open) setBatchTarget("");
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pindah lokasi</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <p className="text-sm text-muted-foreground">
+              Memindahkan {selectedIds.length} baris manual ke buku tujuan.
+            </p>
+            <Field label="Buku tujuan">
+              <select
+                className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+                value={batchTarget}
+                onChange={(e) => setBatchTarget(e.target.value)}
+              >
+                <option value="">Pilih buku tujuan</option>
+                {(data?.scopes ?? [])
+                  .filter((scope) => `${scope.type}:${scope.id}` !== scopeKey)
+                  .map((scope) => (
+                    <option
+                      key={`${scope.type}:${scope.id}`}
+                      value={`${scope.type}:${scope.id}`}
+                    >
+                      {scope.label}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setBatchTransferOpen(false);
+                setBatchTarget("");
+              }}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              disabled={!batchTarget}
+              onClick={() => void handleBatchTransfer()}
+            >
+              Pindahkan
             </Button>
           </DialogFooter>
         </DialogContent>

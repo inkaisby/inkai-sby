@@ -12,7 +12,7 @@ import {
   type KasLedgerInput,
 } from "@/lib/kas";
 import { parseFlexibleIdDate } from "@/lib/parse-birth-date";
-import { kasTransferSchema, kasTransferKegiatanSchema } from "@/lib/security/schemas";
+import { kasTransferSchema, kasTransferKegiatanSchema, kasTransferBatchSchema } from "@/lib/security/schemas";
 
 function row(
   partial: Partial<KasLedgerInput> & Pick<KasLedgerInput, "id" | "txnDate">,
@@ -183,6 +183,42 @@ describe("kas ledger", () => {
     ];
     const moved = rows.filter(
       (r) => r.sourceType === "manual" && r.kegiatan === "MUSKOT",
+    );
+    expect(moved.map((r) => r.id)).toEqual(["m1"]);
+  });
+
+  it("transfer batch schema and keeps only requested manual ids", () => {
+    expect(
+      kasTransferBatchSchema.safeParse({
+        ids: ["a", "b"],
+        targetScopeType: "dojo",
+        targetScopeId: "r1",
+      }).success,
+    ).toBe(true);
+    expect(
+      kasTransferBatchSchema.safeParse({
+        ids: [],
+        targetScopeType: "branch",
+        targetScopeId: "c1",
+      }).success,
+    ).toBe(false);
+    expect(
+      kasTransferBatchSchema.safeParse({
+        ids: Array.from({ length: 101 }, (_, i) => `id-${i}`),
+        targetScopeType: "branch",
+        targetScopeId: "c1",
+      }).success,
+    ).toBe(false);
+
+    const ids = ["m1", "a1", "m1", "missing"];
+    const deduped = [...new Set(ids)];
+    const rows = [
+      row({ id: "m1", txnDate: "2026-03-01", sourceType: "manual" }),
+      row({ id: "a1", txnDate: "2026-03-01", sourceType: "iuran" }),
+      row({ id: "m2", txnDate: "2026-03-02", sourceType: "manual" }),
+    ];
+    const moved = rows.filter(
+      (r) => r.sourceType === "manual" && deduped.includes(r.id),
     );
     expect(moved.map((r) => r.id)).toEqual(["m1"]);
   });

@@ -462,6 +462,79 @@ export async function transferManualKasByKegiatan(opts: {
   return { moved: rows.length };
 }
 
+export async function transferManualKasByIds(opts: {
+  ids: string[];
+  sourceScope: KasScope;
+  targetScope: KasScope;
+  user: SessionUser;
+  token?: string | null;
+  email?: string | null;
+}): Promise<{ moved: number }> {
+  if (!canTransferKas(opts.user)) {
+    throw new Error("Tidak berhak memindahkan lokasi kas");
+  }
+  const ids = [...new Set(opts.ids.map((id) => id.trim()).filter(Boolean))];
+  if (ids.length === 0) {
+    return { moved: 0 };
+  }
+  if (ids.length > 100) {
+    throw new Error("Maksimal 100 baris per pemindahan");
+  }
+  if (
+    opts.sourceScope.type === opts.targetScope.type &&
+    opts.sourceScope.id === opts.targetScope.id
+  ) {
+    throw new Error("Buku tujuan sama dengan buku asal");
+  }
+
+  const allowed = await listKasScopes(opts.user);
+  const targetAllowed = allowed.some(
+    (s) => s.type === opts.targetScope.type && s.id === opts.targetScope.id,
+  );
+  if (!targetAllowed) {
+    throw new KasScopeError("Buku tujuan di luar wilayah Anda");
+  }
+
+  const rows = await prisma.kasEntry.findMany({
+    where: {
+      id: { in: ids },
+      scopeType: opts.sourceScope.type,
+      scopeId: opts.sourceScope.id,
+      sourceType: "manual",
+    },
+    orderBy: [{ txnDate: "asc" }, { createdAt: "asc" }],
+  });
+  if (rows.length === 0) {
+    return { moved: 0 };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const row of rows) {
+      const txnDate = row.txnDate.toISOString().slice(0, 10);
+      await assertKasMonthWritable(opts.targetScope, txnDate);
+      await tx.kasEntry.update({
+        where: { id: row.id },
+        data: {
+          scopeType: opts.targetScope.type,
+          scopeId: opts.targetScope.id,
+        },
+      });
+    }
+  });
+
+  writeAuditLog({
+    userId: opts.user.id,
+    email: opts.email,
+    action: "KAS_TRANSFER_BATCH",
+    details:
+      `x${rows.length} ${opts.sourceScope.type}:${opts.sourceScope.id}` +
+      ` -> ${opts.targetScope.type}:${opts.targetScope.id}`,
+    token: opts.token,
+  });
+
+  return { moved: rows.length };
+}
+
 export async function listKasLocks(scope: KasScope) {
   return prisma.kasPeriodLock.findMany({
     where: { scopeType: scope.type, scopeId: scope.id },
