@@ -40,6 +40,8 @@ if (!inArg) {
   process.exit(1);
 }
 
+const inputFile: string = inArg;
+
 if (!allowRemote) {
   try {
     assertLocalDatabase();
@@ -59,7 +61,7 @@ async function main() {
   if (!branch) throw new Error(`Cabang ${SITE_BRANCH_NAME} tidak ditemukan`);
 
   const scope = { type: "branch" as const, id: branch.id };
-  const text = readFileSync(resolve(process.cwd(), inArg), "utf8");
+  const text = readFileSync(resolve(process.cwd(), inputFile), "utf8");
   const entries = parseKasImportTsv(text);
 
   if (entries.length === 0) {
@@ -75,7 +77,7 @@ async function main() {
 
   const report: Record<string, unknown> = {
     mode: apply ? "apply" : "dry-run",
-    file: inArg,
+    file: inputFile,
     parsedRows: entries.length,
     existingManualRows: existing,
   };
