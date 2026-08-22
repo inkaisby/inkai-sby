@@ -83,6 +83,8 @@ export const memberActionSchema = z.object({
     "set_documents",
     "set_photo",
     "set_dojo",
+    "set_identity",
+    "set_contact",
     "reset_password",
     "deactivate",
     "activate",
@@ -102,6 +104,31 @@ export const memberActionSchema = z.object({
   allowEventWithoutDues: z.boolean().optional(),
   /** Pindah ranting (hanya cabang ke atas). */
   dojoId: z.string().uuid().optional(),
+  /** NIK anggota (set_identity) — kosong/null = hapus. */
+  nik: z
+    .union([
+      z.literal(""),
+      z.null(),
+      z.string().trim().regex(/^\d{16}$/, "NIK harus 16 digit"),
+    ])
+    .optional(),
+  /** Identitas lengkap (set_identity, pusat). */
+  birthPlace: optionalBlankString(z.string().trim().max(100)),
+  birthDate: optionalBlankString(z.string().trim().min(8).max(32)),
+  gender: optionalBlankString(z.enum(["L", "P"])),
+  address: optionalBlankString(z.string().trim().max(300)),
+  /** Email login (set_contact, pusat). */
+  email: optionalBlankString(
+    z.string().trim().toLowerCase().email("Format email tidak valid").max(254),
+  ),
+  /** Telepon (set_contact, pusat) — kosong/null = hapus. */
+  phoneNumber: z
+    .union([
+      z.null(),
+      z.literal(""),
+      z.string().trim().min(10, "Nomor telepon tidak valid").max(20),
+    ])
+    .optional(),
   /** URL dokumen (setelah upload Blob) — kosong = hapus. */
   birthCertificateUrl: z.string().trim().max(2048).optional().nullable(),
   bpjsCardUrl: z.string().trim().max(2048).optional().nullable(),

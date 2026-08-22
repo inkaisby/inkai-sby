@@ -61,6 +61,7 @@ import {
 import {
   canManageIuranByWilayah,
   canToggleMemberActive,
+  canEditMemberIdentity,
   isRantingAdmin,
 } from "@/lib/wilayah-rbac";
 import { MemberActions } from "./MemberActions";
@@ -118,6 +119,14 @@ function formatRp(amount: unknown) {
 function str(value: unknown, fallback = "-") {
   if (value == null || value === "") return fallback;
   return String(value);
+}
+
+/** ISO date → yyyy-MM-dd untuk input type="date". */
+function toBirthDateInputValue(value: unknown): string {
+  if (!value) return "";
+  const d = new Date(String(value));
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
 }
 
 function billingStatusLabel(status: string) {
@@ -367,6 +376,15 @@ export function MembersTable({
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(
     null,
   );
+  const [nikDraft, setNikDraft] = useState("");
+  const [birthPlaceDraft, setBirthPlaceDraft] = useState("");
+  const [birthDateDraft, setBirthDateDraft] = useState("");
+  const [genderDraft, setGenderDraft] = useState("");
+  const [addressDraft, setAddressDraft] = useState("");
+  const [identitySaving, setIdentitySaving] = useState(false);
+  const [emailDraft, setEmailDraft] = useState("");
+  const [phoneDraft, setPhoneDraft] = useState("");
+  const [contactSaving, setContactSaving] = useState(false);
   const {
     selectedIds,
     pendingSelectedIds,
@@ -395,6 +413,27 @@ export function MembersTable({
   const canInlineEditDocuments =
     canEditDocuments && !isRantingAdmin(userRoles);
   const canResetPassword = canToggleMemberActive(userRoles);
+  const canEditIdentity = canEditMemberIdentity(userRoles);
+
+  function syncIdentityDraftsFromDetail(member: MemberDetail) {
+    setNikDraft(typeof member.nik === "string" ? member.nik : "");
+    setBirthPlaceDraft(
+      typeof member.birthPlace === "string" ? member.birthPlace : "",
+    );
+    setBirthDateDraft(toBirthDateInputValue(member.birthDate));
+    setGenderDraft(typeof member.gender === "string" ? member.gender : "");
+    setAddressDraft(typeof member.address === "string" ? member.address : "");
+    const userObj =
+      member.user && typeof member.user === "object"
+        ? (member.user as { email?: string; phoneNumber?: string })
+        : null;
+    setEmailDraft(userObj?.email?.trim() || "");
+    setPhoneDraft(
+      (typeof member.phoneNumber === "string" && member.phoneNumber) ||
+        userObj?.phoneNumber?.trim() ||
+        "",
+    );
+  }
 
   useEffect(() => {
     setMembers(membersProp);
@@ -469,6 +508,7 @@ export function MembersTable({
         if (typeof data.member.fullName === "string") {
           setNameDraft(formatMemberName(data.member.fullName));
         }
+        syncIdentityDraftsFromDetail(data.member);
       }
     } catch {
       showError("Gagal memuat detail anggota");
@@ -683,6 +723,94 @@ export function MembersTable({
       showError("Gagal menyimpan No. MSH");
     } finally {
       setMshSaving(false);
+    }
+  }
+
+  async function handleSetIdentity() {
+    if (!selectedId || !canEditIdentity) return;
+    setIdentitySaving(true);
+    try {
+      const res = await fetch(`/api/admin/members/${selectedId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_identity",
+          nik: nikDraft.replace(/\D/g, "") || "",
+          birthPlace: birthPlaceDraft.trim() || "",
+          birthDate: birthDateDraft.trim() || "",
+          gender: genderDraft.trim() || "",
+          address: addressDraft.trim() || "",
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        member?: MemberDetail;
+      };
+      if (!res.ok) {
+        showAdminFetchError(res, data, "Gagal menyimpan identitas");
+        return;
+      }
+      showSuccess(data.message || "Identitas disimpan");
+      if (selectedId && detail && data.member) {
+        setDetail({ ...detail, ...data.member });
+        syncIdentityDraftsFromDetail({ ...detail, ...data.member });
+      }
+      onMembersChanged?.();
+    } catch {
+      showError("Gagal menyimpan identitas");
+    } finally {
+      setIdentitySaving(false);
+    }
+  }
+
+  async function handleSetContact() {
+    if (!selectedId || !canEditIdentity) return;
+    setContactSaving(true);
+    try {
+      const res = await fetch(`/api/admin/members/${selectedId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set_contact",
+          email: emailDraft.trim() || undefined,
+          phoneNumber:
+            phoneDraft.trim() === "" ? null : phoneDraft.trim(),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        email?: string | null;
+        phoneNumber?: string | null;
+      };
+      if (!res.ok) {
+        showAdminFetchError(res, data, "Gagal menyimpan kontak");
+        return;
+      }
+      showSuccess(data.message || "Kontak disimpan");
+      if (selectedId && detail) {
+        const nextUser =
+          detail.user && typeof detail.user === "object"
+            ? { ...(detail.user as Record<string, unknown>) }
+            : {};
+        if (data.email != null) nextUser.email = data.email;
+        if (data.phoneNumber != null) {
+          nextUser.phoneNumber = data.phoneNumber;
+        }
+        setDetail({
+          ...detail,
+          phoneNumber: data.phoneNumber ?? detail.phoneNumber,
+          user: Object.keys(nextUser).length > 0 ? nextUser : detail.user,
+        });
+        if (data.email != null) setEmailDraft(data.email || "");
+        if (data.phoneNumber != null) setPhoneDraft(data.phoneNumber || "");
+      }
+      onMembersChanged?.();
+    } catch {
+      showError("Gagal menyimpan kontak");
+    } finally {
+      setContactSaving(false);
     }
   }
 
@@ -906,8 +1034,12 @@ export function MembersTable({
   }
 
   const dojo = detail?.dojo as
-    | { name?: string; branch?: { name?: string } }
+    | { id?: string; name?: string; branch?: { name?: string } }
     | undefined;
+  const detailDojoId =
+    (typeof detail?.dojoId === "string" && detail.dojoId) ||
+    dojo?.id ||
+    "";
   const user = detail?.user as
     | { email?: string; phoneNumber?: string; photoUrl?: string }
     | undefined;
@@ -1318,7 +1450,7 @@ export function MembersTable({
       >
         <SheetContent
           side="right"
-          className="w-full gap-0 overflow-y-auto sm:max-w-md"
+          className="w-full gap-0 overflow-y-auto sm:max-w-lg"
         >
           <SheetHeader className="border-b">
             <SheetTitle className="flex items-center gap-3 pr-8">
@@ -1606,27 +1738,119 @@ export function MembersTable({
                         )
                       }
                     />
-                    <DetailRow label="NIK" value={loading && !detail.nik ? "…" : str(detail.nik)} />
+                    <DetailRow
+                      label="NIK"
+                      value={
+                        canEditIdentity ? (
+                          <Input
+                            value={nikDraft}
+                            onChange={(e) =>
+                              setNikDraft(e.target.value.replace(/\D/g, ""))
+                            }
+                            placeholder="16 digit NIK"
+                            inputMode="numeric"
+                            maxLength={16}
+                            className="h-8 font-mono text-xs"
+                            disabled={identitySaving || loading}
+                          />
+                        ) : loading && !detail.nik ? (
+                          "…"
+                        ) : (
+                          str(detail.nik)
+                        )
+                      }
+                    />
                     <DetailRow
                       label="Tempat lahir"
-                      value={loading && !detail.birthPlace ? "…" : str(detail.birthPlace)}
+                      value={
+                        canEditIdentity ? (
+                          <Input
+                            value={birthPlaceDraft}
+                            onChange={(e) =>
+                              setBirthPlaceDraft(e.target.value.toUpperCase())
+                            }
+                            className="h-8 uppercase"
+                            disabled={identitySaving || loading}
+                          />
+                        ) : loading && !detail.birthPlace ? (
+                          "…"
+                        ) : (
+                          str(detail.birthPlace)
+                        )
+                      }
                     />
                     <DetailRow
                       label="Tanggal lahir"
-                      value={loading && !detail.birthDate ? "…" : formatDate(detail.birthDate)}
+                      value={
+                        canEditIdentity ? (
+                          <Input
+                            type="date"
+                            value={birthDateDraft}
+                            onChange={(e) => setBirthDateDraft(e.target.value)}
+                            className="h-8"
+                            disabled={identitySaving || loading}
+                          />
+                        ) : loading && !detail.birthDate ? (
+                          "…"
+                        ) : (
+                          formatDate(detail.birthDate)
+                        )
+                      }
                     />
                     <DetailRow
                       label="Jenis kelamin"
                       value={
-                        loading && !detail.gender
-                          ? "…"
-                          : formatGenderLabel(str(detail.gender, "")) || "-"
+                        canEditIdentity ? (
+                          <select
+                            className="h-8 w-full max-w-[8rem] rounded border bg-background px-2 text-sm"
+                            value={genderDraft}
+                            disabled={identitySaving || loading}
+                            onChange={(e) => setGenderDraft(e.target.value)}
+                            aria-label="Jenis kelamin"
+                          >
+                            <option value="">—</option>
+                            <option value="L">Laki-laki</option>
+                            <option value="P">Perempuan</option>
+                          </select>
+                        ) : loading && !detail.gender ? (
+                          "…"
+                        ) : (
+                          formatGenderLabel(str(detail.gender, "")) || "-"
+                        )
                       }
                     />
                     <DetailRow
                       label="Alamat"
-                      value={loading && !detail.address ? "…" : str(detail.address)}
+                      value={
+                        canEditIdentity ? (
+                          <textarea
+                            value={addressDraft}
+                            onChange={(e) =>
+                              setAddressDraft(e.target.value.toUpperCase())
+                            }
+                            rows={2}
+                            className="w-full rounded border bg-background px-2 py-1.5 text-sm uppercase"
+                            disabled={identitySaving || loading}
+                          />
+                        ) : loading && !detail.address ? (
+                          "…"
+                        ) : (
+                          str(detail.address)
+                        )
+                      }
                     />
+                    {canEditIdentity ? (
+                      <div className="pt-1">
+                        <Button
+                          size="sm"
+                          className="h-8 bg-inkai-red"
+                          disabled={identitySaving || loading || !selectedId}
+                          onClick={() => void handleSetIdentity()}
+                        >
+                          {identitySaving ? "Menyimpan…" : "Simpan identitas"}
+                        </Button>
+                      </div>
+                    ) : null}
                     <DetailRow
                       label="Terdaftar"
                       value={loading && !detail.createdAt ? "…" : formatDate(detail.createdAt)}
@@ -1639,13 +1863,105 @@ export function MembersTable({
                     Organisasi
                   </h3>
                   <dl className="space-y-2">
-                    <DetailRow label="Dojo" value={str(dojo?.name)} />
+                    <DetailRow
+                      label="Dojo"
+                      value={
+                        canEditDojo && dojos.length > 0 ? (
+                          <select
+                            className="h-8 max-w-full rounded border bg-background px-1 text-xs"
+                            value={detailDojoId}
+                            disabled={dojoSavingId === selectedId || loading}
+                            onChange={(e) => {
+                              const next = e.target.value;
+                              if (
+                                !next ||
+                                !selectedId ||
+                                next === detailDojoId
+                              ) {
+                                return;
+                              }
+                              void handleSetDojo(selectedId, next);
+                            }}
+                            aria-label="Ubah ranting"
+                          >
+                            {!detailDojoId ? (
+                              <option value="">— Pilih —</option>
+                            ) : null}
+                            {dojos.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name}
+                              </option>
+                            ))}
+                            {detailDojoId &&
+                            !dojos.some((d) => d.id === detailDojoId) ? (
+                              <option value={detailDojoId}>
+                                {dojo?.name || detailDojoId}
+                              </option>
+                            ) : null}
+                          </select>
+                        ) : (
+                          str(dojo?.name)
+                        )
+                      }
+                    />
                     <DetailRow label="Cabang" value={str(dojo?.branch?.name)} />
-                    <DetailRow label="Email" value={str(user?.email)} />
+                    <DetailRow
+                      label="Email login"
+                      value={
+                        canEditIdentity ? (
+                          <Input
+                            type="email"
+                            value={emailDraft}
+                            onChange={(e) =>
+                              setEmailDraft(e.target.value.toLowerCase())
+                            }
+                            placeholder={
+                              user?.email ? "Email login" : "Belum ada akun"
+                            }
+                            className="h-8 text-sm"
+                            disabled={
+                              contactSaving || loading || !user?.email
+                            }
+                            title={
+                              !user?.email
+                                ? "Buat akun login dulu sebelum mengisi email"
+                                : undefined
+                            }
+                          />
+                        ) : (
+                          str(user?.email)
+                        )
+                      }
+                    />
                     <DetailRow
                       label="Telepon"
-                      value={str(user?.phoneNumber ?? detail.phoneNumber)}
+                      value={
+                        canEditIdentity ? (
+                          <Input
+                            type="tel"
+                            value={phoneDraft}
+                            onChange={(e) => setPhoneDraft(e.target.value)}
+                            placeholder="Nomor telepon"
+                            className="h-8 text-sm"
+                            disabled={contactSaving || loading}
+                          />
+                        ) : (
+                          str(user?.phoneNumber ?? detail.phoneNumber)
+                        )
+                      }
                     />
+                    {canEditIdentity ? (
+                      <div className="pt-1">
+                        <Button
+                          size="sm"
+                          className="h-8 bg-inkai-red"
+                          disabled={contactSaving || loading || !selectedId}
+                          onClick={() => void handleSetContact()}
+                        >
+                          {contactSaving ? "Menyimpan…" : "Simpan kontak"}
+                        </Button>
+                      </div>
+                    ) : null}
                     <DetailRow
                       label="Iuran/bln"
                       value={
@@ -1732,7 +2048,11 @@ export function MembersTable({
                     <DetailRow
                       label="Username"
                       value={
-                        user?.email ? (
+                        canEditIdentity && user?.email ? (
+                          <span className="text-sm text-muted-foreground">
+                            Sama dengan email login di atas
+                          </span>
+                        ) : user?.email ? (
                           <CopyableValue value={String(user.email)} />
                         ) : loading ? (
                           "…"

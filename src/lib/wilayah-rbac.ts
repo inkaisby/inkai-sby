@@ -94,6 +94,11 @@ export function isNationalAdmin(roles: string[]) {
   return r === "ADMINISTRATOR" || r === "ADMIN_PUSAT" || r === "ADMIN";
 }
 
+/** Koreksi identitas & kontak anggota di detail admin — hanya pusat. */
+export function canEditMemberIdentity(roles: string[]) {
+  return isNationalAdmin(roles);
+}
+
 /** Admin cabang (atau setara nasional). */
 export function isCabangAdmin(roles: string[]) {
   return isNationalAdmin(roles) || primary(roles) === "ADMIN_BRANCH";

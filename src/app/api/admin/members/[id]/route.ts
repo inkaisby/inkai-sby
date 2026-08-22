@@ -22,6 +22,7 @@ import {
   canSoftDeleteMembers,
   canToggleMemberActive,
   canManageIuranByWilayah,
+  canEditMemberIdentity,
 } from "@/lib/wilayah-rbac";
 import { buildMemberFilter, type SessionUser } from "@/lib/rbac";
 import { adminDojoGrantBlocksMemberAction } from "@/lib/admin-dojo-grants";
@@ -30,9 +31,18 @@ import { memberPhotoSelect } from "@/lib/prisma-columns";
 import { assertDojoInScope } from "@/lib/pengaturan";
 import {
   mshAllowedForRank,
+  normalizeEmail,
   normalizeMsh,
   normalizeNia,
 } from "@/lib/member-profile-locks";
+import { parseFlexibleBirthDate } from "@/lib/parse-birth-date";
+import {
+  activeHardDuplicates,
+  findMemberDuplicates,
+  formatDuplicateError,
+  releasableArchivedIdConflicts,
+  releaseIdentifiersFromArchivedMembers,
+} from "@/lib/member-duplicate";
 import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
 import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import { writeSecurityEvent } from "@/lib/security/security-events";
@@ -178,6 +188,11 @@ export async function GET(_request: Request, context: RouteContext) {
           bpjsCardUrl: true,
           bpjsCardNumber: true,
           mshNumber: true,
+          nik: true,
+          gender: true,
+          birthPlace: true,
+          birthDate: true,
+          address: true,
           ...(await memberPhotoSelect()),
           user: {
             select: { email: true, phoneNumber: true, photoUrl: true },
@@ -216,10 +231,27 @@ export async function GET(_request: Request, context: RouteContext) {
       bpjsCardUrl: localExtras.data.bpjsCardUrl,
       bpjsCardNumber: localExtras.data.bpjsCardNumber,
       allowEventWithoutDues: localExtras.data.allowEventWithoutDues,
+      nik:
+        (typeof member.nik === "string" && member.nik) ||
+        localExtras.data.nik,
+      gender:
+        (typeof member.gender === "string" && member.gender) ||
+        localExtras.data.gender,
+      birthPlace:
+        (typeof member.birthPlace === "string" && member.birthPlace) ||
+        localExtras.data.birthPlace,
+      birthDate: member.birthDate ?? localExtras.data.birthDate,
+      address:
+        (typeof member.address === "string" && member.address) ||
+        localExtras.data.address,
       mshNumber:
         localExtras.data.mshNumber ??
         (typeof member.mshNumber === "string" ? member.mshNumber : null),
       photoUrl: resolvedPhotoUrl,
+      phoneNumber:
+        (typeof member.phoneNumber === "string" && member.phoneNumber) ||
+        localUser?.phoneNumber ||
+        null,
       user: localUser
         ? {
             ...existingUser,
@@ -258,7 +290,8 @@ export async function PATCH(request: Request, context: RouteContext) {
   const body = await request.json();
   const parsed = memberActionSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
+    const msg = parsed.error.issues[0]?.message || "Data tidak valid";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 
   const action = parsed.data.action;
@@ -1258,6 +1291,336 @@ export async function PATCH(request: Request, context: RouteContext) {
       success: true,
       photoUrl,
       message: photoUrl ? "Foto anggota disimpan" : "Foto anggota dihapus",
+    });
+  }
+
+  if (action === "set_identity") {
+    if (!canEditMemberIdentity(roles)) {
+      return NextResponse.json(
+        {
+          error:
+            "Hanya administrator pusat yang dapat mengubah identitas anggota",
+        },
+        { status: 403 },
+      );
+    }
+
+    const scoped = await prisma.member.findFirst({
+      where: {
+        AND: [{ id }, buildMemberFilter(authResult.user)],
+      },
+      select: {
+        id: true,
+        fullName: true,
+        birthDate: true,
+      },
+    });
+    if (!scoped) {
+      logScopeDenied(authResult.user.id, "set_identity");
+      return NextResponse.json(
+        { error: "Anggota tidak ditemukan di cakupan Anda" },
+        { status: 404 },
+      );
+    }
+
+    const nikRaw = parsed.data.nik;
+    let nik: string | null = null;
+    if (nikRaw !== undefined && nikRaw !== null && nikRaw !== "") {
+      nik = String(nikRaw).trim();
+      if (!/^\d{16}$/.test(nik)) {
+        return NextResponse.json(
+          { error: "NIK harus 16 digit" },
+          { status: 400 },
+        );
+      }
+    }
+
+    const birthPlace = parsed.data.birthPlace?.trim()
+      ? parsed.data.birthPlace.trim().toUpperCase()
+      : null;
+
+    let birthDateIso: string | null = null;
+    const birthDateRaw = parsed.data.birthDate?.trim() || "";
+    if (birthDateRaw) {
+      const iso = parseFlexibleBirthDate(birthDateRaw);
+      if (!iso) {
+        return NextResponse.json(
+          { error: "Format tanggal lahir tidak valid" },
+          { status: 400 },
+        );
+      }
+      birthDateIso = iso;
+    }
+
+    const gender = parsed.data.gender?.trim() || null;
+    const address = parsed.data.address?.trim()
+      ? parsed.data.address.trim().toUpperCase()
+      : null;
+
+    const duplicates = await findMemberDuplicates({
+      fullName: scoped.fullName,
+      birthDate: birthDateIso,
+      nik: nik || undefined,
+      excludeMemberId: id,
+    });
+
+    const activeHard = activeHardDuplicates(duplicates);
+    if (activeHard.length > 0) {
+      return NextResponse.json(
+        {
+          error: formatDuplicateError(activeHard, "admin"),
+          duplicates: activeHard,
+          code: "DUPLICATE_MEMBER",
+        },
+        { status: 409 },
+      );
+    }
+
+    const releasable = releasableArchivedIdConflicts(duplicates);
+    if (releasable.length > 0) {
+      try {
+        await releaseIdentifiersFromArchivedMembers({
+          hits: releasable,
+          token,
+        });
+      } catch (err) {
+        console.error("[set_identity:releaseArchived]", err);
+        return NextResponse.json(
+          {
+            error: formatDuplicateError(releasable, "admin"),
+            duplicates: releasable,
+            code: "DUPLICATE_ARCHIVED_IDENTITY",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
+    const inkaiPatch = {
+      nik,
+      birthPlace,
+      birthDate: birthDateIso,
+      gender,
+      address,
+    };
+
+    const { res, data } = await inkaiFetch(
+      `/v1/members/${id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(inkaiPatch),
+      },
+      token,
+    );
+
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: inkaiErrorMessage(data, "Gagal menyimpan identitas") },
+        { status: res.status },
+      );
+    }
+
+    try {
+      await prisma.member.update({
+        where: { id },
+        data: {
+          nik,
+          birthPlace,
+          birthDate: birthDateIso
+            ? new Date(`${birthDateIso}T00:00:00.000Z`)
+            : null,
+          gender,
+          address,
+        },
+        select: {
+          id: true,
+          nik: true,
+          birthPlace: true,
+          birthDate: true,
+          gender: true,
+          address: true,
+        },
+      });
+    } catch (err) {
+      console.error("[set_identity] prisma update failed:", err);
+      const msg = prismaUserFacingError(err);
+      if (msg) {
+        return NextResponse.json({ error: msg }, { status: 409 });
+      }
+    }
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "MEMBER_SET_IDENTITY",
+      details: `Update identitas ${scoped.fullName} (${id})`,
+      ip,
+      userAgent,
+      token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      member: {
+        id,
+        nik,
+        birthPlace,
+        birthDate: birthDateIso,
+        gender,
+        address,
+      },
+      message: "Identitas anggota disimpan",
+    });
+  }
+
+  if (action === "set_contact") {
+    if (!canEditMemberIdentity(roles)) {
+      return NextResponse.json(
+        {
+          error:
+            "Hanya administrator pusat yang dapat mengubah kontak anggota",
+        },
+        { status: 403 },
+      );
+    }
+
+    const scoped = await prisma.member.findFirst({
+      where: {
+        AND: [{ id }, buildMemberFilter(authResult.user)],
+      },
+      select: {
+        id: true,
+        fullName: true,
+        userId: true,
+        user: { select: { id: true, email: true, phoneNumber: true } },
+      },
+    });
+    if (!scoped) {
+      logScopeDenied(authResult.user.id, "set_contact");
+      return NextResponse.json(
+        { error: "Anggota tidak ditemukan di cakupan Anda" },
+        { status: 404 },
+      );
+    }
+
+    const inkaiPatch: Record<string, unknown> = {};
+    const prismaUser: Record<string, unknown> = {};
+
+    if (parsed.data.phoneNumber !== undefined) {
+      const phone =
+        parsed.data.phoneNumber === null || parsed.data.phoneNumber === ""
+          ? null
+          : String(parsed.data.phoneNumber).trim();
+      inkaiPatch.phoneNumber = phone;
+      if (scoped.userId) {
+        prismaUser.phoneNumber = phone;
+      }
+    }
+
+    if (parsed.data.email !== undefined) {
+      if (!scoped.userId || !scoped.user) {
+        return NextResponse.json(
+          {
+            error:
+              "Anggota belum punya akun login. Gunakan Buat akun login atau auto-provision NIA.",
+          },
+          { status: 400 },
+        );
+      }
+      const email = normalizeEmail(parsed.data.email);
+      if (!email) {
+        return NextResponse.json(
+          { error: "Format email tidak valid" },
+          { status: 400 },
+        );
+      }
+      const clash = await prisma.user.findFirst({
+        where: {
+          email,
+          id: { not: scoped.userId },
+          isDeleted: false,
+        },
+        select: { id: true },
+      });
+      if (clash) {
+        return NextResponse.json(
+          { error: "Email sudah dipakai akun lain" },
+          { status: 409 },
+        );
+      }
+      prismaUser.email = email;
+    }
+
+    if (
+      Object.keys(inkaiPatch).length === 0 &&
+      Object.keys(prismaUser).length === 0
+    ) {
+      return NextResponse.json(
+        { error: "Tidak ada perubahan kontak yang dikirim" },
+        { status: 400 },
+      );
+    }
+
+    if (Object.keys(inkaiPatch).length > 0) {
+      const { res, data } = await inkaiFetch(
+        `/v1/members/${id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(inkaiPatch),
+        },
+        token,
+      );
+      if (!res.ok) {
+        return NextResponse.json(
+          { error: inkaiErrorMessage(data, "Gagal menyimpan kontak") },
+          { status: res.status },
+        );
+      }
+    }
+
+    try {
+      if (Object.keys(prismaUser).length > 0 && scoped.userId) {
+        await prisma.user.update({
+          where: { id: scoped.userId },
+          data: prismaUser,
+          select: { id: true, email: true, phoneNumber: true },
+        });
+      }
+    } catch (err) {
+      console.error("[set_contact] prisma user update failed:", err);
+      const msg = prismaUserFacingError(err);
+      if (msg) {
+        return NextResponse.json({ error: msg }, { status: 409 });
+      }
+    }
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "MEMBER_SET_CONTACT",
+      details: `Update kontak ${scoped.fullName} (${id})`,
+      ip,
+      userAgent,
+      token,
+    });
+
+    const nextPhone =
+      parsed.data.phoneNumber !== undefined
+        ? parsed.data.phoneNumber === null ||
+          parsed.data.phoneNumber === ""
+          ? null
+          : String(parsed.data.phoneNumber).trim()
+        : scoped.user?.phoneNumber ?? null;
+    const nextEmail =
+      parsed.data.email !== undefined
+        ? normalizeEmail(parsed.data.email)
+        : scoped.user?.email ?? null;
+
+    return NextResponse.json({
+      success: true,
+      phoneNumber: nextPhone,
+      email: nextEmail,
+      message: "Kontak anggota disimpan",
     });
   }
 
