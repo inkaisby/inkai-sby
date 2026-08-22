@@ -23,7 +23,13 @@
     "db:local:seed": "tsx scripts/seed-local.ts",
     "db:local:dump-from-prod": "tsx scripts/dump-prod-to-local.ts",
     "db:check-drift": "prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code",
-    "db:backfill:latber-flat-fee": "tsx scripts/backfill-latber-flat-fee.ts"
+    "db:backfill:latber-flat-fee": "tsx scripts/backfill-latber-flat-fee.ts",
+    "kas:pdf-to-raw": "tsx scripts/kas-pdf-to-raw.ts",
+    "kas:prepare-import": "tsx scripts/kas-prepare-import-tsv.ts",
+    "kas:verify-tsv": "tsx scripts/kas-verify-tsv.ts",
+    "kas:import": "tsx scripts/kas-import-cabang.ts",
+    "kas:reconcile": "tsx scripts/kas-reconcile-cabang.ts",
+    "kas:restore": "tsx scripts/kas-restore-cabang.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.23",
