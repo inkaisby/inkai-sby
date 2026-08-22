@@ -1443,10 +1443,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       });
     } catch (err) {
       console.error("[set_identity] prisma update failed:", err);
-      const msg = prismaUserFacingError(err);
-      if (msg) {
-        return NextResponse.json({ error: msg }, { status: 409 });
-      }
+      const mapped = prismaUserFacingError(err, "Gagal menyimpan identitas");
+      return NextResponse.json(
+        { error: mapped.error },
+        { status: mapped.status },
+      );
     }
 
     writeAuditLog({
@@ -1588,10 +1589,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     } catch (err) {
       console.error("[set_contact] prisma user update failed:", err);
-      const msg = prismaUserFacingError(err);
-      if (msg) {
-        return NextResponse.json({ error: msg }, { status: 409 });
-      }
+      const mapped = prismaUserFacingError(err, "Gagal menyimpan kontak");
+      return NextResponse.json(
+        { error: mapped.error },
+        { status: mapped.status },
+      );
     }
 
     writeAuditLog({
