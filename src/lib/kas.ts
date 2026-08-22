@@ -184,6 +184,12 @@ export function groupKasTable(rows: KasLedgerRow[]): KasTableRow[] {
   return out;
 }
 
+export function kasGroupKegiatanNames(groups: KasTableRow[]): string[] {
+  return groups
+    .filter((r): r is Extract<KasTableRow, { kind: "group" }> => r.kind === "group")
+    .map((r) => r.kegiatan);
+}
+
 /** Hide grouped entries when collapsed. Standalone / empty-kegiatan rows stay visible. */
 export function visibleKasTableRows(
   groups: KasTableRow[],

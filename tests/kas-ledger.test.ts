@@ -4,6 +4,7 @@ import {
   filterRange,
   formatKasDateId,
   groupKasTable,
+  kasGroupKegiatanNames,
   parseKasImportTsv,
   parseKasMassPaste,
   skipKwitansiJenis,
@@ -79,6 +80,15 @@ describe("kas ledger", () => {
   it("dual setor uses two sourceIds", () => {
     const billingId = "bill-1";
     expect(`${billingId}:dojo`).not.toBe(`${billingId}:branch`);
+  });
+
+  it("lists group kegiatan names from table rows", () => {
+    const rows = withRunningSaldo([
+      row({ id: "1", txnDate: "2026-01-01", kegiatan: "MUSKOT", amountOut: 100 }),
+      row({ id: "2", txnDate: "2026-01-01", kegiatan: "MUSKOT", amountOut: 50 }),
+      row({ id: "3", txnDate: "2026-01-02", kegiatan: "LATBER", amountOut: 20 }),
+    ]);
+    expect(kasGroupKegiatanNames(groupKasTable(rows))).toEqual(["MUSKOT"]);
   });
 
   it("groups kegiatan without merging cells", () => {

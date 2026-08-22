@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -37,6 +38,7 @@ import { formatRp } from "@/lib/terbilang";
 import {
   firstOfMonthWib,
   formatKasDateId,
+  kasGroupKegiatanNames,
   KAS_MAX_BATCH,
   parseKasImportTsv,
   parseKasMassPaste,
@@ -119,6 +121,7 @@ export function KasLedgerClient({
   const [postScopeKey, setPostScopeKey] = useState("");
   const [massPasteText, setMassPasteText] = useState("");
   const [massPasteDirection, setMassPasteDirection] = useState<"in" | "out">("out");
+  const collapseSeedQsRef = useRef<string | null>(null);
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -159,12 +162,18 @@ export function KasLedgerClient({
       setData(json);
       const nextScopeKey = `${json.scope.type}:${json.scope.id}`;
       setScopeKey((prev) => prev || nextScopeKey);
+      if (collapseSeedQsRef.current !== qs) {
+        collapseSeedQsRef.current = qs;
+        setCollapsedKegiatan(
+          kegiatan.trim() ? [] : kasGroupKegiatanNames(json.groups ?? []),
+        );
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Gagal memuat kas");
     } finally {
       setLoading(false);
     }
-  }, [qs]);
+  }, [qs, kegiatan]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -219,8 +228,15 @@ export function KasLedgerClient({
     );
   }
 
+  function expandKegiatan(name: string) {
+    const k = name.trim();
+    if (!k) return;
+    setCollapsedKegiatan((prev) => prev.filter((x) => x !== k));
+  }
+
   async function handleAdd() {
     try {
+      const savedKegiatan = form.kegiatan;
       await postEntries(
         [
           {
@@ -240,6 +256,7 @@ export function KasLedgerClient({
           ? "Mutasi kas tersimpan"
           : `Mutasi tersimpan ke ${postScopeLabel(key)}`,
       );
+      expandKegiatan(savedKegiatan);
       closeMutasiDialog();
       await load();
     } catch (error) {
@@ -454,6 +471,7 @@ export function KasLedgerClient({
           ? `${entries.length} baris tersimpan`
           : `${entries.length} baris tersimpan ke ${postScopeLabel(key)}`,
       );
+      expandKegiatan(massKegiatan);
       setMassOpen(false);
       setMassPasteText("");
       setMassRows([{ description: "", direction: "out", amount: "" }]);
@@ -664,10 +682,31 @@ export function KasLedgerClient({
     visibleManualIds.every((id) => selectedIds.includes(id));
   const colSpan = canSelect ? 9 : 8;
 
-  function toggleCollapsed(name: string) {
-    setCollapsedKegiatan((prev) =>
-      prev.includes(name) ? prev.filter((k) => k !== name) : [...prev, name],
+  function pruneSelectedIds(groups: KasTableRow[], collapsed: string[]) {
+    const visible = new Set(
+      visibleKasTableRows(groups, collapsed)
+        .filter(
+          (row): row is Extract<KasTableRow, { kind: "entry" }> =>
+            row.kind === "entry" && row.sourceType === "manual",
+        )
+        .map((row) => row.id),
     );
+    setSelectedIds((prev) => {
+      const next = prev.filter((id) => visible.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }
+
+  function setCollapsedWithPrune(next: string[]) {
+    setCollapsedKegiatan(next);
+    if (data?.groups) pruneSelectedIds(data.groups, next);
+  }
+
+  function toggleCollapsed(name: string) {
+    const next = collapsedKegiatan.includes(name)
+      ? collapsedKegiatan.filter((k) => k !== name)
+      : [...collapsedKegiatan, name];
+    setCollapsedWithPrune(next);
   }
 
   function toggleSelectId(id: string) {
