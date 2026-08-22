@@ -1096,7 +1096,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 22 Agustus 2026 | **Kelola Anggota — edit identitas pusat:** sheet detail `/admin/anggota` — administrator nasional edit NIK/TTL/JK/alamat (`set_identity`) + email login/telepon (`set_contact`); dropdown Dojo di sheet; duplikat NIK/TTL; inventaris §6/§7.3/§9.1/§11/§13/§15 |
 | 22 Agustus 2026 | **Kas Tambah item grup:** tombol di header kegiatan (sebelah Pindah kegiatan) membuka dialog Tambah mutasi dengan Kegiatan terisi; `canWrite`; arah default Keluar; tanpa API baru; inventaris §6/§11/§15 |
 | 22 Agustus 2026 | **Kas auto-kolaps grup:** grup kegiatan default dilipat saat muat/ganti filter (kecuali filter Kegiatan spesifik); auto-buka grup setelah Tambah item/massal; prune centang batch saat baris tersembunyi; inventaris §6/§11/§15 |
-| 22 Agustus 2026 | **Keputusan firewall stack:** tidak perlu firewall IP produksi (portal publik + Vercel Hobby); hardening Supabase PostgREST via `prisma/sql/postgrest-rls-deny-all.sql` (RLS + revoke anon/authenticated); applied ke `inkai-db` MCP; **wajib ulang apply ke DB produksi** ref `ztrryuhhdoqdglajukuw`; Vercel WAF edge deferred (Hobby); inventaris §10/§11/§15 |
+| 22 Agustus 2026 | **Keputusan firewall stack:** tidak perlu firewall IP produksi (portal publik + Vercel Hobby); hardening Supabase PostgREST via `prisma/sql/postgrest-rls-deny-all.sql` (RLS + revoke anon/authenticated); **apply manual** ke DB produksi ref `ztrryuhhdoqdglajukuw` (SQL Editor / `apply_migration`); Vercel WAF edge deferred (Hobby); inventaris §10/§11/§15 |
 
 ---
 
