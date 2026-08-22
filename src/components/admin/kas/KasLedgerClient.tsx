@@ -40,6 +40,7 @@ import {
   formatKasDateId,
   kasGroupKegiatanNames,
   KAS_MAX_BATCH,
+  mergeMassPasteRows,
   parseKasImportTsv,
   parseKasMassPaste,
   visibleKasTableRows,
@@ -71,10 +72,19 @@ type KasPayload = {
 };
 
 type DraftRow = {
+  txnDate: string;
   description: string;
   direction: "in" | "out";
   amount: string;
 };
+
+function emptyMassRow(txnDate: string): DraftRow {
+  return { txnDate, description: "", direction: "out", amount: "" };
+}
+
+function isValidYmd(ymd: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(ymd);
+}
 
 export function KasLedgerClient({
   scopeLabel,
@@ -115,9 +125,7 @@ export function KasLedgerClient({
   });
   const [massDate, setMassDate] = useState(ymdWib());
   const [massKegiatan, setMassKegiatan] = useState("");
-  const [massRows, setMassRows] = useState<DraftRow[]>([
-    { description: "", direction: "out", amount: "" },
-  ]);
+  const [massRows, setMassRows] = useState<DraftRow[]>(() => [emptyMassRow(ymdWib())]);
   const [postScopeKey, setPostScopeKey] = useState("");
   const [massPasteText, setMassPasteText] = useState("");
   const [massPasteDirection, setMassPasteDirection] = useState<"in" | "out">("out");
@@ -298,10 +306,12 @@ export function KasLedgerClient({
   }
 
   function openMassDialog() {
+    const today = ymdWib();
     setPostScopeKey(scopeKey || `${data?.scope.type}:${data?.scope.id}`);
+    setMassDate(today);
     setMassPasteText("");
     setMassPasteDirection("out");
-    setMassRows([{ description: "", direction: "out", amount: "" }]);
+    setMassRows([emptyMassRow(today)]);
     setMassRowsOpen(true);
     setMassOpen(true);
   }
@@ -449,19 +459,30 @@ export function KasLedgerClient({
   }
 
   async function handleMass() {
-    const entries = massRows
-      .map((r) => ({
-        txnDate: massDate,
-        description: r.description.trim(),
-        kegiatan: massKegiatan,
-        direction: r.direction,
-        amount: Number(r.amount),
-      }))
-      .filter((r) => r.description && r.amount > 0);
-    if (!entries.length) {
+    const rows = massRows.filter((r) => r.description.trim() && Number(r.amount) > 0);
+    if (!rows.length) {
       toast.error("Isi minimal satu baris");
       return;
     }
+    const invalidDate = rows.filter((r) => !isValidYmd(r.txnDate));
+    if (invalidDate.length) {
+      toast.error(`${invalidDate.length} baris tanggal tidak valid`);
+      return;
+    }
+    const lockedRows = rows.filter((r) => monthLocked(r.txnDate));
+    if (lockedRows.length) {
+      toast.error(
+        `${lockedRows.length} baris di bulan yang dikunci — ubah tanggal atau buka buku dulu`,
+      );
+      return;
+    }
+    const entries = rows.map((r) => ({
+      txnDate: r.txnDate,
+      description: r.description.trim(),
+      kegiatan: massKegiatan,
+      direction: r.direction,
+      amount: Number(r.amount),
+    }));
     try {
       const key = postScopeKey || scopeKey;
       await postEntries(entries, key);
@@ -474,7 +495,7 @@ export function KasLedgerClient({
       expandKegiatan(massKegiatan);
       setMassOpen(false);
       setMassPasteText("");
-      setMassRows([{ description: "", direction: "out", amount: "" }]);
+      setMassRows([emptyMassRow(ymdWib())]);
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Gagal simpan");
@@ -490,19 +511,21 @@ export function KasLedgerClient({
       toast.error("Tidak ada baris valid dari tempel");
       return;
     }
-    if (parsed.length > KAS_MAX_BATCH) {
+    const newRows: DraftRow[] = parsed.map((r) => ({
+      txnDate: r.txnDate ?? massDate,
+      description: r.description,
+      direction: r.direction,
+      amount: String(r.amount),
+    }));
+    const merged = mergeMassPasteRows(massRows, newRows, KAS_MAX_BATCH);
+    if ("error" in merged) {
       toast.error(`Maksimal ${KAS_MAX_BATCH} baris per simpan`);
       return;
     }
-    setMassRows(
-      parsed.map((r) => ({
-        description: r.description,
-        direction: r.direction,
-        amount: String(r.amount),
-      })),
-    );
+    setMassRows(merged.rows);
+    setMassPasteText("");
     setMassRowsOpen(true);
-    toast.success(`${parsed.length} baris diisi dari tempel`);
+    toast.success(`${merged.added} baris ditambahkan (total ${merged.rows.length})`);
   }
 
   async function handleDelete() {
@@ -1401,8 +1424,11 @@ export function KasLedgerClient({
             <DialogTitle>Tambah massal</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Tanggal bersama">
+            <Field label="Tanggal default">
               <KasDateField value={massDate} onChange={setMassDate} />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Baris baru & tempel 2 kolom memakai ini; bisa diubah per baris.
+              </p>
             </Field>
             <Field label="Kegiatan bersama">
               <div className="flex items-center gap-1">
@@ -1490,7 +1516,9 @@ export function KasLedgerClient({
                   Isi dari tempel
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Salin kolom keterangan + nominal dari Excel (tab). Maks {KAS_MAX_BATCH} baris.
+                  Salin tanggal + keterangan + nominal (tab), atau keterangan + nominal saja
+                  (pakai Tanggal default). Tempel berulang menambah baris. Maks {KAS_MAX_BATCH}{" "}
+                  baris.
                 </p>
               </div>
             </div>
@@ -1500,8 +1528,16 @@ export function KasLedgerClient({
             {massRows.map((row, i) => (
               <div
                 key={i}
-                className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(12rem,1fr)_8rem_8rem_2.5rem]"
+                className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(9rem,10rem)_minmax(12rem,1fr)_8rem_8rem_2.5rem]"
               >
+                <KasDateField
+                  value={row.txnDate}
+                  onChange={(txnDate) => {
+                    const next = [...massRows];
+                    next[i] = { ...row, txnDate };
+                    setMassRows(next);
+                  }}
+                />
                 <Input
                   placeholder="Keterangan"
                   value={row.description}
@@ -1550,18 +1586,28 @@ export function KasLedgerClient({
               variant="outline"
               size="sm"
               onClick={() =>
-                setMassRows([...massRows, { description: "", direction: "out", amount: "" }])
+                setMassRows([...massRows, emptyMassRow(massDate)])
               }
             >
               + Baris
             </Button>
-          <DialogFooter>
+          <DialogFooter className="flex-col gap-2 sm:flex-col sm:items-stretch">
+            <p className="text-xs text-muted-foreground">
+              Total{" "}
+              {
+                massRows.filter((r) => r.description.trim() && Number(r.amount) > 0)
+                  .length
+              }{" "}
+              baris (maks {KAS_MAX_BATCH})
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setMassOpen(false)}>
               Batal
             </Button>
             <Button type="button" className="bg-inkai-red hover:bg-inkai-red/90" onClick={() => void handleMass()}>
               Simpan semua
             </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

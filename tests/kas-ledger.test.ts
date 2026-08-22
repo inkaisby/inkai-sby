@@ -5,6 +5,7 @@ import {
   formatKasDateId,
   groupKasTable,
   kasGroupKegiatanNames,
+  mergeMassPasteRows,
   parseKasImportTsv,
   parseKasMassPaste,
   skipKwitansiJenis,
@@ -254,5 +255,40 @@ describe("kas ledger", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].description).toBe("Beli Baterai");
     expect(rows[0].amount).toBe(36500);
+  });
+
+  it("parses mass paste with different dates per row", () => {
+    const rows = parseKasMassPaste(
+      "2026-06-01\tItem A\tRp100.000\n2026-06-15\tItem B\t200000",
+      { defaultDirection: "out", defaultTxnDate: "2026-01-01" },
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows[0].txnDate).toBe("2026-06-01");
+    expect(rows[1].txnDate).toBe("2026-06-15");
+  });
+
+  it("parses Indonesian date in mass paste first column", () => {
+    const rows = parseKasMassPaste("27 Januari 2026\tHonor\tRp500.000", {
+      defaultDirection: "out",
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].txnDate).toBe("2026-01-27");
+  });
+
+  it("mergeMassPasteRows appends and respects max", () => {
+    const existing = [
+      { txnDate: "2026-06-01", description: "A", direction: "out" as const, amount: "100" },
+    ];
+    const incoming = [
+      { txnDate: "2026-06-02", description: "B", direction: "out" as const, amount: "200" },
+    ];
+    const ok = mergeMassPasteRows(existing, incoming, 500);
+    expect("error" in ok).toBe(false);
+    if (!("error" in ok)) {
+      expect(ok.rows).toHaveLength(2);
+      expect(ok.added).toBe(1);
+    }
+    const fail = mergeMassPasteRows(existing, incoming, 1);
+    expect(fail).toEqual({ error: "max" });
   });
 });

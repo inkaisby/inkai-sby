@@ -1,3 +1,5 @@
+import { parseFlexibleIdDate } from "@/lib/parse-birth-date";
+
 const WIB = "Asia/Jakarta";
 
 export const KAS_MAX_BATCH = 500;
@@ -305,15 +307,27 @@ export function parseKasMassPaste(
     let amountOut = 0;
     let kegiatan = "";
 
-    if (/^\d{4}-\d{2}-\d{2}$/.test(parts[0]) || /^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/.test(parts[0])) {
-      txnDate = normalizeImportDate(parts[0]) ?? defaultTxnDate;
+    const col0Date = normalizeImportDate(parts[0]);
+    if (col0Date && parts.length >= 3) {
+      txnDate = col0Date;
       description = parts[1] ?? "";
       amountIn = parseMoney(parts[2]);
       amountOut = parseMoney(parts[3]);
       kegiatan = parts[4] ?? "";
       if (!description) continue;
       if (amountIn > 0 && amountOut > 0) continue;
-      if (amountIn <= 0 && amountOut <= 0) continue;
+      if (amountIn <= 0 && amountOut <= 0) {
+        const single = parseMoney(parts[2]);
+        if (single <= 0) continue;
+        out.push({
+          txnDate,
+          description,
+          kegiatan,
+          direction: defaultDirection,
+          amount: single,
+        });
+        continue;
+      }
       out.push({
         txnDate,
         description,
@@ -364,13 +378,36 @@ function parseMoney(raw: string | undefined): number {
 }
 
 function normalizeImportDate(raw: string): string | null {
-  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const trimmed = raw.trim();
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  const dmy = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  const dmy = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
   if (dmy) {
     return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
   }
-  return null;
+  return parseFlexibleIdDate(trimmed);
+}
+
+export type MassPasteRowLike = {
+  txnDate: string;
+  description: string;
+  direction: "in" | "out";
+  amount: string | number;
+};
+
+export function isMassRowFilled(row: MassPasteRowLike): boolean {
+  return Boolean(row.description.trim()) || Number(row.amount) > 0;
+}
+
+export function mergeMassPasteRows<T extends MassPasteRowLike>(
+  existing: readonly T[],
+  incoming: readonly T[],
+  max: number,
+): { rows: T[]; added: number } | { error: "max" } {
+  const kept = existing.filter(isMassRowFilled);
+  const merged = [...kept, ...incoming];
+  if (merged.length > max) return { error: "max" };
+  return { rows: merged, added: incoming.length };
 }
 
 export function kasKpis(rows: KasLedgerRow[], opening: number) {
