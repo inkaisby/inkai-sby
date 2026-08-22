@@ -267,6 +267,19 @@ export function KasLedgerClient({
     setAddOpen(true);
   }
 
+  function openAddToKegiatan(kegiatan: string) {
+    setPostScopeKey(scopeKey || `${data?.scope.type}:${data?.scope.id}`);
+    setEditId(null);
+    setForm({
+      txnDate: ymdWib(),
+      description: "",
+      kegiatan,
+      direction: "out",
+      amount: "",
+    });
+    setAddOpen(true);
+  }
+
   function openMassDialog() {
     setPostScopeKey(scopeKey || `${data?.scope.type}:${data?.scope.id}`);
     setMassPasteText("");
@@ -932,6 +945,18 @@ export function KasLedgerClient({
                             onClick={() => openTransferKegiatan(row.kegiatan)}
                           >
                             Pindah kegiatan
+                          </Button>
+                        ) : null}
+                        {data?.canWrite ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => openAddToKegiatan(row.kegiatan)}
+                          >
+                            <Plus className="h-3 w-3" />
+                            Tambah item
                           </Button>
                         ) : null}
                       </div>
