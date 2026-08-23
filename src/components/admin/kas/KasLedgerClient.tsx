@@ -478,9 +478,7 @@ export function KasLedgerClient({
   }
 
   function canInlineEdit(row: KasLedgerRow) {
-    return Boolean(
-      data?.canWrite && row.sourceType === "manual" && !monthLocked(row.txnDate),
-    );
+    return Boolean(data?.canWrite && !monthLocked(row.txnDate));
   }
 
   async function handleInlinePatch(
@@ -1026,7 +1024,7 @@ export function KasLedgerClient({
                       ? ` · ${(data?.scopes ?? []).find((s) => `${s.type}:${s.id}` === scopeKey)?.label ?? scopeLabel}`
                       : ` · ${scopeLabel}`}
                     {data?.canWrite
-                      ? " · Klik sel baris manual untuk ubah"
+                      ? " · Klik sel untuk ubah"
                       : ""}
                   </p>
                 </div>
@@ -1186,7 +1184,8 @@ export function KasLedgerClient({
                           />
                           {data?.canWrite ? (
                             <td className="p-1 text-center">
-                              {editable ? (
+                              {row.sourceType === "manual" &&
+                              !monthLocked(row.txnDate) ? (
                                 <Button
                                   type="button"
                                   size="icon"
@@ -1403,7 +1402,7 @@ export function KasLedgerClient({
                         >
                           {row.reconStatus === "matched" ? "Cocok rekening" : "Belum rekon"}
                         </Button>
-                        {data?.canWrite && row.sourceType === "manual" && !monthLocked(row.txnDate) ? (
+                        {data?.canWrite && !monthLocked(row.txnDate) ? (
                           <>
                             <Button
                               type="button"
@@ -1415,16 +1414,18 @@ export function KasLedgerClient({
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8"
-                              aria-label="Hapus"
-                              onClick={() => setDeleteId(row.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {row.sourceType === "manual" ? (
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8"
+                                aria-label="Hapus"
+                                onClick={() => setDeleteId(row.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            ) : null}
                           </>
                         ) : null}
                       </div>

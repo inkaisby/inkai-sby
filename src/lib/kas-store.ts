@@ -353,7 +353,7 @@ export async function updateManualKas(
   },
 ) {
   const row = await prisma.kasEntry.findFirst({
-    where: { id, scopeType: scope.type, scopeId: scope.id, sourceType: "manual" },
+    where: { id, scopeType: scope.type, scopeId: scope.id },
   });
   if (!row) return null;
   const txnDate = patch.txnDate ?? row.txnDate.toISOString().slice(0, 10);

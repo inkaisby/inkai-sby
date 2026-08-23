@@ -42,8 +42,8 @@ export async function PATCH(request: Request, context: Ctx) {
       const row = await updateManualKas(id, scope, parsed.data);
       if (!row) {
         return NextResponse.json(
-          { error: "Hanya baris manual yang dapat diedit" },
-          { status: 400 },
+          { error: "Baris tidak ditemukan" },
+          { status: 404 },
         );
       }
     }
