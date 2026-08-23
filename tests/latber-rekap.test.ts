@@ -57,6 +57,23 @@ describe("latber WA/rekap", () => {
     expect(text).toContain("FULAN");
     expect(text).toContain("1 × Rp 45.000");
     expect(text).toContain("*TOTAL disetor ke cabang: Rp 40.000*");
+    expect(text).not.toContain("Lokasi:");
+  });
+
+  it("Laporan WA ranting menyertakan lokasi bila diisi", () => {
+    const approved = [row({ memberId: "m1", fullName: "Fulan" })];
+    const text = buildLatberRantingWaReportText(
+      "Latihan Bersama — persiapan UKT",
+      "GADING",
+      approved,
+      45_000,
+      5_000,
+      "GOR UNESA",
+    );
+    expect(text).toContain("Lokasi: GOR UNESA");
+    expect(text.indexOf("Lokasi: GOR UNESA")).toBeLessThan(
+      text.indexOf("*Ranting/Dojo: GADING*"),
+    );
   });
 
   it("Laporan WA cabang merangkum ranting dan sabuk", () => {
@@ -73,6 +90,19 @@ describe("latber WA/rekap", () => {
     expect(text).toContain("*Total Ranting : 2*");
     expect(text).toContain("GADING = _1 peserta_");
     expect(text).toContain("*TOTAL SEMUA: 2 peserta*");
+    expect(text).not.toContain("Lokasi:");
+  });
+
+  it("Laporan WA cabang menyertakan lokasi bila diisi", () => {
+    const text = buildLatberCabangWaReportText(
+      "Latihan Bersama — persiapan UKT",
+      [row({ memberId: "m1", fullName: "A", dojoName: "GADING" })],
+      "GOR UNESA",
+    );
+    expect(text).toContain("Lokasi: GOR UNESA");
+    expect(text.indexOf("Lokasi: GOR UNESA")).toBeLessThan(
+      text.indexOf("*Total Ranting :"),
+    );
   });
 
   it("Salin WA Cormat menampilkan tanggal pelaksanaan sebelum countdown", () => {

@@ -571,6 +571,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 
 | Tanggal | Keterangan |
 |---------|------------|
+| 23 Agustus 2026 | **Fix Latber Daftar + lokasi Laporan WA:** tombol **Daftar** Belum Daftar tidak stuck `Mendaftar…` (`pendingId === registrationId` saat keduanya `null`); Laporan WA cabang/ranting menyertakan `Lokasi:` dari `eventLocation` periode; inventaris §6/§15 |
 | 23 Agustus 2026 | **Latber walk-in Tambah Peserta tanpa service token:** `POST /api/public/latber/add-guest` fallback Prisma stub PENDING (tanpa 503) bila `INKAI_SERVICE_TOKEN` kosong; inventaris §13/§15 |
 | 23 Agustus 2026 | **Latber peserta tamu + Tunai + cetak:** Tambah Peserta (stub PENDING + `latber-guest`); promote keanggotaan admin; publik Cetak roster pilih ranting; admin `mark_cash`/badge Tunai; nota Status+Hadir; `isLatberPaidStatus`; void kas saat DELETE; inventaris §4/§6/§9.3b/§13/§15 |
 | 21 Agustus 2026 | **Fix login bounce produksi:** `location.assign` pasca-login; `inkai_token` di `events.signIn` + JWT server-only (bukan session klien); gate `/login`; dashboard error ≠ logout; tes helper auth |

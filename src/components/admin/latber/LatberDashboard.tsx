@@ -334,6 +334,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
 
   async function handleRegister(memberId: string) {
     if (!props.selectedPeriodId) return;
+    if (pendingId != null) return;
     setPendingId(memberId);
     try {
       const res = await fetchWithTimeout("/api/admin/latber/register", {
@@ -666,13 +667,14 @@ export function LatberDashboard(props: LatberDashboardProps) {
 
   function sendCabangWaReport(dojoId: string | null) {
     const title = props.selectedPeriod?.title ?? "Latihan Bersama";
+    const eventLocation = props.periodMeta.eventLocation?.trim() || null;
     const approvedAll = filterLatberApprovedRows(rows);
     if (approvedAll.length === 0) {
       showError("Belum ada peserta disetujui");
       return;
     }
     const text = !dojoId
-      ? buildLatberCabangWaReportText(title, approvedAll)
+      ? buildLatberCabangWaReportText(title, approvedAll, eventLocation)
       : (() => {
           const approved = approvedAll.filter((r) => r.dojoId === dojoId);
           if (approved.length === 0) {
@@ -689,6 +691,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
             approved,
             props.feeAmount,
             props.komisiRanting,
+            eventLocation,
           );
         })();
     if (!text) return;
@@ -718,6 +721,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
       approved,
       props.feeAmount,
       props.komisiRanting,
+      props.periodMeta.eventLocation?.trim() || null,
     );
     openWaReport(text);
   }
@@ -1042,7 +1046,10 @@ export function LatberDashboard(props: LatberDashboardProps) {
                 ) : (
                   displayRows.map((row, i) => {
                     const status = resolveLatberDisplayStatus(row);
-                    const busy = pendingId === row.registrationId || pendingId === row.memberId;
+                    const busy =
+                      pendingId != null &&
+                      (pendingId === row.registrationId ||
+                        pendingId === row.memberId);
                     return (
                       <TableRow key={row.registrationId ?? row.memberId}>
                         <TableCell>{i + 1}</TableCell>

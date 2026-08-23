@@ -438,6 +438,11 @@ function latberWaRankBucketLabel(row: LatberMemberRow): string {
   return latberWaRankBucketLabelFromRank(row.currentRank);
 }
 
+function latberWaLocationLine(eventLocation?: string | null): string | null {
+  const loc = eventLocation?.trim();
+  return loc ? `Lokasi: ${loc}` : null;
+}
+
 function compareLatberWaRankBuckets(a: string, b: string): number {
   const parse = (label: string) => {
     const kyu = label.match(/^kyu\s*(\d+)$/i);
@@ -461,6 +466,7 @@ export function buildLatberRantingWaReportText(
   approvedRows: LatberMemberRow[],
   feeAmount: number,
   komisiRanting: number,
+  eventLocation?: string | null,
 ): string {
   const lines = approvedRows.map((r, i) => formatLatberWaParticipantLine(r, i));
   const n = approvedRows.length;
@@ -470,6 +476,7 @@ export function buildLatberRantingWaReportText(
 
   return [
     `*${periodTitle}*`,
+    latberWaLocationLine(eventLocation),
     `*Ranting/Dojo: ${dojoName}*`,
     "",
     "*Peserta yang terdaftar*",
@@ -480,13 +487,16 @@ export function buildLatberRantingWaReportText(
     `Subtotal (Biaya Latber): _${formatLatberRupiahPlain(subtotal)}_`,
     `Komisi Ranting (${n} × ${formatLatberRupiahPlain(komisiRanting)}): - ${formatLatberRupiahPlain(komisiTotal)}`,
     `*TOTAL disetor ke cabang: ${formatLatberRupiahPlain(grandTotal)}*`,
-  ].join("\n");
+  ]
+    .filter((line): line is string => line != null)
+    .join("\n");
 }
 
 /** Laporan WA admin cabang: ringkasan jumlah per ranting + sebaran sabuk. */
 export function buildLatberCabangWaReportText(
   periodTitle: string,
   approvedRows: LatberMemberRow[],
+  eventLocation?: string | null,
 ): string {
   const byDojo = new Map<string, { dojoName: string; count: number }>();
   const byRank = new Map<string, number>();
@@ -522,6 +532,7 @@ export function buildLatberCabangWaReportText(
 
   return [
     `*${periodTitle}*`,
+    latberWaLocationLine(eventLocation),
     "",
     `*Total Ranting : ${rantingList.length}*`,
     "",
@@ -532,7 +543,9 @@ export function buildLatberCabangWaReportText(
     ...rankLines,
     "",
     `*TOTAL SEMUA: ${approvedRows.length} peserta*`,
-  ].join("\n");
+  ]
+    .filter((line): line is string => line != null)
+    .join("\n");
 }
 
 const LATBER_WIB = "Asia/Jakarta";
