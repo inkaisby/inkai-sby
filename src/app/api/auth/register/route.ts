@@ -137,6 +137,22 @@ export async function POST(request: Request) {
       );
     }
 
+    // Tamu Latber dengan nama sama — minta lengkapi di admin, bukan buat member kedua.
+    if (duplicates.length > 0) {
+      const { loadLatberGuestFlags } = await import("@/lib/latber-guest");
+      const guestFlags = await loadLatberGuestFlags(duplicates.map((d) => d.id));
+      const guestHit = duplicates.find((d) => guestFlags.has(d.id));
+      if (guestHit) {
+        return NextResponse.json(
+          {
+            error: `${guestHit.fullName} sudah terdaftar sebagai peserta tamu Latber. Lengkapi keanggotaan di admin Latber (bukan daftar mandiri ulang).`,
+            code: "LATBER_GUEST_EXISTS",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     const { res, data } = await inkaiFetch(
       "/v1/auth/register",
       {

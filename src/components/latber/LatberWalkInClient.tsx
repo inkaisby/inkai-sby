@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Copy,
   Loader2,
+  Printer,
   Search,
   UserPlus,
   Users,
@@ -34,6 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import RegisterForm from "@/components/auth/RegisterForm";
+import { LatberAddGuestDialog } from "@/components/latber/LatberAddGuestDialog";
 import { UktFloatingCountdown } from "@/components/admin/ukt/UktFloatingCountdown";
 import { RantingCheckboxFilter } from "@/components/public/RantingCheckboxFilter";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
@@ -42,10 +44,12 @@ import {
   buildLatberPublicCormatWaText,
   formatLatberCurrency,
   formatLatberPeriodLabel,
+  isLatberPaidStatus,
   LATBER_PAYMENT,
   latberStatusBadgeClass,
   type LatberPaymentInfo,
 } from "@/lib/latber";
+import { printLatberRosterDocument } from "@/lib/latber-roster-print-html";
 import { parseMemberCardScanPayload } from "@/lib/latber-card-scan";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { formatRegisteredAtWib } from "@/lib/format-wib";
@@ -69,6 +73,7 @@ type PeriodPayload = {
   feeAmount: number;
   paymentEnabled: boolean;
   payment?: LatberPaymentInfo;
+  dojos?: Array<{ id: string; name: string }>;
 };
 
 type Registrant = {
@@ -82,6 +87,8 @@ type Registrant = {
   statusLabel: string;
   displayStatus: string;
   createdAt: string;
+  isLatberGuest?: boolean;
+  paymentMethod?: string | null;
 };
 
 type Suggestion = {
@@ -136,6 +143,9 @@ export function LatberWalkInClient({
   const [pendingMember, setPendingMember] = useState<Suggestion | null>(null);
   const [registering, setRegistering] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
+  const [printDojoIds, setPrintDojoIds] = useState<Set<string>>(() => new Set());
   const [scanOpen, setScanOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -367,7 +377,7 @@ export function LatberWalkInClient({
     for (const r of filteredRows) {
       if (r.displayStatus === "belum_bayar") belumBayar += 1;
       else if (r.displayStatus === "menunggu_verifikasi") menungguVerifikasi += 1;
-      else if (r.displayStatus === "lunas") lunas += 1;
+      else if (isLatberPaidStatus(r.displayStatus)) lunas += 1;
     }
     return {
       total: filteredRows.length,
@@ -609,7 +619,7 @@ export function LatberWalkInClient({
   );
 
   function renderRowActions(row: Registrant) {
-    const paid = row.displayStatus === "lunas";
+    const paid = isLatberPaidStatus(row.displayStatus);
     const waiting = row.displayStatus === "menunggu_verifikasi";
     const unpaid = row.displayStatus === "belum_bayar";
     return (
@@ -960,13 +970,45 @@ export function LatberWalkInClient({
               <Camera className="mr-1 h-4 w-4" />
               Scan QR
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10"
+              disabled={!periodId || registrants.length === 0}
+              onClick={() => {
+                const names = new Set(
+                  filteredRows.length > 0
+                    ? filteredRows.map((r) => r.dojoName)
+                    : registrants.map((r) => r.dojoName),
+                );
+                if (selectedRanting.size > 0) {
+                  setPrintDojoIds(new Set(selectedRanting));
+                } else {
+                  setPrintDojoIds(names);
+                }
+                setPrintOpen(true);
+              }}
+            >
+              <Printer className="mr-1 h-4 w-4" />
+              Cetak
+            </Button>
             {registrationOpen ? (
               <Button
                 type="button"
                 className="h-10 bg-inkai-red text-white hover:bg-inkai-red/90"
-                onClick={() => setShowAddModal(true)}
+                onClick={() => setShowGuestModal(true)}
               >
                 <UserPlus className="mr-1 h-4 w-4" />
+                Tambah Peserta
+              </Button>
+            ) : null}
+            {registrationOpen ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                onClick={() => setShowAddModal(true)}
+              >
                 Tambah Anggota
               </Button>
             ) : null}
@@ -1116,7 +1158,19 @@ export function LatberWalkInClient({
                   )}
                 >
                   <TableCell>{i + 1}</TableCell>
-                  <TableCell>{row.nia || "—"}</TableCell>
+                  <TableCell>
+                    <span className="inline-flex flex-wrap items-center gap-1">
+                      {row.nia || "—"}
+                      {row.isLatberGuest ? (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-400 text-[10px] text-amber-800"
+                        >
+                          Tamu
+                        </Badge>
+                      ) : null}
+                    </span>
+                  </TableCell>
                   <TableCell
                     className={cn(
                       LATBER_NAME_STICKY_CELL,
@@ -1172,6 +1226,160 @@ export function LatberWalkInClient({
               }
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {periodId && registrationOpen ? (
+        <LatberAddGuestDialog
+          open={showGuestModal}
+          onOpenChange={setShowGuestModal}
+          eventId={periodId}
+          dojos={period?.dojos ?? []}
+          apiPath="/api/public/latber/add-guest"
+          onRegistered={async () => {
+            await reload();
+          }}
+          onRegisterExisting={(memberId) => void handleRegister(memberId)}
+        />
+      ) : null}
+
+      <Dialog
+        open={printOpen}
+        onOpenChange={setPrintOpen}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cetak daftar peserta</DialogTitle>
+            <DialogDescription>
+              {period?.title
+                ? formatLatberPeriodLabel(period.title)
+                : "Latihan Bersama"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground">
+                Pilih ranting
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => {
+                  const all = new Set(
+                    [...new Set(registrants.map((r) => r.dojoName))],
+                  );
+                  if (printDojoIds.size === all.size) {
+                    setPrintDojoIds(new Set());
+                  } else {
+                    setPrintDojoIds(all);
+                  }
+                }}
+              >
+                {printDojoIds.size ===
+                new Set(registrants.map((r) => r.dojoName)).size
+                  ? "Hapus semua"
+                  : "Pilih semua"}
+              </Button>
+            </div>
+            <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-2">
+              {[...new Set(registrants.map((r) => r.dojoName))]
+                .sort((a, b) => a.localeCompare(b, "id"))
+                .map((name) => {
+                  const count = registrants.filter(
+                    (r) => r.dojoName === name,
+                  ).length;
+                  return (
+                    <label
+                      key={name}
+                      className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-muted/60"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 accent-inkai-red"
+                        checked={printDojoIds.has(name)}
+                        onChange={() => {
+                          setPrintDojoIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(name)) next.delete(name);
+                            else next.add(name);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className="flex-1 font-medium">{name}</span>
+                      <span className="text-muted-foreground">
+                        {count} peserta
+                      </span>
+                    </label>
+                  );
+                })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {printDojoIds.size} ranting ·{" "}
+              {
+                registrants.filter((r) => printDojoIds.has(r.dojoName)).length
+              }{" "}
+              peserta
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPrintOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              className="bg-inkai-red text-white hover:bg-inkai-red/90"
+              disabled={
+                printDojoIds.size === 0 ||
+                registrants.filter((r) => printDojoIds.has(r.dojoName))
+                  .length === 0
+              }
+              onClick={() => {
+                const rows = registrants.filter((r) =>
+                  printDojoIds.has(r.dojoName),
+                );
+                const names = [...printDojoIds].sort((a, b) =>
+                  a.localeCompare(b, "id"),
+                );
+                const showRanting = names.length > 1;
+                const dojoLabel =
+                  names.length === 1
+                    ? names[0]
+                    : `GABUNGAN (${names.join(", ")})`;
+                printLatberRosterDocument({
+                  periodTitle: period?.title || "Latihan Bersama",
+                  dojoLabel,
+                  participantCount: rows.length,
+                  showRantingColumn: showRanting,
+                  rows: rows.map((r, i) => ({
+                    no: i + 1,
+                    nia: r.nia || "—",
+                    nama: formatMemberName(r.fullName),
+                    ranting: r.dojoName,
+                    sabuk: r.currentRank || "—",
+                    status: r.statusLabel,
+                    tglDaftar: formatRegisteredAtWib(r.createdAt),
+                  })),
+                  origin: window.location.origin,
+                  printedAt: new Date().toLocaleDateString("id-ID", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  }),
+                });
+                setPrintOpen(false);
+              }}
+            >
+              <Printer className="mr-1 h-4 w-4" />
+              Cetak
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -56,7 +56,7 @@ export async function notifyLatberStatusChange(opts: {
     title: `Latihan Bersama — ${label}`,
     content: `${opts.memberName}: status Latihan Bersama ${opts.periodTitle} diperbarui menjadi ${label}.${opts.extra ? ` ${opts.extra}` : ""}`,
     type:
-      opts.displayStatus === "lunas"
+      opts.displayStatus === "lunas" || opts.displayStatus === "tunai"
         ? "SUCCESS"
         : opts.displayStatus === "ditolak"
           ? "WARNING"

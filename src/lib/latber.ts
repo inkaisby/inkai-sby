@@ -54,6 +54,7 @@ export type LatberDisplayStatus =
   | "belum_bayar"
   | "menunggu_verifikasi"
   | "lunas"
+  | "tunai"
   | "ditolak"
   | "batal";
 
@@ -70,10 +71,23 @@ export type LatberMemberRow = {
   billingId?: string | null;
   billingAmount?: number | null;
   billingStatus?: string | null;
+  /** Payment.paymentMethod — CASH → status Tunai. */
+  paymentMethod?: string | null;
   selfRegistration?: boolean;
   memberPaymentConfirmedAt?: string | null;
   /** ISO `EventRegistration.createdAt`; null untuk Belum Daftar. */
   registeredAt?: string | null;
+  /** Stub walk-in di luar keanggotaan (flag AppSetting). */
+  isLatberGuest?: boolean;
+  memberStatus?: string | null;
+  gender?: string | null;
+  birthPlace?: string | null;
+  birthDate?: string | null;
+  address?: string | null;
+  nik?: string | null;
+  phoneNumber?: string | null;
+  hasAccount?: boolean;
+  membershipReady?: boolean;
 };
 
 export type LatberPeriodOption = {
@@ -215,12 +229,23 @@ export function resolveLatberDisplayStatus(row: LatberMemberRow): LatberDisplayS
     if (row.memberPaymentConfirmedAt) return "menunggu_konfirmasi_ranting";
     return "menunggu_terima_ranting";
   }
-  if (isLatberBillingPaid(row)) return "lunas";
+  if (isLatberBillingPaid(row)) {
+    const method = String(row.paymentMethod ?? "").toUpperCase();
+    if (method === "CASH") return "tunai";
+    return "lunas";
+  }
   if (String(row.billingStatus ?? "").toUpperCase() === "WAITING_VERIFICATION") {
     return "menunggu_verifikasi";
   }
   if (row.billingStatus === "PENDING" || row.registrationId) return "belum_bayar";
   return "belum_bayar";
+}
+
+/** Lunas transfer/QRIS atau Tunai kasir — ikut nota, KPI setor, rekap. */
+export function isLatberPaidStatus(
+  status: LatberDisplayStatus | string | null | undefined,
+): boolean {
+  return status === "lunas" || status === "tunai";
 }
 
 export function latberDisplayStatusLabel(status: LatberDisplayStatus): string {
@@ -231,6 +256,7 @@ export function latberDisplayStatusLabel(status: LatberDisplayStatus): string {
     belum_bayar: "Belum Bayar",
     menunggu_verifikasi: "Menunggu Verifikasi",
     lunas: "Lunas",
+    tunai: "Tunai",
     ditolak: "Ditolak",
     batal: "Batal",
   };
@@ -240,6 +266,7 @@ export function latberDisplayStatusLabel(status: LatberDisplayStatus): string {
 /** Warna badge status Latber — dipakai admin dan roster publik. */
 export function latberStatusBadgeClass(status: string): string {
   if (status === "lunas") return "bg-emerald-600 text-white";
+  if (status === "tunai") return "bg-teal-600 text-white";
   if (status === "menunggu_verifikasi" || status === "belum_bayar") {
     return "bg-amber-500/15 text-amber-800";
   }
@@ -273,7 +300,9 @@ export function buildLatberNotaTotals(
   komisiTotal: number;
   grandTotal: number;
 } {
-  const paid = rows.filter((r) => resolveLatberDisplayStatus(r) === "lunas");
+  const paid = rows.filter((r) =>
+    isLatberPaidStatus(resolveLatberDisplayStatus(r)),
+  );
   const paidCount = paid.length;
   const subtotal = paidCount * feeAmount;
   const komisiTotal = paidCount * komisiRanting;
@@ -563,7 +592,7 @@ export function buildLatberPublicCormatWaText(opts: {
     byDojo.set(name, (byDojo.get(name) ?? 0) + 1);
     const rank = latberWaRankBucketLabelFromRank(row.currentRank);
     byRank.set(rank, (byRank.get(rank) ?? 0) + 1);
-    if (row.displayStatus === "lunas") lunas += 1;
+    if (isLatberPaidStatus(row.displayStatus)) lunas += 1;
     else if (row.displayStatus === "menunggu_verifikasi") menungguVerifikasi += 1;
     else if (row.displayStatus === "belum_bayar") belumBayar += 1;
   }

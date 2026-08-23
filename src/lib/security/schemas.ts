@@ -291,6 +291,43 @@ export const latberRegisterSchema = z.object({
   memberId: z.string().uuid(),
 });
 
+export const latberGuestAddSchema = z.object({
+  eventId: z.string().uuid(),
+  fullName: z
+    .string()
+    .trim()
+    .min(2, "Nama minimal 2 karakter")
+    .max(100, "Nama terlalu panjang"),
+  dojoId: z.string().uuid(),
+  currentRank: optionalBlankString(
+    z.string().trim().min(2).max(64),
+  ),
+  phoneNumber: optionalBlankString(
+    z.string().trim().min(10, "Nomor telepon tidak valid").max(20),
+  ),
+  /** true = lanjut walau ada soft-duplicate nama mirip. */
+  confirmSoftDuplicate: z.boolean().optional(),
+});
+
+export const latberPromoteMembershipSchema = z.object({
+  memberId: z.string().uuid(),
+  registrationId: z.string().uuid().optional(),
+  fullName: z.string().trim().min(2).max(100).optional(),
+  gender: optionalBlankString(z.enum(["L", "P"])),
+  birthPlace: optionalBlankString(z.string().trim().max(100)),
+  birthDate: optionalBlankString(z.string()),
+  address: optionalBlankString(z.string().trim().max(300)),
+  nik: optionalBlankString(
+    z.string().trim().regex(/^\d{16}$/, "NIK harus 16 digit"),
+  ),
+  phoneNumber: optionalBlankString(
+    z.string().trim().min(10).max(20),
+  ),
+  nia: optionalBlankString(z.string().trim().min(2).max(32)),
+  currentRank: optionalBlankString(z.string().trim().min(2).max(64)),
+  dojoId: z.string().uuid().optional(),
+});
+
 export const latberRegistrationUpdateSchema = z.object({
   action: z
     .enum([
@@ -298,6 +335,7 @@ export const latberRegistrationUpdateSchema = z.object({
       "reject_self_registration",
       "submit_for_verification",
       "mark_paid",
+      "mark_cash",
     ])
     .optional(),
   memberId: z.string().uuid().optional(),

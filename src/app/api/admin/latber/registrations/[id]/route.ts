@@ -25,7 +25,7 @@ import {
 } from "@/lib/latber-notify";
 import { loadLatberPeriodMeta } from "@/lib/latber-period-meta-store";
 import { resolveLatberPeriodFees } from "@/lib/latber";
-import { postKasFromLatberPaid } from "@/lib/kas-hooks";
+import { postKasFromLatberPaid, voidKasFromBilling } from "@/lib/kas-hooks";
 import {
   creditLatberAttendanceForPaidRegistration,
   removeLatberAttendanceCredit,
@@ -500,6 +500,211 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
   }
 
+  if (data.action === "mark_cash") {
+    const localReg = await prisma.eventRegistration.findFirst({
+      where: { id },
+      select: {
+        status: true,
+        memberId: true,
+        eventId: true,
+        member: { select: { dojoId: true, fullName: true, nia: true } },
+      },
+    });
+    if (!localReg) {
+      return NextResponse.json(
+        { error: "Pendaftaran tidak ditemukan" },
+        { status: 404 },
+      );
+    }
+
+    if (role === "ADMIN_DOJO") {
+      const allowlist = getManagedDojoIdsFromUser(authResult.user);
+      if (allowlist.length === 0) {
+        return NextResponse.json(
+          { error: "Ranting tidak terkonfigurasi" },
+          { status: 403 },
+        );
+      }
+      if (
+        !localReg.member.dojoId ||
+        !allowlist.includes(localReg.member.dojoId)
+      ) {
+        return NextResponse.json(
+          { error: "Pendaftaran di luar ranting Anda" },
+          { status: 403 },
+        );
+      }
+    }
+
+    const selfMeta = await loadLatberSelfRegistrationMeta(
+      localReg.eventId,
+      localReg.memberId,
+    );
+    const linkedBilling = await prisma.billing.findFirst({
+      where: { registrationId: id, isDeleted: false },
+      select: { id: true },
+    });
+    const pendingSelf =
+      String(localReg.status).toUpperCase() === "PENDING" &&
+      (Boolean(selfMeta) || !linkedBilling);
+    if (pendingSelf) {
+      return NextResponse.json(
+        {
+          error:
+            "Daftar mandiri harus diterima ranting (Terima) sebelum Tunai",
+        },
+        { status: 400 },
+      );
+    }
+
+    const unpaidBilling = await prisma.billing.findFirst({
+      where: {
+        registrationId: id,
+        isDeleted: false,
+        status: { notIn: ["PAID", "SUCCESS", "CANCELLED"] },
+      },
+      select: { id: true, amount: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!unpaidBilling) {
+      const paidBilling = await prisma.billing.findFirst({
+        where: {
+          registrationId: id,
+          isDeleted: false,
+          status: { in: ["PAID", "SUCCESS"] },
+        },
+        select: {
+          id: true,
+          payment: { select: { paymentMethod: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (paidBilling) {
+        if (
+          String(paidBilling.payment?.paymentMethod ?? "").toUpperCase() !==
+          "CASH"
+        ) {
+          await prisma.payment.upsert({
+            where: { billingId: paidBilling.id },
+            create: {
+              billingId: paidBilling.id,
+              paymentMethod: "CASH",
+              paidAt: new Date(),
+            },
+            update: {
+              paymentMethod: "CASH",
+              paidAt: new Date(),
+            },
+          });
+        }
+        return NextResponse.json({
+          success: true,
+          alreadyPaid: true,
+          billingId: paidBilling.id,
+          billingStatus: "PAID",
+          paymentMethod: "CASH",
+        });
+      }
+      return NextResponse.json(
+        { error: "Tagihan Latihan Bersama belum tersedia atau sudah lunas" },
+        { status: 400 },
+      );
+    }
+
+    const billing = unpaidBilling;
+
+    let verified = false;
+    for (const attempt of [
+      {
+        path: "/v1/billing/pay",
+        method: "POST" as const,
+        body: {
+          billingId: billing.id,
+          status: "PAID",
+          paymentMethod: "CASH",
+          proofUrl: "—",
+          adminNotes: "Lunas tunai — Latihan Bersama",
+        },
+      },
+      {
+        path: `/v1/billing/${billing.id}/status`,
+        method: "PATCH" as const,
+        body: { status: "PAID", adminNotes: "Lunas tunai — Latihan Bersama" },
+      },
+    ]) {
+      const { res } = await inkaiFetch(
+        attempt.path,
+        { method: attempt.method, body: JSON.stringify(attempt.body) },
+        authResult.token,
+      );
+      if (res.ok) {
+        verified = true;
+        break;
+      }
+    }
+
+    await prisma.billing.update({
+      where: { id: billing.id },
+      data: { status: "PAID" },
+    }).catch(() => undefined);
+
+    await prisma.payment.upsert({
+      where: { billingId: billing.id },
+      create: {
+        billingId: billing.id,
+        paymentMethod: "CASH",
+        paidAt: new Date(),
+      },
+      update: {
+        paymentMethod: "CASH",
+        paidAt: new Date(),
+      },
+    });
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "LATBER_MARK_CASH",
+      details: `Cash Latber payment reg=${id} billing=${billing.id}${verified ? "" : " (local)"}`,
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      token: authResult.token,
+    });
+
+    const periodMeta = await loadLatberPeriodMeta(
+      authResult.token,
+      localReg.eventId,
+    );
+    const fees = resolveLatberPeriodFees(periodMeta);
+    const eventTitle = await prisma.event
+      .findFirst({ where: { id: localReg.eventId }, select: { title: true } })
+      .then((e) => e?.title ?? "Latihan Bersama");
+    await postKasFromLatberPaid({
+      user: authResult.user,
+      billingId: billing.id,
+      feeAmount: unpaidBilling.amount ?? fees.feeAmount,
+      komisiRanting: fees.komisiRanting,
+      memberName: localReg.member.fullName ?? "Peserta",
+      memberNia: localReg.member.nia,
+      periodTitle: eventTitle,
+      memberDojoId: localReg.member.dojoId,
+    }).catch((err) => console.error("[Latber mark_cash] kas", err));
+    void creditLatberAttendanceForPaidRegistration({
+      memberId: localReg.memberId,
+      eventId: localReg.eventId,
+      eventAt: periodMeta.eventAt ?? null,
+      dojoId: localReg.member.dojoId,
+    }).catch((err) => console.error("[Latber mark_cash] attendance credit", err));
+
+    return NextResponse.json({
+      success: true,
+      billingId: billing.id,
+      billingStatus: "PAID",
+      paymentMethod: "CASH",
+    });
+  }
+
   if (data.action === "submit_for_verification") {
     const localReg = await prisma.eventRegistration.findFirst({
       where: { id },
@@ -659,6 +864,11 @@ export async function DELETE(request: Request, context: RouteContext) {
   }
 
   if (billingIds.size > 0) {
+    for (const billingId of billingIds) {
+      await voidKasFromBilling(billingId, authResult.user.id).catch((err) =>
+        console.error("[Latber DELETE] void kas", billingId, err),
+      );
+    }
     await deleteBillingsHard(token, billingIds, {
       continueOnFailure: Boolean(canForcePaid),
     });

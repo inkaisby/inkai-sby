@@ -13,6 +13,7 @@ import {
   Plus,
   Printer,
   RefreshCw,
+  UserPlus,
   Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +64,7 @@ import {
   formatLatberCurrency,
   formatLatberPeriodLabel,
   formatLatberRank,
+  isLatberPaidStatus,
   latberDisplayStatusLabel,
   latberStatusBadgeClass,
   resolveLatberDisplayStatus,
@@ -83,6 +85,8 @@ import { parseApiJson } from "@/lib/api-client";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { LatberPrintModal } from "@/components/admin/latber/LatberPrintModal";
 import { LatberSearchBar } from "@/components/admin/latber/LatberSearchBar";
+import { LatberPromoteMembershipDialog } from "@/components/admin/latber/LatberPromoteMembershipDialog";
+import { LatberAddGuestDialog } from "@/components/latber/LatberAddGuestDialog";
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 
 type LatberDashboardProps = {
@@ -184,6 +188,9 @@ export function LatberDashboard(props: LatberDashboardProps) {
   const [editSaving, setEditSaving] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [archiveLoading, setArchiveLoading] = useState(false);
+  const [guestOpen, setGuestOpen] = useState(false);
+  const [promoteRow, setPromoteRow] = useState<LatberMemberRow | null>(null);
+  const [confirmCash, setConfirmCash] = useState<LatberMemberRow | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{
     registrationId: string;
     force: boolean;
@@ -277,6 +284,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
         billingStatus?: string;
         status?: string;
         alreadyPaid?: boolean;
+        paymentMethod?: string;
       }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal memproses");
 
@@ -287,7 +295,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
           const next = { ...row };
           if (typeof data.billingStatus === "string") {
             next.billingStatus = data.billingStatus;
-          } else if (action === "mark_paid") {
+          } else if (action === "mark_paid" || action === "mark_cash") {
             next.billingStatus = "PAID";
           } else if (action === "submit_for_verification") {
             next.billingStatus = "WAITING_VERIFICATION";
@@ -302,6 +310,9 @@ export function LatberDashboard(props: LatberDashboardProps) {
             next.status = "REJECTED";
             next.selfRegistration = false;
             next.memberPaymentConfirmedAt = null;
+          }
+          if (action === "mark_cash") {
+            next.paymentMethod = data.paymentMethod || "CASH";
           }
           if (typeof data.status === "string") {
             next.status = data.status;
@@ -888,6 +899,18 @@ export function LatberDashboard(props: LatberDashboardProps) {
             Arsipkan
           </Button>
         )}
+
+        {props.selectedPeriodId && !periodLocked && !props.isArchiveView && (
+          <Button
+            type="button"
+            size="sm"
+            className="bg-inkai-red text-white hover:bg-inkai-red/90"
+            onClick={() => setGuestOpen(true)}
+          >
+            <UserPlus className="mr-1 h-4 w-4" />
+            Tambah Peserta
+          </Button>
+        )}
       </div>
 
       {periodLocked && props.selectedPeriodId && (
@@ -1024,7 +1047,19 @@ export function LatberDashboard(props: LatberDashboardProps) {
                       <TableRow key={row.registrationId ?? row.memberId}>
                         <TableCell>{i + 1}</TableCell>
                         <TableCell>{row.nia || "—"}</TableCell>
-                        <TableCell className="font-medium">{row.fullName}</TableCell>
+                        <TableCell className="font-medium">
+                          <span className="inline-flex flex-wrap items-center gap-1">
+                            {row.fullName}
+                            {row.isLatberGuest ? (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-400 text-[10px] text-amber-800"
+                              >
+                                Tamu
+                              </Badge>
+                            ) : null}
+                          </span>
+                        </TableCell>
                         <TableCell className="whitespace-nowrap text-sm">
                           {formatRegisteredAtWib(row.registeredAt)}
                         </TableCell>
@@ -1099,6 +1134,19 @@ export function LatberDashboard(props: LatberDashboardProps) {
                                 Bayar
                               </Button>
                             )}
+                            {(status === "belum_bayar" ||
+                              status === "menunggu_verifikasi") &&
+                              !periodLocked &&
+                              row.registrationId && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                disabled={busy}
+                                onClick={() => setConfirmCash(row)}
+                              >
+                                Tunai
+                              </Button>
+                            )}
                             {status === "menunggu_verifikasi" && isCabang && !periodLocked && (
                               <Button
                                 size="sm"
@@ -1114,9 +1162,64 @@ export function LatberDashboard(props: LatberDashboardProps) {
                                 Verifikasi
                               </Button>
                             )}
+                            {row.isLatberGuest &&
+                              row.registrationId &&
+                              !periodLocked && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busy}
+                                onClick={() => {
+                                  if (row.membershipReady) {
+                                    void (async () => {
+                                      setPendingId(row.memberId);
+                                      try {
+                                        const res = await fetchWithTimeout(
+                                          "/api/admin/latber/promote-membership",
+                                          {
+                                            method: "POST",
+                                            headers: {
+                                              "Content-Type": "application/json",
+                                            },
+                                            body: JSON.stringify({
+                                              memberId: row.memberId,
+                                              registrationId: row.registrationId,
+                                            }),
+                                          },
+                                        );
+                                        const data = await parseApiJson<{
+                                          error?: string;
+                                        }>(res);
+                                        if (!res.ok) {
+                                          showError(
+                                            data.error ||
+                                              "Gagal menambah keanggotaan",
+                                          );
+                                          return;
+                                        }
+                                        showSuccess("Keanggotaan diaktifkan");
+                                        refresh();
+                                      } catch (e) {
+                                        showError(
+                                          e instanceof Error
+                                            ? e.message
+                                            : "Gagal menambah keanggotaan",
+                                        );
+                                      } finally {
+                                        setPendingId(null);
+                                      }
+                                    })();
+                                  } else {
+                                    setPromoteRow(row);
+                                  }
+                                }}
+                              >
+                                Tambah keanggotaan
+                              </Button>
+                            )}
                             {row.registrationId &&
                               !periodLocked &&
-                              status !== "lunas" &&
+                              !isLatberPaidStatus(status) &&
                               status !== "ditolak" &&
                               status !== "batal" && (
                                 <Button
@@ -1129,7 +1232,8 @@ export function LatberDashboard(props: LatberDashboardProps) {
                                 </Button>
                               )}
                             {row.registrationId &&
-                              (status === "lunas" || status === "menunggu_verifikasi") &&
+                              (isLatberPaidStatus(status) ||
+                                status === "menunggu_verifikasi") &&
                               (isCabang || isDojoAdmin) && (
                                 <Button
                                   size="sm"
@@ -1342,7 +1446,9 @@ export function LatberDashboard(props: LatberDashboardProps) {
           open={printOpen}
           onOpenChange={setPrintOpen}
           periodTitle={props.selectedPeriod.title}
-          rows={rows.filter((r) => resolveLatberDisplayStatus(r) === "lunas")}
+          rows={rows.filter((r) =>
+            isLatberPaidStatus(resolveLatberDisplayStatus(r)),
+          )}
           dojos={props.dojos}
           feeAmount={props.feeAmount}
           komisiRanting={props.komisiRanting}
@@ -1365,6 +1471,57 @@ export function LatberDashboard(props: LatberDashboardProps) {
         variant="danger"
         loading={Boolean(pendingId && confirmDelete?.registrationId === pendingId)}
         onConfirm={() => void executeDelete()}
+      />
+
+      <InkaiConfirmDialog
+        open={Boolean(confirmCash)}
+        onOpenChange={(open) => !open && setConfirmCash(null)}
+        title="Tandai lunas tunai?"
+        description={
+          confirmCash
+            ? `${confirmCash.fullName} — ${formatLatberCurrency(props.feeAmount)}. Status menjadi Tunai; kas dan kredit kehadiran ikut dicatat.`
+            : ""
+        }
+        confirmLabel="Ya, Tunai"
+        cancelLabel="Batal"
+        loading={Boolean(
+          confirmCash &&
+            (pendingId === confirmCash.registrationId ||
+              pendingId === confirmCash.memberId),
+        )}
+        onConfirm={() => {
+          if (!confirmCash?.registrationId) return;
+          const regId = confirmCash.registrationId;
+          setConfirmCash(null);
+          void runAction(
+            regId,
+            { action: "mark_cash" },
+            "Lunas tunai",
+          );
+        }}
+      />
+
+      {props.selectedPeriodId && !periodLocked ? (
+        <LatberAddGuestDialog
+          open={guestOpen}
+          onOpenChange={setGuestOpen}
+          eventId={props.selectedPeriodId}
+          dojos={props.dojos}
+          defaultDojoId={
+            isDojoAdmin && props.dojos.length === 1 ? props.dojos[0].id : localDojo
+          }
+          lockDojo={isDojoAdmin && props.dojos.length === 1}
+          apiPath="/api/admin/latber/add-guest"
+          onRegistered={() => refresh()}
+          onRegisterExisting={(memberId) => void handleRegister(memberId)}
+        />
+      ) : null}
+
+      <LatberPromoteMembershipDialog
+        open={Boolean(promoteRow)}
+        onOpenChange={(open) => !open && setPromoteRow(null)}
+        row={promoteRow}
+        onPromoted={() => refresh()}
       />
 
       {isCabang ? (

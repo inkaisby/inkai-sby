@@ -211,9 +211,16 @@ export async function fetchLatberDashboardData(
             nia: true,
             currentRank: true,
             dojoId: true,
+            status: true,
+            gender: true,
+            birthPlace: true,
+            birthDate: true,
+            address: true,
+            nik: true,
+            userId: true,
             ...photoSelect,
             dojo: { select: { name: true } },
-            user: { select: { photoUrl: true } },
+            user: { select: { photoUrl: true, phoneNumber: true } },
           },
         },
       },
@@ -222,7 +229,7 @@ export async function fetchLatberDashboardData(
 
     const billingByReg = new Map<
       string,
-      { id: string; amount: number; status: string }
+      { id: string; amount: number; status: string; paymentMethod: string | null }
     >();
     if (registrations.length > 0) {
       const billings = await prisma.billing.findMany({
@@ -230,10 +237,23 @@ export async function fetchLatberDashboardData(
           registrationId: { in: registrations.map((r) => r.id) },
           isDeleted: false,
         },
-        select: { id: true, registrationId: true, amount: true, status: true },
+        select: {
+          id: true,
+          registrationId: true,
+          amount: true,
+          status: true,
+          payment: { select: { paymentMethod: true } },
+        },
       });
       for (const b of billings) {
-        if (b.registrationId) billingByReg.set(b.registrationId, b);
+        if (b.registrationId) {
+          billingByReg.set(b.registrationId, {
+            id: b.id,
+            amount: b.amount,
+            status: b.status,
+            paymentMethod: b.payment?.paymentMethod ?? null,
+          });
+        }
       }
     }
 
@@ -261,11 +281,30 @@ export async function fetchLatberDashboardData(
       }
     }
 
+    const { loadLatberGuestFlags, isMembershipReady } = await import(
+      "@/lib/latber-guest"
+    );
+    const guestFlags = await loadLatberGuestFlags(
+      registrations.map((r) => r.memberId),
+    );
+
     rows = registrations.map((reg) => {
       const m = reg.member;
       const bill = billingByReg.get(reg.id);
       const isPending = reg.status === "PENDING";
       const selfMeta = selfMetaByMember.get(m.id);
+      const guest = guestFlags.get(m.id);
+      const phoneFromUser = m.user?.phoneNumber ?? null;
+      const phoneNumber = guest?.phoneNumber ?? phoneFromUser;
+      const memberStatus = String(m.status ?? "");
+      const gender = m.gender ?? null;
+      const birthPlace = m.birthPlace ?? null;
+      const birthDate = m.birthDate
+        ? m.birthDate.toISOString().slice(0, 10)
+        : null;
+      const address = m.address ?? null;
+      const nik = m.nik ?? null;
+      const hasAccount = Boolean(m.userId || m.user);
       return {
         memberId: m.id,
         registrationId: reg.id,
@@ -282,9 +321,28 @@ export async function fetchLatberDashboardData(
         billingId: bill?.id ?? null,
         billingAmount: bill?.amount ?? fees.feeAmount,
         billingStatus: bill?.status ?? (isPending ? null : "PENDING"),
+        paymentMethod: bill?.paymentMethod ?? null,
         selfRegistration: isPending && Boolean(selfMeta),
         memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,
         registeredAt: reg.createdAt.toISOString(),
+        isLatberGuest: Boolean(guest),
+        memberStatus,
+        gender,
+        birthPlace,
+        birthDate,
+        address,
+        nik,
+        phoneNumber,
+        hasAccount,
+        membershipReady: isMembershipReady({
+          fullName: m.fullName,
+          dojoId: m.dojoId,
+          gender,
+          birthPlace,
+          birthDate,
+          address,
+          phoneNumber,
+        }),
       };
     });
   }
@@ -315,7 +373,7 @@ export function countLatberKpis(rows: LatberMemberRow[]) {
     const s = resolveLatberDisplayStatus(r);
     if (s === "belum_bayar") belumBayar++;
     else if (s === "menunggu_verifikasi") menungguVerifikasi++;
-    else if (s === "lunas") lunas++;
+    else if (s === "lunas" || s === "tunai") lunas++;
     else if (
       s === "menunggu_terima_ranting" ||
       s === "menunggu_konfirmasi_ranting"

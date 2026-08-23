@@ -13,6 +13,8 @@ import {
 import {
   formatLatberCurrency,
   formatLatberRank,
+  latberDisplayStatusLabel,
+  resolveLatberDisplayStatus,
   type LatberMemberRow,
 } from "@/lib/latber";
 import { printLatberNotaDocument } from "@/lib/latber-print-html";
@@ -145,6 +147,7 @@ export function LatberPrintModal({
           nia: r.nia || "—",
           nama: r.fullName,
           sabuk: formatLatberRank(r),
+          status: latberDisplayStatusLabel(resolveLatberDisplayStatus(r)),
           biaya: formatLatberCurrency(feeAmount),
         })),
         paidCount,
@@ -300,20 +303,22 @@ export function LatberPrintModal({
             <div className="col-span-2">PESERTA LUNAS : {paidCount} orang</div>
           </div>
 
-          <table className="mb-4 w-full border-collapse text-xs">
+          <table className="mb-4 w-full border-collapse text-[11px]">
             <thead>
               <tr className="border-b border-black text-left">
                 <th className="py-1 w-8 text-center">No</th>
                 <th className="py-1">NIA</th>
                 <th className="py-1">Nama</th>
                 <th className="py-1">Sabuk</th>
+                <th className="py-1">Status</th>
+                <th className="py-1 w-10 text-center">Hadir</th>
                 <th className="py-1 text-right">Biaya</th>
               </tr>
             </thead>
             <tbody>
               {filteredRows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-4 text-center text-muted-foreground">
+                  <td colSpan={7} className="py-4 text-center text-muted-foreground">
                     Belum ada peserta lunas
                   </td>
                 </tr>
@@ -322,8 +327,12 @@ export function LatberPrintModal({
                   <tr key={r.registrationId ?? r.memberId} className="border-b border-gray-200">
                     <td className="py-1 text-center">{i + 1}</td>
                     <td className="py-1">{r.nia || "—"}</td>
-                    <td className="py-1">{r.fullName}</td>
+                    <td className="py-1 break-words">{r.fullName}</td>
                     <td className="py-1">{formatLatberRank(r)}</td>
+                    <td className="py-1">
+                      {latberDisplayStatusLabel(resolveLatberDisplayStatus(r))}
+                    </td>
+                    <td className="py-1 text-center text-sm">☐</td>
                     <td className="py-1 text-right">{formatLatberCurrency(feeAmount)}</td>
                   </tr>
                 ))

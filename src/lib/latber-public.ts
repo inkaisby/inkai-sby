@@ -86,6 +86,8 @@ export type LatberPublicRegistrant = {
   statusLabel: string;
   displayStatus: string;
   createdAt: string;
+  isLatberGuest?: boolean;
+  paymentMethod?: string | null;
 };
 
 async function loadMetaForEvent(
@@ -304,7 +306,7 @@ export async function loadLatberPublicRegistrants(
   const regIds = regs.map((r) => r.id);
   const memberIds = regs.map((r) => r.memberId);
 
-  const [billings, selfMetaRows] = await Promise.all([
+  const [billings, selfMetaRows, guestFlags] = await Promise.all([
     prisma.billing.findMany({
       where: {
         registrationId: { in: regIds },
@@ -317,6 +319,7 @@ export async function loadLatberPublicRegistrants(
         baseFeeAmount: true,
         status: true,
         id: true,
+        payment: { select: { paymentMethod: true } },
       },
     }),
     prisma.appSetting.findMany({
@@ -327,6 +330,7 @@ export async function loadLatberPublicRegistrants(
       },
       select: { key: true, value: true },
     }),
+    (await import("@/lib/latber-guest")).loadLatberGuestFlags(memberIds),
   ]);
 
   const billingByReg = new Map(
@@ -343,6 +347,7 @@ export async function loadLatberPublicRegistrants(
   return regs.map((r) => {
     const billing = billingByReg.get(r.id);
     const selfMeta = selfByMember.get(r.memberId);
+    const guest = guestFlags.get(r.memberId);
     const row: LatberMemberRow = {
       memberId: r.memberId,
       registrationId: r.id,
@@ -355,9 +360,11 @@ export async function loadLatberPublicRegistrants(
       billingId: billing?.id ?? null,
       billingAmount: billing?.amount ?? fees.feeAmount,
       billingStatus: billing?.status ?? null,
+      paymentMethod: billing?.payment?.paymentMethod ?? null,
       selfRegistration: Boolean(selfMeta),
       memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,
       registeredAt: r.createdAt.toISOString(),
+      isLatberGuest: Boolean(guest),
     };
     const displayStatus = resolveLatberDisplayStatus(row);
     return {
@@ -372,6 +379,8 @@ export async function loadLatberPublicRegistrants(
       statusLabel: latberDisplayStatusLabel(displayStatus),
       displayStatus,
       createdAt: r.createdAt.toISOString(),
+      isLatberGuest: Boolean(guest),
+      paymentMethod: billing?.payment?.paymentMethod ?? null,
     };
   });
 }
