@@ -50,6 +50,7 @@ import {
 } from "@/lib/kas";
 import { printKasDocument } from "@/lib/kas-print-html";
 import { KasDateField } from "@/components/admin/kas/KasDateField";
+import { KasInlineCell } from "@/components/admin/kas/KasInlineCell";
 
 type KasPayload = {
   canWrite: boolean;
@@ -116,6 +117,7 @@ export function KasLedgerClient({
   const [batchTransferOpen, setBatchTransferOpen] = useState(false);
   const [batchTarget, setBatchTarget] = useState("");
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"buku" | "laporan">("laporan");
   const [form, setForm] = useState({
     txnDate: ymdWib(),
     description: "",
@@ -456,6 +458,43 @@ export function KasLedgerClient({
 
   function monthLocked(ymd: string) {
     return Boolean(data?.lockedMonths.includes(ymd.slice(0, 7)));
+  }
+
+  function canInlineEdit(row: KasLedgerRow) {
+    return Boolean(
+      data?.canWrite && row.sourceType === "manual" && !monthLocked(row.txnDate),
+    );
+  }
+
+  async function handleInlinePatch(
+    row: KasLedgerRow,
+    patch: {
+      txnDate?: string;
+      description?: string;
+      kegiatan?: string;
+      direction?: "in" | "out";
+      amount?: number;
+    },
+  ): Promise<boolean> {
+    const res = await fetch(`/api/admin/kas/${row.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "x-kas-scope-type": data?.scope.type ?? "",
+        "x-kas-scope-id": data?.scope.id ?? "",
+      },
+      body: JSON.stringify(patch),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(
+        typeof json.error === "string" ? json.error : "Gagal mengubah",
+      );
+      return false;
+    }
+    toast.success("Tersimpan");
+    await load();
+    return true;
   }
 
   async function handleMass() {
@@ -810,6 +849,30 @@ export function KasLedgerClient({
 
         <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
           <div className="-mx-1 flex items-end gap-2 overflow-x-auto px-1 pb-1 md:flex-wrap md:overflow-visible">
+            <div className="flex h-10 shrink-0 overflow-hidden rounded-md border text-xs">
+              <button
+                type="button"
+                className={`px-3 ${
+                  viewMode === "laporan"
+                    ? "bg-inkai-red text-white"
+                    : "bg-background text-muted-foreground hover:bg-muted"
+                }`}
+                onClick={() => setViewMode("laporan")}
+              >
+                Laporan Detail
+              </button>
+              <button
+                type="button"
+                className={`border-l px-3 ${
+                  viewMode === "buku"
+                    ? "bg-inkai-red text-white"
+                    : "bg-background text-muted-foreground hover:bg-muted"
+                }`}
+                onClick={() => setViewMode("buku")}
+              >
+                Buku
+              </button>
+            </div>
             <Field label="Periode awal">
               <KasDateField allowEmpty value={fromYmd} onChange={setFromYmd} />
             </Field>
@@ -925,6 +988,171 @@ export function KasLedgerClient({
         </div>
       </div>
 
+      {viewMode === "laporan" ? (
+        <div className="relative min-h-0 flex-1">
+          <div className="flex h-full flex-col overflow-auto rounded-lg border bg-card">
+            <div className="shrink-0 border-b px-4 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold tracking-wide md:text-lg">
+                    LAPORAN KEUANGAN DETAIL
+                  </h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {periodCaption}
+                    {scopeKey
+                      ? ` · ${(data?.scopes ?? []).find((s) => `${s.type}:${s.id}` === scopeKey)?.label ?? scopeLabel}`
+                      : ` · ${scopeLabel}`}
+                    {data?.canWrite
+                      ? " · Klik sel baris manual untuk ubah"
+                      : ""}
+                  </p>
+                </div>
+                <div
+                  className={`rounded-md border-2 px-3 py-1.5 text-sm font-bold ${
+                    (data?.kpis.saldoAkhir ?? 0) < 0
+                      ? "border-red-600 text-red-700"
+                      : "border-green-700 text-green-800"
+                  }`}
+                >
+                  Saldo akhir {formatRp(data?.kpis.saldoAkhir ?? 0)}
+                </div>
+              </div>
+            </div>
+            <datalist id="kas-kegiatan-inline">
+              {(data?.kegiatanOptions ?? []).map((k) => (
+                <option key={k} value={k} />
+              ))}
+            </datalist>
+            <div className="min-h-0 flex-1 overflow-auto">
+              <table className="w-full min-w-[880px] border-collapse text-sm">
+                <thead>
+                  <tr className="sticky top-0 z-10 border-b bg-muted/95 text-left text-muted-foreground backdrop-blur">
+                    <th className="w-12 p-2 text-center">No</th>
+                    <th className="p-2">Tanggal</th>
+                    <th className="p-2">Keterangan</th>
+                    <th className="p-2 text-right">Masuk</th>
+                    <th className="p-2 text-right">Keluar</th>
+                    <th className="p-2 text-right">Saldo</th>
+                    <th className="p-2">Kegiatan</th>
+                    {data?.canWrite ? <th className="w-12 p-2" /> : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                        Memuat…
+                      </td>
+                    </tr>
+                  ) : (data?.rows ?? []).length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                        Belum ada mutasi pada periode ini.
+                      </td>
+                    </tr>
+                  ) : (
+                    (data?.rows ?? []).map((row) => {
+                      const editable = canInlineEdit(row);
+                      return (
+                        <tr
+                          key={row.id}
+                          className="group border-b hover:bg-muted/20"
+                        >
+                          <td className="p-2 text-center tabular-nums">{row.no}</td>
+                          <KasInlineCell
+                            editable={editable}
+                            kind="date"
+                            display={formatKasDateId(row.txnDate)}
+                            initialValue={row.txnDate}
+                            className="whitespace-nowrap"
+                            onCommit={(next) =>
+                              handleInlinePatch(row, { txnDate: next })
+                            }
+                          />
+                          <KasInlineCell
+                            editable={editable}
+                            kind="text"
+                            display={row.description}
+                            initialValue={row.description}
+                            onCommit={(next) =>
+                              handleInlinePatch(row, { description: next })
+                            }
+                          />
+                          <KasInlineCell
+                            editable={editable}
+                            kind="money"
+                            align="right"
+                            display={row.amountIn ? formatRp(row.amountIn) : "—"}
+                            initialValue={row.amountIn ? String(row.amountIn) : ""}
+                            onCommit={async (next) => {
+                              if (!next) {
+                                if (row.amountOut > 0) return true;
+                                toast.error("Isi Masuk atau Keluar");
+                                return false;
+                              }
+                              return handleInlinePatch(row, {
+                                direction: "in",
+                                amount: Number(next),
+                              });
+                            }}
+                          />
+                          <KasInlineCell
+                            editable={editable}
+                            kind="money"
+                            align="right"
+                            display={row.amountOut ? formatRp(row.amountOut) : "—"}
+                            initialValue={row.amountOut ? String(row.amountOut) : ""}
+                            onCommit={async (next) => {
+                              if (!next) {
+                                if (row.amountIn > 0) return true;
+                                toast.error("Isi Masuk atau Keluar");
+                                return false;
+                              }
+                              return handleInlinePatch(row, {
+                                direction: "out",
+                                amount: Number(next),
+                              });
+                            }}
+                          />
+                          <td className="p-2 text-right tabular-nums">
+                            {formatRp(row.saldo)}
+                          </td>
+                          <KasInlineCell
+                            editable={editable}
+                            kind="text"
+                            listId="kas-kegiatan-inline"
+                            display={row.kegiatan || "—"}
+                            initialValue={row.kegiatan}
+                            onCommit={(next) =>
+                              handleInlinePatch(row, { kegiatan: next })
+                            }
+                          />
+                          {data?.canWrite ? (
+                            <td className="p-1 text-center">
+                              {editable ? (
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                                  aria-label="Hapus"
+                                  onClick={() => setDeleteId(row.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              ) : null}
+                            </td>
+                          ) : null}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
       <div className="relative min-h-0 flex-1">
         <div className="h-full overflow-auto rounded-lg border bg-card">
           <table className="w-full min-w-[920px] border-collapse text-sm">
@@ -1149,6 +1377,7 @@ export function KasLedgerClient({
           </div>
         ) : null}
       </div>
+      )}
 
       <Dialog
         open={addOpen || Boolean(editId)}
