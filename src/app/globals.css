@@ -1122,3 +1122,10 @@
     transform: none;
   }
 }
+
+/* UKT tabel full halaman — sembunyikan FAB agar tidak menimpa overlay */
+body[data-ukt-table-fs="1"] .tanya-inkai-fab,
+body[data-ukt-table-fs="1"] .tanya-inkai-panel {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}

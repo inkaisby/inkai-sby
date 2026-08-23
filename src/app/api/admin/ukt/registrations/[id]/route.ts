@@ -594,6 +594,116 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
+  if (data.action === "update_kyu") {
+    if (!isCabang) {
+      return NextResponse.json(
+        { error: "Kyu Lama hanya dapat diubah oleh admin cabang" },
+        { status: 403 },
+      );
+    }
+    if (!data.previousRank?.trim()) {
+      return NextResponse.json(
+        { error: "previousRank wajib untuk memperbarui Kyu Lama" },
+        { status: 400 },
+      );
+    }
+    if (!data.eventId) {
+      return NextResponse.json(
+        { error: "eventId wajib untuk memperbarui Kyu Lama" },
+        { status: 400 },
+      );
+    }
+
+    const newLama =
+      formatRankLabel(data.previousRank) || data.previousRank.trim();
+    if (isBlankUktRank(newLama)) {
+      return NextResponse.json(
+        { error: "Kyu Lama tidak valid" },
+        { status: 400 },
+      );
+    }
+
+    let existingRegistered: string | null = null;
+    const { res: getRes, data: getData } = await inkaiFetch(
+      `/v1/events/register/${id}`,
+      {},
+      authResult.token,
+      { timeoutMs: 6_000, retries: 0 },
+    );
+    if (getRes.ok) {
+      const reg = getData.data as Record<string, unknown>;
+      existingRegistered =
+        typeof reg.registeredRank === "string" ? reg.registeredRank : null;
+    }
+    if (!existingRegistered) {
+      const localReg = await prisma.eventRegistration.findFirst({
+        where: { id },
+        select: { registeredRank: true },
+      });
+      existingRegistered = localReg?.registeredRank ?? null;
+    }
+
+    const decoded = decodeUktRegisteredRank(existingRegistered);
+    const kyuBaruKeep = decoded.kyuBaru || "";
+    if (kyuBaruKeep && ranksEqual(newLama, kyuBaruKeep)) {
+      return NextResponse.json(
+        { error: "Kyu Lama tidak boleh sama dengan Kyu Baru" },
+        { status: 400 },
+      );
+    }
+
+    const registeredRank = encodeUktRegisteredRank(newLama, kyuBaruKeep);
+
+    const { res: putRes, data: putData } = await inkaiFetch(
+      `/v1/events/register/${id}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ registeredRank }),
+      },
+      authResult.token,
+    );
+
+    if (!putRes.ok) {
+      try {
+        await prisma.eventRegistration.update({
+          where: { id },
+          data: { registeredRank },
+        });
+      } catch {
+        return NextResponse.json(
+          {
+            error: inkaiErrorMessage(putData, "Gagal memperbarui Kyu Lama"),
+          },
+          { status: putRes.status || 500 },
+        );
+      }
+    } else {
+      await prisma.eventRegistration
+        .updateMany({
+          where: { id },
+          data: { registeredRank },
+        })
+        .catch(() => undefined);
+    }
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "UKT_KYU_LAMA_UPDATE",
+      details: `UKT ${id}: Kyu Lama → ${newLama}${kyuBaruKeep ? ` (Kyu Baru tetap ${kyuBaruKeep})` : ""}`,
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      token: authResult.token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      kyuLama: newLama,
+      kyuBaru: kyuBaruKeep || null,
+      message: `Kyu Lama diperbarui: ${newLama}`,
+    });
+  }
+
   if (data.examResult) {
     if (!isCabang) {
       return NextResponse.json(

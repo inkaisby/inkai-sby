@@ -33,6 +33,8 @@ import {
   RefreshCw,
   Link2,
   Share2,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -455,6 +457,8 @@ export function UktDashboard(props: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [printOnlySelected, setPrintOnlySelected] = useState(false);
   const [compactView, setCompactView] = useState(false);
+  const [tableFullscreen, setTableFullscreen] = useState(false);
+  const compactViewBeforeFullRef = useRef<boolean | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [alurOpen, setAlurOpen] = useState(false);
   const [jadwalOpen, setJadwalOpen] = useState(true);
@@ -527,12 +531,50 @@ export function UktDashboard(props: Props) {
     if (typeof window === "undefined") return;
     const mq = window.matchMedia("(max-width: 639px)");
     const syncCompact = () => {
-      if (mq.matches) setCompactView(true);
+      if (mq.matches && !tableFullscreen) setCompactView(true);
     };
     syncCompact();
     mq.addEventListener("change", syncCompact);
     return () => mq.removeEventListener("change", syncCompact);
-  }, []);
+  }, [tableFullscreen]);
+
+  useEffect(() => {
+    if (!tableFullscreen) {
+      if (compactViewBeforeFullRef.current !== null) {
+        setCompactView(compactViewBeforeFullRef.current);
+        compactViewBeforeFullRef.current = null;
+      }
+      return;
+    }
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.body.dataset.uktTableFs = "1";
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      const openDialog = document.querySelector(
+        '[data-slot="dialog"][data-state="open"], [role="dialog"][data-state="open"]',
+      );
+      if (openDialog) return;
+      setTableFullscreen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      delete document.body.dataset.uktTableFs;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [tableFullscreen]);
+
+  const toggleTableFullscreen = useCallback(() => {
+    setTableFullscreen((prev) => {
+      if (!prev) {
+        compactViewBeforeFullRef.current = compactView;
+        setCompactView(false);
+        return true;
+      }
+      return false;
+    });
+  }, [compactView]);
 
   useEffect(() => {
     setBeltFees(props.beltFees);
@@ -1623,6 +1665,50 @@ export function UktDashboard(props: Props) {
     }
   };
 
+  const handleKyuLamaUpdate = async (
+    registrationId: string,
+    newLama: string,
+    row: UktMemberRow,
+  ) => {
+    if (isMemberPending(row.memberId)) return;
+    if (periodLocked) {
+      toast.error("Periode dikunci — Kyu Lama tidak dapat diubah");
+      return;
+    }
+    const formatted = formatRankLabel(newLama) || newLama.trim();
+    if (!formatted) return;
+    const currentLama = displayUktKyuLama(row.kyuLama, row.kyuBaru) || "";
+    if (formatRankLabel(currentLama) === formatted) return;
+
+    setMemberPending(row.memberId, true);
+    try {
+      const res = await fetch(`/api/admin/ukt/registrations/${registrationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_kyu",
+          previousRank: formatted,
+          eventId: props.selectedPeriodId,
+          memberId: row.memberId,
+        }),
+      });
+      const data = await parseApiJson<{
+        error?: string;
+        message?: string;
+        kyuLama?: string;
+      }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal memperbarui Kyu Lama");
+      patchRow(row.memberId, {
+        kyuLama: data.kyuLama || formatted,
+      });
+      toast.success(data.message || `Kyu Lama diperbarui: ${formatted}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal");
+    } finally {
+      setMemberPending(row.memberId, false);
+    }
+  };
+
   const handleExamResult = async (
     registrationId: string,
     examResult: "LULUS" | "GAGAL" | "MENGULANG",
@@ -2369,6 +2455,15 @@ export function UktDashboard(props: Props) {
   const periodActionBtn =
     "h-10 min-h-10 justify-center px-2 text-xs sm:h-9 sm:justify-start sm:px-3 sm:text-sm";
 
+  const effectiveCompactView = tableFullscreen ? false : compactView;
+  const showExtendedIdentity = !effectiveCompactView && !isDojoAdmin;
+  const showDokumenCol = showExtendedIdentity && !tableFullscreen;
+  const showAttendanceCols =
+    (effectiveCompactView || isDojoAdmin) && !(tableFullscreen && isCabang);
+  const kyuSelectClass = tableFullscreen
+    ? "h-8 min-w-[9rem] max-w-[11rem] rounded border px-1 text-xs disabled:opacity-60"
+    : "h-7 max-w-36 rounded border px-1 text-xs disabled:opacity-60";
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Sticky semester/tahun — disembunyikan bila shell halaman sudah punya UktTermNav */}
@@ -2900,7 +2995,7 @@ export function UktDashboard(props: Props) {
       )}
 
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-4 left-1/2 z-50 w-[min(640px,94vw)] -translate-x-1/2 pb-[env(safe-area-inset-bottom)]">
+        <div className={cn("fixed bottom-4 left-1/2 w-[min(640px,94vw)] -translate-x-1/2 pb-[env(safe-area-inset-bottom)]", tableFullscreen ? "z-[60]" : "z-50")}>
           <Card className="shadow-xl">
             <CardContent className="flex flex-wrap items-center gap-2 p-3">
               <div className="min-w-[120px] flex-1 text-sm text-muted-foreground">
@@ -3315,8 +3410,77 @@ export function UktDashboard(props: Props) {
       )}
       </div>
 
+      <div
+        className={
+          tableFullscreen
+            ? "fixed inset-0 z-50 flex h-[100dvh] flex-col gap-2 bg-background p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] md:p-4"
+            : "relative space-y-2"
+        }
+      >
+      {tableFullscreen ? (
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 pb-2">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-foreground">
+              {selectedPeriod?.title ?? "UKT"}
+            </p>
+            <p className="text-xs text-muted-foreground">{totalFiltered} data</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-9 w-9"
+              aria-label="Muat ulang tabel"
+              title="Muat ulang tabel"
+              disabled={tableRefreshing || loading}
+              onClick={() => void requestServerRowsSync()}
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${tableRefreshing ? "animate-spin" : ""}`}
+              />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-9 w-9"
+              aria-label="Cetak nota"
+              title="Cetak nota"
+              onClick={() => openPrintNota(selectedIds.size > 0)}
+            >
+              <Printer className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-9 w-9"
+              aria-label="Keluar full halaman"
+              title="Keluar full halaman (Esc)"
+              onClick={() => setTableFullscreen(false)}
+            >
+              <Minimize2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      <div
+        className={cn(
+          tableFullscreen && "flex min-h-0 flex-1 flex-col gap-2",
+          selectedIds.size > 0 && tableFullscreen && "pb-20",
+        )}
+      >
       {/* Search & inline filters — sticky di HP, menempel di atas tabel */}
-      <div className="sticky top-12 z-20 -mx-3 space-y-2 border-b border-border/40 bg-background/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:static sm:top-auto sm:z-auto sm:mx-0 sm:border-b-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+      <div
+        className={cn(
+          "space-y-2 border-b border-border/40 py-2.5",
+          tableFullscreen
+            ? "sticky top-0 z-10 shrink-0 bg-background"
+            : "sticky top-12 z-20 -mx-3 bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:static sm:top-auto sm:z-auto sm:mx-0 sm:border-b-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none",
+        )}
+      >
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="min-w-0 w-full sm:w-auto sm:min-w-[14rem] sm:flex-1 sm:max-w-md">
           <UktSearchBar
@@ -3481,7 +3645,7 @@ export function UktDashboard(props: Props) {
           <Button
             type="button"
             variant="outline"
-            className="h-10 px-2 sm:h-8 sm:px-3"
+            className={cn("h-10 px-2 sm:h-8 sm:px-3", tableFullscreen && "hidden")}
             onClick={() => void requestServerRowsSync()}
             title="Muat ulang data tabel tanpa refresh halaman"
             disabled={tableRefreshing || loading}
@@ -3492,6 +3656,18 @@ export function UktDashboard(props: Props) {
             <span className="hidden sm:inline">
               {tableRefreshing ? "Memuat…" : "Refresh"}
             </span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className={cn("h-10 w-10 sm:h-8 sm:w-8", tableFullscreen && "hidden")}
+            aria-label="Perbesar tabel full halaman"
+            title="Full halaman"
+            onClick={toggleTableFullscreen}
+          >
+            <Maximize2 className="h-4 w-4" />
           </Button>
 
           {(!isDojoAdmin || isMultiDojoAdmin) && (
@@ -3557,7 +3733,7 @@ export function UktDashboard(props: Props) {
       </div>
       </div>
 
-      {!isArchiveView ? (
+      {!isArchiveView && !tableFullscreen ? (
         <p className="hidden text-xs text-muted-foreground sm:block">
           Tabel default = peserta terdaftar. Untuk <b>Belum Daftar</b>: pilih
           filter status <b>Belum Daftar</b>, atau ketik nama di kotak cari →
@@ -3566,7 +3742,12 @@ export function UktDashboard(props: Props) {
       ) : null}
 
       {/* Table */}
-      <div className="mt-2 rounded-xl border shadow-sm">
+      <div
+        className={cn(
+          "mt-2 rounded-xl border shadow-sm",
+          tableFullscreen && "min-h-0 flex-1 overflow-auto",
+        )}
+      >
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
@@ -3581,7 +3762,9 @@ export function UktDashboard(props: Props) {
                 />
               </TableHead>
               <TableHead className="w-10">No</TableHead>
-              <TableHead className="hidden w-14 sm:table-cell">Foto</TableHead>
+              <TableHead className={cn(tableFullscreen ? "w-14" : "hidden w-14 sm:table-cell")}>
+                Foto
+              </TableHead>
               <SortableTableHead
                 label="NIA"
                 sortKey="nia"
@@ -3605,7 +3788,7 @@ export function UktDashboard(props: Props) {
                 onSort={handleSort}
                 className="whitespace-nowrap"
               />
-              {!compactView && !isDojoAdmin && (
+              {showExtendedIdentity && (
                 <>
                   <SortableTableHead
                     label="Tempat"
@@ -3613,7 +3796,7 @@ export function UktDashboard(props: Props) {
                     activeKey={sort.key}
                     activeDir={sort.dir}
                     onSort={handleSort}
-                    className="hidden md:table-cell"
+                    className={cn(!tableFullscreen && "hidden md:table-cell")}
                   />
                   <SortableTableHead
                     label="Tgl Lahir"
@@ -3621,7 +3804,7 @@ export function UktDashboard(props: Props) {
                     activeKey={sort.key}
                     activeDir={sort.dir}
                     onSort={handleSort}
-                    className="hidden lg:table-cell"
+                    className={cn(!tableFullscreen && "hidden lg:table-cell")}
                   />
                   <SortableTableHead
                     label="JK"
@@ -3629,7 +3812,7 @@ export function UktDashboard(props: Props) {
                     activeKey={sort.key}
                     activeDir={sort.dir}
                     onSort={handleSort}
-                    className="hidden sm:table-cell"
+                    className={cn(!tableFullscreen && "hidden sm:table-cell")}
                   />
                   <SortableTableHead
                     label="Alamat"
@@ -3637,7 +3820,10 @@ export function UktDashboard(props: Props) {
                     activeKey={sort.key}
                     activeDir={sort.dir}
                     onSort={handleSort}
-                    className="hidden xl:table-cell"
+                    className={cn(
+                      "max-w-32 truncate",
+                      !tableFullscreen && "hidden xl:table-cell",
+                    )}
                   />
                 </>
               )}
@@ -3655,7 +3841,7 @@ export function UktDashboard(props: Props) {
                 activeDir={sort.dir}
                 onSort={handleSort}
               />
-              {(compactView || isDojoAdmin) && (
+              {showAttendanceCols && (
                 <>
                   <SortableTableHead
                     label="Kehadiran"
@@ -3668,17 +3854,17 @@ export function UktDashboard(props: Props) {
                   <TableHead className="min-w-28">Syarat</TableHead>
                 </>
               )}
-              {!isDojoAdmin && !compactView && (
+              {showDokumenCol && (
                 <TableHead className="hidden md:table-cell">Dokumen</TableHead>
               )}
-              {!isDojoAdmin && !compactView && (
+              {showExtendedIdentity && (
                 <SortableTableHead
                   label="Ranting"
                   sortKey="dojoName"
                   activeKey={sort.key}
                   activeDir={sort.dir}
                   onSort={handleSort}
-                  className="hidden md:table-cell"
+                  className={cn(!tableFullscreen && "hidden md:table-cell")}
                 />
               )}
               {isMultiDojoAdmin && (
@@ -3688,7 +3874,7 @@ export function UktDashboard(props: Props) {
                   activeKey={sort.key}
                   activeDir={sort.dir}
                   onSort={handleSort}
-                  className="hidden md:table-cell"
+                  className={cn(!tableFullscreen && "hidden md:table-cell")}
                 />
               )}
               <SortableTableHead
@@ -3743,7 +3929,7 @@ export function UktDashboard(props: Props) {
                   <TableCell className="text-muted-foreground">
                     {(safePage - 1) * localPageSize + idx + 1}
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell">
+                  <TableCell className={cn(!tableFullscreen && "hidden sm:table-cell")}>
                     <MemberAvatarRing
                       fullName={row.fullName}
                       currentRank={row.kyuLama}
@@ -3802,25 +3988,70 @@ export function UktDashboard(props: Props) {
                   <TableCell className="whitespace-nowrap text-sm">
                     {formatRegisteredAtWib(row.registeredAt)}
                   </TableCell>
-                  {!compactView && !isDojoAdmin && (
+                  {showExtendedIdentity && (
                     <>
-                      <TableCell className="hidden md:table-cell">{row.birthPlace || "-"}</TableCell>
-                      <TableCell className="hidden lg:table-cell">{formatDate(row.birthDate)}</TableCell>
-                      <TableCell className="hidden sm:table-cell">
+                      <TableCell className={cn(!tableFullscreen && "hidden md:table-cell")}>
+                        {row.birthPlace || "-"}
+                      </TableCell>
+                      <TableCell className={cn(!tableFullscreen && "hidden lg:table-cell")}>
+                        {formatDate(row.birthDate)}
+                      </TableCell>
+                      <TableCell className={cn(!tableFullscreen && "hidden sm:table-cell")}>
                         {formatGenderLabel(row.gender) || "-"}
                       </TableCell>
-                      <TableCell className="hidden max-w-32 truncate xl:table-cell">{row.address || "-"}</TableCell>
+                      <TableCell
+                        className={cn(
+                          "max-w-32 truncate",
+                          !tableFullscreen && "hidden xl:table-cell",
+                        )}
+                      >
+                        {row.address || "-"}
+                      </TableCell>
                     </>
                   )}
                   <TableCell>
-                    <Badge variant="secondary" className="text-xs">
-                      {displayUktKyuLama(row.kyuLama, row.kyuBaru) || "—"}
-                    </Badge>
+                    {row.registrationId && isCabang && tableFullscreen ? (
+                      <select
+                        className={kyuSelectClass}
+                        value={
+                          formatRankLabel(
+                            displayUktKyuLama(row.kyuLama, row.kyuBaru) || "",
+                          ) || ""
+                        }
+                        onChange={(e) =>
+                          handleKyuLamaUpdate(
+                            row.registrationId!,
+                            e.target.value,
+                            row,
+                          )
+                        }
+                        disabled={
+                          periodLocked ||
+                          loading ||
+                          isMemberPending(row.memberId)
+                        }
+                        title="Ubah Kyu Lama (snapshot pendaftaran)"
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") e.stopPropagation();
+                        }}
+                      >
+                        <option value="">— Pilih —</option>
+                        {BELT_RANK_OPTIONS.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Badge variant="secondary" className="text-xs">
+                        {displayUktKyuLama(row.kyuLama, row.kyuBaru) || "—"}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     {row.registrationId && isCabang ? (
                       <select
-                        className="h-7 max-w-36 rounded border px-1 text-xs disabled:opacity-60"
+                        className={kyuSelectClass}
                         value={
                           canApplyUktKyuBaru(row) || isUktSelesai(row)
                             ? row.kyuBaru
@@ -3843,6 +4074,9 @@ export function UktDashboard(props: Props) {
                               ? "UKT selesai"
                               : "Tersedia setelah Verifikasi pembayaran"
                         }
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") e.stopPropagation();
+                        }}
                       >
                         <option value="">
                           {canApplyUktKyuBaru(row)
@@ -3863,7 +4097,7 @@ export function UktDashboard(props: Props) {
                       </span>
                     )}
                   </TableCell>
-                  {(compactView || isDojoAdmin) && (
+                  {showAttendanceCols && (
                     <>
                       <TableCell className="text-xs">
                         {row.attendancePct != null ? (
@@ -3904,7 +4138,7 @@ export function UktDashboard(props: Props) {
                       </TableCell>
                     </>
                   )}
-                  {!isDojoAdmin && !compactView && (
+                  {showDokumenCol && (
                     <TableCell className="hidden md:table-cell">
                       <div className="flex gap-1">
                         {row.birthCertificateUrl ? (
@@ -3924,11 +4158,25 @@ export function UktDashboard(props: Props) {
                       </div>
                     </TableCell>
                   )}
-                  {!isDojoAdmin && !compactView && (
-                    <TableCell className="hidden sm:table-cell text-xs">{row.dojoName}</TableCell>
+                  {showExtendedIdentity && (
+                    <TableCell
+                      className={cn(
+                        "text-xs",
+                        !tableFullscreen && "hidden sm:table-cell",
+                      )}
+                    >
+                      {row.dojoName}
+                    </TableCell>
                   )}
                   {isMultiDojoAdmin && (
-                    <TableCell className="hidden md:table-cell text-xs">{row.dojoName}</TableCell>
+                    <TableCell
+                      className={cn(
+                        "text-xs",
+                        !tableFullscreen && "hidden md:table-cell",
+                      )}
+                    >
+                      {row.dojoName}
+                    </TableCell>
                   )}
                   <TableCell>
                     <div className="space-y-1">
@@ -4289,7 +4537,7 @@ export function UktDashboard(props: Props) {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
+        <div className={cn("flex items-center justify-between", tableFullscreen && "shrink-0")}>
           <p className="text-sm text-muted-foreground">
             Halaman {safePage} dari {totalPages} ({totalFiltered} data)
           </p>
@@ -4329,6 +4577,9 @@ export function UktDashboard(props: Props) {
           </div>
         </div>
       )}
+
+      </div>
+      </div>
 
       {/* Member detail drawer */}
       <Dialog open={!!selectedMember} onOpenChange={(o) => !o && setSelectedMember(null)}>
