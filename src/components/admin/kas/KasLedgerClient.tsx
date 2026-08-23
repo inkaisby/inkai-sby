@@ -1030,7 +1030,16 @@ export function KasLedgerClient({
                       : ""}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {tableFullscreen ? (
+                    <KasFullscreenPeriodPrint
+                      fromYmd={fromYmd}
+                      toYmd={toYmd}
+                      onFromChange={setFromYmd}
+                      onToChange={setToYmd}
+                      onPrint={handlePrint}
+                    />
+                  ) : null}
                   <div
                     className={`rounded-md border-2 px-3 py-1.5 text-sm font-bold ${
                       (data?.kpis.saldoAkhir ?? 0) < 0
@@ -1209,7 +1218,16 @@ export function KasLedgerClient({
         }
       >
         <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
-          <div className="flex shrink-0 items-center justify-end gap-2 border-b px-3 py-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-b px-3 py-2">
+            {tableFullscreen ? (
+              <KasFullscreenPeriodPrint
+                fromYmd={fromYmd}
+                toYmd={toYmd}
+                onFromChange={setFromYmd}
+                onToChange={setToYmd}
+                onPrint={handlePrint}
+              />
+            ) : null}
             <Button
               type="button"
               size="icon"
@@ -1984,6 +2002,52 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     <div className="grid gap-1.5">
       <Label>{label}</Label>
       {children}
+    </div>
+  );
+}
+
+function KasFullscreenPeriodPrint({
+  fromYmd,
+  toYmd,
+  onFromChange,
+  onToChange,
+  onPrint,
+}: {
+  fromYmd: string;
+  toYmd: string;
+  onFromChange: (ymd: string) => void;
+  onToChange: (ymd: string) => void;
+  onPrint: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <div className="grid gap-0.5">
+        <span className="text-[10px] leading-none text-muted-foreground">
+          Dari
+        </span>
+        <div className="w-[11.5rem] [&_>div]:min-w-0 [&_>div]:flex-none">
+          <KasDateField allowEmpty value={fromYmd} onChange={onFromChange} />
+        </div>
+      </div>
+      <div className="grid gap-0.5">
+        <span className="text-[10px] leading-none text-muted-foreground">
+          Sampai
+        </span>
+        <div className="w-[11.5rem] [&_>div]:min-w-0 [&_>div]:flex-none">
+          <KasDateField allowEmpty value={toYmd} onChange={onToChange} />
+        </div>
+      </div>
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        className="h-9 w-9 shrink-0"
+        aria-label="Cetak laporan"
+        title="Cetak"
+        onClick={onPrint}
+      >
+        <Printer className="h-4 w-4" />
+      </Button>
     </div>
   );
 }
