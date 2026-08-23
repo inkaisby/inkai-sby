@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,14 +59,22 @@ export function LatberAddGuestDialog({
   const [loading, setLoading] = useState(false);
   const [softDuplicates, setSoftDuplicates] = useState<SoftDup[]>([]);
 
+  // Snapshot props so poll/refetch (new dojos[] reference) does not wipe in-progress input.
+  const defaultDojoIdRef = useRef(defaultDojoId);
+  const dojosRef = useRef(dojos);
+  defaultDojoIdRef.current = defaultDojoId;
+  dojosRef.current = dojos;
+
   useEffect(() => {
     if (!open) return;
+    const dojosNow = dojosRef.current;
+    const defaultId = defaultDojoIdRef.current;
     setFullName("");
-    setDojoId(defaultDojoId || (dojos.length === 1 ? dojos[0].id : ""));
+    setDojoId(defaultId || (dojosNow.length === 1 ? dojosNow[0].id : ""));
     setCurrentRank(DEFAULT_MEMBER_RANK);
     setPhoneNumber("");
     setSoftDuplicates([]);
-  }, [open, defaultDojoId, dojos]);
+  }, [open]);
 
   async function submit(confirmSoftDuplicate: boolean) {
     const name = fullName.trim().toUpperCase();

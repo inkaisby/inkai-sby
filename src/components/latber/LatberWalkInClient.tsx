@@ -62,6 +62,8 @@ import {
 } from "@/lib/public-ranting-filter";
 import { cn } from "@/lib/utils";
 
+const EMPTY_DOJOS: Array<{ id: string; name: string }> = [];
+
 type PeriodPayload = {
   periodId: string | null;
   title: string | null;
@@ -169,6 +171,9 @@ export function LatberWalkInClient({
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanLoopRef = useRef<number | null>(null);
+  // Skip silent poll while add forms are open so roster refresh does not fight typing.
+  const formModalOpenRef = useRef(false);
+  formModalOpenRef.current = showGuestModal || showAddModal;
 
   const periodId = period?.periodId ?? null;
   const registrationOpen = Boolean(period?.registrationOpen);
@@ -209,17 +214,21 @@ export function LatberWalkInClient({
     void reload();
   }, [reload]);
 
-  // Poll senyap ~30s + refetch saat tab fokus; jeda saat tab tersembunyi.
+  // Poll senyap ~30s + refetch saat tab fokus; jeda saat tab tersembunyi atau form terbuka.
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | null = null;
     const POLL_MS = 30_000;
 
+    const silentReloadIfIdle = () => {
+      if (document.visibilityState !== "visible") return;
+      if (formModalOpenRef.current) return;
+      void reload({ silent: true });
+    };
+
     const start = () => {
       if (timer) return;
       timer = setInterval(() => {
-        if (document.visibilityState === "visible") {
-          void reload({ silent: true });
-        }
+        silentReloadIfIdle();
       }, POLL_MS);
     };
     const stop = () => {
@@ -230,7 +239,7 @@ export function LatberWalkInClient({
     };
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
-        void reload({ silent: true });
+        silentReloadIfIdle();
         start();
       } else {
         stop();
@@ -1233,7 +1242,7 @@ export function LatberWalkInClient({
           open={showGuestModal}
           onOpenChange={setShowGuestModal}
           eventId={periodId}
-          dojos={period?.dojos ?? []}
+          dojos={period?.dojos ?? EMPTY_DOJOS}
           apiPath="/api/public/latber/add-guest"
           onRegistered={async () => {
             await reload();
