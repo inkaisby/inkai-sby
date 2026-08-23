@@ -3445,9 +3445,9 @@ export function UktDashboard(props: Props) {
               size="icon"
               variant="outline"
               className="h-9 w-9"
-              aria-label="Cetak nota"
-              title="Cetak nota"
-              onClick={() => openPrintNota(selectedIds.size > 0)}
+              aria-label="Laporan/Rekapan"
+              title="Laporan/Rekapan"
+              onClick={() => openReportsHub()}
             >
               <Printer className="h-4 w-4" />
             </Button>
