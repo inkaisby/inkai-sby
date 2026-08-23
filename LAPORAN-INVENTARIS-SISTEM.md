@@ -493,7 +493,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/ukt/table        GET refresh snapshot tabel + identitas Prisma (Tempat/TTL/JK/Alamat/Foto) + `registeredAt`
 /api/public/latber/suggest   GET autocomplete nama/NIA/UUID (+ parse `/v/…`)
 /api/public/latber/register  POST daftar walk-in APPROVED + amount flat 45.000 (tanpa uniqueTail); rate limit + CSRF
-/api/public/latber/add-guest POST peserta tamu (service token); CSRF + rate ketat; periode terbuka; error jelas jika token belum siap
+/api/public/latber/add-guest POST peserta tamu; CSRF + rate ketat; periode terbuka; pakai `INKAI_SERVICE_TOKEN` jika ada, else stub Member PENDING langsung di Prisma + flag `latber-guest` + daftar Belum Bayar
 /api/public/latber/confirm-payment  POST Sudah bayar walk-in → billing WAITING_VERIFICATION; rate limit + CSRF; idempotent
 /api/public/artikel/[id]/reactions  GET/POST reaksi emoji publik (cookie visitorId, 1/perangkat, rate limit IP)
 /api/member/latber/register POST daftar mandiri PENDING; rate limit; notif member+ranting
@@ -571,6 +571,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 
 | Tanggal | Keterangan |
 |---------|------------|
+| 23 Agustus 2026 | **Latber walk-in Tambah Peserta tanpa service token:** `POST /api/public/latber/add-guest` fallback Prisma stub PENDING (tanpa 503) bila `INKAI_SERVICE_TOKEN` kosong; inventaris §13/§15 |
 | 23 Agustus 2026 | **Latber peserta tamu + Tunai + cetak:** Tambah Peserta (stub PENDING + `latber-guest`); promote keanggotaan admin; publik Cetak roster pilih ranting; admin `mark_cash`/badge Tunai; nota Status+Hadir; `isLatberPaidStatus`; void kas saat DELETE; inventaris §4/§6/§9.3b/§13/§15 |
 | 21 Agustus 2026 | **Fix login bounce produksi:** `location.assign` pasca-login; `inkai_token` di `events.signIn` + JWT server-only (bukan session klien); gate `/login`; dashboard error ≠ logout; tes helper auth |
 | 18 Agustus 2026 | **Kolom Tanggal daftar** `/latber` `/ukt` `/admin/latber` `/admin/ukt` (`EventRegistration.createdAt`, format WIB); Salin WA Cormat `/latber` menampilkan tanggal pelaksanaan sebelum countdown |

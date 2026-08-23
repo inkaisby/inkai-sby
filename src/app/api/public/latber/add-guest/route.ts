@@ -33,16 +33,6 @@ export async function POST(request: Request) {
     }
 
     const token = getLatberServiceToken();
-    if (!token) {
-      return NextResponse.json(
-        {
-          error:
-            "Layanan pendaftaran tamu belum siap — gunakan admin atau Tambah Anggota",
-          code: "SERVICE_TOKEN_MISSING",
-        },
-        { status: 503 },
-      );
-    }
 
     const body = await request.json().catch(() => null);
     const parsed = latberGuestAddSchema.safeParse(body);

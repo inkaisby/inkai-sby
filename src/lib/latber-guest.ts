@@ -123,7 +123,8 @@ export type CreateLatberGuestInput = {
   dojoId: string;
   currentRank?: string;
   phoneNumber?: string;
-  token: string;
+  /** Inkai Bearer; kosong = buat stub Member langsung di Prisma (walk-in publik). */
+  token?: string | null;
   registeredByUserId?: string | null;
   audit?: {
     userId?: string;
@@ -147,6 +148,7 @@ export type CreateLatberGuestResult =
 /**
  * Buat stub Member PENDING + daftar Latber Belum Bayar + flag tamu.
  * Tidak membuat akun login.
+ * Dengan token: POST /v1/members via inkai-backend; tanpa token: Prisma lokal.
  */
 export async function createLatberGuestAndRegister(
   input: CreateLatberGuestInput,
@@ -198,86 +200,102 @@ export async function createLatberGuestAndRegister(
     .slice(0, 5)
     .map((d) => ({ id: d.id, fullName: d.fullName }));
 
-  const payload: Record<string, unknown> = {
-    fullName,
-    name: fullName,
-    dojoId: input.dojoId,
-    currentRank,
-    status: "PENDING",
-  };
-  if (phoneNumber) payload.phoneNumber = phoneNumber;
+  const token = input.token?.trim() || "";
+  let memberId: string | null = null;
 
-  const { res, data } = await inkaiFetch(
-    "/v1/members",
-    { method: "POST", body: JSON.stringify(payload) },
-    input.token,
-  );
-  if (!res.ok) {
-    return {
-      ok: false,
-      error: inkaiErrorMessage(data, "Gagal membuat peserta Latber"),
-      status: res.status >= 400 ? res.status : 502,
+  if (token) {
+    const payload: Record<string, unknown> = {
+      fullName,
+      name: fullName,
+      dojoId: input.dojoId,
+      currentRank,
+      status: "PENDING",
     };
-  }
+    if (phoneNumber) payload.phoneNumber = phoneNumber;
 
-  const created = data.data as Record<string, unknown> | undefined;
-  let memberId =
-    typeof created?.id === "string"
-      ? created.id
-      : typeof (created as { member?: { id?: string } } | undefined)?.member
-            ?.id === "string"
-        ? (created as { member: { id: string } }).member.id
-        : null;
+    const { res, data } = await inkaiFetch(
+      "/v1/members",
+      { method: "POST", body: JSON.stringify(payload) },
+      token,
+    );
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: inkaiErrorMessage(data, "Gagal membuat peserta Latber"),
+        status: res.status >= 400 ? res.status : 502,
+      };
+    }
 
-  if (!memberId) {
-    const local = await prisma.member.findFirst({
-      where: {
-        fullName: { equals: fullName, mode: "insensitive" },
-        dojoId: input.dojoId,
-        isDeleted: false,
-        status: { equals: "PENDING", mode: "insensitive" },
-      },
-      orderBy: { createdAt: "desc" },
-      select: { id: true },
-    });
-    memberId = local?.id ?? null;
-  }
+    const created = data.data as Record<string, unknown> | undefined;
+    memberId =
+      typeof created?.id === "string"
+        ? created.id
+        : typeof (created as { member?: { id?: string } } | undefined)?.member
+              ?.id === "string"
+          ? (created as { member: { id: string } }).member.id
+          : null;
 
-  if (!memberId) {
-    return {
-      ok: false,
-      error: "Peserta dibuat tetapi ID belum tersedia. Coba lagi.",
-      status: 502,
-    };
-  }
+    if (!memberId) {
+      const local = await prisma.member.findFirst({
+        where: {
+          fullName: { equals: fullName, mode: "insensitive" },
+          dojoId: input.dojoId,
+          isDeleted: false,
+          status: { equals: "PENDING", mode: "insensitive" },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      });
+      memberId = local?.id ?? null;
+    }
 
-  // Pastikan Prisma lokal punya status PENDING + sabuk.
-  await prisma.member
-    .update({
-      where: { id: memberId },
+    if (!memberId) {
+      return {
+        ok: false,
+        error: "Peserta dibuat tetapi ID belum tersedia. Coba lagi.",
+        status: 502,
+      };
+    }
+
+    // Pastikan Prisma lokal punya status PENDING + sabuk.
+    await prisma.member
+      .update({
+        where: { id: memberId },
+        data: {
+          status: "PENDING",
+          currentRank,
+          fullName,
+          dojoId: input.dojoId,
+        },
+      })
+      .catch(async () => {
+        /* Inkai mungkin belum sync — coba create lokal minimal */
+        try {
+          await prisma.member.create({
+            data: {
+              id: memberId!,
+              fullName,
+              dojoId: input.dojoId,
+              currentRank,
+              status: "PENDING",
+            },
+          });
+        } catch {
+          /* ignore */
+        }
+      });
+  } else {
+    const created = await prisma.member.create({
       data: {
-        status: "PENDING",
-        currentRank,
         fullName,
         dojoId: input.dojoId,
+        currentRank,
+        status: "PENDING",
       },
-    })
-    .catch(async () => {
-      /* Inkai mungkin belum sync — coba create lokal minimal */
-      try {
-        await prisma.member.create({
-          data: {
-            id: memberId!,
-            fullName,
-            dojoId: input.dojoId,
-            currentRank,
-            status: "PENDING",
-          },
-        });
-      } catch {
-        /* ignore */
-      }
+      select: { id: true },
     });
+    memberId = created.id;
+  }
 
   await upsertLatberGuestMeta(memberId, {
     source: "latber-guest",
