@@ -15,6 +15,8 @@ import {
   ChevronRight,
   Download,
   Lock,
+  Maximize2,
+  Minimize2,
   Pencil,
   Plus,
   Printer,
@@ -118,6 +120,7 @@ export function KasLedgerClient({
   const [batchTarget, setBatchTarget] = useState("");
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"buku" | "laporan">("laporan");
+  const [tableFullscreen, setTableFullscreen] = useState(false);
   const [form, setForm] = useState({
     txnDate: ymdWib(),
     description: "",
@@ -191,6 +194,20 @@ export function KasLedgerClient({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (!tableFullscreen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setTableFullscreen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [tableFullscreen]);
 
   const lockMonth = (toYmd || fromYmd || ymdWib()).slice(0, 7);
   const locked = Boolean(data?.lockedMonths.includes(lockMonth));
@@ -989,8 +1006,14 @@ export function KasLedgerClient({
       </div>
 
       {viewMode === "laporan" ? (
-        <div className="relative min-h-0 flex-1">
-          <div className="flex h-full flex-col overflow-auto rounded-lg border bg-card">
+        <div
+          className={
+            tableFullscreen
+              ? "fixed inset-0 z-50 flex flex-col bg-background p-3 md:p-4"
+              : "relative min-h-0 flex-1"
+          }
+        >
+          <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
             <div className="shrink-0 border-b px-4 py-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -1007,14 +1030,39 @@ export function KasLedgerClient({
                       : ""}
                   </p>
                 </div>
-                <div
-                  className={`rounded-md border-2 px-3 py-1.5 text-sm font-bold ${
-                    (data?.kpis.saldoAkhir ?? 0) < 0
-                      ? "border-red-600 text-red-700"
-                      : "border-green-700 text-green-800"
-                  }`}
-                >
-                  Saldo akhir {formatRp(data?.kpis.saldoAkhir ?? 0)}
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`rounded-md border-2 px-3 py-1.5 text-sm font-bold ${
+                      (data?.kpis.saldoAkhir ?? 0) < 0
+                        ? "border-red-600 text-red-700"
+                        : "border-green-700 text-green-800"
+                    }`}
+                  >
+                    Saldo akhir {formatRp(data?.kpis.saldoAkhir ?? 0)}
+                  </div>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="h-9 w-9 shrink-0"
+                    aria-label={
+                      tableFullscreen
+                        ? "Keluar full halaman"
+                        : "Perbesar tabel full halaman"
+                    }
+                    title={
+                      tableFullscreen
+                        ? "Keluar full halaman (Esc)"
+                        : "Full halaman"
+                    }
+                    onClick={() => setTableFullscreen((v) => !v)}
+                  >
+                    {tableFullscreen ? (
+                      <Minimize2 className="h-4 w-4" />
+                    ) : (
+                      <Maximize2 className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -1153,8 +1201,38 @@ export function KasLedgerClient({
           </div>
         </div>
       ) : (
-      <div className="relative min-h-0 flex-1">
-        <div className="h-full overflow-auto rounded-lg border bg-card">
+      <div
+        className={
+          tableFullscreen
+            ? "fixed inset-0 z-50 flex flex-col bg-background p-3 md:p-4"
+            : "relative min-h-0 flex-1"
+        }
+      >
+        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
+          <div className="flex shrink-0 items-center justify-end gap-2 border-b px-3 py-2">
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-8 w-8"
+              aria-label={
+                tableFullscreen
+                  ? "Keluar full halaman"
+                  : "Perbesar tabel full halaman"
+              }
+              title={
+                tableFullscreen ? "Keluar full halaman (Esc)" : "Full halaman"
+              }
+              onClick={() => setTableFullscreen((v) => !v)}
+            >
+              {tableFullscreen ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full min-w-[920px] border-collapse text-sm">
             <thead>
               <tr className="sticky top-0 z-10 border-b bg-muted/95 text-left text-muted-foreground backdrop-blur">
@@ -1339,6 +1417,7 @@ export function KasLedgerClient({
             )}
           </tbody>
           </table>
+          </div>
         </div>
         {canSelect && selectedIds.length > 0 ? (
           <div className="pointer-events-none absolute bottom-3 left-3 z-20 print:hidden">

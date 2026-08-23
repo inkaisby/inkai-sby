@@ -123,6 +123,7 @@ export function KasInlineCell({
           }
           if (e.key === "Escape") {
             e.preventDefault();
+            e.stopPropagation();
             setDraft(initialValue);
             setEditing(false);
           }
