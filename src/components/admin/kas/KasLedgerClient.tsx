@@ -20,6 +20,7 @@ import {
   Pencil,
   Plus,
   Printer,
+  RefreshCw,
   Trash2,
   Unlock,
   Upload,
@@ -1033,8 +1034,10 @@ export function KasLedgerClient({
                     <KasFullscreenPeriodPrint
                       fromYmd={fromYmd}
                       toYmd={toYmd}
+                      loading={loading}
                       onFromChange={setFromYmd}
                       onToChange={setToYmd}
+                      onRefresh={() => void load()}
                       onPrint={handlePrint}
                     />
                   ) : null}
@@ -1222,8 +1225,10 @@ export function KasLedgerClient({
               <KasFullscreenPeriodPrint
                 fromYmd={fromYmd}
                 toYmd={toYmd}
+                loading={loading}
                 onFromChange={setFromYmd}
                 onToChange={setToYmd}
+                onRefresh={() => void load()}
                 onPrint={handlePrint}
               />
             ) : null}
@@ -2010,18 +2015,34 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function KasFullscreenPeriodPrint({
   fromYmd,
   toYmd,
+  loading,
   onFromChange,
   onToChange,
+  onRefresh,
   onPrint,
 }: {
   fromYmd: string;
   toYmd: string;
+  loading: boolean;
   onFromChange: (ymd: string) => void;
   onToChange: (ymd: string) => void;
+  onRefresh: () => void;
   onPrint: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-end gap-2">
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        className="h-9 w-9 shrink-0"
+        aria-label="Muat ulang"
+        title="Muat ulang"
+        disabled={loading}
+        onClick={onRefresh}
+      >
+        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+      </Button>
       <div className="grid gap-0.5">
         <span className="text-[10px] leading-none text-muted-foreground">
           Dari
