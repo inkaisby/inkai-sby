@@ -904,7 +904,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
           <Button
             type="button"
             size="sm"
-            className="bg-inkai-red text-white hover:bg-inkai-red/90"
+            className="bg-blue-600 text-white hover:bg-blue-700"
             onClick={() => setGuestOpen(true)}
           >
             <UserPlus className="mr-1 h-4 w-4" />
@@ -1140,7 +1140,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
                               row.registrationId && (
                               <Button
                                 size="sm"
-                                variant="secondary"
+                                className="bg-teal-600 text-white hover:bg-teal-700"
                                 disabled={busy}
                                 onClick={() => setConfirmCash(row)}
                               >
