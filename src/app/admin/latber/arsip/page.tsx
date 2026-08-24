@@ -30,7 +30,7 @@ async function LatberArsipSection({ searchParams }: { searchParams: SearchParams
 
   return (
     <LatberDashboardClient
-      periods={archivedPeriods.length > 0 ? archivedPeriods : data.periods}
+      periods={data.periods}
       selectedPeriodId={data.selectedPeriodId}
       selectedPeriod={data.selectedPeriod}
       periodMeta={data.periodMeta}

@@ -179,10 +179,18 @@ export async function fetchLatberDashboardData(
       return !isLatberPeriodInactive(p, meta);
     });
   } else {
-    periods = periods.filter((p) => {
+    const inactiveOrClosed = periods.filter((p) => {
       const meta = metaByPeriodId.get(p.id) ?? { archived: false, locked: false };
-      return isLatberPeriodInactive(p, meta);
+      const closeIso = p.registrationCloseAt || p.endDate;
+      const isClosed = Boolean(
+        closeIso &&
+          !Number.isNaN(new Date(closeIso).getTime()) &&
+          Date.now() > new Date(closeIso).getTime(),
+      );
+      return isLatberPeriodInactive(p, meta) || isClosed || meta.archived || meta.locked;
     });
+    // Fallback: Jika tidak ada periode terarsip/tutup spesifik, tampilkan seluruh periode Latber agar data tidak pernah kosong
+    periods = inactiveOrClosed.length > 0 ? inactiveOrClosed : periods;
   }
 
   let selectedPeriodId = forceNoPeriod ? null : periodFromUrl;

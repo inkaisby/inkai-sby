@@ -1026,7 +1026,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
               </p>
               <p className="mt-1 max-w-md text-sm">
                 {props.isArchiveView
-                  ? "Periode yang aktif atau pendaftarannya sedang berjalan dapat dilihat di halaman Pendaftaran Latihan Bersama."
+                  ? "Periode Latihan Bersama saat ini sedang aktif (MASIH TERBUKA). Klik tombol di bawah untuk melihat dan mengelola data peserta di Pendaftaran Latber Aktif."
                   : props.canCreatePeriod
                     ? "Periode sebelumnya mungkin sudah selesai dan tersimpan di Arsip, atau klik Buat Periode untuk memulai."
                     : "Data periode sebelumnya yang telah selesai atau diarsipkan dapat dilihat melalui menu Arsip."}
@@ -1036,11 +1036,11 @@ export function LatberDashboard(props: LatberDashboardProps) {
               {props.isArchiveView ? (
                 <Button
                   type="button"
-                  variant="outline"
+                  className="bg-blue-600 text-white hover:bg-blue-700"
                   onClick={() => router.push("/admin/latber")}
                 >
                   <Users className="mr-2 h-4 w-4" />
-                  Kembali ke Pendaftaran Latber Aktif
+                  Kelola Data Peserta di Pendaftaran Latber Aktif
                 </Button>
               ) : (
                 <Button
