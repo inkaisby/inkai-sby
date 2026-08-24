@@ -1020,24 +1020,39 @@ export function LatberDashboard(props: LatberDashboardProps) {
             <Archive className="h-10 w-10 text-muted-foreground/60" />
             <div>
               <p className="text-base font-medium text-foreground">
-                Belum ada periode Latihan Bersama yang sedang berjalan
+                {props.isArchiveView
+                  ? "Belum ada periode Latihan Bersama yang diarsipkan"
+                  : "Belum ada periode Latihan Bersama yang sedang berjalan"}
               </p>
               <p className="mt-1 max-w-md text-sm">
-                {props.canCreatePeriod
-                  ? "Periode sebelumnya mungkin sudah selesai dan tersimpan di Arsip, atau klik Buat Periode untuk memulai."
-                  : "Data periode sebelumnya yang telah selesai atau diarsipkan dapat dilihat melalui menu Arsip."}
+                {props.isArchiveView
+                  ? "Periode yang aktif atau pendaftarannya sedang berjalan dapat dilihat di halaman Pendaftaran Latihan Bersama."
+                  : props.canCreatePeriod
+                    ? "Periode sebelumnya mungkin sudah selesai dan tersimpan di Arsip, atau klik Buat Periode untuk memulai."
+                    : "Data periode sebelumnya yang telah selesai atau diarsipkan dapat dilihat melalui menu Arsip."}
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.push("/admin/latber/arsip")}
-              >
-                <Archive className="mr-2 h-4 w-4" />
-                Lihat Arsip Latihan Bersama
-              </Button>
-              {props.canCreatePeriod && (
+              {props.isArchiveView ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push("/admin/latber")}
+                >
+                  <Users className="mr-2 h-4 w-4" />
+                  Kembali ke Pendaftaran Latber Aktif
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => router.push("/admin/latber/arsip")}
+                >
+                  <Archive className="mr-2 h-4 w-4" />
+                  Lihat Arsip Latihan Bersama
+                </Button>
+              )}
+              {props.canCreatePeriod && !props.isArchiveView && (
                 <Button type="button" onClick={() => setCreateOpen(true)}>
                   <Plus className="mr-2 h-4 w-4" />
                   Buat Periode Baru
