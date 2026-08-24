@@ -705,6 +705,104 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
   }
 
+  if (data.action === "mark_lunas") {
+    const localReg = await prisma.eventRegistration.findFirst({
+      where: { id },
+      select: {
+        memberId: true,
+        member: { select: { dojoId: true, fullName: true } },
+      },
+    });
+    if (!localReg) {
+      return NextResponse.json(
+        { error: "Pendaftaran tidak ditemukan" },
+        { status: 404 },
+      );
+    }
+
+    if (role === "ADMIN_DOJO") {
+      const allowlist = getManagedDojoIdsFromUser(authResult.user);
+      if (allowlist.length === 0) {
+        return NextResponse.json(
+          { error: "Ranting tidak terkonfigurasi" },
+          { status: 403 },
+        );
+      }
+      if (
+        !localReg.member.dojoId ||
+        !allowlist.includes(localReg.member.dojoId)
+      ) {
+        return NextResponse.json(
+          { error: "Pendaftaran di luar ranting Anda" },
+          { status: 403 },
+        );
+      }
+    } else if (!isCabang) {
+      return NextResponse.json(
+        { error: "Tidak berhak mengubah Tunai menjadi Lunas" },
+        { status: 403 },
+      );
+    }
+
+    const paidBilling = await prisma.billing.findFirst({
+      where: {
+        registrationId: id,
+        isDeleted: false,
+        status: { in: ["PAID", "SUCCESS"] },
+      },
+      select: {
+        id: true,
+        payment: { select: { id: true, paymentMethod: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!paidBilling) {
+      return NextResponse.json(
+        { error: "Tagihan belum lunas tunai" },
+        { status: 400 },
+      );
+    }
+
+    const method = String(paidBilling.payment?.paymentMethod ?? "").toUpperCase();
+    if (method === "TRANSFER") {
+      return NextResponse.json({
+        success: true,
+        alreadyPaid: true,
+        billingId: paidBilling.id,
+        billingStatus: "PAID",
+        paymentMethod: "TRANSFER",
+      });
+    }
+    if (method !== "CASH") {
+      return NextResponse.json(
+        { error: "Hanya status Tunai yang dapat diubah menjadi Lunas" },
+        { status: 400 },
+      );
+    }
+
+    await prisma.payment.update({
+      where: { billingId: paidBilling.id },
+      data: { paymentMethod: "TRANSFER" },
+    });
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "LATBER_MARK_LUNAS",
+      details: `Tunai → Lunas reg=${id} billing=${paidBilling.id}`,
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      token: authResult.token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      billingId: paidBilling.id,
+      billingStatus: "PAID",
+      paymentMethod: "TRANSFER",
+    });
+  }
+
   if (data.action === "submit_for_verification") {
     const localReg = await prisma.eventRegistration.findFirst({
       where: { id },

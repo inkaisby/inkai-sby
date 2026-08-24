@@ -336,6 +336,7 @@ export const latberRegistrationUpdateSchema = z.object({
       "submit_for_verification",
       "mark_paid",
       "mark_cash",
+      "mark_lunas",
     ])
     .optional(),
   memberId: z.string().uuid().optional(),

@@ -192,6 +192,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
   const [guestOpen, setGuestOpen] = useState(false);
   const [promoteRow, setPromoteRow] = useState<LatberMemberRow | null>(null);
   const [confirmCash, setConfirmCash] = useState<LatberMemberRow | null>(null);
+  const [confirmLunas, setConfirmLunas] = useState<LatberMemberRow | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{
     registrationId: string;
     force: boolean;
@@ -296,7 +297,11 @@ export function LatberDashboard(props: LatberDashboardProps) {
           const next = { ...row };
           if (typeof data.billingStatus === "string") {
             next.billingStatus = data.billingStatus;
-          } else if (action === "mark_paid" || action === "mark_cash") {
+          } else if (
+            action === "mark_paid" ||
+            action === "mark_cash" ||
+            action === "mark_lunas"
+          ) {
             next.billingStatus = "PAID";
           } else if (action === "submit_for_verification") {
             next.billingStatus = "WAITING_VERIFICATION";
@@ -314,6 +319,9 @@ export function LatberDashboard(props: LatberDashboardProps) {
           }
           if (action === "mark_cash") {
             next.paymentMethod = data.paymentMethod || "CASH";
+          }
+          if (action === "mark_lunas") {
+            next.paymentMethod = data.paymentMethod || "TRANSFER";
           }
           if (typeof data.status === "string") {
             next.status = data.status;
@@ -1239,6 +1247,19 @@ export function LatberDashboard(props: LatberDashboardProps) {
                                 Tunai
                               </Button>
                             )}
+                            {status === "tunai" &&
+                              !periodLocked &&
+                              row.registrationId &&
+                              (isCabang || isDojoAdmin) && (
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                disabled={busy}
+                                onClick={() => setConfirmLunas(row)}
+                              >
+                                Lunas
+                              </Button>
+                            )}
                             {status === "menunggu_verifikasi" && isCabang && !periodLocked && (
                               <Button
                                 size="sm"
@@ -1590,6 +1611,30 @@ export function LatberDashboard(props: LatberDashboardProps) {
             { action: "mark_cash" },
             "Lunas tunai",
           );
+        }}
+      />
+
+      <InkaiConfirmDialog
+        open={Boolean(confirmLunas)}
+        onOpenChange={(open) => !open && setConfirmLunas(null)}
+        title="Ubah Tunai menjadi Lunas?"
+        description={
+          confirmLunas
+            ? `${confirmLunas.fullName} — metode tercatat transfer/QRIS. Kas dan kehadiran tidak dicatat ulang.`
+            : ""
+        }
+        confirmLabel="Ya, Lunas"
+        cancelLabel="Batal"
+        loading={Boolean(
+          confirmLunas &&
+            (pendingId === confirmLunas.registrationId ||
+              pendingId === confirmLunas.memberId),
+        )}
+        onConfirm={() => {
+          if (!confirmLunas?.registrationId) return;
+          const regId = confirmLunas.registrationId;
+          setConfirmLunas(null);
+          void runAction(regId, { action: "mark_lunas" }, "Status menjadi Lunas");
         }}
       />
 

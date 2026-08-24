@@ -60,6 +60,12 @@ describe("Latber paid status (lunas + tunai)", () => {
     expect(latberDisplayStatusLabel("tunai")).toBe("Tunai");
     expect(latberStatusBadgeClass("tunai")).toContain("teal");
   });
+
+  it("resolves TRANSFER PAID as lunas, not tunai", () => {
+    expect(
+      resolveLatberDisplayStatus({ ...base, paymentMethod: "TRANSFER" }),
+    ).toBe("lunas");
+  });
 });
 
 describe("Latber guest helpers", () => {
