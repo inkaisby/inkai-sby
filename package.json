@@ -29,7 +29,8 @@
     "kas:verify-tsv": "tsx scripts/kas-verify-tsv.ts",
     "kas:import": "tsx scripts/kas-import-cabang.ts",
     "kas:reconcile": "tsx scripts/kas-reconcile-cabang.ts",
-    "kas:restore": "tsx scripts/kas-restore-cabang.ts"
+    "kas:restore": "tsx scripts/kas-restore-cabang.ts",
+    "kas:relabel-kegiatan": "tsx scripts/kas-relabel-ukt-kegiatan.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.23",

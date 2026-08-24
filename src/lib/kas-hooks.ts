@@ -1,6 +1,7 @@
 import { getPrimaryAdminRole, type SessionUser } from "@/lib/rbac";
 import { isLatberEventTitle } from "@/lib/latber";
 import { ymdWib } from "@/lib/kas";
+import { formatLatberKasKegiatan, formatUktKasKegiatan } from "@/lib/kas-kegiatan";
 import {
   postKasEntry,
   resolveDojoBranchScope,
@@ -121,7 +122,7 @@ export async function postKasFromUktPaid(opts: {
   if (amount <= 0) return;
   const scopes = opts.memberDojoId
     ? await resolveDojoBranchScope(opts.memberDojoId)
-    : { dojo: null, branch: null };
+    : { dojo: null, branch: null, dojoName: null };
   const branch = scopes.branch;
   if (!branch) return;
   const nia = opts.memberNia ? ` (${opts.memberNia})` : "";
@@ -129,7 +130,7 @@ export async function postKasFromUktPaid(opts: {
     scope: branch,
     txnDate: ymdWib(),
     description: `${opts.memberName}${nia}`,
-    kegiatan: `UKT ${opts.periodTitle}`.slice(0, 120),
+    kegiatan: formatUktKasKegiatan(opts.periodTitle, scopes.dojoName),
     direction: "in",
     amount,
     sourceType: "ukt",
@@ -157,7 +158,7 @@ export async function postKasFromLatberPaid(opts: {
     : { dojo: null, branch: null };
   const nia = opts.memberNia ? ` (${opts.memberNia})` : "";
   const desc = `${opts.memberName}${nia}`;
-  const kegiatan = `Latber ${opts.periodTitle}`.slice(0, 120);
+  const kegiatan = formatLatberKasKegiatan(opts.periodTitle);
 
   if (scopes.branch && nett > 0) {
     await postKasEntry({

@@ -643,14 +643,18 @@ export async function setKasPeriodLock(opts: {
 export async function resolveDojoBranchScope(dojoId: string): Promise<{
   dojo: KasScope;
   branch: KasScope | null;
+  dojoName: string | null;
 }> {
   const dojo = await prisma.dojo.findFirst({
     where: { id: dojoId, isDeleted: false },
-    select: { id: true, branchId: true },
+    select: { id: true, branchId: true, name: true },
   });
-  if (!dojo) return { dojo: { type: "dojo", id: dojoId }, branch: null };
+  if (!dojo) {
+    return { dojo: { type: "dojo", id: dojoId }, branch: null, dojoName: null };
+  }
   return {
     dojo: { type: "dojo", id: dojo.id },
     branch: dojo.branchId ? { type: "branch", id: dojo.branchId } : null,
+    dojoName: dojo.name?.trim() || null,
   };
 }
