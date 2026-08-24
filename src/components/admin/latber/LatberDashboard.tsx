@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Archive,
   Calendar,
+  Clock,
   Copy,
   Download,
   FileSpreadsheet,
@@ -819,6 +820,16 @@ export function LatberDashboard(props: LatberDashboardProps) {
     );
   }
 
+  const isRegClosed = useMemo(() => {
+    if (!props.selectedPeriod) return false;
+    if (periodLocked) return false;
+    const closeIso =
+      props.selectedPeriod.registrationCloseAt || props.selectedPeriod.endDate;
+    if (!closeIso) return false;
+    const closeDate = new Date(closeIso);
+    return !Number.isNaN(closeDate.getTime()) && Date.now() > closeDate.getTime();
+  }, [props.selectedPeriod, periodLocked]);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -830,16 +841,31 @@ export function LatberDashboard(props: LatberDashboardProps) {
             router.push(`${base}?period=${v}`);
           }}
         >
-          <SelectTrigger className="w-[min(100%,320px)]">
+          <SelectTrigger className="w-[min(100%,340px)]">
             <SelectValue placeholder="Pilih periode" />
           </SelectTrigger>
           <SelectContent>
-            {props.periods.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {formatLatberPeriodLabel(p.title)}
-                {p.archived ? " (Arsip)" : ""}
-              </SelectItem>
-            ))}
+            {props.periods.map((p) => {
+              const closeIso = p.registrationCloseAt || p.endDate;
+              const isClosed =
+                !p.archived &&
+                !p.locked &&
+                Boolean(
+                  closeIso &&
+                    !Number.isNaN(new Date(closeIso).getTime()) &&
+                    Date.now() > new Date(closeIso).getTime(),
+                );
+              return (
+                <SelectItem key={p.id} value={p.id}>
+                  {formatLatberPeriodLabel(p.title)}
+                  {p.archived
+                    ? " (Arsip)"
+                    : isClosed
+                      ? " (Pendaftaran Ditutup)"
+                      : ""}
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
 
@@ -946,6 +972,24 @@ export function LatberDashboard(props: LatberDashboardProps) {
         </Card>
       )}
 
+      {isRegClosed && props.selectedPeriodId && !periodLocked && (
+        <Card className="border-amber-300 bg-amber-50/70 dark:border-amber-800 dark:bg-amber-950/30">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+            <div className="flex items-start gap-2">
+              <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" />
+              <div>
+                <p className="font-medium text-amber-900 dark:text-amber-200">
+                  Pendaftaran Mandiri / Publik Ditutup
+                </p>
+                <p className="text-amber-800/90 dark:text-amber-300/90">
+                  Timer pendaftaran online telah berakhir. Seluruh data peserta tetap tersimpan dan dapat diverifikasi, dibayar tunai, serta dicetak nota dan laporannya.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {props.selectedPeriod && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="rounded-xl border bg-card p-4">
@@ -971,11 +1015,37 @@ export function LatberDashboard(props: LatberDashboardProps) {
       )}
 
       {!props.selectedPeriodId && (
-        <div className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
-          {props.canCreatePeriod
-            ? "Belum ada periode Latihan Bersama aktif. Klik Buat Periode untuk memulai."
-            : "Belum ada periode Latihan Bersama aktif."}
-        </div>
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center space-y-3 p-8 text-center text-muted-foreground">
+            <Archive className="h-10 w-10 text-muted-foreground/60" />
+            <div>
+              <p className="text-base font-medium text-foreground">
+                Belum ada periode Latihan Bersama yang sedang berjalan
+              </p>
+              <p className="mt-1 max-w-md text-sm">
+                {props.canCreatePeriod
+                  ? "Periode sebelumnya mungkin sudah selesai dan tersimpan di Arsip, atau klik Buat Periode untuk memulai."
+                  : "Data periode sebelumnya yang telah selesai atau diarsipkan dapat dilihat melalui menu Arsip."}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/admin/latber/arsip")}
+              >
+                <Archive className="mr-2 h-4 w-4" />
+                Lihat Arsip Latihan Bersama
+              </Button>
+              {props.canCreatePeriod && (
+                <Button type="button" onClick={() => setCreateOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Buat Periode Baru
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {props.selectedPeriodId && (

@@ -66,12 +66,22 @@ function latberPeriodSchedule(
   };
 }
 
-function isLatberPeriodInactive(p: LatberPeriodOption, meta: LatberPeriodMeta): boolean {
-  if (meta.archived || meta.locked) return true;
-  return !isLatberRegistrationOpen(latberPeriodSchedule(p, meta));
+function isLatberEventCompleted(p: LatberPeriodOption, meta: LatberPeriodMeta): boolean {
+  const eventTimeIso = meta.eventAt || p.endDate || p.startDate;
+  if (!eventTimeIso) return false;
+  const eventDate = new Date(eventTimeIso);
+  if (Number.isNaN(eventDate.getTime())) return false;
+  // Auto-arsip hanya setelah 24 jam dari waktu pelaksanaan event
+  const archiveCutoff = eventDate.getTime() + 24 * 60 * 60 * 1000;
+  return Date.now() > archiveCutoff;
 }
 
-/** Idempotent: arsipkan periode yang pendaftarannya sudah tutup. */
+function isLatberPeriodInactive(p: LatberPeriodOption, meta: LatberPeriodMeta): boolean {
+  if (meta.archived || meta.locked) return true;
+  return isLatberEventCompleted(p, meta);
+}
+
+/** Idempotent: arsipkan periode yang pelaksanaan latihannya sudah berlalu (+24 jam). */
 async function autoArchiveInactiveLatberPeriods(
   token: string,
   periods: LatberPeriodOption[],
@@ -80,7 +90,7 @@ async function autoArchiveInactiveLatberPeriods(
   for (const p of periods) {
     const meta = metaByPeriodId.get(p.id) ?? { archived: false, locked: false };
     if (meta.archived || meta.locked) continue;
-    if (isLatberRegistrationOpen(latberPeriodSchedule(p, meta))) continue;
+    if (!isLatberEventCompleted(p, meta)) continue;
 
     const archived = mergeLatberPeriodMeta(meta, {
       archived: true,
@@ -176,10 +186,14 @@ export async function fetchLatberDashboardData(
   }
 
   let selectedPeriodId = forceNoPeriod ? null : periodFromUrl;
+  if (selectedPeriodId && !periods.some((p) => p.id === selectedPeriodId)) {
+    // Jika periodFromUrl tidak ada dalam daftar periods untuk viewMode ini, reset
+    selectedPeriodId = null;
+  }
   if (!selectedPeriodId && !forceNoPeriod) {
     if (viewMode === "archive") {
       const archived = periods.filter((p) => p.archived || p.locked);
-      selectedPeriodId = archived[0]?.id ?? null;
+      selectedPeriodId = archived[0]?.id ?? periods[0]?.id ?? null;
     } else {
       selectedPeriodId = findActiveLatberPeriod(periods)?.id ?? periods[0]?.id ?? null;
     }
