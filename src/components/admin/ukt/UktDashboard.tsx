@@ -307,10 +307,9 @@ type Props = {
 
 const PAGE_SIZES = [25, 50, 100] as const;
 
-const UKT_NAME_STICKY_HEAD =
-  "sticky left-0 z-20 min-w-[9rem] bg-muted/50 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)]";
+const UKT_NAME_STICKY_HEAD = "min-w-[9rem]";
 const UKT_NAME_STICKY_CELL =
-  "sticky left-0 z-10 min-w-[9rem] max-w-[11rem] bg-background shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)] group-hover:bg-muted/30";
+  "min-w-[9rem] max-w-[14rem] font-medium group-hover:bg-muted/30";
 
 function formatDate(d: string | null) {
   if (!d) return "-";
@@ -3478,7 +3477,7 @@ export function UktDashboard(props: Props) {
           "space-y-2 border-b border-border/40 py-2.5",
           tableFullscreen
             ? "sticky top-0 z-10 shrink-0 bg-background"
-            : "sticky top-12 z-20 -mx-3 bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:static sm:top-auto sm:z-auto sm:mx-0 sm:border-b-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none",
+            : "sticky top-0 z-20 -mx-3 bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:static sm:top-auto sm:z-auto sm:mx-0 sm:border-b-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none",
         )}
       >
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -3744,7 +3743,7 @@ export function UktDashboard(props: Props) {
       {/* Table */}
       <div
         className={cn(
-          "mt-2 rounded-xl border shadow-sm",
+          "mt-2 rounded-xl border shadow-sm overflow-x-auto bg-card",
           tableFullscreen && "min-h-0 flex-1 overflow-auto",
         )}
       >

@@ -19,7 +19,7 @@ export function AdminPageHeader({
   return (
     <div
       className={cn(
-        "admin-page-header mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between",
+        "admin-page-header mb-3 flex flex-col gap-2.5 sm:mb-4 lg:mb-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between",
         className,
       )}
     >

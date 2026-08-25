@@ -1114,6 +1114,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Agustus 2026 | **Kas full halaman — refresh:** ikon RefreshCw sebelum Dari–Sampai di header full (Laporan Detail & Buku); panggil `load()`; spin saat loading; inventaris §6/§15 |
 | 23 Agustus 2026 | **UKT tabel full halaman:** ikon Maximize/Minimize; overlay `fixed inset-0 z-50` (Esc; FAB disembunyikan); header Refresh+Cetak; Kyu Lama (`PATCH update_kyu` snapshot) + Kyu Baru select cabang; tanpa kolom Dokumen; inventaris §6/§11/§13/§15 |
 | 23 Agustus 2026 | **UKT full halaman — Printer = Laporan/Rekapan:** ikon Printer di header full membuka hub Laporan/Rekapan (`openReportsHub`), bukan Cetak Nota; inventaris §6/§11/§15 |
+| 25 Agustus 2026 | **Optimalisasi Layout Admin Desktop 14 Inci:** penyesuaian lebar sidebar (`w-64 xl:w-72`), padding main container (`p-3 sm:p-4 lg:p-6`), perbaikan sticky offset `top-0` di `UktTermNav`, dan pelepasan `left-0` di kolom Nama UKT agar seluruh 25+ halaman admin tampil luas, utuh, dan presisi di semua perangkat desktop/laptop 14"; inventaris §6/§15 |
 
 ---
 

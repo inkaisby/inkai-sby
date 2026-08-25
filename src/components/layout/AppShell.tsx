@@ -303,7 +303,7 @@ export function AppSidebar({
   return (
     <aside
       className={`admin-sidebar hidden h-svh ${
-        collapsed ? "w-16" : "w-72"
+        collapsed ? "w-16" : "w-64 xl:w-72"
       } shrink-0 flex-col border-r border-border/60 bg-gradient-to-b from-muted/40 via-background to-background transition-all duration-200 lg:flex`}
     >
       <div
