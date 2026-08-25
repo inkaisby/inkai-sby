@@ -122,9 +122,12 @@ export async function postKasFromUktPaid(opts: {
   memberNia?: string | null;
   periodTitle: string;
   memberDojoId?: string | null;
+  komisiRanting?: number;
 }) {
-  const amount = roundThousands(opts.amount);
-  if (amount <= 0) return;
+  const fee = roundThousands(opts.amount);
+  if (fee <= 0) return;
+  const komisi = Math.min(fee, roundRp(opts.komisiRanting ?? 50000));
+  const nett = Math.max(0, fee - komisi);
   const scopes = opts.memberDojoId
     ? await resolveDojoBranchScope(opts.memberDojoId)
     : { dojo: null, branch: null, dojoName: null };
@@ -137,7 +140,7 @@ export async function postKasFromUktPaid(opts: {
     description: `${opts.memberName}${nia}`,
     kegiatan: formatUktKasKegiatan(opts.periodTitle, scopes.dojoName),
     direction: "in",
-    amount,
+    amount: nett,
     sourceType: "ukt",
     sourceId: opts.billingId,
     sourceHref: `/admin/ukt`,

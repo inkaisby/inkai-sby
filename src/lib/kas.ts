@@ -531,12 +531,23 @@ export function aggregateKasByDojo(
         item.totalKomisiLatber += row.amountIn;
       } else {
         item.totalLatber += row.amountIn;
+        item.totalMasuk += row.amountIn;
       }
     } else if (src === "ukt" || keg.includes("ukt") || desc.includes("ukt")) {
       if (isKomisi) {
         item.totalKomisiUkt += row.amountIn;
       } else {
-        item.totalUkt += row.amountIn;
+        if (row.amountIn >= 285000) {
+          const count = Math.max(1, Math.round(row.amountIn / 298000));
+          const komisi = count * 50000;
+          const nett = Math.max(0, row.amountIn - komisi);
+          item.totalUkt += nett;
+          item.totalKomisiUkt += komisi;
+          item.totalMasuk += nett;
+        } else {
+          item.totalUkt += row.amountIn;
+          item.totalMasuk += row.amountIn;
+        }
       }
     } else if (
       src === "iuran" ||
@@ -544,10 +555,11 @@ export function aggregateKasByDojo(
       desc.includes("iuran")
     ) {
       item.totalIuran += row.amountIn;
+      item.totalMasuk += row.amountIn;
     } else {
       item.totalLainnya += row.amountIn;
+      item.totalMasuk += row.amountIn;
     }
-    item.totalMasuk += row.amountIn;
   }
 
   return Array.from(map.values()).sort((a, b) => b.totalMasuk - a.totalMasuk);

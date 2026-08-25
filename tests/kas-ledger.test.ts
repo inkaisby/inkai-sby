@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  aggregateKasByDojo,
   filterMonth,
   filterRange,
   formatKasDateId,
@@ -290,5 +291,35 @@ describe("kas ledger", () => {
     }
     const fail = mergeMassPasteRows(existing, incoming, 1);
     expect(fail).toEqual({ error: "max" });
+  });
+
+  it("aggregateKasByDojo calculates net UKT amount Rp 2.725.000 for FORTRESS 11 participants", () => {
+    const rows = [
+      row({
+        id: "k1",
+        txnDate: "2026-08-15",
+        description: "Setoran UKT FORTRESS",
+        kegiatan: "UKT Semester II-2026",
+        amountIn: 3275000,
+        sourceType: "ukt",
+      }),
+      row({
+        id: "k2",
+        txnDate: "2026-08-15",
+        description: "Setoran Latber FORTRESS",
+        kegiatan: "Latber",
+        amountIn: 80000,
+        sourceType: "latber",
+      }),
+    ];
+    const res = aggregateKasByDojo(rows, ["FORTRESS"]);
+    expect(res).toHaveLength(1);
+    expect(res[0]).toMatchObject({
+      dojoName: "FORTRESS",
+      totalUkt: 2725000, // 3.275.000 gross - 550.000 komisi (11 × 50k) = 2.725.000 net
+      totalKomisiUkt: 550000,
+      totalLatber: 80000,
+      totalMasuk: 2805000, // 2.725.000 net ukt + 80.000 latber
+    });
   });
 });
