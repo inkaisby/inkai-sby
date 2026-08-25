@@ -161,6 +161,7 @@ export function LatberWalkInClient({
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [payRow, setPayRow] = useState<Registrant | null>(null);
   const [confirmingPay, setConfirmingPay] = useState(false);
+  const [submittingCashId, setSubmittingCashId] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<"account" | "amount" | null>(
     null,
   );
@@ -653,15 +654,46 @@ export function LatberWalkInClient({
             <Button
               size="sm"
               className="bg-teal-600 text-white hover:bg-teal-700"
-              onClick={() => {
-                const url = buildTunaiWaUrl(
-                  formatMemberName(row.fullName),
-                  row.dojoName,
-                );
-                window.open(url, "_blank", "noopener,noreferrer");
+              disabled={submittingCashId === row.registrationId}
+              onClick={async () => {
+                if (!periodId || !row.registrationId) return;
+                setSubmittingCashId(row.registrationId);
+                try {
+                  const res = await fetch(
+                    "/api/public/latber/confirm-payment",
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        eventId: periodId,
+                        registrationId: row.registrationId,
+                      }),
+                    },
+                  );
+                  const data = (await res.json().catch(() => ({}))) as {
+                    error?: string;
+                  };
+                  if (!res.ok) {
+                    throw new Error(
+                      data.error || "Gagal mengonfirmasi pembayaran tunai",
+                    );
+                  }
+                  showSuccess(
+                    "Konfirmasi pembayaran tunai dikirim — menunggu verifikasi",
+                  );
+                  await reload();
+                } catch (e) {
+                  showError(
+                    e instanceof Error
+                      ? e.message
+                      : "Gagal mengonfirmasi pembayaran tunai",
+                  );
+                } finally {
+                  setSubmittingCashId(null);
+                }
               }}
             >
-              Tunai
+              {submittingCashId === row.registrationId ? "Mengirim…" : "Tunai"}
             </Button>
           </>
         ) : null}
