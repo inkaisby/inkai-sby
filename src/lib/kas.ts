@@ -526,7 +526,31 @@ export function aggregateKasByDojo(
     const desc = (row.description || "").toLowerCase();
     const isKomisi = desc.includes("komisi") || keg.includes("komisi");
 
-    if (src === "latber" || keg.includes("latber") || desc.includes("latber")) {
+    const isUktMatch =
+      src === "ukt" || keg.includes("ukt") || desc.includes("ukt");
+    const isLatberMatch =
+      src === "latber" || keg.includes("latber") || desc.includes("latber");
+
+    if (isUktMatch && src !== "latber") {
+      if (isKomisi) {
+        item.totalKomisiUkt += row.amountIn;
+      } else {
+        if (row.amountIn >= 285000) {
+          const count = Math.max(1, Math.round(row.amountIn / 298000));
+          const komisi = count * 50000;
+          const nett = Math.max(0, row.amountIn - komisi);
+          item.totalUkt += nett;
+          item.totalKomisiUkt += komisi;
+          item.totalMasuk += nett;
+        } else {
+          const komisi = Math.round(row.amountIn * 0.1);
+          const nett = Math.max(0, row.amountIn - komisi);
+          item.totalUkt += nett;
+          item.totalKomisiUkt += komisi;
+          item.totalMasuk += nett;
+        }
+      }
+    } else if (isLatberMatch) {
       if (isKomisi) {
         item.totalKomisiLatber += row.amountIn;
       } else {
@@ -542,22 +566,6 @@ export function aggregateKasByDojo(
           const komisi = count * 5000;
           item.totalLatber += row.amountIn;
           item.totalKomisiLatber += komisi;
-          item.totalMasuk += row.amountIn;
-        }
-      }
-    } else if (src === "ukt" || keg.includes("ukt") || desc.includes("ukt")) {
-      if (isKomisi) {
-        item.totalKomisiUkt += row.amountIn;
-      } else {
-        if (row.amountIn >= 285000) {
-          const count = Math.max(1, Math.round(row.amountIn / 298000));
-          const komisi = count * 50000;
-          const nett = Math.max(0, row.amountIn - komisi);
-          item.totalUkt += nett;
-          item.totalKomisiUkt += komisi;
-          item.totalMasuk += nett;
-        } else {
-          item.totalUkt += row.amountIn;
           item.totalMasuk += row.amountIn;
         }
       }

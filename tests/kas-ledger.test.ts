@@ -323,4 +323,39 @@ describe("kas ledger", () => {
       totalMasuk: 2805000, // 2.725.000 net ukt + 80.000 latber
     });
   });
+
+  it("aggregateKasByDojo populates UKT and Komisi UKT for MANYAR & CAKRA", () => {
+    const rows = [
+      row({
+        id: "m1",
+        txnDate: "2026-08-15",
+        description: "Setoran UKT MANYAR",
+        kegiatan: "UKT Persiapan",
+        amountIn: 400000,
+        sourceType: "ukt",
+      }),
+      row({
+        id: "c1",
+        txnDate: "2026-08-15",
+        description: "Setoran UKT CAKRA KOARMATIM",
+        kegiatan: "UKT Persiapan",
+        amountIn: 80000,
+        sourceType: "ukt",
+      }),
+    ];
+    const res = aggregateKasByDojo(rows, ["MANYAR", "CAKRA KOARMATIM"]);
+    const manyar = res.find((r) => r.dojoName === "MANYAR");
+    const cakra = res.find((r) => r.dojoName === "CAKRA KOARMATIM");
+
+    expect(manyar).toMatchObject({
+      totalUkt: 350000, // 400k gross - 50k komisi (1 peserta) = 350k net
+      totalKomisiUkt: 50000,
+      totalMasuk: 350000,
+    });
+    expect(cakra).toMatchObject({
+      totalUkt: 72000, // 80k gross - 8k komisi (10%) = 72k net
+      totalKomisiUkt: 8000,
+      totalMasuk: 72000,
+    });
+  });
 });
