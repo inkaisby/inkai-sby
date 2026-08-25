@@ -20,9 +20,12 @@ import { recreatePendingUktBillingAfterDelete } from "@/lib/ukt-register";
 import {
   classifyBillingForKas,
   postKasFromIuranPaid,
+  postKasFromLatberPaid,
   postKasFromUktPaid,
   voidKasFromBilling,
 } from "@/lib/kas-hooks";
+import { loadLatberPeriodMeta } from "@/lib/latber-period-meta-store";
+import { resolveLatberPeriodFees } from "@/lib/latber";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -490,6 +493,21 @@ export async function PATCH(request: Request, context: RouteContext) {
           memberName: scope.billing.member.fullName,
           memberNia: scope.billing.member.nia,
           periodTitle: scope.billing.description || "UKT",
+          memberDojoId: scope.billing.member.dojoId,
+        });
+      } else if (kind === "latber") {
+        const periodMeta = scope.billing.registrationId
+          ? await loadLatberPeriodMeta(authResult.token, scope.billing.registrationId).catch(() => null)
+          : null;
+        const fees = resolveLatberPeriodFees(periodMeta);
+        await postKasFromLatberPaid({
+          user: authResult.user,
+          billingId: id,
+          feeAmount: scope.billing.amount ?? fees.feeAmount,
+          komisiRanting: fees.komisiRanting,
+          memberName: scope.billing.member.fullName ?? "Peserta",
+          memberNia: scope.billing.member.nia,
+          periodTitle: scope.billing.description || "Latihan Bersama",
           memberDojoId: scope.billing.member.dojoId,
         });
       }

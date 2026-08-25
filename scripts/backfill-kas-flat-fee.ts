@@ -100,6 +100,59 @@ async function main() {
     return b.uniqueTail !== null || b.amount % 1000 !== 0;
   });
 
+  // 3. Paid Latber Billings without KasEntry
+  const paidLatberBillings = await prisma.billing.findMany({
+    where: {
+      isDeleted: false,
+      status: { in: ["PAID", "SUCCESS"] },
+      OR: [
+        { type: "EVENT" },
+        { description: { contains: "Latber", mode: "insensitive" } },
+        { description: { contains: "Latihan Bersama", mode: "insensitive" } },
+      ],
+    },
+    include: {
+      member: { select: { id: true, dojoId: true, fullName: true, nia: true, dojo: { select: { id: true, branchId: true } } } },
+    },
+  });
+
+  const missingLatberKas: Array<{
+    billingId: string;
+    dojoId: string;
+    branchId: string | null;
+    memberName: string;
+    memberNia: string | null;
+    periodTitle: string;
+    createdAt: Date;
+    feeAmount: number;
+    komisiRanting: number;
+  }> = [];
+
+  for (const b of paidLatberBillings) {
+    const isLatber =
+      b.type === "EVENT" ||
+      /latber/i.test(b.description ?? "") ||
+      /latihan bersama/i.test(b.description ?? "");
+    if (!isLatber || !b.member?.dojoId) continue;
+
+    const existingRantingKas = await prisma.kasEntry.findFirst({
+      where: { sourceType: "latber", sourceId: `${b.id}:ranting` },
+    });
+    if (!existingRantingKas) {
+      missingLatberKas.push({
+        billingId: b.id,
+        dojoId: b.member.dojoId,
+        branchId: b.member.dojo?.branchId ?? null,
+        memberName: b.member.fullName,
+        memberNia: b.member.nia,
+        periodTitle: b.description || "Latihan Bersama",
+        createdAt: b.createdAt,
+        feeAmount: flatThousands(b.amount || 45000),
+        komisiRanting: 5000,
+      });
+    }
+  }
+
   const summary = {
     mode: apply ? "apply" : "dry-run",
     allowRemote,
@@ -121,6 +174,8 @@ async function main() {
       fixedAmount: flatThousands(b.amount),
       uniqueTail: b.uniqueTail,
     })),
+    missingLatberKasEntries: missingLatberKas.length,
+    missingLatberSample: missingLatberKas.slice(0, 10),
   };
 
   console.log(JSON.stringify(summary, null, 2));
@@ -157,11 +212,58 @@ async function main() {
     billingUpdatedCount++;
   }
 
+  let latberKasCreatedCount = 0;
+  for (const item of missingLatberKas) {
+    const nia = item.memberNia ? ` (${item.memberNia})` : "";
+    const desc = `${item.memberName}${nia}`;
+    const kegiatan = item.periodTitle.startsWith("Latber ")
+      ? item.periodTitle
+      : `Latber ${item.periodTitle}`;
+    const txnDate = item.createdAt;
+
+    // Ranting Kas (Komisi 5.000)
+    await prisma.kasEntry.create({
+      data: {
+        scopeType: "dojo",
+        scopeId: item.dojoId,
+        txnDate,
+        description: `Komisi ranting — ${desc}`,
+        kegiatan,
+        amountIn: item.komisiRanting,
+        amountOut: 0,
+        sourceType: "latber",
+        sourceId: `${item.billingId}:ranting`,
+        sourceHref: "/admin/latber",
+      },
+    });
+    latberKasCreatedCount++;
+
+    // Cabang Kas (Nett 40.000)
+    if (item.branchId) {
+      await prisma.kasEntry.create({
+        data: {
+          scopeType: "branch",
+          scopeId: item.branchId,
+          txnDate,
+          description: desc,
+          kegiatan,
+          amountIn: Math.max(0, item.feeAmount - item.komisiRanting),
+          amountOut: 0,
+          sourceType: "latber",
+          sourceId: `${item.billingId}:cabang`,
+          sourceHref: "/admin/latber",
+        },
+      });
+      latberKasCreatedCount++;
+    }
+  }
+
   console.log(
     JSON.stringify(
       {
         kasUpdated: kasUpdatedCount,
         billingUpdated: billingUpdatedCount,
+        latberKasCreated: latberKasCreatedCount,
       },
       null,
       2,
