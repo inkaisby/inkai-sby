@@ -32,7 +32,7 @@ describe("ukt WA/nota sabuk", () => {
     ] as any[];
 
     const text = buildUktCabangWaReportText("UKT Semester II-2026", rows);
-    expect(text.toLowerCase()).toContain("kyu 7 = 1 peserta");
+    expect(text.toLowerCase()).toContain("kyu 7 = _1 peserta_");
     expect(text.toLowerCase()).not.toContain("dan 8");
   });
 

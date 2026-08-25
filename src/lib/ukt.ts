@@ -1063,7 +1063,7 @@ export type UktDepositReconRow = {
   gapLabel: string;
 };
 
-/** Rekonsiliasi setoran: total tagihan peserta terdaftar vs status setor ranting. */
+/** Rekonsiliasi setoran: total tagihan peserta terdaftar (disetor ke cabang net = kotor − komisi ranting) vs status setor ranting. */
 export function buildUktDepositReconciliation(
   rows: Array<{
     dojoId: string;
@@ -1075,10 +1075,11 @@ export function buildUktDepositReconciliation(
   }>,
   dojos: Array<{ id: string; name: string }>,
   depositMap: Record<string, UktDepositRecord>,
+  komisiRanting: number = DEFAULT_KOMISI_RANTING,
 ): UktDepositReconRow[] {
   const byDojo = new Map<
     string,
-    { name: string; participantCount: number; paidCount: number; expectedAmount: number }
+    { name: string; participantCount: number; paidCount: number; grossAmount: number }
   >();
 
   for (const d of dojos) {
@@ -1086,7 +1087,7 @@ export function buildUktDepositReconciliation(
       name: d.name,
       participantCount: 0,
       paidCount: 0,
-      expectedAmount: 0,
+      grossAmount: 0,
     });
   }
 
@@ -1099,7 +1100,7 @@ export function buildUktDepositReconciliation(
         name: r.dojoName || r.dojoId,
         participantCount: 0,
         paidCount: 0,
-        expectedAmount: 0,
+        grossAmount: 0,
       };
       byDojo.set(r.dojoId, bucket);
     }
@@ -1111,7 +1112,7 @@ export function buildUktDepositReconciliation(
       r.status === "SUCCESS";
     if (paid) {
       bucket.paidCount += 1;
-      bucket.expectedAmount += amt;
+      bucket.grossAmount += amt;
     }
   }
 
@@ -1123,12 +1124,16 @@ export function buildUktDepositReconciliation(
     if (depositStatus === "SUBMITTED") gapLabel = "Menunggu konfirmasi cabang";
     if (depositStatus === "RECEIVED") gapLabel = "Lunas ke cabang";
     if (b.paidCount === 0) gapLabel = "Belum ada pembayaran peserta";
+    const expectedAmount = Math.max(
+      0,
+      b.grossAmount - b.paidCount * komisiRanting,
+    );
     result.push({
       dojoId,
       dojoName: b.name,
       participantCount: b.participantCount,
       paidCount: b.paidCount,
-      expectedAmount: b.expectedAmount,
+      expectedAmount,
       depositStatus,
       gapLabel,
     });

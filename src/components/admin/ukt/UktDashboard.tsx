@@ -1034,8 +1034,14 @@ export function UktDashboard(props: Props) {
   );
 
   const depositRecon = useMemo(
-    () => buildUktDepositReconciliation(kpiSourceRows, props.dojos, depositMap),
-    [kpiSourceRows, props.dojos, depositMap],
+    () =>
+      buildUktDepositReconciliation(
+        kpiSourceRows,
+        props.dojos,
+        depositMap,
+        komisiRanting,
+      ),
+    [kpiSourceRows, props.dojos, depositMap, komisiRanting],
   );
 
   const filteredRows = useMemo(() => {

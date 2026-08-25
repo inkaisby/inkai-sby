@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { getBeltGroup } from "../src/lib/belt";
 import {
   buildNotaBeltLines,
+  buildUktDepositReconciliation,
   isUktNotaRow,
   isUktPaymentDocumentRow,
   rowMatchesNotaDojoSelection,
@@ -235,5 +236,38 @@ describe("getBeltGroup cokelat", () => {
   it("mengenali Cokelat dan Coklat", () => {
     expect(getBeltGroup("Cokelat (Kyu 3)")).toBe("COKELAT");
     expect(getBeltGroup("Coklat (Kyu 2)")).toBe("COKELAT");
+  });
+});
+
+describe("buildUktDepositReconciliation total tagihan net", () => {
+  it("Total tagihan rekonsiliasi harus sama dengan TOTAL Nota Pembayaran UKT (Subtotal A - Komisi Ranting)", () => {
+    const dojos = [{ id: "d-fortress", name: "FORTRESS" }];
+    // 11 peserta Fortress lunas
+    const rows = [
+      // 2 Putih @ 285k
+      row({ dojoId: "d-fortress", billingAmount: 285000, billingStatus: "PAID", status: "APPROVED" }),
+      row({ dojoId: "d-fortress", billingAmount: 285000, billingStatus: "PAID", status: "APPROVED" }),
+      // 5 Kuning @ 295k
+      row({ dojoId: "d-fortress", billingAmount: 295000, billingStatus: "PAID", status: "APPROVED" }),
+      row({ dojoId: "d-fortress", billingAmount: 295000, billingStatus: "PAID", status: "APPROVED" }),
+      row({ dojoId: "d-fortress", billingAmount: 295000, billingStatus: "PAID", status: "APPROVED" }),
+      row({ dojoId: "d-fortress", billingAmount: 295000, billingStatus: "PAID", status: "APPROVED" }),
+      row({ dojoId: "d-fortress", billingAmount: 295000, billingStatus: "PAID", status: "APPROVED" }),
+      // 3 Hijau @ 305k
+      row({ dojoId: "d-fortress", billingAmount: 305000, billingStatus: "PAID", status: "APPROVED" }),
+      row({ dojoId: "d-fortress", billingAmount: 305000, billingStatus: "PAID", status: "APPROVED" }),
+      row({ dojoId: "d-fortress", billingAmount: 305000, billingStatus: "PAID", status: "APPROVED" }),
+      // 1 Biru @ 315k
+      row({ dojoId: "d-fortress", billingAmount: 315000, billingStatus: "PAID", status: "APPROVED" }),
+    ];
+
+    const recon = buildUktDepositReconciliation(rows, dojos, {}, 50000);
+    expect(recon).toHaveLength(1);
+    expect(recon[0]).toMatchObject({
+      dojoName: "FORTRESS",
+      participantCount: 11,
+      paidCount: 11,
+      expectedAmount: 2725000, // 3.275.000 (Subtotal A) - 550.000 (11 x 50k komisi) = 2.725.000
+    });
   });
 });
