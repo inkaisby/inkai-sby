@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  Fragment,
   type ReactNode,
 } from "react";
 import Link from "next/link";
@@ -43,6 +44,7 @@ import {
   aggregateKasByDojo,
   firstOfMonthWib,
   formatKasDateId,
+  formatRecapDojoTextForWa,
   kasGroupKegiatanNames,
   KAS_MAX_BATCH,
   mergeMassPasteRows,
@@ -148,9 +150,20 @@ export function KasLedgerClient({
   const [massPasteDirection, setMassPasteDirection] = useState<"in" | "out">("out");
   const collapseSeedQsRef = useRef<string | null>(null);
 
+  const officialDojoList = useMemo(() => {
+    if (!data?.scopes) return [];
+    return data.scopes
+      .filter((s) => s.type === "dojo")
+      .map((s) => s.label);
+  }, [data?.scopes]);
+
   const dojoSummaries = useMemo(() => {
-    return aggregateKasByDojo(data?.rows ?? []);
-  }, [data?.rows]);
+    return aggregateKasByDojo(data?.rows ?? [], officialDojoList);
+  }, [data?.rows, officialDojoList]);
+
+  const officialDojoCount = useMemo(() => {
+    return dojoSummaries.filter((d) => d.isOfficialDojo).length;
+  }, [dojoSummaries]);
 
   const grandUkt = useMemo(
     () => dojoSummaries.reduce((s, d) => s + d.totalUkt, 0),
@@ -2010,16 +2023,46 @@ export function KasLedgerClient({
               Rekapitulasi Setoran Masuk Per Ranting
             </DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col min-h-0 flex-1 gap-2 overflow-hidden">
-            <p className="text-xs text-muted-foreground shrink-0">
-              Periode: {periodCaption} · Total {dojoSummaries.length} Ranting/Kategori
+          <div className="flex flex-col min-h-0 flex-1 gap-3 overflow-hidden">
+            {/* KPI Summary Banner */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs shrink-0">
+              <div className="rounded-lg border bg-muted/40 p-2.5">
+                <span className="text-muted-foreground block text-[11px]">Ranting Mengikuti</span>
+                <span className="text-base font-bold text-slate-800 dark:text-slate-200">
+                  {officialDojoCount} Ranting
+                </span>
+              </div>
+              <div className="rounded-lg border bg-muted/40 p-2.5">
+                <span className="text-muted-foreground block text-[11px]">Setoran UKT</span>
+                <span className="text-base font-bold text-teal-700 dark:text-teal-400">
+                  {formatRp(grandUkt)}
+                </span>
+              </div>
+              <div className="rounded-lg border bg-muted/40 p-2.5">
+                <span className="text-muted-foreground block text-[11px]">Setoran Latber</span>
+                <span className="text-base font-bold text-teal-700 dark:text-teal-400">
+                  {formatRp(grandLatber)}
+                </span>
+              </div>
+              <div className="rounded-lg border bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-800 p-2.5">
+                <span className="text-teal-700 dark:text-teal-300 block text-[11px] font-medium">Total Masuk Net</span>
+                <span className="text-base font-extrabold text-teal-900 dark:text-teal-100">
+                  {formatRp(grandTotal)}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground shrink-0 flex items-center justify-between">
+              <span>Periode: {periodCaption} · Total {officialDojoCount} Ranting Mengikuti</span>
+              <span className="text-[11px] text-muted-foreground hidden sm:inline">* Klik baris untuk memfilter transaksi di kas</span>
             </p>
+
             <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto rounded-md border">
               <table className="w-full text-left text-xs sm:text-sm min-w-[800px]">
                 <thead className="sticky top-0 z-10 border-b bg-muted font-medium text-muted-foreground">
                   <tr>
                     <th className="p-2 sm:p-2.5">No</th>
-                    <th className="p-2 sm:p-2.5 min-w-[140px]">Ranting / Dojo</th>
+                    <th className="p-2 sm:p-2.5 min-w-[160px]">Ranting / Dojo</th>
                     <th className="p-2 sm:p-2.5 text-right">UKT</th>
                     <th className="p-2 sm:p-2.5 text-right">Komisi UKT</th>
                     <th className="p-2 sm:p-2.5 text-right">Latber</th>
@@ -2037,33 +2080,121 @@ export function KasLedgerClient({
                       </td>
                     </tr>
                   ) : (
-                    dojoSummaries.map((item, idx) => (
-                      <tr key={item.dojoName} className="hover:bg-muted/50">
-                        <td className="p-2 sm:p-2.5 text-muted-foreground">{idx + 1}</td>
-                        <td className="p-2 sm:p-2.5 font-semibold">{item.dojoName}</td>
-                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
-                          {item.totalUkt > 0 ? formatRp(item.totalUkt) : "-"}
-                        </td>
-                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
-                          {item.totalKomisiUkt > 0 ? formatRp(item.totalKomisiUkt) : "-"}
-                        </td>
-                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
-                          {item.totalLatber > 0 ? formatRp(item.totalLatber) : "-"}
-                        </td>
-                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
-                          {item.totalKomisiLatber > 0 ? formatRp(item.totalKomisiLatber) : "-"}
-                        </td>
-                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
-                          {item.totalIuran > 0 ? formatRp(item.totalIuran) : "-"}
-                        </td>
-                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
-                          {item.totalLainnya > 0 ? formatRp(item.totalLainnya) : "-"}
-                        </td>
-                        <td className="p-2 sm:p-2.5 text-right font-bold text-teal-800 dark:text-teal-300 whitespace-nowrap">
-                          {formatRp(item.totalMasuk)}
-                        </td>
-                      </tr>
-                    ))
+                    dojoSummaries.map((item, idx) => {
+                      if (item.isOfficialDojo) {
+                        return (
+                          <tr
+                            key={item.dojoName}
+                            className="hover:bg-muted/50 cursor-pointer transition-colors"
+                            title={`Klik untuk memfilter transaksi ${item.dojoName}`}
+                            onClick={() => {
+                              setKegiatan(item.dojoName);
+                              setRecapDojoOpen(false);
+                              toast.info(`Memfilter kas untuk ranting: ${item.dojoName}`);
+                            }}
+                          >
+                            <td className="p-2 sm:p-2.5 text-muted-foreground">{idx + 1}</td>
+                            <td className="p-2 sm:p-2.5 font-semibold text-slate-900 dark:text-slate-100">
+                              {item.dojoName}
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
+                              {item.totalUkt > 0 ? formatRp(item.totalUkt) : "-"}
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
+                              {item.totalKomisiUkt > 0 ? formatRp(item.totalKomisiUkt) : "-"}
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
+                              {item.totalLatber > 0 ? formatRp(item.totalLatber) : "-"}
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
+                              {item.totalKomisiLatber > 0 ? formatRp(item.totalKomisiLatber) : "-"}
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
+                              {item.totalIuran > 0 ? formatRp(item.totalIuran) : "-"}
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
+                              {item.totalLainnya > 0 ? formatRp(item.totalLainnya) : "-"}
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right font-bold text-teal-800 dark:text-teal-300 whitespace-nowrap">
+                              {formatRp(item.totalMasuk)}
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      // Render TANPA RANTING / UMUM with sub-breakdown rows
+                      return (
+                        <Fragment key={item.dojoName}>
+                          <tr className="bg-amber-50/60 dark:bg-amber-950/30 border-t-2 border-amber-200 dark:border-amber-800 font-medium">
+                            <td className="p-2 sm:p-2.5 text-amber-800 dark:text-amber-300 font-semibold">•</td>
+                            <td className="p-2 sm:p-2.5 font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                              <span>{item.dojoName}</span>
+                              <span className="text-[10px] font-normal px-1.5 py-0.5 rounded bg-amber-200/70 dark:bg-amber-800/60 text-amber-900 dark:text-amber-100">
+                                Kas Umum / Non-Dojo
+                              </span>
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right font-semibold whitespace-nowrap">
+                              {item.totalUkt > 0 ? formatRp(item.totalUkt) : "-"}
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right font-semibold whitespace-nowrap">
+                              {item.totalKomisiUkt > 0 ? formatRp(item.totalKomisiUkt) : "-"}
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right font-semibold whitespace-nowrap">
+                              {item.totalLatber > 0 ? formatRp(item.totalLatber) : "-"}
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right font-semibold whitespace-nowrap">
+                              {item.totalKomisiLatber > 0 ? formatRp(item.totalKomisiLatber) : "-"}
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right font-semibold whitespace-nowrap">
+                              {item.totalIuran > 0 ? formatRp(item.totalIuran) : "-"}
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right font-semibold whitespace-nowrap">
+                              {item.totalLainnya > 0 ? formatRp(item.totalLainnya) : "-"}
+                            </td>
+                            <td className="p-2 sm:p-2.5 text-right font-bold text-amber-900 dark:text-amber-200 whitespace-nowrap">
+                              {formatRp(item.totalMasuk)}
+                            </td>
+                          </tr>
+
+                          {/* Sub-breakdown rows */}
+                          {item.itemsBreakdown && item.itemsBreakdown.length > 0 ? (
+                            item.itemsBreakdown.map((sub, sIdx) => (
+                              <tr
+                                key={sub.label + sIdx}
+                                className="bg-amber-50/20 dark:bg-amber-950/10 text-xs hover:bg-amber-100/40 dark:hover:bg-amber-900/30 cursor-pointer"
+                                onClick={() => {
+                                  setKegiatan(sub.label);
+                                  setRecapDojoOpen(false);
+                                  toast.info(`Memfilter kas untuk: ${sub.label}`);
+                                }}
+                              >
+                                <td></td>
+                                <td className="p-2 pl-6 sm:pl-8 text-muted-foreground italic font-normal">
+                                  ↳ {sub.label}
+                                </td>
+                                <td className="p-2 text-right text-muted-foreground">
+                                  {sub.category === "ukt" ? formatRp(sub.amountIn) : "-"}
+                                </td>
+                                <td className="p-2 text-right text-muted-foreground">-</td>
+                                <td className="p-2 text-right text-muted-foreground">
+                                  {sub.category === "latber" ? formatRp(sub.amountIn) : "-"}
+                                </td>
+                                <td className="p-2 text-right text-muted-foreground">-</td>
+                                <td className="p-2 text-right text-muted-foreground">
+                                  {sub.category === "iuran" ? formatRp(sub.amountIn) : "-"}
+                                </td>
+                                <td className="p-2 text-right text-muted-foreground">
+                                  {sub.category === "lainnya" ? formatRp(sub.amountIn) : "-"}
+                                </td>
+                                <td className="p-2 text-right font-medium text-amber-800 dark:text-amber-300">
+                                  {formatRp(sub.amountIn)}
+                                </td>
+                              </tr>
+                            ))
+                          ) : null}
+                        </Fragment>
+                      );
+                    })
                   )}
                 </tbody>
                 {dojoSummaries.length > 0 ? (
@@ -2105,19 +2236,12 @@ export function KasLedgerClient({
               variant="outline"
               size="sm"
               onClick={() => {
-                const text = dojoSummaries
-                  .map(
-                    (d, i) =>
-                      `${i + 1}. ${d.dojoName}: UKT=${formatRp(d.totalUkt)}, KomisiUKT=${formatRp(d.totalKomisiUkt)}, Latber=${formatRp(d.totalLatber)}, KomisiLatber=${formatRp(d.totalKomisiLatber)}, Iuran=${formatRp(d.totalIuran)}, Total=${formatRp(d.totalMasuk)}`,
-                  )
-                  .join("\n");
-                navigator.clipboard.writeText(
-                  `REKAP SETORAN PER RANTING (${periodCaption}):\n\n${text}\n\nTOTAL KESELURUHAN: ${formatRp(grandTotal)}`,
-                );
-                toast.success("Rekap ranting berhasil disalin!");
+                const text = formatRecapDojoTextForWa(dojoSummaries, periodCaption, formatRp);
+                navigator.clipboard.writeText(text);
+                toast.success("Rekap ranting berhasil disalin dengan format WA!");
               }}
             >
-              Salin Teks
+              Salin Teks (WA)
             </Button>
             <Button type="button" variant="outline" size="sm" onClick={() => setRecapDojoOpen(false)}>
               Tutup
