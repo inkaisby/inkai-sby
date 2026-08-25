@@ -2004,29 +2004,29 @@ export function KasLedgerClient({
       </Dialog>
 
       <Dialog open={recapDojoOpen} onOpenChange={setRecapDojoOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
+        <DialogContent className="w-[95vw] sm:max-w-5xl md:max-w-6xl max-h-[90vh] flex flex-col p-4 sm:p-6 gap-3 overflow-hidden">
+          <DialogHeader className="shrink-0 pr-6">
             <DialogTitle className="text-base font-bold sm:text-lg">
               Rekapitulasi Setoran Masuk Per Ranting
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
+          <div className="flex flex-col min-h-0 flex-1 gap-2 overflow-hidden">
+            <p className="text-xs text-muted-foreground shrink-0">
               Periode: {periodCaption} · Total {dojoSummaries.length} Ranting/Kategori
             </p>
-            <div className="max-h-[60vh] overflow-x-auto overflow-y-auto rounded-md border">
-              <table className="w-full text-left text-xs">
-                <thead className="sticky top-0 border-b bg-muted font-medium text-muted-foreground">
+            <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto rounded-md border">
+              <table className="w-full text-left text-xs sm:text-sm min-w-[800px]">
+                <thead className="sticky top-0 z-10 border-b bg-muted font-medium text-muted-foreground">
                   <tr>
-                    <th className="p-2">No</th>
-                    <th className="p-2">Ranting / Dojo</th>
-                    <th className="p-2 text-right">UKT</th>
-                    <th className="p-2 text-right">Komisi UKT</th>
-                    <th className="p-2 text-right">Latber</th>
-                    <th className="p-2 text-right">Komisi Latber</th>
-                    <th className="p-2 text-right">Iuran</th>
-                    <th className="p-2 text-right">Lainnya</th>
-                    <th className="p-2 text-right font-bold">Total Masuk</th>
+                    <th className="p-2 sm:p-2.5">No</th>
+                    <th className="p-2 sm:p-2.5 min-w-[140px]">Ranting / Dojo</th>
+                    <th className="p-2 sm:p-2.5 text-right">UKT</th>
+                    <th className="p-2 sm:p-2.5 text-right">Komisi UKT</th>
+                    <th className="p-2 sm:p-2.5 text-right">Latber</th>
+                    <th className="p-2 sm:p-2.5 text-right">Komisi Latber</th>
+                    <th className="p-2 sm:p-2.5 text-right">Iuran</th>
+                    <th className="p-2 sm:p-2.5 text-right">Lainnya</th>
+                    <th className="p-2 sm:p-2.5 text-right font-bold">Total Masuk</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -2039,27 +2039,27 @@ export function KasLedgerClient({
                   ) : (
                     dojoSummaries.map((item, idx) => (
                       <tr key={item.dojoName} className="hover:bg-muted/50">
-                        <td className="p-2 text-muted-foreground">{idx + 1}</td>
-                        <td className="p-2 font-semibold">{item.dojoName}</td>
-                        <td className="p-2 text-right">
+                        <td className="p-2 sm:p-2.5 text-muted-foreground">{idx + 1}</td>
+                        <td className="p-2 sm:p-2.5 font-semibold">{item.dojoName}</td>
+                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
                           {item.totalUkt > 0 ? formatRp(item.totalUkt) : "-"}
                         </td>
-                        <td className="p-2 text-right">
+                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
                           {item.totalKomisiUkt > 0 ? formatRp(item.totalKomisiUkt) : "-"}
                         </td>
-                        <td className="p-2 text-right">
+                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
                           {item.totalLatber > 0 ? formatRp(item.totalLatber) : "-"}
                         </td>
-                        <td className="p-2 text-right">
+                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
                           {item.totalKomisiLatber > 0 ? formatRp(item.totalKomisiLatber) : "-"}
                         </td>
-                        <td className="p-2 text-right">
+                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
                           {item.totalIuran > 0 ? formatRp(item.totalIuran) : "-"}
                         </td>
-                        <td className="p-2 text-right">
+                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
                           {item.totalLainnya > 0 ? formatRp(item.totalLainnya) : "-"}
                         </td>
-                        <td className="p-2 text-right font-bold text-teal-800 dark:text-teal-300">
+                        <td className="p-2 sm:p-2.5 text-right font-bold text-teal-800 dark:text-teal-300 whitespace-nowrap">
                           {formatRp(item.totalMasuk)}
                         </td>
                       </tr>
@@ -2067,30 +2067,30 @@ export function KasLedgerClient({
                   )}
                 </tbody>
                 {dojoSummaries.length > 0 ? (
-                  <tfoot className="sticky bottom-0 border-t bg-muted/90 font-bold">
+                  <tfoot className="sticky bottom-0 z-10 border-t bg-muted/95 font-bold">
                     <tr>
-                      <td colSpan={2} className="p-2 text-right">
+                      <td colSpan={2} className="p-2 sm:p-2.5 text-right">
                         TOTAL KESELURUHAN:
                       </td>
-                      <td className="p-2 text-right text-teal-800 dark:text-teal-300">
+                      <td className="p-2 sm:p-2.5 text-right text-teal-800 dark:text-teal-300 whitespace-nowrap">
                         {formatRp(grandUkt)}
                       </td>
-                      <td className="p-2 text-right text-teal-800 dark:text-teal-300">
+                      <td className="p-2 sm:p-2.5 text-right text-teal-800 dark:text-teal-300 whitespace-nowrap">
                         {formatRp(grandKomisiUkt)}
                       </td>
-                      <td className="p-2 text-right text-teal-800 dark:text-teal-300">
+                      <td className="p-2 sm:p-2.5 text-right text-teal-800 dark:text-teal-300 whitespace-nowrap">
                         {formatRp(grandLatber)}
                       </td>
-                      <td className="p-2 text-right text-teal-800 dark:text-teal-300">
+                      <td className="p-2 sm:p-2.5 text-right text-teal-800 dark:text-teal-300 whitespace-nowrap">
                         {formatRp(grandKomisiLatber)}
                       </td>
-                      <td className="p-2 text-right text-teal-800 dark:text-teal-300">
+                      <td className="p-2 sm:p-2.5 text-right text-teal-800 dark:text-teal-300 whitespace-nowrap">
                         {formatRp(grandIuran)}
                       </td>
-                      <td className="p-2 text-right text-teal-800 dark:text-teal-300">
+                      <td className="p-2 sm:p-2.5 text-right text-teal-800 dark:text-teal-300 whitespace-nowrap">
                         {formatRp(grandLainnya)}
                       </td>
-                      <td className="p-2 text-right text-sm text-teal-900 dark:text-teal-200">
+                      <td className="p-2 sm:p-2.5 text-right text-sm sm:text-base text-teal-900 dark:text-teal-200 whitespace-nowrap">
                         {formatRp(grandTotal)}
                       </td>
                     </tr>
@@ -2099,7 +2099,7 @@ export function KasLedgerClient({
               </table>
             </div>
           </div>
-          <DialogFooter className="flex flex-row justify-between gap-2 sm:justify-between">
+          <DialogFooter className="shrink-0 pt-2 border-t flex flex-row justify-between gap-2 sm:justify-between items-center">
             <Button
               type="button"
               variant="outline"
