@@ -292,6 +292,50 @@ Pusat / Nasional
 13. **Tamu → anggota (admin):** flag `AppSetting` `latber-guest:{memberId}`; aksi **Tambah keanggotaan** → `POST /api/admin/latber/promote-membership` (Active + opsional NIA login); bukan tebak PENDING tanpa NIA.
 14. v1 **tanpa:** hadir digital di layar, PIN panitia `/latber`, Kyu/hari-H Latber, fee per sabuk, Midtrans live, login email dari promote tamu.
 
+### 9.3c Rekapitulasi Setoran Masuk Per Ranting & Aturan Pembayaran Ranting
+1. **Aturan Distribusi Setoran UKT vs Latber & Status Lunas**:
+   - **Murni Transaksi Kas Masuk Lunas / Terverifikasi**: Data setoran pada rekapitulasi ini hanya menghitung transaksi kas yang **sudah LUNAS / TERVERIFIKASI diterima oleh kas cabang** (bukan tagihan pending / piutang belum bayar).
+   - **Ranting Pembayar UKT (4 Ranting Utama)**: Setoran UKT disetorkan khusus oleh **FORTRESS**, **GADING**, **MANYAR** (MANYAR / SMATAG), dan **CAKRA** (CAKRA KOARMATIM).
+   - **Ranting Pembayar Latber**: Ranting **FORTRESS**, **GADING**, dan **MANYAR** menyetorkan **Latber sekaligus UKT**. Sementara ranting-ranting lainnya (seperti DOJO JWON, BENSHI, UNESA, JAMBANGAN, GUBENG, RUNGKUT, WONOKROMO, SMA SEJAHTERA, TANDES, SDN PAKIS V, SIMOMULYO, dll.) **hanya menyetorkan pembayaran Latihan Bersama (Latber)** tanpa setoran UKT.
+   - **Struktur Kolom Modal (7 Kolom)**: `No`, `Ranting / Dojo` (dengan badge kategori `[UKT + Latber]` / `[Latber]`), `UKT`, `Komisi UKT`, `Latber`, `Komisi Latber`, `Total Masuk`.
+   - **Transparansi Keuangan (Gross vs Net)**: Ringkasan KPI memperlihatkan Total Setoran Kotor UKT & Latber, Total Komisi Ranting, serta **Setoran Masuk Net Cabang** (Setoran Kotor − Total Komisi Ranting) untuk memastikan akurasi saldo kas yang diterima cabang.
+2. **Wireframe Modal Rekapitulasi Setoran Masuk Per Ranting**:
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Rekapitulasi Setoran Masuk Per Ranting (Transaksi Kas Lunas / Terverifikasi)                                   ✕ │
+├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────┐ ┌──────────────────────────────────┐ │
+│ │ Ranting Mengikuti    │ │ Setoran UKT (Lunas)  │ │ Setoran Latber(Lunas)│ │ Total Setoran Masuk Net Cabang   │ │
+│ │ 15 Ranting           │ │ Rp 4.895.000         │ │ Rp 4.050.000         │ │ Rp 8.004.000                     │ │
+│ │ (4 UKT, 11 Latber)   │ │ (Komisi: Rp 491.000) │ │ (Komisi: Rp 450.000) │ │ (Setoran Kotor − Komisi Ranting) │ │
+│ └──────────────────────┘ └──────────────────────┘ └──────────────────────┘ └──────────────────────────────────┘ │
+│ Periode: Sabtu, 1 Agustus 2026 – Selasa, 25 Agustus 2026 · Status: Lunas            [ 🔍 Cari ranting...      ] │
+│                                                                             * Klik baris untuk memfilter di kas │
+├────┬─────────────────────────────────┬───────────────┬──────────────┬───────────────┬───────────────┬───────────┤
+│ No │ Ranting / Dojo                  │   UKT (Lunas) │   Komisi UKT │Latber (Lunas) │ Komisi Latber │ Total Masuk│
+├────┼─────────────────────────────────┼───────────────┼──────────────┼───────────────┼───────────────┼───────────┤
+│ 1  │ FORTRESS [UKT + Latber]         │  Rp 3.355.000 │   Rp 335.000 │    Rp 450.000 │     Rp 50.000 │Rp 3.420.000│
+│ 2  │ GADING [UKT + Latber]           │  Rp 1.060.000 │   Rp 106.000 │    Rp 225.000 │     Rp 25.000 │Rp 1.154.000│
+│ 3  │ MANYAR / SMATAG [UKT + Latber]  │    Rp 400.000 │    Rp 40.000 │    Rp 180.000 │     Rp 20.000 │  Rp 520.000│
+│ 4  │ CAKRA KOARMATIM [UKT]           │     Rp 80.000 │    Rp 10.000 │             - │             - │  Rp 70.000│
+│ 5  │ DOJO JWON [Latber]              │             - │            - │    Rp 880.000 │    Rp 100.000 │  Rp 780.000│
+│ 6  │ BENSHI [Latber]                 │             - │            - │    Rp 840.000 │     Rp 90.000 │  Rp 750.000│
+│ 7  │ UNESA [Latber]                  │             - │            - │    Rp 450.000 │     Rp 50.000 │  Rp 400.000│
+│ 8  │ JAMBANGAN [Latber]              │             - │            - │    Rp 280.000 │     Rp 30.000 │  Rp 250.000│
+│ 9  │ GUBENG [Latber]                 │             - │            - │    Rp 270.000 │     Rp 30.000 │  Rp 240.000│
+│ 10 │ RUNGKUT [Latber]                │             - │            - │    Rp 180.000 │     Rp 20.000 │  Rp 160.000│
+│ 11 │ WONOKROMO [Latber]              │             - │            - │     Rp 90.000 │     Rp 10.000 │  Rp 80.000│
+│ 12 │ SMA SEJAHTERA [Latber]          │             - │            - │     Rp 80.000 │     Rp 10.000 │  Rp 70.000│
+│ 13 │ TANDES [Latber]                 │             - │            - │     Rp 45.000 │      Rp 5.000 │  Rp 40.000│
+│ 14 │ SDN PAKIS V [Latber]            │             - │            - │     Rp 40.000 │      Rp 5.000 │  Rp 35.000│
+│ 15 │ SIMOMULYO [Latber]              │             - │            - │     Rp 40.000 │      Rp 5.000 │  Rp 35.000│
+├────┴─────────────────────────────────┼───────────────┼──────────────┼───────────────┼───────────────┼───────────┤
+│ TOTAL KESELURUHAN (LUNAS):           │  Rp 4.895.000 │   Rp 491.000 │  Rp 4.050.000 │    Rp 450.000 │Rp 8.004.000│
+└──────────────────────────────────────┴───────────────┴──────────────┴───────────────┴───────────────┴───────────┘
+│ [ Salin Teks (WA) ]                                                                               [ Tutup ] │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
 ### 9.4 Kegiatan & absensi
 - **Cabang** dapat membuat event non-UKT di `/admin/kegiatan` (Gashuku, pertandingan, dll.).
 - Anggota mendaftar event jika profil/dokumen/iuran memenuhi syarat.
@@ -1115,6 +1159,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Agustus 2026 | **UKT tabel full halaman:** ikon Maximize/Minimize; overlay `fixed inset-0 z-50` (Esc; FAB disembunyikan); header Refresh+Cetak; Kyu Lama (`PATCH update_kyu` snapshot) + Kyu Baru select cabang; tanpa kolom Dokumen; inventaris §6/§11/§13/§15 |
 | 23 Agustus 2026 | **UKT full halaman — Printer = Laporan/Rekapan:** ikon Printer di header full membuka hub Laporan/Rekapan (`openReportsHub`), bukan Cetak Nota; inventaris §6/§11/§15 |
 | 25 Agustus 2026 | **Optimalisasi Layout Admin Desktop 14 Inci:** penyesuaian lebar sidebar (`w-64 xl:w-72`), padding main container (`p-3 sm:p-4 lg:p-6`), perbaikan sticky offset `top-0` di `UktTermNav`, dan pelepasan `left-0` di kolom Nama UKT agar seluruh 25+ halaman admin tampil luas, utuh, dan presisi di semua perangkat desktop/laptop 14"; inventaris §6/§15 |
+| 25 Agustus 2026 | **Aturan Bisnis & Wireframe Rekapitulasi Setoran Ranting:** penyesuaian aturan setoran UKT khusus 4 ranting (Fortress, Gading, Manyar, Cakra), di mana ranting Fortress, Gading, dan Manyar menyetorkan UKT sekaligus Latber, sedangkan ranting lainnya hanya menyetor Latber; perbaikan wireframe modal Rekapitulasi Setoran Masuk Per Ranting (7 kolom, rincian Komisi UKT & Latber, serta ekspansi daftar 15+ ranting); inventaris §9.3/§9.3b/§9.3c/§11/§15 |
 
 ---
 
