@@ -62,7 +62,7 @@ describe("buildUktHasilUjianXlsxBuffer", () => {
       rows: recap,
     });
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buffer);
+    await wb.xlsx.load(Buffer.from(buffer) as any);
     expect(wb.worksheets.map((s) => s.name)).toEqual(["SMT. II", "LEMBAR TTD"]);
     const smt = wb.getWorksheet("SMT. II");
     expect(smt?.getCell("A5").value).toBe(
@@ -95,7 +95,7 @@ describe("buildUktHasilUjianXlsxBuffer", () => {
       rows: recap,
     });
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buffer);
+    await wb.xlsx.load(Buffer.from(buffer) as any);
     const ttd = wb.getWorksheet("LEMBAR TTD");
     expect(String(ttd?.getCell("C11").value ?? "")).toBe("SUYANTO KASDI");
     expect(String(ttd?.getCell("E11").value ?? "")).toBe("S YAHRULLAH");

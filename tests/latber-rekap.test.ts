@@ -144,7 +144,7 @@ describe("latber WA/rekap", () => {
       rows: recap,
     });
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buffer);
+    await wb.xlsx.load(Buffer.from(buffer) as any);
     const sheet = wb.getWorksheet("Rekap Latber");
     expect(sheet).toBeTruthy();
     expect(String(sheet?.getCell("A4").value)).toContain("persiapan UKT");

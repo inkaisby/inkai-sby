@@ -109,6 +109,11 @@ export async function postKasFromIuranPaid(opts: {
   }
 }
 
+function roundThousands(n: number): number {
+  const rounded = roundRp(n);
+  return rounded - (rounded % 1000);
+}
+
 export async function postKasFromUktPaid(opts: {
   user: SessionUser;
   billingId: string;
@@ -118,7 +123,7 @@ export async function postKasFromUktPaid(opts: {
   periodTitle: string;
   memberDojoId?: string | null;
 }) {
-  const amount = roundRp(opts.amount);
+  const amount = roundThousands(opts.amount);
   if (amount <= 0) return;
   const scopes = opts.memberDojoId
     ? await resolveDojoBranchScope(opts.memberDojoId)
@@ -150,7 +155,7 @@ export async function postKasFromLatberPaid(opts: {
   periodTitle: string;
   memberDojoId: string | null;
 }) {
-  const fee = roundRp(opts.feeAmount);
+  const fee = roundThousands(opts.feeAmount);
   const komisi = Math.min(fee, roundRp(opts.komisiRanting));
   const nett = Math.max(0, fee - komisi);
   const scopes = opts.memberDojoId
