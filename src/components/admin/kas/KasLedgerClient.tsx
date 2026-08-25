@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   ChevronDown,
@@ -97,6 +98,14 @@ export function KasLedgerClient({
   scopeLabel: string;
   isRanting?: boolean;
 }) {
+  const searchParams = useSearchParams();
+  const initialScopeKey = useMemo(() => {
+    const type = searchParams.get("scopeType");
+    const id = searchParams.get("scopeId");
+    if (type && id) return `${type}:${id}`;
+    return "";
+  }, [searchParams]);
+
   const [fromYmd, setFromYmd] = useState(firstOfMonthWib);
   const [toYmd, setToYmd] = useState(ymdWib);
   const [kegiatan, setKegiatan] = useState("");
@@ -111,7 +120,7 @@ export function KasLedgerClient({
   const [massOpen, setMassOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
-  const [scopeKey, setScopeKey] = useState("");
+  const [scopeKey, setScopeKey] = useState(initialScopeKey);
   const [moveScopeKey, setMoveScopeKey] = useState("");
   const [moveOpen, setMoveOpen] = useState(false);
   const [transferKegiatan, setTransferKegiatan] = useState<string | null>(null);
@@ -160,6 +169,13 @@ export function KasLedgerClient({
     if (recon !== "all") p.set("recon", recon);
     return p.toString();
   }, [fromYmd, toYmd, scopeKey, kegiatan, source, recon]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const url = qs ? `?${qs}` : window.location.pathname;
+      window.history.replaceState(null, "", url);
+    }
+  }, [qs]);
 
   const [selectionQs, setSelectionQs] = useState(qs);
   if (qs !== selectionQs) {
