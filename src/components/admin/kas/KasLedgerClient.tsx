@@ -40,6 +40,7 @@ import {
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 import { formatRp } from "@/lib/terbilang";
 import {
+  aggregateKasByDojo,
   firstOfMonthWib,
   formatKasDateId,
   kasGroupKegiatanNames,
@@ -129,6 +130,7 @@ export function KasLedgerClient({
   const [batchTransferOpen, setBatchTransferOpen] = useState(false);
   const [batchTarget, setBatchTarget] = useState("");
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [recapDojoOpen, setRecapDojoOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"buku" | "laporan">("laporan");
   const [tableFullscreen, setTableFullscreen] = useState(false);
   const [form, setForm] = useState({
@@ -145,6 +147,31 @@ export function KasLedgerClient({
   const [massPasteText, setMassPasteText] = useState("");
   const [massPasteDirection, setMassPasteDirection] = useState<"in" | "out">("out");
   const collapseSeedQsRef = useRef<string | null>(null);
+
+  const dojoSummaries = useMemo(() => {
+    return aggregateKasByDojo(data?.rows ?? []);
+  }, [data?.rows]);
+
+  const grandUkt = useMemo(
+    () => dojoSummaries.reduce((s, d) => s + d.totalUkt, 0),
+    [dojoSummaries],
+  );
+  const grandLatber = useMemo(
+    () => dojoSummaries.reduce((s, d) => s + d.totalLatber, 0),
+    [dojoSummaries],
+  );
+  const grandIuran = useMemo(
+    () => dojoSummaries.reduce((s, d) => s + d.totalIuran, 0),
+    [dojoSummaries],
+  );
+  const grandLainnya = useMemo(
+    () => dojoSummaries.reduce((s, d) => s + d.totalLainnya, 0),
+    [dojoSummaries],
+  );
+  const grandTotal = useMemo(
+    () => dojoSummaries.reduce((s, d) => s + d.totalMasuk, 0),
+    [dojoSummaries],
+  );
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -979,6 +1006,14 @@ export function KasLedgerClient({
             <Button type="button" variant="outline" className="text-xs" onClick={exportCsv}>
               <Download className="h-4 w-4" />
               CSV
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="text-xs border-teal-600/40 text-teal-700 hover:bg-teal-50 dark:text-teal-300 dark:hover:bg-teal-950/30 font-medium"
+              onClick={() => setRecapDojoOpen(true)}
+            >
+              Rekap Per Ranting
             </Button>
             {data?.canWrite ? (
               <>
@@ -1956,6 +1991,115 @@ export function KasLedgerClient({
               Simpan semua
             </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={recapDojoOpen} onOpenChange={setRecapDojoOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold sm:text-lg">
+              Rekapitulasi Setoran Masuk Per Ranting
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Periode: {periodCaption} · Total {dojoSummaries.length} Ranting/Kategori
+            </p>
+            <div className="max-h-[60vh] overflow-y-auto rounded-md border">
+              <table className="w-full text-left text-xs">
+                <thead className="sticky top-0 border-b bg-muted font-medium text-muted-foreground">
+                  <tr>
+                    <th className="p-2">No</th>
+                    <th className="p-2">Ranting / Dojo</th>
+                    <th className="p-2 text-right">UKT</th>
+                    <th className="p-2 text-right">Latber</th>
+                    <th className="p-2 text-right">Iuran</th>
+                    <th className="p-2 text-right">Lainnya</th>
+                    <th className="p-2 text-right font-bold">Total Masuk</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {dojoSummaries.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                        Tidak ada transaksi kas masuk pada periode ini.
+                      </td>
+                    </tr>
+                  ) : (
+                    dojoSummaries.map((item, idx) => (
+                      <tr key={item.dojoName} className="hover:bg-muted/50">
+                        <td className="p-2 text-muted-foreground">{idx + 1}</td>
+                        <td className="p-2 font-semibold">{item.dojoName}</td>
+                        <td className="p-2 text-right">
+                          {item.totalUkt > 0 ? formatRp(item.totalUkt) : "-"}
+                        </td>
+                        <td className="p-2 text-right">
+                          {item.totalLatber > 0 ? formatRp(item.totalLatber) : "-"}
+                        </td>
+                        <td className="p-2 text-right">
+                          {item.totalIuran > 0 ? formatRp(item.totalIuran) : "-"}
+                        </td>
+                        <td className="p-2 text-right">
+                          {item.totalLainnya > 0 ? formatRp(item.totalLainnya) : "-"}
+                        </td>
+                        <td className="p-2 text-right font-bold text-teal-800 dark:text-teal-300">
+                          {formatRp(item.totalMasuk)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {dojoSummaries.length > 0 ? (
+                  <tfoot className="sticky bottom-0 border-t bg-muted/90 font-bold">
+                    <tr>
+                      <td colSpan={2} className="p-2 text-right">
+                        TOTAL KESELURUHAN:
+                      </td>
+                      <td className="p-2 text-right text-teal-800 dark:text-teal-300">
+                        {formatRp(grandUkt)}
+                      </td>
+                      <td className="p-2 text-right text-teal-800 dark:text-teal-300">
+                        {formatRp(grandLatber)}
+                      </td>
+                      <td className="p-2 text-right text-teal-800 dark:text-teal-300">
+                        {formatRp(grandIuran)}
+                      </td>
+                      <td className="p-2 text-right text-teal-800 dark:text-teal-300">
+                        {formatRp(grandLainnya)}
+                      </td>
+                      <td className="p-2 text-right text-sm text-teal-900 dark:text-teal-200">
+                        {formatRp(grandTotal)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                ) : null}
+              </table>
+            </div>
+          </div>
+          <DialogFooter className="flex flex-row justify-between gap-2 sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const text = dojoSummaries
+                  .map(
+                    (d, i) =>
+                      `${i + 1}. ${d.dojoName}: UKT=${formatRp(d.totalUkt)}, Latber=${formatRp(d.totalLatber)}, Iuran=${formatRp(d.totalIuran)}, Total=${formatRp(d.totalMasuk)}`,
+                  )
+                  .join("\n");
+                navigator.clipboard.writeText(
+                  `REKAP SETORAN PER RANTING (${periodCaption}):\n\n${text}\n\nTOTAL KESELURUHAN: ${formatRp(grandTotal)}`,
+                );
+                toast.success("Rekap ranting berhasil disalin!");
+              }}
+            >
+              Salin Teks
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setRecapDojoOpen(false)}>
+              Tutup
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

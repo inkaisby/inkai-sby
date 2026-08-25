@@ -417,3 +417,86 @@ export function kasKpis(rows: KasLedgerRow[], opening: number) {
     rows.length > 0 ? rows[rows.length - 1].saldo : opening;
   return { totalIn, totalOut, saldoAkhir, opening, unmatched: 0 };
 }
+
+export type DojoKasSummary = {
+  dojoName: string;
+  totalUkt: number;
+  totalLatber: number;
+  totalIuran: number;
+  totalLainnya: number;
+  totalMasuk: number;
+};
+
+export function extractDojoNameFromKasRow(row: KasLedgerInput): string | null {
+  const kegiatan = (row.kegiatan || "").trim();
+  const desc = (row.description || "").trim();
+
+  // 1. Check pattern '- DojoName' at the end of kegiatan
+  const kegiatanMatch = kegiatan.match(/-\s*([^-\s][^-]*)$/);
+  if (
+    kegiatanMatch &&
+    kegiatanMatch[1] &&
+    !/^(ranting|cabang)$/i.test(kegiatanMatch[1].trim())
+  ) {
+    return kegiatanMatch[1].trim();
+  }
+
+  // 2. Check pattern 'Ranting <DojoName>' or 'Dojo <DojoName>'
+  const matchRanting = (kegiatan + " " + desc).match(
+    /(?:Ranting|Dojo)\s+([A-Za-z0-9_\-\s]+?)(?=\s*(?:—|-|\(|\)|$))/i,
+  );
+  if (matchRanting && matchRanting[1]) {
+    const found = matchRanting[1].trim();
+    if (found && !/^(ranting|cabang|persiapan|ukt|latber)$/i.test(found)) {
+      return found;
+    }
+  }
+
+  return null;
+}
+
+export function aggregateKasByDojo(rows: KasLedgerInput[]): DojoKasSummary[] {
+  const map = new Map<string, DojoKasSummary>();
+
+  for (const row of rows) {
+    if (row.amountIn <= 0) continue;
+
+    const rawDojo = extractDojoNameFromKasRow(row);
+    const dojoName = rawDojo ? rawDojo.toUpperCase() : "TANPA RANTING / UMUM";
+
+    let item = map.get(dojoName);
+    if (!item) {
+      item = {
+        dojoName,
+        totalUkt: 0,
+        totalLatber: 0,
+        totalIuran: 0,
+        totalLainnya: 0,
+        totalMasuk: 0,
+      };
+      map.set(dojoName, item);
+    }
+
+    const src = (row.sourceType || "").toLowerCase();
+    const keg = (row.kegiatan || "").toLowerCase();
+    const desc = (row.description || "").toLowerCase();
+
+    if (src === "ukt" || keg.includes("ukt")) {
+      item.totalUkt += row.amountIn;
+    } else if (src === "latber" || keg.includes("latber")) {
+      item.totalLatber += row.amountIn;
+    } else if (
+      src === "iuran" ||
+      keg.includes("iuran") ||
+      desc.includes("iuran")
+    ) {
+      item.totalIuran += row.amountIn;
+    } else {
+      item.totalLainnya += row.amountIn;
+    }
+    item.totalMasuk += row.amountIn;
+  }
+
+  return Array.from(map.values()).sort((a, b) => b.totalMasuk - a.totalMasuk);
+}
+
