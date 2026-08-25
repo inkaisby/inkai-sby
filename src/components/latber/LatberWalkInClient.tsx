@@ -111,14 +111,17 @@ const LATBER_NAME_STICKY_HEAD =
 const LATBER_NAME_STICKY_CELL =
   "sticky left-0 z-10 min-w-[9rem] max-w-[11rem] truncate bg-background font-medium shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]";
 
+function buildWaUrl(phone: string, text: string) {
+  const cleanPhone = phone.replace(/\D/g, "");
+  return `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`;
+}
+
 function buildBatalWaUrl(nama: string, ranting: string) {
-  const text = `batal ikut latber ${nama}, ${ranting}`;
-  return `https://wa.me/${WA_ADMIN}?text=${encodeURIComponent(text)}`;
+  return buildWaUrl(WA_ADMIN, `batal ikut latber ${nama}, ${ranting}`);
 }
 
 function buildTunaiWaUrl(nama: string, ranting: string) {
-  const text = `bayar tunai latber ${nama}, ${ranting}`;
-  return `https://wa.me/${WA_ADMIN}?text=${encodeURIComponent(text)}`;
+  return buildWaUrl(WA_ADMIN, `bayar tunai latber ${nama}, ${ranting}`);
 }
 
 async function copyText(value: string) {
@@ -647,17 +650,18 @@ export function LatberWalkInClient({
             >
               TF
             </Button>
-            <Button size="sm" className="bg-teal-600 text-white hover:bg-teal-700" asChild>
-              <a
-                href={buildTunaiWaUrl(
+            <Button
+              size="sm"
+              className="bg-teal-600 text-white hover:bg-teal-700"
+              onClick={() => {
+                const url = buildTunaiWaUrl(
                   formatMemberName(row.fullName),
                   row.dojoName,
-                )}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Tunai
-              </a>
+                );
+                window.open(url, "_blank", "noopener,noreferrer");
+              }}
+            >
+              Tunai
             </Button>
           </>
         ) : null}
@@ -667,17 +671,18 @@ export function LatberWalkInClient({
           </span>
         ) : null}
         {!paid ? (
-          <Button size="sm" variant="outline" asChild>
-            <a
-              href={buildBatalWaUrl(
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const url = buildBatalWaUrl(
                 formatMemberName(row.fullName),
                 row.dojoName,
-              )}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Batal
-            </a>
+              );
+              window.open(url, "_blank", "noopener,noreferrer");
+            }}
+          >
+            Batal
           </Button>
         ) : null}
       </div>
