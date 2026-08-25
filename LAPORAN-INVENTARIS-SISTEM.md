@@ -334,6 +334,13 @@ Pusat / Nasional
 └──────────────────────────────────────┴───────────────┴──────────────┴───────────────┴───────────────┴───────────┘
 │ [ Salin Teks (WA) ]                                                                               [ Tutup ] │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+3. **Penjelasan Perbedaan Wireframe Mockup (.md) vs Data Aplikasi Nyata (`/admin/kas`)**:
+   - **Wireframe (.md)**: Merupakan *mockup ilustratif / standar rancangan visual UI* yang digunakan untuk menentukan tata letak 7 kolom, posisi KPI card, tombol pencarian ranting, badge jenis setoran, serta simulasi pengisian komisi jika terdapat 15+ ranting.
+   - **Modal Aplikasi Nyata (`/admin/kas`)**: Menampilkan data secara **dinamis dan real-time dari database kas cabang** sesuai rentang tanggal periode yang dipilih pengguna. Sebagai contoh, pada transaksi real periode 1–25 Agustus 2026:
+     - Terhitung **10 Ranting Aktual** yang menyetorkan kas dengan Total Masuk Net **Rp 7.055.000** (Setoran UKT Real Rp 3.855.000 + Setoran Latber Real Rp 3.200.000).
+     - Ranting **FORTRESS** & **GADING** mendapatkan badge `UKT + Latber` karena menyetorkan transaksi UKT & Latber pada periode tersebut, sedangkan 8 ranting lainnya mendapatkan badge `Latber`.
+     - Angka komisi pada kas bernilai `Rp 0` (atau `-`) apabila catatan kas yang diinput merupakan transaksi net/bersih.
+   - **Kesimpulan**: Struktur layout, kolom, badge, dan fitur antara wireframe & modal aplikasi telah **100% selaras**, sedangkan nominal angka dan jumlah baris ranting di aplikasi akan selalu mengikuti **transaksi kas aktual yang tercatat di database**.
 ```
 
 ### 9.4 Kegiatan & absensi
@@ -1159,7 +1166,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 23 Agustus 2026 | **UKT tabel full halaman:** ikon Maximize/Minimize; overlay `fixed inset-0 z-50` (Esc; FAB disembunyikan); header Refresh+Cetak; Kyu Lama (`PATCH update_kyu` snapshot) + Kyu Baru select cabang; tanpa kolom Dokumen; inventaris §6/§11/§13/§15 |
 | 23 Agustus 2026 | **UKT full halaman — Printer = Laporan/Rekapan:** ikon Printer di header full membuka hub Laporan/Rekapan (`openReportsHub`), bukan Cetak Nota; inventaris §6/§11/§15 |
 | 25 Agustus 2026 | **Optimalisasi Layout Admin Desktop 14 Inci:** penyesuaian lebar sidebar (`w-64 xl:w-72`), padding main container (`p-3 sm:p-4 lg:p-6`), perbaikan sticky offset `top-0` di `UktTermNav`, dan pelepasan `left-0` di kolom Nama UKT agar seluruh 25+ halaman admin tampil luas, utuh, dan presisi di semua perangkat desktop/laptop 14"; inventaris §6/§15 |
-| 25 Agustus 2026 | **Aturan Bisnis & Rekapitulasi Setoran Ranting UI:** penyesuaian aturan setoran UKT khusus 4 ranting (Fortress, Gading, Manyar, Cakra), di mana ranting Fortress, Gading, dan Manyar menyetorkan UKT sekaligus Latber, sedangkan ranting lainnya hanya menyetor Latber; perbaikan pengelompokan `aggregateKasByDojo` (Latber diprioritaskan sebelum UKT); implementasi modal 7 kolom di `KasLedgerClient.tsx` (pencarian ranting, badge kategori setoran, KPI kotor vs net cabang); wireframe & inventaris §6/§9.3c/§11/§15 |
+| 25 Agustus 2026 | **Aturan Bisnis & Rekapitulasi Setoran Ranting UI:** penyesuaian aturan setoran UKT khusus 4 ranting (Fortress, Gading, Manyar, Cakra), di mana ranting Fortress, Gading, dan Manyar menyetorkan UKT sekaligus Latber, sedangkan ranting lainnya hanya menyetor Latber; perbaikan pengelompokan `aggregateKasByDojo` (Latber diprioritaskan sebelum UKT); implementasi modal 7 kolom di `KasLedgerClient.tsx` (pencarian ranting, badge kategori setoran, KPI kotor vs net cabang); penjelasan perbandingan wireframe mockup vs data real-time DB di §9.3c; wireframe & inventaris §6/§9.3c/§11/§15 |
 
 ---
 
