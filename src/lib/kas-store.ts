@@ -222,7 +222,103 @@ function normalizeKasDisplayAmount(amount: number, sourceType: string, descripti
   return amount;
 }
 
+async function syncMissingLatberKasForScope(scope: KasScope) {
+  try {
+    const paidLatberBillings = await prisma.billing.findMany({
+      where: {
+        isDeleted: false,
+        status: { in: ["PAID", "SUCCESS"] },
+        ...(scope.type === "dojo"
+          ? { member: { dojoId: scope.id } }
+          : { member: { dojo: { branchId: scope.id } } }),
+        OR: [
+          { type: "EVENT" },
+          { description: { contains: "Latber", mode: "insensitive" } },
+          { description: { contains: "Latihan Bersama", mode: "insensitive" } },
+        ],
+      },
+      include: {
+        member: {
+          select: {
+            id: true,
+            dojoId: true,
+            fullName: true,
+            nia: true,
+            dojo: { select: { branchId: true } },
+          },
+        },
+      },
+    });
+
+    for (const b of paidLatberBillings) {
+      const isLatber =
+        b.type === "EVENT" ||
+        /latber/i.test(b.description ?? "") ||
+        /latihan bersama/i.test(b.description ?? "");
+      if (!isLatber || !b.member?.dojoId) continue;
+
+      if (scope.type === "dojo") {
+        const exists = await prisma.kasEntry.findFirst({
+          where: { sourceType: "latber", sourceId: `${b.id}:ranting` },
+          select: { id: true },
+        });
+        if (!exists) {
+          const nia = b.member.nia ? ` (${b.member.nia})` : "";
+          const desc = `${b.member.fullName}${nia}`;
+          const kegiatan = b.description?.startsWith("Latber ")
+            ? b.description
+            : `Latber ${b.description || "Latihan Bersama — persiapan UKT"}`;
+          await prisma.kasEntry.create({
+            data: {
+              scopeType: "dojo",
+              scopeId: b.member.dojoId,
+              txnDate: b.createdAt,
+              description: `Komisi ranting — ${desc}`,
+              kegiatan,
+              amountIn: 5000,
+              amountOut: 0,
+              sourceType: "latber",
+              sourceId: `${b.id}:ranting`,
+              sourceHref: "/admin/latber",
+            },
+          });
+        }
+      } else if (scope.type === "branch" && b.member.dojo?.branchId) {
+        const exists = await prisma.kasEntry.findFirst({
+          where: { sourceType: "latber", sourceId: `${b.id}:cabang` },
+          select: { id: true },
+        });
+        if (!exists) {
+          const nia = b.member.nia ? ` (${b.member.nia})` : "";
+          const desc = `${b.member.fullName}${nia}`;
+          const kegiatan = b.description?.startsWith("Latber ")
+            ? b.description
+            : `Latber ${b.description || "Latihan Bersama — persiapan UKT"}`;
+          const fee = b.amount && b.amount % 1000 === 0 ? b.amount : 45000;
+          await prisma.kasEntry.create({
+            data: {
+              scopeType: "branch",
+              scopeId: b.member.dojo.branchId,
+              txnDate: b.createdAt,
+              description: desc,
+              kegiatan,
+              amountIn: Math.max(0, fee - 5000),
+              amountOut: 0,
+              sourceType: "latber",
+              sourceId: `${b.id}:cabang`,
+              sourceHref: "/admin/latber",
+            },
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.error("[KAS AUTO-SYNC] Latber kas sync error", e);
+  }
+}
+
 export async function listKasEntries(scope: KasScope) {
+  await syncMissingLatberKasForScope(scope);
   const rows = await prisma.kasEntry.findMany({
     where: { scopeType: scope.type, scopeId: scope.id },
     orderBy: [{ txnDate: "asc" }, { createdAt: "asc" }],
