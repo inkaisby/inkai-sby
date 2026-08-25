@@ -208,6 +208,20 @@ export async function voidKasBySource(opts: {
   }
 }
 
+function normalizeKasDisplayAmount(amount: number, sourceType: string, description: string): number {
+  if (amount <= 0) return 0;
+  const isUktOrLatber =
+    sourceType === "ukt" ||
+    sourceType === "latber" ||
+    /\bUKT\b/i.test(description) ||
+    /latihan bersama/i.test(description) ||
+    /\blatber\b/i.test(description);
+  if (isUktOrLatber) {
+    return amount - (amount % 1000);
+  }
+  return amount;
+}
+
 export async function listKasEntries(scope: KasScope) {
   const rows = await prisma.kasEntry.findMany({
     where: { scopeType: scope.type, scopeId: scope.id },
@@ -218,8 +232,8 @@ export async function listKasEntries(scope: KasScope) {
     txnDate: row.txnDate.toISOString().slice(0, 10),
     description: row.description,
     kegiatan: row.kegiatan,
-    amountIn: row.amountIn,
-    amountOut: row.amountOut,
+    amountIn: normalizeKasDisplayAmount(row.amountIn, row.sourceType, row.description),
+    amountOut: normalizeKasDisplayAmount(row.amountOut, row.sourceType, row.description),
     createdAt: row.createdAt.toISOString(),
     sourceType: row.sourceType,
     sourceId: row.sourceId,
