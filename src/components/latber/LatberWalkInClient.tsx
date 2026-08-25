@@ -116,6 +116,11 @@ function buildBatalWaUrl(nama: string, ranting: string) {
   return `https://wa.me/${WA_ADMIN}?text=${encodeURIComponent(text)}`;
 }
 
+function buildTunaiWaUrl(nama: string, ranting: string) {
+  const text = `bayar tunai latber ${nama}, ${ranting}`;
+  return `https://wa.me/${WA_ADMIN}?text=${encodeURIComponent(text)}`;
+}
+
 async function copyText(value: string) {
   await navigator.clipboard.writeText(value);
 }
@@ -634,13 +639,27 @@ export function LatberWalkInClient({
     return (
       <div className="flex items-center gap-1 whitespace-nowrap">
         {unpaid ? (
-          <Button
-            size="sm"
-            className="bg-inkai-red hover:bg-inkai-red/90"
-            onClick={() => setPayRow(row)}
-          >
-            Bayar
-          </Button>
+          <>
+            <Button
+              size="sm"
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              onClick={() => setPayRow(row)}
+            >
+              TF
+            </Button>
+            <Button size="sm" className="bg-teal-600 text-white hover:bg-teal-700" asChild>
+              <a
+                href={buildTunaiWaUrl(
+                  formatMemberName(row.fullName),
+                  row.dojoName,
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Tunai
+              </a>
+            </Button>
+          </>
         ) : null}
         {waiting ? (
           <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-1 text-xs text-muted-foreground">

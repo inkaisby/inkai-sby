@@ -1231,7 +1231,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
                                   )
                                 }
                               >
-                                Bayar
+                                TF
                               </Button>
                             )}
                             {(status === "belum_bayar" ||
