@@ -156,8 +156,16 @@ export function KasLedgerClient({
     () => dojoSummaries.reduce((s, d) => s + d.totalUkt, 0),
     [dojoSummaries],
   );
+  const grandKomisiUkt = useMemo(
+    () => dojoSummaries.reduce((s, d) => s + d.totalKomisiUkt, 0),
+    [dojoSummaries],
+  );
   const grandLatber = useMemo(
     () => dojoSummaries.reduce((s, d) => s + d.totalLatber, 0),
+    [dojoSummaries],
+  );
+  const grandKomisiLatber = useMemo(
+    () => dojoSummaries.reduce((s, d) => s + d.totalKomisiLatber, 0),
     [dojoSummaries],
   );
   const grandIuran = useMemo(
@@ -1996,7 +2004,7 @@ export function KasLedgerClient({
       </Dialog>
 
       <Dialog open={recapDojoOpen} onOpenChange={setRecapDojoOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle className="text-base font-bold sm:text-lg">
               Rekapitulasi Setoran Masuk Per Ranting
@@ -2006,14 +2014,16 @@ export function KasLedgerClient({
             <p className="text-xs text-muted-foreground">
               Periode: {periodCaption} · Total {dojoSummaries.length} Ranting/Kategori
             </p>
-            <div className="max-h-[60vh] overflow-y-auto rounded-md border">
+            <div className="max-h-[60vh] overflow-x-auto overflow-y-auto rounded-md border">
               <table className="w-full text-left text-xs">
                 <thead className="sticky top-0 border-b bg-muted font-medium text-muted-foreground">
                   <tr>
                     <th className="p-2">No</th>
                     <th className="p-2">Ranting / Dojo</th>
                     <th className="p-2 text-right">UKT</th>
+                    <th className="p-2 text-right">Komisi UKT</th>
                     <th className="p-2 text-right">Latber</th>
+                    <th className="p-2 text-right">Komisi Latber</th>
                     <th className="p-2 text-right">Iuran</th>
                     <th className="p-2 text-right">Lainnya</th>
                     <th className="p-2 text-right font-bold">Total Masuk</th>
@@ -2022,7 +2032,7 @@ export function KasLedgerClient({
                 <tbody className="divide-y">
                   {dojoSummaries.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                      <td colSpan={9} className="p-4 text-center text-muted-foreground">
                         Tidak ada transaksi kas masuk pada periode ini.
                       </td>
                     </tr>
@@ -2035,7 +2045,13 @@ export function KasLedgerClient({
                           {item.totalUkt > 0 ? formatRp(item.totalUkt) : "-"}
                         </td>
                         <td className="p-2 text-right">
+                          {item.totalKomisiUkt > 0 ? formatRp(item.totalKomisiUkt) : "-"}
+                        </td>
+                        <td className="p-2 text-right">
                           {item.totalLatber > 0 ? formatRp(item.totalLatber) : "-"}
+                        </td>
+                        <td className="p-2 text-right">
+                          {item.totalKomisiLatber > 0 ? formatRp(item.totalKomisiLatber) : "-"}
                         </td>
                         <td className="p-2 text-right">
                           {item.totalIuran > 0 ? formatRp(item.totalIuran) : "-"}
@@ -2060,7 +2076,13 @@ export function KasLedgerClient({
                         {formatRp(grandUkt)}
                       </td>
                       <td className="p-2 text-right text-teal-800 dark:text-teal-300">
+                        {formatRp(grandKomisiUkt)}
+                      </td>
+                      <td className="p-2 text-right text-teal-800 dark:text-teal-300">
                         {formatRp(grandLatber)}
+                      </td>
+                      <td className="p-2 text-right text-teal-800 dark:text-teal-300">
+                        {formatRp(grandKomisiLatber)}
                       </td>
                       <td className="p-2 text-right text-teal-800 dark:text-teal-300">
                         {formatRp(grandIuran)}
@@ -2086,7 +2108,7 @@ export function KasLedgerClient({
                 const text = dojoSummaries
                   .map(
                     (d, i) =>
-                      `${i + 1}. ${d.dojoName}: UKT=${formatRp(d.totalUkt)}, Latber=${formatRp(d.totalLatber)}, Iuran=${formatRp(d.totalIuran)}, Total=${formatRp(d.totalMasuk)}`,
+                      `${i + 1}. ${d.dojoName}: UKT=${formatRp(d.totalUkt)}, KomisiUKT=${formatRp(d.totalKomisiUkt)}, Latber=${formatRp(d.totalLatber)}, KomisiLatber=${formatRp(d.totalKomisiLatber)}, Iuran=${formatRp(d.totalIuran)}, Total=${formatRp(d.totalMasuk)}`,
                   )
                   .join("\n");
                 navigator.clipboard.writeText(

@@ -421,7 +421,9 @@ export function kasKpis(rows: KasLedgerRow[], opening: number) {
 export type DojoKasSummary = {
   dojoName: string;
   totalUkt: number;
+  totalKomisiUkt: number;
   totalLatber: number;
+  totalKomisiLatber: number;
   totalIuran: number;
   totalLainnya: number;
   totalMasuk: number;
@@ -469,7 +471,9 @@ export function aggregateKasByDojo(rows: KasLedgerInput[]): DojoKasSummary[] {
       item = {
         dojoName,
         totalUkt: 0,
+        totalKomisiUkt: 0,
         totalLatber: 0,
+        totalKomisiLatber: 0,
         totalIuran: 0,
         totalLainnya: 0,
         totalMasuk: 0,
@@ -480,11 +484,20 @@ export function aggregateKasByDojo(rows: KasLedgerInput[]): DojoKasSummary[] {
     const src = (row.sourceType || "").toLowerCase();
     const keg = (row.kegiatan || "").toLowerCase();
     const desc = (row.description || "").toLowerCase();
+    const isKomisi = desc.includes("komisi") || keg.includes("komisi");
 
     if (src === "ukt" || keg.includes("ukt")) {
-      item.totalUkt += row.amountIn;
+      if (isKomisi) {
+        item.totalKomisiUkt += row.amountIn;
+      } else {
+        item.totalUkt += row.amountIn;
+      }
     } else if (src === "latber" || keg.includes("latber")) {
-      item.totalLatber += row.amountIn;
+      if (isKomisi) {
+        item.totalKomisiLatber += row.amountIn;
+      } else {
+        item.totalLatber += row.amountIn;
+      }
     } else if (
       src === "iuran" ||
       keg.includes("iuran") ||
@@ -492,11 +505,18 @@ export function aggregateKasByDojo(rows: KasLedgerInput[]): DojoKasSummary[] {
     ) {
       item.totalIuran += row.amountIn;
     } else {
-      item.totalLainnya += row.amountIn;
+      if (isKomisi && (desc.includes("latber") || keg.includes("latber"))) {
+        item.totalKomisiLatber += row.amountIn;
+      } else if (isKomisi && (desc.includes("ukt") || keg.includes("ukt"))) {
+        item.totalKomisiUkt += row.amountIn;
+      } else {
+        item.totalLainnya += row.amountIn;
+      }
     }
     item.totalMasuk += row.amountIn;
   }
 
   return Array.from(map.values()).sort((a, b) => b.totalMasuk - a.totalMasuk);
 }
+
 
