@@ -499,8 +499,11 @@ export function aggregateKasByDojo(
     if (row.amountIn <= 0) continue;
 
     const rawDojo = extractDojoNameFromKasRow(row, dojoList);
-    const dojoName = rawDojo ? rawDojo.toUpperCase() : "TANPA RANTING / UMUM";
-    const isOfficialDojo = !!rawDojo;
+    // Ignore entries that do not belong to an official Ranting/Dojo
+    if (!rawDojo) continue;
+
+    const dojoName = rawDojo.toUpperCase();
+    const isOfficialDojo = true;
 
     let item = map.get(dojoName);
     if (!item) {
@@ -514,7 +517,6 @@ export function aggregateKasByDojo(
         totalIuran: 0,
         totalLainnya: 0,
         totalMasuk: 0,
-        itemsBreakdown: [],
       };
       map.set(dojoName, item);
     }
@@ -524,17 +526,13 @@ export function aggregateKasByDojo(
     const desc = (row.description || "").toLowerCase();
     const isKomisi = desc.includes("komisi") || keg.includes("komisi");
 
-    let cat: "ukt" | "latber" | "iuran" | "lainnya" = "lainnya";
-
     if (src === "ukt" || keg.includes("ukt")) {
-      cat = "ukt";
       if (isKomisi) {
         item.totalKomisiUkt += row.amountIn;
       } else {
         item.totalUkt += row.amountIn;
       }
     } else if (src === "latber" || keg.includes("latber")) {
-      cat = "latber";
       if (isKomisi) {
         item.totalKomisiLatber += row.amountIn;
       } else {
@@ -545,10 +543,8 @@ export function aggregateKasByDojo(
       keg.includes("iuran") ||
       desc.includes("iuran")
     ) {
-      cat = "iuran";
       item.totalIuran += row.amountIn;
     } else {
-      cat = "lainnya";
       if (isKomisi && (desc.includes("latber") || keg.includes("latber"))) {
         item.totalKomisiLatber += row.amountIn;
       } else if (isKomisi && (desc.includes("ukt") || keg.includes("ukt"))) {
@@ -558,33 +554,9 @@ export function aggregateKasByDojo(
       }
     }
     item.totalMasuk += row.amountIn;
-
-    // Track breakdown for TANPA RANTING / UMUM or non-official entries
-    if (!isOfficialDojo && item.itemsBreakdown) {
-      const label =
-        (row.description || "").trim() ||
-        (row.kegiatan || "").trim() ||
-        "Transaksi Kas Umum";
-      const existing = item.itemsBreakdown.find((b) => b.label === label);
-      if (existing) {
-        existing.amountIn += row.amountIn;
-      } else {
-        item.itemsBreakdown.push({
-          label,
-          amountIn: row.amountIn,
-          category: cat,
-        });
-      }
-    }
   }
 
-  // Sort official dojos first by totalMasuk desc, then non-official dojo at bottom
-  return Array.from(map.values()).sort((a, b) => {
-    if (a.isOfficialDojo !== b.isOfficialDojo) {
-      return a.isOfficialDojo ? -1 : 1;
-    }
-    return b.totalMasuk - a.totalMasuk;
-  });
+  return Array.from(map.values()).sort((a, b) => b.totalMasuk - a.totalMasuk);
 }
 
 export function formatRecapDojoTextForWa(
@@ -593,7 +565,6 @@ export function formatRecapDojoTextForWa(
   formatRp: (n: number) => string,
 ): string {
   const official = dojoSummaries.filter((d) => d.isOfficialDojo);
-  const general = dojoSummaries.filter((d) => !d.isOfficialDojo);
   const grandTotal = dojoSummaries.reduce((s, d) => s + d.totalMasuk, 0);
 
   const lines: string[] = [
@@ -618,20 +589,6 @@ export function formatRecapDojoTextForWa(
     if (item.totalLainnya > 0)
       lines.push(`   - Lainnya: ${formatRp(item.totalLainnya)}`);
     lines.push(`   *Total: ${formatRp(item.totalMasuk)}*`);
-  }
-
-  if (general.length > 0) {
-    lines.push(`----------------------------------------`);
-    lines.push(`*KAS UMUM / TANPA RANTING (BREAKDOWN)*`);
-    for (const item of general) {
-      if (item.itemsBreakdown && item.itemsBreakdown.length > 0) {
-        for (const sub of item.itemsBreakdown) {
-          lines.push(`• ${sub.label}: ${formatRp(sub.amountIn)}`);
-        }
-      } else {
-        lines.push(`• Total Kas Umum: ${formatRp(item.totalMasuk)}`);
-      }
-    }
   }
 
   lines.push(`----------------------------------------`);
