@@ -152,9 +152,20 @@ export function KasLedgerClient({
 
   const officialDojoList = useMemo(() => {
     if (!data?.scopes) return [];
-    return data.scopes
-      .filter((s) => s.type === "dojo")
-      .map((s) => s.label);
+    const list: string[] = [];
+    for (const s of data.scopes) {
+      if (s.type === "dojo" && s.label) {
+        const clean = s.label.replace(/^Ranting\s+/i, "").trim();
+        if (clean) {
+          list.push(clean);
+          const noDojo = clean.replace(/^DOJO\s+/i, "").trim();
+          if (noDojo && noDojo !== clean) {
+            list.push(noDojo);
+          }
+        }
+      }
+    }
+    return [...new Set(list)];
   }, [data?.scopes]);
 
   const dojoSummaries = useMemo(() => {

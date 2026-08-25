@@ -448,20 +448,28 @@ export function extractDojoNameFromKasRow(
   const desc = (row.description || "").trim();
   const combined = (kegiatan + " " + desc).trim();
 
-  // Extract list of official names if provided
+  // Extract list of official names if provided, sorted longest first for precise matching
   const officialNames = (dojoList || [])
     .map((d) => (typeof d === "string" ? d : d.name).trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
 
-  // 1. Direct match against official dojo list first (case-insensitive substring)
+  // 1. Direct match against official dojo list (case-insensitive boundary match)
   if (officialNames.length > 0) {
     for (const official of officialNames) {
-      const escaped = official.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const reg = new RegExp(`(?:^|\\b|\\s|-|/)${escaped}(?:$|\\b|\\s|-|/)`, "i");
-      if (reg.test(combined)) {
-        return official;
+      const core = official.replace(/^(Ranting|Dojo)\s+/i, "").trim();
+      const targets = [official, core].filter(Boolean);
+
+      for (const t of targets) {
+        const escaped = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const reg = new RegExp(`(?:^|\\b|\\s|-|/)${escaped}(?:$|\\b|\\s|-|/)`, "i");
+        if (reg.test(combined)) {
+          return official;
+        }
       }
     }
+    // If an official list is provided, but no official dojo name matched in text, return null (fallback to TANPA RANTING)
+    return null;
   }
 
   // 2. Check pattern 'Ranting <DojoName>' or 'Dojo <DojoName>'
@@ -475,32 +483,6 @@ export function extractDojoNameFromKasRow(
       !/^(ranting|cabang|persiapan|ukt|latber|pendaftaran|umum)$/i.test(found)
     ) {
       return found;
-    }
-  }
-
-  // 3. Check pattern '- DojoName' at the end of kegiatan
-  const kegiatanMatch = kegiatan.match(/-\s*([^-\s][^-]*)$/);
-  if (kegiatanMatch && kegiatanMatch[1]) {
-    const found = kegiatanMatch[1].trim();
-    // Validate that it's not a known non-dojo operational word or generic label
-    if (
-      found &&
-      !NON_DOJO_KEYWORDS_REGEX.test(found) &&
-      !/^(ranting|cabang|persiapan|ukt|latber|pendaftaran|umum)$/i.test(found)
-    ) {
-      // If we have an official dojo list, only accept if it matches one of them
-      if (officialNames.length > 0) {
-        const matchedOfficial = officialNames.find(
-          (o) => o.toLowerCase() === found.toLowerCase(),
-        );
-        if (matchedOfficial) return matchedOfficial;
-      } else {
-        // If no official list provided, reject multi-word person-like names unless prefixed with Ranting/Dojo
-        const words = found.split(/\s+/);
-        if (words.length <= 2 && !/\d/.test(found)) {
-          return found;
-        }
-      }
     }
   }
 
