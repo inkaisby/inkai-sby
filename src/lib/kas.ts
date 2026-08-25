@@ -530,8 +530,20 @@ export function aggregateKasByDojo(
       if (isKomisi) {
         item.totalKomisiLatber += row.amountIn;
       } else {
-        item.totalLatber += row.amountIn;
-        item.totalMasuk += row.amountIn;
+        if (row.amountIn % 45000 === 0 && row.amountIn >= 45000) {
+          const count = Math.max(1, Math.round(row.amountIn / 45000));
+          const komisi = count * 5000;
+          const nett = Math.max(0, row.amountIn - komisi);
+          item.totalLatber += nett;
+          item.totalKomisiLatber += komisi;
+          item.totalMasuk += nett;
+        } else {
+          const count = Math.max(1, Math.round(row.amountIn / 40000));
+          const komisi = count * 5000;
+          item.totalLatber += row.amountIn;
+          item.totalKomisiLatber += komisi;
+          item.totalMasuk += row.amountIn;
+        }
       }
     } else if (src === "ukt" || keg.includes("ukt") || desc.includes("ukt")) {
       if (isKomisi) {

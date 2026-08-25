@@ -319,6 +319,7 @@ describe("kas ledger", () => {
       totalUkt: 2725000, // 3.275.000 gross - 550.000 komisi (11 × 50k) = 2.725.000 net
       totalKomisiUkt: 550000,
       totalLatber: 80000,
+      totalKomisiLatber: 10000, // 80.000 net latber / 40k = 2 participants × 5k = 10.000
       totalMasuk: 2805000, // 2.725.000 net ukt + 80.000 latber
     });
   });
