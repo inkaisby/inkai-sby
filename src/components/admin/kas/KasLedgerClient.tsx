@@ -148,6 +148,7 @@ export function KasLedgerClient({
   const [postScopeKey, setPostScopeKey] = useState("");
   const [massPasteText, setMassPasteText] = useState("");
   const [massPasteDirection, setMassPasteDirection] = useState<"in" | "out">("out");
+  const [recapSearchQuery, setRecapSearchQuery] = useState("");
   const collapseSeedQsRef = useRef<string | null>(null);
 
   const officialDojoList = useMemo(() => {
@@ -203,6 +204,17 @@ export function KasLedgerClient({
   const grandTotal = useMemo(
     () => dojoSummaries.reduce((s, d) => s + d.totalMasuk, 0),
     [dojoSummaries],
+  );
+
+  const filteredDojoSummaries = useMemo(() => {
+    if (!recapSearchQuery.trim()) return dojoSummaries;
+    const q = recapSearchQuery.toLowerCase();
+    return dojoSummaries.filter((d) => d.dojoName.toLowerCase().includes(q));
+  }, [dojoSummaries, recapSearchQuery]);
+
+  const grandNetCabang = useMemo(
+    () => grandTotal - (grandKomisiUkt + grandKomisiLatber),
+    [grandTotal, grandKomisiUkt, grandKomisiLatber],
   );
 
   const qs = useMemo(() => {
@@ -2030,8 +2042,11 @@ export function KasLedgerClient({
       <Dialog open={recapDojoOpen} onOpenChange={setRecapDojoOpen}>
         <DialogContent className="w-[95vw] sm:max-w-5xl md:max-w-6xl max-h-[90vh] flex flex-col p-4 sm:p-6 gap-3 overflow-hidden">
           <DialogHeader className="shrink-0 pr-6">
-            <DialogTitle className="text-base font-bold sm:text-lg">
-              Rekapitulasi Setoran Masuk Per Ranting
+            <DialogTitle className="text-base font-bold sm:text-lg flex flex-wrap items-center justify-between gap-2">
+              <span>Rekapitulasi Setoran Masuk Per Ranting</span>
+              <span className="text-xs font-normal text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full">
+                Transaksi Kas Lunas / Terverifikasi
+              </span>
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col min-h-0 flex-1 gap-3 overflow-hidden">
@@ -2042,56 +2057,75 @@ export function KasLedgerClient({
                 <span className="text-base font-bold text-slate-800 dark:text-slate-200">
                   {officialDojoCount} Ranting
                 </span>
+                <span className="text-[10px] text-muted-foreground block">
+                  ({dojoSummaries.filter(d => d.totalUkt > 0).length} UKT, {dojoSummaries.filter(d => d.totalLatber > 0).length} Latber)
+                </span>
               </div>
               <div className="rounded-lg border bg-muted/40 p-2.5">
-                <span className="text-muted-foreground block text-[11px]">Setoran UKT</span>
+                <span className="text-muted-foreground block text-[11px]">Setoran UKT (Lunas)</span>
                 <span className="text-base font-bold text-teal-700 dark:text-teal-400">
                   {formatRp(grandUkt)}
                 </span>
+                <span className="text-[10px] text-muted-foreground block">
+                  Komisi: {formatRp(grandKomisiUkt)}
+                </span>
               </div>
               <div className="rounded-lg border bg-muted/40 p-2.5">
-                <span className="text-muted-foreground block text-[11px]">Setoran Latber</span>
+                <span className="text-muted-foreground block text-[11px]">Setoran Latber (Lunas)</span>
                 <span className="text-base font-bold text-teal-700 dark:text-teal-400">
                   {formatRp(grandLatber)}
                 </span>
+                <span className="text-[10px] text-muted-foreground block">
+                  Komisi: {formatRp(grandKomisiLatber)}
+                </span>
               </div>
               <div className="rounded-lg border bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-800 p-2.5">
-                <span className="text-teal-700 dark:text-teal-300 block text-[11px] font-medium">Total Masuk Net</span>
+                <span className="text-teal-700 dark:text-teal-300 block text-[11px] font-medium">Setoran Masuk Net Cabang</span>
                 <span className="text-base font-extrabold text-teal-900 dark:text-teal-100">
-                  {formatRp(grandTotal)}
+                  {formatRp(grandNetCabang)}
+                </span>
+                <span className="text-[10px] text-teal-600 dark:text-teal-400 block">
+                  (Setoran Kotor − Komisi)
                 </span>
               </div>
             </div>
 
-            <p className="text-xs text-muted-foreground shrink-0 flex items-center justify-between">
-              <span>Periode: {periodCaption} · Total {officialDojoCount} Ranting Mengikuti</span>
-              <span className="text-[11px] text-muted-foreground hidden sm:inline">* Klik baris untuk memfilter transaksi di kas</span>
-            </p>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shrink-0">
+              <p className="text-xs text-muted-foreground">
+                Periode: {periodCaption} · Total {officialDojoCount} Ranting Mengikuti
+              </p>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Input
+                  placeholder="🔍 Cari ranting..."
+                  value={recapSearchQuery}
+                  onChange={(e) => setRecapSearchQuery(e.target.value)}
+                  className="h-8 text-xs w-full sm:w-48"
+                />
+              </div>
+            </div>
 
             <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto rounded-md border">
-              <table className="w-full text-left text-xs sm:text-sm min-w-[800px]">
+              <table className="w-full text-left text-xs sm:text-sm min-w-[750px]">
                 <thead className="sticky top-0 z-10 border-b bg-muted font-medium text-muted-foreground">
                   <tr>
-                    <th className="p-2 sm:p-2.5">No</th>
-                    <th className="p-2 sm:p-2.5 min-w-[160px]">Ranting / Dojo</th>
-                    <th className="p-2 sm:p-2.5 text-right">UKT</th>
+                    <th className="p-2 sm:p-2.5 w-12">No</th>
+                    <th className="p-2 sm:p-2.5 min-w-[200px]">Ranting / Dojo</th>
+                    <th className="p-2 sm:p-2.5 text-right">UKT (Lunas)</th>
                     <th className="p-2 sm:p-2.5 text-right">Komisi UKT</th>
-                    <th className="p-2 sm:p-2.5 text-right">Latber</th>
+                    <th className="p-2 sm:p-2.5 text-right">Latber (Lunas)</th>
                     <th className="p-2 sm:p-2.5 text-right">Komisi Latber</th>
-                    <th className="p-2 sm:p-2.5 text-right">Iuran</th>
-                    <th className="p-2 sm:p-2.5 text-right">Lainnya</th>
                     <th className="p-2 sm:p-2.5 text-right font-bold">Total Masuk</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {dojoSummaries.length === 0 ? (
+                  {filteredDojoSummaries.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="p-4 text-center text-muted-foreground">
-                        Tidak ada transaksi kas masuk pada periode ini.
+                      <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                        {recapSearchQuery ? "Ranting tidak ditemukan." : "Tidak ada transaksi kas masuk pada periode ini."}
                       </td>
                     </tr>
                   ) : (
-                    dojoSummaries.map((item, idx) => (
+                    filteredDojoSummaries.map((item, idx) => (
                       <tr
                         key={item.dojoName}
                         className="hover:bg-muted/50 cursor-pointer transition-colors"
@@ -2104,7 +2138,22 @@ export function KasLedgerClient({
                       >
                         <td className="p-2 sm:p-2.5 text-muted-foreground">{idx + 1}</td>
                         <td className="p-2 sm:p-2.5 font-semibold text-slate-900 dark:text-slate-100">
-                          {item.dojoName}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{item.dojoName}</span>
+                            {item.totalUkt > 0 && item.totalLatber > 0 ? (
+                              <span className="rounded bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 px-1.5 py-0.5 text-[10px] font-medium">
+                                UKT + Latber
+                              </span>
+                            ) : item.totalUkt > 0 ? (
+                              <span className="rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 px-1.5 py-0.5 text-[10px] font-medium">
+                                UKT
+                              </span>
+                            ) : (
+                              <span className="rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 px-1.5 py-0.5 text-[10px] font-medium">
+                                Latber
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
                           {item.totalUkt > 0 ? formatRp(item.totalUkt) : "-"}
@@ -2118,12 +2167,6 @@ export function KasLedgerClient({
                         <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
                           {item.totalKomisiLatber > 0 ? formatRp(item.totalKomisiLatber) : "-"}
                         </td>
-                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
-                          {item.totalIuran > 0 ? formatRp(item.totalIuran) : "-"}
-                        </td>
-                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
-                          {item.totalLainnya > 0 ? formatRp(item.totalLainnya) : "-"}
-                        </td>
                         <td className="p-2 sm:p-2.5 text-right font-bold text-teal-800 dark:text-teal-300 whitespace-nowrap">
                           {formatRp(item.totalMasuk)}
                         </td>
@@ -2135,7 +2178,7 @@ export function KasLedgerClient({
                   <tfoot className="sticky bottom-0 z-10 border-t bg-muted/95 font-bold">
                     <tr>
                       <td colSpan={2} className="p-2 sm:p-2.5 text-right">
-                        TOTAL KESELURUHAN:
+                        TOTAL KESELURUHAN (LUNAS):
                       </td>
                       <td className="p-2 sm:p-2.5 text-right text-teal-800 dark:text-teal-300 whitespace-nowrap">
                         {formatRp(grandUkt)}
@@ -2148,12 +2191,6 @@ export function KasLedgerClient({
                       </td>
                       <td className="p-2 sm:p-2.5 text-right text-teal-800 dark:text-teal-300 whitespace-nowrap">
                         {formatRp(grandKomisiLatber)}
-                      </td>
-                      <td className="p-2 sm:p-2.5 text-right text-teal-800 dark:text-teal-300 whitespace-nowrap">
-                        {formatRp(grandIuran)}
-                      </td>
-                      <td className="p-2 sm:p-2.5 text-right text-teal-800 dark:text-teal-300 whitespace-nowrap">
-                        {formatRp(grandLainnya)}
                       </td>
                       <td className="p-2 sm:p-2.5 text-right text-sm sm:text-base text-teal-900 dark:text-teal-200 whitespace-nowrap">
                         {formatRp(grandTotal)}

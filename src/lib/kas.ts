@@ -526,17 +526,17 @@ export function aggregateKasByDojo(
     const desc = (row.description || "").toLowerCase();
     const isKomisi = desc.includes("komisi") || keg.includes("komisi");
 
-    if (src === "ukt" || keg.includes("ukt")) {
-      if (isKomisi) {
-        item.totalKomisiUkt += row.amountIn;
-      } else {
-        item.totalUkt += row.amountIn;
-      }
-    } else if (src === "latber" || keg.includes("latber")) {
+    if (src === "latber" || keg.includes("latber") || desc.includes("latber")) {
       if (isKomisi) {
         item.totalKomisiLatber += row.amountIn;
       } else {
         item.totalLatber += row.amountIn;
+      }
+    } else if (src === "ukt" || keg.includes("ukt") || desc.includes("ukt")) {
+      if (isKomisi) {
+        item.totalKomisiUkt += row.amountIn;
+      } else {
+        item.totalUkt += row.amountIn;
       }
     } else if (
       src === "iuran" ||
@@ -545,13 +545,7 @@ export function aggregateKasByDojo(
     ) {
       item.totalIuran += row.amountIn;
     } else {
-      if (isKomisi && (desc.includes("latber") || keg.includes("latber"))) {
-        item.totalKomisiLatber += row.amountIn;
-      } else if (isKomisi && (desc.includes("ukt") || keg.includes("ukt"))) {
-        item.totalKomisiUkt += row.amountIn;
-      } else {
-        item.totalLainnya += row.amountIn;
-      }
+      item.totalLainnya += row.amountIn;
     }
     item.totalMasuk += row.amountIn;
   }
