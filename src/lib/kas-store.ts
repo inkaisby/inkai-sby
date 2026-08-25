@@ -19,6 +19,7 @@ import {
   type KasScope,
   type KasSourceType,
 } from "@/lib/kas";
+import { formatLatberKasKegiatan } from "@/lib/kas-kegiatan";
 
 export class KasPeriodLockedError extends Error {
   constructor(yearMonth: string) {
@@ -222,6 +223,15 @@ function normalizeKasDisplayAmount(amount: number, sourceType: string, descripti
   return amount;
 }
 
+function normalizeKasKegiatan(kegiatan: string, dojoName?: string | null): string {
+  if (!kegiatan) return kegiatan;
+  const dojo = dojoName?.trim();
+  if (dojo && /persiapan\s*ukt-ranting$/i.test(kegiatan)) {
+    return kegiatan.replace(/-ranting$/i, `-${dojo}`);
+  }
+  return kegiatan;
+}
+
 async function syncMissingLatberKasForScope(scope: KasScope) {
   try {
     const paidLatberBillings = await prisma.billing.findMany({
@@ -244,7 +254,7 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
             dojoId: true,
             fullName: true,
             nia: true,
-            dojo: { select: { branchId: true } },
+            dojo: { select: { id: true, branchId: true, name: true } },
           },
         },
       },
@@ -265,9 +275,10 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
         if (!exists) {
           const nia = b.member.nia ? ` (${b.member.nia})` : "";
           const desc = `${b.member.fullName}${nia}`;
-          const kegiatan = b.description?.startsWith("Latber ")
-            ? b.description
-            : `Latber ${b.description || "Latihan Bersama — persiapan UKT"}`;
+          const kegiatan = formatLatberKasKegiatan(
+            b.description || "Latber Persiapan UKT",
+            b.member.dojo?.name,
+          );
           await prisma.kasEntry.create({
             data: {
               scopeType: "dojo",
@@ -291,9 +302,10 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
         if (!exists) {
           const nia = b.member.nia ? ` (${b.member.nia})` : "";
           const desc = `${b.member.fullName}${nia}`;
-          const kegiatan = b.description?.startsWith("Latber ")
-            ? b.description
-            : `Latber ${b.description || "Latihan Bersama — persiapan UKT"}`;
+          const kegiatan = formatLatberKasKegiatan(
+            b.description || "Latber Persiapan UKT",
+            b.member.dojo?.name,
+          );
           const fee = b.amount && b.amount % 1000 === 0 ? b.amount : 45000;
           await prisma.kasEntry.create({
             data: {
@@ -319,6 +331,14 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
 
 export async function listKasEntries(scope: KasScope) {
   await syncMissingLatberKasForScope(scope);
+  let dojoName: string | null = null;
+  if (scope.type === "dojo") {
+    const dojo = await prisma.dojo.findFirst({
+      where: { id: scope.id },
+      select: { name: true },
+    });
+    dojoName = dojo?.name?.trim() || null;
+  }
   const rows = await prisma.kasEntry.findMany({
     where: { scopeType: scope.type, scopeId: scope.id },
     orderBy: [{ txnDate: "asc" }, { createdAt: "asc" }],
@@ -327,7 +347,7 @@ export async function listKasEntries(scope: KasScope) {
     id: row.id,
     txnDate: row.txnDate.toISOString().slice(0, 10),
     description: row.description,
-    kegiatan: row.kegiatan,
+    kegiatan: normalizeKasKegiatan(row.kegiatan, dojoName),
     amountIn: normalizeKasDisplayAmount(row.amountIn, row.sourceType, row.description),
     amountOut: normalizeKasDisplayAmount(row.amountOut, row.sourceType, row.description),
     createdAt: row.createdAt.toISOString(),

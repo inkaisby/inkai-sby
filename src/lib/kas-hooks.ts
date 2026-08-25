@@ -160,10 +160,10 @@ export async function postKasFromLatberPaid(opts: {
   const nett = Math.max(0, fee - komisi);
   const scopes = opts.memberDojoId
     ? await resolveDojoBranchScope(opts.memberDojoId)
-    : { dojo: null, branch: null };
+    : { dojo: null, branch: null, dojoName: null };
   const nia = opts.memberNia ? ` (${opts.memberNia})` : "";
   const desc = `${opts.memberName}${nia}`;
-  const kegiatan = formatLatberKasKegiatan(opts.periodTitle);
+  const kegiatan = formatLatberKasKegiatan(opts.periodTitle, scopes.dojoName);
 
   if (scopes.branch && nett > 0) {
     await postKasEntry({

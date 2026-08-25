@@ -36,12 +36,18 @@ export function isLatberPersiapanUktTitle(periodTitle: string): boolean {
   return /persiapan\s*ukt/i.test(periodTitle);
 }
 
-export function formatLatberKasKegiatan(periodTitle: string): string {
+export function formatLatberKasKegiatan(
+  periodTitle: string,
+  dojoName?: string | null,
+): string {
   const title = periodTitle.trim() || "Latber";
+  const dojo = dojoName?.trim();
   if (isLatberPersiapanUktTitle(title)) {
-    return KAS_LATBER_PERSIAPAN_UKT_KEGIATAN;
+    return clipKegiatan(
+      dojo ? `Bayar Latber Persiapan UKT-${dojo}` : "Bayar Latber Persiapan UKT-ranting",
+    );
   }
-  return clipKegiatan(`Latber ${title}`);
+  return clipKegiatan(dojo ? `Latber ${title} - ${dojo}` : `Latber ${title}`);
 }
 
 export const KAS_KEGIATAN_RELABELS: ReadonlyArray<{
