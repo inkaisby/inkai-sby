@@ -1509,7 +1509,7 @@ export async function fetchUktDashboardData(
         prisma.eventRegistration.count({
           where: {
             eventId: selectedPeriodId,
-            status: { in: ["PENDING", "APPROVED"] },
+            status: { notIn: ["CANCELLED", "REJECTED"] },
             member: {
               isDeleted: false,
               ...(dojoAllowlist.length > 0
@@ -1949,7 +1949,7 @@ export async function fetchUktDashboardData(
         prisma.eventRegistration.findMany({
           where: {
             eventId: selectedPeriodId,
-            status: { in: ["PENDING", "APPROVED"] },
+            status: { notIn: ["CANCELLED", "REJECTED"] },
             member: {
               isDeleted: false,
               ...(dojoAllowlist.length > 0
