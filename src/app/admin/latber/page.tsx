@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
 import { getPrimaryAdminRole, ROLE_LABELS } from "@/lib/rbac";
 import { canCreateEventsByWilayah } from "@/lib/wilayah-rbac";
 import { fetchLatberDashboardData } from "@/lib/latber-data";
@@ -14,6 +13,15 @@ export const maxDuration = 30;
 
 type SearchParams = Promise<{ period?: string; create?: string }>;
 
+function isNextRedirectError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "digest" in error &&
+    String((error as { digest?: string }).digest || "").startsWith("NEXT_REDIRECT")
+  );
+}
+
 async function LatberSection({ searchParams }: { searchParams: SearchParams }) {
   const { user, token } = await requireAdminSession();
   const params = await searchParams;
@@ -21,12 +29,35 @@ async function LatberSection({ searchParams }: { searchParams: SearchParams }) {
   const primaryRole = getPrimaryAdminRole(user.roles);
   const canCreatePeriod = canCreateEventsByWilayah(user.roles);
 
-  const data = await fetchLatberDashboardData(token, user, {
-    periodFromUrl: createMode ? null : params.period || null,
-    forceNoPeriod: createMode,
-    viewMode: "registration",
-  });
-  const orgProfile = await getBranchOrgProfile();
+  let data: Awaited<ReturnType<typeof fetchLatberDashboardData>>;
+  let orgProfile: Awaited<ReturnType<typeof getBranchOrgProfile>>;
+  try {
+    [data, orgProfile] = await Promise.all([
+      fetchLatberDashboardData(token, user, {
+        periodFromUrl: createMode ? null : params.period || null,
+        forceNoPeriod: createMode,
+        viewMode: "registration",
+      }),
+      getBranchOrgProfile(),
+    ]);
+  } catch (error) {
+    if (isNextRedirectError(error)) throw error;
+    console.error("[AdminLatber]", error);
+    data = {
+      periods: [],
+      selectedPeriodId: createMode ? null : params.period || null,
+      selectedPeriod: null,
+      periodMeta: { archived: false, locked: false },
+      feeAmount: 0,
+      komisiRanting: 0,
+      rows: [],
+      dojos: [],
+      primaryRole,
+      rantingAllowlistEmpty: false,
+      dbError: true,
+    };
+    orgProfile = await getBranchOrgProfile();
+  }
 
   return (
     <LatberDashboardClient
@@ -56,30 +87,18 @@ export default async function LatberAdminPage({
 }: {
   searchParams: SearchParams;
 }) {
-  try {
-    const { user } = await requireAdminSession();
-    const primaryRole = getPrimaryAdminRole(user.roles);
+  const { user } = await requireAdminSession();
+  const primaryRole = getPrimaryAdminRole(user.roles);
 
-    return (
-      <>
-        <AdminPageHeader
-          title="Pendaftaran Latihan Bersama"
-          description={`${ROLE_LABELS[primaryRole] || primaryRole} — Latihan bersama & pendaftaran anggota`}
-        />
-        <Suspense fallback={<AdminPageLoader rows={8} message="Memuat Latihan Bersama..." />}>
-          <LatberSection searchParams={searchParams} />
-        </Suspense>
-      </>
-    );
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "digest" in error &&
-      String((error as { digest?: string }).digest || "").startsWith("NEXT_REDIRECT")
-    ) {
-      throw error;
-    }
-    redirect("/login");
-  }
+  return (
+    <>
+      <AdminPageHeader
+        title="Pendaftaran Latihan Bersama"
+        description={`${ROLE_LABELS[primaryRole] || primaryRole} — Latihan bersama & pendaftaran anggota`}
+      />
+      <Suspense fallback={<AdminPageLoader rows={8} message="Memuat Latihan Bersama..." />}>
+        <LatberSection searchParams={searchParams} />
+      </Suspense>
+    </>
+  );
 }

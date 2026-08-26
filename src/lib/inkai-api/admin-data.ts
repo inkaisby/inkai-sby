@@ -44,6 +44,7 @@ import {
   buildUktWaiverMap,
   parseUktPeriodMetaValue,
   parseUktEventTitle,
+  isUktAdminEventTitle,
   type UktExamResult,
   type UktMemberRow,
   type UktPeriodMeta,
@@ -84,7 +85,7 @@ function listMetaTotal(data: Record<string, unknown>, fallback: number) {
 const HOME_INKAI = { timeoutMs: 8_000, retries: 0 } as const;
 
 function filterUktEvents(events: Array<Record<string, unknown>>) {
-  return events.filter((e) => String(e.title).toUpperCase().includes("UKT"));
+  return events.filter((e) => isUktAdminEventTitle(String(e.title ?? "")));
 }
 
 export async function fetchAdminMembers(
@@ -1119,21 +1120,24 @@ function buildVerificationCountMap(verifications: Array<Record<string, unknown>>
 export async function fetchUktEventsCached(
   token: string,
   options?: { timeoutMs?: number; retries?: number },
-) {
-  return unstable_cache(
-    async () => {
-      const { res, data } = await inkaiFetch("/v1/events?limit=200", {}, token, options);
-      if (!res.ok) {
-        throw new Error("Failed to fetch events from Inkai API");
-      }
-      return (data.data as Array<Record<string, unknown>>) ?? [];
-    },
-    ["ukt-events-list-v3"],
-    { revalidate: 60 },
-  )().catch((error) => {
+): Promise<{ ok: boolean; events: Array<Record<string, unknown>> }> {
+  try {
+    const events = await unstable_cache(
+      async () => {
+        const { res, data } = await inkaiFetch("/v1/events?limit=200", {}, token, options);
+        if (!res.ok) {
+          throw new Error("Failed to fetch events from Inkai API");
+        }
+        return (data.data as Array<Record<string, unknown>>) ?? [];
+      },
+      ["ukt-events-list-v3"],
+      { revalidate: 60 },
+    )();
+    return { ok: true, events };
+  } catch (error) {
     console.error("[fetchUktEventsCached]", error);
-    return [] as Array<Record<string, unknown>>;
-  });
+    return { ok: false, events: [] };
+  }
 }
 
 export async function fetchBeltFeesTemplatesCached(
@@ -1204,7 +1208,7 @@ export async function resolveUktAdminPeriodId(
     return { selectedPeriodId: null, targetSemester: semester, targetYear: year };
   }
 
-  const [eventsData, periodMetaRowsAll, eventDetailFromUrl] = await Promise.all([
+  const [eventsResult, periodMetaRowsAll, eventDetailFromUrl] = await Promise.all([
     fetchUktEventsCached(token, {
       timeoutMs: 8_000,
       retries: 0,
@@ -1215,14 +1219,12 @@ export async function resolveUktAdminPeriodId(
       : Promise.resolve(null),
   ]);
 
-  let periods = filterUktEvents(eventsData).map((p) => periodOptionFromEvent(p));
+  let periods = filterUktEvents(eventsResult.events).map((p) => periodOptionFromEvent(p));
 
   if (
     periodFromUrl &&
     eventDetailFromUrl &&
-    String(eventDetailFromUrl.title ?? "")
-      .toUpperCase()
-      .includes("UKT")
+    isUktAdminEventTitle(String(eventDetailFromUrl.title ?? ""))
   ) {
     periods = upsertPeriodOption(
       periods,
@@ -1367,16 +1369,19 @@ export async function fetchUktDashboardData(
   // Wave 1: events + dojos Prisma + period-meta prefix + event detail URL.
   // Prefix exam/waiver/deposit + fees global ditunda sampai tahu periode kosong /
   // snapshot biaya tersedia (hemat RTT saat 0 peserta).
-  const [eventsData, dojosScoped, membersResult, eventDetailInitial, periodMetaRowsAll] =
+  const [eventsResult, dojosScoped, membersResult, eventDetailInitial, periodMetaRowsAll] =
     await Promise.all([
       fetchUktEventsCached(token, UKT_DASH_INKAI),
       fetchAdminDojosScopedCached(user),
       membersPromise,
       periodFromUrl
-        ? fetchEventDetail(token, periodFromUrl, UKT_DASH_INKAI)
+        ? fetchEventDetail(token, periodFromUrl, UKT_DASH_INKAI).catch(() => null)
         : Promise.resolve(null),
       fetchSettingsByPrefix(token, "ukt-period-meta:", UKT_DASH_INKAI),
     ]);
+
+  const eventsOk = eventsResult.ok;
+  const eventsData = eventsResult.events;
 
   let dojos: Array<{ id: string; name: string }> = dojosScoped;
   if (dojoAllowlist.length > 0) {
@@ -1402,9 +1407,7 @@ export async function fetchUktDashboardData(
   if (
     periodFromUrl &&
     eventDetailInitial &&
-    String(eventDetailInitial.title ?? "")
-      .toUpperCase()
-      .includes("UKT")
+    isUktAdminEventTitle(String(eventDetailInitial.title ?? ""))
   ) {
     periods = upsertPeriodOption(
       periods,
@@ -1440,13 +1443,15 @@ export async function fetchUktDashboardData(
     }
   }
 
-  let selectedPeriodId = resolveUktSelectedPeriodId(
-    periods,
-    effectiveSemester,
-    effectiveYear,
-    periodFromUrl,
-    viewMode,
-  );
+  let selectedPeriodId = forceNoPeriod
+    ? null
+    : resolveUktSelectedPeriodId(
+        periods,
+        effectiveSemester,
+        effectiveYear,
+        periodFromUrl,
+        viewMode,
+      );
 
   if (selectedPeriodId) {
     const selected = periods.find((p) => p.id === selectedPeriodId);
@@ -1459,7 +1464,8 @@ export async function fetchUktDashboardData(
     }
   }
 
-  if (selectedPeriodId && viewMode === "registration") {
+  // Pendaftaran: jika hanya ada arsip → biarkan null agar UI Buat Periode.
+  if (selectedPeriodId && !forceNoPeriod && viewMode === "registration") {
     const selected = periods.find((p) => p.id === selectedPeriodId);
     const hasActive = findUktPeriodsForTerm(periods, effectiveSemester, effectiveYear).some(
       (p) => !p.archived && !p.locked,
@@ -2306,7 +2312,7 @@ export async function fetchUktDashboardData(
     >,
     periodMeta,
     identityDegraded,
-    ok: Array.isArray(eventsData) || membersResult.ok,
+    ok: eventsOk && (Array.isArray(eventsData) || membersResult.ok),
   };
 }
 

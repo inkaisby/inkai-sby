@@ -10,6 +10,7 @@ import {
   buildUktAdminUrl,
   currentSemester,
   isUktPeriodActiveView,
+  resolveUktAdminCanonicalRedirect,
   type UktDepositRecord,
   type UktPeriodMeta,
   type UktSemester,
@@ -178,17 +179,21 @@ async function UktArsipDashboardSection({
       }
     }
 
-    const canonicalPeriod = data.selectedPeriodId;
-    const urlNeedsSync =
-      urlSemester !== targetSemester ||
-      urlYear !== String(targetYear) ||
-      (periodFromUrl ?? "") !== (canonicalPeriod ?? "");
-    if (urlNeedsSync) {
-      redirect(
-        buildUktAdminUrl(targetSemester, targetYear, canonicalPeriod, {
-          basePath: "/admin/ukt/arsip",
-        }),
-      );
+    if (!data.ok) {
+      dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
+      if (periodFromUrl && !selectedPeriodId) selectedPeriodId = periodFromUrl;
+    } else {
+      const syncTo = resolveUktAdminCanonicalRedirect({
+        urlSemester,
+        urlYear,
+        periodFromUrl,
+        targetSemester,
+        targetYear,
+        canonicalPeriod: data.selectedPeriodId,
+        dataOk: true,
+        basePath: "/admin/ukt/arsip",
+      });
+      if (syncTo) redirect(syncTo);
     }
     allRows = data.allRows;
     beltFees = data.beltFees;
@@ -197,7 +202,6 @@ async function UktArsipDashboardSection({
     depositMap = data.depositMap ?? {};
     periodMeta = data.periodMeta ?? { archived: false, locked: false };
     identityDegraded = Boolean(data.identityDegraded);
-    if (!data.ok) dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
   } catch (error) {
     if (isNextRedirectError(error)) throw error;
     console.error("[AdminUktArsip] API error:", error);

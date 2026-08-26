@@ -10,11 +10,13 @@ import {
   buildUktAdminUrl,
   currentSemester,
   isUktPeriodActiveView,
+  parseUktEventTitle,
+  resolveUktAdminCanonicalRedirect,
   type UktDepositRecord,
   type UktPeriodMeta,
   type UktSemester,
 } from "@/lib/ukt";
-import { fetchUktDashboardData, resolveUktAdminPeriodId } from "@/lib/inkai-api/admin-data";
+import { fetchUktDashboardData } from "@/lib/inkai-api/admin-data";
 import { getBranchOrgProfile } from "@/lib/org-settings";
 import { getUktRegistrationPolicy } from "@/lib/ukt-registration-policy";
 import { loadUktTtdOrgHints } from "@/lib/ukt-ttd-org";
@@ -166,40 +168,19 @@ async function UktDashboardSection({
   const dojoGroups: [] = [];
 
   try {
-    // Sync URL canonical SEBELUM fetch berat (hindari double full load).
-    if (!createMode) {
-      const urlLooksComplete =
-        urlSemester === semester &&
-        urlYear === String(year) &&
-        Boolean(periodFromUrl);
-      if (!urlLooksComplete) {
-        const light = await resolveUktAdminPeriodId(token, {
-          periodFromUrl,
-          semester,
-          year,
-          forceNoPeriod: false,
-          viewMode: "registration",
-        });
-        targetSemester = light.targetSemester ?? semester;
-        targetYear = light.targetYear ?? year;
-        const canonicalPeriod = light.selectedPeriodId;
-        const urlNeedsSync =
-          urlSemester !== targetSemester ||
-          urlYear !== String(targetYear) ||
-          (periodFromUrl ?? "") !== (canonicalPeriod ?? "");
-        if (urlNeedsSync) {
-          redirect(buildUktAdminUrl(targetSemester, targetYear, canonicalPeriod));
-        }
-      }
-    } else {
-      const urlNeedsSync =
-        urlSemester !== semester ||
-        urlYear !== String(year) ||
-        Boolean(periodFromUrl) ||
-        urlCreate !== "1";
-      if (urlNeedsSync) {
-        redirect(buildUktAdminUrl(semester, year, null, { create: true }));
-      }
+    if (createMode) {
+      const createRedirect = resolveUktAdminCanonicalRedirect({
+        createMode: true,
+        urlSemester,
+        urlYear,
+        urlCreate,
+        periodFromUrl,
+        targetSemester: semester,
+        targetYear: year,
+        canonicalPeriod: null,
+        dataOk: true,
+      });
+      if (createRedirect) redirect(createRedirect);
     }
 
     const [profile, policy, data, ttdHints] = await Promise.all([
@@ -224,6 +205,7 @@ async function UktDashboardSection({
     targetSemester = data.targetSemester ?? semester;
     targetYear = data.targetYear ?? year;
 
+    // Periode aktif di URL selalu dipertahankan (hindari loncat / strip → blink).
     if (!createMode && periodFromUrl) {
       const fromUrl = periods.find((p) => p.id === periodFromUrl);
       if (fromUrl && !isUktPeriodActiveView(fromUrl)) {
@@ -233,18 +215,34 @@ async function UktDashboardSection({
           }),
         );
       }
-    }
-
-    if (!createMode) {
-      const canonicalPeriod = data.selectedPeriodId;
-      const urlNeedsSync =
-        urlSemester !== targetSemester ||
-        urlYear !== String(targetYear) ||
-        (periodFromUrl ?? "") !== (canonicalPeriod ?? "");
-      if (urlNeedsSync) {
-        redirect(buildUktAdminUrl(targetSemester, targetYear, canonicalPeriod));
+      if (fromUrl && isUktPeriodActiveView(fromUrl)) {
+        selectedPeriodId = periodFromUrl;
+        const parsed = parseUktEventTitle(fromUrl.title);
+        if (parsed) {
+          targetSemester = parsed.semester;
+          targetYear = parsed.year;
+        }
       }
     }
+
+    if (!data.ok) {
+      dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
+      if (!createMode && periodFromUrl && !selectedPeriodId) {
+        selectedPeriodId = periodFromUrl;
+      }
+    } else if (!createMode) {
+      const syncTo = resolveUktAdminCanonicalRedirect({
+        urlSemester,
+        urlYear,
+        periodFromUrl,
+        targetSemester,
+        targetYear,
+        canonicalPeriod: selectedPeriodId,
+        dataOk: true,
+      });
+      if (syncTo) redirect(syncTo);
+    }
+
     allRows = data.allRows;
     beltFees = data.beltFees;
     komisiRanting = data.komisiRanting;
@@ -252,7 +250,6 @@ async function UktDashboardSection({
     depositMap = data.depositMap ?? {};
     periodMeta = data.periodMeta ?? { archived: false, locked: false };
     identityDegraded = Boolean(data.identityDegraded);
-    if (!data.ok) dbError = "Gagal memuat data UKT dari API. Silakan coba lagi.";
   } catch (error) {
     if (isNextRedirectError(error)) throw error;
     console.error("[AdminUkt] API error:", error);

@@ -4,7 +4,7 @@ import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import { inkaiFetch } from "@/lib/inkai-api/server";
 import { getPrimaryAdminRole } from "@/lib/rbac";
 import type { SessionUser } from "@/lib/rbac";
-import { fetchAdminDojosScopedCached } from "@/lib/inkai-api/admin-data";
+import { fetchAdminDojosScopedCached, fetchEventDetail } from "@/lib/inkai-api/admin-data";
 import {
   findActiveLatberPeriod,
   isLatberEventTitle,
@@ -33,10 +33,26 @@ function filterLatberEvents(events: Array<Record<string, unknown>>) {
   return events.filter((e) => isLatberEventTitle(String(e.title ?? "")));
 }
 
-async function fetchLatberEvents(token: string) {
-  const { res, data } = await inkaiFetch("/v1/events", {}, token, LATBER_INKAI);
-  if (!res.ok) return [] as Array<Record<string, unknown>>;
-  return filterLatberEvents((data.data as Array<Record<string, unknown>>) ?? []);
+async function fetchLatberEvents(token: string): Promise<{
+  ok: boolean;
+  events: Array<Record<string, unknown>>;
+}> {
+  try {
+    const { res, data } = await inkaiFetch(
+      "/v1/events?limit=200",
+      {},
+      token,
+      LATBER_INKAI,
+    );
+    if (!res.ok) return { ok: false, events: [] };
+    return {
+      ok: true,
+      events: filterLatberEvents((data.data as Array<Record<string, unknown>>) ?? []),
+    };
+  } catch (error) {
+    console.error("[fetchLatberEvents]", error);
+    return { ok: false, events: [] };
+  }
 }
 
 async function fetchSettingsByPrefix(token: string, prefix: string) {
@@ -88,26 +104,32 @@ async function autoArchiveInactiveLatberPeriods(
   metaByPeriodId: Map<string, LatberPeriodMeta>,
 ) {
   for (const p of periods) {
-    const meta = metaByPeriodId.get(p.id) ?? { archived: false, locked: false };
-    if (meta.archived || meta.locked) continue;
-    if (!isLatberEventCompleted(p, meta)) continue;
+    try {
+      const meta = metaByPeriodId.get(p.id) ?? { archived: false, locked: false };
+      if (meta.archived || meta.locked) continue;
+      // Jangan arsipkan saat pendaftaran masih terbuka.
+      if (isLatberRegistrationOpen(latberPeriodSchedule(p, meta))) continue;
+      if (!isLatberEventCompleted(p, meta)) continue;
 
-    const archived = mergeLatberPeriodMeta(meta, {
-      archived: true,
-      locked: true,
-    });
-    await saveLatberPeriodMeta(token, p.id, archived);
-    metaByPeriodId.set(p.id, archived);
-    await syncInviteAfterLatberPeriodChange({
-      periodId: p.id,
-      title: p.title,
-      startDate: p.startDate,
-      endDate: p.endDate,
-      registrationCloseAt: p.registrationCloseAt,
-      location: meta.eventLocation ?? null,
-      meta: archived,
-      token,
-    });
+      const archived = mergeLatberPeriodMeta(meta, {
+        archived: true,
+        locked: true,
+      });
+      await saveLatberPeriodMeta(token, p.id, archived);
+      metaByPeriodId.set(p.id, archived);
+      await syncInviteAfterLatberPeriodChange({
+        periodId: p.id,
+        title: p.title,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        registrationCloseAt: p.registrationCloseAt,
+        location: meta.eventLocation ?? null,
+        meta: archived,
+        token,
+      });
+    } catch (error) {
+      console.error("[autoArchiveInactiveLatberPeriods]", p.id, error);
+    }
   }
 }
 
@@ -135,11 +157,28 @@ export async function fetchLatberDashboardData(
   const rantingAllowlistEmpty =
     primaryRole === "ADMIN_DOJO" && dojoAllowlist.length === 0;
 
-  const [eventsRaw, dojosScoped, periodMetaRows] = await Promise.all([
-    fetchLatberEvents(token),
-    fetchAdminDojosScopedCached(user),
-    fetchSettingsByPrefix(token, "latber-period-meta:"),
-  ]);
+  const [eventsResult, dojosScoped, periodMetaRows, eventDetailFromUrl] =
+    await Promise.all([
+      fetchLatberEvents(token),
+      fetchAdminDojosScopedCached(user),
+      fetchSettingsByPrefix(token, "latber-period-meta:"),
+      periodFromUrl
+        ? fetchEventDetail(token, periodFromUrl, LATBER_INKAI).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+  const eventsOk = eventsResult.ok;
+  let eventsRaw = eventsResult.events;
+
+  if (
+    periodFromUrl &&
+    eventDetailFromUrl &&
+    isLatberEventTitle(String(eventDetailFromUrl.title ?? ""))
+  ) {
+    const idx = eventsRaw.findIndex((e) => String(e.id) === periodFromUrl);
+    if (idx < 0) eventsRaw = [...eventsRaw, eventDetailFromUrl];
+    else eventsRaw = eventsRaw.map((e, i) => (i === idx ? eventDetailFromUrl : e));
+  }
 
   let dojos = dojosScoped;
   if (dojoAllowlist.length > 0) {
@@ -195,8 +234,27 @@ export async function fetchLatberDashboardData(
 
   let selectedPeriodId = forceNoPeriod ? null : periodFromUrl;
   if (selectedPeriodId && !periods.some((p) => p.id === selectedPeriodId)) {
-    // Jika periodFromUrl tidak ada dalam daftar periods untuk viewMode ini, reset
-    selectedPeriodId = null;
+    // URL period mungkin aktif tapi terfilter; upsert sudah di atas — jika tetap hilang, jangan drop saat detail sukses
+    if (
+      periodFromUrl &&
+      eventDetailFromUrl &&
+      isLatberEventTitle(String(eventDetailFromUrl.title ?? ""))
+    ) {
+      const opt = periodOptionFromLatberEvent(eventDetailFromUrl, periodFromUrl);
+      const meta = metaByPeriodId.get(opt.id) ?? { archived: false, locked: false };
+      const withMeta = {
+        ...opt,
+        archived: meta.archived === true,
+        locked: meta.locked === true,
+      };
+      if (viewMode === "registration" ? !isLatberPeriodInactive(withMeta, meta) : true) {
+        periods = [...periods, withMeta];
+      } else {
+        selectedPeriodId = null;
+      }
+    } else {
+      selectedPeriodId = null;
+    }
   }
   if (!selectedPeriodId && !forceNoPeriod) {
     if (viewMode === "archive") {
@@ -382,7 +440,7 @@ export async function fetchLatberDashboardData(
     dojos,
     primaryRole,
     rantingAllowlistEmpty,
-    dbError: false as boolean,
+    dbError: !eventsOk,
   };
 }
 

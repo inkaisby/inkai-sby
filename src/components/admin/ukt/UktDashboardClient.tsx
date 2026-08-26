@@ -1,30 +1,8 @@
 "use client";
 
-import nextDynamic from "next/dynamic";
-import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
-
 /**
- * Client boundary agar `ssr: false` valid (Next.js 16 melarangnya di Server Components).
- * Shell halaman tetap SSR; chunk UktDashboard hanya di client.
+ * Re-export client dashboard — SSR enabled so Suspense fallback is the only loader
+ * (hindari double AdminPageLoader dari dynamic ssr:false).
  */
-export const UktDashboardClient = nextDynamic(
-  () =>
-    import("@/components/admin/ukt/UktDashboard").then((m) => m.UktDashboard),
-  {
-    ssr: false,
-    loading: () => (
-      <AdminPageLoader rows={8} message="Memuat data UKT..." />
-    ),
-  },
-);
-
-export const UktArsipDashboardClient = nextDynamic(
-  () =>
-    import("@/components/admin/ukt/UktDashboard").then((m) => m.UktDashboard),
-  {
-    ssr: false,
-    loading: () => (
-      <AdminPageLoader rows={8} message="Memuat arsip UKT..." />
-    ),
-  },
-);
+export { UktDashboard as UktDashboardClient } from "@/components/admin/ukt/UktDashboard";
+export { UktDashboard as UktArsipDashboardClient } from "@/components/admin/ukt/UktDashboard";

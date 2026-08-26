@@ -1,15 +1,7 @@
 "use client";
 
-import nextDynamic from "next/dynamic";
-import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
-
-export const LatberDashboardClient = nextDynamic(
-  () =>
-    import("@/components/admin/latber/LatberDashboard").then((m) => m.LatberDashboard),
-  {
-    ssr: false,
-    loading: () => (
-      <AdminPageLoader rows={8} message="Memuat data Latihan Bersama..." />
-    ),
-  },
-);
+/**
+ * Re-export client dashboard — SSR enabled so Suspense fallback is the only loader
+ * (hindari double AdminPageLoader dari dynamic ssr:false).
+ */
+export { LatberDashboard as LatberDashboardClient } from "@/components/admin/latber/LatberDashboard";

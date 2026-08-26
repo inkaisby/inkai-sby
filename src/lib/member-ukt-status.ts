@@ -11,6 +11,7 @@ import {
   currentSemester,
   findUktPeriodForTerm,
   findUktPeriodsForTerm,
+  isUktAdminEventTitle,
   parseUktPeriodMetaValue,
   resolveUktDisplayStatus,
   uktDisplayStatusLabel,
@@ -47,7 +48,7 @@ export type MemberUktStatusPayload = {
 };
 
 function filterUktEvents(events: Array<Record<string, unknown>>) {
-  return events.filter((e) => String(e.title).toUpperCase().includes("UKT"));
+  return events.filter((e) => isUktAdminEventTitle(String(e.title ?? "")));
 }
 
 /**

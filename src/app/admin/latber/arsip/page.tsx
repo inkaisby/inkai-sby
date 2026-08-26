@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
 import { getPrimaryAdminRole, ROLE_LABELS } from "@/lib/rbac";
 import { canCreateEventsByWilayah } from "@/lib/wilayah-rbac";
 import { fetchLatberDashboardData } from "@/lib/latber-data";
@@ -14,19 +13,49 @@ export const maxDuration = 30;
 
 type SearchParams = Promise<{ period?: string }>;
 
+function isNextRedirectError(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "digest" in error &&
+    String((error as { digest?: string }).digest || "").startsWith("NEXT_REDIRECT")
+  );
+}
+
 async function LatberArsipSection({ searchParams }: { searchParams: SearchParams }) {
   const { user, token } = await requireAdminSession();
   const params = await searchParams;
   const primaryRole = getPrimaryAdminRole(user.roles);
   const canCreatePeriod = canCreateEventsByWilayah(user.roles);
 
-  const data = await fetchLatberDashboardData(token, user, {
-    periodFromUrl: params.period || null,
-    viewMode: "archive",
-  });
-
-  const orgProfile = await getBranchOrgProfile();
-  const archivedPeriods = data.periods.filter((p) => p.archived || p.locked);
+  let data: Awaited<ReturnType<typeof fetchLatberDashboardData>>;
+  let orgProfile: Awaited<ReturnType<typeof getBranchOrgProfile>>;
+  try {
+    [data, orgProfile] = await Promise.all([
+      fetchLatberDashboardData(token, user, {
+        periodFromUrl: params.period || null,
+        viewMode: "archive",
+      }),
+      getBranchOrgProfile(),
+    ]);
+  } catch (error) {
+    if (isNextRedirectError(error)) throw error;
+    console.error("[AdminLatberArsip]", error);
+    data = {
+      periods: [],
+      selectedPeriodId: params.period || null,
+      selectedPeriod: null,
+      periodMeta: { archived: false, locked: false },
+      feeAmount: 0,
+      komisiRanting: 0,
+      rows: [],
+      dojos: [],
+      primaryRole,
+      rantingAllowlistEmpty: false,
+      dbError: true,
+    };
+    orgProfile = await getBranchOrgProfile();
+  }
 
   return (
     <LatberDashboardClient
@@ -56,30 +85,18 @@ export default async function LatberArsipPage({
 }: {
   searchParams: SearchParams;
 }) {
-  try {
-    const { user } = await requireAdminSession();
-    const primaryRole = getPrimaryAdminRole(user.roles);
+  const { user } = await requireAdminSession();
+  const primaryRole = getPrimaryAdminRole(user.roles);
 
-    return (
-      <>
-        <AdminPageHeader
-          title="Arsip Latihan Bersama"
-          description={`${ROLE_LABELS[primaryRole] || primaryRole} — Riwayat periode latihan bersama`}
-        />
-        <Suspense fallback={<AdminPageLoader rows={8} message="Memuat arsip..." />}>
-          <LatberArsipSection searchParams={searchParams} />
-        </Suspense>
-      </>
-    );
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "digest" in error &&
-      String((error as { digest?: string }).digest || "").startsWith("NEXT_REDIRECT")
-    ) {
-      throw error;
-    }
-    redirect("/login");
-  }
+  return (
+    <>
+      <AdminPageHeader
+        title="Arsip Latihan Bersama"
+        description={`${ROLE_LABELS[primaryRole] || primaryRole} — Riwayat periode latihan bersama`}
+      />
+      <Suspense fallback={<AdminPageLoader rows={8} message="Memuat arsip..." />}>
+        <LatberArsipSection searchParams={searchParams} />
+      </Suspense>
+    </>
+  );
 }

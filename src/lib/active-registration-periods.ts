@@ -97,7 +97,7 @@ export async function resolveActiveUktRegistrationPeriod(
     ]),
   );
 
-  const periods = eventsData.map((e) => {
+  const periods = eventsData.events.map((e) => {
     const opt = uktPeriodFromEvent(e);
     const meta = metaById.get(opt.id);
     return {
@@ -106,6 +106,8 @@ export async function resolveActiveUktRegistrationPeriod(
       locked: meta?.locked === true,
     };
   });
+
+  if (!eventsData.ok) return null;
 
   const year = new Date().getFullYear();
   const semester = currentSemester();

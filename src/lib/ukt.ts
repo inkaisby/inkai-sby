@@ -133,6 +133,17 @@ export function parseUktEventTitle(title: string): { semester: UktSemester; year
   };
 }
 
+/** Judul event UKT admin — bukan Latber yang kebetulan memuat kata "UKT". */
+export function isUktAdminEventTitle(title: string): boolean {
+  if (parseUktEventTitle(title)) return true;
+  const upper = String(title ?? "").toUpperCase();
+  return (
+    upper.includes("UKT") &&
+    !upper.includes("LATBER") &&
+    !upper.includes("LATIHAN BERSAMA")
+  );
+}
+
 export type UktPeriodOption = {
   id: string;
   title: string;
@@ -285,8 +296,13 @@ export function resolveUktSelectedPeriodId(
   const matchByTerm = findUktPeriodForTerm(periods, semester, year);
   if (periodFromUrl) {
     const urlPeriod = periods.find((p) => p.id === periodFromUrl);
-    if (!urlPeriod) return matchByTerm?.id ?? null;
+    // Pertahankan ID dari URL bila belum ada di list (list kosong/gagal) —
+    // jangan loncat ke periode lain yang memicu redirect strip → blink.
+    if (!urlPeriod) return periodFromUrl;
     if (!uktPeriodBelongsToTerm(urlPeriod, semester, year)) {
+      // Term URL salah: biarkan caller sync semester/tahun dari judul, tetap pakai ID URL
+      // jika periode aktif; jangan ganti ke event term lain.
+      if (isUktPeriodActiveView(urlPeriod)) return periodFromUrl;
       return matchByTerm?.id ?? null;
     }
     // URL menunjuk arsip, tapi ada periode aktif di term yang sama → fokus ke aktif
@@ -308,6 +324,78 @@ export function resolveUktSelectedPeriodId(
   }
   const fallback = !matchByTerm ? findAnyActiveUktPeriod(periods) : null;
   return matchByTerm?.id ?? fallback?.id ?? null;
+}
+
+/**
+ * Apakah URL admin UKT perlu di-redirect ke bentuk kanonikal.
+ * Tidak strip `period` saat fetch gagal / canonical null — itu sumber blink loader.
+ */
+export function resolveUktAdminCanonicalRedirect(opts: {
+  createMode?: boolean;
+  urlSemester?: string;
+  urlYear?: string;
+  urlCreate?: string;
+  periodFromUrl: string | null;
+  targetSemester: UktSemester;
+  targetYear: number;
+  canonicalPeriod: string | null;
+  dataOk: boolean;
+  basePath?: "/admin/ukt" | "/admin/ukt/arsip";
+}): string | null {
+  const basePath = opts.basePath ?? "/admin/ukt";
+  if (opts.createMode) {
+    const target = buildUktAdminUrl(opts.targetSemester, opts.targetYear, null, {
+      create: true,
+      basePath,
+    });
+    const current = buildUktAdminUrl(
+      (opts.urlSemester === "II" || opts.urlSemester === "I"
+        ? opts.urlSemester
+        : opts.targetSemester) as UktSemester,
+      opts.urlYear ? parseInt(opts.urlYear, 10) || opts.targetYear : opts.targetYear,
+      opts.periodFromUrl,
+      opts.urlCreate === "1" ? { create: true, basePath } : { basePath },
+    );
+    if (opts.urlCreate !== "1" || opts.periodFromUrl || current !== target) {
+      return current === target ? null : target;
+    }
+    return null;
+  }
+
+  // Fetch gagal: jangan rewrite URL (terutama jangan strip period).
+  if (!opts.dataOk) return null;
+
+  // Jangan strip period dari URL → redirect bolak-balik dengan light resolve.
+  if (opts.periodFromUrl && !opts.canonicalPeriod) return null;
+
+  const target = buildUktAdminUrl(
+    opts.targetSemester,
+    opts.targetYear,
+    opts.canonicalPeriod,
+    { basePath },
+  );
+  const current = buildUktAdminUrl(
+    (opts.urlSemester === "II" || opts.urlSemester === "I"
+      ? opts.urlSemester
+      : opts.targetSemester) as UktSemester,
+    opts.urlYear ? parseInt(opts.urlYear, 10) || opts.targetYear : opts.targetYear,
+    opts.periodFromUrl,
+    { basePath },
+  );
+  if (current === target) return null;
+
+  const missingTerm = !opts.urlSemester || !opts.urlYear;
+  const periodMissing = Boolean(opts.canonicalPeriod) && !opts.periodFromUrl;
+  const termMismatch =
+    opts.urlSemester !== opts.targetSemester ||
+    opts.urlYear !== String(opts.targetYear);
+  const periodMismatch =
+    (opts.periodFromUrl ?? "") !== (opts.canonicalPeriod ?? "");
+
+  if (missingTerm || periodMissing || termMismatch || periodMismatch) {
+    return target;
+  }
+  return null;
 }
 
 export function buildUktAdminUrl(
