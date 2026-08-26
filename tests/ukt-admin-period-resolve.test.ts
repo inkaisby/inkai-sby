@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { normalizeCachedUktEventsResult } from "@/lib/inkai-api/admin-data";
 import { isLatberEventTitle } from "@/lib/latber";
 import {
   isUktAdminEventTitle,
@@ -64,6 +65,17 @@ describe("resolveUktSelectedPeriodId", () => {
     );
     expect(id).toBe(uktActive.id);
   });
+
+  it("auto-resolves active UKT period when URL has no period", () => {
+    const id = resolveUktSelectedPeriodId(
+      [latberLike, uktActive],
+      "II",
+      2026,
+      null,
+      "registration",
+    );
+    expect(id).toBe(uktActive.id);
+  });
 });
 
 describe("resolveUktAdminCanonicalRedirect", () => {
@@ -119,5 +131,30 @@ describe("resolveUktAdminCanonicalRedirect", () => {
     expect(to).toBe(
       "/admin/ukt?semester=II&year=2026&period=92e84ee6-663f-4b0e-aa1d-498bff3bc74e",
     );
+  });
+});
+
+describe("normalizeCachedUktEventsResult", () => {
+  const events = [{ id: "92e84ee6", title: "UKT Semester II-2026" }];
+
+  it("accepts legacy cached array payload", () => {
+    expect(normalizeCachedUktEventsResult(events)).toEqual({
+      ok: true,
+      events,
+    });
+  });
+
+  it("accepts current object payload", () => {
+    expect(normalizeCachedUktEventsResult({ ok: true, events })).toEqual({
+      ok: true,
+      events,
+    });
+  });
+
+  it("treats invalid payload as failed fetch", () => {
+    expect(normalizeCachedUktEventsResult({ nope: true })).toEqual({
+      ok: false,
+      events: [],
+    });
   });
 });

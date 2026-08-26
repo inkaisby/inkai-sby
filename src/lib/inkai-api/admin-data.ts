@@ -88,6 +88,27 @@ function filterUktEvents(events: Array<Record<string, unknown>>) {
   return events.filter((e) => isUktAdminEventTitle(String(e.title ?? "")));
 }
 
+export function normalizeCachedUktEventsResult(
+  cached: unknown,
+): { ok: boolean; events: Array<Record<string, unknown>> } {
+  if (Array.isArray(cached)) {
+    return { ok: true, events: cached as Array<Record<string, unknown>> };
+  }
+  if (
+    cached &&
+    typeof cached === "object" &&
+    "events" in cached &&
+    Array.isArray((cached as { events?: unknown }).events)
+  ) {
+    const next = cached as { ok?: unknown; events: Array<Record<string, unknown>> };
+    return {
+      ok: next.ok === false ? false : true,
+      events: next.events,
+    };
+  }
+  return { ok: false, events: [] };
+}
+
 export async function fetchAdminMembers(
   token: string,
   opts: {
@@ -1122,18 +1143,21 @@ export async function fetchUktEventsCached(
   options?: { timeoutMs?: number; retries?: number },
 ): Promise<{ ok: boolean; events: Array<Record<string, unknown>> }> {
   try {
-    const events = await unstable_cache(
+    const cached = await unstable_cache(
       async () => {
         const { res, data } = await inkaiFetch("/v1/events?limit=200", {}, token, options);
         if (!res.ok) {
           throw new Error("Failed to fetch events from Inkai API");
         }
-        return (data.data as Array<Record<string, unknown>>) ?? [];
+        return {
+          ok: true,
+          events: (data.data as Array<Record<string, unknown>>) ?? [],
+        };
       },
-      ["ukt-events-list-v3"],
+      ["ukt-events-list-v4"],
       { revalidate: 60 },
     )();
-    return { ok: true, events };
+    return normalizeCachedUktEventsResult(cached);
   } catch (error) {
     console.error("[fetchUktEventsCached]", error);
     return { ok: false, events: [] };
