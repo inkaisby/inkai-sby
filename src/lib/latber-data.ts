@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { memberPhotoSelect } from "@/lib/prisma-columns";
 import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import { inkaiFetch } from "@/lib/inkai-api/server";
@@ -9,6 +9,7 @@ import {
   findActiveLatberPeriod,
   isLatberEventTitle,
   isLatberRegistrationOpen,
+  latberPeriodMetaKey,
   parseLatberPeriodMetaValue,
   periodOptionFromLatberEvent,
   resolveLatberDisplayStatus,
@@ -53,6 +54,172 @@ async function fetchLatberEvents(token: string): Promise<{
     console.error("[fetchLatberEvents]", error);
     return { ok: false, events: [] };
   }
+}
+
+/** True when admin should hydrate Latber periods from Prisma (publik path). */
+export function shouldLoadLatberPeriodsFromPrisma(
+  eventsOk: boolean,
+  latberPeriodCount: number,
+): boolean {
+  return !eventsOk || latberPeriodCount === 0;
+}
+
+function upsertLatberPeriodOption(
+  periods: LatberPeriodOption[],
+  next: LatberPeriodOption,
+): LatberPeriodOption[] {
+  const idx = periods.findIndex((p) => p.id === next.id);
+  if (idx < 0) return [...periods, next];
+  return periods.map((p, i) => (i === idx ? { ...p, ...next } : p));
+}
+
+async function fetchLatberPeriodOptionsFromPrisma(): Promise<LatberPeriodOption[]> {
+  const { data } = await withPrismaFallback(
+    "latber-events-prisma",
+    () =>
+      prisma.event.findMany({
+        where: { isDeleted: false },
+        select: {
+          id: true,
+          title: true,
+          startDate: true,
+          endDate: true,
+          registrationCloseAt: true,
+        },
+        orderBy: { startDate: "desc" },
+        take: 80,
+      }),
+    [] as Array<{
+      id: string;
+      title: string;
+      startDate: Date;
+      endDate: Date;
+      registrationCloseAt: Date | null;
+    }>,
+  );
+
+  return (data ?? [])
+    .filter((e) => isLatberEventTitle(e.title))
+    .map((e) =>
+      periodOptionFromLatberEvent({
+        id: e.id,
+        title: e.title,
+        startDate: e.startDate.toISOString(),
+        endDate: e.endDate.toISOString(),
+        registrationCloseAt: e.registrationCloseAt?.toISOString() ?? null,
+      }),
+    );
+}
+
+async function ensureLatberPeriodsFromPrisma(
+  periods: LatberPeriodOption[],
+  opts: {
+    eventsOk: boolean;
+    periodFromUrl?: string | null;
+  },
+): Promise<{ periods: LatberPeriodOption[]; fromPrisma: boolean }> {
+  const needList = shouldLoadLatberPeriodsFromPrisma(opts.eventsOk, periods.length);
+  const needUrl =
+    Boolean(opts.periodFromUrl) &&
+    !periods.some((p) => p.id === opts.periodFromUrl);
+
+  if (!needList && !needUrl) {
+    return { periods, fromPrisma: false };
+  }
+
+  const prismaPeriods = await fetchLatberPeriodOptionsFromPrisma();
+  let next = periods;
+  let fromPrisma = false;
+
+  if (needList) {
+    for (const p of prismaPeriods) {
+      next = upsertLatberPeriodOption(next, p);
+      fromPrisma = true;
+    }
+  }
+
+  if (needUrl && opts.periodFromUrl) {
+    const fromList = prismaPeriods.find((p) => p.id === opts.periodFromUrl);
+    if (fromList) {
+      next = upsertLatberPeriodOption(next, fromList);
+      fromPrisma = true;
+    } else {
+      const { data: ev } = await withPrismaFallback(
+        "latber-event-by-id-prisma",
+        () =>
+          prisma.event.findFirst({
+            where: { id: opts.periodFromUrl!, isDeleted: false },
+            select: {
+              id: true,
+              title: true,
+              startDate: true,
+              endDate: true,
+              registrationCloseAt: true,
+            },
+          }),
+        null as {
+          id: string;
+          title: string;
+          startDate: Date;
+          endDate: Date;
+          registrationCloseAt: Date | null;
+        } | null,
+      );
+      if (ev && isLatberEventTitle(ev.title)) {
+        next = upsertLatberPeriodOption(
+          next,
+          periodOptionFromLatberEvent({
+            id: ev.id,
+            title: ev.title,
+            startDate: ev.startDate.toISOString(),
+            endDate: ev.endDate.toISOString(),
+            registrationCloseAt: ev.registrationCloseAt?.toISOString() ?? null,
+          }),
+        );
+        fromPrisma = true;
+      }
+    }
+  }
+
+  return { periods: next, fromPrisma };
+}
+
+async function loadLatberPeriodMetaFromPrisma(
+  periodIds: string[],
+): Promise<Map<string, LatberPeriodMeta>> {
+  const ids = [...new Set(periodIds.filter(Boolean))];
+  if (ids.length === 0) return new Map();
+  const keys = ids.map((id) => latberPeriodMetaKey(id));
+  const { data } = await withPrismaFallback(
+    "latber-period-meta-prisma",
+    () =>
+      prisma.appSetting.findMany({
+        where: { key: { in: keys } },
+        select: { key: true, value: true },
+      }),
+    [] as Array<{ key: string; value: unknown }>,
+  );
+  const map = new Map<string, LatberPeriodMeta>();
+  for (const row of data ?? []) {
+    const id = row.key.slice("latber-period-meta:".length);
+    if (id) map.set(id, parseLatberPeriodMetaValue(row.value));
+  }
+  return map;
+}
+
+async function fillMissingLatberPeriodMeta(
+  periods: LatberPeriodOption[],
+  metaByPeriodId: Map<string, LatberPeriodMeta>,
+): Promise<Map<string, LatberPeriodMeta>> {
+  const missingIds = periods
+    .map((p) => p.id)
+    .filter((id) => id && !metaByPeriodId.has(id));
+  if (missingIds.length === 0) return metaByPeriodId;
+  const fromPrisma = await loadLatberPeriodMetaFromPrisma(missingIds);
+  for (const [id, meta] of fromPrisma) {
+    metaByPeriodId.set(id, meta);
+  }
+  return metaByPeriodId;
 }
 
 async function fetchSettingsByPrefix(token: string, prefix: string) {
@@ -191,11 +358,23 @@ export async function fetchLatberDashboardData(
     if (id) metaByPeriodId.set(id, parseLatberPeriodMetaValue(row.value));
   }
 
-  let periods: LatberPeriodOption[] = eventsRaw.map((e) => {
-    const opt = periodOptionFromLatberEvent(e);
-    const meta = metaByPeriodId.get(opt.id);
+  let periods: LatberPeriodOption[] = eventsRaw.map((e) =>
+    periodOptionFromLatberEvent(e),
+  );
+
+  const prismaHydrated = await ensureLatberPeriodsFromPrisma(periods, {
+    eventsOk,
+    periodFromUrl,
+  });
+  periods = prismaHydrated.periods;
+  const periodsFromPrisma = prismaHydrated.fromPrisma;
+
+  await fillMissingLatberPeriodMeta(periods, metaByPeriodId);
+
+  periods = periods.map((p) => {
+    const meta = metaByPeriodId.get(p.id);
     return {
-      ...opt,
+      ...p,
       archived: meta?.archived === true,
       locked: meta?.locked === true,
     };
@@ -234,16 +413,52 @@ export async function fetchLatberDashboardData(
 
   let selectedPeriodId = forceNoPeriod ? null : periodFromUrl;
   if (selectedPeriodId && !periods.some((p) => p.id === selectedPeriodId)) {
-    // URL period mungkin aktif tapi terfilter; upsert sudah di atas — jika tetap hilang, jangan drop saat detail sukses
+    // URL period mungkin aktif tapi terfilter; upsert dari Inkai detail atau Prisma.
+    let recovered: LatberPeriodOption | null = null;
     if (
       periodFromUrl &&
       eventDetailFromUrl &&
       isLatberEventTitle(String(eventDetailFromUrl.title ?? ""))
     ) {
-      const opt = periodOptionFromLatberEvent(eventDetailFromUrl, periodFromUrl);
-      const meta = metaByPeriodId.get(opt.id) ?? { archived: false, locked: false };
+      recovered = periodOptionFromLatberEvent(eventDetailFromUrl, periodFromUrl);
+    } else if (periodFromUrl) {
+      const { data: ev } = await withPrismaFallback(
+        "latber-event-url-recover",
+        () =>
+          prisma.event.findFirst({
+            where: { id: periodFromUrl, isDeleted: false },
+            select: {
+              id: true,
+              title: true,
+              startDate: true,
+              endDate: true,
+              registrationCloseAt: true,
+            },
+          }),
+        null as {
+          id: string;
+          title: string;
+          startDate: Date;
+          endDate: Date;
+          registrationCloseAt: Date | null;
+        } | null,
+      );
+      if (ev && isLatberEventTitle(ev.title)) {
+        recovered = periodOptionFromLatberEvent({
+          id: ev.id,
+          title: ev.title,
+          startDate: ev.startDate.toISOString(),
+          endDate: ev.endDate.toISOString(),
+          registrationCloseAt: ev.registrationCloseAt?.toISOString() ?? null,
+        });
+      }
+    }
+
+    if (recovered) {
+      await fillMissingLatberPeriodMeta([recovered], metaByPeriodId);
+      const meta = metaByPeriodId.get(recovered.id) ?? { archived: false, locked: false };
       const withMeta = {
-        ...opt,
+        ...recovered,
         archived: meta.archived === true,
         locked: meta.locked === true,
       };
@@ -274,58 +489,75 @@ export async function fetchLatberDashboardData(
   let rows: LatberMemberRow[] = [];
   if (selectedPeriodId && !rantingAllowlistEmpty) {
     const photoSelect = await memberPhotoSelect();
-    const registrations = await prisma.eventRegistration.findMany({
-      where: {
-        eventId: selectedPeriodId,
-        status: { notIn: ["REJECTED"] },
-        member: {
-          isDeleted: false,
-          ...(dojoAllowlist.length > 0 ? { dojoId: { in: dojoAllowlist } } : {}),
-        },
-      },
-      include: {
-        member: {
-          select: {
-            id: true,
-            fullName: true,
-            nia: true,
-            currentRank: true,
-            dojoId: true,
-            status: true,
-            gender: true,
-            birthPlace: true,
-            birthDate: true,
-            address: true,
-            nik: true,
-            userId: true,
-            ...photoSelect,
-            dojo: { select: { name: true } },
-            user: { select: { photoUrl: true, phoneNumber: true } },
+    const regsResult = await withPrismaFallback(
+      "latber-regs-prisma",
+      () =>
+        prisma.eventRegistration.findMany({
+          where: {
+            eventId: selectedPeriodId,
+            status: { notIn: ["REJECTED"] },
+            member: {
+              isDeleted: false,
+              ...(dojoAllowlist.length > 0 ? { dojoId: { in: dojoAllowlist } } : {}),
+            },
           },
-        },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+          include: {
+            member: {
+              select: {
+                id: true,
+                fullName: true,
+                nia: true,
+                currentRank: true,
+                dojoId: true,
+                status: true,
+                gender: true,
+                birthPlace: true,
+                birthDate: true,
+                address: true,
+                nik: true,
+                userId: true,
+                ...photoSelect,
+                dojo: { select: { name: true } },
+                user: { select: { photoUrl: true, phoneNumber: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        }),
+      [] as Awaited<ReturnType<typeof prisma.eventRegistration.findMany>>,
+    );
+    const registrations = regsResult.data ?? [];
 
     const billingByReg = new Map<
       string,
       { id: string; amount: number; status: string; paymentMethod: string | null }
     >();
     if (registrations.length > 0) {
-      const billings = await prisma.billing.findMany({
-        where: {
-          registrationId: { in: registrations.map((r) => r.id) },
-          isDeleted: false,
-        },
-        select: {
-          id: true,
-          registrationId: true,
-          amount: true,
-          status: true,
-          payment: { select: { paymentMethod: true } },
-        },
-      });
-      for (const b of billings) {
+      const billingsResult = await withPrismaFallback(
+        "latber-billings-prisma",
+        () =>
+          prisma.billing.findMany({
+            where: {
+              registrationId: { in: registrations.map((r) => r.id) },
+              isDeleted: false,
+            },
+            select: {
+              id: true,
+              registrationId: true,
+              amount: true,
+              status: true,
+              payment: { select: { paymentMethod: true } },
+            },
+          }),
+        [] as Array<{
+          id: string;
+          registrationId: string | null;
+          amount: number;
+          status: string;
+          payment: { paymentMethod: string | null } | null;
+        }>,
+      );
+      for (const b of billingsResult.data ?? []) {
         if (b.registrationId) {
           billingByReg.set(b.registrationId, {
             id: b.id,
@@ -343,11 +575,16 @@ export async function fetchLatberDashboardData(
       const keys = pendingRegs.map((r) =>
         latberSelfRegistrationKey(selectedPeriodId, r.memberId),
       );
-      const metaRows = await prisma.appSetting.findMany({
-        where: { key: { in: keys } },
-        select: { key: true, value: true },
-      });
-      for (const row of metaRows) {
+      const metaRowsResult = await withPrismaFallback(
+        "latber-self-meta-prisma",
+        () =>
+          prisma.appSetting.findMany({
+            where: { key: { in: keys } },
+            select: { key: true, value: true },
+          }),
+        [] as Array<{ key: string; value: unknown }>,
+      );
+      for (const row of metaRowsResult.data ?? []) {
         const parsed = parseLatberSelfRegistrationMeta(row.value);
         if (!parsed) continue;
         const memberId = row.key.slice(
@@ -440,7 +677,7 @@ export async function fetchLatberDashboardData(
     dojos,
     primaryRole,
     rantingAllowlistEmpty,
-    dbError: !eventsOk,
+    dbError: !eventsOk && !periodsFromPrisma,
   };
 }
 
