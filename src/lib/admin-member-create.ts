@@ -33,6 +33,23 @@ import {
 
 type CreateInput = z.infer<typeof uktMemberCreateSchema>;
 
+function isInkaiAuthFailure(
+  res: Response,
+  data: Record<string, unknown>,
+): boolean {
+  if (res.status === 401 || res.status === 403) return true;
+  const msg = inkaiErrorMessage(data, "");
+  return /expired|invalid.*token|token.*invalid|unauthorized/i.test(msg);
+}
+
+function inkaiServiceToken(): string | null {
+  const t =
+    process.env.INKAI_SERVICE_TOKEN?.trim() ||
+    process.env.CRON_INKAI_TOKEN?.trim() ||
+    "";
+  return t || null;
+}
+
 export async function createAdminMember(opts: {
   user: SessionUser;
   token: string;
@@ -72,11 +89,23 @@ export async function createAdminMember(opts: {
       );
     }
   } else if (!dojoId) {
-    const { res, data } = await inkaiFetch("/v1/org/dojos/all", {}, token);
-    if (!res.ok) {
-      return NextResponse.json({ error: "Dojo tidak ditemukan" }, { status: 404 });
+    const { res, data } = await inkaiFetch("/v1/org/dojos/all", {}, token, {
+      timeoutMs: 8_000,
+      retries: 0,
+    });
+    let dojos = res.ok
+      ? ((data.data as Array<{ id: string; name: string }>) ?? [])
+      : [];
+    if (dojos.length === 0) {
+      // JWT expired / Inkai blip — ambil ranting dari Prisma.
+      const { prisma } = await import("@/lib/prisma");
+      dojos = await prisma.dojo.findMany({
+        where: { isDeleted: false },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+        take: 200,
+      });
     }
-    const dojos = (data.data as Array<{ id: string; name: string }>) ?? [];
     const filter = buildDojoFilter(user);
     const scoped = dojos.filter((d) => {
       if (!("id" in filter) || filter.id == null) return true;
@@ -206,10 +235,98 @@ export async function createAdminMember(opts: {
     "/v1/members",
     { method: "POST", body: JSON.stringify(payload) },
     token,
+    { timeoutMs: 12_000, retries: 0 },
   );
 
   if (!res.ok) {
     const rawError = inkaiErrorMessage(data, "Gagal membuat anggota");
+
+    // JWT sesi expired — coba service token, lalu Prisma lokal (portal baca Prisma).
+    if (isInkaiAuthFailure(res, data)) {
+      const service = inkaiServiceToken();
+      if (service && service !== token) {
+        try {
+          const retry = await inkaiFetch(
+            "/v1/members",
+            { method: "POST", body: JSON.stringify(payload) },
+            service,
+            { timeoutMs: 12_000, retries: 0 },
+          );
+          if (retry.res.ok) {
+            const member = retry.data.data as Record<string, unknown>;
+            return await finalizeCreatedMember({
+              user,
+              token: service,
+              request,
+              member,
+              nik,
+              phoneNumber,
+              input,
+              currentRank,
+              nia,
+              msh,
+              dojoId: String(dojoId),
+              auditAction: opts.auditAction,
+            });
+          }
+          console.warn(
+            "[createAdminMember] service token POST failed",
+            retry.res.status,
+            retry.data,
+          );
+        } catch (err) {
+          console.warn("[createAdminMember] service token POST error", err);
+        }
+      }
+
+      try {
+        const member = await createMemberInPrisma({
+          dojoId: String(dojoId),
+          fullName: String(payload.fullName),
+          gender: input.gender || null,
+          birthPlace: input.birthPlace?.trim()
+            ? input.birthPlace.trim().toUpperCase()
+            : null,
+          birthDate: input.birthDate || null,
+          address: input.address?.trim()
+            ? input.address.trim().toUpperCase()
+            : null,
+          currentRank,
+          nik,
+          nia,
+          msh,
+        });
+        console.warn(
+          "[createAdminMember] Inkai auth failed — created member in Prisma",
+          member.id,
+        );
+        return await finalizeCreatedMember({
+          user,
+          token,
+          request,
+          member,
+          nik,
+          phoneNumber,
+          input,
+          currentRank,
+          nia,
+          msh,
+          dojoId: String(dojoId),
+          auditAction: opts.auditAction,
+          skipInkaiSync: true,
+        });
+      } catch (err) {
+        console.error("[createAdminMember:prismaFallback]", err);
+        return NextResponse.json(
+          {
+            error:
+              "Sesi API berakhir dan gagal menyimpan anggota ke database lokal. Silakan refresh/login lalu coba lagi.",
+          },
+          { status: 503 },
+        );
+      }
+    }
+
     // Fallback: Inkai menolak NIA yang masih dipegang (lokal/arsip/lintas cabang).
     if (nia && /nia/i.test(rawError)) {
       const again = await findMemberDuplicates({ nia });
@@ -285,6 +402,71 @@ export async function createAdminMember(opts: {
   });
 }
 
+async function createMemberInPrisma(opts: {
+  dojoId: string;
+  fullName: string;
+  gender: string | null;
+  birthPlace: string | null;
+  birthDate: string | null;
+  address: string | null;
+  currentRank: string;
+  nik: string | undefined;
+  nia: string | undefined;
+  msh: string | null;
+}): Promise<Record<string, unknown>> {
+  const { prisma } = await import("@/lib/prisma");
+  const dojo = await prisma.dojo.findFirst({
+    where: { id: opts.dojoId, isDeleted: false },
+    select: { id: true, name: true },
+  });
+  if (!dojo) {
+    throw new Error("Dojo tidak ditemukan di database lokal");
+  }
+  const created = await prisma.member.create({
+    data: {
+      fullName: opts.fullName,
+      dojoId: opts.dojoId,
+      gender: opts.gender,
+      birthPlace: opts.birthPlace,
+      birthDate: opts.birthDate ? new Date(opts.birthDate) : null,
+      address: opts.address,
+      currentRank: opts.currentRank,
+      status: "Active",
+      nik: opts.nik ?? null,
+      nia: opts.nia ?? null,
+      mshNumber: opts.msh,
+    },
+    select: {
+      id: true,
+      fullName: true,
+      dojoId: true,
+      currentRank: true,
+      status: true,
+      nia: true,
+      nik: true,
+      gender: true,
+      birthPlace: true,
+      birthDate: true,
+      address: true,
+      dojo: { select: { name: true } },
+    },
+  });
+  return {
+    id: created.id,
+    fullName: created.fullName,
+    dojoId: created.dojoId,
+    currentRank: created.currentRank,
+    status: created.status,
+    nia: created.nia,
+    nik: created.nik,
+    gender: created.gender,
+    birthPlace: created.birthPlace,
+    birthDate: created.birthDate?.toISOString() ?? null,
+    address: created.address,
+    dojo: created.dojo,
+  };
+}
+
 async function finalizeCreatedMember(opts: {
   user: SessionUser;
   token: string;
@@ -298,6 +480,8 @@ async function finalizeCreatedMember(opts: {
   msh: string | null;
   dojoId: string;
   auditAction?: string;
+  /** True bila member sudah dibuat di Prisma tanpa Inkai — jangan PATCH Inkai. */
+  skipInkaiSync?: boolean;
 }) {
   const {
     user,
@@ -311,10 +495,11 @@ async function finalizeCreatedMember(opts: {
     nia,
     msh,
     dojoId,
+    skipInkaiSync,
   } = opts;
   const memberId = typeof member?.id === "string" ? member.id : null;
 
-  if (memberId && nia) {
+  if (memberId && nia && !skipInkaiSync) {
     try {
       const patch = await inkaiFetch(
         `/v1/members/${memberId}`,
@@ -364,7 +549,7 @@ async function finalizeCreatedMember(opts: {
         },
       });
       const inkaiRank = String(member.currentRank ?? "").trim();
-      if (inkaiRank !== currentRank) {
+      if (!skipInkaiSync && inkaiRank !== currentRank) {
         try {
           const patch = await inkaiFetch(
             `/v1/members/${memberId}`,
@@ -424,7 +609,7 @@ async function finalizeCreatedMember(opts: {
     userId: user.id,
     email: user.email,
     action: opts.auditAction || "MEMBER_CREATE",
-    details: `Created member ${member.fullName} (${currentRank})${nia ? ` NIA ${nia}` : ""}${msh ? ` MSH ${msh}` : ""}`,
+    details: `Created member ${member.fullName} (${currentRank})${nia ? ` NIA ${nia}` : ""}${msh ? ` MSH ${msh}` : ""}${skipInkaiSync ? " [prisma-fallback]" : ""}`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
     token,

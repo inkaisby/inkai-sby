@@ -159,7 +159,12 @@ export function AddMemberDialog({
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        showError(data.error || "Gagal menambahkan anggota");
+        const msg = data.error || "Gagal menambahkan anggota";
+        showError(
+          /expired|invalid|token|401/i.test(msg)
+            ? "Sesi API berakhir — coba Simpan lagi; jika masih gagal, refresh atau login ulang"
+            : msg,
+        );
         return;
       }
       showSuccess("Anggota berhasil ditambahkan");

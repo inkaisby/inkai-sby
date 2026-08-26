@@ -208,7 +208,7 @@ Pusat / Nasional
 ## 9. Alur bisnis yang sudah berjalan
 
 ### 9.1 Keanggotaan
-1. Calon anggota daftar via `/login?tab=daftar` — urutan **Dojo → Identitas lengkap wajib** (nama, JK, tempat/tgl lahir, alamat, **NIK 16 digit**, telepon; **NIA tetap opsional**) → **Sabuk** (**No. MSH opsional** hanya Hitam/DAN) → **Akun**. **Tambah Anggota** oleh ranting/cabang: NIK/NIA boleh kosong; **No. MSH opsional** (khusus Hitam/DAN, section Sabuk) disimpan ke Prisma saat create / daftar mandiri; **`currentRank` disinkronkan ke Prisma** saat create (`createAdminMember`, register mandiri, bulk) — tabel admin baca Prisma, bukan default Putih. **Input Massal**: tabel NIA, Nama, **Tempat & Tgl Lahir** digabung, JK (teks), Alamat, Kyu, Ranting + **isi semua ranting** & **isi semua Kyu/DAN**; paste Excel/CSV (format lama dengan NIK/Telepon tetap didukung); simpan per chunk dengan **progress %**; maks 50 (`POST /api/admin/members/bulk-create`). Field teks identitas **huruf besar**; **tanggal lahir** bisa paste (mis. `28 Februari 2011` / `Surabaya, 28 Maret 2015`).
+1. Calon anggota daftar via `/login?tab=daftar` — urutan **Dojo → Identitas lengkap wajib** (nama, JK, tempat/tgl lahir, alamat, **NIK 16 digit**, telepon; **NIA tetap opsional**) → **Sabuk** (**No. MSH opsional** hanya Hitam/DAN) → **Akun**. **Tambah Anggota** oleh ranting/cabang: NIK/NIA boleh kosong; **No. MSH opsional** (khusus Hitam/DAN, section Sabuk) disimpan ke Prisma saat create / daftar mandiri; **`currentRank` disinkronkan ke Prisma** saat create (`createAdminMember`, register mandiri, bulk) — tabel admin baca Prisma, bukan default Putih. Bila JWT Inkai expired saat create: retry `INKAI_SERVICE_TOKEN` bila ada, else **buat Member Active di Prisma** (portal tetap bisa pakai). **Input Massal**: tabel NIA, Nama, **Tempat & Tgl Lahir** digabung, JK (teks), Alamat, Kyu, Ranting + **isi semua ranting** & **isi semua Kyu/DAN**; paste Excel/CSV (format lama dengan NIK/Telepon tetap didukung); simpan per chunk dengan **progress %**; maks 50 (`POST /api/admin/members/bulk-create`). Field teks identitas **huruf besar**; **tanggal lahir** bisa paste (mis. `28 Februari 2011` / `Surabaya, 28 Maret 2015`).
 2. `POST /api/auth/register` dan `POST /api/admin/members` meneruskan semua field anggota (termasuk NIA jika diisi) ke Inkai API.
 3. Status menunggu verifikasi (publik) atau aktif langsung (admin/ranting).
 4. **Deteksi duplikat** sebelum simpan: **keras** jika NIK, NIA, atau nama tepat + tanggal lahir sama (cakupan Cabang Surabaya); **lunak** jika nama mirip. Blok `POST /api/admin/members` & `POST /api/auth/register` (409); UI peringatan di form tambah anggota & daftar publik. **`set_identity` (pusat)** memakai aturan duplikat yang sama + lepas NIK arsip bila hanya bentrok nomor.
@@ -491,7 +491,7 @@ Dari data yang sudah ada di sistem, laporan berkala dapat mencakup:
 /api/admin/presence/unlock  POST buka kunci akun + audit SECURITY_SESSION_UNLOCK
 /api/admin/impersonate/start POST ambil alih (step-up password + frasa AMBIL ALIH); cookie inkai_impersonation
 /api/admin/impersonate/stop  POST hentikan ambil alih; hapus cookie
-/api/admin/members          POST create; GET list+KPI counts (`docs`/`nia`/`account`/`dup` filter cepat client-side)
+/api/admin/members          POST create (`createAdminMember`: Inkai → service token → Prisma Active); GET list+KPI counts (`docs`/`nia`/`account`/`dup` filter cepat client-side)
 /api/admin/members/bulk-create  Input massal tambah anggota (maks 50); auto-provision login jika ber-NIA
 /api/admin/members/provision-login  POST retry buat akun login NIA (bulk selected)
 /api/admin/members/[id]     Detail + aksi (approve/NIA/set_name/set_msh/set_rank/set_dojo/set_dues/set_dues_exemption/dokumen/set_photo/set_identity/set_contact/reset_password/nonaktif/hapus/restore/merge); `set_identity`/`set_contact` hanya pusat; overlay identitas Prisma di GET; `set_photo` selalu simpan `Member.photoUrl` dan mirror `User.photoUrl` bila ada akun; set_nia auto-provision jika belum berakun
@@ -622,6 +622,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 
 | Tanggal | Keterangan |
 |---------|------------|
+| 26 Agustus 2026 | **Fix Tambah Anggota token expired:** `createAdminMember` retry `INKAI_SERVICE_TOKEN` lalu fallback buat Member Active di Prisma; dojo resolve Prisma bila Inkai gagal; toast UI lebih jelas; inventaris §9.1/§15 |
 | 26 Agustus 2026 | **Fix Terima setoran UKT (token expired):** `PATCH /api/admin/ukt/deposit` tulis Prisma `AppSetting` dulu + best-effort Inkai PUT; `loadUktPeriodMeta` fallback Prisma; baca `depositMap` merge Prisma di dashboard/table; UI update lokal dari response; inventaris §9.3.11b/§11e/§13/§15 |
 | 26 Agustus 2026 | **Fix build Latber + perkuat:** tipe eksplisit regs Prisma (`member` include) agar `tsc` lulus; selalu merge Prisma periods (tahan blip Inkai) |
 | 26 Agustus 2026 | **Fix UKT admin data hilang setelah ~menit:** refresh diam (visibility) snapshot kosong tidak lagi wipe tabel; `/api/admin/ukt/table` selalu seed Prisma regs (cabang); merge Prisma periods selalu on; cache events `v5` 600s tanpa cache list kosong |
