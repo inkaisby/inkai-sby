@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyUktRegistrationSnapshotToRows,
+  shouldKeepUktRowsOnEmptySnapshot,
   type UktMemberRow,
   type UktRegistrationSnapshotItem,
 } from "@/lib/ukt";
@@ -35,6 +36,20 @@ function stubRow(partial: Partial<UktMemberRow> & { memberId: string }): UktMemb
     examPresent: partial.examPresent ?? null,
   };
 }
+
+describe("shouldKeepUktRowsOnEmptySnapshot", () => {
+  it("keeps existing registered rows when snapshot is empty", () => {
+    expect(shouldKeepUktRowsOnEmptySnapshot(5, 0)).toBe(true);
+  });
+
+  it("allows apply when snapshot has participants", () => {
+    expect(shouldKeepUktRowsOnEmptySnapshot(5, 3)).toBe(false);
+  });
+
+  it("allows apply when table was already empty", () => {
+    expect(shouldKeepUktRowsOnEmptySnapshot(0, 0)).toBe(false);
+  });
+});
 
 describe("applyUktRegistrationSnapshotToRows identity", () => {
   it("appends new participant with Tempat/TTL/JK/Alamat/Foto from snapshot", () => {

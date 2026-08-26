@@ -1061,12 +1061,12 @@ function upsertPeriodOption(
 
 type UktPeriodOptionRow = ReturnType<typeof periodOptionFromEvent>;
 
-/** True when admin should hydrate UKT periods from Prisma (publik path). */
+/** Always merge Prisma Event so admin periods survive Inkai cache/API blips. */
 export function shouldLoadUktPeriodsFromPrisma(
-  eventsOk: boolean,
-  uktPeriodCount: number,
+  _eventsOk: boolean,
+  _uktPeriodCount: number,
 ): boolean {
-  return !eventsOk || uktPeriodCount === 0;
+  return true;
 }
 
 async function fetchUktPeriodOptionsFromPrisma(): Promise<UktPeriodOptionRow[]> {
@@ -1333,13 +1333,18 @@ export async function fetchUktEventsCached(
         if (!res.ok) {
           throw new Error("Failed to fetch events from Inkai API");
         }
+        const events = (data.data as Array<Record<string, unknown>>) ?? [];
+        // Jangan cache list kosong — biarkan stale cache / Prisma fallback yang bertahan.
+        if (events.length === 0) {
+          throw new Error("Empty Inkai events list — keep stale cache");
+        }
         return {
           ok: true,
-          events: (data.data as Array<Record<string, unknown>>) ?? [],
+          events,
         };
       },
-      ["ukt-events-list-v4"],
-      { revalidate: 60 },
+      ["ukt-events-list-v5"],
+      { revalidate: 600 },
     )();
     return normalizeCachedUktEventsResult(cached);
   } catch (error) {
@@ -2589,16 +2594,22 @@ export async function fetchUktTableRefreshSnapshot(
     registrations.map((r) => String(r.id ?? "")).filter(Boolean),
   );
 
-  // Ranting multi: lengkapi registrasi dari Prisma (Inkai sering scoped ranting utama)
-  if (dojoAllowlist.length > 0) {
+  // Cabang + ranting: selalu lengkapi dari Prisma agar refresh diam (visibility)
+  // tidak mengosongkan tabel saat Inkai event detail gagal/timeout.
+  {
     const prismaRegs = await withPrismaFallback(
-      "ukt-refresh-regs-allowlist",
+      "ukt-refresh-regs-prisma",
       () =>
         prisma.eventRegistration.findMany({
           where: {
             eventId: periodId,
             status: { notIn: ["CANCELLED", "REJECTED"] },
-            member: { isDeleted: false, dojoId: { in: dojoAllowlist } },
+            member: {
+              isDeleted: false,
+              ...(dojoAllowlist.length > 0
+                ? { dojoId: { in: dojoAllowlist } }
+                : {}),
+            },
           },
           select: {
             id: true,
@@ -2618,7 +2629,7 @@ export async function fetchUktTableRefreshSnapshot(
               },
             },
           },
-          take: 500,
+          take: 800,
         }),
       [] as Array<{
         id: string;

@@ -30,17 +30,11 @@ describe("isLatberEventTitle", () => {
 });
 
 describe("shouldLoadUktPeriodsFromPrisma", () => {
-  it("loads Prisma when Inkai fetch failed", () => {
+  it("always merges Prisma so periods survive Inkai cache blips", () => {
     expect(shouldLoadUktPeriodsFromPrisma(false, 0)).toBe(true);
     expect(shouldLoadUktPeriodsFromPrisma(false, 2)).toBe(true);
-  });
-
-  it("loads Prisma when Inkai ok but UKT list empty", () => {
     expect(shouldLoadUktPeriodsFromPrisma(true, 0)).toBe(true);
-  });
-
-  it("skips Prisma when Inkai already returned UKT periods", () => {
-    expect(shouldLoadUktPeriodsFromPrisma(true, 1)).toBe(false);
+    expect(shouldLoadUktPeriodsFromPrisma(true, 1)).toBe(true);
   });
 });
 

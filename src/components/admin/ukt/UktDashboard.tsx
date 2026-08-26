@@ -125,6 +125,7 @@ import {
   type UktDepositRecord,
   type UktRegistrationSnapshotItem,
   applyUktRegistrationSnapshotToRows,
+  shouldKeepUktRowsOnEmptySnapshot,
   type UktSemester,
   type BeltFeeKey,
   type UktDepositStatus,
@@ -717,12 +718,28 @@ export function UktDashboard(props: Props) {
         if (!res.ok) throw new Error(data.error || "Gagal memuat ulang tabel");
         pendingServerRowsSyncRef.current = false;
         const participants = data.participants ?? [];
-        setRows((prev) =>
-          normalizeRows(
+        setRows((prev) => {
+          const prevRegistered = prev.filter((r) => Boolean(r.registrationId)).length;
+          // Snapshot kosong jangan menimpa tabel yang sudah terisi (Inkai blip / timeout).
+          if (shouldKeepUktRowsOnEmptySnapshot(prevRegistered, participants.length)) {
+            if (!opts?.silent) {
+              toast.warning(
+                "Refresh tidak mendapat peserta dari server — data tabel dipertahankan.",
+              );
+            }
+            return prev;
+          }
+          return normalizeRows(
             applyUktRegistrationSnapshotToRows(prev, participants),
-          ),
-        );
-        setDepositMap(data.depositMap ?? {});
+          );
+        });
+        const nextDeposit = data.depositMap ?? {};
+        if (
+          participants.length > 0 ||
+          Object.keys(nextDeposit).length > 0
+        ) {
+          setDepositMap(nextDeposit);
+        }
         if (data.identityDegraded) {
           toast.warning(
             "Sebagian data identitas anggota gagal dimuat. Kolom Tempat/Tgl Lahir/JK/Alamat/Ranting mungkin tampil \"-\". Coba refresh.",
@@ -779,7 +796,7 @@ export function UktDashboard(props: Props) {
     }
   }, [periodKey, props.allRows, props.depositMap, normalizeRows]);
 
-  // Cabang: bila tab sempat disembunyikan, segarkan tabel (bukan reload halaman).
+  // Cabang: bila tab sempat disembunyikan lama, segarkan tabel (bukan reload halaman).
   useEffect(() => {
     if (!isCabang || isArchiveView) return;
     let hiddenAt = 0;
@@ -788,7 +805,8 @@ export function UktDashboard(props: Props) {
         hiddenAt = Date.now();
         return;
       }
-      if (hiddenAt > 0 && Date.now() - hiddenAt >= 2_000) {
+      // Minimal 60s tersembunyi — hindari wipe/refresh karena ganti tab sebentar.
+      if (hiddenAt > 0 && Date.now() - hiddenAt >= 60_000) {
         void requestServerRowsSync({ silent: true });
       }
       hiddenAt = 0;

@@ -847,6 +847,13 @@ function coalesceIdentity(
  * Anggota yang hilang dari snapshot → Belum Daftar (pertahankan stub).
  * Peserta baru di snapshot yang belum ada di rows → di-append.
  */
+export function shouldKeepUktRowsOnEmptySnapshot(
+  prevRegisteredCount: number,
+  participantCount: number,
+): boolean {
+  return participantCount === 0 && prevRegisteredCount > 0;
+}
+
 export function applyUktRegistrationSnapshotToRows(
   rows: UktMemberRow[],
   participants: UktRegistrationSnapshotItem[],
