@@ -167,21 +167,24 @@ async function UktArsipDashboardSection({
     dojos = data.dojos;
     selectedPeriodId = data.selectedPeriodId;
 
+    const targetSemester = data.targetSemester ?? semester;
+    const targetYear = data.targetYear ?? year;
+
     if (selectedPeriodId) {
       const selected = periods.find((p) => p.id === selectedPeriodId);
       if (selected && isUktPeriodActiveView(selected)) {
-        redirect(buildUktAdminUrl(semester, year, selectedPeriodId));
+        redirect(buildUktAdminUrl(targetSemester, targetYear, selectedPeriodId));
       }
     }
 
     const canonicalPeriod = data.selectedPeriodId;
     const urlNeedsSync =
-      urlSemester !== semester ||
-      urlYear !== String(year) ||
+      urlSemester !== targetSemester ||
+      urlYear !== String(targetYear) ||
       (periodFromUrl ?? "") !== (canonicalPeriod ?? "");
     if (urlNeedsSync) {
       redirect(
-        buildUktAdminUrl(semester, year, canonicalPeriod, {
+        buildUktAdminUrl(targetSemester, targetYear, canonicalPeriod, {
           basePath: "/admin/ukt/arsip",
         }),
       );
@@ -228,8 +231,8 @@ async function UktArsipDashboardSection({
       dojoGroups={dojoGroups}
       userRoles={user.roles}
       primaryRole={primaryRole}
-      semester={semester}
-      year={year}
+      semester={targetSemester}
+      year={targetYear}
       canCreatePeriod={canCreatePeriod}
       dbError={dbError}
       defaultDojoFilter={autoDojoId}

@@ -178,13 +178,15 @@ async function UktDashboardSection({
           forceNoPeriod: false,
           viewMode: "registration",
         });
+        const targetSemester = light.targetSemester ?? semester;
+        const targetYear = light.targetYear ?? year;
         const canonicalPeriod = light.selectedPeriodId;
         const urlNeedsSync =
-          urlSemester !== semester ||
-          urlYear !== String(year) ||
+          urlSemester !== targetSemester ||
+          urlYear !== String(targetYear) ||
           (periodFromUrl ?? "") !== (canonicalPeriod ?? "");
         if (urlNeedsSync) {
-          redirect(buildUktAdminUrl(semester, year, canonicalPeriod));
+          redirect(buildUktAdminUrl(targetSemester, targetYear, canonicalPeriod));
         }
       }
     } else {
@@ -218,11 +220,14 @@ async function UktDashboardSection({
     dojos = data.dojos;
     selectedPeriodId = createMode ? null : data.selectedPeriodId;
 
+    const targetSemester = data.targetSemester ?? semester;
+    const targetYear = data.targetYear ?? year;
+
     if (!createMode && periodFromUrl) {
       const fromUrl = periods.find((p) => p.id === periodFromUrl);
       if (fromUrl && !isUktPeriodActiveView(fromUrl)) {
         redirect(
-          buildUktAdminUrl(semester, year, periodFromUrl, {
+          buildUktAdminUrl(targetSemester, targetYear, periodFromUrl, {
             basePath: "/admin/ukt/arsip",
           }),
         );
@@ -232,11 +237,11 @@ async function UktDashboardSection({
     if (!createMode) {
       const canonicalPeriod = data.selectedPeriodId;
       const urlNeedsSync =
-        urlSemester !== semester ||
-        urlYear !== String(year) ||
+        urlSemester !== targetSemester ||
+        urlYear !== String(targetYear) ||
         (periodFromUrl ?? "") !== (canonicalPeriod ?? "");
       if (urlNeedsSync) {
-        redirect(buildUktAdminUrl(semester, year, canonicalPeriod));
+        redirect(buildUktAdminUrl(targetSemester, targetYear, canonicalPeriod));
       }
     }
     allRows = data.allRows;
@@ -282,8 +287,8 @@ async function UktDashboardSection({
       dojoGroups={dojoGroups}
       userRoles={user.roles}
       primaryRole={primaryRole}
-      semester={semester}
-      year={year}
+      semester={targetSemester}
+      year={targetYear}
       canCreatePeriod={canCreatePeriod}
       createMode={createMode}
       dbError={dbError}

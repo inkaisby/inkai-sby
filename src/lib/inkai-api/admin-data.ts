@@ -1187,7 +1187,11 @@ export async function resolveUktAdminPeriodId(
     forceNoPeriod?: boolean;
     viewMode?: UktAdminViewMode;
   },
-): Promise<{ selectedPeriodId: string | null }> {
+): Promise<{
+  selectedPeriodId: string | null;
+  targetSemester?: UktSemester;
+  targetYear?: number;
+}> {
   const {
     periodFromUrl = null,
     semester,
@@ -1197,18 +1201,34 @@ export async function resolveUktAdminPeriodId(
   } = opts;
 
   if (forceNoPeriod) {
-    return { selectedPeriodId: null };
+    return { selectedPeriodId: null, targetSemester: semester, targetYear: year };
   }
 
-  const [eventsData, periodMetaRowsAll] = await Promise.all([
+  const [eventsData, periodMetaRowsAll, eventDetailFromUrl] = await Promise.all([
     fetchUktEventsCached(token, {
       timeoutMs: 8_000,
       retries: 0,
     }),
     fetchSettingsByPrefix(token, "ukt-period-meta:"),
+    periodFromUrl
+      ? fetchEventDetail(token, periodFromUrl, { timeoutMs: 8_000, retries: 0 }).catch(() => null)
+      : Promise.resolve(null),
   ]);
 
   let periods = filterUktEvents(eventsData).map((p) => periodOptionFromEvent(p));
+
+  if (
+    periodFromUrl &&
+    eventDetailFromUrl &&
+    String(eventDetailFromUrl.title ?? "")
+      .toUpperCase()
+      .includes("UKT")
+  ) {
+    periods = upsertPeriodOption(
+      periods,
+      periodOptionFromEvent(eventDetailFromUrl, periodFromUrl),
+    );
+  }
 
   const metaByPeriodId = new Map<string, UktPeriodMeta>();
   for (const row of periodMetaRowsAll) {
@@ -1224,17 +1244,30 @@ export async function resolveUktAdminPeriodId(
     };
   });
 
+  let effectiveSemester = semester;
+  let effectiveYear = year;
+  if (periodFromUrl) {
+    const urlPeriod = periods.find((p) => p.id === periodFromUrl);
+    if (urlPeriod) {
+      const parsed = parseUktEventTitle(urlPeriod.title);
+      if (parsed) {
+        effectiveSemester = parsed.semester;
+        effectiveYear = parsed.year;
+      }
+    }
+  }
+
   let selectedPeriodId = resolveUktSelectedPeriodId(
     periods,
-    semester,
-    year,
+    effectiveSemester,
+    effectiveYear,
     periodFromUrl,
     viewMode,
   );
 
   if (selectedPeriodId && viewMode === "registration") {
     const selected = periods.find((p) => p.id === selectedPeriodId);
-    const hasActive = findUktPeriodsForTerm(periods, semester, year).some(
+    const hasActive = findUktPeriodsForTerm(periods, effectiveSemester, effectiveYear).some(
       (p) => !p.archived && !p.locked,
     );
     if (selected && (selected.archived || selected.locked) && !hasActive) {
@@ -1242,7 +1275,11 @@ export async function resolveUktAdminPeriodId(
     }
   }
 
-  return { selectedPeriodId };
+  return {
+    selectedPeriodId,
+    targetSemester: effectiveSemester,
+    targetYear: effectiveYear,
+  };
 }
 
 export async function fetchUktDashboardData(
@@ -1350,6 +1387,20 @@ export async function fetchUktDashboardData(
 
   let periods = filterUktEvents(eventsData).map((p) => periodOptionFromEvent(p));
 
+  // Pastikan periode dari URL masuk daftar SEBELUM apply metaByPeriodId
+  if (
+    periodFromUrl &&
+    eventDetailInitial &&
+    String(eventDetailInitial.title ?? "")
+      .toUpperCase()
+      .includes("UKT")
+  ) {
+    periods = upsertPeriodOption(
+      periods,
+      periodOptionFromEvent(eventDetailInitial, periodFromUrl),
+    );
+  }
+
   const periodMetaRows = periodMetaRowsAll;
   const metaByPeriodId = new Map<string, UktPeriodMeta>();
   for (const row of periodMetaRows) {
@@ -1365,26 +1416,25 @@ export async function fetchUktDashboardData(
     };
   });
 
-  // Pastikan periode dari URL masuk daftar (list events bisa miss).
-  if (
-    periodFromUrl &&
-    eventDetailInitial &&
-    String(eventDetailInitial.title ?? "")
-      .toUpperCase()
-      .includes("UKT")
-  ) {
-    periods = upsertPeriodOption(
-      periods,
-      periodOptionFromEvent(eventDetailInitial, periodFromUrl),
-    );
+  let effectiveSemester = semester;
+  let effectiveYear = year;
+  if (periodFromUrl) {
+    const urlPeriod = periods.find((p) => p.id === periodFromUrl);
+    if (urlPeriod) {
+      const parsed = parseUktEventTitle(urlPeriod.title);
+      if (parsed) {
+        effectiveSemester = parsed.semester;
+        effectiveYear = parsed.year;
+      }
+    }
   }
 
   let selectedPeriodId = forceNoPeriod
     ? null
     : resolveUktSelectedPeriodId(
         periods,
-        semester,
-        year,
+        effectiveSemester,
+        effectiveYear,
         periodFromUrl,
         viewMode,
       );
@@ -1392,7 +1442,7 @@ export async function fetchUktDashboardData(
   // Pendaftaran: jika hanya ada arsip → biarkan null agar UI Buat Periode.
   if (selectedPeriodId && !forceNoPeriod && viewMode === "registration") {
     const selected = periods.find((p) => p.id === selectedPeriodId);
-    const hasActive = findUktPeriodsForTerm(periods, semester, year).some(
+    const hasActive = findUktPeriodsForTerm(periods, effectiveSemester, effectiveYear).some(
       (p) => !p.archived && !p.locked,
     );
     if (selected && (selected.archived || selected.locked) && !hasActive) {
@@ -2222,6 +2272,8 @@ export async function fetchUktDashboardData(
   return {
     periods,
     selectedPeriodId,
+    targetSemester: effectiveSemester,
+    targetYear: effectiveYear,
     dojos,
     allRows,
     beltFees,
