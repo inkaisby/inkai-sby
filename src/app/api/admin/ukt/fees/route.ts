@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { putAppSettingPrismaFirst } from "@/lib/app-setting-write";
 import { canEditKyuBaru } from "@/lib/belt";
 import {
   beltFeesFromTemplates,
@@ -186,14 +187,12 @@ export async function PUT(request: Request) {
     );
   }
 
-  await inkaiFetch(
-    `/v1/settings/${UKT_KOMISI_SETTING_KEY}`,
-    {
-      method: "PUT",
-      body: JSON.stringify({ value: komisiRanting }),
-    },
-    authResult.token,
-  );
+  await putAppSettingPrismaFirst({
+    key: UKT_KOMISI_SETTING_KEY,
+    value: komisiRanting,
+    token: authResult.token,
+    label: "ukt/komisi",
+  });
 
   writeAuditLog({
     userId: authResult.user.id,

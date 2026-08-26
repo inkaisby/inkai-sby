@@ -68,12 +68,21 @@ export async function saveUktPeriodMeta(
   eventId: string,
   next: UktPeriodMeta,
 ): Promise<{ ok: boolean; status: number; errorData?: unknown }> {
-  const { res, data } = await inkaiFetch(
-    `/v1/settings/${encodeURIComponent(uktPeriodMetaKey(eventId))}`,
-    { method: "PUT", body: JSON.stringify({ value: next }) },
+  const { putAppSettingPrismaFirst } = await import("@/lib/app-setting-write");
+  const saved = await putAppSettingPrismaFirst({
+    key: uktPeriodMetaKey(eventId),
+    value: next,
     token,
-  );
-  return { ok: res.ok, status: res.status, errorData: data };
+    label: "ukt-period-meta",
+  });
+  if (!saved.ok) {
+    return {
+      ok: false,
+      status: saved.status,
+      errorData: { error: saved.error },
+    };
+  }
+  return { ok: true, status: 200 };
 }
 
 function trimOptional(value: string | null | undefined): string | undefined {

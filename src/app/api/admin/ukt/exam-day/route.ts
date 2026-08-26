@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
 import { canEditKyuBaru } from "@/lib/belt";
-import { inkaiErrorMessage, inkaiFetch } from "@/lib/inkai-api/server";
+import { putAppSettingPrismaFirst } from "@/lib/app-setting-write";
+import { inkaiFetch } from "@/lib/inkai-api/server";
 import { notifyUktStatusChange } from "@/lib/ukt-notify";
 import {
   uktExamAttendanceKey,
@@ -12,6 +13,7 @@ import { uktExamDaySchema } from "@/lib/security/schemas";
 import { getClientIp } from "@/lib/security/request";
 import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import { assertUktPeriodMutable } from "@/lib/ukt-period-meta-store";
+import { prisma } from "@/lib/prisma";
 
 export async function PATCH(request: Request) {
   const authResult = await requireAdmin();
@@ -65,60 +67,75 @@ export async function PATCH(request: Request) {
 
   for (const registrationId of presentRegistrationIds) {
     const key = uktExamAttendanceKey(eventId, registrationId);
-    const { res } = await inkaiFetch(
-      `/v1/settings/${encodeURIComponent(key)}`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ value: { present: true, ...stamp } }),
-      },
-      authResult.token,
-    );
-    if (res.ok) attendanceOk++;
+    const saved = await putAppSettingPrismaFirst({
+      key,
+      value: { present: true, ...stamp },
+      token: authResult.token,
+      label: "ukt/exam-day-attendance",
+    });
+    if (saved.ok) attendanceOk++;
     else attendanceFail++;
   }
 
   for (const registrationId of absentRegistrationIds) {
     const key = uktExamAttendanceKey(eventId, registrationId);
-    const { res } = await inkaiFetch(
-      `/v1/settings/${encodeURIComponent(key)}`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ value: { present: false, ...stamp } }),
-      },
-      authResult.token,
-    );
-    if (res.ok) attendanceOk++;
+    const saved = await putAppSettingPrismaFirst({
+      key,
+      value: { present: false, ...stamp },
+      token: authResult.token,
+      label: "ukt/exam-day-attendance",
+    });
+    if (saved.ok) attendanceOk++;
     else attendanceFail++;
   }
 
   for (const item of examResults) {
     const key = uktExamResultKey(eventId, item.registrationId);
-    const { res } = await inkaiFetch(
-      `/v1/settings/${encodeURIComponent(key)}`,
-      {
-        method: "PUT",
-        body: JSON.stringify({
-          value: { result: item.result, ...stamp },
-        }),
-      },
-      authResult.token,
-    );
-    if (!res.ok) {
+    const saved = await putAppSettingPrismaFirst({
+      key,
+      value: { result: item.result, ...stamp },
+      token: authResult.token,
+      label: "ukt/exam-day-result",
+    });
+    if (!saved.ok) {
       resultFail++;
       continue;
     }
     resultOk++;
 
-    const { res: regRes, data: regData } = await inkaiFetch(
-      `/v1/events/register/${item.registrationId}`,
-      {},
-      authResult.token,
-    );
-    if (regRes.ok) {
-      const reg = regData.data as Record<string, unknown>;
-      const member = reg.member as { id?: string; fullName?: string } | undefined;
-      const event = reg.event as { title?: string } | undefined;
-      const memberId = String(member?.id ?? reg.memberId ?? "");
+    // Notifikasi best-effort — jangan gagalkan simpan hasil.
+    try {
+      const local = await prisma.eventRegistration.findFirst({
+        where: { id: item.registrationId },
+        select: {
+          memberId: true,
+          member: { select: { fullName: true } },
+          event: { select: { title: true } },
+        },
+      });
+      let memberId = local?.memberId ?? "";
+      let memberName = local?.member?.fullName ?? "Anggota";
+      let periodTitle = local?.event?.title ?? "UKT";
+
+      if (!memberId) {
+        const { res: regRes, data: regData } = await inkaiFetch(
+          `/v1/events/register/${item.registrationId}`,
+          {},
+          authResult.token,
+          { timeoutMs: 5_000, retries: 0 },
+        );
+        if (regRes.ok) {
+          const reg = regData.data as Record<string, unknown>;
+          const member = reg.member as
+            | { id?: string; fullName?: string }
+            | undefined;
+          const event = reg.event as { title?: string } | undefined;
+          memberId = String(member?.id ?? reg.memberId ?? "");
+          memberName = String(member?.fullName ?? "Anggota");
+          periodTitle = String(event?.title ?? "UKT");
+        }
+      }
+
       if (memberId) {
         const displayStatus =
           item.result === "LULUS"
@@ -129,11 +146,13 @@ export async function PATCH(request: Request) {
         await notifyUktStatusChange({
           token: authResult.token,
           memberId,
-          memberName: String(member?.fullName ?? "Anggota"),
-          periodTitle: String(event?.title ?? "UKT"),
+          memberName,
+          periodTitle,
           displayStatus,
         });
       }
+    } catch (error) {
+      console.warn("[ukt/exam-day] notify skipped", error);
     }
   }
 
@@ -156,7 +175,7 @@ export async function PATCH(request: Request) {
 
   if (attendanceFail + resultFail > 0 && attendanceOk + resultOk === 0) {
     return NextResponse.json(
-      { error: inkaiErrorMessage({}, "Gagal menyimpan data hari-H") },
+      { error: "Gagal menyimpan data hari-H ke database" },
       { status: 502 },
     );
   }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { inkaiFetch, inkaiErrorMessage, isInkaiAuthFailure } from "@/lib/inkai-api/server";
 import {
   buildDojoFilter,
   getPrimaryAdminRole,
@@ -32,15 +32,6 @@ import {
 } from "@/lib/member-duplicate";
 
 type CreateInput = z.infer<typeof uktMemberCreateSchema>;
-
-function isInkaiAuthFailure(
-  res: Response,
-  data: Record<string, unknown>,
-): boolean {
-  if (res.status === 401 || res.status === 403) return true;
-  const msg = inkaiErrorMessage(data, "");
-  return /expired|invalid.*token|token.*invalid|unauthorized/i.test(msg);
-}
 
 function inkaiServiceToken(): string | null {
   const t =

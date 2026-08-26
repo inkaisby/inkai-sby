@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
 import { canEditKyuBaru } from "@/lib/belt";
-import { inkaiFetch } from "@/lib/inkai-api/server";
-import { prisma, prismaUserFacingError } from "@/lib/prisma";
+import { putAppSettingPrismaFirst } from "@/lib/app-setting-write";
 import { uktDepositKey } from "@/lib/ukt";
 import { uktDepositSchema } from "@/lib/security/schemas";
 import { getClientIp } from "@/lib/security/request";
@@ -55,42 +54,14 @@ export async function PATCH(request: Request) {
     by: authResult.user.email,
   };
 
-  // Prisma-first: tahan JWT Inkai expired (shared AppSetting dengan backend).
-  try {
-    await prisma.appSetting.upsert({
-      where: { key },
-      create: { key, value },
-      update: { value },
-    });
-  } catch (error) {
-    console.error("[ukt/deposit] prisma upsert", error);
-    const mapped = prismaUserFacingError(
-      error,
-      "Gagal menyimpan status setoran ke database",
-    );
-    return NextResponse.json(
-      { error: mapped.error },
-      { status: mapped.status },
-    );
-  }
-
-  // Best-effort sync ke Inkai API — jangan gagalkan UI bila token blip.
-  try {
-    const { res, data } = await inkaiFetch(
-      `/v1/settings/${encodeURIComponent(key)}`,
-      { method: "PUT", body: JSON.stringify({ value }) },
-      authResult.token,
-      { timeoutMs: 8_000, retries: 0 },
-    );
-    if (!res.ok) {
-      console.warn(
-        "[ukt/deposit] Inkai settings PUT failed (Prisma already saved)",
-        res.status,
-        data,
-      );
-    }
-  } catch (error) {
-    console.warn("[ukt/deposit] Inkai settings PUT error (Prisma already saved)", error);
+  const saved = await putAppSettingPrismaFirst({
+    key,
+    value,
+    token: authResult.token,
+    label: "ukt/deposit",
+  });
+  if (!saved.ok) {
+    return NextResponse.json({ error: saved.error }, { status: saved.status });
   }
 
   writeAuditLog({

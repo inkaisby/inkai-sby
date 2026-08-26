@@ -1,4 +1,5 @@
 import { inkaiFetch } from "@/lib/inkai-api/server";
+import { prisma } from "@/lib/prisma";
 import {
   latberPeriodMetaKey,
   parseLatberPeriodMetaValue,
@@ -13,11 +14,27 @@ export async function loadLatberPeriodMeta(
     `/v1/settings/${encodeURIComponent(latberPeriodMetaKey(eventId))}`,
     {},
     token,
+    { timeoutMs: 8_000, retries: 0 },
   );
-  if (!res.ok) return { archived: false, locked: false };
-  return parseLatberPeriodMetaValue(
-    (data.data as { value?: unknown } | undefined)?.value ?? null,
-  );
+  if (res.ok) {
+    return parseLatberPeriodMetaValue(
+      (data.data as { value?: unknown } | undefined)?.value ?? null,
+    );
+  }
+
+  try {
+    const row = await prisma.appSetting.findUnique({
+      where: { key: latberPeriodMetaKey(eventId) },
+      select: { value: true },
+    });
+    if (row?.value != null) {
+      return parseLatberPeriodMetaValue(row.value);
+    }
+  } catch (error) {
+    console.warn("[loadLatberPeriodMeta] prisma fallback", error);
+  }
+
+  return { archived: false, locked: false };
 }
 
 export async function assertLatberPeriodMutable(
@@ -44,12 +61,21 @@ export async function saveLatberPeriodMeta(
   eventId: string,
   next: LatberPeriodMeta,
 ): Promise<{ ok: boolean; status: number; errorData?: unknown }> {
-  const { res, data } = await inkaiFetch(
-    `/v1/settings/${encodeURIComponent(latberPeriodMetaKey(eventId))}`,
-    { method: "PUT", body: JSON.stringify({ value: next }) },
+  const { putAppSettingPrismaFirst } = await import("@/lib/app-setting-write");
+  const saved = await putAppSettingPrismaFirst({
+    key: latberPeriodMetaKey(eventId),
+    value: next,
     token,
-  );
-  return { ok: res.ok, status: res.status, errorData: data };
+    label: "latber-period-meta",
+  });
+  if (!saved.ok) {
+    return {
+      ok: false,
+      status: saved.status,
+      errorData: { error: saved.error },
+    };
+  }
+  return { ok: true, status: 200 };
 }
 
 export function mergeLatberPeriodMeta(

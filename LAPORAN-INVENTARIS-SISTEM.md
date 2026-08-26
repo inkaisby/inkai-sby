@@ -374,7 +374,7 @@ Pusat / Nasional
 
 | Integrasi | Fungsi |
 |-----------|--------|
-| Inkai API | Auth, anggota, billing, event, UKT, organisasi |
+| Inkai API | Auth, anggota, billing, event, UKT, organisasi; pesan token expired di-map ke BI lewat `inkaiErrorMessage`; tulis `AppSetting` UKT/Latber lewat `putAppSettingPrismaFirst` (Prisma dulu, Inkai best-effort) |
 | NextAuth | Sesi login JWT + kredensial |
 | PostgreSQL / Prisma | Data lokal & sinkron schema dengan backend |
 | Vercel Blob | Upload file (dokumen/gambar) |
@@ -622,6 +622,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 
 | Tanggal | Keterangan |
 |---------|------------|
+| 26 Agustus 2026 | **Hapus toast "Invalid or expired token" (global + settings):** `inkaiErrorMessage` map pesan token → BI; helper `putAppSettingPrismaFirst` untuk deposit/waiver/exam-day/hasil ujian/period-meta UKT+Latber/komisi; inventaris §10/§13/§15 |
 | 26 Agustus 2026 | **Fix Tambah Anggota token expired:** `createAdminMember` retry `INKAI_SERVICE_TOKEN` lalu fallback buat Member Active di Prisma; dojo resolve Prisma bila Inkai gagal; toast UI lebih jelas; inventaris §9.1/§15 |
 | 26 Agustus 2026 | **Fix Terima setoran UKT (token expired):** `PATCH /api/admin/ukt/deposit` tulis Prisma `AppSetting` dulu + best-effort Inkai PUT; `loadUktPeriodMeta` fallback Prisma; baca `depositMap` merge Prisma di dashboard/table; UI update lokal dari response; inventaris §9.3.11b/§11e/§13/§15 |
 | 26 Agustus 2026 | **Fix build Latber + perkuat:** tipe eksplisit regs Prisma (`member` include) agar `tsc` lulus; selalu merge Prisma periods (tahan blip Inkai) |

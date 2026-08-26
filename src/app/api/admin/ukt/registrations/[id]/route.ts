@@ -721,18 +721,17 @@ export async function PATCH(request: Request, context: RouteContext) {
       at: new Date().toISOString(),
       by: authResult.user.email,
     };
-    const { res, data: apiData } = await inkaiFetch(
-      `/v1/settings/${encodeURIComponent(key)}`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ value }),
-      },
-      authResult.token,
-    );
-    if (!res.ok) {
+    const { putAppSettingPrismaFirst } = await import("@/lib/app-setting-write");
+    const saved = await putAppSettingPrismaFirst({
+      key,
+      value,
+      token: authResult.token,
+      label: "ukt/exam-result",
+    });
+    if (!saved.ok) {
       return NextResponse.json(
-        { error: inkaiErrorMessage(apiData, "Gagal menyimpan hasil ujian") },
-        { status: res.status },
+        { error: saved.error },
+        { status: saved.status },
       );
     }
 
@@ -1462,21 +1461,18 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     // Isi Kyu Baru setelah Verifikasi = otomatis Lulus + Selesai
     const examKey = uktExamResultKey(data.eventId, id);
-    await inkaiFetch(
-      `/v1/settings/${encodeURIComponent(examKey)}`,
-      {
-        method: "PUT",
-        body: JSON.stringify({
-          value: {
-            result: "LULUS",
-            at: new Date().toISOString(),
-            by: authResult.user.email,
-            autoFromKyuBaru: true,
-          },
-        }),
+    const { putAppSettingPrismaFirst } = await import("@/lib/app-setting-write");
+    await putAppSettingPrismaFirst({
+      key: examKey,
+      value: {
+        result: "LULUS",
+        at: new Date().toISOString(),
+        by: authResult.user.email,
+        autoFromKyuBaru: true,
       },
-      authResult.token,
-    );
+      token: authResult.token,
+      label: "ukt/exam-result-auto",
+    });
 
     const applied = await applyKyuBaruToMember({
       registrationId: id,

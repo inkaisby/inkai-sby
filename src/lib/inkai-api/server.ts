@@ -174,10 +174,42 @@ export function inkaiErrorMessage(
   return fallback;
 }
 
+/** Deteksi gagal auth JWT Inkai (401/pesan token). */
+export function isInkaiAuthFailure(
+  res: { status: number },
+  data?: Record<string, unknown> | null,
+): boolean {
+  if (res.status === 401) return true;
+  const raw =
+    (typeof data?.message === "string" && data.message) ||
+    (typeof data?.error === "string" && data.error) ||
+    "";
+  const tokenish = /expired|invalid.*token|token.*invalid|unauthorized/i.test(
+    raw,
+  );
+  if (res.status === 403) {
+    // 403 kadang "akses wilayah" — hanya anggap auth bila pesan token.
+    return tokenish;
+  }
+  return tokenish;
+}
+
 /** Ubah pesan validasi teknis Inkai/Zod jadi lebih mudah dibaca. */
 function friendlyInkaiValidationMessage(raw: string): string {
   const text = raw.trim();
   const lower = text.toLowerCase();
+
+  if (
+    lower.includes("invalid or expired token") ||
+    lower.includes("jwt expired") ||
+    lower.includes("token expired") ||
+    lower.includes("expired token") ||
+    (lower.includes("unauthorized") && lower.includes("token")) ||
+    /^invalid token$/i.test(text) ||
+    /token.*(invalid|expired)/i.test(text)
+  ) {
+    return "Sesi API berakhir. Silakan refresh halaman atau login ulang, lalu coba lagi.";
+  }
 
   if (
     /\bname\b/i.test(text) &&

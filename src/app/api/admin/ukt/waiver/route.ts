@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { inkaiFetch } from "@/lib/inkai-api/server";
+import { putAppSettingPrismaFirst } from "@/lib/app-setting-write";
 import { canEditKyuBaru } from "@/lib/belt";
 import { uktWaiverSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
@@ -9,6 +10,7 @@ import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import { uktRegistrationWaiverKey } from "@/lib/ukt";
 import { assertUktPeriodMutable } from "@/lib/ukt-period-meta-store";
 import { notifyUktMember } from "@/lib/ukt-notify";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
   const authResult = await requireAdmin();
@@ -54,20 +56,14 @@ export async function POST(request: Request) {
     by: authResult.user.email,
   };
 
-  const { res, data } = await inkaiFetch(
-    `/v1/settings/${encodeURIComponent(key)}`,
-    {
-      method: "PUT",
-      body: JSON.stringify({ value }),
-    },
-    authResult.token,
-  );
-
-  if (!res.ok) {
-    return NextResponse.json(
-      { error: inkaiErrorMessage(data, "Gagal menyimpan pengecualian") },
-      { status: res.status },
-    );
+  const saved = await putAppSettingPrismaFirst({
+    key,
+    value,
+    token: authResult.token,
+    label: "ukt/waiver",
+  });
+  if (!saved.ok) {
+    return NextResponse.json({ error: saved.error }, { status: saved.status });
   }
 
   writeAuditLog({
@@ -80,14 +76,26 @@ export async function POST(request: Request) {
     token: authResult.token,
   });
 
-  const { res: memberRes, data: memberData } = await inkaiFetch(
-    `/v1/members/${memberId}`,
-    {},
-    authResult.token,
-  );
-  const memberName = memberRes.ok
-    ? String((memberData.data as { fullName?: string }).fullName ?? "Anggota")
-    : "Anggota";
+  let memberName = "Anggota";
+  try {
+    const local = await prisma.member.findUnique({
+      where: { id: memberId },
+      select: { fullName: true },
+    });
+    if (local?.fullName) memberName = local.fullName;
+  } catch {
+    const { res: memberRes, data: memberData } = await inkaiFetch(
+      `/v1/members/${memberId}`,
+      {},
+      authResult.token,
+      { timeoutMs: 5_000, retries: 0 },
+    );
+    if (memberRes.ok) {
+      memberName = String(
+        (memberData.data as { fullName?: string }).fullName ?? "Anggota",
+      );
+    }
+  }
 
   await notifyUktMember({
     token: authResult.token,
