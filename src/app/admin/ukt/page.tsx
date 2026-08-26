@@ -160,6 +160,8 @@ async function UktDashboardSection({
   > | null = null;
   let pengprovHeadName: string | null = null;
   let strukturKetuaName: string | null = null;
+  let targetSemester: UktSemester = semester;
+  let targetYear: number = year;
   // dojoGroups cabang di-hydrate client (GET /api/admin/ukt/dojo-groups).
   const dojoGroups: [] = [];
 
@@ -178,8 +180,8 @@ async function UktDashboardSection({
           forceNoPeriod: false,
           viewMode: "registration",
         });
-        const targetSemester = light.targetSemester ?? semester;
-        const targetYear = light.targetYear ?? year;
+        targetSemester = light.targetSemester ?? semester;
+        targetYear = light.targetYear ?? year;
         const canonicalPeriod = light.selectedPeriodId;
         const urlNeedsSync =
           urlSemester !== targetSemester ||
@@ -219,9 +221,8 @@ async function UktDashboardSection({
     periods = data.periods;
     dojos = data.dojos;
     selectedPeriodId = createMode ? null : data.selectedPeriodId;
-
-    const targetSemester = data.targetSemester ?? semester;
-    const targetYear = data.targetYear ?? year;
+    targetSemester = data.targetSemester ?? semester;
+    targetYear = data.targetYear ?? year;
 
     if (!createMode && periodFromUrl) {
       const fromUrl = periods.find((p) => p.id === periodFromUrl);

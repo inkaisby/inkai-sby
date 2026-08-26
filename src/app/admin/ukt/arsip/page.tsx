@@ -146,6 +146,8 @@ async function UktArsipDashboardSection({
   > | null = null;
   let pengprovHeadName: string | null = null;
   let strukturKetuaName: string | null = null;
+  let targetSemester: UktSemester = semester;
+  let targetYear: number = year;
 
   try {
     const [profile, policy, data, ttdHints] = await Promise.all([
@@ -166,9 +168,8 @@ async function UktArsipDashboardSection({
     periods = data.periods;
     dojos = data.dojos;
     selectedPeriodId = data.selectedPeriodId;
-
-    const targetSemester = data.targetSemester ?? semester;
-    const targetYear = data.targetYear ?? year;
+    targetSemester = data.targetSemester ?? semester;
+    targetYear = data.targetYear ?? year;
 
     if (selectedPeriodId) {
       const selected = periods.find((p) => p.id === selectedPeriodId);
