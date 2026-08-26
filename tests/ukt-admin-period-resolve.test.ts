@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { normalizeCachedUktEventsResult } from "@/lib/inkai-api/admin-data";
+import {
+  normalizeCachedUktEventsResult,
+  shouldLoadUktPeriodsFromPrisma,
+} from "@/lib/inkai-api/admin-data";
 import { isLatberEventTitle } from "@/lib/latber";
 import {
   isUktAdminEventTitle,
@@ -23,6 +26,21 @@ describe("isUktAdminEventTitle", () => {
 describe("isLatberEventTitle", () => {
   it("accepts Latihan Bersama persiapan UKT", () => {
     expect(isLatberEventTitle("Latihan Bersama — persiapan UKT")).toBe(true);
+  });
+});
+
+describe("shouldLoadUktPeriodsFromPrisma", () => {
+  it("loads Prisma when Inkai fetch failed", () => {
+    expect(shouldLoadUktPeriodsFromPrisma(false, 0)).toBe(true);
+    expect(shouldLoadUktPeriodsFromPrisma(false, 2)).toBe(true);
+  });
+
+  it("loads Prisma when Inkai ok but UKT list empty", () => {
+    expect(shouldLoadUktPeriodsFromPrisma(true, 0)).toBe(true);
+  });
+
+  it("skips Prisma when Inkai already returned UKT periods", () => {
+    expect(shouldLoadUktPeriodsFromPrisma(true, 1)).toBe(false);
   });
 });
 
@@ -69,6 +87,17 @@ describe("resolveUktSelectedPeriodId", () => {
   it("auto-resolves active UKT period when URL has no period", () => {
     const id = resolveUktSelectedPeriodId(
       [latberLike, uktActive],
+      "II",
+      2026,
+      null,
+      "registration",
+    );
+    expect(id).toBe(uktActive.id);
+  });
+
+  it("auto-resolves after Prisma-hydrated periods (Inkai empty)", () => {
+    const id = resolveUktSelectedPeriodId(
+      [uktActive],
       "II",
       2026,
       null,

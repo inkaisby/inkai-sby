@@ -45,6 +45,7 @@ import {
   parseUktPeriodMetaValue,
   parseUktEventTitle,
   isUktAdminEventTitle,
+  uktPeriodMetaKey,
   type UktExamResult,
   type UktMemberRow,
   type UktPeriodMeta,
@@ -1058,6 +1059,189 @@ function upsertPeriodOption(
   return periods.map((p, i) => (i === idx ? { ...p, ...next } : p));
 }
 
+type UktPeriodOptionRow = ReturnType<typeof periodOptionFromEvent>;
+
+/** True when admin should hydrate UKT periods from Prisma (publik path). */
+export function shouldLoadUktPeriodsFromPrisma(
+  eventsOk: boolean,
+  uktPeriodCount: number,
+): boolean {
+  return !eventsOk || uktPeriodCount === 0;
+}
+
+async function fetchUktPeriodOptionsFromPrisma(): Promise<UktPeriodOptionRow[]> {
+  const { data } = await withPrismaFallback(
+    "ukt-events-prisma",
+    () =>
+      prisma.event.findMany({
+        where: { isDeleted: false },
+        select: {
+          id: true,
+          title: true,
+          startDate: true,
+          endDate: true,
+          registrationCloseAt: true,
+          createdAt: true,
+        },
+        orderBy: { startDate: "desc" },
+        take: 80,
+      }),
+    [] as Array<{
+      id: string;
+      title: string;
+      startDate: Date;
+      endDate: Date;
+      registrationCloseAt: Date | null;
+      createdAt: Date;
+    }>,
+  );
+
+  return (data ?? [])
+    .filter((e) => isUktAdminEventTitle(e.title))
+    .map((e) =>
+      periodOptionFromEvent({
+        id: e.id,
+        title: e.title,
+        startDate: e.startDate.toISOString(),
+        endDate: e.endDate.toISOString(),
+        registrationCloseAt: e.registrationCloseAt?.toISOString() ?? null,
+        createdAt: e.createdAt.toISOString(),
+      }),
+    );
+}
+
+/**
+ * Isi daftar periode UKT dari Prisma bila Inkai kosong/gagal,
+ * atau upsert satu event by URL id.
+ */
+async function ensureUktPeriodsFromPrisma(
+  periods: UktPeriodOptionRow[],
+  opts: {
+    eventsOk: boolean;
+    periodFromUrl?: string | null;
+  },
+): Promise<{ periods: UktPeriodOptionRow[]; fromPrisma: boolean }> {
+  const needList = shouldLoadUktPeriodsFromPrisma(opts.eventsOk, periods.length);
+  const needUrl =
+    Boolean(opts.periodFromUrl) &&
+    !periods.some((p) => p.id === opts.periodFromUrl);
+
+  if (!needList && !needUrl) {
+    return { periods, fromPrisma: false };
+  }
+
+  const prismaPeriods = await fetchUktPeriodOptionsFromPrisma();
+  let next = periods;
+  let fromPrisma = false;
+
+  if (needList) {
+    for (const p of prismaPeriods) {
+      next = upsertPeriodOption(next, p);
+      fromPrisma = true;
+    }
+  }
+
+  if (needUrl && opts.periodFromUrl) {
+    const fromList = prismaPeriods.find((p) => p.id === opts.periodFromUrl);
+    if (fromList) {
+      next = upsertPeriodOption(next, fromList);
+      fromPrisma = true;
+    } else {
+      const { data: ev } = await withPrismaFallback(
+        "ukt-event-by-id-prisma",
+        () =>
+          prisma.event.findFirst({
+            where: { id: opts.periodFromUrl!, isDeleted: false },
+            select: {
+              id: true,
+              title: true,
+              startDate: true,
+              endDate: true,
+              registrationCloseAt: true,
+              createdAt: true,
+            },
+          }),
+        null as {
+          id: string;
+          title: string;
+          startDate: Date;
+          endDate: Date;
+          registrationCloseAt: Date | null;
+          createdAt: Date;
+        } | null,
+      );
+      if (ev && isUktAdminEventTitle(ev.title)) {
+        next = upsertPeriodOption(
+          next,
+          periodOptionFromEvent({
+            id: ev.id,
+            title: ev.title,
+            startDate: ev.startDate.toISOString(),
+            endDate: ev.endDate.toISOString(),
+            registrationCloseAt: ev.registrationCloseAt?.toISOString() ?? null,
+            createdAt: ev.createdAt.toISOString(),
+          }),
+        );
+        fromPrisma = true;
+      }
+    }
+  }
+
+  return { periods: next, fromPrisma };
+}
+
+async function loadUktPeriodMetaFromPrisma(
+  periodIds: string[],
+): Promise<Map<string, UktPeriodMeta>> {
+  const ids = [...new Set(periodIds.filter(Boolean))];
+  if (ids.length === 0) return new Map();
+  const keys = ids.map((id) => uktPeriodMetaKey(id));
+  const { data } = await withPrismaFallback(
+    "ukt-period-meta-prisma",
+    () =>
+      prisma.appSetting.findMany({
+        where: { key: { in: keys } },
+        select: { key: true, value: true },
+      }),
+    [] as Array<{ key: string; value: unknown }>,
+  );
+  const map = new Map<string, UktPeriodMeta>();
+  for (const row of data ?? []) {
+    const id = row.key.slice("ukt-period-meta:".length);
+    if (id) map.set(id, parseUktPeriodMetaValue(row.value));
+  }
+  return map;
+}
+
+async function applyUktPeriodMetaFlags(
+  periods: UktPeriodOptionRow[],
+  metaByPeriodId: Map<string, UktPeriodMeta>,
+): Promise<{
+  periods: UktPeriodOptionRow[];
+  metaByPeriodId: Map<string, UktPeriodMeta>;
+}> {
+  const missingIds = periods
+    .map((p) => p.id)
+    .filter((id) => id && !metaByPeriodId.has(id));
+  if (missingIds.length > 0) {
+    const fromPrisma = await loadUktPeriodMetaFromPrisma(missingIds);
+    for (const [id, meta] of fromPrisma) {
+      metaByPeriodId.set(id, meta);
+    }
+  }
+  return {
+    periods: periods.map((p) => {
+      const meta = metaByPeriodId.get(p.id);
+      return {
+        ...p,
+        archived: meta?.archived === true,
+        locked: meta?.locked === true,
+      };
+    }),
+    metaByPeriodId,
+  };
+}
+
 export async function fetchUktKomisiRanting(
   token: string,
   key: string,
@@ -1256,19 +1440,18 @@ export async function resolveUktAdminPeriodId(
     );
   }
 
+  const prismaHydrated = await ensureUktPeriodsFromPrisma(periods, {
+    eventsOk: eventsResult.ok,
+    periodFromUrl,
+  });
+  periods = prismaHydrated.periods;
+
   const metaByPeriodId = new Map<string, UktPeriodMeta>();
   for (const row of periodMetaRowsAll) {
     const id = row.key.slice("ukt-period-meta:".length);
     if (id) metaByPeriodId.set(id, parseUktPeriodMetaValue(row.value));
   }
-  periods = periods.map((p) => {
-    const meta = metaByPeriodId.get(p.id);
-    return {
-      ...p,
-      archived: meta?.archived === true,
-      locked: meta?.locked === true,
-    };
-  });
+  ({ periods } = await applyUktPeriodMetaFlags(periods, metaByPeriodId));
 
   let effectiveSemester = semester;
   let effectiveYear = year;
@@ -1439,20 +1622,23 @@ export async function fetchUktDashboardData(
     );
   }
 
+  const prismaHydrated = await ensureUktPeriodsFromPrisma(periods, {
+    eventsOk,
+    periodFromUrl,
+  });
+  periods = prismaHydrated.periods;
+  const periodsFromPrisma = prismaHydrated.fromPrisma;
+
   const periodMetaRows = periodMetaRowsAll;
-  const metaByPeriodId = new Map<string, UktPeriodMeta>();
+  let metaByPeriodId = new Map<string, UktPeriodMeta>();
   for (const row of periodMetaRows) {
     const id = row.key.slice("ukt-period-meta:".length);
     if (id) metaByPeriodId.set(id, parseUktPeriodMetaValue(row.value));
   }
-  periods = periods.map((p) => {
-    const meta = metaByPeriodId.get(p.id);
-    return {
-      ...p,
-      archived: meta?.archived === true,
-      locked: meta?.locked === true,
-    };
-  });
+  ({ periods, metaByPeriodId } = await applyUktPeriodMetaFlags(
+    periods,
+    metaByPeriodId,
+  ));
 
   let effectiveSemester = semester;
   let effectiveYear = year;
@@ -1813,8 +1999,14 @@ export async function fetchUktDashboardData(
   }
 
   // Ranting multi: Inkai sering hanya kirim registrasi ranting utama.
+  // Cabang + detail Inkai null: seed penuh dari Prisma (sama sumber /ukt publik).
   // Lengkapi dari Prisma — skip total jika periode kosong.
-  if (selectedPeriodId && dojoAllowlist.length > 0 && !periodEmpty) {
+  if (
+    selectedPeriodId &&
+    !rantingAllowlistEmpty &&
+    !periodEmpty &&
+    (dojoAllowlist.length > 0 || !eventDetail)
+  ) {
     const prismaRegs = await withPrismaFallback(
       "ukt-regs-allowlist",
       () =>
@@ -1824,7 +2016,9 @@ export async function fetchUktDashboardData(
             status: { notIn: ["CANCELLED", "REJECTED"] },
             member: {
               isDeleted: false,
-              dojoId: { in: dojoAllowlist },
+              ...(dojoAllowlist.length > 0
+                ? { dojoId: { in: dojoAllowlist } }
+                : {}),
             },
           },
           select: {
@@ -2336,7 +2530,7 @@ export async function fetchUktDashboardData(
     >,
     periodMeta,
     identityDegraded,
-    ok: eventsOk && (Array.isArray(eventsData) || membersResult.ok),
+    ok: (eventsOk || periodsFromPrisma) && (Array.isArray(eventsData) || membersResult.ok),
   };
 }
 
