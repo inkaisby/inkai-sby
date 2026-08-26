@@ -1265,6 +1265,17 @@ export async function resolveUktAdminPeriodId(
     viewMode,
   );
 
+  if (selectedPeriodId) {
+    const selected = periods.find((p) => p.id === selectedPeriodId);
+    if (selected) {
+      const parsed = parseUktEventTitle(selected.title);
+      if (parsed) {
+        effectiveSemester = parsed.semester;
+        effectiveYear = parsed.year;
+      }
+    }
+  }
+
   if (selectedPeriodId && viewMode === "registration") {
     const selected = periods.find((p) => p.id === selectedPeriodId);
     const hasActive = findUktPeriodsForTerm(periods, effectiveSemester, effectiveYear).some(
@@ -1429,18 +1440,26 @@ export async function fetchUktDashboardData(
     }
   }
 
-  let selectedPeriodId = forceNoPeriod
-    ? null
-    : resolveUktSelectedPeriodId(
-        periods,
-        effectiveSemester,
-        effectiveYear,
-        periodFromUrl,
-        viewMode,
-      );
+  let selectedPeriodId = resolveUktSelectedPeriodId(
+    periods,
+    effectiveSemester,
+    effectiveYear,
+    periodFromUrl,
+    viewMode,
+  );
 
-  // Pendaftaran: jika hanya ada arsip → biarkan null agar UI Buat Periode.
-  if (selectedPeriodId && !forceNoPeriod && viewMode === "registration") {
+  if (selectedPeriodId) {
+    const selected = periods.find((p) => p.id === selectedPeriodId);
+    if (selected) {
+      const parsed = parseUktEventTitle(selected.title);
+      if (parsed) {
+        effectiveSemester = parsed.semester;
+        effectiveYear = parsed.year;
+      }
+    }
+  }
+
+  if (selectedPeriodId && viewMode === "registration") {
     const selected = periods.find((p) => p.id === selectedPeriodId);
     const hasActive = findUktPeriodsForTerm(periods, effectiveSemester, effectiveYear).some(
       (p) => !p.archived && !p.locked,

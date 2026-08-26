@@ -228,6 +228,35 @@ export function findUktArchivedPeriodForTerm(
 
 export type UktAdminViewMode = "registration" | "archive";
 
+/** Cari sebarang periode aktif (bukan arsip/kunci) jika term saat ini belum memiliki event. */
+export function findAnyActiveUktPeriod(
+  periods: UktPeriodOption[],
+): UktPeriodOption | null {
+  const activePeriods = periods.filter((p) => isUktPeriodActiveView(p));
+  if (activePeriods.length === 0) return null;
+
+  const expectedTitle = buildUktEventTitle(currentSemester(), new Date().getFullYear()).toLowerCase();
+  const rank = (p: UktPeriodOption) => {
+    let score = 0;
+    if (
+      isUktRegistrationOpen({
+        startDate: p.startDate ?? "",
+        endDate: p.endDate ?? p.startDate ?? "",
+        registrationCloseAt: p.registrationCloseAt,
+      })
+    ) {
+      score += 50;
+    }
+    if (p.title.trim().toLowerCase() === expectedTitle) score += 20;
+    if (parseUktEventTitle(p.title)) score += 10;
+    const created = p.createdAt ? new Date(p.createdAt).getTime() : 0;
+    score += Number.isFinite(created) ? created / 1e13 : 0;
+    return score;
+  };
+
+  return [...activePeriods].sort((a, b) => rank(b) - rank(a))[0] ?? null;
+}
+
 /**
  * Pilih periode: Pendaftaran mengutamakan aktif; Arsip mengutamakan riwayat/terkunci.
  */
@@ -277,7 +306,8 @@ export function resolveUktSelectedPeriodId(
     }
     return periodFromUrl;
   }
-  return matchByTerm?.id ?? null;
+  const fallback = !matchByTerm ? findAnyActiveUktPeriod(periods) : null;
+  return matchByTerm?.id ?? fallback?.id ?? null;
 }
 
 export function buildUktAdminUrl(
