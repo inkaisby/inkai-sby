@@ -1381,12 +1381,30 @@ export function UktDashboard(props: Props) {
           status,
         }),
       });
-      const data = await parseApiJson<{ error?: string; message?: string }>(res);
+      const data = await parseApiJson<{
+        error?: string;
+        message?: string;
+        data?: UktDepositRecord;
+      }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal");
+      if (data.data) {
+        setDepositMap((prev) => ({ ...prev, [dojoId]: data.data! }));
+      } else {
+        setDepositMap((prev) => ({
+          ...prev,
+          [dojoId]: { status, at: new Date().toISOString() },
+        }));
+      }
       toast.success(data.message || "Status setoran diperbarui");
       void requestServerRowsSync({ silent: true });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal");
+      const msg = e instanceof Error ? e.message : "Gagal";
+      const tokenish = /expired|invalid|token|401/i.test(msg);
+      toast.error(
+        tokenish
+          ? "Sesi API berakhir — status tetap bisa disimpan setelah perbaikan; silakan refresh/login jika masih gagal"
+          : msg,
+      );
     } finally {
       setLoading(false);
     }

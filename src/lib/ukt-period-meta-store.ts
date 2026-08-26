@@ -1,4 +1,5 @@
 import { inkaiFetch } from "@/lib/inkai-api/server";
+import { prisma } from "@/lib/prisma";
 import {
   parseUktPeriodMetaValue,
   uktPeriodMetaKey,
@@ -14,11 +15,28 @@ export async function loadUktPeriodMeta(
     `/v1/settings/${encodeURIComponent(uktPeriodMetaKey(eventId))}`,
     {},
     token,
+    { timeoutMs: 8_000, retries: 0 },
   );
-  if (!res.ok) return { archived: false, locked: false };
-  return parseUktPeriodMetaValue(
-    (data.data as { value?: unknown } | undefined)?.value ?? null,
-  );
+  if (res.ok) {
+    return parseUktPeriodMetaValue(
+      (data.data as { value?: unknown } | undefined)?.value ?? null,
+    );
+  }
+
+  // Fallback Prisma bila JWT Inkai gagal/expired — jangan anggap periode terbuka palsu.
+  try {
+    const row = await prisma.appSetting.findUnique({
+      where: { key: uktPeriodMetaKey(eventId) },
+      select: { value: true },
+    });
+    if (row?.value != null) {
+      return parseUktPeriodMetaValue(row.value);
+    }
+  } catch (error) {
+    console.warn("[loadUktPeriodMeta] prisma fallback", error);
+  }
+
+  return { archived: false, locked: false };
 }
 
 /**

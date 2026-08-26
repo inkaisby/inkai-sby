@@ -42,6 +42,7 @@ import {
   buildUktExamAttendanceMap,
   buildUktDepositMap,
   buildUktWaiverMap,
+  parseUktDepositValue,
   parseUktPeriodMetaValue,
   parseUktEventTitle,
   isUktAdminEventTitle,
@@ -1275,6 +1276,31 @@ export async function fetchSettingsByPrefix(
   return (data.data as Array<{ key: string; value: unknown }>) ?? [];
 }
 
+/** Baca AppSetting setoran UKT dari Prisma; merge ke map Inkai (Prisma menang untuk key yang sama). */
+async function mergeUktDepositMapFromPrisma(
+  periodId: string,
+  inkaiMap: Map<string, UktDepositRecord>,
+): Promise<Map<string, UktDepositRecord>> {
+  const prefix = `ukt-deposit:${periodId}:`;
+  const { data: rows } = await withPrismaFallback(
+    "ukt-deposit-settings",
+    () =>
+      prisma.appSetting.findMany({
+        where: { key: { startsWith: prefix } },
+        select: { key: true, value: true },
+      }),
+    [] as Array<{ key: string; value: unknown }>,
+  );
+  if (!rows?.length) return inkaiMap;
+  const merged = new Map(inkaiMap);
+  for (const row of rows) {
+    const dojoId = row.key.slice(prefix.length);
+    const parsed = parseUktDepositValue(row.value);
+    if (dojoId && parsed) merged.set(dojoId, parsed);
+  }
+  return merged;
+}
+
 export async function fetchAdminDashboardBundle(
   token: string,
   user?: SessionUser,
@@ -1845,9 +1871,12 @@ export async function fetchUktDashboardData(
   const examAttendanceMap = selectedPeriodId
     ? buildUktExamAttendanceMap(examAttendanceSettings, selectedPeriodId)
     : new Map<string, boolean>();
-  const depositMap = selectedPeriodId
+  let depositMap = selectedPeriodId
     ? buildUktDepositMap(depositSettings, selectedPeriodId)
     : new Map<string, UktDepositRecord>();
+  if (selectedPeriodId) {
+    depositMap = await mergeUktDepositMapFromPrisma(selectedPeriodId, depositMap);
+  }
   const waiverMap = selectedPeriodId
     ? buildUktWaiverMap(waiverSettings, selectedPeriodId)
     : new Map<string, UktRegistrationWaiver>();
@@ -2583,7 +2612,8 @@ export async function fetchUktTableRefreshSnapshot(
     examAttendanceSettings,
     periodId,
   );
-  const depositMap = buildUktDepositMap(depositSettings, periodId);
+  let depositMap = buildUktDepositMap(depositSettings, periodId);
+  depositMap = await mergeUktDepositMapFromPrisma(periodId, depositMap);
   const waiverMap = buildUktWaiverMap(waiverSettings, periodId);
 
   const billingMap = new Map<string, Record<string, unknown>>();
