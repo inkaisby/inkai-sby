@@ -622,6 +622,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 
 | Tanggal | Keterangan |
 |---------|------------|
+| 26 Agustus 2026 | **Fix build Latber + perkuat:** tipe eksplisit regs Prisma (`member` include) agar `tsc` lulus; selalu merge Prisma periods (tahan blip Inkai) |
 | 26 Agustus 2026 | **Fix UKT admin data hilang setelah ~menit:** refresh diam (visibility) snapshot kosong tidak lagi wipe tabel; `/api/admin/ukt/table` selalu seed Prisma regs (cabang); merge Prisma periods selalu on; cache events `v5` 600s tanpa cache list kosong |
 | 26 Agustus 2026 | **Fix admin Latber kosong meski `/latber` publik ada data:** hydrate periode dari Prisma `Event` (+ meta `AppSetting` `latber-period-meta:`) bila Inkai `/v1/events` gagal/kosong; recover period URL via Prisma; regs/billing tetap Prisma + `withPrismaFallback`; tes `shouldLoadLatberPeriodsFromPrisma` |
 | 26 Agustus 2026 | **Fix admin UKT kosong meski `/ukt` publik ada data:** hydrate periode dari Prisma `Event` (+ meta `AppSetting`) bila Inkai `/v1/events` gagal/kosong; seed registrasi Prisma saat detail event null; DB cek II-2026 = 111 regs; tes `shouldLoadUktPeriodsFromPrisma` |

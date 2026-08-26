@@ -3,17 +3,11 @@ import { shouldLoadLatberPeriodsFromPrisma } from "@/lib/latber-data";
 import { findActiveLatberPeriod, isLatberEventTitle } from "@/lib/latber";
 
 describe("shouldLoadLatberPeriodsFromPrisma", () => {
-  it("loads Prisma when Inkai fetch failed", () => {
+  it("always merges Prisma so periods survive Inkai API blips", () => {
     expect(shouldLoadLatberPeriodsFromPrisma(false, 0)).toBe(true);
     expect(shouldLoadLatberPeriodsFromPrisma(false, 2)).toBe(true);
-  });
-
-  it("loads Prisma when Inkai ok but Latber list empty", () => {
     expect(shouldLoadLatberPeriodsFromPrisma(true, 0)).toBe(true);
-  });
-
-  it("skips Prisma when Inkai already returned Latber periods", () => {
-    expect(shouldLoadLatberPeriodsFromPrisma(true, 1)).toBe(false);
+    expect(shouldLoadLatberPeriodsFromPrisma(true, 1)).toBe(true);
   });
 });
 

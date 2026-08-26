@@ -56,12 +56,12 @@ async function fetchLatberEvents(token: string): Promise<{
   }
 }
 
-/** True when admin should hydrate Latber periods from Prisma (publik path). */
+/** Always merge Prisma Event so Latber periods survive Inkai API blips. */
 export function shouldLoadLatberPeriodsFromPrisma(
-  eventsOk: boolean,
-  latberPeriodCount: number,
+  _eventsOk: boolean,
+  _latberPeriodCount: number,
 ): boolean {
-  return !eventsOk || latberPeriodCount === 0;
+  return true;
 }
 
 function upsertLatberPeriodOption(
@@ -489,10 +489,35 @@ export async function fetchLatberDashboardData(
   let rows: LatberMemberRow[] = [];
   if (selectedPeriodId && !rantingAllowlistEmpty) {
     const photoSelect = await memberPhotoSelect();
+    type LatberRegMember = {
+      id: string;
+      fullName: string;
+      nia: string | null;
+      currentRank: string;
+      dojoId: string;
+      status: string;
+      gender: string | null;
+      birthPlace: string | null;
+      birthDate: Date | null;
+      address: string | null;
+      nik: string | null;
+      userId: string | null;
+      photoUrl?: string | null;
+      dojo: { name: string } | null;
+      user: { photoUrl: string | null; phoneNumber: string | null } | null;
+    };
+    type LatberRegRow = {
+      id: string;
+      status: string;
+      memberId: string;
+      createdAt: Date;
+      member: LatberRegMember;
+    };
+
     const regsResult = await withPrismaFallback(
       "latber-regs-prisma",
-      () =>
-        prisma.eventRegistration.findMany({
+      async (): Promise<LatberRegRow[]> => {
+        const found = await prisma.eventRegistration.findMany({
           where: {
             eventId: selectedPeriodId,
             status: { notIn: ["REJECTED"] },
@@ -523,8 +548,10 @@ export async function fetchLatberDashboardData(
             },
           },
           orderBy: { createdAt: "asc" },
-        }),
-      [] as Awaited<ReturnType<typeof prisma.eventRegistration.findMany>>,
+        });
+        return found as LatberRegRow[];
+      },
+      [] as LatberRegRow[],
     );
     const registrations = regsResult.data ?? [];
 
@@ -631,7 +658,7 @@ export async function fetchLatberDashboardData(
         dojoId: m.dojoId,
         dojoName: m.dojo?.name ?? null,
         photoUrl: resolveMemberPhotoUrl(
-          "photoUrl" in m ? (m.photoUrl as string | null) : null,
+          m.photoUrl ?? null,
           m.user?.photoUrl,
         ),
         status: reg.status,
