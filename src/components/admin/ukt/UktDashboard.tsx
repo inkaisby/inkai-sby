@@ -143,6 +143,7 @@ import {
   isUktBillingUnpaid,
   isUktBillingPaid,
   isUktPaymentDocumentRow,
+  isUktWaRosterRow,
   isUktNotaRow,
   canRantingSubmitUktPayment,
   canCabangVerifyUktPayment,
@@ -651,23 +652,23 @@ export function UktDashboard(props: Props) {
     [effectiveDojoIds],
   );
 
-  // Cabang: untuk picker WA rinci, butuh daftar ranting yang punya peserta approved,
+  // Cabang: picker WA = ranting yang punya peserta terdaftar (selaras tabel),
   // tanpa bergantung pada filter tabel saat ini.
-  const cabangPaymentRowsAll = useMemo(() => {
-    return rows.filter((r) => isUktPaymentDocumentRow(r));
+  const cabangWaRosterRowsAll = useMemo(() => {
+    return rows.filter((r) => isUktWaRosterRow(r));
   }, [rows]);
 
   const cabangWaDojoOptions = useMemo(() => {
     const byDojo = new Map<string, { dojoId: string; dojoName: string; count: number }>();
-    for (const r of cabangPaymentRowsAll) {
-      const dojoId = r.dojoId;
+    for (const r of cabangWaRosterRowsAll) {
+      const dojoId = r.dojoId?.trim() || "__none__";
       const existing = byDojo.get(dojoId);
       if (existing) {
         existing.count++;
       } else {
         byDojo.set(dojoId, {
           dojoId,
-          dojoName: r.dojoName?.trim() || "Ranting",
+          dojoName: r.dojoName?.trim() || "TANPA RANTING",
           count: 1,
         });
       }
@@ -675,7 +676,7 @@ export function UktDashboard(props: Props) {
     return [...byDojo.values()].sort((a, b) =>
       a.dojoName.localeCompare(b.dojoName, "id"),
     );
-  }, [cabangPaymentRowsAll]);
+  }, [cabangWaRosterRowsAll]);
 
   const normalizeRows = useCallback((list: UktMemberRow[]) => {
     const cleared = locallyClearedMemberIdsRef.current;
@@ -2261,8 +2262,8 @@ export function UktDashboard(props: Props) {
       toast.error("Pilih periode UKT terlebih dahulu");
       return;
     }
-    if (cabangPaymentRowsAll.length === 0) {
-      toast.error("Belum ada peserta pada tagihan pembayaran");
+    if (cabangWaRosterRowsAll.length === 0) {
+      toast.error("Belum ada peserta terdaftar");
       return;
     }
 
@@ -2299,9 +2300,9 @@ export function UktDashboard(props: Props) {
 
   const sendCabangWaReport = async (dojoId: string | null) => {
     const title = selectedPeriod?.title || periodTitle;
-    const approvedAll = cabangPaymentRowsAll;
-    if (approvedAll.length === 0) {
-      toast.error("Belum ada peserta pada tagihan pembayaran");
+    const rosterAll = cabangWaRosterRowsAll;
+    if (rosterAll.length === 0) {
+      toast.error("Belum ada peserta terdaftar");
       return;
     }
 
@@ -2312,11 +2313,20 @@ export function UktDashboard(props: Props) {
 
     const text =
       !dojoId
-        ? buildUktCabangWaReportText(title, approvedAll, examMeta)
+        ? buildUktCabangWaReportText(
+            title,
+            rosterAll,
+            beltFees,
+            komisiRanting,
+            examMeta,
+          )
         : (() => {
-            const approved = approvedAll.filter((r) => r.dojoId === dojoId);
-            if (approved.length === 0) {
-              toast.error("Ranting terpilih tidak punya peserta pada tagihan pembayaran");
+            const roster = rosterAll.filter((r) => {
+              const id = r.dojoId?.trim() || "__none__";
+              return id === dojoId;
+            });
+            if (roster.length === 0) {
+              toast.error("Ranting terpilih tidak punya peserta terdaftar");
               return "";
             }
             const dojoName =
@@ -2326,7 +2336,7 @@ export function UktDashboard(props: Props) {
             return buildUktRantingWaReportText(
               title,
               dojoName,
-              approved,
+              roster,
               beltFees,
               komisiRanting,
               examMeta,
@@ -2352,11 +2362,11 @@ export function UktDashboard(props: Props) {
     }
 
     const title = selectedPeriod?.title || periodTitle;
-    const approved = rows.filter(
-      (r) => isUktPaymentDocumentRow(r) && matchesDojoFilter(r.dojoId),
+    const roster = rows.filter(
+      (r) => isUktWaRosterRow(r) && matchesDojoFilter(r.dojoId),
     );
-    if (approved.length === 0) {
-      toast.error("Belum ada peserta pada tagihan pembayaran");
+    if (roster.length === 0) {
+      toast.error("Belum ada peserta terdaftar");
       return;
     }
     const text = buildUktRantingWaReportText(
@@ -2364,10 +2374,10 @@ export function UktDashboard(props: Props) {
       resolveUktWaDojoLabel({
         effectiveDojoId: effectiveDojo,
         dojos: props.dojos,
-        approvedRows: approved,
+        approvedRows: roster,
         loginDojoName: props.loginDojoName,
       }),
-      approved,
+      roster,
       beltFees,
       komisiRanting,
       {

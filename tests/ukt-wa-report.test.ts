@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildUktCabangWaReportText,
+  buildUktRantingWaReportText,
   countNotaBeltGroups,
   extractUktRankNumber,
+  formatRupiahNota,
+  isUktNotaRow,
   isUktPaymentDocumentRow,
+  isUktWaRosterRow,
+  uktWaNetOfNotaRows,
 } from "../src/lib/ukt";
 import { resolveUktRankColumns, shortRankLabel } from "../src/lib/belt";
 
@@ -15,6 +20,8 @@ const beltFees = {
   BIRU: 315000,
   COKELAT: 345000,
 };
+
+const komisi = 50000;
 
 describe("ukt WA/nota sabuk", () => {
   it("WA cabang: kyuBaru DAN 8 tidak membuat bucket dan 8", () => {
@@ -28,10 +35,18 @@ describe("ukt WA/nota sabuk", () => {
         kyuLama: "Kuning (Kyu 7)",
         kyuBaru: "Hitam (DAN 8)",
         status: "APPROVED",
+        billingStatus: "PENDING",
+        billingId: "b1",
+        billingAmount: 295000,
       },
     ] as any[];
 
-    const text = buildUktCabangWaReportText("UKT Semester II-2026", rows);
+    const text = buildUktCabangWaReportText(
+      "UKT Semester II-2026",
+      rows,
+      beltFees,
+      komisi,
+    );
     expect(text.toLowerCase()).toContain("kyu 7 = _1 peserta_");
     expect(text.toLowerCase()).not.toContain("dan 8");
   });
@@ -44,7 +59,6 @@ describe("ukt WA/nota sabuk", () => {
         dojoId: "d1",
         dojoName: "GADING",
         kyuLama: "Kuning (Kyu 7)",
-        // Ini target setelah ujian (bisa beda warna), harus TIDAK mengotori kelompok nota.
         kyuBaru: "Biru (Kyu 4)",
         billingAmount: 295000,
       },
@@ -64,8 +78,6 @@ describe("ukt WA/nota sabuk", () => {
 describe("resolveUktRankColumns guard categoryName", () => {
   it("categoryName 'Pendaftaran UKT' tidak masuk sebagai kyuBaru", () => {
     const res = resolveUktRankColumns(
-      // Pakai separator "→" karena `decodeUktRegisteredRank` memang men-support
-      // kasus "lama-only" saat delimiter ada tanpa trailing part.
       "Kuning (Kyu 7) →",
       "Kuning (Kyu 7)",
       "Pendaftaran UKT",
@@ -75,11 +87,10 @@ describe("resolveUktRankColumns guard categoryName", () => {
 
   it("shortRankLabel: regex boundary DAN aman", () => {
     const out = shortRankLabel("PENDAN 8");
-    // Harus tidak di-normalisasi jadi "Dan 8".
     expect(out.toLowerCase()).not.toBe("dan 8");
   });
 
-  it("Laporan WA setor: Belum Bayar disaring, Menunggu Verifikasi/lunas masuk", () => {
+  it("isUktPaymentDocumentRow: Belum Bayar disaring; WA roster tetap masuk", () => {
     const rows = [
       {
         memberId: "m1",
@@ -90,6 +101,8 @@ describe("resolveUktRankColumns guard categoryName", () => {
         kyuLama: "Kuning (Kyu 7)",
         status: "APPROVED",
         billingStatus: "PENDING",
+        billingId: "b1",
+        billingAmount: 295000,
       },
       {
         memberId: "m2",
@@ -100,6 +113,8 @@ describe("resolveUktRankColumns guard categoryName", () => {
         kyuLama: "Hijau (Kyu 6)",
         status: "APPROVED",
         billingStatus: "WAITING_VERIFICATION",
+        billingId: "b2",
+        billingAmount: 305000,
       },
       {
         memberId: "m3",
@@ -110,6 +125,8 @@ describe("resolveUktRankColumns guard categoryName", () => {
         kyuLama: "Biru (Kyu 5)",
         status: "APPROVED",
         billingStatus: "PAID",
+        billingId: "b3",
+        billingAmount: 315000,
       },
       {
         memberId: "m4",
@@ -125,14 +142,28 @@ describe("resolveUktRankColumns guard categoryName", () => {
 
     const paymentRows = rows.filter((r) => isUktPaymentDocumentRow(r));
     expect(paymentRows.map((r) => r.fullName)).toEqual(["Sudah Ajukan", "Lunas"]);
-    const text = buildUktCabangWaReportText("UKT Semester II-2026", paymentRows);
-    expect(text).toContain("TOTAL SEMUA: 2 peserta");
+
+    const roster = rows.filter((r) => isUktWaRosterRow(r));
+    expect(roster.map((r) => r.fullName)).toEqual([
+      "Belum Bayar",
+      "Sudah Ajukan",
+      "Lunas",
+    ]);
+
+    const text = buildUktCabangWaReportText(
+      "UKT Semester II-2026",
+      roster,
+      beltFees,
+      komisi,
+    );
+    expect(text).toContain("TOTAL SEMUA: 3 peserta");
     expect(text).toContain("*Pelaksanaan UKT Semester II-2026*");
     expect(text).toContain("*1 Ranting*");
-    expect(text).toContain("Lunas: 1 · Belum lunas: 1");
-    expect(text.toLowerCase()).not.toContain("belum bayar");
+    expect(text).toContain("(Lunas: 1 · Belum lunas: 2)");
+    expect(text).toContain("*Jumlah UKT:");
     expect(text).not.toContain("List Ranting");
     expect(text).not.toContain("Pelaksaan");
+    expect(text).not.toContain("TOTAL disetor");
   });
 });
 
@@ -146,6 +177,8 @@ describe("UKT Laporan WA format cabang", () => {
     kyuLama: "Kuning (Kyu 7)",
     status: "APPROVED",
     billingStatus: "WAITING_VERIFICATION",
+    billingId: "b1",
+    billingAmount: 295000,
   };
 
   it("judul Pelaksanaan, pecahan lunas, tanpa countdown jika ujian lampau", () => {
@@ -157,42 +190,209 @@ describe("UKT Laporan WA format cabang", () => {
         registrationId: "r2",
         fullName: "Peserta B",
         billingStatus: "PAID",
+        billingId: "b2",
       },
     ] as any[];
     const examAt = "2026-09-12T01:00:00.000Z";
-    const past = buildUktCabangWaReportText("UKT Semester II-2026", rows, {
-      examAt,
-      now: Date.parse("2026-09-13T00:00:00.000Z"),
-    });
+    const past = buildUktCabangWaReportText(
+      "UKT Semester II-2026",
+      rows,
+      beltFees,
+      komisi,
+      {
+        examAt,
+        now: Date.parse("2026-09-13T00:00:00.000Z"),
+      },
+    );
     expect(past).toContain("*Pelaksanaan UKT Semester II-2026*");
     expect(past).toContain("WIB");
     expect(past).not.toMatch(/Hari:/);
-    expect(past).toContain("Lunas: 1 · Belum lunas: 1");
+    expect(past).toContain("(Lunas: 1 · Belum lunas: 1)");
+    expect(past).toMatch(/\*Jumlah UKT: Rp .+,-\*/);
 
-    const future = buildUktCabangWaReportText("UKT Semester II-2026", rows, {
-      examAt,
-      now: Date.parse("2026-09-09T01:00:00.000Z"),
-    });
+    const future = buildUktCabangWaReportText(
+      "UKT Semester II-2026",
+      rows,
+      beltFees,
+      komisi,
+      {
+        examAt,
+        now: Date.parse("2026-09-09T01:00:00.000Z"),
+      },
+    );
     expect(future).toMatch(/Hari:/);
+  });
+
+  it("semua lunas: baris ranting hanya Lunas; pecahan rupiah _Lunas_", () => {
+    const rows = [
+      {
+        ...baseRow,
+        billingStatus: "PAID",
+      },
+      {
+        ...baseRow,
+        memberId: "m2",
+        registrationId: "r2",
+        billingId: "b2",
+        billingStatus: "PAID",
+        dojoName: "FORTRESS",
+        dojoId: "d2",
+        billingAmount: 305000,
+        kyuLama: "Hijau (Kyu 6)",
+      },
+    ] as any[];
+    const text = buildUktCabangWaReportText(
+      "UKT Semester II-2026",
+      rows,
+      beltFees,
+      komisi,
+    );
+    expect(text).toContain("= _1 peserta_  Lunas");
+    expect(text).toContain("_Lunas_");
+    expect(text).not.toMatch(/Belum lunas: 0/);
+  });
+
+  it("Jumlah UKT = Lunas Rp + Belum lunas Rp", () => {
+    const rows = [
+      baseRow,
+      {
+        ...baseRow,
+        memberId: "m2",
+        registrationId: "r2",
+        billingId: "b2",
+        billingStatus: "PAID",
+      },
+    ] as any[];
+    const paidNet = uktWaNetOfNotaRows(
+      rows.filter((r) => r.billingStatus === "PAID"),
+      beltFees,
+      komisi,
+    );
+    const unpaidNet = uktWaNetOfNotaRows(
+      rows.filter((r) => r.billingStatus !== "PAID"),
+      beltFees,
+      komisi,
+    );
+    const text = buildUktCabangWaReportText(
+      "UKT Semester II-2026",
+      rows,
+      beltFees,
+      komisi,
+    );
+    expect(text).toContain(`*Jumlah UKT: ${formatRupiahNota(paidNet + unpaidNet)}*`);
+    expect(text).toContain(
+      `_(Lunas: ${formatRupiahNota(paidNet)} · Belum lunas: ${formatRupiahNota(unpaidNet)})_`,
+    );
   });
 
   it("Dispora: Tempat + Lokasi; string lain hanya Tempat; kosong dihilangkan", () => {
     const rows = [baseRow] as any[];
-    const dispora = buildUktCabangWaReportText("UKT Semester II-2026", rows, {
-      examLocation: "Prasarana Dojo Karate Dispora Jatim",
-    });
+    const dispora = buildUktCabangWaReportText(
+      "UKT Semester II-2026",
+      rows,
+      beltFees,
+      komisi,
+      {
+        examLocation: "Prasarana Dojo Karate Dispora Jatim",
+      },
+    );
     expect(dispora).toContain("*Tempat:* Prasarana Dojo Karate Dispora Jatim");
     expect(dispora).toContain("*Lokasi:*");
 
-    const other = buildUktCabangWaReportText("UKT Semester II-2026", rows, {
-      examLocation: "Gedung Serbaguna",
-    });
+    const other = buildUktCabangWaReportText(
+      "UKT Semester II-2026",
+      rows,
+      beltFees,
+      komisi,
+      {
+        examLocation: "Gedung Serbaguna",
+      },
+    );
     expect(other).toContain("*Tempat:* Gedung Serbaguna");
     expect(other).not.toContain("*Lokasi:*");
 
-    const empty = buildUktCabangWaReportText("UKT Semester II-2026", rows);
+    const empty = buildUktCabangWaReportText(
+      "UKT Semester II-2026",
+      rows,
+      beltFees,
+      komisi,
+    );
     expect(empty).not.toContain("*Tempat:*");
     expect(empty).not.toContain("*Lokasi:*");
   });
 });
 
+describe("UKT Laporan WA format ranting", () => {
+  it("A/B/C + TOTAL (A+B−C) + Sudah lunas / Belum lunas", () => {
+    const rows = [
+      {
+        memberId: "m1",
+        registrationId: "r1",
+        fullName: "BELUM",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Kuning (Kyu 7)",
+        status: "APPROVED",
+        billingStatus: "PENDING",
+        billingId: "b1",
+        billingAmount: 295000,
+      },
+      {
+        memberId: "m2",
+        registrationId: "r2",
+        fullName: "LUNAS",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Kuning (Kyu 7)",
+        status: "APPROVED",
+        billingStatus: "PAID",
+        billingId: "b2",
+        billingAmount: 295000,
+      },
+    ] as any[];
+
+    const text = buildUktRantingWaReportText(
+      "UKT Semester II-2026",
+      "GADING",
+      rows,
+      beltFees,
+      komisi,
+    );
+    expect(text).toContain("*A.* Subtotal A (Biaya UKT):");
+    expect(text).toContain("*B.* Subtotal B (Buku Rusak/Hilang): _Rp 0,-_");
+    expect(text).toContain("*C.* Komisi Ranting (2 ×");
+    expect(text).toContain("*TOTAL (A+B−C):");
+    expect(text).toContain("Sudah lunas:");
+    expect(text).toContain("Belum lunas:");
+    expect(text).toContain("_Termasuk 1 Belum Bayar_");
+    expect(text).not.toContain("TOTAL disetor");
+    expect(text).not.toContain("yang dibayarkan");
+    expect(isUktNotaRow(rows[0])).toBe(true);
+  });
+
+  it("semua lunas: pecahan _Sudah lunas_ saja", () => {
+    const rows = [
+      {
+        memberId: "m1",
+        registrationId: "r1",
+        fullName: "LUNAS",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Kuning (Kyu 7)",
+        status: "APPROVED",
+        billingStatus: "PAID",
+        billingId: "b1",
+        billingAmount: 295000,
+      },
+    ] as any[];
+    const text = buildUktRantingWaReportText(
+      "UKT Semester II-2026",
+      "GADING",
+      rows,
+      beltFees,
+      komisi,
+    );
+    expect(text).toContain("_Sudah lunas_");
+    expect(text).not.toContain("Belum lunas:");
+  });
+});

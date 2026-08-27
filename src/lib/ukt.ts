@@ -1855,8 +1855,11 @@ export function buildUktWaVenueLines(
 function buildUktWaExamHeader(
   periodTitle: string,
   meta?: UktWaExamMeta,
+  afterTitle: string[] = [],
 ): string[] {
   const lines = [`*Pelaksanaan ${periodTitle}*`];
+  if (afterTitle.length) lines.push(...afterTitle);
+
   const examAt = meta?.examAt?.trim() || "";
   const countdown = examAt
     ? formatUktWaCountdownLine(examAt, meta?.now)
@@ -1874,52 +1877,112 @@ function buildUktWaExamHeader(
   return lines;
 }
 
-/** Laporan WA satu ranting (peserta + rincian setor selaras Nota). */
+/** Net A−C (B=0) untuk baris nota — selaras TOTAL Cetak Nota default. */
+export function uktWaNetOfNotaRows(
+  rows: UktMemberRow[],
+  beltFees: Record<BeltFeeKey, number>,
+  komisiRanting: number,
+): number {
+  const nota = rows.filter(isUktNotaRow);
+  if (nota.length === 0) return 0;
+  const { subtotalA, registeredCount } = buildNotaBeltLines(nota, beltFees);
+  return subtotalA - registeredCount * komisiRanting;
+}
+
+export function formatUktWaCountPaidSuffix(
+  count: number,
+  paid: number,
+): string {
+  if (count > 0 && paid === count) return "  Lunas";
+  return `  (Lunas: ${paid} · Belum lunas: ${count - paid})`;
+}
+
+export function formatUktWaMoneyPaidLine(
+  paidRp: number,
+  unpaidRp: number,
+  opts?: { sudahLunasLabel?: boolean },
+): string {
+  const allPaid = unpaidRp === 0;
+  if (allPaid) {
+    return opts?.sudahLunasLabel ? "_Sudah lunas_" : "_Lunas_";
+  }
+  const paidLabel = opts?.sudahLunasLabel ? "Sudah lunas" : "Lunas";
+  return `_(${paidLabel}: ${formatRupiahNota(paidRp)} · Belum lunas: ${formatRupiahNota(unpaidRp)})_`;
+}
+
+/** Peserta terdaftar untuk picker/roster Laporan WA (selaras tabel UKT). */
+export function isUktWaRosterRow(row: UktMemberRow): boolean {
+  if (!row.registrationId) return false;
+  const st = String(row.status ?? "").toUpperCase();
+  if (st === "REJECTED" || st === "CANCELLED" || st === "BELUM_DAFTAR") {
+    return false;
+  }
+  return true;
+}
+
+/** Laporan WA satu ranting (peserta roster + rincian uang selaras Nota). */
 export function buildUktRantingWaReportText(
   periodTitle: string,
   dojoName: string,
-  approvedRows: UktMemberRow[],
+  rosterRows: UktMemberRow[],
   beltFees: Record<BeltFeeKey, number>,
   komisiRanting: number,
   examMeta?: UktWaExamMeta,
 ): string {
-  const lines = approvedRows.map((r, i) => formatWaParticipantLine(r, i));
-  const counts = countNotaBeltGroups(approvedRows, beltFees);
-  const subtotalA = BELT_FEE_KEYS.reduce(
-    (sum, belt) => sum + counts[belt] * beltFees[belt],
-    0,
+  const participantLines = rosterRows.map((r, i) =>
+    formatWaParticipantLine(r, i),
   );
-  const registeredCount = approvedRows.length;
-  const komisiTotal = registeredCount * komisiRanting;
-  const grandTotal = subtotalA - komisiTotal;
+  const notaRows = rosterRows.filter(isUktNotaRow);
+  const { lines, subtotalA, registeredCount, unpaidCount } = buildNotaBeltLines(
+    notaRows,
+    beltFees,
+  );
+  const subtotalB = 0;
+  const totalC = registeredCount * komisiRanting;
+  const grandTotal = subtotalA + subtotalB - totalC;
 
-  const beltLines = BELT_FEE_KEYS.filter((belt) => counts[belt] > 0).map((belt) => {
-    const n = counts[belt];
-    const fee = beltFees[belt];
-    return `${belt}: ${n} × ${formatRupiahPlain(fee)} = ${formatRupiahPlain(n * fee)}`;
+  const paidRows = notaRows.filter((r) => isUktBillingPaid(r));
+  const unpaidRows = notaRows.filter((r) => !isUktBillingPaid(r));
+  const paidNet = uktWaNetOfNotaRows(paidRows, beltFees, komisiRanting);
+  const unpaidNet = uktWaNetOfNotaRows(unpaidRows, beltFees, komisiRanting);
+
+  const beltLines = lines.map((l) => {
+    const label = l.belt === "LAINNYA" ? "LAINNYA" : l.belt;
+    return `${label}: ${l.count} × ${formatRupiahNota(l.unitFee)} = ${formatRupiahNota(l.subtotal)}`;
   });
 
-  return [
+  const out = [
     ...buildUktWaExamHeader(periodTitle, examMeta),
+    "",
     `*Ranting/Dojo: ${dojoName}*`,
     "",
     "*Peserta yang terdaftar*",
-    ...lines,
+    ...participantLines,
     "",
     "*Rincian pembayaran*",
     ...beltLines,
-    `Subtotal A (Biaya UKT): _${formatRupiahPlain(subtotalA)}_`,
-    `Komisi Ranting (${registeredCount} × ${formatRupiahPlain(komisiRanting)}): - ${formatRupiahPlain(komisiTotal)}`,
-    `*TOTAL disetor ke cabang: ${formatRupiahPlain(grandTotal)}*`,
-  ].join("\n");
+  ];
+  if (unpaidCount > 0) {
+    out.push(`_Termasuk ${unpaidCount} Belum Bayar_`);
+  }
+  out.push(
+    `*A.* Subtotal A (Biaya UKT): _${formatRupiahNota(subtotalA)}_`,
+    `*B.* Subtotal B (Buku Rusak/Hilang): _${formatRupiahNota(subtotalB)}_`,
+    `*C.* Komisi Ranting (${registeredCount} × ${formatRupiahNota(komisiRanting)}): - ${formatRupiahNota(totalC)}`,
+    `*TOTAL (A+B−C): ${formatRupiahNota(grandTotal)}*`,
+    formatUktWaMoneyPaidLine(paidNet, unpaidNet, { sudahLunasLabel: true }),
+  );
+  return out.join("\n");
 }
 
 /**
- * Laporan WA admin cabang: ringkasan jumlah per ranting + sebaran kyu.
+ * Laporan WA admin cabang: ringkasan jumlah per ranting + sebaran kyu + Jumlah UKT.
  */
 export function buildUktCabangWaReportText(
   periodTitle: string,
-  approvedRows: UktMemberRow[],
+  rosterRows: UktMemberRow[],
+  beltFees: Record<BeltFeeKey, number>,
+  komisiRanting: number,
   examMeta?: UktWaExamMeta,
 ): string {
   const byDojo = new Map<
@@ -1929,7 +1992,7 @@ export function buildUktCabangWaReportText(
   const byRank = new Map<string, number>();
   let paidAll = 0;
 
-  for (const row of approvedRows) {
+  for (const row of rosterRows) {
     const key = row.dojoId || row.dojoName || "unknown";
     const existing = byDojo.get(key);
     const paid = isUktBillingPaid(row);
@@ -1939,7 +2002,7 @@ export function buildUktCabangWaReportText(
       if (paid) existing.paid++;
     } else {
       byDojo.set(key, {
-        dojoName: row.dojoName?.trim() || "Ranting",
+        dojoName: row.dojoName?.trim() || "TANPA RANTING",
         count: 1,
         paid: paid ? 1 : 0,
       });
@@ -1957,18 +2020,33 @@ export function buildUktCabangWaReportText(
 
   const rantingLines = rantingList.map(
     (g, i) =>
-      `${i + 1}. ${g.dojoName} = _${g.count} peserta_  Lunas: ${g.paid} · Belum lunas: ${g.count - g.paid}`,
+      `${i + 1}. ${g.dojoName} = _${g.count} peserta_${formatUktWaCountPaidSuffix(g.count, g.paid)}`,
   );
   const rankLines = rankList.map(
     ([label, count]) => `${label} = _${count} peserta_`,
   );
-  const unpaidAll = approvedRows.length - paidAll;
+  const unpaidAll = rosterRows.length - paidAll;
+
+  const notaRows = rosterRows.filter(isUktNotaRow);
+  const paidNota = notaRows.filter((r) => isUktBillingPaid(r));
+  const unpaidNota = notaRows.filter((r) => !isUktBillingPaid(r));
+  const paidNet = uktWaNetOfNotaRows(paidNota, beltFees, komisiRanting);
+  const unpaidNet = uktWaNetOfNotaRows(unpaidNota, beltFees, komisiRanting);
+  const jumlahUkt = paidNet + unpaidNet;
+
+  const countPaidLine =
+    unpaidAll === 0 && rosterRows.length > 0
+      ? "_Lunas_"
+      : `_(Lunas: ${paidAll} · Belum lunas: ${unpaidAll})_`;
 
   return [
-    ...buildUktWaExamHeader(periodTitle, examMeta),
+    ...buildUktWaExamHeader(periodTitle, examMeta, [
+      `*Jumlah UKT: ${formatRupiahNota(jumlahUkt)}*`,
+      formatUktWaMoneyPaidLine(paidNet, unpaidNet),
+    ]),
     "",
-    `*TOTAL SEMUA: ${approvedRows.length} peserta*`,
-    `_Lunas: ${paidAll} · Belum lunas: ${unpaidAll}_`,
+    `*TOTAL SEMUA: ${rosterRows.length} peserta*`,
+    countPaidLine,
     "",
     `*${rantingList.length} Ranting*`,
     ...rantingLines,
