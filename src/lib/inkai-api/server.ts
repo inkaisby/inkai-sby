@@ -1,6 +1,33 @@
+import { NextResponse } from "next/server";
+import {
+  inkaiServiceTokenFromEnv,
+  portalStatusFromInkai,
+  shouldPreferServiceToken,
+} from "@/lib/inkai-api/auth-gateway";
+
+export {
+  decodeJwtExpSeconds,
+  isInkaiTokenSoftValid,
+  shouldPreferServiceToken,
+  portalStatusFromInkai,
+  shouldAutoEnterPortal,
+  inkaiServiceTokenFromEnv,
+  INKAI_JWT_NEAR_EXPIRY_SEC,
+} from "@/lib/inkai-api/auth-gateway";
+
 /** Production inkai-backend — override via INKAI_API_URL / NEXT_PUBLIC_INKAI_API_URL. */
 const DEFAULT_INKAI_API_URL = "https://inkai-ecosystem.vercel.app";
 const INKAI_FETCH_TIMEOUT_MS = 12_000;
+
+export function inkaiServiceToken(): string | null {
+  const t = inkaiServiceTokenFromEnv();
+  if (!t && process.env.VERCEL_ENV === "production") {
+    console.error(
+      "[inkaiServiceToken] INKAI_SERVICE_TOKEN / CRON_INKAI_TOKEN missing in production",
+    );
+  }
+  return t;
+}
 
 export function getInkaiApiBaseUrl(): string {
   const url =
@@ -233,4 +260,92 @@ function friendlyInkaiValidationMessage(raw: string): string {
     return "Ada field wajib yang terlalu pendek (minimal 2 karakter).";
   }
   return text;
+}
+
+export type InkaiFetchWithServiceRetryResult = InkaiFetchResult & {
+  /** True when the successful (or final) call used the service token. */
+  usedServiceToken: boolean;
+  /** True when user JWT was skipped/retried due to auth/near-expiry. */
+  degradedAuth: boolean;
+};
+
+/**
+ * Admin mutations: prefer service token when user JWT near expiry;
+ * on Inkai auth failure retry once with service token.
+ * Callers must map errors with portalStatusFromInkai (never forward 401).
+ */
+export async function inkaiFetchWithServiceRetry(
+  path: string,
+  init: RequestInit = {},
+  userToken?: string | null,
+  options: InkaiFetchOptions = {},
+): Promise<InkaiFetchWithServiceRetryResult> {
+  const service = inkaiServiceToken();
+  const preferService =
+    Boolean(service) &&
+    service !== userToken &&
+    shouldPreferServiceToken(userToken);
+
+  if (preferService && service) {
+    const result = await inkaiFetch(path, init, service, {
+      ...options,
+      retries: options.retries ?? 1,
+    });
+    if (result.res.ok || !isInkaiAuthFailure(result.res, result.data)) {
+      if (!result.res.ok) {
+        console.warn(
+          `[inkaiFetchWithServiceRetry] degraded service-first ${path} status=${result.res.status}`,
+        );
+      }
+      return { ...result, usedServiceToken: true, degradedAuth: true };
+    }
+    console.warn(
+      `[inkaiFetchWithServiceRetry] service-first auth failed ${path}; falling back to user token`,
+    );
+  }
+
+  const primaryToken = userToken?.trim() || service || null;
+  const first = await inkaiFetch(path, init, primaryToken, {
+    ...options,
+    retries: options.retries ?? 1,
+  });
+
+  if (
+    first.res.ok ||
+    !isInkaiAuthFailure(first.res, first.data) ||
+    !service ||
+    service === primaryToken
+  ) {
+    return {
+      ...first,
+      usedServiceToken: primaryToken === service && Boolean(service),
+      degradedAuth: false,
+    };
+  }
+
+  console.warn(
+    `[inkaiFetchWithServiceRetry] user auth failed ${path}; retrying with service token`,
+  );
+  const retry = await inkaiFetch(path, init, service, {
+    ...options,
+    retries: options.retries ?? 1,
+  });
+  return {
+    ...retry,
+    usedServiceToken: true,
+    degradedAuth: true,
+  };
+}
+
+/** JSON error for admin routes after Inkai failure (never HTTP 401). */
+export function inkaiPortalErrorResponse(
+  data: Record<string, unknown>,
+  fallback: string,
+  inkaiStatus: number,
+) {
+  const status = portalStatusFromInkai(inkaiStatus);
+  return NextResponse.json(
+    { error: inkaiErrorMessage(data, fallback) },
+    { status },
+  );
 }

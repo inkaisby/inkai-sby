@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import {
+  inkaiFetch,
+  inkaiErrorMessage,
+  inkaiFetchWithServiceRetry,
+  inkaiPortalErrorResponse,
+  isInkaiAuthFailure,
+} from "@/lib/inkai-api/server";
 import { getPrimaryAdminRole } from "@/lib/rbac";
 import { getManagedDojoIdsFromUser } from "@/lib/managed-dojos";
 import {
@@ -624,7 +630,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     let existingRegistered: string | null = null;
-    const { res: getRes, data: getData } = await inkaiFetch(
+    const { res: getRes, data: getData } = await inkaiFetchWithServiceRetry(
       `/v1/events/register/${id}`,
       {},
       authResult.token,
@@ -654,7 +660,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const registeredRank = encodeUktRegisteredRank(newLama, kyuBaruKeep);
 
-    const { res: putRes, data: putData } = await inkaiFetch(
+    const { res: putRes, data: putData } = await inkaiFetchWithServiceRetry(
       `/v1/events/register/${id}`,
       {
         method: "PUT",
@@ -663,18 +669,30 @@ export async function PATCH(request: Request, context: RouteContext) {
       authResult.token,
     );
 
-    if (!putRes.ok) {
+    let inkaiOk = putRes.ok;
+    if (!inkaiOk) {
       try {
         await prisma.eventRegistration.update({
           where: { id },
           data: { registeredRank },
         });
+        // Lokal berhasil — jangan forward 401/5xx Inkai ke browser.
+        if (isInkaiAuthFailure(putRes, putData) || putRes.status >= 500) {
+          console.warn(
+            `[update_kyu] Inkai failed status=${putRes.status}; Prisma fallback ok for ${id}`,
+          );
+          inkaiOk = false;
+        } else if (putRes.status !== 404) {
+          // Non-auth client error but local saved — still return success for admin UX.
+          console.warn(
+            `[update_kyu] Inkai status=${putRes.status}; kept Prisma registeredRank for ${id}`,
+          );
+        }
       } catch {
-        return NextResponse.json(
-          {
-            error: inkaiErrorMessage(putData, "Gagal memperbarui Kyu Lama"),
-          },
-          { status: putRes.status || 500 },
+        return inkaiPortalErrorResponse(
+          putData,
+          "Gagal memperbarui Kyu Lama",
+          putRes.status || 500,
         );
       }
     } else {
@@ -690,7 +708,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       userId: authResult.user.id,
       email: authResult.user.email,
       action: "UKT_KYU_LAMA_UPDATE",
-      details: `UKT ${id}: Kyu Lama → ${newLama}${kyuBaruKeep ? ` (Kyu Baru tetap ${kyuBaruKeep})` : ""}`,
+      details: `UKT ${id}: Kyu Lama → ${newLama}${kyuBaruKeep ? ` (Kyu Baru tetap ${kyuBaruKeep})` : ""}${inkaiOk ? "" : " [prisma-fallback]"}`,
       ip: getClientIp(request),
       userAgent: request.headers.get("user-agent"),
       token: authResult.token,
@@ -1545,9 +1563,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   );
 
   if (!res.ok) {
-    return NextResponse.json(
-      { error: inkaiErrorMessage(apiData, "Gagal memperbarui pendaftaran") },
-      { status: res.status },
+    return inkaiPortalErrorResponse(
+      apiData as Record<string, unknown>,
+      "Gagal memperbarui pendaftaran",
+      res.status,
     );
   }
 

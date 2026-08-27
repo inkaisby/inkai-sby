@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { inkaiFetch, inkaiErrorMessage, isInkaiAuthFailure } from "@/lib/inkai-api/server";
+import { inkaiFetch, inkaiErrorMessage, isInkaiAuthFailure, inkaiServiceToken } from "@/lib/inkai-api/server";
 import {
   buildDojoFilter,
   getPrimaryAdminRole,
@@ -32,14 +32,6 @@ import {
 } from "@/lib/member-duplicate";
 
 type CreateInput = z.infer<typeof uktMemberCreateSchema>;
-
-function inkaiServiceToken(): string | null {
-  const t =
-    process.env.INKAI_SERVICE_TOKEN?.trim() ||
-    process.env.CRON_INKAI_TOKEN?.trim() ||
-    "";
-  return t || null;
-}
 
 export async function createAdminMember(opts: {
   user: SessionUser;

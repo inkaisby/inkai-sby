@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { auth } from "@/auth";
 import LoginPageClient from "@/app/(public)/login/LoginPageClient";
 import { safeCallbackUrl } from "@/lib/auth/safe-callback-url";
@@ -7,6 +8,11 @@ import {
   hasInkaiTokenCookie,
 } from "@/lib/auth/session-cookie";
 import { getInkaiAccessToken } from "@/lib/inkai-api/session";
+import { INKAI_TOKEN_COOKIE } from "@/lib/inkai-api/cookies";
+import {
+  isInkaiTokenSoftValid,
+  shouldAutoEnterPortal,
+} from "@/lib/inkai-api/auth-gateway";
 import { resolvePostLoginPath } from "@/lib/rbac";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -40,9 +46,23 @@ export default async function LoginPage({
     hasInkaiTokenCookie(),
   ]);
 
-  const hasToken = Boolean(token) || hasTokenCookie;
+  const inkaiToken = token?.trim() || null;
+  const softValid = isInkaiTokenSoftValid(inkaiToken);
 
-  if (session?.user && hasToken) {
+  // Stale JWT in cookie — clear so we do not bounce Auth.js session → /admin.
+  if (hasTokenCookie && inkaiToken && !softValid) {
+    try {
+      const jar = await cookies();
+      jar.delete(INKAI_TOKEN_COOKIE);
+    } catch (err) {
+      console.warn("[login] failed to clear stale inkai_token", err);
+    }
+  }
+
+  if (
+    session?.user &&
+    shouldAutoEnterPortal({ hasSession: true, inkaiToken })
+  ) {
     // Stay on daftar tab even if already signed in (rare dual-tab case).
     if (tab === "daftar") {
       return <LoginPageClient />;
@@ -53,6 +73,10 @@ export default async function LoginPage({
     redirect(destination);
   }
 
-  // Auth.js cookie present but Inkai API token gone — ask to sign in again.
-  return <LoginPageClient sessionExpiredHint={Boolean(session) || hasSessionCookie} />;
+  // Auth.js cookie present but Inkai token missing/expired — ask to sign in again.
+  return (
+    <LoginPageClient
+      sessionExpiredHint={Boolean(session) || hasSessionCookie}
+    />
+  );
 }

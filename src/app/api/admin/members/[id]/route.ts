@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { requireAdmin } from "@/lib/admin-auth";
-import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import {
+  inkaiFetch,
+  inkaiErrorMessage,
+  inkaiFetchWithServiceRetry,
+  inkaiPortalErrorResponse,
+  isInkaiAuthFailure,
+} from "@/lib/inkai-api/server";
 import { canAssignNia, canEditKyuBaru, formatMemberName, formatRankLabel } from "@/lib/belt";
 import { memberActionSchema } from "@/lib/security/schemas";
 import { writeAuditLog } from "@/lib/audit";
@@ -344,7 +350,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const previousNia = scoped.nia?.trim() || null;
 
-    const { res, data } = await inkaiFetch(
+    const { res, data } = await inkaiFetchWithServiceRetry(
       `/v1/members/${id}`,
       {
         method: "PATCH",
@@ -354,10 +360,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
 
     if (!res.ok) {
-      return NextResponse.json(
-        { error: inkaiErrorMessage(data, "Gagal menyimpan NIA") },
-        { status: res.status },
-      );
+      return inkaiPortalErrorResponse(data, "Gagal menyimpan NIA", res.status);
     }
 
     try {
@@ -404,7 +407,7 @@ export async function PATCH(request: Request, context: RouteContext) {
             where: { id: scoped.userId },
             data: { passwordHash },
           });
-          const patch = await inkaiFetch(
+          const patch = await inkaiFetchWithServiceRetry(
             `/v1/members/${id}`,
             {
               method: "PATCH",
@@ -604,7 +607,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       });
     }
 
-    const { res, data } = await inkaiFetch(
+    const { res, data } = await inkaiFetchWithServiceRetry(
       `/v1/members/${id}`,
       {
         method: "PATCH",
@@ -614,10 +617,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
 
     if (!res.ok) {
-      return NextResponse.json(
-        { error: inkaiErrorMessage(data, "Gagal menyimpan nama") },
-        { status: res.status },
-      );
+      return inkaiPortalErrorResponse(data, "Gagal menyimpan nama", res.status);
     }
 
     try {
@@ -661,17 +661,32 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Sabuk wajib dipilih" }, { status: 400 });
     }
 
-    const { res: prevRes, data: prevData } = await inkaiFetch(
+    const scopedRank = await prisma.member.findFirst({
+      where: { AND: [{ id }, buildMemberFilter(authResult.user)] },
+      select: { id: true, currentRank: true },
+    });
+    if (!scopedRank) {
+      logScopeDenied(authResult.user.id, "set_rank");
+      return NextResponse.json(
+        { error: "Anggota tidak ditemukan atau di luar cakupan" },
+        { status: 404 },
+      );
+    }
+
+    const { res: prevRes, data: prevData } = await inkaiFetchWithServiceRetry(
       `/v1/members/${id}`,
       {},
       token,
+      { timeoutMs: 6_000, retries: 0 },
     );
     const prevMember = prevRes.ok
       ? ((prevData.data as { currentRank?: string } | undefined) ?? null)
       : null;
-    const previousRank = String(prevMember?.currentRank ?? "").trim();
+    const previousRank = String(
+      prevMember?.currentRank ?? scopedRank.currentRank ?? "",
+    ).trim();
 
-    const { res, data } = await inkaiFetch(
+    const { res, data } = await inkaiFetchWithServiceRetry(
       `/v1/members/${id}`,
       {
         method: "PATCH",
@@ -680,10 +695,24 @@ export async function PATCH(request: Request, context: RouteContext) {
       token,
     );
 
-    if (!res.ok) {
-      return NextResponse.json(
-        { error: inkaiErrorMessage(data, "Gagal memperbarui sabuk") },
-        { status: res.status },
+    const inkaiOk = res.ok;
+    if (
+      !inkaiOk &&
+      !isInkaiAuthFailure(res, data) &&
+      res.status !== 503 &&
+      res.status < 500
+    ) {
+      return inkaiPortalErrorResponse(
+        data,
+        "Gagal memperbarui sabuk",
+        res.status,
+      );
+    }
+
+    // Auth/unavailable: tetap simpan sabuk di Prisma (tabel admin baca lokal).
+    if (!inkaiOk) {
+      console.warn(
+        `[set_rank] Inkai failed status=${res.status}; applying Prisma fallback for ${id}`,
       );
     }
 
@@ -694,7 +723,7 @@ export async function PATCH(request: Request, context: RouteContext) {
             memberId: id,
             rank: currentRank,
             date: new Date(),
-            location: "Koreksi cabang",
+            location: inkaiOk ? "Koreksi cabang" : "Koreksi cabang (lokal)",
             isVerified: true,
           },
         });
@@ -711,13 +740,24 @@ export async function PATCH(request: Request, context: RouteContext) {
       });
     } catch (err) {
       console.error("[set_rank] failed to sync local Prisma currentRank:", err);
+      if (!inkaiOk) {
+        return NextResponse.json(
+          {
+            error: prismaUserFacingError(
+              err,
+              "Gagal menyimpan sabuk di database lokal",
+            ),
+          },
+          { status: 500 },
+        );
+      }
     }
 
     writeAuditLog({
       userId: authResult.user.id,
       email: authResult.user.email,
       action: "MEMBER_SET_RANK",
-      details: `Set sabuk ${previousRank || "—"} → ${currentRank} for member ${id}`,
+      details: `Set sabuk ${previousRank || "—"} → ${currentRank} for member ${id}${inkaiOk ? "" : " [prisma-fallback]"}`,
       ip,
       userAgent,
       token,
@@ -725,9 +765,11 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({
       success: true,
-      member: data.data,
+      member: inkaiOk ? data.data : { id, currentRank },
       currentRank,
-      message: `Sabuk diperbarui: ${currentRank}`,
+      message: inkaiOk
+        ? `Sabuk diperbarui: ${currentRank}`
+        : `Sabuk disimpan: ${currentRank}`,
     });
   }
 
@@ -787,7 +829,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const previousDojoName = scoped.dojo?.name || "—";
 
-    const { res, data } = await inkaiFetch(
+    const { res, data } = await inkaiFetchWithServiceRetry(
       `/v1/members/${id}`,
       {
         method: "PATCH",
@@ -797,9 +839,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
 
     if (!res.ok) {
-      return NextResponse.json(
-        { error: inkaiErrorMessage(data, "Gagal memindahkan ranting") },
-        { status: res.status },
+      return inkaiPortalErrorResponse(
+        data,
+        "Gagal memindahkan ranting",
+        res.status,
       );
     }
 
@@ -868,7 +911,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    const { res, data } = await inkaiFetch(
+    const { res, data } = await inkaiFetchWithServiceRetry(
       `/v1/members/${id}`,
       {
         method: "PATCH",
@@ -887,9 +930,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     } catch (err) {
       console.error("[set_dues] prisma update failed:", err);
       if (!res.ok) {
-        return NextResponse.json(
-          { error: inkaiErrorMessage(data, "Gagal menyimpan iuran bulanan") },
-          { status: res.status },
+        return inkaiPortalErrorResponse(
+          data,
+          "Gagal menyimpan iuran bulanan",
+          res.status,
         );
       }
     }
@@ -1024,7 +1068,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const temporaryPassword = usedNiaAsPassword
       ? nia
       : generateSimplePassword(scoped.fullName);
-    const { res, data } = await inkaiFetch(
+    const { res, data } = await inkaiFetchWithServiceRetry(
       `/v1/members/${id}`,
       {
         method: "PATCH",
@@ -1043,14 +1087,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     } catch (err) {
       console.error("[reset_password] prisma user update failed:", err);
       if (!res.ok) {
-        return NextResponse.json(
-          {
-            error: inkaiErrorMessage(
-              data,
-              "Gagal mereset password anggota",
-            ),
-          },
-          { status: res.status },
+        return inkaiPortalErrorResponse(
+          data,
+          "Gagal mereset password anggota",
+          res.status,
         );
       }
     }
@@ -1175,7 +1215,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (hasBpjs) patchBody.bpjsCardUrl = nextBpjs;
     if (hasBpjsNo) patchBody.bpjsCardNumber = nextBpjsNo;
 
-    await inkaiFetch(
+    await inkaiFetchWithServiceRetry(
       `/v1/members/${id}`,
       { method: "PATCH", body: JSON.stringify(patchBody) },
       token,
@@ -1239,7 +1279,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    const { res, data } = await inkaiFetch(
+    const { res, data } = await inkaiFetchWithServiceRetry(
       `/v1/members/${id}`,
       { method: "PATCH", body: JSON.stringify({ photoUrl }) },
       token,
@@ -1404,7 +1444,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       address,
     };
 
-    const { res, data } = await inkaiFetch(
+    const { res, data } = await inkaiFetchWithServiceRetry(
       `/v1/members/${id}`,
       {
         method: "PATCH",
@@ -1414,9 +1454,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
 
     if (!res.ok) {
-      return NextResponse.json(
-        { error: inkaiErrorMessage(data, "Gagal menyimpan identitas") },
-        { status: res.status },
+      return inkaiPortalErrorResponse(
+        data,
+        "Gagal menyimpan identitas",
+        res.status,
       );
     }
 
@@ -1563,7 +1604,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     if (Object.keys(inkaiPatch).length > 0) {
-      const { res, data } = await inkaiFetch(
+      const { res, data } = await inkaiFetchWithServiceRetry(
         `/v1/members/${id}`,
         {
           method: "PATCH",
@@ -1572,9 +1613,10 @@ export async function PATCH(request: Request, context: RouteContext) {
         token,
       );
       if (!res.ok) {
-        return NextResponse.json(
-          { error: inkaiErrorMessage(data, "Gagal menyimpan kontak") },
-          { status: res.status },
+        return inkaiPortalErrorResponse(
+          data,
+          "Gagal menyimpan kontak",
+          res.status,
         );
       }
     }
@@ -1726,7 +1768,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
   }
 
-  const { res, data } = await inkaiFetch(
+  const { res, data } = await inkaiFetchWithServiceRetry(
     `/v1/members/${id}/registration`,
     {
       method: "PATCH",
@@ -1739,9 +1781,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   );
 
   if (!res.ok) {
-    return NextResponse.json(
-      { error: inkaiErrorMessage(data, "Gagal memproses anggota") },
-      { status: res.status },
+    return inkaiPortalErrorResponse(
+      data,
+      "Gagal memproses anggota",
+      res.status,
     );
   }
 

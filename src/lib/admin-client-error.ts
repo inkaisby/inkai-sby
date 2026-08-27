@@ -6,7 +6,7 @@ import {
   SESSION_EXPIRED_MESSAGE,
 } from "@/lib/session-expired";
 
-/** Toast error API admin; 401 → pesan ID + ke /login. */
+/** Toast error API admin; hard-logout hanya untuk SESSION_EXPIRED_MESSAGE. */
 export function showAdminFetchError(
   res: Response,
   data: { error?: string },
