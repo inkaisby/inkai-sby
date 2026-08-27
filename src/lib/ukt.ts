@@ -616,15 +616,16 @@ export function resolveNotaBeltGroup(
   return beltGroupFromKyuText(row.kyuLama);
 }
 
-/** Grouping Cetak Nota: Kyu Lama dulu; billing hanya fallback bila sabuk tidak terdeteksi. */
+/** Grouping Cetak Nota / WA: Kyu Lama, fallback Kyu Baru (selaras daftar peserta WA). */
 export function resolveNotaBeltGroupFromKyu(
-  row: Pick<UktMemberRow, "kyuLama" | "billingAmount">,
+  row: Pick<UktMemberRow, "kyuLama" | "kyuBaru" | "billingAmount">,
   beltFees: Record<BeltFeeKey, number>,
 ): BeltFeeKey | "LAINNYA" {
-  const fromLama = getBeltGroup(row.kyuLama);
-  if (fromLama !== "LAINNYA") return fromLama as BeltFeeKey;
+  const rankRaw = (row.kyuLama || row.kyuBaru || "").trim();
+  const fromRank = getBeltGroup(rankRaw);
+  if (fromRank !== "LAINNYA") return fromRank as BeltFeeKey;
 
-  const fromKyu = beltGroupFromKyuText(row.kyuLama);
+  const fromKyu = beltGroupFromKyuText(rankRaw);
   if (fromKyu) return fromKyu;
 
   const fromBilling = beltGroupFromBilling(row.billingAmount, beltFees);
@@ -649,7 +650,8 @@ export type NotaBeltBuildResult = {
 };
 
 /**
- * Baris sabuk Cetak Nota / Laporan WA: satu baris per sabuk dari Kyu Lama.
+ * Baris sabuk Cetak Nota / Laporan WA: satu baris per sabuk dari Kyu Lama
+ * (fallback Kyu Baru bila Kyu Lama kosong — selaras daftar peserta WA).
  * Unit fee = tarif snapshot periode (`fallbackFees[belt]`); `billingAmount` hanya
  * untuk `LAINNYA` (atau fallback Putih bila null). Subtotal A = sum tarif snapshot.
  */

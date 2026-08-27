@@ -705,6 +705,75 @@ describe("UKT Laporan WA format ranting", () => {
     );
   });
 
+  it("4 Hijau: kyuLama kosong + kyuBaru Hijau tanpa billing tetap HIJAU 4×", () => {
+    const rows = [
+      {
+        memberId: "h1",
+        registrationId: "r1",
+        fullName: "HIJAU SATU",
+        dojoId: "d1",
+        dojoName: "JAMBANGAN",
+        kyuLama: "Hijau (Kyu 6)",
+        kyuBaru: null,
+        status: "APPROVED",
+        billingStatus: "PENDING",
+        billingId: "b1",
+        billingAmount: 305000,
+      },
+      {
+        memberId: "h2",
+        registrationId: "r2",
+        fullName: "HIJAU DUA",
+        dojoId: "d1",
+        dojoName: "JAMBANGAN",
+        kyuLama: "Hijau (Kyu 6)",
+        status: "APPROVED",
+        billingStatus: "PENDING",
+        billingId: "b2",
+        billingAmount: 305000,
+      },
+      {
+        memberId: "h3",
+        registrationId: "r3",
+        fullName: "HIJAU TIGA",
+        dojoId: "d1",
+        dojoName: "JAMBANGAN",
+        kyuLama: "Hijau (Kyu 6)",
+        status: "APPROVED",
+        billingStatus: "PENDING",
+        billingId: "b3",
+        billingAmount: 305000,
+      },
+      {
+        memberId: "h4",
+        registrationId: "r4",
+        fullName: "HIJAU EMPAT",
+        dojoId: "d1",
+        dojoName: "JAMBANGAN",
+        kyuLama: "",
+        kyuBaru: "Hijau (Kyu 6)",
+        status: "APPROVED",
+        billingId: null,
+        billingAmount: null,
+        billingStatus: null,
+      },
+    ] as any[];
+
+    const text = buildUktRantingWaReportText(
+      "UKT Semester II-2026",
+      "JAMBANGAN",
+      rows,
+      beltFees,
+      komisi,
+    );
+    expect(text).toContain("HIJAU EMPAT Hijau (Kyu 6)");
+    expect(text).toContain(
+      `HIJAU: 4 × ${formatRupiahNota(305000)} = ${formatRupiahNota(4 * 305000)}`,
+    );
+    expect(text).not.toContain("LAINNYA:");
+    expect(text).not.toContain("HIJAU: 3 ×");
+  });
+
   it("uktWaNetOfNotaRows: rows tanpa tagihan ikut dihitung (tanpa re-filter nota)", () => {
     const rows = [
       {
