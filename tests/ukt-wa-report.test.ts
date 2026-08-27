@@ -597,5 +597,130 @@ describe("UKT Laporan WA format ranting", () => {
     expect(text).toContain("*C.* Komisi Ranting (2 ×");
     expect(text).toContain(`- ${formatRupiahNota(2 * komisi)}`);
     expect(text).not.toContain("*C.* Komisi Ranting (1 ×");
+    expect(text).toContain(
+      `PUTIH: 1 × ${formatRupiahNota(285000)} = ${formatRupiahNota(285000)}`,
+    );
+    expect(text).toContain(
+      `KUNING: 1 × ${formatRupiahNota(295000)} = ${formatRupiahNota(295000)}`,
+    );
+    const subtotalA = 285000 + 295000;
+    const total = subtotalA - 2 * komisi;
+    expect(text).toContain(
+      `*A.* Subtotal A (Biaya UKT): _${formatRupiahNota(subtotalA)}_`,
+    );
+    expect(text).toContain(`*TOTAL (A+B−C): ${formatRupiahNota(total)}*`);
+    expect(text).toContain(`_Termasuk 2 Belum Bayar_`);
+    expect(text).toContain(
+      `_(Sudah lunas: ${formatRupiahNota(0)} · Belum lunas: ${formatRupiahNota(total)})_`,
+    );
+  });
+
+  it("4 Hijau: 1 tanpa tagihan tetap masuk HIJAU 4× snapshot", () => {
+    const rows = [
+      {
+        memberId: "h1",
+        registrationId: "r1",
+        fullName: "HIJAU SATU",
+        dojoId: "d1",
+        dojoName: "JAMBANGAN",
+        kyuLama: "Hijau (Kyu 6)",
+        status: "APPROVED",
+        billingStatus: "PENDING",
+        billingId: "b1",
+        billingAmount: 305000,
+      },
+      {
+        memberId: "h2",
+        registrationId: "r2",
+        fullName: "HIJAU DUA",
+        dojoId: "d1",
+        dojoName: "JAMBANGAN",
+        kyuLama: "Hijau (Kyu 6)",
+        status: "APPROVED",
+        billingStatus: "PENDING",
+        billingId: "b2",
+        billingAmount: 305000,
+      },
+      {
+        memberId: "h3",
+        registrationId: "r3",
+        fullName: "HIJAU TIGA",
+        dojoId: "d1",
+        dojoName: "JAMBANGAN",
+        kyuLama: "Hijau (Kyu 6)",
+        status: "APPROVED",
+        billingStatus: "PENDING",
+        billingId: "b3",
+        billingAmount: 305000,
+      },
+      {
+        memberId: "h4",
+        registrationId: "r4",
+        fullName: "HIJAU EMPAT",
+        dojoId: "d1",
+        dojoName: "JAMBANGAN",
+        kyuLama: "Hijau (Kyu 6)",
+        status: "APPROVED",
+        billingId: null,
+        billingAmount: null,
+        billingStatus: null,
+      },
+    ] as any[];
+
+    expect(rows.filter((r) => isUktNotaRow(r))).toHaveLength(3);
+
+    const text = buildUktRantingWaReportText(
+      "UKT Semester II-2026",
+      "JAMBANGAN",
+      rows,
+      beltFees,
+      komisi,
+    );
+    expect(text).toContain(
+      `HIJAU: 4 × ${formatRupiahNota(305000)} = ${formatRupiahNota(4 * 305000)}`,
+    );
+    expect(text).not.toContain("HIJAU: 3 ×");
+    const subtotalA = 4 * 305000;
+    const total = subtotalA - 4 * komisi;
+    expect(text).toContain(
+      `*A.* Subtotal A (Biaya UKT): _${formatRupiahNota(subtotalA)}_`,
+    );
+    expect(text).toContain(`*TOTAL (A+B−C): ${formatRupiahNota(total)}*`);
+    expect(text).toContain(`_Termasuk 4 Belum Bayar_`);
+    expect(text).toContain(
+      `_(Sudah lunas: ${formatRupiahNota(0)} · Belum lunas: ${formatRupiahNota(total)})_`,
+    );
+
+    const cabang = buildUktCabangWaReportText(
+      "UKT Semester II-2026",
+      rows,
+      beltFees,
+      komisi,
+    );
+    expect(cabang).toContain(
+      `*Jumlah UKT: ${formatRupiahNota(total)}*`,
+    );
+    expect(cabang).toContain(
+      `_(Lunas: ${formatRupiahNota(0)} · Belum lunas: ${formatRupiahNota(total)})_`,
+    );
+  });
+
+  it("uktWaNetOfNotaRows: rows tanpa tagihan ikut dihitung (tanpa re-filter nota)", () => {
+    const rows = [
+      {
+        memberId: "m1",
+        registrationId: "r1",
+        fullName: "A",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Hijau (Kyu 6)",
+        status: "APPROVED",
+        billingId: null,
+        billingAmount: null,
+        billingStatus: null,
+      },
+    ] as any[];
+    expect(isUktNotaRow(rows[0])).toBe(false);
+    expect(uktWaNetOfNotaRows(rows, beltFees, komisi)).toBe(305000 - komisi);
   });
 });

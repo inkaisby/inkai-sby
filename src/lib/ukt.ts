@@ -1875,16 +1875,18 @@ function buildUktWaExamHeader(
   return lines;
 }
 
-/** Net A−C (B=0) untuk baris nota — selaras TOTAL Cetak Nota default. */
+/**
+ * Net A−C (B=0) untuk subset baris yang di-pass (caller yang filter).
+ * Tidak re-filter `isUktNotaRow` — WA roster bisa menyertakan tanpa tagihan.
+ */
 export function uktWaNetOfNotaRows(
   rows: UktMemberRow[],
   beltFees: Record<BeltFeeKey, number>,
   komisiRanting: number,
 ): number {
-  const nota = rows.filter(isUktNotaRow);
-  if (nota.length === 0) return 0;
-  const { subtotalA, registeredCount } = buildNotaBeltLines(nota, beltFees);
-  return subtotalA - registeredCount * komisiRanting;
+  if (rows.length === 0) return 0;
+  const { subtotalA } = buildNotaBeltLines(rows, beltFees);
+  return subtotalA - rows.length * komisiRanting;
 }
 
 export function formatUktWaCountPaidSuffix(
@@ -1993,7 +1995,7 @@ export function sortUktWaRosterByKyu(rows: UktMemberRow[]): UktMemberRow[] {
   });
 }
 
-/** Laporan WA satu ranting (peserta roster + rincian uang selaras Nota). */
+/** Laporan WA satu ranting: roster penuh + rincian sabuk/A dari snapshot Kyu Lama. */
 export function buildUktRantingWaReportText(
   periodTitle: string,
   dojoName: string,
@@ -2008,17 +2010,16 @@ export function buildUktRantingWaReportText(
     formatWaParticipantLine(r, i),
   );
   const participantCount = sortedRoster.length;
-  const notaRows = rosterRows.filter(isUktNotaRow);
-  const { lines, subtotalA, unpaidCount } = buildNotaBeltLines(
-    notaRows,
-    beltFees,
-  );
+  const { lines, subtotalA } = buildNotaBeltLines(sortedRoster, beltFees);
+  const unpaidRosterCount = sortedRoster.filter(
+    (r) => !isUktBillingPaid(r),
+  ).length;
   const subtotalB = 0;
   const totalC = participantCount * komisiRanting;
   const grandTotal = subtotalA + subtotalB - totalC;
 
-  const paidRows = notaRows.filter((r) => isUktBillingPaid(r));
-  const unpaidRows = notaRows.filter((r) => !isUktBillingPaid(r));
+  const paidRows = sortedRoster.filter((r) => isUktBillingPaid(r));
+  const unpaidRows = sortedRoster.filter((r) => !isUktBillingPaid(r));
   const paidNet = uktWaNetOfNotaRows(paidRows, beltFees, komisiRanting);
   const unpaidNet = uktWaNetOfNotaRows(unpaidRows, beltFees, komisiRanting);
 
@@ -2039,8 +2040,8 @@ export function buildUktRantingWaReportText(
     "*Rincian pembayaran*",
     ...beltLines,
   ];
-  if (unpaidCount > 0) {
-    out.push("", `_Termasuk ${unpaidCount} Belum Bayar_`);
+  if (unpaidRosterCount > 0) {
+    out.push("", `_Termasuk ${unpaidRosterCount} Belum Bayar_`);
   }
   out.push(
     "",
@@ -2110,11 +2111,10 @@ export function buildUktCabangWaReportText(
   );
   const unpaidAll = rosterRows.length - paidAll;
 
-  const notaRows = rosterRows.filter(isUktNotaRow);
-  const paidNota = notaRows.filter((r) => isUktBillingPaid(r));
-  const unpaidNota = notaRows.filter((r) => !isUktBillingPaid(r));
-  const paidNet = uktWaNetOfNotaRows(paidNota, beltFees, komisiRanting);
-  const unpaidNet = uktWaNetOfNotaRows(unpaidNota, beltFees, komisiRanting);
+  const paidRows = rosterRows.filter((r) => isUktBillingPaid(r));
+  const unpaidRows = rosterRows.filter((r) => !isUktBillingPaid(r));
+  const paidNet = uktWaNetOfNotaRows(paidRows, beltFees, komisiRanting);
+  const unpaidNet = uktWaNetOfNotaRows(unpaidRows, beltFees, komisiRanting);
   const jumlahUkt = paidNet + unpaidNet;
 
   const countPaidLine =
