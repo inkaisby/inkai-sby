@@ -427,6 +427,7 @@ export type DojoKasSummaryItemBreakdown = {
 export type DojoKasSummary = {
   dojoName: string;
   isOfficialDojo: boolean;
+  dojoId?: string | null;
   totalUkt: number;
   totalKomisiUkt: number;
   totalLatber: number;
@@ -435,14 +436,21 @@ export type DojoKasSummary = {
   totalLainnya: number;
   totalMasuk: number;
   itemsBreakdown?: DojoKasSummaryItemBreakdown[];
+  uktDepositLabel?: string;
 };
 
 const NON_DOJO_KEYWORDS_REGEX =
   /^(pendaftaran|konsumsi|rapat|disppora|setoran|kas|iuran|latber|ukt|komisi|pengeluaran|pembayaran|konsumsi rapat|operasional|rekening|bank|bunga|pajak|administrasi|biaya)$/i;
 
+function kasDojoRef(
+  d: { id?: string; name: string } | string,
+): { id?: string; name: string } {
+  return typeof d === "string" ? { name: d } : d;
+}
+
 export function extractDojoNameFromKasRow(
   row: KasLedgerInput,
-  dojoList?: Array<{ name: string } | string>,
+  dojoList?: Array<{ id?: string; name: string } | string>,
 ): string | null {
   const kegiatan = (row.kegiatan || "").trim();
   const desc = (row.description || "").trim();
@@ -450,7 +458,7 @@ export function extractDojoNameFromKasRow(
 
   // Extract list of official names if provided, sorted longest first for precise matching
   const officialNames = (dojoList || [])
-    .map((d) => (typeof d === "string" ? d : d.name).trim())
+    .map((d) => kasDojoRef(d).name.trim())
     .filter(Boolean)
     .sort((a, b) => b.length - a.length);
 
@@ -489,9 +497,24 @@ export function extractDojoNameFromKasRow(
   return null;
 }
 
+function lookupKasDojoId(
+  dojoName: string,
+  dojoList?: Array<{ id?: string; name: string } | string>,
+): string | null {
+  const key = dojoName.replace(/^(ranting|dojo)\s+/i, "").trim().toUpperCase();
+  for (const raw of dojoList ?? []) {
+    const d = kasDojoRef(raw);
+    const nameKey = d.name.replace(/^(ranting|dojo)\s+/i, "").trim().toUpperCase();
+    if (d.id && (nameKey === key || d.name.trim().toUpperCase() === dojoName.toUpperCase())) {
+      return d.id;
+    }
+  }
+  return null;
+}
+
 export function aggregateKasByDojo(
   rows: KasLedgerInput[],
-  dojoList?: Array<{ name: string } | string>,
+  dojoList?: Array<{ id?: string; name: string } | string>,
 ): DojoKasSummary[] {
   const map = new Map<string, DojoKasSummary>();
 
@@ -504,12 +527,14 @@ export function aggregateKasByDojo(
 
     const dojoName = rawDojo.toUpperCase();
     const isOfficialDojo = true;
+    const dojoId = lookupKasDojoId(rawDojo, dojoList);
 
     let item = map.get(dojoName);
     if (!item) {
       item = {
         dojoName,
         isOfficialDojo,
+        dojoId,
         totalUkt: 0,
         totalKomisiUkt: 0,
         totalLatber: 0,
@@ -519,6 +544,8 @@ export function aggregateKasByDojo(
         totalMasuk: 0,
       };
       map.set(dojoName, item);
+    } else if (!item.dojoId && dojoId) {
+      item.dojoId = dojoId;
     }
 
     const src = (row.sourceType || "").toLowerCase();
@@ -614,6 +641,9 @@ export function formatRecapDojoTextForWa(
       lines.push(`   - Iuran: ${formatRp(item.totalIuran)}`);
     if (item.totalLainnya > 0)
       lines.push(`   - Lainnya: ${formatRp(item.totalLainnya)}`);
+    if (item.uktDepositLabel && item.uktDepositLabel !== "—") {
+      lines.push(`   - Status setor UKT: ${item.uktDepositLabel}`);
+    }
     lines.push(`   *Total: ${formatRp(item.totalMasuk)}*`);
   }
 

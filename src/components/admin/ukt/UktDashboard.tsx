@@ -197,6 +197,13 @@ import {
   type SortDir,
 } from "@/lib/table-sort";
 import { formatRegisteredAtWib } from "@/lib/format-wib";
+import {
+  STICKY_CHECK_CELL,
+  STICKY_CHECK_HEAD,
+  STICKY_NAME_AFTER_CHECK,
+  STICKY_NAME_CELL,
+  STICKY_NAME_HEAD,
+} from "@/lib/admin-table-sticky";
 
 function compareUktRows(
   a: UktMemberRow,
@@ -308,9 +315,8 @@ type Props = {
 
 const PAGE_SIZES = [25, 50, 100] as const;
 
-const UKT_NAME_STICKY_HEAD = "min-w-[9rem]";
-const UKT_NAME_STICKY_CELL =
-  "min-w-[9rem] max-w-[14rem] font-medium group-hover:bg-muted/30";
+const UKT_NAME_STICKY_HEAD = `${STICKY_NAME_HEAD} ${STICKY_NAME_AFTER_CHECK}`;
+const UKT_NAME_STICKY_CELL = `${STICKY_NAME_CELL} ${STICKY_NAME_AFTER_CHECK}`;
 
 function formatDate(d: string | null) {
   if (!d) return "-";
@@ -457,6 +463,7 @@ export function UktDashboard(props: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [printOnlySelected, setPrintOnlySelected] = useState(false);
   const [compactView, setCompactView] = useState(false);
+  const [highlightMemberId, setHighlightMemberId] = useState<string | null>(null);
   const [tableFullscreen, setTableFullscreen] = useState(false);
   const compactViewBeforeFullRef = useRef<boolean | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -608,6 +615,7 @@ export function UktDashboard(props: Props) {
   const isMultiDojoAdmin =
     isDojoAdmin &&
     (props.dojos.length > 1 || (props.managedDojoIds?.length ?? 0) > 1);
+  const showDojoColumn = !isDojoAdmin || isMultiDojoAdmin;
   const dojoFilterParsed = useMemo(() => {
     const raw = isDojoAdmin
       ? isMultiDojoAdmin
@@ -956,26 +964,6 @@ export function UktDashboard(props: Props) {
         }
         if (cancelled) return;
         const incoming = data.candidates ?? [];
-        // #region agent log
-        fetch(
-          "http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Debug-Session-Id": "f0acf0",
-            },
-            body: JSON.stringify({
-              sessionId: "f0acf0",
-              hypothesisId: "E",
-              location: "UktDashboard.tsx:candidates",
-              message: "client candidates loaded",
-              data: { count: incoming.length, status: res.status },
-              timestamp: Date.now(),
-            }),
-          },
-        ).catch(() => {});
-        // #endregion
         setRows((prev) => {
           const byId = new Map(prev.map((r) => [r.memberId, r]));
           for (const c of incoming) {
@@ -2509,7 +2497,7 @@ export function UktDashboard(props: Props) {
     <div className="space-y-4 sm:space-y-6">
       {/* Sticky semester/tahun — disembunyikan bila shell halaman sudah punya UktTermNav */}
       {!props.hideStickyTermBar ? (
-      <div className="sticky top-12 z-30 -mx-3 space-y-2 border-b border-border/50 bg-background/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:top-16 sm:-mx-6 sm:space-y-3 sm:px-6 sm:py-3">
+      <div className="sticky top-12 z-30 -mx-3 space-y-2 border-b border-border/50 bg-background/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/90 2xl:top-16 sm:-mx-6 sm:space-y-3 sm:px-6 sm:py-3">
         {props.headerNote ? (
           <p className="hidden text-sm text-muted-foreground sm:block">{props.headerNote}</p>
         ) : null}
@@ -3519,7 +3507,7 @@ export function UktDashboard(props: Props) {
           "space-y-2 border-b border-border/40 py-2.5",
           tableFullscreen
             ? "sticky top-0 z-10 shrink-0 bg-background"
-            : "sticky top-0 z-20 -mx-3 bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/90 sm:static sm:top-auto sm:z-auto sm:mx-0 sm:border-b-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none",
+            : "sticky top-[6.75rem] z-20 -mx-3 overflow-visible bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/90 2xl:top-[7.75rem] sm:static sm:top-auto sm:z-auto sm:mx-0 sm:border-b-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none",
         )}
       >
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -3541,13 +3529,21 @@ export function UktDashboard(props: Props) {
             dojoFilter={
               effectiveDojoIds?.length === 1 ? effectiveDojoIds[0] : ""
             }
-            showDojoInSuggest={isMultiDojoAdmin}
+            showDojoInSuggest={showDojoColumn}
             onSelectRemote={(member) => {
               if (!props.selectedPeriodId) {
                 toast.error("Pilih periode UKT dulu");
                 return;
               }
-              if (rows.some((r) => r.memberId === member.id)) return;
+              if (rows.some((r) => r.memberId === member.id)) {
+                setHighlightMemberId(member.id);
+                requestAnimationFrame(() => {
+                  document
+                    .getElementById(`ukt-row-${member.id}`)
+                    ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+                });
+                return;
+              }
               void (async () => {
                 const toastId = toast.loading("Memuat syarat UKT…");
                 try {
@@ -3563,69 +3559,22 @@ export function UktDashboard(props: Props) {
                     uktRow?: UktMemberRow;
                   }>(res);
                   if (!res.ok || !data.uktRow) {
-                    // #region agent log
-                    fetch(
-                      "http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f",
-                      {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          "X-Debug-Session-Id": "f0acf0",
-                        },
-                        body: JSON.stringify({
-                          sessionId: "f0acf0",
-                          hypothesisId: "B",
-                          location: "UktDashboard.tsx:hydrate-fail",
-                          message: "hydrate failed",
-                          data: {
-                            status: res.status,
-                            hasError: Boolean(data.error),
-                          },
-                          timestamp: Date.now(),
-                        }),
-                      },
-                    ).catch(() => {});
-                    // #endregion
                     throw new Error(data.error || "Gagal memuat anggota");
                   }
                   const row = data.uktRow;
-                  const hiddenByDojo = Boolean(
-                    effectiveDojoIds &&
-                      !effectiveDojoIds.includes(row.dojoId),
-                  );
-                  // #region agent log
-                  fetch(
-                    "http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f",
-                    {
-                      method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                        "X-Debug-Session-Id": "f0acf0",
-                      },
-                      body: JSON.stringify({
-                        sessionId: "f0acf0",
-                        hypothesisId: "C",
-                        location: "UktDashboard.tsx:hydrate-ok",
-                        message: "hydrate ok before setRows",
-                        data: {
-                          localView,
-                          localQLen: localQ.trim().length,
-                          hiddenByDojo,
-                          hasDojoFilter: Boolean(effectiveDojoIds),
-                          status: row.status,
-                        },
-                        timestamp: Date.now(),
-                      }),
-                    },
-                  ).catch(() => {});
-                  // #endregion
                   setRows((prev) => {
                     if (prev.some((r) => r.memberId === row.memberId)) {
                       return prev;
                     }
                     return [...prev, row];
                   });
+                  setHighlightMemberId(row.memberId);
                   toast.success("Anggota siap didaftarkan UKT", { id: toastId });
+                  requestAnimationFrame(() => {
+                    document
+                      .getElementById(`ukt-row-${row.memberId}`)
+                      ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+                  });
                 } catch (e) {
                   toast.error(
                     e instanceof Error ? e.message : "Gagal memuat anggota",
@@ -3785,14 +3734,16 @@ export function UktDashboard(props: Props) {
       {/* Table */}
       <div
         className={cn(
-          "mt-2 rounded-xl border shadow-sm overflow-x-auto bg-card",
+          "mt-2 rounded-xl border bg-card shadow-sm",
           tableFullscreen && "min-h-0 flex-1 overflow-auto",
         )}
       >
-        <Table>
+        <Table
+          containerClassName={tableFullscreen ? "overflow-visible" : undefined}
+        >
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead className="w-10">
+              <TableHead className={STICKY_CHECK_HEAD}>
                 <input
                   type="checkbox"
                   className="h-4 w-4 accent-inkai-red"
@@ -3802,7 +3753,7 @@ export function UktDashboard(props: Props) {
                   aria-label="Pilih semua yang belum lunas"
                 />
               </TableHead>
-              <TableHead className="w-10">No</TableHead>
+              <TableHead className="hidden w-10 sm:table-cell">No</TableHead>
               <TableHead className={cn(tableFullscreen ? "w-14" : "hidden w-14 sm:table-cell")}>
                 Foto
               </TableHead>
@@ -3812,6 +3763,7 @@ export function UktDashboard(props: Props) {
                 activeKey={sort.key}
                 activeDir={sort.dir}
                 onSort={handleSort}
+                className="hidden sm:table-cell"
               />
               <SortableTableHead
                 label="Nama Lengkap"
@@ -3821,6 +3773,16 @@ export function UktDashboard(props: Props) {
                 onSort={handleSort}
                 className={UKT_NAME_STICKY_HEAD}
               />
+              {showDojoColumn ? (
+                <SortableTableHead
+                  label="Ranting"
+                  sortKey="dojoName"
+                  activeKey={sort.key}
+                  activeDir={sort.dir}
+                  onSort={handleSort}
+                  className="hidden sm:table-cell"
+                />
+              ) : null}
               <SortableTableHead
                 label="Tanggal daftar"
                 sortKey="registeredAt"
@@ -3898,26 +3860,6 @@ export function UktDashboard(props: Props) {
               {showDokumenCol && (
                 <TableHead className="hidden md:table-cell">Dokumen</TableHead>
               )}
-              {showExtendedIdentity && (
-                <SortableTableHead
-                  label="Ranting"
-                  sortKey="dojoName"
-                  activeKey={sort.key}
-                  activeDir={sort.dir}
-                  onSort={handleSort}
-                  className={cn(!tableFullscreen && "hidden md:table-cell")}
-                />
-              )}
-              {isMultiDojoAdmin && (
-                <SortableTableHead
-                  label="Ranting"
-                  sortKey="dojoName"
-                  activeKey={sort.key}
-                  activeDir={sort.dir}
-                  onSort={handleSort}
-                  className={cn(!tableFullscreen && "hidden md:table-cell")}
-                />
-              )}
               <SortableTableHead
                 label="Status"
                 sortKey="status"
@@ -3948,12 +3890,28 @@ export function UktDashboard(props: Props) {
             ) : (
               displayRows.map((row, idx) => {
                 const effectiveExam = resolveEffectiveUktExamResult(row);
+                const registerBlockers = !row.registrationId && !isArchiveView
+                  ? getUktRegistrationBlockersWithWaiver(
+                      row,
+                      {
+                        registrationOpen,
+                        registrationNotYetOpen,
+                        ...memberRequirementOpts,
+                      },
+                      row.registrationWaiver,
+                    )
+                  : [];
+                const registerBlocked = registerBlockers.length > 0;
                 return (
                 <TableRow
                   key={row.memberId}
-                  className="group transition-colors hover:bg-muted/30"
+                  id={`ukt-row-${row.memberId}`}
+                  className={cn(
+                    "group transition-colors hover:bg-muted/30",
+                    highlightMemberId === row.memberId && "bg-amber-50/80",
+                  )}
                 >
-                  <TableCell>
+                  <TableCell className={STICKY_CHECK_CELL}>
                     <input
                       type="checkbox"
                       className="h-4 w-4 accent-inkai-red"
@@ -3967,7 +3925,7 @@ export function UktDashboard(props: Props) {
                       aria-label={`Pilih ${row.fullName}`}
                     />
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="hidden text-muted-foreground sm:table-cell">
                     {(safePage - 1) * localPageSize + idx + 1}
                   </TableCell>
                   <TableCell className={cn(!tableFullscreen && "hidden sm:table-cell")}>
@@ -3978,7 +3936,7 @@ export function UktDashboard(props: Props) {
                       size="sm"
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-xs">
+                  <TableCell className="hidden font-mono text-xs sm:table-cell">
                     {canEditNia && !isArchiveView ? (
                       <div className="inline-flex min-w-[8.5rem] flex-col gap-1">
                         <Input
@@ -4008,7 +3966,7 @@ export function UktDashboard(props: Props) {
                       row.nia || "-"
                     )}
                   </TableCell>
-                  <TableCell className={UKT_NAME_STICKY_CELL}>
+                  <TableCell className={cn(UKT_NAME_STICKY_CELL, "whitespace-normal")}>
                     <button
                       type="button"
                       className="max-w-full truncate text-left font-medium text-inkai-red hover:underline"
@@ -4025,7 +3983,65 @@ export function UktDashboard(props: Props) {
                         <AlertTriangle className="h-3.5 w-3.5" />
                       </span>
                     )}
+                    <p className="mt-0.5 text-[11px] font-normal text-muted-foreground sm:hidden">
+                      {[row.nia, showDojoColumn ? row.dojoName : null]
+                        .filter(Boolean)
+                        .join(" · ") || "—"}
+                    </p>
+                    {canEditNia && !isArchiveView ? (
+                      <Input
+                        key={`hp-nia-${row.memberId}:${row.nia || ""}`}
+                        defaultValue={row.nia || ""}
+                        placeholder="NIA"
+                        disabled={niaSavingId === row.memberId}
+                        className="mt-1 h-7 w-full max-w-[9rem] font-mono text-[11px] uppercase sm:hidden"
+                        aria-label={`Ubah NIA ${row.fullName}`}
+                        onClick={(e) => e.stopPropagation()}
+                        onBlur={(e) => {
+                          const current = normalizeNia(row.nia) || "";
+                          const next = normalizeNia(e.target.value) || "";
+                          if (!next || next === current) {
+                            e.target.value = current;
+                            return;
+                          }
+                          e.target.value = next;
+                          void handleSetNia(row.memberId, next);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") e.currentTarget.blur();
+                        }}
+                      />
+                    ) : null}
+                    {!row.registrationId && !isArchiveView ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-1 h-7 text-xs sm:hidden"
+                        onClick={() => handleRegister(row.memberId)}
+                        disabled={
+                          isMemberPending(row.memberId) ||
+                          !props.selectedPeriodId ||
+                          periodLocked ||
+                          registerBlocked
+                        }
+                        title={
+                          registerBlocked
+                            ? formatUktRegistrationBlockers(
+                                registerBlockers,
+                                memberRequirementOpts.minAttendancePct,
+                              )
+                            : "Daftarkan ke UKT"
+                        }
+                      >
+                        {isMemberPending(row.memberId) ? "Mendaftar…" : "Daftar UKT"}
+                      </Button>
+                    ) : null}
                   </TableCell>
+                  {showDojoColumn ? (
+                    <TableCell className="hidden text-xs sm:table-cell">
+                      {row.dojoName}
+                    </TableCell>
+                  ) : null}
                   <TableCell className="whitespace-nowrap text-sm">
                     {formatRegisteredAtWib(row.registeredAt)}
                   </TableCell>
@@ -4197,26 +4213,6 @@ export function UktDashboard(props: Props) {
                           <Badge variant="outline" className="text-xs text-muted-foreground">BPJS</Badge>
                         )}
                       </div>
-                    </TableCell>
-                  )}
-                  {showExtendedIdentity && (
-                    <TableCell
-                      className={cn(
-                        "text-xs",
-                        !tableFullscreen && "hidden sm:table-cell",
-                      )}
-                    >
-                      {row.dojoName}
-                    </TableCell>
-                  )}
-                  {isMultiDojoAdmin && (
-                    <TableCell
-                      className={cn(
-                        "text-xs",
-                        !tableFullscreen && "hidden md:table-cell",
-                      )}
-                    >
-                      {row.dojoName}
                     </TableCell>
                   )}
                   <TableCell>

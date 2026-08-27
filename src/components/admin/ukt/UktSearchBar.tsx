@@ -124,32 +124,6 @@ export function UktSearchBar({
             suggestions?: RemoteSuggestion[];
           };
           const list = res.ok ? (data.suggestions ?? []) : [];
-          // #region agent log
-          fetch(
-            "http://127.0.0.1:7385/ingest/dfa53adf-1e28-4ee0-ab88-bbc21b01308f",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Debug-Session-Id": "f0acf0",
-              },
-              body: JSON.stringify({
-                sessionId: "f0acf0",
-                hypothesisId: "A",
-                location: "UktSearchBar.tsx:suggest",
-                message: "client suggest response",
-                data: {
-                  ok: res.ok,
-                  status: res.status,
-                  count: list.length,
-                  qLen: q.length,
-                  hasDojoFilter: Boolean(dojoFilter),
-                },
-                timestamp: Date.now(),
-              }),
-            },
-          ).catch(() => {});
-          // #endregion
           if (res.ok) setRemote(list);
           else setRemote([]);
         })
@@ -252,7 +226,7 @@ export function UktSearchBar({
       ) : null}
       {open && (suggestions.length > 0 || remoteLoading) ? (
         <ul
-          className="absolute z-40 mt-1 max-h-64 w-full overflow-auto rounded-md border border-border bg-popover py-1 text-sm shadow-md"
+          className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-md border border-border bg-popover py-1 text-sm shadow-md"
           role="listbox"
         >
           {remoteLoading && suggestions.length === 0 ? (

@@ -96,7 +96,13 @@ export function DashboardTopbar({
   const backHref = showAdmin ? resolveAdminBackHref(pathname) : null;
 
   return (
-    <header className="admin-topbar sticky top-0 z-40 flex h-12 min-h-12 shrink-0 items-center justify-between gap-1.5 border-b border-border/60 bg-background/95 px-3 sm:h-16 sm:min-h-16 sm:gap-2 sm:bg-background/90 sm:px-6 sm:py-1.5 sm:backdrop-blur-md supports-[backdrop-filter]:sm:bg-background/75">
+    <header
+      className={
+        showAdmin
+          ? "admin-topbar sticky top-0 z-40 flex h-12 min-h-12 shrink-0 items-center justify-between gap-1.5 border-b border-border/60 bg-background/95 px-3 2xl:h-16 2xl:min-h-16 2xl:gap-2 2xl:bg-background/90 2xl:px-6 2xl:py-1.5 2xl:backdrop-blur-md supports-[backdrop-filter]:2xl:bg-background/75"
+          : "admin-topbar sticky top-0 z-40 flex h-12 min-h-12 shrink-0 items-center justify-between gap-1.5 border-b border-border/60 bg-background/95 px-3 sm:h-16 sm:min-h-16 sm:gap-2 sm:bg-background/90 sm:px-6 sm:py-1.5 sm:backdrop-blur-md supports-[backdrop-filter]:sm:bg-background/75"
+      }
+    >
       <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2">
         <MobileDashboardNav title={title} links={links} />
         {backHref ? (

@@ -22,6 +22,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
+import { cn } from "@/lib/utils";
+import {
+  STICKY_CHECK_CELL,
+  STICKY_CHECK_HEAD,
+  STICKY_NAME_AFTER_CHECK,
+  STICKY_NAME_AT_EDGE,
+  STICKY_NAME_CELL,
+  STICKY_NAME_HEAD,
+} from "@/lib/admin-table-sticky";
 import {
   reasonLabel,
   type MemberLifecycleMeta,
@@ -211,12 +220,12 @@ export function ArchivedMembersPanel({
         </p>
       ) : null}
 
-      <div className="overflow-x-auto rounded-xl border">
+      <div className="rounded-xl border">
         <Table>
           <TableHeader>
             <TableRow>
               {canPurge ? (
-                <TableHead className="w-10">
+                <TableHead className={STICKY_CHECK_HEAD}>
                   <input
                     type="checkbox"
                     className="h-4 w-4 accent-inkai-red"
@@ -227,10 +236,17 @@ export function ArchivedMembersPanel({
                   />
                 </TableHead>
               ) : null}
-              <TableHead>Nama</TableHead>
+              <TableHead
+                className={cn(
+                  STICKY_NAME_HEAD,
+                  canPurge ? STICKY_NAME_AFTER_CHECK : STICKY_NAME_AT_EDGE,
+                )}
+              >
+                Nama
+              </TableHead>
               <TableHead>NIA</TableHead>
               <TableHead>Sabuk</TableHead>
-              <TableHead className="hidden sm:table-cell">Dojo</TableHead>
+              <TableHead>Dojo</TableHead>
               <TableHead className="hidden md:table-cell">Diarsipkan</TableHead>
               <TableHead>Aksi</TableHead>
             </TableRow>
@@ -256,9 +272,9 @@ export function ArchivedMembersPanel({
               </TableRow>
             ) : (
               rows.map((m) => (
-                <TableRow key={m.id}>
+                <TableRow key={m.id} className="group">
                   {canPurge ? (
-                    <TableCell>
+                    <TableCell className={STICKY_CHECK_CELL}>
                       <input
                         type="checkbox"
                         className="h-4 w-4 accent-inkai-red"
@@ -268,7 +284,12 @@ export function ArchivedMembersPanel({
                       />
                     </TableCell>
                   ) : null}
-                  <TableCell className="font-medium text-inkai-red">
+                  <TableCell
+                    className={cn(
+                      STICKY_NAME_CELL,
+                      canPurge ? STICKY_NAME_AFTER_CHECK : STICKY_NAME_AT_EDGE,
+                    )}
+                  >
                     {formatMemberName(m.fullName)}
                   </TableCell>
                   <TableCell className="font-mono text-sm">
@@ -279,7 +300,7 @@ export function ArchivedMembersPanel({
                       {formatRankLabel(m.currentRank) || "—"}
                     </Badge>
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell">
+                  <TableCell>
                     {m.dojo?.name ?? "—"}
                   </TableCell>
                   <TableCell className="hidden md:table-cell text-xs text-muted-foreground">

@@ -96,7 +96,7 @@ export function AnggotaKpiCards({
 
   return (
     <>
-      <div className="-mx-3 mb-4 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-3 sm:overflow-visible sm:px-0 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="-mx-3 mb-4 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-2 sm:overflow-visible sm:px-0 lg:grid-cols-6 xl:grid-cols-8 2xl:gap-3">
         {items.map((kpi) => {
           const Icon = KPI_ICONS[kpi.icon] ?? Users;
           const active =
@@ -113,12 +113,12 @@ export function AnggotaKpiCards({
                   active ? "ring-2 ring-inkai-red" : ""
                 } ${isPending && active ? "opacity-80" : ""}`}
               >
-                <CardContent className="p-3">
+                <CardContent className="p-2 sm:p-2.5 2xl:p-3">
                   <div className="flex items-center justify-between">
                     <Icon
                       className={`h-4 w-4 ${kpi.accent ? kpi.accent : "text-inkai-red"}`}
                     />
-                    <span className="text-lg font-bold tabular-nums">
+                    <span className="text-base font-bold tabular-nums lg:text-lg 2xl:text-xl">
                       {kpi.value}
                     </span>
                   </div>

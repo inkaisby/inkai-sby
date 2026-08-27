@@ -19,7 +19,7 @@ export function AdminPageHeader({
   return (
     <div
       className={cn(
-        "admin-page-header mb-3 flex flex-col gap-2.5 sm:mb-4 lg:mb-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between",
+        "admin-page-header mb-3 flex flex-col gap-2.5 sm:mb-4 2xl:mb-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between",
         className,
       )}
     >
@@ -30,7 +30,7 @@ export function AdminPageHeader({
             aria-hidden
           />
           <div className="min-w-0">
-            <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground 2xl:text-2xl">
               {title}
             </h2>
             {description ? (

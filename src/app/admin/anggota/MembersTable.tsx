@@ -69,6 +69,15 @@ import { BulkDeactivateBar } from "./BulkDeactivateBar";
 import { usePersistedBulkSelection } from "./usePersistedBulkSelection";
 import { SortableTableHead } from "@/components/ui/SortableTableHead";
 import type { SortDir } from "@/lib/table-sort";
+import { cn } from "@/lib/utils";
+import {
+  STICKY_CHECK_CELL,
+  STICKY_CHECK_HEAD,
+  STICKY_NAME_AFTER_CHECK,
+  STICKY_NAME_AT_EDGE,
+  STICKY_NAME_CELL,
+  STICKY_NAME_HEAD,
+} from "@/lib/admin-table-sticky";
 
 type MemberDetail = Record<string, unknown>;
 
@@ -1076,15 +1085,24 @@ export function MembersTable({
   const lifecycle = detail?.lifecycle as MemberLifecycleMeta | null | undefined;
   const impact = detail?.impact as MemberImpactSummary | null | undefined;
   const colCount = canBulk ? 11 : 10;
+  const nameStickyHead = cn(
+    STICKY_NAME_HEAD,
+    canBulk ? STICKY_NAME_AFTER_CHECK : STICKY_NAME_AT_EDGE,
+  );
+  const nameStickyCell = cn(
+    STICKY_NAME_CELL,
+    canBulk ? STICKY_NAME_AFTER_CHECK : STICKY_NAME_AT_EDGE,
+    "whitespace-normal",
+  );
 
   return (
     <>
-      <div className="overflow-x-auto rounded-xl border">
+      <div className="rounded-xl border">
         <Table>
           <TableHeader>
             <TableRow>
               {canBulk ? (
-                <TableHead className="w-10">
+                <TableHead className={STICKY_CHECK_HEAD}>
                   <input
                     type="checkbox"
                     className="h-4 w-4 accent-inkai-red"
@@ -1094,7 +1112,7 @@ export function MembersTable({
                   />
                 </TableHead>
               ) : null}
-              <TableHead className="w-12 text-center">No</TableHead>
+              <TableHead className="hidden w-12 text-center sm:table-cell">No</TableHead>
               <TableHead className="hidden w-12 sm:table-cell">Foto</TableHead>
               {onSort ? (
                 <>
@@ -1112,6 +1130,7 @@ export function MembersTable({
                     activeKey={sortKey}
                     activeDir={sortDir}
                     onSort={onSort}
+                    className={nameStickyHead}
                   />
                   <SortableTableHead
                     label="Sabuk"
@@ -1133,7 +1152,7 @@ export function MembersTable({
                 <>
                   <TableHead>NIA</TableHead>
                   <TableHead className="hidden md:table-cell">No. MSH</TableHead>
-                  <TableHead>Nama</TableHead>
+                  <TableHead className={nameStickyHead}>Nama</TableHead>
                   <TableHead className="hidden sm:table-cell">Sabuk</TableHead>
                   <TableHead>Status</TableHead>
                 </>
@@ -1147,7 +1166,6 @@ export function MembersTable({
                     activeKey={sortKey}
                     activeDir={sortDir}
                     onSort={onSort}
-                    className="hidden sm:table-cell"
                   />
                   <SortableTableHead
                     label="Terdaftar"
@@ -1160,7 +1178,7 @@ export function MembersTable({
                 </>
               ) : (
                 <>
-                  <TableHead className="hidden sm:table-cell">Dojo</TableHead>
+                  <TableHead>Dojo</TableHead>
                   <TableHead className="hidden md:table-cell whitespace-nowrap">
                     Terdaftar
                   </TableHead>
@@ -1187,11 +1205,14 @@ export function MembersTable({
                 return (
                   <TableRow
                     key={m.id}
-                    className="cursor-pointer transition-colors hover:bg-muted/40"
+                    className="group cursor-pointer transition-colors hover:bg-muted/40"
                     onClick={() => openDetail(m)}
                   >
                     {canBulk ? (
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell
+                        className={STICKY_CHECK_CELL}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {isSelectableRow ? (
                           <input
                             type="checkbox"
@@ -1203,7 +1224,7 @@ export function MembersTable({
                         ) : null}
                       </TableCell>
                     ) : null}
-                    <TableCell className="text-center tabular-nums text-muted-foreground text-sm">
+                    <TableCell className="hidden text-center text-sm tabular-nums text-muted-foreground sm:table-cell">
                       {rowNo}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
@@ -1278,7 +1299,7 @@ export function MembersTable({
                         ? m.mshNumber.trim()
                         : "—"}
                     </TableCell>
-                    <TableCell className="font-medium text-inkai-red">
+                    <TableCell className={nameStickyCell}>
                       {canInlineEditName ? (
                         <Input
                           key={`${m.id}:${m.fullName}`}
@@ -1299,6 +1320,9 @@ export function MembersTable({
                       ) : (
                         formatMemberName(m.fullName)
                       )}
+                      <p className="mt-0.5 text-[11px] font-normal text-muted-foreground sm:hidden">
+                        {m.dojo?.name ?? "—"}
+                      </p>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
                       {canEditRank ? (
@@ -1352,7 +1376,7 @@ export function MembersTable({
                           onEdit={() => setDocsEditMember(m)}
                         />
                       </TableCell>
-                    <TableCell className="hidden sm:table-cell">
+                    <TableCell>
                       {canEditDojo && dojos.length > 0 ? (
                         <div className="space-y-0.5">
                           <select

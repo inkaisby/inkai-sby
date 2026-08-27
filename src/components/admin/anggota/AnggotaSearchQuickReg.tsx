@@ -15,6 +15,8 @@ type Suggestion = {
   nia: string | null;
   dojoName?: string;
   currentRank?: string;
+  registeredUkt?: boolean;
+  registeredLatber?: boolean;
 };
 
 type Props = {
@@ -76,6 +78,8 @@ export function AnggotaSearchQuickReg({
       setLoading(true);
       const params = new URLSearchParams({ q });
       if (dojoFilter) params.set("dojo", dojoFilter);
+      if (activeUkt?.id) params.set("uktEventId", activeUkt.id);
+      if (activeLatber?.id) params.set("latberEventId", activeLatber.id);
       void fetch(`/api/admin/ukt/suggest?${params}`)
         .then(async (res) => {
           const data = (await res.json()) as { suggestions?: Suggestion[] };
@@ -85,12 +89,11 @@ export function AnggotaSearchQuickReg({
         .finally(() => setLoading(false));
     }, 280);
     return () => clearTimeout(debounceRef.current);
-  }, [localQ, canQuickReg, dojoFilter, disabled]);
+  }, [localQ, canQuickReg, dojoFilter, disabled, activeUkt?.id, activeLatber?.id]);
 
   const handleInput = (value: string) => {
     setLocalQ(value);
     setOpen(value.trim().length >= 2);
-    // Debounce filter tabel ada di AnggotaFiltersForm.handleQueryChange — jangan pakai debounceRef yang sama dengan suggest.
     onQueryChange(value);
   };
 
@@ -98,6 +101,20 @@ export function AnggotaSearchQuickReg({
     setLocalQ(name);
     onQueryChange(name);
     setOpen(false);
+  }
+
+  function markRegistered(memberId: string, kind: "ukt" | "latber") {
+    setSuggestions((prev) =>
+      prev.map((s) =>
+        s.id === memberId
+          ? {
+              ...s,
+              registeredUkt: kind === "ukt" ? true : s.registeredUkt,
+              registeredLatber: kind === "latber" ? true : s.registeredLatber,
+            }
+          : s,
+      ),
+    );
   }
 
   async function registerMember(
@@ -115,13 +132,19 @@ export function AnggotaSearchQuickReg({
         body: JSON.stringify({ eventId: periodId, memberId }),
       });
       const data = await parseApiJson<{ error?: string }>(res);
-      if (!res.ok) throw new Error(data.error || "Gagal mendaftar");
+      if (!res.ok) {
+        const msg = data.error || "Gagal mendaftar";
+        if (/sudah terdaftar/i.test(msg)) {
+          markRegistered(memberId, kind);
+        }
+        throw new Error(msg);
+      }
       showSuccess(
         kind === "ukt"
           ? "Anggota didaftarkan ke UKT"
           : "Anggota didaftarkan ke Latihan Bersama",
       );
-      setOpen(false);
+      markRegistered(memberId, kind);
     } catch (e) {
       showError(e instanceof Error ? e.message : "Gagal mendaftar");
     } finally {
@@ -132,7 +155,7 @@ export function AnggotaSearchQuickReg({
   const showQuickActions = canQuickReg && (activeUkt || activeLatber);
 
   return (
-    <div ref={wrapperRef} className="relative min-w-0 w-full">
+    <div ref={wrapperRef} className="relative min-w-0 w-full overflow-visible">
       <Input
         ref={inputRef}
         value={localQ}
@@ -144,7 +167,7 @@ export function AnggotaSearchQuickReg({
         className="h-10 sm:h-8"
       />
       {showQuickActions && open && (suggestions.length > 0 || loading) ? (
-        <ul className="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-md border bg-popover py-1 text-sm shadow-md">
+        <ul className="absolute z-50 mt-1 max-h-72 w-full min-w-[16rem] overflow-auto rounded-md border bg-popover py-1 text-sm shadow-md">
           {loading && suggestions.length === 0 ? (
             <li className="flex items-center gap-2 px-3 py-2 text-muted-foreground">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -153,6 +176,8 @@ export function AnggotaSearchQuickReg({
           ) : null}
           {suggestions.map((m) => {
             const busy = pendingId?.endsWith(m.id) ?? false;
+            const showUkt = Boolean(activeUkt) && !m.registeredUkt;
+            const showLatber = Boolean(activeLatber) && !m.registeredLatber;
             return (
               <li
                 key={m.id}
@@ -173,13 +198,17 @@ export function AnggotaSearchQuickReg({
                 >
                   <p className="truncate font-medium">{formatMemberName(m.fullName)}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {[m.nia, formatRankLabel(m.currentRank || "") || m.currentRank, m.dojoName]
+                    {[
+                      m.nia,
+                      formatRankLabel(m.currentRank || "") || m.currentRank,
+                      m.dojoName || "—",
+                    ]
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {activeUkt ? (
+                <div className="mt-2 flex flex-wrap items-center gap-1">
+                  {showUkt && activeUkt ? (
                     <Button
                       type="button"
                       size="sm"
@@ -192,8 +221,12 @@ export function AnggotaSearchQuickReg({
                     >
                       Daftar UKT
                     </Button>
+                  ) : activeUkt && m.registeredUkt ? (
+                    <span className="text-[11px] text-muted-foreground">
+                      Sudah UKT
+                    </span>
                   ) : null}
-                  {activeLatber ? (
+                  {showLatber && activeLatber ? (
                     <Button
                       type="button"
                       size="sm"
@@ -207,6 +240,10 @@ export function AnggotaSearchQuickReg({
                     >
                       Daftar Latber
                     </Button>
+                  ) : activeLatber && m.registeredLatber ? (
+                    <span className="text-[11px] text-muted-foreground">
+                      Sudah Latber
+                    </span>
                   ) : null}
                 </div>
               </li>

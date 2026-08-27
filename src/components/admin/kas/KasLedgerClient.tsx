@@ -52,12 +52,16 @@ import {
   parseKasMassPaste,
   visibleKasTableRows,
   ymdWib,
+  type DojoKasSummary,
   type KasLedgerRow,
   type KasTableRow,
 } from "@/lib/kas";
+import { kasUktDepositDisplay, matchKasDojoId } from "@/lib/kas-ukt-deposit";
+import type { UktDepositRecord } from "@/lib/ukt";
 import { printKasDocument } from "@/lib/kas-print-html";
 import { KasDateField } from "@/components/admin/kas/KasDateField";
 import { KasInlineCell } from "@/components/admin/kas/KasInlineCell";
+import { cn } from "@/lib/utils";
 
 type KasPayload = {
   canWrite: boolean;
@@ -133,6 +137,20 @@ export function KasLedgerClient({
   const [batchTarget, setBatchTarget] = useState("");
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [recapDojoOpen, setRecapDojoOpen] = useState(false);
+  const [uktDepositMap, setUktDepositMap] = useState<Record<
+    string,
+    UktDepositRecord
+  > | null>(null);
+  const [uktDepositPeriod, setUktDepositPeriod] = useState<{
+    id: string;
+    title: string;
+    semester: string;
+    year: number;
+  } | null>(null);
+  const [uktDepositUrl, setUktDepositUrl] = useState<string | null>(null);
+  const [uktDepositAmbiguous, setUktDepositAmbiguous] = useState(false);
+  const [uktDepositLoadError, setUktDepositLoadError] = useState(false);
+  const [uktDepositLoading, setUktDepositLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"buku" | "laporan">("laporan");
   const [tableFullscreen, setTableFullscreen] = useState(false);
   const [form, setForm] = useState({
@@ -152,26 +170,36 @@ export function KasLedgerClient({
   const collapseSeedQsRef = useRef<string | null>(null);
 
   const officialDojoList = useMemo(() => {
-    if (!data?.scopes) return [];
-    const list: string[] = [];
+    if (!data?.scopes) return [] as Array<{ id: string; name: string }>;
+    const list: Array<{ id: string; name: string }> = [];
     for (const s of data.scopes) {
-      if (s.type === "dojo" && s.label) {
-        const clean = s.label.replace(/^Ranting\s+/i, "").trim();
-        if (clean) {
-          list.push(clean);
-          const noDojo = clean.replace(/^DOJO\s+/i, "").trim();
-          if (noDojo && noDojo !== clean) {
-            list.push(noDojo);
-          }
-        }
+      if (s.type === "dojo" && s.id) {
+        const clean = (s.label || "").replace(/^Ranting\s+/i, "").trim();
+        list.push({ id: s.id, name: clean || s.label || s.id });
       }
     }
-    return [...new Set(list)];
+    return list;
   }, [data?.scopes]);
 
   const dojoSummaries = useMemo(() => {
-    return aggregateKasByDojo(data?.rows ?? [], officialDojoList);
-  }, [data?.rows, officialDojoList]);
+    const base = aggregateKasByDojo(data?.rows ?? [], officialDojoList);
+    return base.map((item) => {
+      const dojoId =
+        item.dojoId ||
+        matchKasDojoId(item.dojoName, officialDojoList) ||
+        null;
+      const display = kasUktDepositDisplay(
+        dojoId,
+        uktDepositMap,
+        uktDepositLoadError,
+      );
+      return {
+        ...item,
+        dojoId,
+        uktDepositLabel: display.label,
+      } satisfies DojoKasSummary;
+    });
+  }, [data?.rows, officialDojoList, uktDepositMap, uktDepositLoadError]);
 
   const officialDojoCount = useMemo(() => {
     return dojoSummaries.filter((d) => d.isOfficialDojo).length;
@@ -247,6 +275,49 @@ export function KasLedgerClient({
       window.history.replaceState(null, "", url);
     }
   }, [qs]);
+
+  useEffect(() => {
+    if (!recapDojoOpen) return;
+    let cancelled = false;
+    setUktDepositLoading(true);
+    const params = new URLSearchParams();
+    if (fromYmd) params.set("from", fromYmd);
+    if (toYmd) params.set("to", toYmd);
+    void fetch(`/api/admin/kas/ukt-deposit?${params}`)
+      .then(async (res) => {
+        const data = (await res.json()) as {
+          period?: {
+            id: string;
+            title: string;
+            semester: string;
+            year: number;
+          } | null;
+          periodUrl?: string | null;
+          ambiguous?: boolean;
+          depositMap?: Record<string, UktDepositRecord>;
+          loadError?: boolean;
+        };
+        if (cancelled) return;
+        setUktDepositPeriod(data.period ?? null);
+        setUktDepositUrl(data.periodUrl ?? null);
+        setUktDepositAmbiguous(Boolean(data.ambiguous));
+        setUktDepositLoadError(Boolean(data.loadError) || !res.ok);
+        setUktDepositMap(data.depositMap ?? {});
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setUktDepositLoadError(true);
+        setUktDepositMap({});
+        setUktDepositPeriod(null);
+        setUktDepositUrl(null);
+      })
+      .finally(() => {
+        if (!cancelled) setUktDepositLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [recapDojoOpen, fromYmd, toYmd]);
 
   const [selectionQs, setSelectionQs] = useState(qs);
   if (qs !== selectionQs) {
@@ -2048,6 +2119,33 @@ export function KasLedgerClient({
                 Transaksi Kas Lunas / Terverifikasi
               </span>
             </DialogTitle>
+            {uktDepositPeriod ? (
+              <p className="text-xs text-muted-foreground">
+                Status setor UKT merujuk{" "}
+                <span className="font-medium text-foreground">
+                  {uktDepositPeriod.title}
+                </span>
+                {uktDepositAmbiguous
+                  ? " (rentang tanggal lintas semester — memakai tengah periode)"
+                  : ""}
+                {uktDepositUrl ? (
+                  <>
+                    {" · "}
+                    <Link
+                      href={uktDepositUrl}
+                      className="text-inkai-red underline-offset-2 hover:underline"
+                    >
+                      Buka UKT
+                    </Link>
+                  </>
+                ) : null}
+                {uktDepositLoading ? " · memuat status…" : null}
+              </p>
+            ) : uktDepositLoadError ? (
+              <p className="text-xs text-amber-700">
+                Status setor UKT tidak tersedia.
+              </p>
+            ) : null}
           </DialogHeader>
           <div className="flex flex-col min-h-0 flex-1 gap-3 overflow-hidden">
             {/* KPI Summary Banner */}
@@ -2105,7 +2203,7 @@ export function KasLedgerClient({
             </div>
 
             <div className="min-h-0 flex-1 overflow-x-auto overflow-y-auto rounded-md border">
-              <table className="w-full text-left text-xs sm:text-sm min-w-[750px]">
+              <table className="w-full text-left text-xs sm:text-sm min-w-[860px]">
                 <thead className="sticky top-0 z-10 border-b bg-muted font-medium text-muted-foreground">
                   <tr>
                     <th className="p-2 sm:p-2.5 w-12">No</th>
@@ -2115,12 +2213,13 @@ export function KasLedgerClient({
                     <th className="p-2 sm:p-2.5 text-right">Latber (Lunas)</th>
                     <th className="p-2 sm:p-2.5 text-right">Komisi Latber</th>
                     <th className="p-2 sm:p-2.5 text-right font-bold">Total Masuk</th>
+                    <th className="p-2 sm:p-2.5 whitespace-nowrap">Status setor UKT</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {filteredDojoSummaries.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                      <td colSpan={8} className="p-4 text-center text-muted-foreground">
                         {recapSearchQuery ? "Ranting tidak ditemukan." : "Tidak ada transaksi kas masuk pada periode ini."}
                       </td>
                     </tr>
@@ -2170,6 +2269,20 @@ export function KasLedgerClient({
                         <td className="p-2 sm:p-2.5 text-right font-bold text-teal-800 dark:text-teal-300 whitespace-nowrap">
                           {formatRp(item.totalMasuk)}
                         </td>
+                        <td className="p-2 sm:p-2.5 whitespace-nowrap">
+                          <span
+                            className={cn(
+                              "rounded px-1.5 py-0.5 text-[10px] font-medium",
+                              item.uktDepositLabel === "Setoran diterima"
+                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"
+                                : item.uktDepositLabel === "Belum setor"
+                                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                                  : "bg-muted text-muted-foreground",
+                            )}
+                          >
+                            {item.uktDepositLabel || "—"}
+                          </span>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -2195,6 +2308,7 @@ export function KasLedgerClient({
                       <td className="p-2 sm:p-2.5 text-right text-sm sm:text-base text-teal-900 dark:text-teal-200 whitespace-nowrap">
                         {formatRp(grandTotal)}
                       </td>
+                      <td className="p-2 sm:p-2.5" />
                     </tr>
                   </tfoot>
                 ) : null}
