@@ -552,4 +552,50 @@ describe("UKT Laporan WA format ranting", () => {
     expect(idxZulfa).toBeGreaterThan(idxCitra);
     expect(idxBudi).toBeGreaterThan(idxZulfa);
   });
+
+  it("komisi C mengikuti jumlah peserta roster, bukan hanya baris nota", () => {
+    const rows = [
+      {
+        memberId: "m1",
+        registrationId: "r1",
+        fullName: "DENGAN TAGIHAN",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Kuning (Kyu 7)",
+        status: "APPROVED",
+        billingStatus: "PENDING",
+        billingId: "b1",
+        billingAmount: 295000,
+      },
+      {
+        memberId: "m2",
+        registrationId: "r2",
+        fullName: "TANPA TAGIHAN",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Putih (Kyu 10)",
+        status: "PENDING",
+        selfRegistration: true,
+        billingId: null,
+        billingAmount: null,
+        billingStatus: null,
+      },
+    ] as any[];
+
+    expect(isUktNotaRow(rows[0])).toBe(true);
+    expect(isUktNotaRow(rows[1])).toBe(false);
+    expect(isUktWaRosterRow(rows[0])).toBe(true);
+    expect(isUktWaRosterRow(rows[1])).toBe(true);
+
+    const text = buildUktRantingWaReportText(
+      "UKT Semester II-2026",
+      "GADING",
+      rows,
+      beltFees,
+      komisi,
+    );
+    expect(text).toContain("*C.* Komisi Ranting (2 ×");
+    expect(text).toContain(`- ${formatRupiahNota(2 * komisi)}`);
+    expect(text).not.toContain("*C.* Komisi Ranting (1 ×");
+  });
 });

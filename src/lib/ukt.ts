@@ -2010,13 +2010,14 @@ export function buildUktRantingWaReportText(
   const participantLines = sortedRoster.map((r, i) =>
     formatWaParticipantLine(r, i),
   );
+  const participantCount = sortedRoster.length;
   const notaRows = rosterRows.filter(isUktNotaRow);
-  const { lines, subtotalA, registeredCount, unpaidCount } = buildNotaBeltLines(
+  const { lines, subtotalA, unpaidCount } = buildNotaBeltLines(
     notaRows,
     beltFees,
   );
   const subtotalB = 0;
-  const totalC = registeredCount * komisiRanting;
+  const totalC = participantCount * komisiRanting;
   const grandTotal = subtotalA + subtotalB - totalC;
 
   const paidRows = notaRows.filter((r) => isUktBillingPaid(r));
@@ -2048,7 +2049,7 @@ export function buildUktRantingWaReportText(
     "",
     `*A.* Subtotal A (Biaya UKT): _${formatRupiahNota(subtotalA)}_`,
     `*B.* Subtotal B (Buku Rusak/Hilang): _${formatRupiahNota(subtotalB)}_`,
-    `*C.* Komisi Ranting (${registeredCount} × ${formatRupiahNota(komisiRanting)}): - ${formatRupiahNota(totalC)}`,
+    `*C.* Komisi Ranting (${participantCount} × ${formatRupiahNota(komisiRanting)}): - ${formatRupiahNota(totalC)}`,
     "",
     `*TOTAL (A+B−C): ${formatRupiahNota(grandTotal)}*`,
     formatUktWaMoneyPaidLine(paidNet, unpaidNet, { sudahLunasLabel: true }),
