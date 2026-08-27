@@ -79,7 +79,7 @@ describe("isUktNotaRow vs isUktPaymentDocumentRow", () => {
 });
 
 describe("buildNotaBeltLines", () => {
-  it("FORTRESS-like: Belum Bayar + Biru 315k masuk; Subtotal A = sum billingAmount", () => {
+  it("FORTRESS-like: Belum Bayar + Biru 315k masuk; Subtotal A = sum tarif snapshot", () => {
     const rows = [
       row({
         memberId: "1",
@@ -151,7 +151,7 @@ describe("buildNotaBeltLines", () => {
     });
   });
 
-  it("satu sabuk nominal campur → pecah baris", () => {
+  it("satu sabuk nominal campur → satu baris @ snapshot", () => {
     const rows = [
       row({
         memberId: "a",
@@ -165,8 +165,40 @@ describe("buildNotaBeltLines", () => {
       }),
     ];
     const built = buildNotaBeltLines(rows, beltFees);
-    expect(built.lines.filter((l) => l.belt === "KUNING")).toHaveLength(2);
-    expect(built.subtotalA).toBe(595000);
+    const kuning = built.lines.filter((l) => l.belt === "KUNING");
+    expect(kuning).toHaveLength(1);
+    expect(kuning[0]).toEqual({
+      belt: "KUNING",
+      count: 2,
+      unitFee: 295000,
+      subtotal: 590000,
+    });
+    expect(built.subtotalA).toBe(590000);
+  });
+
+  it("Hijau billing mismatch Putih → satu baris HIJAU @ snapshot", () => {
+    const rows = [
+      row({
+        memberId: "h1",
+        kyuLama: "Hijau (Kyu 6)",
+        billingAmount: 285000,
+      }),
+      row({
+        memberId: "h2",
+        kyuLama: "Hijau (Kyu 6)",
+        billingAmount: 305000,
+      }),
+    ];
+    const built = buildNotaBeltLines(rows, beltFees);
+    const hijau = built.lines.filter((l) => l.belt === "HIJAU");
+    expect(hijau).toHaveLength(1);
+    expect(hijau[0]).toEqual({
+      belt: "HIJAU",
+      count: 2,
+      unitFee: 305000,
+      subtotal: 610000,
+    });
+    expect(built.subtotalA).toBe(610000);
   });
 
   it("billingAmount null → fallback tarif snapshot", () => {

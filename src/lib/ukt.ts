@@ -649,15 +649,15 @@ export type NotaBeltBuildResult = {
 };
 
 /**
- * Baris sabuk Cetak Nota: jumlahkan `billingAmount` aktual (kolom Rp tabel).
- * Satu sabuk dengan nominal berbeda → pecah baris per unitFee.
- * `billingAmount` null → fallback tarif snapshot sabuk itu (bukan Rp 0).
+ * Baris sabuk Cetak Nota / Laporan WA: satu baris per sabuk dari Kyu Lama.
+ * Unit fee = tarif snapshot periode (`fallbackFees[belt]`); `billingAmount` hanya
+ * untuk `LAINNYA` (atau fallback Putih bila null). Subtotal A = sum tarif snapshot.
  */
 export function buildNotaBeltLines(
   rows: UktMemberRow[],
   fallbackFees: Record<BeltFeeKey, number>,
 ): NotaBeltBuildResult {
-  /** key = `${belt}|${unitFee}` */
+  /** key = belt (unitFee seragam per sabuk diketahui) */
   const buckets = new Map<
     string,
     { belt: BeltFeeKey | "LAINNYA"; unitFee: number; count: number; subtotal: number }
@@ -668,15 +668,12 @@ export function buildNotaBeltLines(
 
   for (const row of rows) {
     const belt = resolveNotaBeltGroupFromKyu(row, fallbackFees);
-    const base = uktBaseFeeAmount(row.billingAmount);
     const unitFee = Math.round(
-      base != null
-        ? base
-        : belt === "LAINNYA"
-          ? fallbackFees.PUTIH
-          : fallbackFees[belt],
+      belt !== "LAINNYA"
+        ? fallbackFees[belt]
+        : (uktBaseFeeAmount(row.billingAmount) ?? fallbackFees.PUTIH),
     );
-    const key = `${belt}|${unitFee}`;
+    const key = belt === "LAINNYA" ? `LAINNYA|${unitFee}` : belt;
     const existing = buckets.get(key);
     if (existing) {
       existing.count += 1;
