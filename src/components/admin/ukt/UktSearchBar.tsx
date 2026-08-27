@@ -191,9 +191,10 @@ export function UktSearchBar({
         ? {
             id: item.row.memberId,
             fullName: item.row.fullName,
-            nia: item.row.nia,
-            dojoName: item.row.dojoName,
-            currentRank: item.row.memberCurrentRank || item.row.kyuLama,
+            nia: item.row.nia ?? null,
+            dojoName: item.row.dojoName ?? undefined,
+            currentRank:
+              item.row.memberCurrentRank || item.row.kyuLama || undefined,
           }
         : item.member;
     try {
