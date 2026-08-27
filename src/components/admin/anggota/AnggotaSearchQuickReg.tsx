@@ -178,6 +178,7 @@ export function AnggotaSearchQuickReg({
             const busy = pendingId?.endsWith(m.id) ?? false;
             const showUkt = Boolean(activeUkt) && !m.registeredUkt;
             const showLatber = Boolean(activeLatber) && !m.registeredLatber;
+            const showActions = showUkt || showLatber;
             return (
               <li
                 key={m.id}
@@ -207,45 +208,39 @@ export function AnggotaSearchQuickReg({
                       .join(" · ")}
                   </p>
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-1">
-                  {showUkt && activeUkt ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-7 text-xs"
-                      disabled={busy}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() =>
-                        void registerMember(m.id, "ukt", activeUkt.id)
-                      }
-                    >
-                      Daftar UKT
-                    </Button>
-                  ) : activeUkt && m.registeredUkt ? (
-                    <span className="text-[11px] text-muted-foreground">
-                      Sudah UKT
-                    </span>
-                  ) : null}
-                  {showLatber && activeLatber ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs"
-                      disabled={busy}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() =>
-                        void registerMember(m.id, "latber", activeLatber.id)
-                      }
-                    >
-                      Daftar Latber
-                    </Button>
-                  ) : activeLatber && m.registeredLatber ? (
-                    <span className="text-[11px] text-muted-foreground">
-                      Sudah Latber
-                    </span>
-                  ) : null}
-                </div>
+                {showActions ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-1">
+                    {showUkt && activeUkt ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 text-xs"
+                        disabled={busy}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() =>
+                          void registerMember(m.id, "ukt", activeUkt.id)
+                        }
+                      >
+                        Daftar UKT
+                      </Button>
+                    ) : null}
+                    {showLatber && activeLatber ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        disabled={busy}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() =>
+                          void registerMember(m.id, "latber", activeLatber.id)
+                        }
+                      >
+                        Daftar Latber
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
               </li>
             );
           })}

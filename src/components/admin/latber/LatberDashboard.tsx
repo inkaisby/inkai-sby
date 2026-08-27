@@ -52,6 +52,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { canEditKyuBaru } from "@/lib/belt";
+import { canRegisterMembersToEvents } from "@/lib/wilayah-rbac";
 import { buildLatberInviteUrl } from "@/lib/latber-invite";
 import {
   buildLatberCabangWaReportText,
@@ -222,6 +223,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
   const periodLocked = Boolean(props.periodMeta?.archived || props.periodMeta?.locked);
   const isMultiDojoAdmin = !isDojoAdmin && props.dojos.length > 1;
+  const canQuickRegister = canRegisterMembersToEvents(props.userRoles);
 
   const displayRows = useMemo(() => {
     let list = rows;
@@ -486,6 +488,101 @@ export function LatberDashboard(props: LatberDashboardProps) {
       })();
     },
     [props.selectedPeriodId, periodLocked, rows],
+  );
+
+  /** Quick-reg dari dropdown: hydrate (hormati hydrateOk) lalu daftar. */
+  const handleQuickRegisterFromSearch = useCallback(
+    async (member: {
+      id: string;
+      fullName: string;
+      nia: string | null;
+      dojoName?: string;
+      currentRank?: string;
+    }) => {
+      if (!props.selectedPeriodId || periodLocked) {
+        showError("Periode dikunci atau belum dipilih");
+        throw new Error("Periode tidak tersedia");
+      }
+      if (pendingId != null) {
+        throw new Error("Sedang memproses");
+      }
+
+      setPendingId(member.id);
+      try {
+        let row = rows.find((r) => r.memberId === member.id);
+        if (!row || row.status === "BELUM_DAFTAR") {
+          const params = new URLSearchParams({
+            memberId: member.id,
+            periodId: props.selectedPeriodId,
+          });
+          const res = await fetchWithTimeout(`/api/admin/latber/members?${params}`);
+          const data = await parseApiJson<{
+            error?: string;
+            latberRow?: LatberMemberRow & {
+              hydrateOk?: boolean;
+              hydrateError?: string | null;
+            };
+          }>(res);
+          if (!res.ok || !data.latberRow) {
+            throw new Error(data.error || "Gagal memuat anggota");
+          }
+          if (data.latberRow.hydrateOk === false) {
+            throw new Error(
+              data.latberRow.hydrateError || "Anggota tidak memenuhi syarat",
+            );
+          }
+          row = data.latberRow;
+          setRows((prev) => {
+            if (prev.some((r) => r.memberId === row!.memberId)) return prev;
+            return [...prev, row!];
+          });
+        }
+
+        const regRes = await fetchWithTimeout("/api/admin/latber/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventId: props.selectedPeriodId,
+            memberId: member.id,
+          }),
+        });
+        const regData = await parseApiJson<{
+          error?: string;
+          registrationId?: string;
+          billingStatus?: string;
+          billingAmount?: number;
+        }>(regRes);
+        if (!regRes.ok) throw new Error(regData.error || "Gagal mendaftar");
+        setRows((prev) =>
+          prev.map((r) => {
+            if (r.memberId !== member.id) return r;
+            return {
+              ...r,
+              registrationId: regData.registrationId ?? r.registrationId,
+              status: "APPROVED",
+              billingStatus: regData.billingStatus ?? "PENDING",
+              billingAmount: regData.billingAmount ?? props.feeAmount,
+              registeredAt: new Date().toISOString(),
+            };
+          }),
+        );
+        showSuccess("Anggota didaftarkan — status Belum Bayar");
+        refresh();
+      } catch (e) {
+        showError(e instanceof Error ? e.message : "Gagal mendaftar");
+        throw e instanceof Error ? e : new Error("Gagal mendaftar");
+      } finally {
+        setPendingId(null);
+      }
+    },
+    [
+      props.selectedPeriodId,
+      props.feeAmount,
+      periodLocked,
+      pendingId,
+      rows,
+      refresh,
+    ],
   );
 
   async function handleCreatePeriod() {
@@ -1103,6 +1200,14 @@ export function LatberDashboard(props: LatberDashboardProps) {
               showDojoInSuggest={isMultiDojoAdmin}
               onSelectRemote={hydrateRemoteMember}
               disabled={!props.selectedPeriodId}
+              latberEventId={props.selectedPeriodId || ""}
+              canQuickRegister={!periodLocked && canQuickRegister}
+              onQuickRegister={
+                !periodLocked && canQuickRegister
+                  ? handleQuickRegisterFromSearch
+                  : undefined
+              }
+              registerPendingId={pendingId}
             />
           </div>
 

@@ -189,6 +189,7 @@ import {
   type UktRegistrationPolicy,
 } from "@/lib/ukt-registration-policy";
 import { parseApiJson } from "@/lib/api-client";
+import { canRegisterMembersToEvents } from "@/lib/wilayah-rbac";
 import { SortableTableHead } from "@/components/ui/SortableTableHead";
 import {
   compareDates,
@@ -296,6 +297,10 @@ type Props = {
     bidangUjianName?: string;
     bendaharaCabangName?: string;
     ketuaCabangName?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankAccountName?: string;
+    paymentInstructions?: string;
   };
   /** Prefill TTD dari Organisasi Pengprov / susunan pengurus. */
   pengprovHeadName?: string | null;
@@ -497,6 +502,7 @@ export function UktDashboard(props: Props) {
   const canEditNia = canAssignNia(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
   const canForcePaidCancel = isCabang;
+  const canQuickRegister = canRegisterMembersToEvents(props.userRoles);
   const periodMeta = periodMetaSaved ?? props.periodMeta;
   const periodLocked = Boolean(periodMeta?.locked || periodMeta?.archived);
 
@@ -1638,6 +1644,117 @@ export function UktDashboard(props: Props) {
     }
   };
 
+  /** Quick-reg dari dropdown pencarian: hydrate syarat lalu daftar (throw agar tombol tidak hilang bila gagal). */
+  const handleQuickRegisterFromSearch = async (member: {
+    id: string;
+    fullName: string;
+    nia: string | null;
+    dojoName?: string;
+    currentRank?: string;
+  }) => {
+    if (periodLocked) {
+      toast.error("Periode dikunci — pendaftaran ditutup");
+      throw new Error("Periode dikunci");
+    }
+    if (!props.selectedPeriodId) {
+      toast.error("Pilih atau buat periode UKT terlebih dahulu");
+      throw new Error("Periode belum dipilih");
+    }
+    if (isMemberPending(member.id)) {
+      throw new Error("Sedang memproses");
+    }
+
+    let row = rows.find((r) => r.memberId === member.id);
+    if (!row) {
+      const toastId = toast.loading("Memuat syarat UKT…");
+      try {
+        const params = new URLSearchParams({
+          memberId: member.id,
+          periodId: props.selectedPeriodId,
+        });
+        const res = await fetch(`/api/admin/ukt/members?${params.toString()}`);
+        const data = await parseApiJson<{
+          error?: string;
+          uktRow?: UktMemberRow;
+        }>(res);
+        if (!res.ok || !data.uktRow) {
+          throw new Error(data.error || "Gagal memuat anggota");
+        }
+        row = data.uktRow;
+        setRows((prev) => {
+          if (prev.some((r) => r.memberId === row!.memberId)) return prev;
+          return [...prev, row!];
+        });
+        toast.dismiss(toastId);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Gagal memuat anggota", {
+          id: toastId,
+        });
+        throw e instanceof Error ? e : new Error("Gagal memuat anggota");
+      }
+    }
+
+    const blockers = getUktRegistrationBlockersWithWaiver(
+      row,
+      {
+        registrationOpen,
+        registrationNotYetOpen,
+        ...memberRequirementOpts,
+      },
+      row.registrationWaiver,
+    );
+    if (blockers.length > 0) {
+      const msg = formatUktRegistrationBlockers(
+        blockers,
+        memberRequirementOpts.minAttendancePct,
+      );
+      toast.error(msg);
+      throw new Error(msg);
+    }
+
+    setMemberPending(member.id, true);
+    try {
+      const res = await fetch("/api/admin/ukt/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: props.selectedPeriodId,
+          memberId: member.id,
+        }),
+      });
+      const data = await parseApiJson<{
+        error?: string;
+        registrationId?: string;
+        billingId?: string | null;
+        billingAmount?: number | null;
+        billingStatus?: string | null;
+      }>(res);
+      if (!res.ok) throw new Error(data.error || "Gagal mendaftarkan anggota");
+      const registrationId = data.registrationId
+        ? String(data.registrationId)
+        : `pending-${member.id}`;
+      patchRow(member.id, {
+        registrationId,
+        billingId: data.billingId ? String(data.billingId) : null,
+        billingStatus: data.billingStatus
+          ? String(data.billingStatus)
+          : "PENDING",
+        billingAmount:
+          data.billingAmount != null && Number.isFinite(Number(data.billingAmount))
+            ? Number(data.billingAmount)
+            : null,
+        status: "APPROVED",
+        examResult: null,
+      });
+      toast.success("Anggota didaftarkan — status Belum Bayar");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal mendaftarkan");
+      throw e instanceof Error ? e : new Error("Gagal mendaftarkan");
+    } finally {
+      setMemberPending(member.id, false);
+    }
+  };
+
   const handleKyuUpdate = async (
     registrationId: string,
     newRank: string,
@@ -2340,6 +2457,13 @@ export function UktDashboard(props: Props) {
               beltFees,
               komisiRanting,
               examMeta,
+              {
+                bankName: props.orgProfile?.bankName,
+                bankAccountNumber: props.orgProfile?.bankAccountNumber,
+                bankAccountName: props.orgProfile?.bankAccountName,
+                bendaharaName: props.orgProfile?.bendaharaCabangName,
+                paymentInstructions: props.orgProfile?.paymentInstructions,
+              },
             );
           })();
 
@@ -2383,6 +2507,13 @@ export function UktDashboard(props: Props) {
       {
         examAt: periodMeta?.examAt,
         examLocation: periodMeta?.examLocation,
+      },
+      {
+        bankName: props.orgProfile?.bankName,
+        bankAccountNumber: props.orgProfile?.bankAccountNumber,
+        bankAccountName: props.orgProfile?.bankAccountName,
+        bendaharaName: props.orgProfile?.bendaharaCabangName,
+        paymentInstructions: props.orgProfile?.paymentInstructions,
       },
     );
 
@@ -3534,6 +3665,20 @@ export function UktDashboard(props: Props) {
               effectiveDojoIds?.length === 1 ? effectiveDojoIds[0] : ""
             }
             showDojoInSuggest={showDojoColumn}
+            uktEventId={
+              !isArchiveView && props.selectedPeriodId
+                ? props.selectedPeriodId
+                : ""
+            }
+            canQuickRegister={
+              !isArchiveView && !periodLocked && canQuickRegister
+            }
+            onQuickRegister={
+              !isArchiveView && !periodLocked && canQuickRegister
+                ? handleQuickRegisterFromSearch
+                : undefined
+            }
+            registerPendingId={[...pendingMemberIds][0] ?? null}
             onSelectRemote={(member) => {
               if (!props.selectedPeriodId) {
                 toast.error("Pilih periode UKT dulu");

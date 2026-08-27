@@ -6,6 +6,7 @@ import {
   countNotaBeltGroups,
   extractUktRankNumber,
   formatRupiahNota,
+  formatUktWaBendaharaPaymentLines,
   isUktNotaRow,
   isUktPaymentDocumentRow,
   isUktWaRosterRow,
@@ -368,6 +369,9 @@ describe("UKT Laporan WA format ranting", () => {
     expect(text).not.toContain("TOTAL disetor");
     expect(text).not.toContain("yang dibayarkan");
     expect(isUktNotaRow(rows[0])).toBe(true);
+    // Jarak enter: sabuk ↔ Termasuk ↔ A/B/C ↔ TOTAL
+    expect(text).toMatch(/KUNING:[\s\S]*?\n\n_Termasuk 1 Belum Bayar_\n\n\*A\./);
+    expect(text).toMatch(/\*C\.\* Komisi Ranting[\s\S]*?\n\n\*TOTAL \(A\+B/);
   });
 
   it("semua lunas: pecahan _Sudah lunas_ saja", () => {
@@ -394,5 +398,78 @@ describe("UKT Laporan WA format ranting", () => {
     );
     expect(text).toContain("_Sudah lunas_");
     expect(text).not.toContain("Belum lunas:");
+  });
+
+  it("rekening bendahara muncul bila nomor terisi; kosong di-omit", () => {
+    const rows = [
+      {
+        memberId: "m1",
+        registrationId: "r1",
+        fullName: "LUNAS",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Kuning (Kyu 7)",
+        status: "APPROVED",
+        billingStatus: "PAID",
+        billingId: "b1",
+        billingAmount: 295000,
+      },
+    ] as any[];
+
+    expect(formatUktWaBendaharaPaymentLines(null)).toEqual([]);
+    expect(formatUktWaBendaharaPaymentLines({ bankAccountNumber: "" })).toEqual(
+      [],
+    );
+    expect(
+      formatUktWaBendaharaPaymentLines({
+        bankName: "Mandiri",
+        bankAccountNumber: "1400024546344",
+        bankAccountName: "HABIBUR RAHMAN",
+      }),
+    ).toEqual([
+      "*Pembayaran ke rekening Bendahara Cabang*",
+      "Bank Mandiri",
+      "1400024546344 a.n. HABIBUR RAHMAN",
+    ]);
+    expect(
+      formatUktWaBendaharaPaymentLines({
+        bankAccountNumber: "1400024546344",
+        bendaharaName: "Habibur Rahman",
+      }),
+    ).toEqual([
+      "*Pembayaran ke rekening Bendahara Cabang*",
+      "1400024546344 a.n. Habibur Rahman",
+    ]);
+
+    const withPay = buildUktRantingWaReportText(
+      "UKT Semester II-2026",
+      "GADING",
+      rows,
+      beltFees,
+      komisi,
+      undefined,
+      {
+        bankName: "Mandiri",
+        bankAccountNumber: "1400024546344",
+        bankAccountName: "HABIBUR RAHMAN",
+        paymentInstructions: "Cantumkan nama ranting di berita transfer.",
+      },
+    );
+    expect(withPay).toContain("*Pembayaran ke rekening Bendahara Cabang*");
+    expect(withPay).toContain("Bank Mandiri");
+    expect(withPay).toContain("1400024546344 a.n. HABIBUR RAHMAN");
+    expect(withPay).toContain("Cantumkan nama ranting di berita transfer.");
+    expect(withPay).toMatch(
+      /_Sudah lunas_\n\n\*Pembayaran ke rekening Bendahara Cabang\*/,
+    );
+
+    const withoutPay = buildUktRantingWaReportText(
+      "UKT Semester II-2026",
+      "GADING",
+      rows,
+      beltFees,
+      komisi,
+    );
+    expect(withoutPay).not.toContain("Pembayaran ke rekening");
   });
 });

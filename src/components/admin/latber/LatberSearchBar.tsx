@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, X } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import type { LatberMemberRow } from "@/lib/latber";
@@ -13,6 +14,7 @@ type RemoteSuggestion = {
   nia: string | null;
   dojoName?: string;
   currentRank?: string;
+  registeredLatber?: boolean;
 };
 
 type Props = {
@@ -25,6 +27,10 @@ type Props = {
   onSelectRemote?: (member: RemoteSuggestion) => void;
   showDojoInSuggest?: boolean;
   disabled?: boolean;
+  latberEventId?: string;
+  canQuickRegister?: boolean;
+  onQuickRegister?: (member: RemoteSuggestion) => void | Promise<void>;
+  registerPendingId?: string | null;
 };
 
 function matchQuery(row: LatberMemberRow, q: string) {
@@ -33,6 +39,15 @@ function matchQuery(row: LatberMemberRow, q: string) {
     row.fullName.toLowerCase().includes(needle) ||
     (row.nia?.toLowerCase().includes(needle) ?? false)
   );
+}
+
+function isLocalRegistered(row: LatberMemberRow): boolean {
+  if (!row.registrationId) return false;
+  const st = String(row.status ?? "").toUpperCase();
+  if (st === "CANCELLED" || st === "REJECTED" || st === "BELUM_DAFTAR") {
+    return false;
+  }
+  return true;
 }
 
 export function LatberSearchBar({
@@ -45,12 +60,19 @@ export function LatberSearchBar({
   onSelectRemote,
   showDojoInSuggest = false,
   disabled = false,
+  latberEventId = "",
+  canQuickRegister = false,
+  onQuickRegister,
+  registerPendingId = null,
 }: Props) {
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [remote, setRemote] = useState<RemoteSuggestion[]>([]);
   const [remoteLoading, setRemoteLoading] = useState(false);
+  const [optimisticRegistered, setOptimisticRegistered] = useState<Set<string>>(
+    () => new Set(),
+  );
   const wrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const remoteDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -116,6 +138,7 @@ export function LatberSearchBar({
       setRemoteLoading(true);
       const params = new URLSearchParams({ q });
       if (dojoFilter) params.set("dojo", dojoFilter);
+      if (latberEventId) params.set("latberEventId", latberEventId);
       void fetch(`/api/admin/latber/suggest?${params}`)
         .then(async (res) => {
           const data = (await res.json()) as { suggestions?: RemoteSuggestion[] };
@@ -126,7 +149,7 @@ export function LatberSearchBar({
         .finally(() => setRemoteLoading(false));
     }, 220);
     return () => clearTimeout(remoteDebounceRef.current);
-  }, [query, enableRemoteSuggest, dojoFilter, disabled]);
+  }, [query, enableRemoteSuggest, dojoFilter, disabled, latberEventId]);
 
   const applySearch = useCallback(
     (q: string) => {
@@ -153,6 +176,31 @@ export function LatberSearchBar({
     }
     onSelectRemote?.(item.member);
     applySearch(item.member.fullName);
+  };
+
+  const handleQuickRegister = async (item: CombinedItem) => {
+    if (!canQuickRegister || !onQuickRegister) return;
+    const member: RemoteSuggestion =
+      item.kind === "local"
+        ? {
+            id: item.row.memberId,
+            fullName: item.row.fullName,
+            nia: item.row.nia,
+            dojoName: item.row.dojoName,
+            currentRank: item.row.currentRank,
+          }
+        : item.member;
+    try {
+      await onQuickRegister(member);
+      setOptimisticRegistered((prev) => new Set(prev).add(member.id));
+      setRemote((prev) =>
+        prev.map((s) =>
+          s.id === member.id ? { ...s, registeredLatber: true } : s,
+        ),
+      );
+    } catch {
+      // Parent menampilkan toast error.
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -222,7 +270,7 @@ export function LatberSearchBar({
       ) : null}
       {open && (suggestions.length > 0 || remoteLoading) ? (
         <ul
-          className="absolute z-40 mt-1 max-h-64 w-full overflow-auto rounded-md border border-border bg-popover py-1 text-sm shadow-md"
+          className="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-md border border-border bg-popover py-1 text-sm shadow-md"
           role="listbox"
         >
           {remoteLoading && suggestions.length === 0 ? (
@@ -231,15 +279,18 @@ export function LatberSearchBar({
           {suggestions.map((item, idx) => {
             const key =
               item.kind === "local" ? item.row.memberId : `r-${item.member.id}`;
+            const memberId =
+              item.kind === "local" ? item.row.memberId : item.member.id;
             const name =
               item.kind === "local"
                 ? formatMemberName(item.row.fullName)
                 : formatMemberName(item.member.fullName);
             const nia = item.kind === "local" ? item.row.nia : item.member.nia;
             const registered =
-              item.kind === "local"
-                ? Boolean(item.row.registrationId && item.row.status !== "BELUM_DAFTAR")
-                : false;
+              optimisticRegistered.has(memberId) ||
+              (item.kind === "local"
+                ? isLocalRegistered(item.row)
+                : Boolean(item.member.registeredLatber));
             const rank =
               item.kind === "local"
                 ? formatRankLabel(item.row.currentRank || "") || item.row.currentRank
@@ -249,24 +300,58 @@ export function LatberSearchBar({
               item.kind === "local" ? item.row.dojoName : item.member.dojoName;
             const metaParts = [nia, rank];
             if (showDojoInSuggest && dojoName) metaParts.push(dojoName);
+            const showDaftar =
+              canQuickRegister && Boolean(onQuickRegister) && !registered;
+            const busy = registerPendingId === memberId;
             return (
-              <li key={key} role="option" aria-selected={idx === activeIndex}>
-                <button
-                  type="button"
-                  className={cn(
-                    "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-muted",
-                    idx === activeIndex && "bg-muted",
-                  )}
+              <li
+                key={key}
+                role="option"
+                aria-selected={idx === activeIndex}
+                className={cn(
+                  "border-b border-border/40 px-3 py-2 last:border-0",
+                  idx === activeIndex && "bg-muted/60",
+                )}
+              >
+                <div
+                  className="min-w-0 cursor-pointer rounded-sm hover:bg-muted/60"
+                  role="button"
+                  tabIndex={0}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pickItem(item)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      pickItem(item);
+                    }
+                  }}
                 >
-                  <span className="font-medium">{name}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <p className="truncate font-medium">{name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
                     {metaParts.filter(Boolean).join(" · ")}
-                    {" · "}
-                    {registered ? "Terdaftar" : "Belum daftar"}
-                  </span>
-                </button>
+                  </p>
+                </div>
+                {showDaftar ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={busy}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => void handleQuickRegister(item)}
+                    >
+                      {busy ? (
+                        <>
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          Mendaftar…
+                        </>
+                      ) : (
+                        "Daftar Latber"
+                      )}
+                    </Button>
+                  </div>
+                ) : null}
               </li>
             );
           })}

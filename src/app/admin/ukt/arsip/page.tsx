@@ -255,6 +255,10 @@ async function UktArsipDashboardSection({
         bidangUjianName: orgProfile?.bidangUjianName,
         bendaharaCabangName: orgProfile?.bendaharaCabangName,
         ketuaCabangName: orgProfile?.ketuaCabangName,
+        bankName: orgProfile?.bankName,
+        bankAccountNumber: orgProfile?.bankAccountNumber,
+        bankAccountName: orgProfile?.bankAccountName,
+        paymentInstructions: orgProfile?.paymentInstructions,
       }}
       pengprovHeadName={pengprovHeadName}
       strukturKetuaName={strukturKetuaName}

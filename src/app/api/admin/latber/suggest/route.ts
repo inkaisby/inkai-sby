@@ -5,11 +5,55 @@ import { inkaiFetch } from "@/lib/inkai-api/server";
 import { prisma } from "@/lib/prisma";
 import { buildMemberFilter, getPrimaryAdminRole } from "@/lib/rbac";
 import { resolveAdminDojoClusterAllowlist } from "@/lib/account-peers";
+import {
+  attachSuggestRegistrationFlags,
+  inkaiMemberDojoName,
+  mergeSuggestDojoNames,
+  type UktSuggestItem,
+} from "@/lib/ukt-suggest";
 
 const suggestQuerySchema = z.object({
   q: z.string().trim().max(64).optional().default(""),
   dojo: z.string().trim().max(64).optional().default(""),
+  latberEventId: z.string().trim().max(64).optional().default(""),
 });
+
+const ACTIVE_REG_STATUS = { notIn: ["CANCELLED", "REJECTED"] };
+
+async function hydrateDojoAndFlags(
+  suggestions: UktSuggestItem[],
+  latberEventId: string,
+): Promise<UktSuggestItem[]> {
+  if (suggestions.length === 0) return suggestions;
+  const ids = suggestions.map((s) => s.id);
+  const prismaRows = await prisma.member.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, dojo: { select: { name: true } } },
+  });
+  const dojoById = new Map(
+    prismaRows
+      .filter((m) => m.dojo?.name)
+      .map((m) => [m.id, m.dojo!.name] as const),
+  );
+  let next = mergeSuggestDojoNames(suggestions, dojoById);
+
+  if (!latberEventId) return next;
+
+  const regs = await prisma.eventRegistration.findMany({
+    where: {
+      memberId: { in: ids },
+      eventId: latberEventId,
+      status: ACTIVE_REG_STATUS,
+    },
+    select: { memberId: true, eventId: true },
+  });
+  return attachSuggestRegistrationFlags(
+    next,
+    regs,
+    undefined,
+    latberEventId,
+  );
+}
 
 export async function GET(request: Request) {
   const authResult = await requireAdmin();
@@ -22,11 +66,12 @@ export async function GET(request: Request) {
   const parsedQuery = suggestQuerySchema.safeParse({
     q: searchParams.get("q") ?? undefined,
     dojo: searchParams.get("dojo") ?? undefined,
+    latberEventId: searchParams.get("latberEventId") ?? undefined,
   });
   if (!parsedQuery.success) {
     return NextResponse.json({ suggestions: [] });
   }
-  const { q } = parsedQuery.data;
+  const { q, latberEventId } = parsedQuery.data;
   const dojoId = parsedQuery.data.dojo;
 
   if (q.length < 2) {
@@ -70,14 +115,16 @@ export async function GET(request: Request) {
       orderBy: { fullName: "asc" },
     });
 
+    const suggestions: UktSuggestItem[] = members.map((m) => ({
+      id: m.id,
+      fullName: m.fullName,
+      nia: m.nia,
+      dojoName: m.dojo?.name,
+      currentRank: m.currentRank,
+    }));
+
     return NextResponse.json({
-      suggestions: members.map((m) => ({
-        id: m.id,
-        fullName: m.fullName,
-        nia: m.nia,
-        dojoName: m.dojo?.name,
-        currentRank: m.currentRank,
-      })),
+      suggestions: await hydrateDojoAndFlags(suggestions, latberEventId),
     });
   }
 
@@ -92,13 +139,17 @@ export async function GET(request: Request) {
   }
 
   const members = (data.data as Array<Record<string, unknown>>) ?? [];
+  const suggestions: UktSuggestItem[] = members
+    .map((m) => ({
+      id: String(m.id ?? ""),
+      fullName: String(m.fullName ?? ""),
+      nia: typeof m.nia === "string" ? m.nia : null,
+      dojoName: inkaiMemberDojoName(m),
+      currentRank: typeof m.currentRank === "string" ? m.currentRank : undefined,
+    }))
+    .filter((m) => m.id);
+
   return NextResponse.json({
-    suggestions: members.map((m) => ({
-      id: m.id,
-      fullName: m.fullName,
-      nia: m.nia,
-      dojoName: (m.dojo as { name?: string } | undefined)?.name,
-      currentRank: m.currentRank,
-    })),
+    suggestions: await hydrateDojoAndFlags(suggestions, latberEventId),
   });
 }

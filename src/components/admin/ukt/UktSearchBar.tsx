@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, X } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import type { UktMemberRow } from "@/lib/ukt";
@@ -13,6 +14,7 @@ type RemoteSuggestion = {
   nia: string | null;
   dojoName?: string;
   currentRank?: string;
+  registeredUkt?: boolean;
 };
 
 type Props = {
@@ -27,6 +29,11 @@ type Props = {
   onSelectRemote?: (member: RemoteSuggestion) => void;
   /** Tampilkan nama ranting di saran (multi-ranting). */
   showDojoInSuggest?: boolean;
+  /** Periode UKT aktif — dipakai flag registeredUkt di suggest. */
+  uktEventId?: string;
+  canQuickRegister?: boolean;
+  onQuickRegister?: (member: RemoteSuggestion) => void | Promise<void>;
+  registerPendingId?: string | null;
 };
 
 function matchQuery(row: UktMemberRow, q: string) {
@@ -35,6 +42,15 @@ function matchQuery(row: UktMemberRow, q: string) {
     row.fullName.toLowerCase().includes(needle) ||
     (row.nia?.toLowerCase().includes(needle) ?? false)
   );
+}
+
+function isLocalRegistered(row: UktMemberRow): boolean {
+  if (!row.registrationId) return false;
+  const st = String(row.status ?? "").toUpperCase();
+  if (st === "CANCELLED" || st === "REJECTED" || st === "BELUM_DAFTAR") {
+    return false;
+  }
+  return true;
 }
 
 export function UktSearchBar({
@@ -47,12 +63,19 @@ export function UktSearchBar({
   dojoFilter = "",
   onSelectRemote,
   showDojoInSuggest = false,
+  uktEventId = "",
+  canQuickRegister = false,
+  onQuickRegister,
+  registerPendingId = null,
 }: Props) {
   const [query, setQuery] = useState(value);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [remote, setRemote] = useState<RemoteSuggestion[]>([]);
   const [remoteLoading, setRemoteLoading] = useState(false);
+  const [optimisticRegistered, setOptimisticRegistered] = useState<Set<string>>(
+    () => new Set(),
+  );
   const wrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const remoteDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -118,6 +141,7 @@ export function UktSearchBar({
       setRemoteLoading(true);
       const params = new URLSearchParams({ q });
       if (dojoFilter) params.set("dojo", dojoFilter);
+      if (uktEventId) params.set("uktEventId", uktEventId);
       void fetch(`/api/admin/ukt/suggest?${params}`)
         .then(async (res) => {
           const data = (await res.json()) as {
@@ -131,7 +155,7 @@ export function UktSearchBar({
         .finally(() => setRemoteLoading(false));
     }, 220);
     return () => clearTimeout(remoteDebounceRef.current);
-  }, [query, enableRemoteSuggest, dojoFilter]);
+  }, [query, enableRemoteSuggest, dojoFilter, uktEventId]);
 
   const applySearch = useCallback(
     (q: string) => {
@@ -158,6 +182,31 @@ export function UktSearchBar({
     }
     onSelectRemote?.(item.member);
     applySearch(item.member.fullName);
+  };
+
+  const handleQuickRegister = async (item: CombinedItem) => {
+    if (!canQuickRegister || !onQuickRegister) return;
+    const member: RemoteSuggestion =
+      item.kind === "local"
+        ? {
+            id: item.row.memberId,
+            fullName: item.row.fullName,
+            nia: item.row.nia,
+            dojoName: item.row.dojoName,
+            currentRank: item.row.memberCurrentRank || item.row.kyuLama,
+          }
+        : item.member;
+    try {
+      await onQuickRegister(member);
+      setOptimisticRegistered((prev) => new Set(prev).add(member.id));
+      setRemote((prev) =>
+        prev.map((s) =>
+          s.id === member.id ? { ...s, registeredUkt: true } : s,
+        ),
+      );
+    } catch {
+      // Parent menampilkan toast error; tombol tetap terlihat.
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -226,7 +275,7 @@ export function UktSearchBar({
       ) : null}
       {open && (suggestions.length > 0 || remoteLoading) ? (
         <ul
-          className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-md border border-border bg-popover py-1 text-sm shadow-md"
+          className="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-md border border-border bg-popover py-1 text-sm shadow-md"
           role="listbox"
         >
           {remoteLoading && suggestions.length === 0 ? (
@@ -235,6 +284,8 @@ export function UktSearchBar({
           {suggestions.map((item, idx) => {
             const key =
               item.kind === "local" ? item.row.memberId : `r-${item.member.id}`;
+            const memberId =
+              item.kind === "local" ? item.row.memberId : item.member.id;
             const name =
               item.kind === "local"
                 ? formatMemberName(item.row.fullName)
@@ -242,7 +293,10 @@ export function UktSearchBar({
             const nia =
               item.kind === "local" ? item.row.nia : item.member.nia;
             const registered =
-              item.kind === "local" ? Boolean(item.row.registrationId) : false;
+              optimisticRegistered.has(memberId) ||
+              (item.kind === "local"
+                ? isLocalRegistered(item.row)
+                : Boolean(item.member.registeredUkt));
             const rank =
               item.kind === "local"
                 ? item.row.memberCurrentRank || item.row.kyuLama
@@ -252,28 +306,64 @@ export function UktSearchBar({
               item.kind === "local" ? item.row.dojoName : item.member.dojoName;
             const metaParts = [nia, rank];
             if (showDojoInSuggest && dojoName) metaParts.push(dojoName);
+            const showDaftar =
+              canQuickRegister && Boolean(onQuickRegister) && !registered;
+            const busy = registerPendingId === memberId;
             return (
-              <li key={key} role="option" aria-selected={idx === activeIndex}>
-                <button
-                  type="button"
-                  className={cn(
-                    "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-muted",
-                    idx === activeIndex && "bg-muted",
-                  )}
+              <li
+                key={key}
+                role="option"
+                aria-selected={idx === activeIndex}
+                className={cn(
+                  "border-b border-border/40 px-3 py-2 last:border-0",
+                  idx === activeIndex && "bg-muted/60",
+                )}
+              >
+                <div
+                  className="min-w-0 cursor-pointer rounded-sm hover:bg-muted/60"
+                  role="button"
+                  tabIndex={0}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pickItem(item)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      pickItem(item);
+                    }
+                  }}
                 >
-                  <span className="font-medium">{name}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <p className="truncate font-medium">{name}</p>
+                  <p className="truncate text-xs text-muted-foreground">
                     {metaParts.filter(Boolean).join(" · ")}
-                    {showRegistrationStatus ? (
+                    {showRegistrationStatus && !canQuickRegister ? (
                       <>
                         {" · "}
                         {registered ? "Terdaftar" : "Belum daftar"}
                       </>
                     ) : null}
-                  </span>
-                </button>
+                  </p>
+                </div>
+                {showDaftar ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={busy}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => void handleQuickRegister(item)}
+                    >
+                      {busy ? (
+                        <>
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          Mendaftar…
+                        </>
+                      ) : (
+                        "Daftar UKT"
+                      )}
+                    </Button>
+                  </div>
+                ) : null}
               </li>
             );
           })}

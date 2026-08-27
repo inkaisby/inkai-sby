@@ -1920,6 +1920,33 @@ export function isUktWaRosterRow(row: UktMemberRow): boolean {
   return true;
 }
 
+export type UktWaBendaharaPayment = {
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankAccountName?: string | null;
+  bendaharaName?: string | null;
+  paymentInstructions?: string | null;
+};
+
+/** Baris rekening bendahara cabang untuk Laporan WA ranting (kosong jika tanpa nomor). */
+export function formatUktWaBendaharaPaymentLines(
+  payment?: UktWaBendaharaPayment | null,
+): string[] {
+  const number = payment?.bankAccountNumber?.trim() || "";
+  if (!number) return [];
+  const bank = payment?.bankName?.trim() || "";
+  const accountName =
+    payment?.bankAccountName?.trim() ||
+    payment?.bendaharaName?.trim() ||
+    "";
+  const instructions = payment?.paymentInstructions?.trim() || "";
+  const lines = ["*Pembayaran ke rekening Bendahara Cabang*"];
+  if (bank) lines.push(`Bank ${bank}`);
+  lines.push(accountName ? `${number} a.n. ${accountName}` : number);
+  if (instructions) lines.push(instructions);
+  return lines;
+}
+
 /** Laporan WA satu ranting (peserta roster + rincian uang selaras Nota). */
 export function buildUktRantingWaReportText(
   periodTitle: string,
@@ -1928,6 +1955,7 @@ export function buildUktRantingWaReportText(
   beltFees: Record<BeltFeeKey, number>,
   komisiRanting: number,
   examMeta?: UktWaExamMeta,
+  payment?: UktWaBendaharaPayment | null,
 ): string {
   const participantLines = rosterRows.map((r, i) =>
     formatWaParticipantLine(r, i),
@@ -1963,15 +1991,21 @@ export function buildUktRantingWaReportText(
     ...beltLines,
   ];
   if (unpaidCount > 0) {
-    out.push(`_Termasuk ${unpaidCount} Belum Bayar_`);
+    out.push("", `_Termasuk ${unpaidCount} Belum Bayar_`);
   }
   out.push(
+    "",
     `*A.* Subtotal A (Biaya UKT): _${formatRupiahNota(subtotalA)}_`,
     `*B.* Subtotal B (Buku Rusak/Hilang): _${formatRupiahNota(subtotalB)}_`,
     `*C.* Komisi Ranting (${registeredCount} × ${formatRupiahNota(komisiRanting)}): - ${formatRupiahNota(totalC)}`,
+    "",
     `*TOTAL (A+B−C): ${formatRupiahNota(grandTotal)}*`,
     formatUktWaMoneyPaidLine(paidNet, unpaidNet, { sudahLunasLabel: true }),
   );
+  const paymentLines = formatUktWaBendaharaPaymentLines(payment);
+  if (paymentLines.length > 0) {
+    out.push("", ...paymentLines);
+  }
   return out.join("\n");
 }
 
