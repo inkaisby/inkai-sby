@@ -7,6 +7,7 @@ import {
   isBlankUktRank,
 } from "@/lib/belt";
 import { DISPORA_JATIM, isDisporaJatim } from "@/lib/venue";
+import { LATBER_PAYMENT } from "@/lib/latber";
 
 export type UktSemester = "I" | "II";
 
@@ -1928,6 +1929,42 @@ export type UktWaBendaharaPayment = {
   paymentInstructions?: string | null;
 };
 
+/**
+ * Rekening bendahara untuk WA ranting: profil cabang jika nomor terisi,
+ * else fallback Mandiri bendahara (sama LATBER_PAYMENT). Tanpa instruksi Latber.
+ */
+export function resolveUktWaBendaharaPayment(
+  profile?: {
+    bankName?: string | null;
+    bankAccountNumber?: string | null;
+    bankAccountName?: string | null;
+    bendaharaCabangName?: string | null;
+    bendaharaName?: string | null;
+    paymentInstructions?: string | null;
+  } | null,
+): UktWaBendaharaPayment {
+  const fromProfile = profile?.bankAccountNumber?.trim() || "";
+  if (fromProfile) {
+    return {
+      bankName: profile?.bankName?.trim() || "",
+      bankAccountNumber: fromProfile,
+      bankAccountName: profile?.bankAccountName?.trim() || "",
+      bendaharaName:
+        profile?.bendaharaCabangName?.trim() ||
+        profile?.bendaharaName?.trim() ||
+        "",
+      paymentInstructions: profile?.paymentInstructions?.trim() || "",
+    };
+  }
+  return {
+    bankName: LATBER_PAYMENT.bankName,
+    bankAccountNumber: LATBER_PAYMENT.bankAccountNumber,
+    bankAccountName: LATBER_PAYMENT.bankAccountName,
+    bendaharaName: LATBER_PAYMENT.bankAccountName,
+    paymentInstructions: "",
+  };
+}
+
 /** Baris rekening bendahara cabang untuk Laporan WA ranting (kosong jika tanpa nomor). */
 export function formatUktWaBendaharaPaymentLines(
   payment?: UktWaBendaharaPayment | null,
@@ -1947,6 +1984,18 @@ export function formatUktWaBendaharaPaymentLines(
   return lines;
 }
 
+/** Urut roster WA ranting: Kyu 10→1, Dan 1→10, lalu nama. */
+export function sortUktWaRosterByKyu(rows: UktMemberRow[]): UktMemberRow[] {
+  return [...rows].sort((a, b) => {
+    const byRank = compareWaRankBuckets(
+      waRankBucketLabel(a),
+      waRankBucketLabel(b),
+    );
+    if (byRank !== 0) return byRank;
+    return (a.fullName || "").localeCompare(b.fullName || "", "id");
+  });
+}
+
 /** Laporan WA satu ranting (peserta roster + rincian uang selaras Nota). */
 export function buildUktRantingWaReportText(
   periodTitle: string,
@@ -1957,7 +2006,8 @@ export function buildUktRantingWaReportText(
   examMeta?: UktWaExamMeta,
   payment?: UktWaBendaharaPayment | null,
 ): string {
-  const participantLines = rosterRows.map((r, i) =>
+  const sortedRoster = sortUktWaRosterByKyu(rosterRows);
+  const participantLines = sortedRoster.map((r, i) =>
     formatWaParticipantLine(r, i),
   );
   const notaRows = rosterRows.filter(isUktNotaRow);
@@ -1979,6 +2029,7 @@ export function buildUktRantingWaReportText(
     return `${label}: ${l.count} × ${formatRupiahNota(l.unitFee)} = ${formatRupiahNota(l.subtotal)}`;
   });
 
+  const resolvedPayment = resolveUktWaBendaharaPayment(payment);
   const out = [
     ...buildUktWaExamHeader(periodTitle, examMeta),
     "",
@@ -2002,7 +2053,7 @@ export function buildUktRantingWaReportText(
     `*TOTAL (A+B−C): ${formatRupiahNota(grandTotal)}*`,
     formatUktWaMoneyPaidLine(paidNet, unpaidNet, { sudahLunasLabel: true }),
   );
-  const paymentLines = formatUktWaBendaharaPaymentLines(payment);
+  const paymentLines = formatUktWaBendaharaPaymentLines(resolvedPayment);
   if (paymentLines.length > 0) {
     out.push("", ...paymentLines);
   }

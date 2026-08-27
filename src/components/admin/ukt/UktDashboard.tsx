@@ -133,6 +133,7 @@ import {
   BELT_FEE_KEYS,
   buildUktCabangWaReportText,
   buildUktRantingWaReportText,
+  resolveUktWaBendaharaPayment,
   resolveUktWaDojoLabel,
   canApplyUktKyuBaru,
   computeUktOperationalKpi,
@@ -2457,13 +2458,13 @@ export function UktDashboard(props: Props) {
               beltFees,
               komisiRanting,
               examMeta,
-              {
+              resolveUktWaBendaharaPayment({
                 bankName: props.orgProfile?.bankName,
                 bankAccountNumber: props.orgProfile?.bankAccountNumber,
                 bankAccountName: props.orgProfile?.bankAccountName,
-                bendaharaName: props.orgProfile?.bendaharaCabangName,
+                bendaharaCabangName: props.orgProfile?.bendaharaCabangName,
                 paymentInstructions: props.orgProfile?.paymentInstructions,
-              },
+              }),
             );
           })();
 
@@ -2508,13 +2509,13 @@ export function UktDashboard(props: Props) {
         examAt: periodMeta?.examAt,
         examLocation: periodMeta?.examLocation,
       },
-      {
+      resolveUktWaBendaharaPayment({
         bankName: props.orgProfile?.bankName,
         bankAccountNumber: props.orgProfile?.bankAccountNumber,
         bankAccountName: props.orgProfile?.bankAccountName,
-        bendaharaName: props.orgProfile?.bendaharaCabangName,
+        bendaharaCabangName: props.orgProfile?.bendaharaCabangName,
         paymentInstructions: props.orgProfile?.paymentInstructions,
-      },
+      }),
     );
 
     const ok = await copyTextRobust(text);

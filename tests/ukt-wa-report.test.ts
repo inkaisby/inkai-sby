@@ -10,9 +10,12 @@ import {
   isUktNotaRow,
   isUktPaymentDocumentRow,
   isUktWaRosterRow,
+  resolveUktWaBendaharaPayment,
+  sortUktWaRosterByKyu,
   uktWaNetOfNotaRows,
 } from "../src/lib/ukt";
 import { resolveUktRankColumns, shortRankLabel } from "../src/lib/belt";
+import { LATBER_PAYMENT } from "../src/lib/latber";
 
 const beltFees = {
   PUTIH: 285000,
@@ -400,7 +403,7 @@ describe("UKT Laporan WA format ranting", () => {
     expect(text).not.toContain("Belum lunas:");
   });
 
-  it("rekening bendahara muncul bila nomor terisi; kosong di-omit", () => {
+  it("rekening bendahara: profil kustom atau fallback Mandiri", () => {
     const rows = [
       {
         memberId: "m1",
@@ -420,26 +423,20 @@ describe("UKT Laporan WA format ranting", () => {
     expect(formatUktWaBendaharaPaymentLines({ bankAccountNumber: "" })).toEqual(
       [],
     );
-    expect(
-      formatUktWaBendaharaPaymentLines({
-        bankName: "Mandiri",
-        bankAccountNumber: "1400024546344",
-        bankAccountName: "HABIBUR RAHMAN",
-      }),
-    ).toEqual([
-      "*Pembayaran ke rekening Bendahara Cabang*",
-      "Bank Mandiri",
-      "1400024546344 a.n. HABIBUR RAHMAN",
-    ]);
-    expect(
-      formatUktWaBendaharaPaymentLines({
-        bankAccountNumber: "1400024546344",
-        bendaharaName: "Habibur Rahman",
-      }),
-    ).toEqual([
-      "*Pembayaran ke rekening Bendahara Cabang*",
-      "1400024546344 a.n. Habibur Rahman",
-    ]);
+
+    const fallback = resolveUktWaBendaharaPayment({});
+    expect(fallback.bankAccountNumber).toBe(LATBER_PAYMENT.bankAccountNumber);
+    expect(fallback.bankName).toBe(LATBER_PAYMENT.bankName);
+    expect(fallback.bankAccountName).toBe(LATBER_PAYMENT.bankAccountName);
+    expect(fallback.paymentInstructions).toBe("");
+
+    const custom = resolveUktWaBendaharaPayment({
+      bankName: "BCA",
+      bankAccountNumber: "1234567890",
+      bankAccountName: "INKAI SBY",
+    });
+    expect(custom.bankAccountNumber).toBe("1234567890");
+    expect(custom.bankName).toBe("BCA");
 
     const withPay = buildUktRantingWaReportText(
       "UKT Semester II-2026",
@@ -463,13 +460,96 @@ describe("UKT Laporan WA format ranting", () => {
       /_Sudah lunas_\n\n\*Pembayaran ke rekening Bendahara Cabang\*/,
     );
 
-    const withoutPay = buildUktRantingWaReportText(
+    const emptyProfile = buildUktRantingWaReportText(
+      "UKT Semester II-2026",
+      "GADING",
+      rows,
+      beltFees,
+      komisi,
+      undefined,
+      { bankAccountNumber: "" },
+    );
+    expect(emptyProfile).toContain("*Pembayaran ke rekening Bendahara Cabang*");
+    expect(emptyProfile).toContain(
+      `${LATBER_PAYMENT.bankAccountNumber} a.n. ${LATBER_PAYMENT.bankAccountName}`,
+    );
+    expect(emptyProfile).not.toContain("Transfer Rp45.000");
+  });
+
+  it("peserta diurut Kyu 10→1 lalu Dan, lalu nama", () => {
+    const rows = [
+      {
+        memberId: "m1",
+        registrationId: "r1",
+        fullName: "ZULFA",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Biru (Kyu 4)",
+        status: "APPROVED",
+        billingStatus: "PENDING",
+        billingId: "b1",
+        billingAmount: 315000,
+      },
+      {
+        memberId: "m2",
+        registrationId: "r2",
+        fullName: "ANDI",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Putih (Kyu 10)",
+        status: "APPROVED",
+        billingStatus: "PENDING",
+        billingId: "b2",
+        billingAmount: 285000,
+      },
+      {
+        memberId: "m3",
+        registrationId: "r3",
+        fullName: "BUDI",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Hitam (DAN 6)",
+        status: "APPROVED",
+        billingStatus: "PENDING",
+        billingId: "b3",
+        billingAmount: 345000,
+      },
+      {
+        memberId: "m4",
+        registrationId: "r4",
+        fullName: "CITRA",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Putih (Kyu 10)",
+        status: "APPROVED",
+        billingStatus: "PENDING",
+        billingId: "b4",
+        billingAmount: 285000,
+      },
+    ] as any[];
+
+    const sorted = sortUktWaRosterByKyu(rows);
+    expect(sorted.map((r) => r.fullName)).toEqual([
+      "ANDI",
+      "CITRA",
+      "ZULFA",
+      "BUDI",
+    ]);
+
+    const text = buildUktRantingWaReportText(
       "UKT Semester II-2026",
       "GADING",
       rows,
       beltFees,
       komisi,
     );
-    expect(withoutPay).not.toContain("Pembayaran ke rekening");
+    const idxAndi = text.indexOf("1. ANDI");
+    const idxCitra = text.indexOf("2. CITRA");
+    const idxZulfa = text.indexOf("3. ZULFA");
+    const idxBudi = text.indexOf("4. BUDI");
+    expect(idxAndi).toBeGreaterThan(-1);
+    expect(idxCitra).toBeGreaterThan(idxAndi);
+    expect(idxZulfa).toBeGreaterThan(idxCitra);
+    expect(idxBudi).toBeGreaterThan(idxZulfa);
   });
 });
