@@ -68,6 +68,13 @@ import { MemberActions } from "./MemberActions";
 import { BulkDeactivateBar } from "./BulkDeactivateBar";
 import { usePersistedBulkSelection } from "./usePersistedBulkSelection";
 import { SortableTableHead } from "@/components/ui/SortableTableHead";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { SortDir } from "@/lib/table-sort";
 import { cn } from "@/lib/utils";
 import {
@@ -78,6 +85,18 @@ import {
   STICKY_NAME_CELL,
   STICKY_NAME_HEAD,
 } from "@/lib/admin-table-sticky";
+
+function beltRankSelectOptions(currentRank: string | null | undefined) {
+  const label = formatRankLabel(currentRank) || "";
+  const options = [...BELT_RANK_OPTIONS] as string[];
+  if (
+    label &&
+    !(BELT_RANK_OPTIONS as readonly string[]).includes(label)
+  ) {
+    options.push(label);
+  }
+  return { label, options };
+}
 
 type MemberDetail = Record<string, unknown>;
 
@@ -1324,38 +1343,45 @@ export function MembersTable({
                         {m.dojo?.name ?? "—"}
                       </p>
                     </TableCell>
-                    <TableCell className="hidden sm:table-cell">
+                    <TableCell
+                      className="hidden sm:table-cell"
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
                       {canEditRank ? (
-                        <select
-                          className="h-8 max-w-40 rounded border bg-background px-1 text-xs"
-                          value={formatRankLabel(m.currentRank) || ""}
-                          disabled={rankSavingId === m.id}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => {
-                            const next = e.target.value;
-                            if (!next || next === formatRankLabel(m.currentRank)) return;
-                            void handleSetRank(m.id, next);
-                          }}
-                          aria-label={`Ubah sabuk ${m.fullName}`}
-                        >
-                          {!formatRankLabel(m.currentRank) ? (
-                            <option value="">— Pilih —</option>
-                          ) : null}
-                          {BELT_RANK_OPTIONS.map((opt) => (
-                            <option key={opt} value={opt}>
-                              {opt}
-                            </option>
-                          ))}
-                          {m.currentRank &&
-                          formatRankLabel(m.currentRank) &&
-                          !(BELT_RANK_OPTIONS as readonly string[]).includes(
-                            formatRankLabel(m.currentRank),
-                          ) ? (
-                            <option value={formatRankLabel(m.currentRank)}>
-                              {formatRankLabel(m.currentRank)}
-                            </option>
-                          ) : null}
-                        </select>
+                        (() => {
+                          const { label, options } = beltRankSelectOptions(
+                            m.currentRank,
+                          );
+                          return (
+                            <Select
+                              value={label || undefined}
+                              disabled={rankSavingId === m.id}
+                              onValueChange={(next) => {
+                                if (!next || next === label) return;
+                                void handleSetRank(m.id, next);
+                              }}
+                            >
+                              <SelectTrigger
+                                size="sm"
+                                className="h-8 max-w-40 text-xs"
+                                aria-label={`Ubah sabuk ${m.fullName}`}
+                              >
+                                <SelectValue placeholder="— Pilih —" />
+                              </SelectTrigger>
+                              <SelectContent
+                                position="popper"
+                                className="z-[100] max-h-64"
+                              >
+                                {options.map((opt) => (
+                                  <SelectItem key={opt} value={opt}>
+                                    {opt}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          );
+                        })()
                       ) : (
                         <Badge variant="secondary">
                           {formatRankLabel(m.currentRank) || "—"}
@@ -1376,36 +1402,44 @@ export function MembersTable({
                           onEdit={() => setDocsEditMember(m)}
                         />
                       </TableCell>
-                    <TableCell>
+                    <TableCell
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
                       {canEditDojo && dojos.length > 0 ? (
                         <div className="space-y-0.5">
-                          <select
-                            className="h-8 max-w-[11rem] rounded border bg-background px-1 text-xs"
-                            value={m.dojoId || ""}
+                          <Select
+                            value={m.dojoId || undefined}
                             disabled={dojoSavingId === m.id}
-                            onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => {
-                              const next = e.target.value;
+                            onValueChange={(next) => {
                               if (!next || next === m.dojoId) return;
                               void handleSetDojo(m.id, next);
                             }}
-                            aria-label={`Ubah ranting ${m.fullName}`}
                           >
-                            {!m.dojoId ? (
-                              <option value="">— Pilih —</option>
-                            ) : null}
-                            {dojos.map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {d.name}
-                              </option>
-                            ))}
-                            {m.dojoId &&
-                            !dojos.some((d) => d.id === m.dojoId) ? (
-                              <option value={m.dojoId}>
-                                {m.dojo?.name || m.dojoId}
-                              </option>
-                            ) : null}
-                          </select>
+                            <SelectTrigger
+                              size="sm"
+                              className="h-8 max-w-[11rem] text-xs"
+                              aria-label={`Ubah ranting ${m.fullName}`}
+                            >
+                              <SelectValue placeholder="— Pilih —" />
+                            </SelectTrigger>
+                            <SelectContent
+                              position="popper"
+                              className="z-[100] max-h-64"
+                            >
+                              {dojos.map((d) => (
+                                <SelectItem key={d.id} value={d.id}>
+                                  {d.name}
+                                </SelectItem>
+                              ))}
+                              {m.dojoId &&
+                              !dojos.some((d) => d.id === m.dojoId) ? (
+                                <SelectItem value={m.dojoId}>
+                                  {m.dojo?.name || m.dojoId}
+                                </SelectItem>
+                              ) : null}
+                            </SelectContent>
+                          </Select>
                           {m.dojo?.branch?.name &&
                           m.dojo.branch.name.toUpperCase() !==
                             SITE_BRANCH_NAME.toUpperCase() ? (
@@ -1637,41 +1671,46 @@ export function MembersTable({
                       label="Sabuk"
                       value={
                         canEditRank ? (
-                          <select
-                            className="h-8 max-w-44 rounded border bg-background px-1 text-xs"
-                            value={formatRankLabel(currentRank) || ""}
-                            disabled={rankSavingId === selectedId || loading}
-                            onChange={(e) => {
-                              const next = e.target.value;
-                              if (
-                                !next ||
-                                !selectedId ||
-                                next === formatRankLabel(currentRank)
-                              ) {
-                                return;
-                              }
-                              void handleSetRank(selectedId, next);
-                            }}
-                            aria-label="Ubah sabuk"
-                          >
-                            {!formatRankLabel(currentRank) ? (
-                              <option value="">— Pilih —</option>
-                            ) : null}
-                            {BELT_RANK_OPTIONS.map((opt) => (
-                              <option key={opt} value={opt}>
-                                {opt}
-                              </option>
-                            ))}
-                            {currentRank &&
-                            formatRankLabel(currentRank) &&
-                            !(BELT_RANK_OPTIONS as readonly string[]).includes(
-                              formatRankLabel(currentRank),
-                            ) ? (
-                              <option value={formatRankLabel(currentRank)}>
-                                {formatRankLabel(currentRank)}
-                              </option>
-                            ) : null}
-                          </select>
+                          (() => {
+                            const { label, options } =
+                              beltRankSelectOptions(currentRank);
+                            return (
+                              <Select
+                                value={label || undefined}
+                                disabled={
+                                  rankSavingId === selectedId || loading
+                                }
+                                onValueChange={(next) => {
+                                  if (
+                                    !next ||
+                                    !selectedId ||
+                                    next === label
+                                  ) {
+                                    return;
+                                  }
+                                  void handleSetRank(selectedId, next);
+                                }}
+                              >
+                                <SelectTrigger
+                                  size="sm"
+                                  className="h-8 max-w-44 text-xs"
+                                  aria-label="Ubah sabuk"
+                                >
+                                  <SelectValue placeholder="— Pilih —" />
+                                </SelectTrigger>
+                                <SelectContent
+                                  position="popper"
+                                  className="z-[100] max-h-64"
+                                >
+                                  {options.map((opt) => (
+                                    <SelectItem key={opt} value={opt}>
+                                      {opt}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            );
+                          })()
                         ) : (
                           <Badge variant="secondary">
                             {formatRankLabel(currentRank) || "-"}
@@ -1891,12 +1930,10 @@ export function MembersTable({
                       label="Dojo"
                       value={
                         canEditDojo && dojos.length > 0 ? (
-                          <select
-                            className="h-8 max-w-full rounded border bg-background px-1 text-xs"
-                            value={detailDojoId}
+                          <Select
+                            value={detailDojoId || undefined}
                             disabled={dojoSavingId === selectedId || loading}
-                            onChange={(e) => {
-                              const next = e.target.value;
+                            onValueChange={(next) => {
                               if (
                                 !next ||
                                 !selectedId ||
@@ -1906,23 +1943,31 @@ export function MembersTable({
                               }
                               void handleSetDojo(selectedId, next);
                             }}
-                            aria-label="Ubah ranting"
                           >
-                            {!detailDojoId ? (
-                              <option value="">— Pilih —</option>
-                            ) : null}
-                            {dojos.map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {d.name}
-                              </option>
-                            ))}
-                            {detailDojoId &&
-                            !dojos.some((d) => d.id === detailDojoId) ? (
-                              <option value={detailDojoId}>
-                                {dojo?.name || detailDojoId}
-                              </option>
-                            ) : null}
-                          </select>
+                            <SelectTrigger
+                              size="sm"
+                              className="h-8 max-w-full text-xs"
+                              aria-label="Ubah ranting"
+                            >
+                              <SelectValue placeholder="— Pilih —" />
+                            </SelectTrigger>
+                            <SelectContent
+                              position="popper"
+                              className="z-[100] max-h-64"
+                            >
+                              {dojos.map((d) => (
+                                <SelectItem key={d.id} value={d.id}>
+                                  {d.name}
+                                </SelectItem>
+                              ))}
+                              {detailDojoId &&
+                              !dojos.some((d) => d.id === detailDojoId) ? (
+                                <SelectItem value={detailDojoId}>
+                                  {dojo?.name || detailDojoId}
+                                </SelectItem>
+                              ) : null}
+                            </SelectContent>
+                          </Select>
                         ) : (
                           str(dojo?.name)
                         )

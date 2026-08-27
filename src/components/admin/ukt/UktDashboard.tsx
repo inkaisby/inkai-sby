@@ -559,10 +559,10 @@ export function UktDashboard(props: Props) {
     document.body.dataset.uktTableFs = "1";
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
-      const openDialog = document.querySelector(
-        '[data-slot="dialog"][data-state="open"], [role="dialog"][data-state="open"]',
+      const openOverlay = document.querySelector(
+        '[data-slot="dialog"][data-state="open"], [role="dialog"][data-state="open"], [data-slot="select-content"], [role="listbox"]',
       );
-      if (openDialog) return;
+      if (openOverlay) return;
       setTableFullscreen(false);
     }
     window.addEventListener("keydown", onKey);
@@ -4074,88 +4074,143 @@ export function UktDashboard(props: Props) {
                       </TableCell>
                     </>
                   )}
-                  <TableCell>
-                    {row.registrationId && isCabang && tableFullscreen ? (
-                      <select
-                        className={kyuSelectClass}
-                        value={
+                  <TableCell
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    {row.registrationId && isCabang ? (
+                      (() => {
+                        const lamaLabel =
                           formatRankLabel(
                             displayUktKyuLama(row.kyuLama, row.kyuBaru) || "",
-                          ) || ""
-                        }
-                        onChange={(e) =>
-                          handleKyuLamaUpdate(
-                            row.registrationId!,
-                            e.target.value,
-                            row,
+                          ) || "";
+                        const lamaOptions = [
+                          ...BELT_RANK_OPTIONS,
+                        ] as string[];
+                        if (
+                          lamaLabel &&
+                          !(BELT_RANK_OPTIONS as readonly string[]).includes(
+                            lamaLabel,
                           )
+                        ) {
+                          lamaOptions.push(lamaLabel);
                         }
-                        disabled={
-                          periodLocked ||
-                          loading ||
-                          isMemberPending(row.memberId)
-                        }
-                        title="Ubah Kyu Lama (snapshot pendaftaran)"
-                        onKeyDown={(e) => {
-                          if (e.key === "Escape") e.stopPropagation();
-                        }}
-                      >
-                        <option value="">— Pilih —</option>
-                        {BELT_RANK_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
+                        return (
+                          <Select
+                            value={lamaLabel || undefined}
+                            disabled={
+                              periodLocked ||
+                              loading ||
+                              isMemberPending(row.memberId)
+                            }
+                            onValueChange={(next) => {
+                              if (!next || !row.registrationId) return;
+                              void handleKyuLamaUpdate(
+                                row.registrationId,
+                                next,
+                                row,
+                              );
+                            }}
+                          >
+                            <SelectTrigger
+                              size="sm"
+                              className={cn(kyuSelectClass, "w-auto")}
+                              title="Ubah Kyu Lama (snapshot pendaftaran)"
+                              aria-label={`Ubah Kyu Lama ${row.fullName}`}
+                            >
+                              <SelectValue placeholder="— Pilih —" />
+                            </SelectTrigger>
+                            <SelectContent
+                              position="popper"
+                              className="z-[100] max-h-64"
+                            >
+                              {lamaOptions.map((opt) => (
+                                <SelectItem key={opt} value={opt}>
+                                  {opt}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        );
+                      })()
                     ) : (
                       <Badge variant="secondary" className="text-xs">
                         {displayUktKyuLama(row.kyuLama, row.kyuBaru) || "—"}
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
                     {row.registrationId && isCabang ? (
-                      <select
-                        className={kyuSelectClass}
-                        value={
+                      (() => {
+                        const baruLabel =
                           canApplyUktKyuBaru(row) || isUktSelesai(row)
                             ? row.kyuBaru
                               ? formatRankLabel(row.kyuBaru)
                               : ""
-                            : ""
+                            : "";
+                        const baruOptions = [
+                          ...BELT_RANK_OPTIONS,
+                        ] as string[];
+                        if (
+                          baruLabel &&
+                          !(BELT_RANK_OPTIONS as readonly string[]).includes(
+                            baruLabel,
+                          )
+                        ) {
+                          baruOptions.push(baruLabel);
                         }
-                        onChange={(e) =>
-                          handleKyuUpdate(row.registrationId!, e.target.value, row)
-                        }
-                        disabled={
-                          loading ||
-                          isMemberPending(row.memberId) ||
-                          !canApplyUktKyuBaru(row)
-                        }
-                        title={
-                          canApplyUktKyuBaru(row)
-                            ? "Isi Kyu Baru — otomatis Lulus & Selesai"
-                            : isUktSelesai(row)
-                              ? "UKT selesai"
-                              : "Tersedia setelah Verifikasi pembayaran"
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Escape") e.stopPropagation();
-                        }}
-                      >
-                        <option value="">
-                          {canApplyUktKyuBaru(row)
-                            ? "— Pilih —"
-                            : isUktSelesai(row)
-                              ? formatRankLabel(row.kyuBaru || "") || "—"
-                              : "— Setelah verifikasi —"}
-                        </option>
-                        {BELT_RANK_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
+                        const placeholder = canApplyUktKyuBaru(row)
+                          ? "— Pilih —"
+                          : isUktSelesai(row)
+                            ? formatRankLabel(row.kyuBaru || "") || "—"
+                            : "— Setelah verifikasi —";
+                        return (
+                          <Select
+                            value={baruLabel || undefined}
+                            disabled={
+                              loading ||
+                              isMemberPending(row.memberId) ||
+                              !canApplyUktKyuBaru(row)
+                            }
+                            onValueChange={(next) => {
+                              if (!next || !row.registrationId) return;
+                              void handleKyuUpdate(
+                                row.registrationId,
+                                next,
+                                row,
+                              );
+                            }}
+                          >
+                            <SelectTrigger
+                              size="sm"
+                              className={cn(kyuSelectClass, "w-auto")}
+                              title={
+                                canApplyUktKyuBaru(row)
+                                  ? "Isi Kyu Baru — otomatis Lulus & Selesai"
+                                  : isUktSelesai(row)
+                                    ? "UKT selesai"
+                                    : "Tersedia setelah Verifikasi pembayaran"
+                              }
+                              aria-label={`Ubah Kyu Baru ${row.fullName}`}
+                            >
+                              <SelectValue placeholder={placeholder} />
+                            </SelectTrigger>
+                            <SelectContent
+                              position="popper"
+                              className="z-[100] max-h-64"
+                            >
+                              {baruOptions.map((opt) => (
+                                <SelectItem key={opt} value={opt}>
+                                  {opt}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        );
+                      })()
                     ) : (
                       <span className="text-sm">
                         {row.kyuBaru ? formatRankLabel(row.kyuBaru) : "-"}
