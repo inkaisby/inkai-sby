@@ -6,6 +6,7 @@ import {
   shortRankLabel,
   isBlankUktRank,
 } from "@/lib/belt";
+import { DISPORA_JATIM, isDisporaJatim } from "@/lib/venue";
 
 export type UktSemester = "I" | "II";
 
@@ -1783,6 +1784,96 @@ export function resolveUktWaDojoLabel(opts: {
   return "Ranting";
 }
 
+const UKT_WA_WIB = "Asia/Jakarta";
+
+export type UktWaExamMeta = {
+  examAt?: string | null;
+  examLocation?: string | null;
+  now?: number;
+};
+
+/** Hitung mundur ke jadwal ujian. Lewat / invalid → null. */
+export function formatUktWaCountdownLine(
+  examAt: string,
+  nowMs = Date.now(),
+): string | null {
+  const t = new Date(examAt).getTime();
+  if (Number.isNaN(t)) return null;
+  const diffMs = t - nowMs;
+  if (diffMs <= 0) return null;
+  const totalSec = Math.floor(diffMs / 1000);
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `_-${d} Hari: ${pad(h)} Jam: ${pad(m)} Menit: ${pad(s)} Detik_`;
+}
+
+/** Tanggal/jam ujian manusia, zona WIB. */
+export function formatUktWaExamDateTimeWib(
+  examAt: string | null | undefined,
+): string | null {
+  if (!examAt?.trim()) return null;
+  const d = new Date(examAt);
+  if (Number.isNaN(d.getTime())) return null;
+  const weekday = new Intl.DateTimeFormat("id-ID", {
+    weekday: "long",
+    timeZone: UKT_WA_WIB,
+  }).format(d);
+  const datePart = new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: UKT_WA_WIB,
+  }).format(d);
+  const timePart = new Intl.DateTimeFormat("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: UKT_WA_WIB,
+  })
+    .format(d)
+    .replace(":", ".");
+  return `*${weekday}, ${datePart}, ${timePart} WIB*`;
+}
+
+export function buildUktWaVenueLines(
+  examLocation?: string | null,
+): string[] {
+  const raw = examLocation?.trim();
+  if (!raw) return [];
+  if (isDisporaJatim(raw)) {
+    return [
+      `*Tempat:* ${DISPORA_JATIM.name}`,
+      `*Lokasi:* ${DISPORA_JATIM.address}`,
+    ];
+  }
+  return [`*Tempat:* ${raw}`];
+}
+
+function buildUktWaExamHeader(
+  periodTitle: string,
+  meta?: UktWaExamMeta,
+): string[] {
+  const lines = [`*Pelaksanaan ${periodTitle}*`];
+  const examAt = meta?.examAt?.trim() || "";
+  const countdown = examAt
+    ? formatUktWaCountdownLine(examAt, meta?.now)
+    : null;
+  const dateLine = examAt ? formatUktWaExamDateTimeWib(examAt) : null;
+  if (countdown || dateLine) {
+    lines.push("");
+    if (countdown) lines.push(countdown);
+    if (dateLine) lines.push(dateLine);
+  }
+  const venue = buildUktWaVenueLines(meta?.examLocation);
+  if (venue.length) {
+    lines.push("", ...venue);
+  }
+  return lines;
+}
+
 /** Laporan WA satu ranting (peserta + rincian setor selaras Nota). */
 export function buildUktRantingWaReportText(
   periodTitle: string,
@@ -1790,6 +1881,7 @@ export function buildUktRantingWaReportText(
   approvedRows: UktMemberRow[],
   beltFees: Record<BeltFeeKey, number>,
   komisiRanting: number,
+  examMeta?: UktWaExamMeta,
 ): string {
   const lines = approvedRows.map((r, i) => formatWaParticipantLine(r, i));
   const counts = countNotaBeltGroups(approvedRows, beltFees);
@@ -1808,7 +1900,7 @@ export function buildUktRantingWaReportText(
   });
 
   return [
-    `*${periodTitle}*`,
+    ...buildUktWaExamHeader(periodTitle, examMeta),
     `*Ranting/Dojo: ${dojoName}*`,
     "",
     "*Peserta yang terdaftar*",
@@ -1828,20 +1920,28 @@ export function buildUktRantingWaReportText(
 export function buildUktCabangWaReportText(
   periodTitle: string,
   approvedRows: UktMemberRow[],
-  examCountdownLine?: string | null,
+  examMeta?: UktWaExamMeta,
 ): string {
-  const byDojo = new Map<string, { dojoName: string; count: number }>();
+  const byDojo = new Map<
+    string,
+    { dojoName: string; count: number; paid: number }
+  >();
   const byRank = new Map<string, number>();
+  let paidAll = 0;
 
   for (const row of approvedRows) {
     const key = row.dojoId || row.dojoName || "unknown";
     const existing = byDojo.get(key);
+    const paid = isUktBillingPaid(row);
+    if (paid) paidAll++;
     if (existing) {
       existing.count++;
+      if (paid) existing.paid++;
     } else {
       byDojo.set(key, {
         dojoName: row.dojoName?.trim() || "Ranting",
         count: 1,
+        paid: paid ? 1 : 0,
       });
     }
     const rank = waRankBucketLabel(row);
@@ -1856,25 +1956,25 @@ export function buildUktCabangWaReportText(
   );
 
   const rantingLines = rantingList.map(
-    (g, i) => `${i + 1}. ${g.dojoName} = _${g.count} peserta_`,
+    (g, i) =>
+      `${i + 1}. ${g.dojoName} = _${g.count} peserta_  Lunas: ${g.paid} · Belum lunas: ${g.count - g.paid}`,
   );
   const rankLines = rankList.map(
     ([label, count]) => `${label} = _${count} peserta_`,
   );
+  const unpaidAll = approvedRows.length - paidAll;
 
   return [
-    `*${periodTitle}*`,
+    ...buildUktWaExamHeader(periodTitle, examMeta),
     "",
-    `*Total Ranting : ${rantingList.length}*`,
+    `*TOTAL SEMUA: ${approvedRows.length} peserta*`,
+    `_Lunas: ${paidAll} · Belum lunas: ${unpaidAll}_`,
     "",
-    "*List Ranting*",
+    `*${rantingList.length} Ranting*`,
     ...rantingLines,
     "",
     "*Jumlah*",
     ...rankLines,
-    "",
-    `*TOTAL SEMUA: ${approvedRows.length} peserta*`,
-    ...(examCountdownLine ? ["", "*Pelaksaan UKT*", `_${examCountdownLine}_`] : []),
   ].join("\n");
 }
 

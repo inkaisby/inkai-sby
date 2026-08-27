@@ -49,7 +49,11 @@ import {
   latberStatusBadgeClass,
   type LatberPaymentInfo,
 } from "@/lib/latber";
-import { printLatberRosterDocument } from "@/lib/latber-roster-print-html";
+import {
+  printLatberRosterDocument,
+  type LatberRosterPrintOrientation,
+  type LatberRosterPrintPaper,
+} from "@/lib/latber-roster-print-html";
 import { parseMemberCardScanPayload } from "@/lib/latber-card-scan";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { formatRegisteredAtWib } from "@/lib/format-wib";
@@ -156,6 +160,9 @@ export function LatberWalkInClient({
   const [showGuestModal, setShowGuestModal] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [printDojoIds, setPrintDojoIds] = useState<Set<string>>(() => new Set());
+  const [printPaper, setPrintPaper] = useState<LatberRosterPrintPaper>("A4");
+  const [printOrientation, setPrintOrientation] =
+    useState<LatberRosterPrintOrientation>("landscape");
   const [scanOpen, setScanOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -1387,6 +1394,61 @@ export function LatberWalkInClient({
               }{" "}
               peserta
             </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Kertas
+                </p>
+                <div className="flex gap-1">
+                  {(["A4", "F4"] as const).map((paper) => (
+                    <Button
+                      key={paper}
+                      type="button"
+                      size="sm"
+                      variant={printPaper === paper ? "default" : "outline"}
+                      className={
+                        printPaper === paper
+                          ? "h-8 flex-1 bg-inkai-red text-white hover:bg-inkai-red/90"
+                          : "h-8 flex-1"
+                      }
+                      onClick={() => setPrintPaper(paper)}
+                    >
+                      {paper}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Orientasi
+                </p>
+                <div className="flex gap-1">
+                  {(
+                    [
+                      ["portrait", "Portrait"],
+                      ["landscape", "Landscape"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      type="button"
+                      size="sm"
+                      variant={
+                        printOrientation === value ? "default" : "outline"
+                      }
+                      className={
+                        printOrientation === value
+                          ? "h-8 flex-1 bg-inkai-red text-white hover:bg-inkai-red/90"
+                          : "h-8 flex-1"
+                      }
+                      onClick={() => setPrintOrientation(value)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -1405,9 +1467,17 @@ export function LatberWalkInClient({
                   .length === 0
               }
               onClick={() => {
-                const rows = registrants.filter((r) =>
-                  printDojoIds.has(r.dojoName),
-                );
+                const rows = registrants
+                  .filter((r) => printDojoIds.has(r.dojoName))
+                  .slice()
+                  .sort((a, b) => {
+                    const ranting = a.dojoName.localeCompare(b.dojoName, "id");
+                    if (ranting !== 0) return ranting;
+                    return formatMemberName(a.fullName).localeCompare(
+                      formatMemberName(b.fullName),
+                      "id",
+                    );
+                  });
                 const names = [...printDojoIds].sort((a, b) =>
                   a.localeCompare(b, "id"),
                 );
@@ -1421,6 +1491,8 @@ export function LatberWalkInClient({
                   dojoLabel,
                   participantCount: rows.length,
                   showRantingColumn: showRanting,
+                  paper: printPaper,
+                  orientation: printOrientation,
                   rows: rows.map((r, i) => ({
                     no: i + 1,
                     nia: r.nia || "—",

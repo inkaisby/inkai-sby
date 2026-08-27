@@ -132,6 +132,25 @@ describe("Latber print HTML", () => {
     expect(html).toContain("Status");
     expect(html).toContain("Belum Bayar");
     expect(html).toContain("Daftar Peserta");
+    expect(html.indexOf("☐")).toBeLessThan(html.indexOf(">No<"));
+    expect(html).toContain("size: A4 landscape");
+    expect(html).toContain("table-layout: auto");
+    expect(html).not.toContain("text-overflow: ellipsis");
+  });
+
+  it("roster F4 portrait sets folio page size", () => {
+    const html = buildLatberRosterPrintHtml({
+      periodTitle: "Latber Test",
+      dojoLabel: "GADING",
+      participantCount: 0,
+      showRantingColumn: false,
+      rows: [],
+      origin: "https://example.com",
+      printedAt: "23 Agustus 2026",
+      paper: "F4",
+      orientation: "portrait",
+    });
+    expect(html).toContain("size: 215mm 330mm");
   });
 
   it("nota includes Status and Hadir", () => {

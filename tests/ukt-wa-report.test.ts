@@ -127,7 +127,72 @@ describe("resolveUktRankColumns guard categoryName", () => {
     expect(paymentRows.map((r) => r.fullName)).toEqual(["Sudah Ajukan", "Lunas"]);
     const text = buildUktCabangWaReportText("UKT Semester II-2026", paymentRows);
     expect(text).toContain("TOTAL SEMUA: 2 peserta");
+    expect(text).toContain("*Pelaksanaan UKT Semester II-2026*");
+    expect(text).toContain("*1 Ranting*");
+    expect(text).toContain("Lunas: 1 · Belum lunas: 1");
     expect(text.toLowerCase()).not.toContain("belum bayar");
+    expect(text).not.toContain("List Ranting");
+    expect(text).not.toContain("Pelaksaan");
+  });
+});
+
+describe("UKT Laporan WA format cabang", () => {
+  const baseRow = {
+    memberId: "m1",
+    registrationId: "r1",
+    fullName: "Peserta A",
+    dojoId: "d1",
+    dojoName: "GADING",
+    kyuLama: "Kuning (Kyu 7)",
+    status: "APPROVED",
+    billingStatus: "WAITING_VERIFICATION",
+  };
+
+  it("judul Pelaksanaan, pecahan lunas, tanpa countdown jika ujian lampau", () => {
+    const rows = [
+      baseRow,
+      {
+        ...baseRow,
+        memberId: "m2",
+        registrationId: "r2",
+        fullName: "Peserta B",
+        billingStatus: "PAID",
+      },
+    ] as any[];
+    const examAt = "2026-09-12T01:00:00.000Z";
+    const past = buildUktCabangWaReportText("UKT Semester II-2026", rows, {
+      examAt,
+      now: Date.parse("2026-09-13T00:00:00.000Z"),
+    });
+    expect(past).toContain("*Pelaksanaan UKT Semester II-2026*");
+    expect(past).toContain("WIB");
+    expect(past).not.toMatch(/Hari:/);
+    expect(past).toContain("Lunas: 1 · Belum lunas: 1");
+
+    const future = buildUktCabangWaReportText("UKT Semester II-2026", rows, {
+      examAt,
+      now: Date.parse("2026-09-09T01:00:00.000Z"),
+    });
+    expect(future).toMatch(/Hari:/);
+  });
+
+  it("Dispora: Tempat + Lokasi; string lain hanya Tempat; kosong dihilangkan", () => {
+    const rows = [baseRow] as any[];
+    const dispora = buildUktCabangWaReportText("UKT Semester II-2026", rows, {
+      examLocation: "Prasarana Dojo Karate Dispora Jatim",
+    });
+    expect(dispora).toContain("*Tempat:* Prasarana Dojo Karate Dispora Jatim");
+    expect(dispora).toContain("*Lokasi:*");
+
+    const other = buildUktCabangWaReportText("UKT Semester II-2026", rows, {
+      examLocation: "Gedung Serbaguna",
+    });
+    expect(other).toContain("*Tempat:* Gedung Serbaguna");
+    expect(other).not.toContain("*Lokasi:*");
+
+    const empty = buildUktCabangWaReportText("UKT Semester II-2026", rows);
+    expect(empty).not.toContain("*Tempat:*");
+    expect(empty).not.toContain("*Lokasi:*");
   });
 });
 

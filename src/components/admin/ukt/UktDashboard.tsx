@@ -2275,7 +2275,29 @@ export function UktDashboard(props: Props) {
     setShowCabangWaPicker(true);
   };
 
-  const sendCabangWaReport = (dojoId: string | null) => {
+  const copyTextRobust = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      try {
+        const el = document.createElement("textarea");
+        el.value = text;
+        el.setAttribute("readonly", "");
+        el.style.position = "fixed";
+        el.style.left = "-9999px";
+        document.body.appendChild(el);
+        el.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(el);
+        return ok;
+      } catch {
+        return false;
+      }
+    }
+  };
+
+  const sendCabangWaReport = async (dojoId: string | null) => {
     const title = selectedPeriod?.title || periodTitle;
     const approvedAll = cabangPaymentRowsAll;
     if (approvedAll.length === 0) {
@@ -2283,24 +2305,14 @@ export function UktDashboard(props: Props) {
       return;
     }
 
-    // Hitung countdown sekali saat tombol diklik
-    let examCountdownLine: string | null = null;
-    const examAt = periodMeta?.examAt;
-    if (examAt) {
-      const diffMs = new Date(examAt).getTime() - Date.now();
-      if (diffMs > 0) {
-        const totalSec = Math.floor(diffMs / 1000);
-        const d = Math.floor(totalSec / 86400);
-        const h = Math.floor((totalSec % 86400) / 3600);
-        const m = Math.floor((totalSec % 3600) / 60);
-        const s = totalSec % 60;
-        examCountdownLine = `-${d} Hari: ${h.toString().padStart(2, "0")} Jam: ${m.toString().padStart(2, "0")} Menit: ${s.toString().padStart(2, "0")} Detik`;
-      }
-    }
+    const examMeta = {
+      examAt: periodMeta?.examAt,
+      examLocation: periodMeta?.examLocation,
+    };
 
     const text =
       !dojoId
-        ? buildUktCabangWaReportText(title, approvedAll, examCountdownLine)
+        ? buildUktCabangWaReportText(title, approvedAll, examMeta)
         : (() => {
             const approved = approvedAll.filter((r) => r.dojoId === dojoId);
             if (approved.length === 0) {
@@ -2317,21 +2329,22 @@ export function UktDashboard(props: Props) {
               approved,
               beltFees,
               komisiRanting,
+              examMeta,
             );
           })();
 
     if (!text) return;
 
-    const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    const opened = window.open(waUrl, "_blank", "noopener,noreferrer");
-    if (!opened) {
-      toast.error("Popup diblokir — izinkan jendela baru untuk membuka WhatsApp");
-      return;
+    const ok = await copyTextRobust(text);
+    if (ok) {
+      setShowCabangWaPicker(false);
+      toast.success("Laporan WA disalin — tempel di WhatsApp");
+    } else {
+      toast.error("Gagal menyalin — izinkan akses clipboard lalu coba lagi");
     }
-    toast.success("WhatsApp dibuka — pilih penerima lalu kirim laporan");
   };
 
-  const buildWaReport = () => {
+  const buildWaReport = async () => {
     // Cabang: pilih format ringkas atau rinci (per ranting) tanpa ganti akun.
     if (isCabang) {
       openCabangWaReportPicker();
@@ -2357,15 +2370,18 @@ export function UktDashboard(props: Props) {
       approved,
       beltFees,
       komisiRanting,
+      {
+        examAt: periodMeta?.examAt,
+        examLocation: periodMeta?.examLocation,
+      },
     );
 
-    const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    const opened = window.open(waUrl, "_blank", "noopener,noreferrer");
-    if (!opened) {
-      toast.error("Popup diblokir — izinkan jendela baru untuk membuka WhatsApp");
-      return;
+    const ok = await copyTextRobust(text);
+    if (ok) {
+      toast.success("Laporan WA disalin — tempel di WhatsApp");
+    } else {
+      toast.error("Gagal menyalin — izinkan akses clipboard lalu coba lagi");
     }
-    toast.success("WhatsApp dibuka — pilih penerima lalu kirim laporan");
   };
 
   const ensureInviteSnapshot = (eventId: string) => {
@@ -2376,28 +2392,6 @@ export function UktDashboard(props: Props) {
     }).catch(() => {
       /* snapshot opsional — halaman publik punya fallback */
     });
-  };
-
-  const copyTextRobust = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      try {
-        const el = document.createElement("textarea");
-        el.value = text;
-        el.setAttribute("readonly", "");
-        el.style.position = "fixed";
-        el.style.left = "-9999px";
-        document.body.appendChild(el);
-        el.select();
-        const ok = document.execCommand("copy");
-        document.body.removeChild(el);
-        return ok;
-      } catch {
-        return false;
-      }
-    }
   };
 
   const copyInviteLink = async () => {
@@ -5040,11 +5034,10 @@ export function UktDashboard(props: Props) {
               <Button
                 className="bg-inkai-red"
                 onClick={() => {
-                  setShowCabangWaPicker(false);
-                  sendCabangWaReport(cabangWaSelectedDojoId ?? null);
+                  void sendCabangWaReport(cabangWaSelectedDojoId ?? null);
                 }}
               >
-                Kirim via WhatsApp
+                Salin laporan
               </Button>
             </DialogFooter>
           </DialogContent>
