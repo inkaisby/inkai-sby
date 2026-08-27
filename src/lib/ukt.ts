@@ -1245,10 +1245,8 @@ export function buildUktDepositReconciliation(
   for (const [dojoId, b] of byDojo) {
     if (b.participantCount === 0) continue;
     const depositStatus: UktDepositStatus = depositMap[dojoId]?.status ?? "PENDING";
-    let gapLabel = "Belum setor";
-    if (depositStatus === "SUBMITTED") gapLabel = "Menunggu konfirmasi cabang";
-    if (depositStatus === "RECEIVED") gapLabel = "Lunas ke cabang";
-    if (b.paidCount === 0) gapLabel = "Belum ada pembayaran peserta";
+    const belumBayar = Math.max(0, b.participantCount - b.paidCount);
+    const gapLabel = `Belum Bayar: ${belumBayar}, Menunggu Ujian: ${b.paidCount}`;
     const expectedAmount = Math.max(
       0,
       b.grossAmount - b.paidCount * komisiRanting,

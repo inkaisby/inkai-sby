@@ -268,6 +268,39 @@ describe("buildUktDepositReconciliation total tagihan net", () => {
       participantCount: 11,
       paidCount: 11,
       expectedAmount: 2725000, // 3.275.000 (Subtotal A) - 550.000 (11 x 50k komisi) = 2.725.000
+      gapLabel: "Belum Bayar: 0, Menunggu Ujian: 11",
     });
+  });
+
+  it("gapLabel menampilkan Belum Bayar vs Menunggu Ujian dari Peserta/Lunas", () => {
+    const dojos = [{ id: "d-gading", name: "GADING" }];
+    const rows = [
+      row({ dojoId: "d-gading", billingAmount: 285000, billingStatus: "PAID", status: "APPROVED" }),
+      row({ dojoId: "d-gading", billingAmount: 285000, billingStatus: "PAID", status: "APPROVED" }),
+      row({ dojoId: "d-gading", billingAmount: 285000, billingStatus: "PENDING", status: "APPROVED" }),
+      row({ dojoId: "d-gading", billingAmount: 285000, billingStatus: "PENDING", status: "APPROVED" }),
+      row({ dojoId: "d-gading", billingAmount: 285000, billingStatus: "PENDING", status: "APPROVED" }),
+    ];
+    const recon = buildUktDepositReconciliation(rows, dojos, {
+      "d-gading": { status: "PENDING" },
+    });
+    expect(recon[0]).toMatchObject({
+      participantCount: 5,
+      paidCount: 2,
+      gapLabel: "Belum Bayar: 3, Menunggu Ujian: 2",
+      depositStatus: "PENDING",
+    });
+  });
+
+  it("gapLabel zero paid tetap format hitungan (bukan teks Belum ada pembayaran)", () => {
+    const dojos = [{ id: "d-x", name: "X" }];
+    const rows = [
+      row({ dojoId: "d-x", billingAmount: 285000, billingStatus: "PENDING", status: "APPROVED" }),
+    ];
+    const recon = buildUktDepositReconciliation(rows, dojos, {
+      "d-x": { status: "RECEIVED" },
+    });
+    expect(recon[0].gapLabel).toBe("Belum Bayar: 1, Menunggu Ujian: 0");
+    expect(recon[0].depositStatus).toBe("RECEIVED");
   });
 });

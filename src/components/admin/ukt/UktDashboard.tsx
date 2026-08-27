@@ -3739,7 +3739,11 @@ export function UktDashboard(props: Props) {
         )}
       >
         <Table
-          containerClassName={tableFullscreen ? "overflow-visible" : undefined}
+          containerClassName={
+            tableFullscreen
+              ? "overflow-visible"
+              : "overflow-x-auto overflow-y-clip"
+          }
         >
           <TableHeader>
             <TableRow className="bg-muted/50">
