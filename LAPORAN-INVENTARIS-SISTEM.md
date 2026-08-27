@@ -624,6 +624,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 
 | Tanggal | Keterangan |
 |---------|------------|
+| 27 Agustus 2026 | **UKT WA ranting komisi = jumlah peserta:** `*C.*` memakai `sortedRoster.length` (bukan hanya `isUktNotaRow`); inventaris §9.3.10a/§15 |
 | 27 Agustus 2026 | **UKT WA ranting rekening fallback + urut Kyu:** `resolveUktWaBendaharaPayment` (profil cabang atau Mandiri `LATBER_PAYMENT`); peserta diurut Kyu 10→1 lalu Dan; inventaris §9.3.10a/§15 |
 | 27 Agustus 2026 | **Quick-reg pencarian + rekening WA UKT:** dropdown `/admin/anggota`/`ukt`/`latber` tampil **Daftar UKT/Latber** hanya bila belum registrasi aktif (tanpa label Sudah…); suggest `uktEventId`/`latberEventId`; Laporan WA ranting + rekening bendahara cabang (`org.branch.profile`) + jarak enter rincian; inventaris §6/§9.3.10a/§9.3.11d/§13/§15 |
 | 27 Agustus 2026 | **UKT Laporan WA roster = tabel:** picker/ringkas semua ranting terdaftar (`isUktWaRosterRow`); *Jumlah UKT* + pecahan Lunas/Belum lunas (rupiah); rinci A/B=0/C/TOTAL (A+B−C) + Sudah lunas/Belum lunas; uang `isUktNotaRow`; inventaris §9.3.10a/§15 |
