@@ -1457,7 +1457,7 @@ export function KasLedgerClient({
                 <td colSpan={colSpan} className="p-6 text-center text-muted-foreground">
                   Belum ada mutasi pada periode ini.{" "}
                   {isRanting
-                    ? "Ranting hanya melihat iuran lunas di ranting dan komisi Latber (bukan UKT cabang). "
+                    ? "Ranting hanya melihat iuran lunas di ranting dan CASHBACK Latber (bukan UKT cabang). "
                     : ""}
                   Gunakan Tambah, Tambah massal, atau tunggu verifikasi. Isi Saldo awal sekali jika pindah dari Excel.
                 </td>
@@ -2165,7 +2165,7 @@ export function KasLedgerClient({
                   {formatRp(grandUkt)}
                 </span>
                 <span className="text-[10px] text-muted-foreground block">
-                  Komisi: {formatRp(grandKomisiUkt)}
+                  CASHBACK: {formatRp(grandKomisiUkt)}
                 </span>
               </div>
               <div className="rounded-lg border bg-muted/40 p-2.5">
@@ -2174,7 +2174,7 @@ export function KasLedgerClient({
                   {formatRp(grandLatber)}
                 </span>
                 <span className="text-[10px] text-muted-foreground block">
-                  Komisi: {formatRp(grandKomisiLatber)}
+                  CASHBACK: {formatRp(grandKomisiLatber)}
                 </span>
               </div>
               <div className="rounded-lg border bg-teal-50 dark:bg-teal-950/40 border-teal-200 dark:border-teal-800 p-2.5">
@@ -2183,7 +2183,7 @@ export function KasLedgerClient({
                   {formatRp(grandNetCabang)}
                 </span>
                 <span className="text-[10px] text-teal-600 dark:text-teal-400 block">
-                  (Setoran Kotor − Komisi)
+                  (Setoran Kotor − CASHBACK)
                 </span>
               </div>
             </div>
@@ -2209,9 +2209,9 @@ export function KasLedgerClient({
                     <th className="p-2 sm:p-2.5 w-12">No</th>
                     <th className="p-2 sm:p-2.5 min-w-[200px]">Ranting / Dojo</th>
                     <th className="p-2 sm:p-2.5 text-right">UKT (Lunas)</th>
-                    <th className="p-2 sm:p-2.5 text-right">Komisi UKT</th>
+                    <th className="p-2 sm:p-2.5 text-right">CASHBACK UKT</th>
                     <th className="p-2 sm:p-2.5 text-right">Latber (Lunas)</th>
-                    <th className="p-2 sm:p-2.5 text-right">Komisi Latber</th>
+                    <th className="p-2 sm:p-2.5 text-right">CASHBACK Latber</th>
                     <th className="p-2 sm:p-2.5 text-right font-bold">Total Masuk</th>
                     <th className="p-2 sm:p-2.5 whitespace-nowrap">Status setor UKT</th>
                   </tr>

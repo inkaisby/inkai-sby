@@ -5404,7 +5404,7 @@ export function UktDashboard(props: Props) {
                 ? props.feesFromSnapshot
                   ? "Nilai saat ini dari snapshot periode ini. Simpan default hanya ke periode (bukan template global)."
                   : "Simpan default ke snapshot periode ini. Centang opsi di bawah untuk juga memperbarui template global cabang."
-                : "Tidak ada periode terpilih — perubahan disimpan ke biaya global cabang (template + komisi)."}
+                : "Tidak ada periode terpilih — perubahan disimpan ke biaya global cabang (template + CASHBACK)."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
@@ -5427,7 +5427,7 @@ export function UktDashboard(props: Props) {
               </div>
             ))}
             <div className="flex items-center gap-3 border-t pt-3">
-              <span className="w-20 text-sm font-medium">Komisi</span>
+              <span className="w-20 text-sm font-medium">CASHBACK</span>
               <Input
                 type="number"
                 value={komisiRanting}
@@ -5695,7 +5695,7 @@ export function UktDashboard(props: Props) {
           {wizardStep === 1 && (
             <div className="space-y-2 text-sm">
               <p className="text-muted-foreground">
-                Pastikan biaya sabuk & komisi ranting sudah benar. Nominal ini akan
+                Pastikan biaya sabuk & CASHBACK ranting sudah benar. Nominal ini akan
                 di-snapshot ke periode baru (tidak berubah jika template global diubah nanti).
               </p>
               {BELT_FEE_KEYS.map((belt) => (
@@ -5705,7 +5705,7 @@ export function UktDashboard(props: Props) {
                 </div>
               ))}
               <div className="flex justify-between border-t pt-2">
-                <span>Komisi ranting</span>
+                <span>CASHBACK ranting</span>
                 <span className="font-medium">{formatRupiahNota(komisiRanting)} / orang</span>
               </div>
               <Button variant="outline" size="sm" onClick={openBeltFeesDialog}>
@@ -5762,7 +5762,7 @@ export function UktDashboard(props: Props) {
               <ul className="mt-2 space-y-1 text-sm">
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  Biaya sabuk & komisi siap di-snapshot
+                  Biaya sabuk & CASHBACK siap di-snapshot
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />

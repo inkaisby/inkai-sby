@@ -364,7 +364,7 @@ describe("UKT Laporan WA format ranting", () => {
     );
     expect(text).toContain("*A.* Subtotal A (Biaya UKT):");
     expect(text).toContain("*B.* Subtotal B (Buku Rusak/Hilang): _Rp 0,-_");
-    expect(text).toContain("*C.* Komisi Ranting (2 ×");
+    expect(text).toContain("*C.* CASHBACK Ranting (2 ×");
     expect(text).toContain("*TOTAL (A+B−C):");
     expect(text).toContain("Sudah lunas:");
     expect(text).toContain("Belum lunas:");
@@ -374,7 +374,7 @@ describe("UKT Laporan WA format ranting", () => {
     expect(isUktNotaRow(rows[0])).toBe(true);
     // Jarak enter: sabuk ↔ Termasuk ↔ A/B/C ↔ TOTAL
     expect(text).toMatch(/KUNING:[\s\S]*?\n\n_Termasuk 1 Belum Bayar_\n\n\*A\./);
-    expect(text).toMatch(/\*C\.\* Komisi Ranting[\s\S]*?\n\n\*TOTAL \(A\+B/);
+    expect(text).toMatch(/\*C\.\* CASHBACK Ranting[\s\S]*?\n\n\*TOTAL \(A\+B/);
   });
 
   it("semua lunas: pecahan _Sudah lunas_ saja", () => {
@@ -594,9 +594,9 @@ describe("UKT Laporan WA format ranting", () => {
       beltFees,
       komisi,
     );
-    expect(text).toContain("*C.* Komisi Ranting (2 ×");
+    expect(text).toContain("*C.* CASHBACK Ranting (2 ×");
     expect(text).toContain(`- ${formatRupiahNota(2 * komisi)}`);
-    expect(text).not.toContain("*C.* Komisi Ranting (1 ×");
+    expect(text).not.toContain("*C.* CASHBACK Ranting (1 ×");
     expect(text).toContain(
       `PUTIH: 1 × ${formatRupiahNota(285000)} = ${formatRupiahNota(285000)}`,
     );

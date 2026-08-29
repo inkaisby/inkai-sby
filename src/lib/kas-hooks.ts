@@ -186,7 +186,7 @@ export async function postKasFromLatberPaid(opts: {
     await postKasEntry({
       scope: scopes.dojo,
       txnDate: ymdWib(),
-      description: `Komisi ranting — ${desc}`,
+      description: `CASHBACK ranting — ${desc}`,
       kegiatan,
       direction: "in",
       amount: komisi,

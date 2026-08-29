@@ -211,7 +211,7 @@ export function buildUktNotaPrintHtml(data: UktNotaPrintData): string {
         <span>${formatRupiahNota(data.subtotalB)}</span>
       </div>
       <div class="summary-row">
-        <span>Komisi Ranting (${data.registeredCount} × ${formatRupiahNota(data.komisiRanting)})</span>
+        <span>CASHBACK Ranting (${data.registeredCount} × ${formatRupiahNota(data.komisiRanting)})</span>
         <span>- ${formatRupiahNota(data.totalC)}</span>
       </div>
       <div class="summary-total">

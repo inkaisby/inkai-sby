@@ -132,7 +132,7 @@ export async function buildLatberRekapXlsxBuffer(
   const summary = [
     ["Jumlah peserta", String(input.rows.length)],
     ["Subtotal", formatLatberCurrency(totals.subtotal)],
-    ["Komisi ranting", `− ${formatLatberCurrency(totals.komisiTotal)}`],
+    ["CASHBACK ranting", `− ${formatLatberCurrency(totals.komisiTotal)}`],
     ["TOTAL disetor ke cabang", formatLatberCurrency(totals.grandTotal)],
   ];
   summary.forEach((pair, i) => {

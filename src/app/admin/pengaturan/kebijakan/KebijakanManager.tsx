@@ -292,7 +292,7 @@ export function KebijakanManager({
             {savingDefaults ? "Menyimpan…" : "Simpan kebijakan"}
           </Button>
           <Button type="button" variant="outline" asChild>
-            <Link href="/admin/ukt">Buka tarif UKT & komisi</Link>
+            <Link href="/admin/ukt">Buka tarif UKT & CASHBACK</Link>
           </Button>
         </div>
       </form>

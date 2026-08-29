@@ -485,7 +485,7 @@ export function buildLatberRantingWaReportText(
     "*Rincian pembayaran*",
     `Peserta: ${n} × ${formatLatberRupiahPlain(feeAmount)} = ${formatLatberRupiahPlain(subtotal)}`,
     `Subtotal (Biaya Latber): _${formatLatberRupiahPlain(subtotal)}_`,
-    `Komisi Ranting (${n} × ${formatLatberRupiahPlain(komisiRanting)}): - ${formatLatberRupiahPlain(komisiTotal)}`,
+    `CASHBACK Ranting (${n} × ${formatLatberRupiahPlain(komisiRanting)}): - ${formatLatberRupiahPlain(komisiTotal)}`,
     `*TOTAL disetor ke cabang: ${formatLatberRupiahPlain(grandTotal)}*`,
   ]
     .filter((line): line is string => line != null)

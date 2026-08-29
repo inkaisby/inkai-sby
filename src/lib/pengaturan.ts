@@ -58,8 +58,8 @@ export const SETTINGS_SHORTCUTS = [
   },
   {
     href: buildDefaultUktAdminUrl(),
-    title: "Tarif UKT & Komisi",
-    description: "Biaya sabuk & komisi ranting (modul UKT)",
+    title: "Tarif UKT & CASHBACK",
+    description: "Biaya sabuk & CASHBACK ranting (modul UKT)",
     kind: "kebijakan" as const,
   },
   {

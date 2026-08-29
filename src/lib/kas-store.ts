@@ -284,7 +284,7 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
               scopeType: "dojo",
               scopeId: b.member.dojoId,
               txnDate: b.createdAt,
-              description: `Komisi ranting — ${desc}`,
+              description: `CASHBACK ranting — ${desc}`,
               kegiatan,
               amountIn: 5000,
               amountOut: 0,

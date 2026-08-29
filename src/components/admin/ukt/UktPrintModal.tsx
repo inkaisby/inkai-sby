@@ -352,7 +352,7 @@ export function UktPrintModal({
                 </span>{" "}
                 (semua terdaftar)
                 {" · "}
-                Komisi:{" "}
+                CASHBACK:{" "}
                 <span className="font-medium text-foreground">
                   {formatRupiahNota(komisiRanting)} / orang
                 </span>
@@ -445,7 +445,7 @@ export function UktPrintModal({
               </div>
               <div className="flex justify-between">
                 <span>
-                  Komisi Ranting ({registeredCount} × {formatRupiahNota(komisiRanting)})
+                  CASHBACK Ranting ({registeredCount} × {formatRupiahNota(komisiRanting)})
                 </span>
                 <span>- {formatRupiahNota(totalC)}</span>
               </div>

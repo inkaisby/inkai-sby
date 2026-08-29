@@ -1473,7 +1473,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
           </div>
 
           <p className="text-sm text-muted-foreground">
-            Biaya {formatLatberCurrency(props.feeAmount)}/peserta · Komisi ranting{" "}
+            Biaya {formatLatberCurrency(props.feeAmount)}/peserta · CASHBACK ranting{" "}
             {formatLatberCurrency(props.komisiRanting)} · Setor cabang{" "}
             {formatLatberCurrency(props.feeAmount - props.komisiRanting)}/peserta lunas
           </p>
@@ -1533,7 +1533,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              Biaya peserta {formatLatberCurrency(DEFAULT_LATBER_FEE)} (tetap) · Komisi
+              Biaya peserta {formatLatberCurrency(DEFAULT_LATBER_FEE)} (tetap) · CASHBACK
               ranting {formatLatberCurrency(DEFAULT_LATBER_KOMISI_RANTING)}
             </p>
           </div>
@@ -1622,7 +1622,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
               />
             </div>
             <div>
-              <Label htmlFor="latber-edit-komisi">Komisi Ranting per Peserta (Rp)</Label>
+              <Label htmlFor="latber-edit-komisi">CASHBACK Ranting per Peserta (Rp)</Label>
               <Input
                 id="latber-edit-komisi"
                 type="number"

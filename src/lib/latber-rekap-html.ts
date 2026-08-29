@@ -125,7 +125,7 @@ export function buildLatberRekapPrintHtml(data: LatberRekapPrintData): string {
     </table>
     <div class="totals">
       <div class="totals-row"><span>Subtotal</span><span>${escapeHtml(formatLatberCurrency(totals.subtotal))}</span></div>
-      <div class="totals-row"><span>Komisi ranting</span><span>− ${escapeHtml(formatLatberCurrency(totals.komisiTotal))}</span></div>
+      <div class="totals-row"><span>CASHBACK ranting</span><span>− ${escapeHtml(formatLatberCurrency(totals.komisiTotal))}</span></div>
       <div class="totals-row total"><span>Setor cabang</span><span>${escapeHtml(formatLatberCurrency(totals.grandTotal))}</span></div>
     </div>
     <div class="footer-date">${escapeHtml(data.printedAt)}</div>

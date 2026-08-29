@@ -60,8 +60,8 @@ export function buildLatberNotaPrintHtml(data: LatberNotaPrintData): string {
     ? `<div style="font-weight:bold;text-transform:uppercase;">RANTING : ${escapeHtml(data.dojoName)}</div>`
     : "";
   const komisiLabel = data.komisiPerPerson
-    ? `Komisi ranting (${data.paidCount} × ${escapeHtml(data.komisiPerPerson)})`
-    : `Komisi ranting`;
+    ? `CASHBACK ranting (${data.paidCount} × ${escapeHtml(data.komisiPerPerson)})`
+    : `CASHBACK ranting`;
 
   return `<!DOCTYPE html>
 <html lang="id">

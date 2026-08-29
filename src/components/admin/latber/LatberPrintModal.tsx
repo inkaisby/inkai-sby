@@ -235,7 +235,7 @@ export function LatberPrintModal({
               </div>
               <div>
                 <label htmlFor="latber-komisi-input" className="text-xs font-semibold text-muted-foreground">
-                  Komisi Ranting per Peserta (Rp)
+                  CASHBACK Ranting per Peserta (Rp)
                 </label>
                 <Input
                   id="latber-komisi-input"
@@ -257,7 +257,7 @@ export function LatberPrintModal({
                   <span>{formatLatberCurrency(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-amber-700">
-                  <span>Total Komisi Ranting:</span>
+                  <span>Total CASHBACK Ranting:</span>
                   <span>− {formatLatberCurrency(komisiTotal)}</span>
                 </div>
                 <div className="flex justify-between border-t pt-1 font-semibold text-foreground">
@@ -346,7 +346,7 @@ export function LatberPrintModal({
               <span>{formatLatberCurrency(subtotal)}</span>
             </div>
             <div className="flex justify-between">
-              <span>Komisi Ranting ({paidCount} × {formatLatberCurrency(customKomisiRanting)})</span>
+              <span>CASHBACK Ranting ({paidCount} × {formatLatberCurrency(customKomisiRanting)})</span>
               <span>- {formatLatberCurrency(komisiTotal)}</span>
             </div>
             <div className="flex justify-between border-t border-black pt-1 font-bold text-sm">

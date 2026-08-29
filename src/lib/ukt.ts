@@ -2049,7 +2049,7 @@ export function buildUktRantingWaReportText(
     "",
     `*A.* Subtotal A (Biaya UKT): _${formatRupiahNota(subtotalA)}_`,
     `*B.* Subtotal B (Buku Rusak/Hilang): _${formatRupiahNota(subtotalB)}_`,
-    `*C.* Komisi Ranting (${participantCount} × ${formatRupiahNota(komisiRanting)}): - ${formatRupiahNota(totalC)}`,
+    `*C.* CASHBACK Ranting (${participantCount} × ${formatRupiahNota(komisiRanting)}): - ${formatRupiahNota(totalC)}`,
     "",
     `*TOTAL (A+B−C): ${formatRupiahNota(grandTotal)}*`,
     formatUktWaMoneyPaidLine(paidNet, unpaidNet, { sudahLunasLabel: true }),

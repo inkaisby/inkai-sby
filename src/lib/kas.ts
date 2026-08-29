@@ -551,7 +551,11 @@ export function aggregateKasByDojo(
     const src = (row.sourceType || "").toLowerCase();
     const keg = (row.kegiatan || "").toLowerCase();
     const desc = (row.description || "").toLowerCase();
-    const isKomisi = desc.includes("komisi") || keg.includes("komisi");
+    const isKomisi =
+      desc.includes("komisi") ||
+      keg.includes("komisi") ||
+      desc.includes("cashback") ||
+      keg.includes("cashback");
 
     const isUktMatch =
       src === "ukt" || keg.includes("ukt") || desc.includes("ukt");
@@ -632,11 +636,11 @@ export function formatRecapDojoTextForWa(
     lines.push(`${no++}. *${item.dojoName}*`);
     if (item.totalUkt > 0) lines.push(`   - UKT: ${formatRp(item.totalUkt)}`);
     if (item.totalKomisiUkt > 0)
-      lines.push(`   - Komisi UKT: ${formatRp(item.totalKomisiUkt)}`);
+      lines.push(`   - CASHBACK UKT: ${formatRp(item.totalKomisiUkt)}`);
     if (item.totalLatber > 0)
       lines.push(`   - Latber: ${formatRp(item.totalLatber)}`);
     if (item.totalKomisiLatber > 0)
-      lines.push(`   - Komisi Latber: ${formatRp(item.totalKomisiLatber)}`);
+      lines.push(`   - CASHBACK Latber: ${formatRp(item.totalKomisiLatber)}`);
     if (item.totalIuran > 0)
       lines.push(`   - Iuran: ${formatRp(item.totalIuran)}`);
     if (item.totalLainnya > 0)
