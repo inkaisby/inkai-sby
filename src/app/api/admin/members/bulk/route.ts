@@ -17,7 +17,7 @@ import {
   restoreMember,
   softDeleteMembersBulk,
 } from "@/lib/member-lifecycle-actions";
-import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import { applyMemberRegistrationDecision } from "@/lib/member-registration-actions";
 import { PRISMA_BUSY_USER_MESSAGE } from "@/lib/prisma-errors";
 
 export const maxDuration = 60;
@@ -150,22 +150,18 @@ export async function POST(request: Request) {
     );
   } else if (action === "approve") {
     for (const memberId of memberIds) {
-      const { res, data } = await inkaiFetch(
-        `/v1/members/${memberId}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ action: "approve" }),
-        },
-        authResult.token,
-      );
+      const result = await applyMemberRegistrationDecision({
+        user: authResult.user,
+        token: authResult.token,
+        memberId,
+        action: "approve",
+        ip,
+        userAgent,
+      });
       results.push(
-        res.ok
+        result.ok
           ? { id: memberId, ok: true }
-          : {
-              id: memberId,
-              ok: false,
-              error: inkaiErrorMessage(data, "Gagal approve"),
-            },
+          : { id: memberId, ok: false, error: result.error },
       );
     }
   } else {

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { writeAuditLog } from "@/lib/audit";
-import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import {
+  inkaiFetchWithServiceRetry,
+  inkaiErrorMessage,
+  shouldHardFailInkaiMutation,
+} from "@/lib/inkai-api/server";
 import { assertDojoInScope } from "@/lib/pengaturan";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/rbac";
@@ -181,7 +185,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
   }
 
-  const { res, data } = await inkaiFetch(
+  const { res, data } = await inkaiFetchWithServiceRetry(
     `/v1/verifications/${id}/process`,
     {
       method: "POST",
@@ -193,9 +197,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     authResult.token,
   );
 
-  if (!res.ok) {
-    // Fail closed — jangan approve/reject lokal saat API sibuk/gagal (authz bypass risk)
-    const statusCode = res.status === 404 ? 404 : res.status >= 500 ? 503 : res.status;
+  const inkaiOk = res.ok;
+  if (
+    !inkaiOk &&
+    (!local || shouldHardFailInkaiMutation(res, data))
+  ) {
+    const statusCode =
+      res.status === 404 ? 404 : res.status >= 500 ? 503 : res.status;
     return NextResponse.json(
       {
         error: inkaiErrorMessage(
@@ -203,7 +211,13 @@ export async function PATCH(request: Request, context: RouteContext) {
           "Gagal memproses verifikasi. Coba lagi saat API tersedia.",
         ),
       },
-      { status: statusCode },
+      { status: statusCode === 401 ? 502 : statusCode },
+    );
+  }
+
+  if (!inkaiOk && local) {
+    console.warn(
+      `[verification] Inkai failed status=${res.status}; applying Prisma fallback for ${id}`,
     );
   }
 
@@ -250,7 +264,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       parsed.data.action === "approve"
         ? "ADMIN_VERIFICATION_APPROVE"
         : "ADMIN_VERIFICATION_REJECT",
-    details: `verification=${id}; member=${local?.memberId ?? "?"}; type=${local?.type ?? "?"}`,
+    details: `verification=${id}; member=${local?.memberId ?? "?"}; type=${local?.type ?? "?"}${inkaiOk ? "" : " [prisma-fallback]"}`,
     ip: getClientIp(request),
     userAgent: request.headers.get("user-agent"),
   });
@@ -260,7 +274,11 @@ export async function PATCH(request: Request, context: RouteContext) {
     status,
     message:
       parsed.data.action === "approve"
-        ? "Verifikasi berhasil disetujui"
-        : "Verifikasi berhasil ditolak",
+        ? inkaiOk
+          ? "Verifikasi berhasil disetujui"
+          : "Verifikasi disetujui (tersimpan di portal)"
+        : inkaiOk
+          ? "Verifikasi berhasil ditolak"
+          : "Verifikasi ditolak (tersimpan di portal)",
   });
 }

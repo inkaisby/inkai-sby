@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { inkaiFetch, inkaiErrorMessage } from "@/lib/inkai-api/server";
+import {
+  inkaiFetch,
+  inkaiErrorMessage,
+  isInkaiAuthFailure,
+} from "@/lib/inkai-api/server";
 import {
   DEFAULT_MEMBER_RANK,
   encodeUktRegisteredRank,
@@ -286,8 +290,12 @@ export async function POST(request: Request) {
       const scopeDenied =
         isInkaiScopeDeniedError(inkaiMsg, res.status) ||
         /tidak ditemukan|not found/i.test(inkaiMsg);
+      const authOrUnavailable =
+        isInkaiAuthFailure(res, data) ||
+        res.status === 503 ||
+        res.status >= 500;
 
-      if (scopeDenied) {
+      if (scopeDenied || authOrUnavailable) {
         const serviceToken =
           process.env.INKAI_SERVICE_TOKEN || process.env.CRON_INKAI_TOKEN;
         if (serviceToken) {
@@ -306,7 +314,7 @@ export async function POST(request: Request) {
         }
       }
 
-      if (!res.ok && scopeDenied) {
+      if (!res.ok && (scopeDenied || authOrUnavailable)) {
         const periodTitle = "UKT";
         const amount = await resolveUktRegisterFeeAmount({
           token: authResult.token,

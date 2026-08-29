@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { inkaiFetch } from "@/lib/inkai-api/server";
+import { inkaiFetchWithServiceRetry } from "@/lib/inkai-api/server";
 import { writeAuditLog } from "@/lib/audit";
 import { notifyUser } from "@/lib/notifications";
 import { buildMemberFilter, type SessionUser } from "@/lib/rbac";
@@ -394,20 +394,24 @@ export async function mergeMembers(opts: {
   if (pickScalar(keep.nia, merge.nia)) keepPatch.nia = pickScalar(keep.nia, merge.nia);
   if (pickScalar(keep.nik, merge.nik)) keepPatch.nik = pickScalar(keep.nik, merge.nik);
 
-  await inkaiFetch(
+  await inkaiFetchWithServiceRetry(
     `/v1/members/${keepId}`,
     { method: "PATCH", body: JSON.stringify(keepPatch) },
     opts.token,
   );
   // Jika keep sebelumnya PENDING, approve registration
   if (normalizeStatus(keep.status) === "PENDING") {
-    await inkaiFetch(
+    await inkaiFetchWithServiceRetry(
       `/v1/members/${keepId}/registration`,
       { method: "PATCH", body: JSON.stringify({ action: "approve" }) },
       opts.token,
     );
   }
-  await inkaiFetch(`/v1/members/${mergeId}`, { method: "DELETE" }, opts.token);
+  await inkaiFetchWithServiceRetry(
+    `/v1/members/${mergeId}`,
+    { method: "DELETE" },
+    opts.token,
+  );
 
   writeAuditLog({
     userId: opts.user.id,

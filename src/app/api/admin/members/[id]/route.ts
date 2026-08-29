@@ -7,6 +7,7 @@ import {
   inkaiFetchWithServiceRetry,
   inkaiPortalErrorResponse,
   isInkaiAuthFailure,
+  shouldHardFailInkaiMutation,
 } from "@/lib/inkai-api/server";
 import { canAssignNia, canEditKyuBaru, formatMemberName, formatRankLabel } from "@/lib/belt";
 import { memberActionSchema } from "@/lib/security/schemas";
@@ -53,6 +54,7 @@ import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
 import { resolveMemberPhotoUrl } from "@/lib/member-photo";
 import { writeSecurityEvent } from "@/lib/security/security-events";
 import { tryProvisionMemberNiaLogin } from "@/lib/member-nia-login";
+import { applyMemberRegistrationDecision } from "@/lib/member-registration-actions";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -188,6 +190,10 @@ export async function GET(_request: Request, context: RouteContext) {
           AND: [{ id }, buildMemberFilter(authResult.user, { anyDeleted: true })],
         },
         select: {
+          status: true,
+          fullName: true,
+          nia: true,
+          dojoId: true,
           monthlyDuesAmount: true,
           allowEventWithoutDues: true,
           birthCertificateUrl: true,
@@ -199,6 +205,13 @@ export async function GET(_request: Request, context: RouteContext) {
           birthPlace: true,
           birthDate: true,
           address: true,
+          dojo: {
+            select: {
+              id: true,
+              name: true,
+              branch: { select: { name: true } },
+            },
+          },
           ...(await memberPhotoSelect()),
           user: {
             select: { email: true, phoneNumber: true, photoUrl: true },
@@ -233,6 +246,17 @@ export async function GET(_request: Request, context: RouteContext) {
     );
     member = {
       ...member,
+      status: localExtras.data.status,
+      fullName: localExtras.data.fullName,
+      nia: localExtras.data.nia ?? member.nia,
+      dojoId: localExtras.data.dojoId,
+      dojo: localExtras.data.dojo
+        ? {
+            id: localExtras.data.dojo.id,
+            name: localExtras.data.dojo.name,
+            branch: localExtras.data.dojo.branch,
+          }
+        : member.dojo,
       birthCertificateUrl: localExtras.data.birthCertificateUrl,
       bpjsCardUrl: localExtras.data.bpjsCardUrl,
       bpjsCardNumber: localExtras.data.bpjsCardNumber,
@@ -262,12 +286,15 @@ export async function GET(_request: Request, context: RouteContext) {
         ? {
             ...existingUser,
             email:
-              (typeof existingUser.email === "string" && existingUser.email) ||
-              localUser.email,
+              localUser.email ??
+              (typeof existingUser.email === "string"
+                ? existingUser.email
+                : null),
             phoneNumber:
-              (typeof existingUser.phoneNumber === "string" &&
-                existingUser.phoneNumber) ||
-              localUser.phoneNumber,
+              localUser.phoneNumber ??
+              (typeof existingUser.phoneNumber === "string"
+                ? existingUser.phoneNumber
+                : null),
             photoUrl: resolvedPhotoUrl,
           }
         : member.user ?? null,
@@ -359,8 +386,14 @@ export async function PATCH(request: Request, context: RouteContext) {
       token,
     );
 
-    if (!res.ok) {
+    const inkaiOk = res.ok;
+    if (shouldHardFailInkaiMutation(res, data)) {
       return inkaiPortalErrorResponse(data, "Gagal menyimpan NIA", res.status);
+    }
+    if (!inkaiOk) {
+      console.warn(
+        `[set_nia] Inkai failed status=${res.status}; applying Prisma fallback for ${id}`,
+      );
     }
 
     try {
@@ -372,6 +405,17 @@ export async function PATCH(request: Request, context: RouteContext) {
       });
     } catch (err) {
       console.error("[set_nia] failed to sync local Prisma nia:", err);
+      if (!inkaiOk) {
+        return NextResponse.json(
+          {
+            error: prismaUserFacingError(
+              err,
+              "Gagal menyimpan NIA di database lokal",
+            ).error,
+          },
+          { status: 500 },
+        );
+      }
     }
 
     // Default password = NIA only when account still on default / never logged in.
@@ -442,7 +486,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           : passwordSyncedToNia
             ? "; default password synced to NIA"
             : ""
-      }`,
+      }${inkaiOk ? "" : " [prisma-fallback]"}`,
       ip,
       userAgent,
       token,
@@ -450,12 +494,14 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({
       success: true,
-      member: data.data,
+      member: inkaiOk ? data.data : { id, nia },
       message: accountProvisioned
         ? "NIA berhasil disimpan. Akun login dibuat (password = NIA). Minta anggota ganti di Profil."
         : passwordSyncedToNia
           ? "NIA berhasil disimpan. Password default = NIA (minta anggota ganti di Profil)."
-          : "NIA berhasil disimpan",
+          : inkaiOk
+            ? "NIA berhasil disimpan"
+            : "NIA disimpan (tersimpan di portal)",
       passwordSyncedToNia,
       accountProvisioned,
     });
@@ -616,8 +662,14 @@ export async function PATCH(request: Request, context: RouteContext) {
       token,
     );
 
-    if (!res.ok) {
+    const inkaiOk = res.ok;
+    if (shouldHardFailInkaiMutation(res, data)) {
       return inkaiPortalErrorResponse(data, "Gagal menyimpan nama", res.status);
+    }
+    if (!inkaiOk) {
+      console.warn(
+        `[set_name] Inkai failed status=${res.status}; applying Prisma fallback for ${id}`,
+      );
     }
 
     try {
@@ -628,13 +680,24 @@ export async function PATCH(request: Request, context: RouteContext) {
       });
     } catch (err) {
       console.error("[set_name] prisma update failed:", err);
+      if (!inkaiOk) {
+        return NextResponse.json(
+          {
+            error: prismaUserFacingError(
+              err,
+              "Gagal menyimpan nama di database lokal",
+            ).error,
+          },
+          { status: 500 },
+        );
+      }
     }
 
     writeAuditLog({
       userId: authResult.user.id,
       email: authResult.user.email,
       action: "MEMBER_SET_NAME",
-      details: `Rename ${scoped.fullName} → ${fullName} (${id})`,
+      details: `Rename ${scoped.fullName} → ${fullName} (${id})${inkaiOk ? "" : " [prisma-fallback]"}`,
       ip,
       userAgent,
       token,
@@ -644,7 +707,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       success: true,
       member: { id, fullName },
       fullName,
-      message: "Nama berhasil disimpan",
+      message: inkaiOk ? "Nama berhasil disimpan" : "Nama disimpan (tersimpan di portal)",
     });
   }
 
@@ -838,11 +901,17 @@ export async function PATCH(request: Request, context: RouteContext) {
       token,
     );
 
-    if (!res.ok) {
+    const inkaiOk = res.ok;
+    if (shouldHardFailInkaiMutation(res, data)) {
       return inkaiPortalErrorResponse(
         data,
         "Gagal memindahkan ranting",
         res.status,
+      );
+    }
+    if (!inkaiOk) {
+      console.warn(
+        `[set_dojo] Inkai failed status=${res.status}; applying Prisma fallback for ${id}`,
       );
     }
 
@@ -856,8 +925,12 @@ export async function PATCH(request: Request, context: RouteContext) {
       console.error("[set_dojo] prisma update failed:", err);
       return NextResponse.json(
         {
-          error:
-            "Ranting terbarui di sistem pusat, tetapi gagal sinkron lokal. Muat ulang halaman.",
+          error: inkaiOk
+            ? "Ranting terbarui di sistem pusat, tetapi gagal sinkron lokal. Muat ulang halaman."
+            : prismaUserFacingError(
+                err,
+                "Gagal memindahkan ranting di database lokal",
+              ).error,
         },
         { status: 500 },
       );
@@ -867,7 +940,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       userId: authResult.user.id,
       email: authResult.user.email,
       action: "MEMBER_SET_DOJO",
-      details: `Pindah ranting ${previousDojoName} → ${targetDojo.name} for ${scoped.fullName} (${id})`,
+      details: `Pindah ranting ${previousDojoName} → ${targetDojo.name} for ${scoped.fullName} (${id})${inkaiOk ? "" : " [prisma-fallback]"}`,
       ip,
       userAgent,
       token,
@@ -875,10 +948,12 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({
       success: true,
-      member: data.data,
+      member: inkaiOk ? data.data : { id, dojoId: nextDojoId },
       dojoId: nextDojoId,
       dojoName: targetDojo.name,
-      message: `Dipindah: ${previousDojoName} → ${targetDojo.name}`,
+      message: inkaiOk
+        ? `Dipindah: ${previousDojoName} → ${targetDojo.name}`
+        : `Dipindah: ${previousDojoName} → ${targetDojo.name} (tersimpan di portal)`,
     });
   }
 
@@ -1453,11 +1528,17 @@ export async function PATCH(request: Request, context: RouteContext) {
       token,
     );
 
-    if (!res.ok) {
+    const inkaiOk = res.ok;
+    if (shouldHardFailInkaiMutation(res, data)) {
       return inkaiPortalErrorResponse(
         data,
         "Gagal menyimpan identitas",
         res.status,
+      );
+    }
+    if (!inkaiOk) {
+      console.warn(
+        `[set_identity] Inkai failed status=${res.status}; applying Prisma fallback for ${id}`,
       );
     }
 
@@ -1495,7 +1576,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       userId: authResult.user.id,
       email: authResult.user.email,
       action: "MEMBER_SET_IDENTITY",
-      details: `Update identitas ${scoped.fullName} (${id})`,
+      details: `Update identitas ${scoped.fullName} (${id})${inkaiOk ? "" : " [prisma-fallback]"}`,
       ip,
       userAgent,
       token,
@@ -1511,7 +1592,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         gender,
         address,
       },
-      message: "Identitas anggota disimpan",
+      message: inkaiOk
+        ? "Identitas anggota disimpan"
+        : "Identitas disimpan (tersimpan di portal)",
     });
   }
 
@@ -1603,6 +1686,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
+    let inkaiOk = true;
     if (Object.keys(inkaiPatch).length > 0) {
       const { res, data } = await inkaiFetchWithServiceRetry(
         `/v1/members/${id}`,
@@ -1612,11 +1696,17 @@ export async function PATCH(request: Request, context: RouteContext) {
         },
         token,
       );
-      if (!res.ok) {
+      inkaiOk = res.ok;
+      if (shouldHardFailInkaiMutation(res, data)) {
         return inkaiPortalErrorResponse(
           data,
           "Gagal menyimpan kontak",
           res.status,
+        );
+      }
+      if (!inkaiOk) {
+        console.warn(
+          `[set_contact] Inkai failed status=${res.status}; applying Prisma fallback for ${id}`,
         );
       }
     }
@@ -1642,7 +1732,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       userId: authResult.user.id,
       email: authResult.user.email,
       action: "MEMBER_SET_CONTACT",
-      details: `Update kontak ${scoped.fullName} (${id})`,
+      details: `Update kontak ${scoped.fullName} (${id})${inkaiOk ? "" : " [prisma-fallback]"}`,
       ip,
       userAgent,
       token,
@@ -1664,7 +1754,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       success: true,
       phoneNumber: nextPhone,
       email: nextEmail,
-      message: "Kontak anggota disimpan",
+      message: inkaiOk
+        ? "Kontak anggota disimpan"
+        : "Kontak disimpan (tersimpan di portal)",
     });
   }
 
@@ -1768,33 +1860,28 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
   }
 
-  const { res, data } = await inkaiFetchWithServiceRetry(
-    `/v1/members/${id}/registration`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({
-        action: parsed.data.action,
-        nia: parsed.data.nia,
-      }),
-    },
-    token,
-  );
-
-  if (!res.ok) {
-    return inkaiPortalErrorResponse(
-      data,
-      "Gagal memproses anggota",
-      res.status,
-    );
+  if (action === "approve" || action === "reject") {
+    const result = await applyMemberRegistrationDecision({
+      user: authResult.user,
+      token,
+      memberId: id,
+      action,
+      nia: parsed.data.nia,
+      ip,
+      userAgent,
+    });
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: result.status },
+      );
+    }
+    return NextResponse.json({
+      success: true,
+      status: result.status,
+      message: result.message,
+    });
   }
 
-  const payload = data.data as { status?: string } | undefined;
-  return NextResponse.json({
-    success: true,
-    status: payload?.status,
-    message:
-      parsed.data.action === "approve"
-        ? "Anggota berhasil disetujui"
-        : "Anggota berhasil ditolak",
-  });
+  return NextResponse.json({ error: "Aksi tidak dikenali" }, { status: 400 });
 }

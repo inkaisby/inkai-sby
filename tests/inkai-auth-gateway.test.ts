@@ -11,6 +11,10 @@ import {
   isUnauthorizedPayload,
   SESSION_EXPIRED_MESSAGE,
 } from "../src/lib/session-expired";
+import {
+  shouldApplyInkaiPrismaFallback,
+  shouldHardFailInkaiMutation,
+} from "../src/lib/inkai-api/server";
 
 function fakeJwt(exp: number): string {
   const header = Buffer.from(JSON.stringify({ alg: "none" })).toString(
@@ -88,5 +92,25 @@ describe("isUnauthorizedPayload", () => {
       ),
     ).toBe(false);
     expect(isUnauthorizedPayload(502, "Gagal memperbarui sabuk")).toBe(false);
+  });
+});
+
+describe("shouldApplyInkaiPrismaFallback", () => {
+  it("falls back on auth failure and 503/5xx", () => {
+    expect(
+      shouldApplyInkaiPrismaFallback(
+        { status: 401 },
+        { message: "Invalid or expired token" },
+      ),
+    ).toBe(true);
+    expect(shouldApplyInkaiPrismaFallback({ status: 503 }, {})).toBe(true);
+    expect(shouldApplyInkaiPrismaFallback({ status: 500 }, {})).toBe(true);
+  });
+
+  it("hard-fails on validation 400", () => {
+    expect(
+      shouldHardFailInkaiMutation({ status: 400 }, { message: "NIA invalid" }),
+    ).toBe(true);
+    expect(shouldApplyInkaiPrismaFallback({ status: 200 }, {})).toBe(false);
   });
 });

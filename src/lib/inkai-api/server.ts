@@ -201,6 +201,30 @@ export function inkaiErrorMessage(
   return fallback;
 }
 
+/**
+ * Admin mutations: on auth/503/5xx Inkai failure, persist to Prisma and return 200.
+ * Hard-fail only on 4xx that are not auth-related (validation, scope, etc.).
+ */
+export function shouldApplyInkaiPrismaFallback(
+  res: { status: number },
+  data?: Record<string, unknown> | null,
+): boolean {
+  if (res.ok) return false;
+  return (
+    isInkaiAuthFailure(res, data) ||
+    res.status === 503 ||
+    res.status >= 500
+  );
+}
+
+export function shouldHardFailInkaiMutation(
+  res: { status: number },
+  data?: Record<string, unknown> | null,
+): boolean {
+  if (res.ok) return false;
+  return !shouldApplyInkaiPrismaFallback(res, data);
+}
+
 /** Deteksi gagal auth JWT Inkai (401/pesan token). */
 export function isInkaiAuthFailure(
   res: { status: number },
