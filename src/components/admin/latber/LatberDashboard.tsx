@@ -56,7 +56,6 @@ import { canRegisterMembersToEvents } from "@/lib/wilayah-rbac";
 import { buildLatberInviteUrl } from "@/lib/latber-invite";
 import {
   buildLatberCabangWaReportText,
-  buildLatberNotaTotals,
   buildLatberRekapFilename,
   buildLatberRekapRows,
   buildLatberRantingWaReportText,
@@ -84,6 +83,7 @@ import { formatRegisteredAtWib } from "@/lib/format-wib";
 import { combineDateAndTimeLocal, toDateInput, toTimeInput } from "@/lib/ukt";
 import { Time24Fields } from "@/components/admin/Time24Fields";
 import { parseApiJson } from "@/lib/api-client";
+import { copyTextRobust } from "@/lib/anggota-export";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { LatberPrintModal } from "@/components/admin/latber/LatberPrintModal";
 import { LatberSearchBar } from "@/components/admin/latber/LatberSearchBar";
@@ -240,10 +240,6 @@ export function LatberDashboard(props: LatberDashboardProps) {
   }, [rows, localDojo, searchQ]);
 
   const kpis = useMemo(() => countLatberKpis(rows), [rows]);
-  const notaTotals = useMemo(
-    () => buildLatberNotaTotals(rows, props.feeAmount, props.komisiRanting),
-    [rows, props.feeAmount, props.komisiRanting],
-  );
   const approvedForRecap = useMemo(() => {
     let list = rows;
     if (localDojo) list = list.filter((r) => r.dojoId === localDojo);
@@ -761,17 +757,17 @@ export function LatberDashboard(props: LatberDashboardProps) {
     window.open(`https://wa.me/?text=${text}`, "_blank", "noopener,noreferrer");
   }
 
-  function openWaReport(text: string) {
-    const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    const opened = window.open(waUrl, "_blank", "noopener,noreferrer");
-    if (!opened) {
-      showError("Popup diblokir — izinkan jendela baru untuk membuka WhatsApp");
-      return;
+  async function copyWaReport(text: string, closePicker = false) {
+    const ok = await copyTextRobust(text);
+    if (ok) {
+      if (closePicker) setShowCabangWaPicker(false);
+      showSuccess("Laporan WA disalin — tempel di WhatsApp");
+    } else {
+      showError("Gagal menyalin — izinkan akses clipboard lalu coba lagi");
     }
-    showSuccess("WhatsApp dibuka — pilih penerima lalu kirim laporan");
   }
 
-  function sendCabangWaReport(dojoId: string | null) {
+  async function sendCabangWaReport(dojoId: string | null) {
     const title = props.selectedPeriod?.title ?? "Latihan Bersama";
     const eventLocation = props.periodMeta.eventLocation?.trim() || null;
     const approvedAll = filterLatberApprovedRows(rows);
@@ -801,11 +797,10 @@ export function LatberDashboard(props: LatberDashboardProps) {
           );
         })();
     if (!text) return;
-    setShowCabangWaPicker(false);
-    openWaReport(text);
+    void copyWaReport(text, true);
   }
 
-  function buildWaReport() {
+  async function buildWaReport() {
     if (isCabang) {
       setCabangWaSelectedDojoId(null);
       setShowCabangWaPicker(true);
@@ -829,7 +824,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
       props.komisiRanting,
       props.periodMeta.eventLocation?.trim() || null,
     );
-    openWaReport(text);
+    void copyWaReport(text);
   }
 
   function printedAtLabel() {
@@ -999,7 +994,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
               onPdf={() => void handleDownloadRekapPdf()}
               onPrint={handlePrintRekap}
             />
-            <Button type="button" variant="outline" size="sm" onClick={buildWaReport}>
+            <Button type="button" variant="outline" size="sm" onClick={() => void buildWaReport()}>
               <MessageCircle className="mr-1 h-4 w-4" />
               Laporan WA
             </Button>
@@ -1664,13 +1659,10 @@ export function LatberDashboard(props: LatberDashboardProps) {
           open={printOpen}
           onOpenChange={setPrintOpen}
           periodTitle={props.selectedPeriod.title}
-          rows={rows.filter((r) =>
-            isLatberPaidStatus(resolveLatberDisplayStatus(r)),
-          )}
+          rows={filterLatberApprovedRows(rows)}
           dojos={props.dojos}
           feeAmount={props.feeAmount}
           komisiRanting={props.komisiRanting}
-          totals={notaTotals}
           orgProfile={props.orgProfile}
         />
       )}
@@ -1803,9 +1795,9 @@ export function LatberDashboard(props: LatberDashboardProps) {
               </Button>
               <Button
                 type="button"
-                onClick={() => sendCabangWaReport(cabangWaSelectedDojoId)}
+                onClick={() => void sendCabangWaReport(cabangWaSelectedDojoId)}
               >
-                Buka WhatsApp
+                Salin laporan
               </Button>
             </DialogFooter>
           </DialogContent>

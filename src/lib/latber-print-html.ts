@@ -22,6 +22,8 @@ export type LatberNotaPrintData = {
     biaya: string;
   }>;
   paidCount: number;
+  unpaidCount?: number;
+  unpaidAmount?: string;
   subtotal: string;
   komisiTotal: string;
   grandTotal: string;
@@ -40,7 +42,7 @@ export function buildLatberNotaPrintHtml(data: LatberNotaPrintData): string {
 
   const tableRows =
     data.rows.length === 0
-      ? `<tr><td colspan="7" style="text-align:center;padding:8px 0;">Belum ada peserta lunas</td></tr>`
+      ? `<tr><td colspan="7" style="text-align:center;padding:8px 0;">Belum ada peserta terdaftar</td></tr>`
       : data.rows
           .map(
             (r) => `
@@ -60,8 +62,13 @@ export function buildLatberNotaPrintHtml(data: LatberNotaPrintData): string {
     ? `<div style="font-weight:bold;text-transform:uppercase;">RANTING : ${escapeHtml(data.dojoName)}</div>`
     : "";
   const komisiLabel = data.komisiPerPerson
-    ? `CASHBACK ranting (${data.paidCount} × ${escapeHtml(data.komisiPerPerson)})`
-    : `CASHBACK ranting`;
+    ? `CASHBACK Ranting (${data.paidCount} × ${escapeHtml(data.komisiPerPerson)})`
+    : `CASHBACK Ranting`;
+  const unpaidCount = data.unpaidCount ?? 0;
+  const unpaidLine =
+    unpaidCount > 0 && data.unpaidAmount
+      ? `<div style="font-size:10px;color:#92400e;">Termasuk ${unpaidCount} Belum Bayar (${escapeHtml(data.unpaidAmount)})</div>`
+      : "";
 
   return `<!DOCTYPE html>
 <html lang="id">
@@ -121,7 +128,8 @@ export function buildLatberNotaPrintHtml(data: LatberNotaPrintData): string {
     <div class="meta">
       <div>Agenda : ${escapeHtml(data.periodTitle)}</div>
       ${dojoLine}
-      <div>Peserta lunas : ${data.paidCount} orang</div>
+      <div>Jumlah peserta : ${data.paidCount} orang</div>
+      ${unpaidLine}
     </div>
     <table>
       <thead>

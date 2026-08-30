@@ -209,7 +209,7 @@ export function shouldApplyInkaiPrismaFallback(
   res: { status: number },
   data?: Record<string, unknown> | null,
 ): boolean {
-  if (res.ok) return false;
+  if (res.status >= 200 && res.status < 300) return false;
   return (
     isInkaiAuthFailure(res, data) ||
     res.status === 503 ||
@@ -221,7 +221,7 @@ export function shouldHardFailInkaiMutation(
   res: { status: number },
   data?: Record<string, unknown> | null,
 ): boolean {
-  if (res.ok) return false;
+  if (res.status >= 200 && res.status < 300) return false;
   return !shouldApplyInkaiPrismaFallback(res, data);
 }
 

@@ -295,20 +295,23 @@ export function buildLatberNotaTotals(
   komisiRanting: number,
 ): {
   participantCount: number;
-  paidCount: number;
+  notaCount: number;
+  unpaidCount: number;
   subtotal: number;
   komisiTotal: number;
   grandTotal: number;
 } {
-  const paid = rows.filter((r) =>
-    isLatberPaidStatus(resolveLatberDisplayStatus(r)),
-  );
-  const paidCount = paid.length;
-  const subtotal = paidCount * feeAmount;
-  const komisiTotal = paidCount * komisiRanting;
+  const notaRows = rows.filter(isLatberApprovedParticipant);
+  const notaCount = notaRows.length;
+  const unpaidCount = notaRows.filter(
+    (r) => !isLatberPaidStatus(resolveLatberDisplayStatus(r)),
+  ).length;
+  const subtotal = notaCount * feeAmount;
+  const komisiTotal = notaCount * komisiRanting;
   return {
     participantCount: rows.filter((r) => r.registrationId).length,
-    paidCount,
+    notaCount,
+    unpaidCount,
     subtotal,
     komisiTotal,
     grandTotal: subtotal - komisiTotal,
@@ -389,6 +392,9 @@ export function isLatberApprovedParticipant(row: LatberMemberRow): boolean {
 export function filterLatberApprovedRows(rows: LatberMemberRow[]): LatberMemberRow[] {
   return rows.filter(isLatberApprovedParticipant);
 }
+
+/** Baris Cetak Nota Latber — selaras rekap & Laporan WA. */
+export const isLatberNotaRow = isLatberApprovedParticipant;
 
 export function resolveLatberWaDojoLabel(opts: {
   effectiveDojoId?: string | null;

@@ -1509,7 +1509,6 @@ export function LatberWalkInClient({
                     year: "numeric",
                   }),
                 });
-                setPrintOpen(false);
               }}
             >
               <Printer className="mr-1 h-4 w-4" />

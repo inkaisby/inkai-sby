@@ -13,6 +13,7 @@ import {
 import {
   formatLatberCurrency,
   formatLatberRank,
+  isLatberPaidStatus,
   latberDisplayStatusLabel,
   resolveLatberDisplayStatus,
   type LatberMemberRow,
@@ -27,12 +28,6 @@ type LatberPrintModalProps = {
   dojos?: Array<{ id: string; name: string }>;
   feeAmount: number;
   komisiRanting: number;
-  totals: {
-    paidCount: number;
-    subtotal: number;
-    komisiTotal: number;
-    grandTotal: number;
-  };
   orgProfile?: {
     address?: string;
     bendaharaCabangName?: string;
@@ -101,13 +96,17 @@ export function LatberPrintModal({
     });
   }, [rows, selectedDojoIds, dojoOptions]);
 
-  const paidCount = filteredRows.length;
-  const subtotal = paidCount * feeAmount;
-  const komisiTotal = paidCount * customKomisiRanting;
+  const notaCount = filteredRows.length;
+  const unpaidCount = filteredRows.filter(
+    (r) => !isLatberPaidStatus(resolveLatberDisplayStatus(r)),
+  ).length;
+  const unpaidAmount = unpaidCount * feeAmount;
+  const subtotal = notaCount * feeAmount;
+  const komisiTotal = notaCount * customKomisiRanting;
   const grandTotal = subtotal - komisiTotal;
 
   const allSelected = dojoOptions.length > 0 && selectedDojoIds.size === dojoOptions.length;
-  const canPrint = selectedDojoIds.size > 0 && paidCount > 0;
+  const canPrint = selectedDojoIds.size > 0 && notaCount > 0;
 
   const toggleAll = () => {
     if (allSelected) {
@@ -150,7 +149,9 @@ export function LatberPrintModal({
           status: latberDisplayStatusLabel(resolveLatberDisplayStatus(r)),
           biaya: formatLatberCurrency(feeAmount),
         })),
-        paidCount,
+        paidCount: notaCount,
+        unpaidCount,
+        unpaidAmount: formatLatberCurrency(unpaidAmount),
         subtotal: formatLatberCurrency(subtotal),
         komisiTotal: formatLatberCurrency(komisiTotal),
         grandTotal: formatLatberCurrency(grandTotal),
@@ -196,7 +197,7 @@ export function LatberPrintModal({
               </div>
               <div className="max-h-36 space-y-1 overflow-y-auto rounded-md border p-2 bg-background">
                 {dojoOptions.length === 0 ? (
-                  <p className="p-2 text-xs text-muted-foreground">Belum ada peserta lunas.</p>
+                  <p className="p-2 text-xs text-muted-foreground">Belum ada peserta terdaftar.</p>
                 ) : (
                   dojoOptions.map((d) => {
                     const count = rows.filter(
@@ -249,9 +250,14 @@ export function LatberPrintModal({
               </div>
               <div className="rounded border bg-background px-3 py-2 text-xs space-y-1">
                 <div className="flex justify-between">
-                  <span>Peserta Lunas Filtered:</span>
-                  <span className="font-semibold">{paidCount} orang</span>
+                  <span>Jumlah Peserta:</span>
+                  <span className="font-semibold">{notaCount} orang</span>
                 </div>
+                {unpaidCount > 0 ? (
+                  <p className="text-[11px] text-amber-800">
+                    Termasuk {unpaidCount} Belum Bayar ({formatLatberCurrency(unpaidAmount)})
+                  </p>
+                ) : null}
                 <div className="flex justify-between">
                   <span>Subtotal Biaya:</span>
                   <span>{formatLatberCurrency(subtotal)}</span>
@@ -300,7 +306,12 @@ export function LatberPrintModal({
             {displayDojoName && (
               <div className="col-span-2 font-bold uppercase">RANTING : {displayDojoName}</div>
             )}
-            <div className="col-span-2">PESERTA LUNAS : {paidCount} orang</div>
+            <div className="col-span-2">Jumlah Peserta : {notaCount} orang</div>
+            {unpaidCount > 0 ? (
+              <div className="col-span-2 text-[11px] text-amber-800">
+                Termasuk {unpaidCount} Belum Bayar ({formatLatberCurrency(unpaidAmount)})
+              </div>
+            ) : null}
           </div>
 
           <table className="mb-4 w-full border-collapse text-[11px]">
@@ -319,7 +330,7 @@ export function LatberPrintModal({
               {filteredRows.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-4 text-center text-muted-foreground">
-                    Belum ada peserta lunas
+                    Belum ada peserta terdaftar
                   </td>
                 </tr>
               ) : (
@@ -342,11 +353,11 @@ export function LatberPrintModal({
 
           <div className="space-y-1 text-xs border-t border-black pt-2">
             <div className="flex justify-between">
-              <span>Subtotal Biaya ({paidCount} × {formatLatberCurrency(feeAmount)})</span>
+              <span>Subtotal Biaya ({notaCount} × {formatLatberCurrency(feeAmount)})</span>
               <span>{formatLatberCurrency(subtotal)}</span>
             </div>
             <div className="flex justify-between">
-              <span>CASHBACK Ranting ({paidCount} × {formatLatberCurrency(customKomisiRanting)})</span>
+              <span>CASHBACK Ranting ({notaCount} × {formatLatberCurrency(customKomisiRanting)})</span>
               <span>- {formatLatberCurrency(komisiTotal)}</span>
             </div>
             <div className="flex justify-between border-t border-black pt-1 font-bold text-sm">

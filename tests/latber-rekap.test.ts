@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 
 import {
   buildLatberCabangWaReportText,
+  buildLatberNotaTotals,
   buildLatberPublicCormatWaText,
   buildLatberRekapFilename,
   buildLatberRekapRows,
@@ -56,6 +57,7 @@ describe("latber WA/rekap", () => {
     expect(text).toContain("*Ranting/Dojo: GADING*");
     expect(text).toContain("FULAN");
     expect(text).toContain("1 × Rp 45.000");
+    expect(text).toContain("CASHBACK Ranting");
     expect(text).toContain("*TOTAL disetor ke cabang: Rp 40.000*");
     expect(text).not.toContain("Lokasi:");
   });
@@ -114,6 +116,32 @@ describe("latber WA/rekap", () => {
     expect(text).toContain("*Pelaksanaan Latihan Bersama*");
     expect(text).toContain("_30-Aug-2026_");
     expect(text.indexOf("_30-Aug-2026_")).toBeLessThan(text.indexOf("Hari:"));
+  });
+
+  it("buildLatberNotaTotals menghitung dari semua peserta nota (bukan hanya lunas)", () => {
+    const rows = [
+      row({ memberId: "m1", fullName: "Lunas", billingStatus: "PAID" }),
+      row({
+        memberId: "m2",
+        fullName: "Belum",
+        billingStatus: "PENDING",
+      }),
+      row({
+        memberId: "m3",
+        fullName: "Pending mandiri",
+        status: "PENDING",
+        billingId: null,
+        selfRegistration: true,
+        memberPaymentConfirmedAt: "2026-08-13T00:00:00.000Z",
+      }),
+    ];
+    const totals = buildLatberNotaTotals(rows, 45_000, 5_000);
+    expect(totals.notaCount).toBe(2);
+    expect(totals.unpaidCount).toBe(1);
+    expect(totals.subtotal).toBe(90_000);
+    expect(totals.komisiTotal).toBe(10_000);
+    expect(totals.grandTotal).toBe(80_000);
+    expect(filterLatberApprovedRows(rows)).toHaveLength(2);
   });
 
   it("buildLatberRekapRows mengisi status UI", () => {
