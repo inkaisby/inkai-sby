@@ -26,7 +26,7 @@ export const UKT_NOTA_GABUNGAN_ID = "gabungan";
 
 type Props = {
   open: boolean;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
   periodTitle: string;
   semester: UktSemester;
   year: number;
@@ -79,7 +79,7 @@ function resolveSelectedNames(
 
 export function UktPrintModal({
   open,
-  onClose,
+  onOpenChange,
   periodTitle,
   semester,
   year,
@@ -253,23 +253,16 @@ export function UktPrintModal({
     }
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && printBusy) return;
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="ukt-print-dialog max-h-[90vh] max-w-4xl overflow-y-auto sm:max-w-4xl">
         <DialogHeader className="no-print pr-8">
-          <DialogTitle className="flex items-center justify-between gap-3">
-            <span>Cetak Nota Pembayaran UKT</span>
-            <span className="flex gap-2">
-              <Button
-                size="sm"
-                onClick={handlePrint}
-                disabled={!canPrint || printBusy}
-              >
-                <Printer className="mr-1 h-4 w-4" />
-                Print
-              </Button>
-            </span>
-          </DialogTitle>
+          <DialogTitle>Cetak Nota Pembayaran UKT</DialogTitle>
         </DialogHeader>
 
         <div className="no-print space-y-4 rounded-lg border p-4">
@@ -471,6 +464,16 @@ export function UktPrintModal({
             <div className="mt-4 text-center text-xs text-gray-500">
               {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
             </div>
+        </div>
+
+        <div className="no-print flex justify-end gap-2 pt-2">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Tutup
+          </Button>
+          <Button type="button" onClick={handlePrint} disabled={!canPrint || printBusy}>
+            <Printer className="mr-2 h-4 w-4" />
+            {printBusy ? "Mencetak…" : "Cetak"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

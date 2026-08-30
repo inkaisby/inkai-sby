@@ -3799,6 +3799,21 @@ export function UktDashboard(props: Props) {
             </span>
           </Button>
 
+          {props.selectedPeriodId ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 sm:h-8 sm:w-8"
+              aria-label="Cetak nota UKT"
+              title="Cetak Nota"
+              onClick={() => openPrintNota(false)}
+              disabled={loading || rows.filter(isUktNotaRow).length === 0}
+            >
+              <Printer className="h-4 w-4" />
+            </Button>
+          ) : null}
+
           <Button
             type="button"
             variant="outline"
@@ -5134,9 +5149,9 @@ export function UktDashboard(props: Props) {
       {showPrint ? (
         <UktPrintModal
           open={showPrint}
-          onClose={() => {
-            setShowPrint(false);
-            setPrintOnlySelected(false);
+          onOpenChange={(open) => {
+            if (!open) setPrintOnlySelected(false);
+            setShowPrint(open);
           }}
           periodTitle={selectedPeriod?.title || periodTitle}
           semester={props.semester}
