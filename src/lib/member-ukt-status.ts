@@ -261,18 +261,19 @@ export async function getMemberUktStatus(
     billingStatus === "SUCCESS" ||
     localReg.status === "PAID" ||
     localReg.status === "SUCCESS";
+  const examResult = examMap.get(localReg.id) ?? null;
   const lockSnapshot = Boolean(
     paid &&
       kyuBaruHint &&
-      ranksEqual(memberRank, kyuBaruHint) &&
       decoded.kyuLama &&
-      !ranksEqual(decoded.kyuLama, kyuBaruHint),
+      !ranksEqual(decoded.kyuLama, kyuBaruHint) &&
+      (ranksEqual(memberRank, kyuBaruHint) || examResult === "LULUS"),
   );
   const { kyuLama, kyuBaru } = resolveUktRankColumns(
     registeredRank,
     memberRank,
     null,
-    { lockSnapshot },
+    { lockSnapshot, examResult },
   );
 
   const row: UktMemberRow = {
@@ -300,7 +301,7 @@ export async function getMemberUktStatus(
     pendingVerifications: 0,
     attendanceCount: 0,
     attendancePct: null,
-    examResult: examMap.get(localReg.id) ?? null,
+    examResult: examResult,
     examPresent: null,
     selfRegistration: Boolean(selfMeta),
     memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,

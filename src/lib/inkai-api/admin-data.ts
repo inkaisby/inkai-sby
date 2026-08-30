@@ -2446,28 +2446,31 @@ export async function fetchUktDashboardData(
   const allRows: UktMemberRow[] = members.map((m) => {
     const reg = regMap.get(m.id);
     const regBilling = reg ? billingMap.get(String(reg.id)) : null;
-    const category = reg?.category as { name?: string } | null | undefined;
     const memberData = (reg?.member as Record<string, unknown> | undefined) ?? m;
     const registeredRank =
       typeof reg?.registeredRank === "string" ? reg.registeredRank : null;
     const decoded = decodeUktRegisteredRank(registeredRank);
-    const kyuBaruHint = decoded.kyuBaru || category?.name || null;
+    const kyuBaruHint = decoded.kyuBaru || null;
     const billingStatus = regBilling?.status ? String(regBilling.status) : null;
     const paid =
       billingStatus === "PAID" || billingStatus === "SUCCESS";
-    // Kunci snapshot Kyu Lama hanya setelah sabuk anggota sudah naik ke Kyu Baru (UKT selesai)
+    const examResult = reg?.id
+      ? examResultMap.get(String(reg.id)) ?? null
+      : null;
+    // Kunci snapshot bila dual Kyu Lama/Baru, atau sabuk anggota sudah naik ke Kyu Baru
     const lockSnapshot = Boolean(
       paid &&
         kyuBaruHint &&
-        ranksEqual(m.currentRank, kyuBaruHint) &&
         decoded.kyuLama &&
-        !ranksEqual(decoded.kyuLama, kyuBaruHint),
+        !ranksEqual(decoded.kyuLama, kyuBaruHint) &&
+        (ranksEqual(m.currentRank, kyuBaruHint) ||
+          examResult === "LULUS"),
     );
     const { kyuLama, kyuBaru } = resolveUktRankColumns(
       registeredRank,
       m.currentRank,
-      category?.name,
-      { lockSnapshot },
+      null,
+      { lockSnapshot, examResult },
     );
 
     return {
@@ -2518,7 +2521,7 @@ export async function fetchUktDashboardData(
       attendanceCount: countByMember.get(m.id) ?? 0,
       // Belum absen di semester → 0% agar gate Syarat memblokir Daftar UKT
       attendancePct: pctByMember.get(m.id) ?? 0,
-      examResult: reg?.id ? examResultMap.get(String(reg.id)) ?? null : null,
+      examResult: examResult,
       examPresent: reg?.id ? examAttendanceMap.get(String(reg.id)) ?? null : null,
       registrationWaiver: waiverMap.get(m.id) ?? null,
       selfRegistration: selfRegMetaMap.has(m.id),
@@ -2813,7 +2816,6 @@ export async function fetchUktTableRefreshSnapshot(
           photoUrl?: string | null;
         }
       | undefined;
-    const category = reg.category as { name?: string } | null | undefined;
     const registeredRank =
       typeof reg.registeredRank === "string" ? reg.registeredRank : null;
     const regBilling = billingMap.get(registrationId) ?? null;
@@ -2821,20 +2823,21 @@ export async function fetchUktTableRefreshSnapshot(
     const paid =
       billingStatus === "PAID" || billingStatus === "SUCCESS";
     const decoded = decodeUktRegisteredRank(registeredRank);
-    const kyuBaruHint = decoded.kyuBaru || category?.name || null;
+    const kyuBaruHint = decoded.kyuBaru || null;
     const memberRank = String(member?.currentRank ?? "");
+    const examResult = examResultMap.get(registrationId) ?? null;
     const lockSnapshot = Boolean(
       paid &&
         kyuBaruHint &&
-        ranksEqual(memberRank, kyuBaruHint) &&
         decoded.kyuLama &&
-        !ranksEqual(decoded.kyuLama, kyuBaruHint),
+        !ranksEqual(decoded.kyuLama, kyuBaruHint) &&
+        (ranksEqual(memberRank, kyuBaruHint) || examResult === "LULUS"),
     );
     const { kyuLama, kyuBaru } = resolveUktRankColumns(
       registeredRank,
       memberRank,
-      category?.name,
-      { lockSnapshot },
+      null,
+      { lockSnapshot, examResult },
     );
 
     const selfMeta = selfRegMetaMap.get(memberId);
@@ -2853,7 +2856,7 @@ export async function fetchUktTableRefreshSnapshot(
           ? Number(regBilling.baseFeeAmount)
           : null,
       ),
-      examResult: examResultMap.get(registrationId) ?? null,
+      examResult,
       examPresent: examAttendanceMap.get(registrationId) ?? null,
       registrationWaiver: waiverMap.get(memberId) ?? null,
       selfRegistration: Boolean(selfMeta),

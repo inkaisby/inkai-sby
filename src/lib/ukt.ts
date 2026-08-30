@@ -1185,7 +1185,8 @@ export type UktDepositReconRow = {
   participantCount: number;
   paidCount: number;
   expectedAmount: number;
-  depositStatus: UktDepositStatus;
+  /** null = ranting tanpa peserta (bukan PENDING) */
+  depositStatus: UktDepositStatus | null;
   gapLabel: string;
 };
 
@@ -1244,7 +1245,18 @@ export function buildUktDepositReconciliation(
 
   const result: UktDepositReconRow[] = [];
   for (const [dojoId, b] of byDojo) {
-    if (b.participantCount === 0) continue;
+    if (b.participantCount === 0) {
+      result.push({
+        dojoId,
+        dojoName: b.name,
+        participantCount: 0,
+        paidCount: 0,
+        expectedAmount: 0,
+        depositStatus: null,
+        gapLabel: "0 peserta",
+      });
+      continue;
+    }
     const depositStatus: UktDepositStatus = depositMap[dojoId]?.status ?? "PENDING";
     const belumBayar = Math.max(0, b.participantCount - b.paidCount);
     const gapLabel = `Belum Bayar: ${belumBayar}, Menunggu Ujian: ${b.paidCount}`;
@@ -1895,7 +1907,8 @@ export function formatUktWaCountPaidSuffix(
   count: number,
   paid: number,
 ): string {
-  if (count > 0 && paid === count) return "  Lunas";
+  if (count === 0) return "";
+  if (paid === count) return "  Lunas";
   return `  (Lunas: ${paid} · Belum lunas: ${count - paid})`;
 }
 
@@ -2063,6 +2076,7 @@ export function buildUktRantingWaReportText(
 
 /**
  * Laporan WA admin cabang: ringkasan jumlah per ranting + sebaran kyu + Jumlah UKT.
+ * `allDojos` opsional: tampilkan ranting cabang termasuk yang 0 peserta.
  */
 export function buildUktCabangWaReportText(
   periodTitle: string,
@@ -2070,13 +2084,25 @@ export function buildUktCabangWaReportText(
   beltFees: Record<BeltFeeKey, number>,
   komisiRanting: number,
   examMeta?: UktWaExamMeta,
+  allDojos?: Array<{ id: string; name: string }>,
 ): string {
   const byDojo = new Map<
     string,
-    { dojoName: string; count: number; paid: number }
+    { dojoId: string; dojoName: string; count: number; paid: number }
   >();
   const byRank = new Map<string, number>();
   let paidAll = 0;
+
+  if (allDojos?.length) {
+    for (const d of allDojos) {
+      byDojo.set(d.id, {
+        dojoId: d.id,
+        dojoName: d.name.trim() || d.id,
+        count: 0,
+        paid: 0,
+      });
+    }
+  }
 
   for (const row of rosterRows) {
     const key = row.dojoId || row.dojoName || "unknown";
@@ -2088,6 +2114,7 @@ export function buildUktCabangWaReportText(
       if (paid) existing.paid++;
     } else {
       byDojo.set(key, {
+        dojoId: key,
         dojoName: row.dojoName?.trim() || "TANPA RANTING",
         count: 1,
         paid: paid ? 1 : 0,
@@ -2124,20 +2151,39 @@ export function buildUktCabangWaReportText(
       ? "_Lunas_"
       : `_(Lunas: ${paidAll} · Belum lunas: ${unpaidAll})_`;
 
+  const header = buildUktWaExamHeader(periodTitle, examMeta, [
+    `*Jumlah UKT: ${formatRupiahNota(jumlahUkt)}*`,
+    formatUktWaMoneyPaidLine(paidNet, unpaidNet),
+  ]);
+
   return [
-    ...buildUktWaExamHeader(periodTitle, examMeta, [
-      `*Jumlah UKT: ${formatRupiahNota(jumlahUkt)}*`,
-      formatUktWaMoneyPaidLine(paidNet, unpaidNet),
-    ]),
-    "",
     `*TOTAL SEMUA: ${rosterRows.length} peserta*`,
     countPaidLine,
+    "",
+    ...header,
     "",
     `*${rantingList.length} Ranting*`,
     ...rantingLines,
     "",
     "*Jumlah*",
     ...rankLines,
+  ].join("\n");
+}
+
+/** Teks singkat WA untuk ranting tanpa peserta terdaftar. */
+export function buildUktEmptyDojoWaReportText(
+  periodTitle: string,
+  dojoName: string,
+  examMeta?: UktWaExamMeta,
+): string {
+  return [
+    `*TOTAL SEMUA: 0 peserta*`,
+    "",
+    ...buildUktWaExamHeader(periodTitle, examMeta),
+    "",
+    `*Ranting/Dojo: ${dojoName}*`,
+    "",
+    "_0 peserta_",
   ].join("\n");
 }
 

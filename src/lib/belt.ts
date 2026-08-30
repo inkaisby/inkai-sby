@@ -225,7 +225,7 @@ export function isBlankUktRank(rank: string | null | undefined): boolean {
 /**
  * Decode snapshot UKT.
  * - Format baru: "Putih (Kyu 10) || Hitam (DAN 1)"
- * - Legacy: seluruh string = Kyu Baru saja (kyuLama null)
+ * - Lama-only: "Putih (Kyu 10) ||" atau string tanpa pemisah = Kyu Lama (kyuBaru null)
  */
 export function decodeUktRegisteredRank(
   registeredRank: string | null | undefined,
@@ -263,45 +263,59 @@ export function decodeUktRegisteredRank(
     }
   }
 
-  // Legacy: registeredRank hanya menyimpan Kyu Baru
+  // Tanpa pemisah: snapshot Kyu Lama saat daftar (bukan Kyu Baru)
+  const lama = formatRankLabel(raw) || raw;
   return {
-    kyuLama: null,
-    kyuBaru: formatRankLabel(raw) || raw,
+    kyuLama: isBlankUktRank(lama) ? null : lama,
+    kyuBaru: null,
   };
 }
 
 /** Resolve kolom Kyu Lama / Baru untuk tabel UKT.
- * Default: Kyu Lama = sabuk keanggotaan (`currentRank`).
- * `lockSnapshot`: setelah UKT selesai (sabuk anggota sudah naik), kunci Kyu Lama dari snapshot registrasi.
+ * Default: Kyu Lama = sabuk keanggotaan (`currentRank`); Kyu Baru hanya dari snapshot hasil ujian.
+ * Dual snapshot (lama ≠ baru) mengunci Kyu Lama. `categoryName` diabaikan (kompat pemanggil).
  */
 export function resolveUktRankColumns(
   registeredRank: string | null | undefined,
   memberCurrentRank: string | null | undefined,
   categoryName?: string | null,
-  opts?: { lockSnapshot?: boolean },
+  opts?: { lockSnapshot?: boolean; examResult?: string | null },
 ): { kyuLama: string; kyuBaru: string | null } {
+  void categoryName;
   const decoded = decodeUktRegisteredRank(registeredRank);
   const current =
     formatRankLabel(memberCurrentRank) || (memberCurrentRank || "").trim();
-  // categoryName kadang berisi nama kategori event (mis. "Pendaftaran UKT").
-  // Jangan biarkan itu masuk sebagai label sabuk.
   let kyuBaru: string | null = decoded.kyuBaru || null;
-  if (!kyuBaru) {
-    const candidate = categoryName?.trim() || "";
-    if (candidate && !isBlankUktRank(candidate)) {
-      const grp = getBeltGroup(candidate);
-      if (grp !== "LAINNYA") kyuBaru = candidate;
-    }
-  }
 
+  // Legacy LULUS tanpa dual snapshot: sabuk keanggotaan sudah naik → tampilkan sebagai Kyu Baru
   if (
-    opts?.lockSnapshot &&
+    !kyuBaru &&
+    opts?.examResult === "LULUS" &&
     decoded.kyuLama &&
     !isBlankUktRank(decoded.kyuLama) &&
-    !(kyuBaru && ranksEqual(decoded.kyuLama, kyuBaru))
+    !isBlankUktRank(current) &&
+    !ranksEqual(decoded.kyuLama, current)
+  ) {
+    kyuBaru = current;
+  }
+
+  const dualSnapshot = Boolean(
+    decoded.kyuLama &&
+      !isBlankUktRank(decoded.kyuLama) &&
+      kyuBaru &&
+      !isBlankUktRank(kyuBaru) &&
+      !ranksEqual(decoded.kyuLama, kyuBaru),
+  );
+
+  if (
+    dualSnapshot ||
+    (opts?.lockSnapshot &&
+      decoded.kyuLama &&
+      !isBlankUktRank(decoded.kyuLama) &&
+      !(kyuBaru && ranksEqual(decoded.kyuLama, kyuBaru)))
   ) {
     return {
-      kyuLama: decoded.kyuLama,
+      kyuLama: decoded.kyuLama!,
       kyuBaru,
     };
   }

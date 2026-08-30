@@ -133,6 +133,7 @@ import {
   type UktPeriodMeta,
   BELT_FEE_KEYS,
   buildUktCabangWaReportText,
+  buildUktEmptyDojoWaReportText,
   buildUktRantingWaReportText,
   resolveUktWaBendaharaPayment,
   resolveUktWaDojoLabel,
@@ -660,31 +661,40 @@ export function UktDashboard(props: Props) {
     [effectiveDojoIds],
   );
 
-  // Cabang: picker WA = ranting yang punya peserta terdaftar (selaras tabel),
-  // tanpa bergantung pada filter tabel saat ini.
+  // Cabang: picker WA = semua ranting cabang (termasuk 0 peserta)
   const cabangWaRosterRowsAll = useMemo(() => {
     return rows.filter((r) => isUktWaRosterRow(r));
   }, [rows]);
 
   const cabangWaDojoOptions = useMemo(() => {
-    const byDojo = new Map<string, { dojoId: string; dojoName: string; count: number }>();
+    const counts = new Map<string, number>();
     for (const r of cabangWaRosterRowsAll) {
       const dojoId = r.dojoId?.trim() || "__none__";
-      const existing = byDojo.get(dojoId);
-      if (existing) {
-        existing.count++;
-      } else {
-        byDojo.set(dojoId, {
-          dojoId,
-          dojoName: r.dojoName?.trim() || "TANPA RANTING",
-          count: 1,
-        });
-      }
+      counts.set(dojoId, (counts.get(dojoId) ?? 0) + 1);
     }
-    return [...byDojo.values()].sort((a, b) =>
-      a.dojoName.localeCompare(b.dojoName, "id"),
-    );
-  }, [cabangWaRosterRowsAll]);
+    const fromProps = props.dojos.map((d) => ({
+      dojoId: d.id,
+      dojoName: d.name.trim() || d.id,
+      count: counts.get(d.id) ?? 0,
+    }));
+    // Ranting yang punya peserta tapi tidak ada di props.dojos
+    for (const [dojoId, count] of counts) {
+      if (dojoId === "__none__") continue;
+      if (fromProps.some((o) => o.dojoId === dojoId)) continue;
+      const name =
+        cabangWaRosterRowsAll.find((r) => r.dojoId === dojoId)?.dojoName?.trim() ||
+        dojoId;
+      fromProps.push({ dojoId, dojoName: name, count });
+    }
+    if ((counts.get("__none__") ?? 0) > 0) {
+      fromProps.push({
+        dojoId: "__none__",
+        dojoName: "TANPA RANTING",
+        count: counts.get("__none__") ?? 0,
+      });
+    }
+    return fromProps.sort((a, b) => a.dojoName.localeCompare(b.dojoName, "id"));
+  }, [cabangWaRosterRowsAll, props.dojos]);
 
   const normalizeRows = useCallback((list: UktMemberRow[]) => {
     const cleared = locallyClearedMemberIdsRef.current;
@@ -1796,6 +1806,7 @@ export function UktDashboard(props: Props) {
       patchRow(row.memberId, {
         kyuBaru: nextBaru,
         kyuLama: nextLama,
+        memberCurrentRank: nextBaru,
         examResult: "LULUS",
         billingStatus: row.billingStatus === "PAID" ? "PAID" : row.billingStatus,
         status:
@@ -2381,8 +2392,8 @@ export function UktDashboard(props: Props) {
       toast.error("Pilih periode UKT terlebih dahulu");
       return;
     }
-    if (cabangWaRosterRowsAll.length === 0) {
-      toast.error("Belum ada peserta terdaftar");
+    if (props.dojos.length === 0 && cabangWaRosterRowsAll.length === 0) {
+      toast.error("Belum ada ranting / peserta");
       return;
     }
 
@@ -2420,10 +2431,6 @@ export function UktDashboard(props: Props) {
   const sendCabangWaReport = async (dojoId: string | null) => {
     const title = selectedPeriod?.title || periodTitle;
     const rosterAll = cabangWaRosterRowsAll;
-    if (rosterAll.length === 0) {
-      toast.error("Belum ada peserta terdaftar");
-      return;
-    }
 
     const examMeta = {
       examAt: periodMeta?.examAt,
@@ -2438,20 +2445,20 @@ export function UktDashboard(props: Props) {
             beltFees,
             komisiRanting,
             examMeta,
+            props.dojos.map((d) => ({ id: d.id, name: d.name })),
           )
         : (() => {
             const roster = rosterAll.filter((r) => {
               const id = r.dojoId?.trim() || "__none__";
               return id === dojoId;
             });
-            if (roster.length === 0) {
-              toast.error("Ranting terpilih tidak punya peserta terdaftar");
-              return "";
-            }
             const dojoName =
               cabangWaDojoOptions.find((o) => o.dojoId === dojoId)?.dojoName ||
               props.dojos.find((d) => d.id === dojoId)?.name ||
               "Ranting";
+            if (roster.length === 0) {
+              return buildUktEmptyDojoWaReportText(title, dojoName, examMeta);
+            }
             return buildUktRantingWaReportText(
               title,
               dojoName,
@@ -3403,24 +3410,32 @@ export function UktDashboard(props: Props) {
               </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {props.dojos
-                .filter((d) => rows.some((r) => r.dojoId === d.id && r.registrationId))
-                .map((d) => {
+              {props.dojos.map((d) => {
+                const hasParticipants = rows.some(
+                  (r) => r.dojoId === d.id && r.registrationId,
+                );
                 const dep = depositMap[d.id];
-                const status: UktDepositStatus = dep?.status ?? "PENDING";
+                const status: UktDepositStatus | null = hasParticipants
+                  ? (dep?.status ?? "PENDING")
+                  : null;
                 return (
                   <div
                     key={d.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
+                    className={cn(
+                      "flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm",
+                      !hasParticipants && "opacity-70",
+                    )}
                   >
                     <div className="min-w-0">
                       <p className="truncate font-medium">{d.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {uktDepositStatusLabel(status)}
+                        {status
+                          ? uktDepositStatusLabel(status)
+                          : "0 peserta"}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-1">
-                      {!periodLocked && (
+                      {!periodLocked && hasParticipants && (
                         <>
                           {status !== "RECEIVED" && (
                             <Button
@@ -3465,15 +3480,28 @@ export function UktDashboard(props: Props) {
                   </TableHeader>
                   <TableBody>
                     {depositRecon.map((row) => (
-                      <TableRow key={row.dojoId}>
+                      <TableRow
+                        key={row.dojoId}
+                        className={
+                          row.participantCount === 0
+                            ? "text-muted-foreground"
+                            : undefined
+                        }
+                      >
                         <TableCell className="font-medium">{row.dojoName}</TableCell>
                         <TableCell className="text-right">{row.participantCount}</TableCell>
                         <TableCell className="text-right">{row.paidCount}</TableCell>
                         <TableCell className="text-right">
                           {formatRupiahNota(row.expectedAmount)}
                         </TableCell>
-                        <TableCell>{uktDepositStatusLabel(row.depositStatus)}</TableCell>
-                        <TableCell className="text-muted-foreground">{row.gapLabel}</TableCell>
+                        <TableCell>
+                          {row.depositStatus
+                            ? uktDepositStatusLabel(row.depositStatus)
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {row.gapLabel}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

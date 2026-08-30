@@ -89,6 +89,31 @@ describe("resolveUktRankColumns guard categoryName", () => {
     expect(res.kyuBaru).toBeNull();
   });
 
+  it("categoryName sabuk (Hijau) tidak menjadi kyuBaru", () => {
+    const res = resolveUktRankColumns(
+      "Kuning (Kyu 7) ||",
+      "Kuning (Kyu 7)",
+      "Hijau (Kyu 6)",
+    );
+    expect(res.kyuLama).toMatch(/Kuning/i);
+    expect(res.kyuBaru).toBeNull();
+  });
+
+  it("tanpa pemisah: string = Kyu Lama, kyuBaru null", () => {
+    const res = resolveUktRankColumns("Kuning (Kyu 7)", "Kuning (Kyu 7)");
+    expect(res.kyuLama).toMatch(/Kuning/i);
+    expect(res.kyuBaru).toBeNull();
+  });
+
+  it("dual snapshot mengunci Kyu Lama meski currentRank sudah = Kyu Baru", () => {
+    const res = resolveUktRankColumns(
+      "Kuning (Kyu 7) || Hijau (Kyu 6)",
+      "Hijau (Kyu 6)",
+    );
+    expect(res.kyuLama).toMatch(/Kuning/i);
+    expect(res.kyuBaru).toMatch(/Hijau/i);
+  });
+
   it("shortRankLabel: regex boundary DAN aman", () => {
     const out = shortRankLabel("PENDAN 8");
     expect(out.toLowerCase()).not.toBe("dan 8");
@@ -184,6 +209,42 @@ describe("UKT Laporan WA format cabang", () => {
     billingId: "b1",
     billingAmount: 295000,
   };
+
+  it("TOTAL SEMUA di paling atas; ranting 0 tanpa sufiks Lunas", () => {
+    const rows = [
+      {
+        memberId: "m1",
+        registrationId: "r1",
+        fullName: "Peserta A",
+        dojoId: "d1",
+        dojoName: "GADING",
+        kyuLama: "Kuning (Kyu 7)",
+        status: "APPROVED",
+        billingStatus: "PAID",
+        billingId: "b1",
+        billingAmount: 295000,
+      },
+    ] as any[];
+    const text = buildUktCabangWaReportText(
+      "UKT Semester II-2026",
+      rows,
+      beltFees,
+      komisi,
+      undefined,
+      [
+        { id: "d1", name: "GADING" },
+        { id: "d2", name: "KEDURUNG" },
+      ],
+    );
+    const totalIdx = text.indexOf("*TOTAL SEMUA: 1 peserta*");
+    const pelaksanaanIdx = text.indexOf("*Pelaksanaan UKT Semester II-2026*");
+    expect(totalIdx).toBeGreaterThanOrEqual(0);
+    expect(pelaksanaanIdx).toBeGreaterThan(totalIdx);
+    expect(text).toContain("*2 Ranting*");
+    expect(text).toContain("KEDURUNG = _0 peserta_");
+    expect(text).not.toMatch(/KEDURUNG = _0 peserta_\s+\(Lunas/);
+    expect(text).not.toContain("Tidak mendaftarkan");
+  });
 
   it("judul Pelaksanaan, pecahan lunas, tanpa countdown jika ujian lampau", () => {
     const rows = [

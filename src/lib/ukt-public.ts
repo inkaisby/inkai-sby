@@ -244,12 +244,13 @@ export async function loadUktPublicRegistrants(
     const selfMeta = selfMetaMap.get(r.memberId);
     const registeredRank =
       typeof r.registeredRank === "string" ? r.registeredRank : null;
+    const examResult = examMap.get(r.id) ?? null;
     const { kyuLama, kyuBaru } = resolveUktRankColumns(
       registeredRank,
       r.member.currentRank,
-      r.category?.name,
+      null,
+      { examResult },
     );
-    const examResult = examMap.get(r.id) ?? null;
 
     const row: UktMemberRow = {
       memberId: r.memberId,

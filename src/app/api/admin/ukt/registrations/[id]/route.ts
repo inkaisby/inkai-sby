@@ -278,6 +278,16 @@ async function applyKyuBaruToMember(opts: {
     };
   }
 
+  // Prisma-first snapshot agar refresh portal tidak menunggu Inkai
+  try {
+    await prisma.eventRegistration.updateMany({
+      where: { id: opts.registrationId },
+      data: { registeredRank, status: "APPROVED" },
+    });
+  } catch (error) {
+    console.error("[UKT applyKyuBaru] prisma registeredRank failed", error);
+  }
+
   const { res: memberRes, data: memberData } = await inkaiFetch(
     `/v1/members/${memberId}`,
     {
@@ -287,7 +297,13 @@ async function applyKyuBaruToMember(opts: {
     opts.token,
   );
 
-  if (!memberRes.ok) {
+  const inkaiMemberOk = memberRes.ok;
+  if (
+    !inkaiMemberOk &&
+    !isInkaiAuthFailure(memberRes, memberData) &&
+    memberRes.status !== 503 &&
+    memberRes.status < 500
+  ) {
     return {
       ok: false,
       error: inkaiErrorMessage(
@@ -302,31 +318,62 @@ async function applyKyuBaruToMember(opts: {
     };
   }
 
+  if (!inkaiMemberOk) {
+    console.warn(
+      `[UKT applyKyuBaru] Inkai member PATCH failed status=${memberRes.status}; Prisma fallback for ${memberId}`,
+    );
+  }
+
   try {
-    await prisma.memberRank.create({
-      data: {
-        memberId,
-        rank: kyuBaru,
-        date: new Date(),
-        location: eventLocation,
-        isVerified: true,
-      },
+    await prisma.member.update({
+      where: { id: memberId },
+      data: { currentRank: kyuBaru },
+      select: { id: true },
     });
   } catch (error) {
-    console.error("[UKT applyKyuBaru] memberRank create failed", error);
-    await inkaiFetch(
-      `/v1/members/${memberId}/ranks`,
-      {
-        method: "POST",
-        body: JSON.stringify({
+    console.error("[UKT applyKyuBaru] prisma currentRank failed", error);
+    if (!inkaiMemberOk) {
+      return {
+        ok: false,
+        error: "Gagal menyimpan sabuk anggota di database lokal",
+        status: 500,
+        memberId,
+        kyuLama,
+        kyuBaru,
+        registration,
+      };
+    }
+  }
+
+  const previousRankNorm =
+    formatRankLabel(memberCurrentRank) || memberCurrentRank.trim();
+  if (!ranksEqual(previousRankNorm, kyuBaru)) {
+    try {
+      await prisma.memberRank.create({
+        data: {
+          memberId,
           rank: kyuBaru,
-          date: new Date().toISOString(),
+          date: new Date(),
           location: eventLocation,
           isVerified: true,
-        }),
-      },
-      opts.token,
-    );
+        },
+      });
+    } catch (error) {
+      console.error("[UKT applyKyuBaru] memberRank create failed", error);
+      await inkaiFetch(
+        `/v1/members/${memberId}/ranks`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            rank: kyuBaru,
+            date: new Date().toISOString(),
+            location: eventLocation,
+            isVerified: true,
+          }),
+        },
+        opts.token,
+      );
+    }
   }
 
   return {

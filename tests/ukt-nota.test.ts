@@ -335,4 +335,24 @@ describe("buildUktDepositReconciliation total tagihan net", () => {
     expect(recon[0].gapLabel).toBe("Belum Bayar: 1, Menunggu Ujian: 0");
     expect(recon[0].depositStatus).toBe("RECEIVED");
   });
+
+  it("ranting 0 peserta tetap tampil dengan status — dan gapLabel 0 peserta", () => {
+    const dojos = [
+      { id: "d-a", name: "ALPHA" },
+      { id: "d-b", name: "BETA" },
+    ];
+    const rows = [
+      row({ dojoId: "d-a", billingAmount: 285000, billingStatus: "PAID", status: "APPROVED" }),
+    ];
+    const recon = buildUktDepositReconciliation(rows, dojos, {});
+    expect(recon).toHaveLength(2);
+    expect(recon.find((r) => r.dojoId === "d-b")).toMatchObject({
+      participantCount: 0,
+      paidCount: 0,
+      expectedAmount: 0,
+      depositStatus: null,
+      gapLabel: "0 peserta",
+    });
+    expect(recon.find((r) => r.dojoId === "d-a")?.participantCount).toBe(1);
+  });
 });
