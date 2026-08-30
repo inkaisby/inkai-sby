@@ -74,6 +74,7 @@ import {
 import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
 import { UktFloatingCountdown } from "@/components/admin/ukt/UktFloatingCountdown";
 import { UktSearchBar } from "@/components/admin/ukt/UktSearchBar";
+import { EventQuickRegisterButtons } from "@/components/admin/event-quick-register/EventQuickRegisterButtons";
 import { AdminMoreActions } from "@/components/admin/AdminMoreActions";
 import dynamic from "next/dynamic";
 import { buildUktInviteUrl } from "@/lib/ukt-invite";
@@ -4167,28 +4168,34 @@ export function UktDashboard(props: Props) {
                       />
                     ) : null}
                     {!row.registrationId && !isArchiveView ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-1 h-7 text-xs sm:hidden"
-                        onClick={() => handleRegister(row.memberId)}
-                        disabled={
-                          isMemberPending(row.memberId) ||
+                      <EventQuickRegisterButtons
+                        variant="ukt"
+                        memberId={row.memberId}
+                        uktEventId={props.selectedPeriodId}
+                        onRegister={async () => {
+                          await handleRegister(row.memberId);
+                        }}
+                        pendingMemberId={
+                          isMemberPending(row.memberId) ? row.memberId : null
+                        }
+                        pendingKind="ukt"
+                        uktDisabled={
                           !props.selectedPeriodId ||
                           periodLocked ||
                           registerBlocked
                         }
-                        title={
+                        uktDisabledTitle={
                           registerBlocked
                             ? formatUktRegistrationBlockers(
                                 registerBlockers,
                                 memberRequirementOpts.minAttendancePct,
                               )
-                            : "Daftarkan ke UKT"
+                            : undefined
                         }
-                      >
-                        {isMemberPending(row.memberId) ? "Mendaftar…" : "Daftar UKT"}
-                      </Button>
+                        disabled={periodLocked}
+                        className="mt-1 sm:hidden"
+                        buttonClassName="h-7 text-xs"
+                      />
                     ) : null}
                   </TableCell>
                   {showDojoColumn ? (
@@ -4493,53 +4500,54 @@ export function UktDashboard(props: Props) {
                           });
                         }
                         return (
-                          <div className="flex flex-wrap items-center gap-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs"
-                              onClick={() => handleRegister(row.memberId)}
-                              disabled={
-                                isMemberPending(row.memberId) ||
-                                !props.selectedPeriodId ||
-                                periodLocked ||
-                                blocked
-                              }
-                              title={
-                                blocked
-                                  ? formatUktRegistrationBlockers(
-                                      blockers,
-                                      memberRequirementOpts.minAttendancePct,
-                                    )
-                                  : "Daftarkan ke UKT"
-                              }
-                            >
-                              {isMemberPending(row.memberId)
-                                ? "Mendaftar…"
-                                : "Daftar UKT"}
-                            </Button>
-                            {moreItems.length > 0 ? (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="hidden h-7 text-xs sm:inline-flex"
-                                  onClick={() => openWaiverDialog(row)}
-                                  disabled={loading}
-                                  title="Berikan pengecualian syarat pendaftaran"
-                                >
-                                  <ShieldCheck className="mr-0.5 h-3 w-3" />
-                                  Waiver
-                                </Button>
-                                <span className="sm:hidden">
-                                  <AdminMoreActions
-                                    items={moreItems}
-                                    className="h-7 w-7 p-0"
-                                  />
-                                </span>
-                              </>
-                            ) : null}
-                          </div>
+                          <EventQuickRegisterButtons
+                            variant="ukt"
+                            memberId={row.memberId}
+                            uktEventId={props.selectedPeriodId}
+                            onRegister={async () => {
+                              await handleRegister(row.memberId);
+                            }}
+                            pendingMemberId={
+                              isMemberPending(row.memberId) ? row.memberId : null
+                            }
+                            pendingKind="ukt"
+                            uktDisabled={
+                              !props.selectedPeriodId || periodLocked || blocked
+                            }
+                            uktDisabledTitle={
+                              blocked
+                                ? formatUktRegistrationBlockers(
+                                    blockers,
+                                    memberRequirementOpts.minAttendancePct,
+                                  )
+                                : undefined
+                            }
+                            disabled={periodLocked}
+                            buttonClassName="h-7 text-xs"
+                            extraActions={
+                              moreItems.length > 0 ? (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="hidden h-7 text-xs sm:inline-flex"
+                                    onClick={() => openWaiverDialog(row)}
+                                    disabled={loading}
+                                    title="Berikan pengecualian syarat pendaftaran"
+                                  >
+                                    <ShieldCheck className="mr-0.5 h-3 w-3" />
+                                    Waiver
+                                  </Button>
+                                  <span className="sm:hidden">
+                                    <AdminMoreActions
+                                      items={moreItems}
+                                      className="h-7 w-7 p-0"
+                                    />
+                                  </span>
+                                </>
+                              ) : null
+                            }
+                          />
                         );
                       }
 

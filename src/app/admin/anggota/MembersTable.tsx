@@ -68,6 +68,10 @@ import { MemberActions } from "./MemberActions";
 import { BulkDeactivateBar } from "./BulkDeactivateBar";
 import { usePersistedBulkSelection } from "./usePersistedBulkSelection";
 import { SortableTableHead } from "@/components/ui/SortableTableHead";
+import type { ActiveRegistrationPeriod } from "@/lib/active-registration-periods";
+import type { MemberEventRegistrationFlags } from "@/lib/ukt-suggest";
+import type { EventRegistrationKind } from "@/lib/event-quick-register";
+import { EventQuickRegisterButtons } from "@/components/admin/event-quick-register/EventQuickRegisterButtons";
 import {
   Select,
   SelectContent,
@@ -368,6 +372,11 @@ export function MembersTable({
   sortKey = "fullName",
   sortDir = "asc",
   onSort,
+  canQuickReg = false,
+  activeUkt = null,
+  activeLatber = null,
+  eventRegistration = {},
+  onEventRegistered,
 }: {
   members: AdminMemberRow[];
   userRoles?: string[];
@@ -380,6 +389,11 @@ export function MembersTable({
   sortKey?: string;
   sortDir?: SortDir;
   onSort?: (key: string) => void;
+  canQuickReg?: boolean;
+  activeUkt?: ActiveRegistrationPeriod;
+  activeLatber?: ActiveRegistrationPeriod;
+  eventRegistration?: Record<string, MemberEventRegistrationFlags>;
+  onEventRegistered?: (memberId: string, kind: EventRegistrationKind) => void;
 }) {
   const router = useRouter();
   const [members, setMembers] = useState(membersProp);
@@ -1471,14 +1485,27 @@ export function MembersTable({
                       {formatDateTime(m.createdAt)}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <MemberActions
-                        memberId={m.id}
-                        status={m.status}
-                        nia={m.nia}
-                        fullName={m.fullName}
-                        userRoles={userRoles}
-                        onSuccess={onMembersChanged}
-                      />
+                      <div className="flex flex-wrap items-center gap-1">
+                        {canQuickReg && isSelectableRow ? (
+                          <EventQuickRegisterButtons
+                            variant="both"
+                            memberId={m.id}
+                            uktEventId={activeUkt?.id}
+                            latberEventId={activeLatber?.id}
+                            registeredUkt={eventRegistration[m.id]?.ukt}
+                            registeredLatber={eventRegistration[m.id]?.latber}
+                            onRegistered={(kind) => onEventRegistered?.(m.id, kind)}
+                          />
+                        ) : null}
+                        <MemberActions
+                          memberId={m.id}
+                          status={m.status}
+                          nia={m.nia}
+                          fullName={m.fullName}
+                          userRoles={userRoles}
+                          onSuccess={onMembersChanged}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

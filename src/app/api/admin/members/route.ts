@@ -14,6 +14,7 @@ import {
 } from "@/lib/managed-dojos";
 import { getMemberLifecycles, monthsSince } from "@/lib/member-lifecycle";
 import { parseSortDir } from "@/lib/table-sort";
+import { buildMemberEventRegistrationMap } from "@/lib/ukt-suggest";
 
 export async function GET(request: Request) {
   const authResult = await requireAdmin();
@@ -49,6 +50,8 @@ export async function GET(request: Request) {
   const sort = sp.get("sort")?.trim() || "";
   const sortDir = parseSortDir(sp.get("sortDir"));
   const includeCounts = sp.get("counts") !== "0";
+  const uktEventId = sp.get("uktEventId")?.trim() || "";
+  const latberEventId = sp.get("latberEventId")?.trim() || "";
 
   const primaryRole = getPrimaryAdminRole(user.roles);
   const isDojoAdmin = primaryRole === "ADMIN_DOJO";
@@ -108,12 +111,26 @@ export async function GET(request: Request) {
     total = members.length;
   }
 
+  let eventRegistration: Record<
+    string,
+    { ukt?: boolean; latber?: boolean }
+  > | null = null;
+  if (uktEventId || latberEventId) {
+    const flagMap = await buildMemberEventRegistrationMap(
+      members.map((m) => m.id),
+      uktEventId || undefined,
+      latberEventId || undefined,
+    );
+    eventRegistration = Object.fromEntries(flagMap);
+  }
+
   return NextResponse.json({
     members,
     total,
     page: result.page,
     pageSize,
     dojoId,
+    eventRegistration,
     statusCounts: statusCounts
       ? (() => {
           const counts = { ...statusCounts };

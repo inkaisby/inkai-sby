@@ -87,6 +87,7 @@ import { copyTextRobust } from "@/lib/anggota-export";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { LatberPrintModal } from "@/components/admin/latber/LatberPrintModal";
 import { LatberSearchBar } from "@/components/admin/latber/LatberSearchBar";
+import { EventQuickRegisterButtons } from "@/components/admin/event-quick-register/EventQuickRegisterButtons";
 import { LatberPromoteMembershipDialog } from "@/components/admin/latber/LatberPromoteMembershipDialog";
 import { LatberAddGuestDialog } from "@/components/latber/LatberAddGuestDialog";
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
@@ -1274,13 +1275,16 @@ export function LatberDashboard(props: LatberDashboardProps) {
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {status === "belum_daftar" && !periodLocked && (
-                              <Button
-                                size="sm"
-                                disabled={busy}
-                                onClick={() => handleRegister(row.memberId)}
-                              >
-                                {busy ? "Mendaftar…" : "Daftar"}
-                              </Button>
+                              <EventQuickRegisterButtons
+                                variant="latber"
+                                memberId={row.memberId}
+                                latberEventId={props.selectedPeriodId}
+                                onRegister={async () => {
+                                  await handleRegister(row.memberId);
+                                }}
+                                pendingMemberId={busy ? row.memberId : null}
+                                pendingKind="latber"
+                              />
                             )}
                             {(status === "menunggu_terima_ranting" ||
                               status === "menunggu_konfirmasi_ranting") &&

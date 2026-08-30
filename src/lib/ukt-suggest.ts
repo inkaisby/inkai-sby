@@ -1,3 +1,14 @@
+import { prisma } from "@/lib/prisma";
+
+export const ACTIVE_EVENT_REG_STATUS = {
+  notIn: ["CANCELLED", "REJECTED"],
+};
+
+export type MemberEventRegistrationFlags = {
+  ukt?: boolean;
+  latber?: boolean;
+};
+
 export type UktSuggestItem = {
   id: string;
   fullName: string;
@@ -52,4 +63,41 @@ export function attachSuggestRegistrationFlags<T extends { id: string }>(
     ...(uktEventId ? { registeredUkt: uktIds.has(item.id) } : {}),
     ...(latberEventId ? { registeredLatber: latberIds.has(item.id) } : {}),
   }));
+}
+
+export async function buildMemberEventRegistrationMap(
+  memberIds: string[],
+  uktEventId?: string,
+  latberEventId?: string,
+): Promise<Map<string, MemberEventRegistrationFlags>> {
+  const map = new Map<string, MemberEventRegistrationFlags>();
+  const ids = [...new Set(memberIds.filter(Boolean))];
+  if (ids.length === 0) return map;
+
+  const eventIds = [uktEventId, latberEventId].filter(Boolean) as string[];
+  if (eventIds.length === 0) return map;
+
+  const regs = await prisma.eventRegistration.findMany({
+    where: {
+      memberId: { in: ids },
+      eventId: { in: eventIds },
+      status: ACTIVE_EVENT_REG_STATUS,
+    },
+    select: { memberId: true, eventId: true },
+  });
+
+  const flagged = attachSuggestRegistrationFlags(
+    ids.map((id) => ({ id })),
+    regs,
+    uktEventId,
+    latberEventId,
+  );
+
+  for (const item of flagged) {
+    map.set(item.id, {
+      ukt: item.registeredUkt,
+      latber: item.registeredLatber,
+    });
+  }
+  return map;
 }

@@ -7,6 +7,7 @@ import { buildMemberFilter, getPrimaryAdminRole } from "@/lib/rbac";
 import { resolveAdminDojoClusterAllowlist } from "@/lib/account-peers";
 import {
   attachSuggestRegistrationFlags,
+  ACTIVE_EVENT_REG_STATUS,
   inkaiMemberDojoName,
   mergeSuggestDojoNames,
   type UktSuggestItem,
@@ -19,7 +20,7 @@ const suggestQuerySchema = z.object({
   latberEventId: z.string().trim().max(64).optional().default(""),
 });
 
-const ACTIVE_REG_STATUS = { notIn: ["CANCELLED", "REJECTED"] };
+const ACTIVE_REG_STATUS = ACTIVE_EVENT_REG_STATUS;
 
 async function hydrateDojoAndFlags(
   suggestions: UktSuggestItem[],

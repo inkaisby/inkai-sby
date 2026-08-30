@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import type { UktMemberRow } from "@/lib/ukt";
+import { EventQuickRegisterButtons } from "@/components/admin/event-quick-register/EventQuickRegisterButtons";
 
 type RemoteSuggestion = {
   id: string;
@@ -184,31 +184,18 @@ export function UktSearchBar({
     applySearch(item.member.fullName);
   };
 
-  const handleQuickRegister = async (item: CombinedItem) => {
-    if (!canQuickRegister || !onQuickRegister) return;
-    const member: RemoteSuggestion =
-      item.kind === "local"
-        ? {
-            id: item.row.memberId,
-            fullName: item.row.fullName,
-            nia: item.row.nia ?? null,
-            dojoName: item.row.dojoName ?? undefined,
-            currentRank:
-              item.row.memberCurrentRank || item.row.kyuLama || undefined,
-          }
-        : item.member;
-    try {
-      await onQuickRegister(member);
-      setOptimisticRegistered((prev) => new Set(prev).add(member.id));
-      setRemote((prev) =>
-        prev.map((s) =>
-          s.id === member.id ? { ...s, registeredUkt: true } : s,
-        ),
-      );
-    } catch {
-      // Parent menampilkan toast error; tombol tetap terlihat.
-    }
-  };
+  function memberFromItem(item: CombinedItem): RemoteSuggestion {
+    return item.kind === "local"
+      ? {
+          id: item.row.memberId,
+          fullName: item.row.fullName,
+          nia: item.row.nia ?? null,
+          dojoName: item.row.dojoName ?? undefined,
+          currentRank:
+            item.row.memberCurrentRank || item.row.kyuLama || undefined,
+        }
+      : item.member;
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!open || suggestions.length === 0) {
@@ -309,7 +296,6 @@ export function UktSearchBar({
             if (showDojoInSuggest && dojoName) metaParts.push(dojoName);
             const showDaftar =
               canQuickRegister && Boolean(onQuickRegister) && !registered;
-            const busy = registerPendingId === memberId;
             return (
               <li
                 key={key}
@@ -345,24 +331,30 @@ export function UktSearchBar({
                   </p>
                 </div>
                 {showDaftar ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-7 text-xs"
-                      disabled={busy}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => void handleQuickRegister(item)}
-                    >
-                      {busy ? (
-                        <>
-                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                          Mendaftar…
-                        </>
-                      ) : (
-                        "Daftar UKT"
-                      )}
-                    </Button>
+                  <div className="mt-2">
+                    <EventQuickRegisterButtons
+                      variant="ukt"
+                      memberId={memberId}
+                      uktEventId={uktEventId}
+                      registeredUkt={registered}
+                      onRegister={async () => {
+                        if (!canQuickRegister || !onQuickRegister) return;
+                        const member = memberFromItem(item);
+                        await onQuickRegister(member);
+                        setOptimisticRegistered((prev) =>
+                          new Set(prev).add(member.id),
+                        );
+                        setRemote((prev) =>
+                          prev.map((s) =>
+                            s.id === member.id
+                              ? { ...s, registeredUkt: true }
+                              : s,
+                          ),
+                        );
+                      }}
+                      pendingMemberId={registerPendingId}
+                      pendingKind="ukt"
+                    />
                   </div>
                 ) : null}
               </li>

@@ -1,9 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   attachSuggestRegistrationFlags,
+  buildMemberEventRegistrationMap,
   inkaiMemberDojoName,
   mergeSuggestDojoNames,
 } from "@/lib/ukt-suggest";
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    eventRegistration: {
+      findMany: vi.fn(),
+    },
+  },
+}));
+
+import { prisma } from "@/lib/prisma";
 
 describe("ukt suggest helpers", () => {
   it("reads dojo name from nested Inkai payload", () => {
@@ -43,5 +54,22 @@ describe("ukt suggest helpers", () => {
     expect(flagged[0].registeredUkt).toBe(true);
     expect(flagged[0].registeredLatber).toBe(false);
     expect(flagged[1].registeredUkt).toBe(false);
+  });
+
+  it("buildMemberEventRegistrationMap batches flags per member", async () => {
+    vi.mocked(prisma.eventRegistration.findMany).mockResolvedValue([
+      { memberId: "m1", eventId: "ukt-1" },
+      { memberId: "m2", eventId: "lat-1" },
+    ] as never);
+
+    const map = await buildMemberEventRegistrationMap(
+      ["m1", "m2", "m3"],
+      "ukt-1",
+      "lat-1",
+    );
+
+    expect(map.get("m1")).toEqual({ ukt: true, latber: false });
+    expect(map.get("m2")).toEqual({ ukt: false, latber: true });
+    expect(map.get("m3")).toEqual({ ukt: false, latber: false });
   });
 });

@@ -188,7 +188,7 @@ export function AnggotaFiltersForm({
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="min-w-0 w-full space-y-1 sm:min-w-[180px] sm:flex-1 sm:max-w-md">
           <label className="text-xs text-muted-foreground">Pencarian</label>
-          {canQuickReg && (activeUkt || activeLatber) ? (
+          {canQuickReg ? (
             <AnggotaSearchQuickReg
               query={query}
               onQueryChange={(value: string) => handleQueryChange(value)}

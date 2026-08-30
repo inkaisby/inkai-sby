@@ -11,6 +11,8 @@ import type { AdminMemberRow } from "@/lib/inkai-api/admin-data";
 import type { MemberStatusCounts } from "@/lib/inkai-api/admin-data";
 import { AnggotaAddButton } from "./AnggotaAddButton";
 import { AnggotaFiltersForm } from "./AnggotaFiltersForm";
+import type { ActiveRegistrationPeriod } from "@/lib/active-registration-periods";
+import type { MemberEventRegistrationFlags } from "@/lib/ukt-suggest";
 import {
   AnggotaKpiCards,
   type AnggotaKpiIconName,
@@ -22,7 +24,6 @@ import type { MemberSortKey, SortDir } from "@/lib/table-sort";
 import { parseMemberSortKey, parseSortDir, toggleSortKey } from "@/lib/table-sort";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { DojoContextSwitcher } from "@/components/admin/DojoContextSwitcher";
-import type { ActiveRegistrationPeriod } from "@/lib/active-registration-periods";
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100];
 
@@ -114,6 +115,7 @@ export function AnggotaBrowser({
   activeUkt = null,
   activeLatber = null,
   canQuickReg = false,
+  initialEventRegistration = null,
 }: {
   roleLabel?: string;
   scopeHint?: string;
@@ -134,11 +136,15 @@ export function AnggotaBrowser({
   activeUkt?: ActiveRegistrationPeriod;
   activeLatber?: ActiveRegistrationPeriod;
   canQuickReg?: boolean;
+  initialEventRegistration?: Record<string, MemberEventRegistrationFlags> | null;
 }) {
   const [filters, setFilters] = useState<FilterState>(initialFilters);
   const [members, setMembers] = useState(initialMembers);
   const [total, setTotal] = useState(initialTotal);
   const [statusCounts, setStatusCounts] = useState(initialStatusCounts);
+  const [eventRegistration, setEventRegistration] = useState<
+    Record<string, MemberEventRegistrationFlags>
+  >(initialEventRegistration ?? {});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(hasError ? "Gagal memuat data anggota." : null);
   const abortRef = useRef<AbortController | null>(null);
@@ -173,6 +179,8 @@ export function AnggotaBrowser({
     } else {
       qs.set("counts", "0");
     }
+    if (activeUkt?.id) qs.set("uktEventId", activeUkt.id);
+    if (activeLatber?.id) qs.set("latberEventId", activeLatber.id);
 
     try {
       const res = await fetch(`/api/admin/members?${qs}`, {
@@ -184,6 +192,7 @@ export function AnggotaBrowser({
         members?: AdminMemberRow[];
         total?: number;
         statusCounts?: MemberStatusCounts | null;
+        eventRegistration?: Record<string, MemberEventRegistrationFlags> | null;
       };
       if (!res.ok) {
         throw new Error(data.error || "Gagal memuat anggota");
@@ -191,6 +200,9 @@ export function AnggotaBrowser({
       if (reqId !== reqIdRef.current) return;
       setMembers(data.members ?? []);
       setTotal(Number(data.total) || 0);
+      if (data.eventRegistration) {
+        setEventRegistration(data.eventRegistration);
+      }
       if (data.statusCounts) {
         const nextCounts = { ...data.statusCounts };
         const listTotal = Number(data.total) || 0;
@@ -213,7 +225,7 @@ export function AnggotaBrowser({
     } finally {
       if (reqId === reqIdRef.current) setLoading(false);
     }
-  }, []);
+  }, [activeLatber?.id, activeUkt?.id]);
 
   const applyFilters = useCallback(
     (patch: Partial<FilterState>, opts?: { resetPage?: boolean; forceCounts?: boolean }) => {
@@ -581,6 +593,19 @@ export function AnggotaBrowser({
           sortKey={filters.sort}
           sortDir={filters.sortDir}
           onSort={handleSort}
+          canQuickReg={canQuickReg}
+          activeUkt={activeUkt}
+          activeLatber={activeLatber}
+          eventRegistration={eventRegistration}
+          onEventRegistered={(memberId, kind) => {
+            setEventRegistration((prev) => ({
+              ...prev,
+              [memberId]: {
+                ...prev[memberId],
+                ...(kind === "ukt" ? { ukt: true } : { latber: true }),
+              },
+            }));
+          }}
         />
       </div>
 

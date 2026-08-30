@@ -31,6 +31,7 @@ import {
   resolveActiveLatberRegistrationPeriod,
   resolveActiveUktRegistrationPeriod,
 } from "@/lib/active-registration-periods";
+import { buildMemberEventRegistrationMap } from "@/lib/ukt-suggest";
 
 export const dynamic = "force-dynamic";
 
@@ -194,6 +195,17 @@ async function AdminAnggotaContent({
   const scopeHint =
     allowlist.length > 1 && !dojoId ? `${allowlist.length} ranting` : dojoLabel;
 
+  const eventRegistrationMap =
+    activeUkt?.id || activeLatber?.id
+      ? Object.fromEntries(
+          await buildMemberEventRegistrationMap(
+            members.map((m) => m.id),
+            activeUkt?.id,
+            activeLatber?.id,
+          ),
+        )
+      : null;
+
   return (
     <AnggotaBrowser
       roleLabel={roleLabel}
@@ -233,6 +245,7 @@ async function AdminAnggotaContent({
       activeUkt={activeUkt}
       activeLatber={activeLatber}
       canQuickReg={canRegisterMembersToEvents(user.roles ?? [])}
+      initialEventRegistration={eventRegistrationMap}
     />
   );
 }

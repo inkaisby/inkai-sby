@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
-import { parseApiJson } from "@/lib/api-client";
-import { showError, showSuccess } from "@/lib/client-toast";
 import type { ActiveRegistrationPeriod } from "@/lib/active-registration-periods";
+import type { EventRegistrationKind } from "@/lib/event-quick-register";
+import { EventQuickRegisterButtons } from "@/components/admin/event-quick-register/EventQuickRegisterButtons";
 
 type Suggestion = {
   id: string;
@@ -42,7 +41,6 @@ export function AnggotaSearchQuickReg({
   const [open, setOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
-  const [pendingId, setPendingId] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -103,7 +101,7 @@ export function AnggotaSearchQuickReg({
     setOpen(false);
   }
 
-  function markRegistered(memberId: string, kind: "ukt" | "latber") {
+  function markRegistered(memberId: string, kind: EventRegistrationKind) {
     setSuggestions((prev) =>
       prev.map((s) =>
         s.id === memberId
@@ -117,43 +115,6 @@ export function AnggotaSearchQuickReg({
     );
   }
 
-  async function registerMember(
-    memberId: string,
-    kind: "ukt" | "latber",
-    periodId: string,
-  ) {
-    setPendingId(`${kind}:${memberId}`);
-    try {
-      const url =
-        kind === "ukt" ? "/api/admin/ukt/register" : "/api/admin/latber/register";
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId: periodId, memberId }),
-      });
-      const data = await parseApiJson<{ error?: string }>(res);
-      if (!res.ok) {
-        const msg = data.error || "Gagal mendaftar";
-        if (/sudah terdaftar/i.test(msg)) {
-          markRegistered(memberId, kind);
-        }
-        throw new Error(msg);
-      }
-      showSuccess(
-        kind === "ukt"
-          ? "Anggota didaftarkan ke UKT"
-          : "Anggota didaftarkan ke Latihan Bersama",
-      );
-      markRegistered(memberId, kind);
-    } catch (e) {
-      showError(e instanceof Error ? e.message : "Gagal mendaftar");
-    } finally {
-      setPendingId(null);
-    }
-  }
-
-  const showQuickActions = canQuickReg && (activeUkt || activeLatber);
-
   return (
     <div ref={wrapperRef} className="relative min-w-0 w-full overflow-visible">
       <Input
@@ -166,7 +127,7 @@ export function AnggotaSearchQuickReg({
         autoComplete="off"
         className="h-10 sm:h-8"
       />
-      {showQuickActions && open && (suggestions.length > 0 || loading) ? (
+      {canQuickReg && open && (suggestions.length > 0 || loading) ? (
         <ul className="absolute z-50 mt-1 max-h-72 w-full min-w-[16rem] overflow-auto rounded-md border bg-popover py-1 text-sm shadow-md">
           {loading && suggestions.length === 0 ? (
             <li className="flex items-center gap-2 px-3 py-2 text-muted-foreground">
@@ -175,7 +136,6 @@ export function AnggotaSearchQuickReg({
             </li>
           ) : null}
           {suggestions.map((m) => {
-            const busy = pendingId?.endsWith(m.id) ?? false;
             const showUkt = Boolean(activeUkt) && !m.registeredUkt;
             const showLatber = Boolean(activeLatber) && !m.registeredLatber;
             const showActions = showUkt || showLatber;
@@ -209,36 +169,16 @@ export function AnggotaSearchQuickReg({
                   </p>
                 </div>
                 {showActions ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-1">
-                    {showUkt && activeUkt ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-7 text-xs"
-                        disabled={busy}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() =>
-                          void registerMember(m.id, "ukt", activeUkt.id)
-                        }
-                      >
-                        Daftar UKT
-                      </Button>
-                    ) : null}
-                    {showLatber && activeLatber ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        disabled={busy}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() =>
-                          void registerMember(m.id, "latber", activeLatber.id)
-                        }
-                      >
-                        Daftar Latber
-                      </Button>
-                    ) : null}
+                  <div className="mt-2">
+                    <EventQuickRegisterButtons
+                      variant="both"
+                      memberId={m.id}
+                      uktEventId={activeUkt?.id}
+                      latberEventId={activeLatber?.id}
+                      registeredUkt={m.registeredUkt}
+                      registeredLatber={m.registeredLatber}
+                      onRegistered={(kind) => markRegistered(m.id, kind)}
+                    />
                   </div>
                 ) : null}
               </li>

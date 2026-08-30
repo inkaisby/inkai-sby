@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import type { LatberMemberRow } from "@/lib/latber";
+import { EventQuickRegisterButtons } from "@/components/admin/event-quick-register/EventQuickRegisterButtons";
 
 type RemoteSuggestion = {
   id: string;
@@ -178,30 +178,17 @@ export function LatberSearchBar({
     applySearch(item.member.fullName);
   };
 
-  const handleQuickRegister = async (item: CombinedItem) => {
-    if (!canQuickRegister || !onQuickRegister) return;
-    const member: RemoteSuggestion =
-      item.kind === "local"
-        ? {
-            id: item.row.memberId,
-            fullName: item.row.fullName,
-            nia: item.row.nia ?? null,
-            dojoName: item.row.dojoName ?? undefined,
-            currentRank: item.row.currentRank ?? undefined,
-          }
-        : item.member;
-    try {
-      await onQuickRegister(member);
-      setOptimisticRegistered((prev) => new Set(prev).add(member.id));
-      setRemote((prev) =>
-        prev.map((s) =>
-          s.id === member.id ? { ...s, registeredLatber: true } : s,
-        ),
-      );
-    } catch {
-      // Parent menampilkan toast error.
-    }
-  };
+  function memberFromItem(item: CombinedItem): RemoteSuggestion {
+    return item.kind === "local"
+      ? {
+          id: item.row.memberId,
+          fullName: item.row.fullName,
+          nia: item.row.nia ?? null,
+          dojoName: item.row.dojoName ?? undefined,
+          currentRank: item.row.currentRank ?? undefined,
+        }
+      : item.member;
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!open || suggestions.length === 0) {
@@ -302,7 +289,6 @@ export function LatberSearchBar({
             if (showDojoInSuggest && dojoName) metaParts.push(dojoName);
             const showDaftar =
               canQuickRegister && Boolean(onQuickRegister) && !registered;
-            const busy = registerPendingId === memberId;
             return (
               <li
                 key={key}
@@ -332,24 +318,30 @@ export function LatberSearchBar({
                   </p>
                 </div>
                 {showDaftar ? (
-                  <div className="mt-2 flex flex-wrap items-center gap-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-7 text-xs"
-                      disabled={busy}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => void handleQuickRegister(item)}
-                    >
-                      {busy ? (
-                        <>
-                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                          Mendaftar…
-                        </>
-                      ) : (
-                        "Daftar Latber"
-                      )}
-                    </Button>
+                  <div className="mt-2">
+                    <EventQuickRegisterButtons
+                      variant="latber"
+                      memberId={memberId}
+                      latberEventId={latberEventId}
+                      registeredLatber={registered}
+                      onRegister={async () => {
+                        if (!canQuickRegister || !onQuickRegister) return;
+                        const member = memberFromItem(item);
+                        await onQuickRegister(member);
+                        setOptimisticRegistered((prev) =>
+                          new Set(prev).add(member.id),
+                        );
+                        setRemote((prev) =>
+                          prev.map((s) =>
+                            s.id === member.id
+                              ? { ...s, registeredLatber: true }
+                              : s,
+                          ),
+                        );
+                      }}
+                      pendingMemberId={registerPendingId}
+                      pendingKind="latber"
+                    />
                   </div>
                 ) : null}
               </li>
