@@ -272,8 +272,8 @@ export function decodeUktRegisteredRank(
 }
 
 /** Resolve kolom Kyu Lama / Baru untuk tabel UKT.
- * Default: Kyu Lama = sabuk keanggotaan (`currentRank`); Kyu Baru hanya dari snapshot hasil ujian.
- * Dual snapshot (lama ≠ baru) mengunci Kyu Lama. `categoryName` diabaikan (kompat pemanggil).
+ * Default: Kyu Lama = sabuk keanggotaan (`currentRank`); Kyu Baru hanya jika ujian LULUS.
+ * Dual snapshot (lama ≠ baru) mengunci Kyu Lama setelah LULUS. `categoryName` diabaikan.
  */
 export function resolveUktRankColumns(
   registeredRank: string | null | undefined,
@@ -285,12 +285,18 @@ export function resolveUktRankColumns(
   const decoded = decodeUktRegisteredRank(registeredRank);
   const current =
     formatRankLabel(memberCurrentRank) || (memberCurrentRank || "").trim();
+  const passed = opts?.examResult === "LULUS";
   let kyuBaru: string | null = decoded.kyuBaru || null;
+
+  // Snapshot sisi kanan (mis. || Putih) bukan hasil ujian — buang kecuali LULUS
+  if (!passed) {
+    kyuBaru = null;
+  }
 
   // Legacy LULUS tanpa dual snapshot: sabuk keanggotaan sudah naik → tampilkan sebagai Kyu Baru
   if (
     !kyuBaru &&
-    opts?.examResult === "LULUS" &&
+    passed &&
     decoded.kyuLama &&
     !isBlankUktRank(decoded.kyuLama) &&
     !isBlankUktRank(current) &&

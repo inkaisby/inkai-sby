@@ -109,9 +109,31 @@ describe("resolveUktRankColumns guard categoryName", () => {
     const res = resolveUktRankColumns(
       "Kuning (Kyu 7) || Hijau (Kyu 6)",
       "Hijau (Kyu 6)",
+      null,
+      { examResult: "LULUS" },
     );
     expect(res.kyuLama).toMatch(/Kuning/i);
     expect(res.kyuBaru).toMatch(/Hijau/i);
+  });
+
+  it("snapshot || Putih tanpa LULUS tidak tampil sebagai Kyu Baru", () => {
+    const res = resolveUktRankColumns(
+      "Hijau (Kyu 6) || Putih (Kyu 10)",
+      "Hijau (Kyu 6)",
+    );
+    expect(res.kyuLama).toMatch(/Hijau/i);
+    expect(res.kyuBaru).toBeNull();
+  });
+
+  it("snapshot dual tampil Kyu Baru hanya jika LULUS", () => {
+    const res = resolveUktRankColumns(
+      "Hijau (Kyu 6) || Putih (Kyu 10)",
+      "Hijau (Kyu 6)",
+      null,
+      { examResult: "LULUS" },
+    );
+    expect(res.kyuLama).toMatch(/Hijau/i);
+    expect(res.kyuBaru).toMatch(/Putih/i);
   });
 
   it("shortRankLabel: regex boundary DAN aman", () => {
