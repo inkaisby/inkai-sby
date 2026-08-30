@@ -1,10 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Search, Users, X } from "lucide-react";
+import { ChevronDown, Printer, Search, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { SortableTableHead } from "@/components/ui/SortableTableHead";
 import {
   Table,
   TableBody,
@@ -16,7 +25,15 @@ import {
 import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
 import { UktFloatingCountdown } from "@/components/admin/ukt/UktFloatingCountdown";
 import { RantingCheckboxFilter } from "@/components/public/RantingCheckboxFilter";
+import {
+  STICKY_CHECK_CELL,
+  STICKY_CHECK_HEAD,
+  STICKY_NAME_AFTER_CHECK,
+  STICKY_NAME_CELL,
+  STICKY_NAME_HEAD,
+} from "@/lib/admin-table-sticky";
 import { formatMemberName, formatRankLabel } from "@/lib/belt";
+import { formatRegisteredAtWib } from "@/lib/format-wib";
 import {
   buildRantingOptions,
   matchesRantingFilter,
@@ -24,8 +41,14 @@ import {
   pruneSelectedRanting,
   PUBLIC_STICKY_TOOLBAR_CLASS,
 } from "@/lib/public-ranting-filter";
+import { sortPublicUktRows } from "@/lib/ukt-public-roster-sort";
+import {
+  printUktRosterDocument,
+  type UktRosterPrintOrientation,
+  type UktRosterPrintPaper,
+} from "@/lib/ukt-roster-print-html";
+import { toggleSortKey, type SortDir } from "@/lib/table-sort";
 import { cn } from "@/lib/utils";
-import { formatRegisteredAtWib } from "@/lib/format-wib";
 import type { UktDisplayStatus } from "@/lib/ukt";
 import type {
   UktPublicPeriod,
@@ -38,12 +61,8 @@ type Payload = {
   loadError?: boolean;
 };
 
-const UKT_NAME_STICKY_HEAD =
-  "sticky left-0 z-20 min-w-[9rem] bg-muted/50 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)]";
-const UKT_NAME_STICKY_CELL =
-  "sticky left-0 z-10 min-w-[9rem] max-w-[11rem] truncate bg-card font-medium shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]";
-
 const POLL_MS = 30_000;
+const TABLE_COL_SPAN = 10;
 
 function statusBadgeClass(status: UktDisplayStatus): string {
   const map: Partial<Record<UktDisplayStatus, string>> = {
@@ -94,13 +113,25 @@ export function UktPublicRosterClient() {
   const [selectedRanting, setSelectedRanting] = useState<Set<string>>(
     () => new Set(),
   );
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [sort, setSort] = useState<{ key: string | null; dir: SortDir }>({
+    key: null,
+    dir: "asc",
+  });
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
+  const [printDojoIds, setPrintDojoIds] = useState<Set<string>>(() => new Set());
+  const [printPaper, setPrintPaper] = useState<UktRosterPrintPaper>("A4");
+  const [printOrientation, setPrintOrientation] =
+    useState<UktRosterPrintOrientation>("landscape");
+  const [printBusy, setPrintBusy] = useState(false);
 
   const summaryPanelRef = useRef<HTMLDivElement>(null);
   const summaryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const summaryObserverRef = useRef<IntersectionObserver | null>(null);
   const userScrolledRef = useRef(false);
   const tableWrapRef = useRef<HTMLDivElement>(null);
+  const selectAllRef = useRef<HTMLInputElement>(null);
 
   const reload = useCallback(async (opts?: { silent?: boolean }) => {
     const silent = Boolean(opts?.silent);
@@ -176,6 +207,14 @@ export function UktPublicRosterClient() {
     setSelectedRanting((prev) => pruneSelectedRanting(prev, rantingOptions));
   }, [rantingOptions]);
 
+  useEffect(() => {
+    const valid = new Set(registrants.map((r) => r.id));
+    setSelectedIds((prev) => {
+      const next = new Set([...prev].filter((id) => valid.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [registrants]);
+
   const closeSummary = useCallback(() => {
     setSummaryOpen(false);
     if (summaryTimerRef.current) {
@@ -241,6 +280,10 @@ export function UktPublicRosterClient() {
     });
   }
 
+  const handleSort = useCallback((key: string) => {
+    setSort((prev) => toggleSortKey(prev.key, prev.dir, key));
+  }, []);
+
   const filteredRows = useMemo(() => {
     return registrants.filter(
       (r) =>
@@ -251,6 +294,126 @@ export function UktPublicRosterClient() {
         }) && matchesRantingFilter(r.ranting, selectedRanting),
     );
   }, [registrants, searchQ, selectedRanting]);
+
+  const displayRows = useMemo(
+    () => sortPublicUktRows(filteredRows, sort.key, sort.dir),
+    [filteredRows, sort.key, sort.dir],
+  );
+
+  const allRantingNames = useMemo(
+    () => [...new Set(registrants.map((r) => r.ranting))].sort((a, b) =>
+      a.localeCompare(b, "id"),
+    ),
+    [registrants],
+  );
+
+  const printCandidateRows = useMemo(() => {
+    let rows = registrants.filter((r) => printDojoIds.has(r.ranting));
+    if (selectedIds.size > 0) {
+      rows = rows.filter((r) => selectedIds.has(r.id));
+    }
+    return sortPublicUktRows(rows, sort.key, sort.dir);
+  }, [registrants, printDojoIds, selectedIds, sort.key, sort.dir]);
+
+  const allDisplayChecked =
+    displayRows.length > 0 &&
+    displayRows.every((r) => selectedIds.has(r.id));
+  const someDisplayChecked =
+    displayRows.some((r) => selectedIds.has(r.id)) && !allDisplayChecked;
+
+  useEffect(() => {
+    const el = selectAllRef.current;
+    if (el) el.indeterminate = someDisplayChecked;
+  }, [someDisplayChecked]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllDisplay = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allDisplayChecked) {
+        displayRows.forEach((r) => next.delete(r.id));
+      } else {
+        displayRows.forEach((r) => next.add(r.id));
+      }
+      return next;
+    });
+  };
+
+  function openPrintModal() {
+    if (selectedRanting.size > 0) {
+      setPrintDojoIds(new Set(selectedRanting));
+    } else if (selectedIds.size > 0) {
+      setPrintDojoIds(
+        new Set(
+          registrants
+            .filter((r) => selectedIds.has(r.id))
+            .map((r) => r.ranting),
+        ),
+      );
+    } else {
+      setPrintDojoIds(new Set(allRantingNames));
+    }
+    setPrintOpen(true);
+  }
+
+  const handlePrintOpenChange = (next: boolean) => {
+    if (!next && printBusy) return;
+    setPrintOpen(next);
+  };
+
+  const blockDialogDismiss = printBusy
+    ? (e: Event) => {
+        e.preventDefault();
+      }
+    : undefined;
+
+  function handlePrint() {
+    if (printCandidateRows.length === 0 || printBusy) return;
+    setPrintBusy(true);
+    try {
+      const names = [...printDojoIds].sort((a, b) => a.localeCompare(b, "id"));
+      const showRanting = names.length > 1;
+      const dojoLabel =
+        names.length === 1 ? names[0]! : `GABUNGAN (${names.join(", ")})`;
+
+      printUktRosterDocument({
+        periodTitle: period?.title?.trim() || "Pendaftaran UKT",
+        dojoLabel,
+        participantCount: printCandidateRows.length,
+        showRantingColumn: showRanting,
+        paper: printPaper,
+        orientation: printOrientation,
+        rows: printCandidateRows.map((r, i) => ({
+          no: i + 1,
+          nia: r.nia || "—",
+          nama: formatMemberName(r.fullName),
+          ranting: r.ranting,
+          kyuLama: formatRankLabel(r.kyuLama) || r.kyuLama || "—",
+          kyuBaru: r.kyuBaru?.trim()
+            ? formatRankLabel(r.kyuBaru) || r.kyuBaru
+            : "—",
+          status: r.statusLabel,
+          tglDaftar: formatRegisteredAtWib(r.createdAt),
+        })),
+        origin: window.location.origin,
+        printedAt: new Date().toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }),
+      });
+    } finally {
+      setTimeout(() => setPrintBusy(false), 1500);
+    }
+  }
 
   const kpis = useMemo(() => computeKpis(filteredRows), [filteredRows]);
 
@@ -306,6 +469,10 @@ export function UktPublicRosterClient() {
   const titleLabel = period?.title?.trim() || "Pendaftaran UKT";
   const hasSearch = searchQ.trim().length >= 2;
   const hasRantingFilter = selectedRanting.size > 0;
+  const canPrint = registrants.length > 0;
+  const printAllRantingSelected =
+    allRantingNames.length > 0 &&
+    printDojoIds.size === allRantingNames.length;
 
   function tableEmptyMessage(): string {
     if (!period?.periodId) return "Tidak ada data.";
@@ -510,6 +677,16 @@ export function UktPublicRosterClient() {
             <Button
               type="button"
               variant="outline"
+              className="h-10"
+              disabled={!canPrint}
+              onClick={openPrintModal}
+            >
+              <Printer className="mr-1 h-4 w-4" />
+              Cetak
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
               className="h-10 md:hidden"
               aria-expanded={summaryOpen}
               aria-controls="ukt-summary-panel"
@@ -548,42 +725,111 @@ export function UktPublicRosterClient() {
       ) : null}
 
       <div ref={tableWrapRef} className="rounded-xl border bg-card">
-        <Table>
+        <Table className="min-w-[920px]">
           <TableHeader>
-            <TableRow>
+            <TableRow className="bg-muted/50">
+              <TableHead className={cn(STICKY_CHECK_HEAD, "bg-muted/50")}>
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  className="h-4 w-4 accent-inkai-red"
+                  checked={allDisplayChecked}
+                  onChange={toggleSelectAllDisplay}
+                  disabled={displayRows.length === 0}
+                  title="Pilih semua baris tampil"
+                  aria-label="Pilih semua baris tampil"
+                />
+              </TableHead>
               <TableHead className="w-12">No</TableHead>
               <TableHead className="w-14">Foto</TableHead>
-              <TableHead>NIA</TableHead>
-              <TableHead className={UKT_NAME_STICKY_HEAD}>Nama Lengkap</TableHead>
-              <TableHead className="whitespace-nowrap">Tanggal daftar</TableHead>
-              <TableHead>Kyu Lama</TableHead>
-              <TableHead>Kyu Baru</TableHead>
-              <TableHead>Ranting</TableHead>
-              <TableHead>Status</TableHead>
+              <SortableTableHead
+                label="NIA"
+                sortKey="nia"
+                activeKey={sort.key}
+                activeDir={sort.dir}
+                onSort={handleSort}
+              />
+              <SortableTableHead
+                label="Nama Lengkap"
+                sortKey="fullName"
+                activeKey={sort.key}
+                activeDir={sort.dir}
+                onSort={handleSort}
+                className={cn(
+                  STICKY_NAME_HEAD,
+                  STICKY_NAME_AFTER_CHECK,
+                  "bg-muted/50",
+                )}
+              />
+              <SortableTableHead
+                label="Tanggal daftar"
+                sortKey="createdAt"
+                activeKey={sort.key}
+                activeDir={sort.dir}
+                onSort={handleSort}
+                className="whitespace-nowrap"
+              />
+              <SortableTableHead
+                label="Kyu Lama"
+                sortKey="kyuLama"
+                activeKey={sort.key}
+                activeDir={sort.dir}
+                onSort={handleSort}
+              />
+              <SortableTableHead
+                label="Kyu Baru"
+                sortKey="kyuBaru"
+                activeKey={sort.key}
+                activeDir={sort.dir}
+                onSort={handleSort}
+              />
+              <SortableTableHead
+                label="Ranting"
+                sortKey="ranting"
+                activeKey={sort.key}
+                activeDir={sort.dir}
+                onSort={handleSort}
+              />
+              <SortableTableHead
+                label="Status"
+                sortKey="status"
+                activeKey={sort.key}
+                activeDir={sort.dir}
+                onSort={handleSort}
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading && registrants.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={TABLE_COL_SPAN}
                   className="py-10 text-center text-muted-foreground"
                 >
                   Memuat peserta…
                 </TableCell>
               </TableRow>
-            ) : filteredRows.length === 0 ? (
+            ) : displayRows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={9}
+                  colSpan={TABLE_COL_SPAN}
                   className="py-10 text-center text-muted-foreground"
                 >
                   {tableEmptyMessage()}
                 </TableCell>
               </TableRow>
             ) : (
-              filteredRows.map((row, idx) => (
-                <TableRow key={row.id}>
+              displayRows.map((row, idx) => (
+                <TableRow key={row.id} className="group">
+                  <TableCell className={cn(STICKY_CHECK_CELL)}>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-inkai-red"
+                      checked={selectedIds.has(row.id)}
+                      onChange={() => toggleSelect(row.id)}
+                      aria-label={`Pilih ${formatMemberName(row.fullName)}`}
+                    />
+                  </TableCell>
                   <TableCell className="text-muted-foreground">
                     {idx + 1}
                   </TableCell>
@@ -598,7 +844,10 @@ export function UktPublicRosterClient() {
                   <TableCell className="font-mono text-xs">
                     {row.nia || "—"}
                   </TableCell>
-                  <TableCell className={UKT_NAME_STICKY_CELL} title={row.fullName}>
+                  <TableCell
+                    className={cn(STICKY_NAME_CELL, STICKY_NAME_AFTER_CHECK)}
+                    title={row.fullName}
+                  >
                     {formatMemberName(row.fullName)}
                   </TableCell>
                   <TableCell className="whitespace-nowrap text-sm">
@@ -635,6 +884,166 @@ export function UktPublicRosterClient() {
           </TableBody>
         </Table>
       </div>
+      <p className="text-xs text-muted-foreground md:hidden">
+        Geser tabel ke samping untuk kolom lain.
+      </p>
+
+      <Dialog open={printOpen} onOpenChange={handlePrintOpenChange}>
+        <DialogContent
+          className="max-h-[90vh] max-w-md overflow-y-auto"
+          onPointerDownOutside={blockDialogDismiss}
+          onFocusOutside={blockDialogDismiss}
+          onInteractOutside={blockDialogDismiss}
+        >
+          <DialogHeader>
+            <DialogTitle>Cetak daftar peserta</DialogTitle>
+            <DialogDescription>
+              {titleLabel}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Kosongkan centang tabel = semua peserta ranting terpilih. Pencarian
+              layar tidak membatasi cetak kecuali baris sudah dicentang.
+            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground">
+                Pilih ranting
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={() => {
+                  if (printAllRantingSelected) {
+                    setPrintDojoIds(new Set());
+                  } else {
+                    setPrintDojoIds(new Set(allRantingNames));
+                  }
+                }}
+              >
+                {printAllRantingSelected ? "Hapus semua" : "Pilih semua"}
+              </Button>
+            </div>
+            <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-2">
+              {allRantingNames.map((name) => {
+                const count = registrants.filter((r) => r.ranting === name).length;
+                return (
+                  <label
+                    key={name}
+                    className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-muted/60"
+                  >
+                    <input
+                      type="checkbox"
+                      className="h-3.5 w-3.5 accent-inkai-red"
+                      checked={printDojoIds.has(name)}
+                      onChange={() => {
+                        setPrintDojoIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(name)) next.delete(name);
+                          else next.add(name);
+                          return next;
+                        });
+                      }}
+                    />
+                    <span className="flex-1 font-medium">{name}</span>
+                    <span className="text-muted-foreground">
+                      {count} peserta
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {printDojoIds.size} ranting · {printCandidateRows.length} peserta
+            </p>
+            {printDojoIds.size > 0 && printCandidateRows.length === 0 ? (
+              <p className="text-xs text-destructive">
+                Tidak ada peserta sesuai pilihan.
+              </p>
+            ) : null}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Kertas
+                </p>
+                <div className="flex gap-1">
+                  {(["A4", "F4"] as const).map((paper) => (
+                    <Button
+                      key={paper}
+                      type="button"
+                      size="sm"
+                      variant={printPaper === paper ? "default" : "outline"}
+                      className={
+                        printPaper === paper
+                          ? "h-8 flex-1 bg-inkai-red text-white hover:bg-inkai-red/90"
+                          : "h-8 flex-1"
+                      }
+                      onClick={() => setPrintPaper(paper)}
+                    >
+                      {paper}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Orientasi
+                </p>
+                <div className="flex gap-1">
+                  {(
+                    [
+                      ["portrait", "Portrait"],
+                      ["landscape", "Landscape"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      type="button"
+                      size="sm"
+                      variant={
+                        printOrientation === value ? "default" : "outline"
+                      }
+                      className={
+                        printOrientation === value
+                          ? "h-8 flex-1 bg-inkai-red text-white hover:bg-inkai-red/90"
+                          : "h-8 flex-1"
+                      }
+                      onClick={() => setPrintOrientation(value)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handlePrintOpenChange(false)}
+              disabled={printBusy}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              className="bg-inkai-red text-white hover:bg-inkai-red/90"
+              disabled={
+                printBusy ||
+                printDojoIds.size === 0 ||
+                printCandidateRows.length === 0
+              }
+              onClick={handlePrint}
+            >
+              <Printer className="mr-1 h-4 w-4" />
+              {printBusy ? "Mencetak…" : "Cetak"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
