@@ -58,6 +58,10 @@ function newKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function upper(value: string) {
+  return value.toUpperCase();
+}
+
 function emptyRow(dojoId = "", currentRank = ""): BulkRow {
   return {
     key: newKey(),
