@@ -41,7 +41,10 @@ import {
   pruneSelectedRanting,
   PUBLIC_STICKY_TOOLBAR_CLASS,
 } from "@/lib/public-ranting-filter";
-import { sortPublicUktRows } from "@/lib/ukt-public-roster-sort";
+import {
+  sortPublicUktRows,
+  sortPublicUktRowsForPrint,
+} from "@/lib/ukt-public-roster-sort";
 import {
   printUktRosterDocument,
   type UktRosterPrintOrientation,
@@ -312,8 +315,9 @@ export function UktPublicRosterClient() {
     if (selectedIds.size > 0) {
       rows = rows.filter((r) => selectedIds.has(r.id));
     }
-    return sortPublicUktRows(rows, sort.key, sort.dir);
-  }, [registrants, printDojoIds, selectedIds, sort.key, sort.dir]);
+    // Cetak selalu diurut Kyu Lama (10→1) lalu Kyu Baru, bukan ikut sort layar.
+    return sortPublicUktRowsForPrint(rows);
+  }, [registrants, printDojoIds, selectedIds]);
 
   const allDisplayChecked =
     displayRows.length > 0 &&

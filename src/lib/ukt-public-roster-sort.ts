@@ -75,3 +75,27 @@ export function sortPublicUktRows(
   if (!key) return rows;
   return [...rows].sort((a, b) => comparePublicUktRows(a, b, key, dir));
 }
+
+/**
+ * Urutan cetak: Kyu Lama (10→1, lalu Dan 1→10), lalu Kyu Baru (10→1),
+ * lalu nama A–Z. Tidak terpengaruh sort UI layar.
+ */
+export function sortPublicUktRowsForPrint(
+  rows: UktPublicRegistrant[],
+): UktPublicRegistrant[] {
+  return [...rows].sort((a, b) => {
+    const byKyuLama = compareRankBuckets(
+      rankBucketLabel(a.kyuLama),
+      rankBucketLabel(b.kyuLama),
+      "asc",
+    );
+    if (byKyuLama !== 0) return byKyuLama;
+    const byKyuBaru = compareRankBuckets(
+      rankBucketLabel(a.kyuBaru),
+      rankBucketLabel(b.kyuBaru),
+      "asc",
+    );
+    if (byKyuBaru !== 0) return byKyuBaru;
+    return (a.fullName || "").localeCompare(b.fullName || "", "id");
+  });
+}
