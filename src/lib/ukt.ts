@@ -8,6 +8,7 @@ import {
 } from "@/lib/belt";
 import { DISPORA_JATIM, isDisporaJatim } from "@/lib/venue";
 import { LATBER_PAYMENT } from "@/lib/latber";
+import { SITE_URL } from "@/lib/site";
 
 export type UktSemester = "I" | "II";
 
@@ -1864,6 +1865,11 @@ export function buildUktWaVenueLines(
   return [`*Tempat:* ${raw}`];
 }
 
+/** Baris pertama Laporan WA: tautan roster publik `/ukt`. */
+export function buildUktWaPublicRosterLinkLine(): string {
+  return `${SITE_URL.replace(/\/$/, "")}/ukt`;
+}
+
 function buildUktWaExamHeader(
   periodTitle: string,
   meta?: UktWaExamMeta,
@@ -2045,6 +2051,8 @@ export function buildUktRantingWaReportText(
 
   const resolvedPayment = resolveUktWaBendaharaPayment(payment);
   const out = [
+    buildUktWaPublicRosterLinkLine(),
+    "",
     ...buildUktWaExamHeader(periodTitle, examMeta),
     "",
     `*Ranting/Dojo: ${dojoName}*`,
@@ -2157,6 +2165,8 @@ export function buildUktCabangWaReportText(
   ]);
 
   return [
+    buildUktWaPublicRosterLinkLine(),
+    "",
     `*TOTAL SEMUA: ${rosterRows.length} peserta*`,
     countPaidLine,
     "",
@@ -2177,11 +2187,13 @@ export function buildUktEmptyDojoWaReportText(
   examMeta?: UktWaExamMeta,
 ): string {
   return [
+    buildUktWaPublicRosterLinkLine(),
+    "",
+    `*Ranting/Dojo: ${dojoName}*`,
+    "",
     `*TOTAL SEMUA: 0 peserta*`,
     "",
     ...buildUktWaExamHeader(periodTitle, examMeta),
-    "",
-    `*Ranting/Dojo: ${dojoName}*`,
     "",
     "_0 peserta_",
   ].join("\n");

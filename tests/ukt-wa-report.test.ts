@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildUktCabangWaReportText,
+  buildUktEmptyDojoWaReportText,
   buildUktRantingWaReportText,
+  buildUktWaPublicRosterLinkLine,
   countNotaBeltGroups,
   extractUktRankNumber,
   formatRupiahNota,
@@ -26,6 +28,7 @@ const beltFees = {
 };
 
 const komisi = 50000;
+const publicRosterUrl = buildUktWaPublicRosterLinkLine();
 
 describe("ukt WA/nota sabuk", () => {
   it("WA cabang: kyuBaru DAN 8 tidak membuat bucket dan 8", () => {
@@ -207,6 +210,7 @@ describe("resolveUktRankColumns guard categoryName", () => {
       beltFees,
       komisi,
     );
+    expect(text.startsWith(publicRosterUrl)).toBe(true);
     expect(text).toContain("TOTAL SEMUA: 3 peserta");
     expect(text).toContain("*Pelaksanaan UKT Semester II-2026*");
     expect(text).toContain("*1 Ranting*");
@@ -260,11 +264,28 @@ describe("UKT Laporan WA format cabang", () => {
     );
     const totalIdx = text.indexOf("*TOTAL SEMUA: 1 peserta*");
     const pelaksanaanIdx = text.indexOf("*Pelaksanaan UKT Semester II-2026*");
-    expect(totalIdx).toBeGreaterThanOrEqual(0);
+    const urlIdx = text.indexOf(publicRosterUrl);
+    expect(urlIdx).toBe(0);
+    expect(totalIdx).toBeGreaterThan(urlIdx);
     expect(pelaksanaanIdx).toBeGreaterThan(totalIdx);
     expect(text).toContain("*2 Ranting*");
     expect(text).toContain("KEDURUNG = _0 peserta_");
     expect(text).not.toMatch(/KEDURUNG = _0 peserta_\s+\(Lunas/);
+    expect(text).not.toContain("Tidak mendaftarkan");
+  });
+
+  it("ranting 0 peserta: tautan, Ranting/Dojo, lalu TOTAL", () => {
+    const text = buildUktEmptyDojoWaReportText(
+      "UKT Semester II-2026",
+      "KEDURUNG",
+    );
+    const urlIdx = text.indexOf(publicRosterUrl);
+    const dojoIdx = text.indexOf("*Ranting/Dojo: KEDURUNG*");
+    const totalIdx = text.indexOf("*TOTAL SEMUA: 0 peserta*");
+    expect(urlIdx).toBe(0);
+    expect(dojoIdx).toBeGreaterThan(urlIdx);
+    expect(totalIdx).toBeGreaterThan(dojoIdx);
+    expect(text).toContain("_0 peserta_");
     expect(text).not.toContain("Tidak mendaftarkan");
   });
 
@@ -445,6 +466,7 @@ describe("UKT Laporan WA format ranting", () => {
       beltFees,
       komisi,
     );
+    expect(text.startsWith(publicRosterUrl)).toBe(true);
     expect(text).toContain("*A.* Subtotal A (Biaya UKT):");
     expect(text).toContain("*B.* Subtotal B (Buku Rusak/Hilang): _Rp 0,-_");
     expect(text).toContain("*C.* CASHBACK Ranting (2 ×");
