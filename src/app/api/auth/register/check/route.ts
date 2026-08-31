@@ -10,8 +10,10 @@ import {
   hardDuplicates,
 } from "@/lib/member-duplicate";
 import { z } from "zod";
+import { findExistingUserByEmail } from "@/lib/user-email";
 
 const checkSchema = z.object({
+  email: z.union([z.literal(""), z.string().trim().email()]).optional(),
   fullName: z.string().trim().max(100).optional().or(z.literal("")),
   birthDate: z.string().trim().max(32).optional().or(z.literal("")),
   nik: z
@@ -45,12 +47,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Data tidak valid" }, { status: 400 });
     }
 
-    const { fullName, birthDate, nik, nia } = parsed.data;
-    if (!fullName && !nik && !nia) {
+    const { email, fullName, birthDate, nik, nia } = parsed.data;
+
+    let emailTaken = false;
+    if (email) {
+      const existing = await findExistingUserByEmail(email);
+      emailTaken = existing !== null;
+    }
+
+    if (!fullName && !nik && !nia && !email) {
       return NextResponse.json({
         duplicates: [],
         suggestions: [],
         blocked: false,
+        emailTaken,
+        emailBlocked: emailTaken,
+      });
+    }
+
+    if (emailTaken && !fullName && !nik && !nia) {
+      return NextResponse.json({
+        duplicates: [],
+        suggestions: [],
+        blocked: false,
+        emailTaken: true,
+        emailBlocked: true,
       });
     }
 
@@ -65,6 +86,8 @@ export async function POST(request: Request) {
         duplicates: [],
         suggestions: [],
         blocked: false,
+        emailTaken,
+        emailBlocked: emailTaken,
       });
     }
 
@@ -79,6 +102,8 @@ export async function POST(request: Request) {
     // Public UI: jangan bocorkan NIK; cukup identitas aman
     return NextResponse.json({
       blocked: hard.length > 0,
+      emailTaken,
+      emailBlocked: emailTaken,
       suggestions: duplicates.slice(0, 5).map((d) => ({
         id: d.id,
         fullName: d.fullName,

@@ -20,12 +20,12 @@ import {
 } from "@/lib/belt";
 import {
   parseBirthPlaceAndDate,
-  parseFlexibleBirthDate,
 } from "@/lib/parse-birth-date";
 import { showError, showSuccess } from "@/lib/client-toast";
 import type { AddMemberDojoOption } from "@/components/admin/AddMemberDialog";
 import { triggerCsvDownload } from "@/lib/ukt";
 import { postBulkCreateChunked } from "@/lib/member-bulk-client";
+import { parseBulkMemberPasteLines } from "@/lib/member-bulk-paste";
 import { InkaiLogoLoader } from "@/components/ui/InkaiLogoLoader";
 
 type BulkRow = {
@@ -68,186 +68,6 @@ function emptyRow(dojoId = "", currentRank = ""): BulkRow {
     currentRank,
     dojoId,
   };
-}
-
-function upper(value: string) {
-  return value.toUpperCase();
-}
-
-function resolveDojoId(
-  raw: string,
-  dojos: AddMemberDojoOption[],
-  fallback: string,
-): string {
-  const t = raw.trim();
-  if (!t) return fallback;
-  if (dojos.some((d) => d.id === t)) return t;
-  const byName = dojos.find(
-    (d) => d.name.trim().toLowerCase() === t.toLowerCase(),
-  );
-  return byName?.id || fallback;
-}
-
-function formatBirthCombined(place: string, dateRaw: string): string {
-  const placePart = place.trim();
-  const datePart = dateRaw.trim();
-  if (placePart && datePart) return `${upper(placePart)}, ${datePart}`;
-  return upper(placePart) || datePart;
-}
-
-function looksLikeGender(raw: string): boolean {
-  return Boolean(normalizeGenderStorage(raw));
-}
-
-function looksLikeBirthPlaceDate(raw: string): boolean {
-  const t = raw.trim();
-  if (!t) return false;
-  if (looksLikeGender(t)) return false;
-  if (/,/.test(t)) return true;
-  if (parseFlexibleBirthDate(t)) return true;
-  if (parseBirthPlaceAndDate(t).birthDate) return true;
-  return /(?:januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/i.test(
-    t,
-  );
-}
-
-/**
- * Parse baris paste.
- * Format baru (7 kolom): NIA, Nama, Tempat&Tgl, JK, Alamat, Kyu, Ranting
- * Format lama (7 kolom): NIA, Nama, JK, Tempat&Tgl, Alamat, Kyu, Ranting
- * Format lama (9 kolom): … Alamat, NIK, Tel, Kyu, Ranting (NIK/Tel diabaikan)
- * Format lama (10 kolom): … Tempat, Tgl, Alamat, NIK, Tel, Kyu, Ranting
- */
-function parsePasteLines(
-  text: string,
-  dojos: AddMemberDojoOption[],
-  defaultDojoId: string,
-): BulkRow[] {
-  const lines = text
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  if (lines.length === 0) return [];
-
-  const sep = lines[0]!.includes("\t")
-    ? "\t"
-    : lines[0]!.includes(";")
-      ? ";"
-      : ",";
-
-  const rows: BulkRow[] = [];
-  for (const line of lines) {
-    const cells = line.split(sep).map((c) => c.trim().replace(/^"|"$/g, ""));
-    const head0 = cells[0]?.toLowerCase() || "";
-    const head1 = cells[1]?.toLowerCase() || "";
-    if (head0 === "nia" || head1.includes("nama")) continue;
-
-    if (!cells.some((c) => c.trim())) continue;
-
-    let nia = "";
-    let fullName = "";
-    let genderRaw = "";
-    let birthPlaceDate = "";
-    let address = "";
-    let rankRaw = "";
-    let rantingRaw = "";
-
-    if (cells.length >= 10) {
-      // Lama: NIA, Nama, JK, Tempat, Tgl, Alamat, NIK, Tel, Kyu, Ranting
-      const [
-        c0 = "",
-        c1 = "",
-        c2 = "",
-        place = "",
-        dateRaw = "",
-        c5 = "",
-        ,
-        ,
-        c8 = "",
-        c9 = "",
-      ] = cells;
-      nia = c0;
-      fullName = c1;
-      genderRaw = c2;
-      birthPlaceDate = formatBirthCombined(place, dateRaw);
-      address = c5;
-      rankRaw = c8;
-      rantingRaw = c9;
-    } else if (cells.length >= 9) {
-      // Lama: NIA, Nama, JK, Tempat&Tgl, Alamat, NIK, Tel, Kyu, Ranting
-      const [
-        c0 = "",
-        c1 = "",
-        c2 = "",
-        c3 = "",
-        c4 = "",
-        ,
-        ,
-        c7 = "",
-        c8 = "",
-      ] = cells;
-      nia = c0;
-      fullName = c1;
-      genderRaw = c2;
-      birthPlaceDate = c3;
-      address = c4;
-      rankRaw = c7;
-      rantingRaw = c8;
-    } else {
-      const [
-        c0 = "",
-        c1 = "",
-        c2 = "",
-        c3 = "",
-        c4 = "",
-        c5 = "",
-        c6 = "",
-      ] = cells;
-      nia = c0;
-      fullName = c1;
-      // Baru: Tempat&Tgl lalu JK — deteksi jika kolom ke-3 tampak lahir / kolom ke-4 tampak JK.
-      if (
-        looksLikeBirthPlaceDate(c2) ||
-        (looksLikeGender(c3) && !looksLikeGender(c2))
-      ) {
-        birthPlaceDate = c2;
-        genderRaw = c3;
-        address = c4;
-        rankRaw = c5;
-        rantingRaw = c6;
-      } else {
-        // Lama 7 kolom: JK lalu Tempat&Tgl
-        genderRaw = c2;
-        birthPlaceDate = c3;
-        address = c4;
-        rankRaw = c5;
-        rantingRaw = c6;
-      }
-    }
-
-    if (!fullName.trim() && !nia.trim()) continue;
-
-    const gender =
-      normalizeGenderStorage(genderRaw) ||
-      genderRaw.trim().toUpperCase() ||
-      "";
-    const currentRank =
-      formatRankLabel(rankRaw) || rankRaw.trim() || "";
-
-    rows.push({
-      key: newKey(),
-      nia: upper(nia),
-      fullName: upper(fullName),
-      gender,
-      birthPlaceDate: birthPlaceDate.trim(),
-      address: upper(address),
-      currentRank,
-      dojoId: resolveDojoId(rantingRaw, dojos, defaultDojoId),
-    });
-  }
-  return rows;
 }
 
 const cellClass =
@@ -361,11 +181,13 @@ export function AddMembersBulkDialog({
     const fallbackDojo = bulkDojoId || defaultDojoId;
     const fallbackRank =
       formatRankLabel(bulkRank) || bulkRank.trim() || "";
-    const parsed = parsePasteLines(text, dojos, fallbackDojo).map((row) => ({
-      ...row,
-      // Jika paste tanpa kolom Kyu, pakai "Isi semua Kyu/DAN" — jangan default Putih.
-      currentRank: row.currentRank.trim() || fallbackRank,
-    }));
+    const parsed = parseBulkMemberPasteLines(text, dojos, fallbackDojo).map(
+      (row) => ({
+        key: newKey(),
+        ...row,
+        currentRank: row.currentRank.trim() || fallbackRank,
+      }),
+    );
     if (parsed.length === 0) return;
     e.preventDefault();
     setRows((prev) => {
@@ -508,7 +330,8 @@ export function AddMembersBulkDialog({
         <DialogHeader>
           <DialogTitle>Input Massal Anggota</DialogTitle>
           <DialogDescription>
-            NIA opsional. Pilih{" "}
+            NIA opsional. Paste 6 kolom dari Excel (tanpa NIA: Nama, Tempat&amp;Tgl,
+            JK, Alamat, Kyu, Ranting) didukung. Pilih{" "}
             <span className="font-medium text-foreground">Kyu atau DAN</span> di
             atas untuk mengisi semua baris. Jenis kelamin &amp; Kyu teks (bisa
             paste ke sel). Tempat &amp; tanggal lahir digabung, mis.{" "}

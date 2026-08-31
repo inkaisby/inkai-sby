@@ -21,6 +21,11 @@ import {
 } from "@/lib/member-profile-locks";
 import { prisma } from "@/lib/prisma";
 import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
+import {
+  EMAIL_TAKEN_MESSAGE,
+  findExistingUserByEmail,
+} from "@/lib/user-email";
+import { persistMemberIdentityLocal } from "@/lib/member-identity-local";
 
 export async function POST(request: Request) {
   try {
@@ -120,6 +125,14 @@ export async function POST(request: Request) {
       );
     }
 
+    const existingEmail = await findExistingUserByEmail(email);
+    if (existingEmail) {
+      return NextResponse.json(
+        { error: EMAIL_TAKEN_MESSAGE, code: "EMAIL_TAKEN" },
+        { status: 409 },
+      );
+    }
+
     const duplicates = await findMemberDuplicates({
       fullName: name,
       birthDate: birthDate || undefined,
@@ -191,6 +204,12 @@ export async function POST(request: Request) {
       msh,
       currentRank: rank,
       nik,
+      gender,
+      birthPlace,
+      birthDate,
+      address,
+      nia,
+      phoneNumber,
       email,
       name,
       dojoId,
@@ -212,6 +231,12 @@ async function persistRegisterLocal(opts: {
   msh: string | null;
   currentRank: string;
   nik: string;
+  gender?: string;
+  birthPlace?: string;
+  birthDate?: string;
+  address?: string;
+  nia?: string;
+  phoneNumber?: string;
   email: string;
   name: string;
   dojoId: string;
@@ -273,13 +298,28 @@ async function persistRegisterLocal(opts: {
 
     if (!memberId) return null;
 
-    await prisma.member.update({
+    const memberWithUser = await prisma.member.findUnique({
       where: { id: memberId },
-      data: {
-        currentRank: opts.currentRank,
-        ...(opts.msh ? { mshNumber: opts.msh } : {}),
-      },
+      select: { userId: true },
     });
+
+    await persistMemberIdentityLocal(
+      memberId,
+      {
+        nik: opts.nik || null,
+        gender: opts.gender || null,
+        birthPlace: opts.birthPlace || null,
+        birthDate: opts.birthDate || null,
+        address: opts.address || null,
+        currentRank: opts.currentRank,
+        nia: opts.nia || null,
+        mshNumber: opts.msh,
+      },
+      {
+        userId: memberWithUser?.userId,
+        phoneNumber: opts.phoneNumber || null,
+      },
+    );
 
     if (opts.msh) {
       void notifyAdminsAboutMemberMsh({

@@ -39,11 +39,17 @@ export async function GET(request: Request) {
   }
 
   const dojoList =
-    (dojos.data.data as Array<{ id: string; name: string; branch?: { name?: string } }>) ?? [];
+    (dojos.data.data as Array<{
+      id: string;
+      name: string;
+      phoneNumber?: string | null;
+      branch?: { name?: string };
+    }>) ?? [];
 
   const data = dojoList.map((d) => ({
     id: d.id,
     nama: d.name,
+    phoneNumber: d.phoneNumber ?? null,
     cabang: { nama: d.branch?.name ?? SITE_BRANCH_NAME },
   }));
 

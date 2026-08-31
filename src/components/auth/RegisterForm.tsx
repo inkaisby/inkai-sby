@@ -22,14 +22,27 @@ import {
 } from "@/components/member/MemberFormSections";
 import { DEFAULT_MEMBER_RANK } from "@/lib/belt";
 import { showError, showSuccess } from "@/lib/client-toast";
+import { SITE_CONTACT } from "@/lib/site";
+import { toWhatsAppDigits } from "@/lib/phone";
+import {
+  buildRegisterVerificationWaMessage,
+  buildRegisterVerificationWaUrl,
+} from "@/lib/register-verification-wa";
 
-type Dojo = { id: string; nama: string; cabang: { nama: string } };
+type Dojo = {
+  id: string;
+  nama: string;
+  phoneNumber?: string | null;
+  cabang: { nama: string };
+};
 
 type RegisterFormProps = {
   preselectedDojo?: string;
   /** Jika diisi: dipanggil setelah sukses (tanpa redirect ke /login). */
   onSuccess?: (result: { memberId?: string; message: string }) => void | Promise<void>;
   submitLabel?: string;
+  /** Buka WA verifikasi ke ranting setelah daftar sukses. Default true. */
+  openVerificationWa?: boolean;
 };
 
 const emptyMemberFields = (): MemberFormFields => ({
@@ -49,6 +62,7 @@ export default function RegisterForm({
   preselectedDojo = "",
   onSuccess,
   submitLabel = "Daftar Anggota",
+  openVerificationWa = true,
 }: RegisterFormProps) {
   const router = useRouter();
   const [memberFields, setMemberFields] = useState<MemberFormFields>(emptyMemberFields);
@@ -64,6 +78,7 @@ export default function RegisterForm({
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<MemberFormSuggestion[]>([]);
   const [duplicateBlocked, setDuplicateBlocked] = useState(false);
+  const [emailTaken, setEmailTaken] = useState(false);
 
   useEffect(() => {
     fetch("/api/dojos")
@@ -118,6 +133,32 @@ export default function RegisterForm({
     memberFields.nia,
   ]);
 
+  useEffect(() => {
+    const trimmed = email.trim();
+    const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+    if (!valid) {
+      setEmailTaken(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/auth/register/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: trimmed }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          emailTaken?: boolean;
+          emailBlocked?: boolean;
+        };
+        setEmailTaken(Boolean(data.emailTaken || data.emailBlocked));
+      } catch {
+        setEmailTaken(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [email]);
+
   function setMemberField<K extends keyof MemberFormFields>(
     key: K,
     value: MemberFormFields[K],
@@ -142,6 +183,14 @@ export default function RegisterForm({
     if (duplicateBlocked) {
       const msg =
         "Data terindikasi duplikat. Jika sudah didaftarkan ranting, hubungi pengurus — jangan daftar ulang.";
+      setError(msg);
+      showError(msg);
+      return;
+    }
+
+    if (emailTaken) {
+      const msg =
+        "Email sudah terdaftar. Silakan login atau hubungi pengurus ranting jika akun belum diverifikasi.";
       setError(msg);
       showError(msg);
       return;
@@ -188,6 +237,7 @@ export default function RegisterForm({
       error?: string;
       message?: string;
       memberId?: string;
+      code?: string;
     };
     setLoading(false);
 
@@ -203,11 +253,36 @@ export default function RegisterForm({
     setSuccess(successMsg);
     showSuccess(successMsg);
 
+    function openVerificationWhatsApp() {
+      if (!openVerificationWa) return;
+      const selected = dojos.find((d) => d.id === dojoId);
+      const phoneDigits =
+        toWhatsAppDigits(selected?.phoneNumber) || SITE_CONTACT.whatsapp;
+      if (!phoneDigits) return;
+      const message = buildRegisterVerificationWaMessage({
+        fullName: memberFields.fullName.trim().toUpperCase(),
+        gender: memberFields.gender,
+        birthPlace: memberFields.birthPlace.trim().toUpperCase(),
+        birthDate: memberFields.birthDate,
+        address: memberFields.address.trim().toUpperCase(),
+        nia: memberFields.nia.trim()
+          ? memberFields.nia.trim().toUpperCase()
+          : undefined,
+        mshNumber: msh || undefined,
+        phoneNumber: memberFields.phoneNumber.trim().toUpperCase(),
+        email: email.trim(),
+      });
+      const waUrl = buildRegisterVerificationWaUrl(phoneDigits, message);
+      window.open(waUrl, "_blank", "noopener,noreferrer");
+    }
+
     if (onSuccess) {
       await onSuccess({ memberId: data.memberId, message: successMsg });
+      openVerificationWhatsApp();
       return;
     }
 
+    openVerificationWhatsApp();
     setTimeout(() => router.push("/login"), 2500);
   }
 
@@ -277,6 +352,12 @@ export default function RegisterForm({
               required
             />
           </div>
+          {emailTaken ? (
+            <p className="text-xs text-destructive">
+              Email sudah terdaftar. Silakan login atau hubungi pengurus ranting
+              jika akun belum diverifikasi.
+            </p>
+          ) : null}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -336,7 +417,7 @@ export default function RegisterForm({
       <Button
         type="submit"
         className="h-11 w-full rounded-xl bg-inkai-red text-base font-semibold hover:bg-inkai-red/90"
-        disabled={loading || dojosLoading || !dojoId || duplicateBlocked}
+        disabled={loading || dojosLoading || !dojoId || duplicateBlocked || emailTaken}
       >
         {loading ? (
           <>
