@@ -4,6 +4,8 @@ import {
   buildUktCabangWaReportText,
   buildUktEmptyDojoWaReportText,
   buildUktRantingWaReportText,
+  buildUktSelectedDojosWaReportText,
+  buildUktSingleDojoWaReportText,
   buildUktWaPublicRosterLinkLine,
   countNotaBeltGroups,
   extractUktRankNumber,
@@ -427,6 +429,127 @@ describe("UKT Laporan WA format cabang", () => {
     );
     expect(empty).not.toContain("*Tempat:*");
     expect(empty).not.toContain("*Lokasi:*");
+  });
+});
+
+describe("UKT Laporan WA multi-ranting picker", () => {
+  const dojoOptions = [
+    { dojoId: "d1", dojoName: "GADING", count: 1 },
+    { dojoId: "d2", dojoName: "KEDURUNG", count: 0 },
+    { dojoId: "d3", dojoName: "RUNGKUT", count: 1 },
+  ];
+  const allDojos = [
+    { id: "d1", name: "GADING" },
+    { id: "d2", name: "KEDURUNG" },
+    { id: "d3", name: "RUNGKUT" },
+  ];
+  const rows = [
+    {
+      memberId: "m1",
+      registrationId: "r1",
+      fullName: "Peserta A",
+      dojoId: "d1",
+      dojoName: "GADING",
+      kyuLama: "Kuning (Kyu 7)",
+      status: "APPROVED",
+      billingStatus: "PAID",
+      billingId: "b1",
+      billingAmount: 295000,
+    },
+    {
+      memberId: "m2",
+      registrationId: "r2",
+      fullName: "Peserta B",
+      dojoId: "d3",
+      dojoName: "RUNGKUT",
+      kyuLama: "Hijau (Kyu 6)",
+      status: "APPROVED",
+      billingStatus: "WAITING_VERIFICATION",
+      billingId: "b2",
+      billingAmount: 305000,
+    },
+  ] as any[];
+
+  it("semua terpilih = ringkas cabang", () => {
+    const allIds = dojoOptions.map((o) => o.dojoId);
+    const text = buildUktSelectedDojosWaReportText(
+      "UKT Semester II-2026",
+      allIds,
+      dojoOptions,
+      rows,
+      beltFees,
+      komisi,
+      undefined,
+      allDojos,
+    );
+    const expected = buildUktCabangWaReportText(
+      "UKT Semester II-2026",
+      rows,
+      beltFees,
+      komisi,
+      undefined,
+      allDojos,
+    );
+    expect(text).toBe(expected);
+    expect(text).toContain("*TOTAL SEMUA: 2 peserta*");
+  });
+
+  it("dua ranting = gabungan rinci alfabetis dipisah baris kosong", () => {
+    const text = buildUktSelectedDojosWaReportText(
+      "UKT Semester II-2026",
+      ["d1", "d3"],
+      dojoOptions,
+      rows,
+      beltFees,
+      komisi,
+    );
+    const gading = buildUktSingleDojoWaReportText(
+      "UKT Semester II-2026",
+      "d1",
+      "GADING",
+      rows,
+      beltFees,
+      komisi,
+    );
+    const rungkut = buildUktSingleDojoWaReportText(
+      "UKT Semester II-2026",
+      "d3",
+      "RUNGKUT",
+      rows,
+      beltFees,
+      komisi,
+    );
+    expect(text).toBe(`${gading}\n\n${rungkut}`);
+    expect(text).toContain("*Ranting/Dojo: GADING*");
+    expect(text).toContain("*Ranting/Dojo: RUNGKUT*");
+    const gadingIdx = text.indexOf("*Ranting/Dojo: GADING*");
+    const rungkutIdx = text.indexOf("*Ranting/Dojo: RUNGKUT*");
+    expect(gadingIdx).toBeLessThan(rungkutIdx);
+  });
+
+  it("ranting berpeserta + ranting 0 peserta = gabungan rinci + empty", () => {
+    const text = buildUktSelectedDojosWaReportText(
+      "UKT Semester II-2026",
+      ["d1", "d2"],
+      dojoOptions,
+      rows,
+      beltFees,
+      komisi,
+    );
+    const gading = buildUktSingleDojoWaReportText(
+      "UKT Semester II-2026",
+      "d1",
+      "GADING",
+      rows,
+      beltFees,
+      komisi,
+    );
+    const kedurung = buildUktEmptyDojoWaReportText(
+      "UKT Semester II-2026",
+      "KEDURUNG",
+    );
+    expect(text).toBe(`${gading}\n\n${kedurung}`);
+    expect(text).toContain("_0 peserta_");
   });
 });
 

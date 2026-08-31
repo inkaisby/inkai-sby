@@ -2199,6 +2199,106 @@ export function buildUktEmptyDojoWaReportText(
   ].join("\n");
 }
 
+export type UktWaDojoOption = {
+  dojoId: string;
+  dojoName: string;
+  count: number;
+};
+
+/** Laporan WA rinci (atau kosong) untuk satu ranting. */
+export function buildUktSingleDojoWaReportText(
+  periodTitle: string,
+  dojoId: string,
+  dojoName: string,
+  rosterRows: UktMemberRow[],
+  beltFees: Record<BeltFeeKey, number>,
+  komisiRanting: number,
+  examMeta?: UktWaExamMeta,
+  payment?: UktWaBendaharaPayment | null,
+): string {
+  const roster = rosterRows.filter((r) => {
+    const id = r.dojoId?.trim() || "__none__";
+    return id === dojoId;
+  });
+  if (roster.length === 0) {
+    return buildUktEmptyDojoWaReportText(periodTitle, dojoName, examMeta);
+  }
+  return buildUktRantingWaReportText(
+    periodTitle,
+    dojoName,
+    roster,
+    beltFees,
+    komisiRanting,
+    examMeta,
+    payment,
+  );
+}
+
+/**
+ * Laporan WA cabang untuk pilihan multi-ranting:
+ * semua = ringkas; satu = rinci; beberapa = gabungan rinci per ranting.
+ */
+export function buildUktSelectedDojosWaReportText(
+  periodTitle: string,
+  selectedDojoIds: string[],
+  dojoOptions: UktWaDojoOption[],
+  rosterRows: UktMemberRow[],
+  beltFees: Record<BeltFeeKey, number>,
+  komisiRanting: number,
+  examMeta?: UktWaExamMeta,
+  allDojos?: Array<{ id: string; name: string }>,
+  payment?: UktWaBendaharaPayment | null,
+): string {
+  if (selectedDojoIds.length === 0 || dojoOptions.length === 0) return "";
+
+  const selectedSet = new Set(selectedDojoIds);
+  const selectedOptions = dojoOptions
+    .filter((o) => selectedSet.has(o.dojoId))
+    .sort((a, b) => a.dojoName.localeCompare(b.dojoName, "id"));
+
+  if (selectedOptions.length === 0) return "";
+
+  if (selectedOptions.length === dojoOptions.length) {
+    return buildUktCabangWaReportText(
+      periodTitle,
+      rosterRows,
+      beltFees,
+      komisiRanting,
+      examMeta,
+      allDojos,
+    );
+  }
+
+  if (selectedOptions.length === 1) {
+    const o = selectedOptions[0];
+    return buildUktSingleDojoWaReportText(
+      periodTitle,
+      o.dojoId,
+      o.dojoName,
+      rosterRows,
+      beltFees,
+      komisiRanting,
+      examMeta,
+      payment,
+    );
+  }
+
+  return selectedOptions
+    .map((o) =>
+      buildUktSingleDojoWaReportText(
+        periodTitle,
+        o.dojoId,
+        o.dojoName,
+        rosterRows,
+        beltFees,
+        komisiRanting,
+        examMeta,
+        payment,
+      ),
+    )
+    .join("\n\n");
+}
+
 /** Selesai = lunas + lulus ujian + Kyu Baru diisi cabang. */
 export function isUktSelesai(row: UktMemberRow): boolean {
   return (

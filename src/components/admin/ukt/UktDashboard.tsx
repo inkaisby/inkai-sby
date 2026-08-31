@@ -132,8 +132,7 @@ import {
   type UktDepositStatus,
   type UktPeriodMeta,
   BELT_FEE_KEYS,
-  buildUktCabangWaReportText,
-  buildUktEmptyDojoWaReportText,
+  buildUktSelectedDojosWaReportText,
   buildUktRantingWaReportText,
   resolveUktWaBendaharaPayment,
   resolveUktWaDojoLabel,
@@ -429,8 +428,8 @@ export function UktDashboard(props: Props) {
     "peserta" | "hasil" | "administrasi" | undefined
   >(undefined);
   const [showCabangWaPicker, setShowCabangWaPicker] = useState(false);
-  const [cabangWaSelectedDojoId, setCabangWaSelectedDojoId] = useState<string | null>(
-    null,
+  const [cabangWaSelectedDojoIds, setCabangWaSelectedDojoIds] = useState<Set<string>>(
+    () => new Set(),
   );
   const [pengprovBeltFeesLocal, setPengprovBeltFeesLocal] = useState<Record<
     BeltFeeKey,
@@ -2398,10 +2397,10 @@ export function UktDashboard(props: Props) {
     }
 
     const defaultDojoId = effectiveDojoIds?.length === 1 ? effectiveDojoIds[0] : null;
-    if (defaultDojoId && !cabangWaDojoOptions.some((o) => o.dojoId === defaultDojoId)) {
-      setCabangWaSelectedDojoId(null);
+    if (defaultDojoId && cabangWaDojoOptions.some((o) => o.dojoId === defaultDojoId)) {
+      setCabangWaSelectedDojoIds(new Set([defaultDojoId]));
     } else {
-      setCabangWaSelectedDojoId(defaultDojoId);
+      setCabangWaSelectedDojoIds(new Set(cabangWaDojoOptions.map((o) => o.dojoId)));
     }
     setShowCabangWaPicker(true);
   };
@@ -2428,7 +2427,7 @@ export function UktDashboard(props: Props) {
     }
   };
 
-  const sendCabangWaReport = async (dojoId: string | null) => {
+  const sendCabangWaReport = async (selectedDojoIds: Set<string>) => {
     const title = selectedPeriod?.title || periodTitle;
     const rosterAll = cabangWaRosterRowsAll;
 
@@ -2437,44 +2436,23 @@ export function UktDashboard(props: Props) {
       examLocation: periodMeta?.examLocation,
     };
 
-    const text =
-      !dojoId
-        ? buildUktCabangWaReportText(
-            title,
-            rosterAll,
-            beltFees,
-            komisiRanting,
-            examMeta,
-            props.dojos.map((d) => ({ id: d.id, name: d.name })),
-          )
-        : (() => {
-            const roster = rosterAll.filter((r) => {
-              const id = r.dojoId?.trim() || "__none__";
-              return id === dojoId;
-            });
-            const dojoName =
-              cabangWaDojoOptions.find((o) => o.dojoId === dojoId)?.dojoName ||
-              props.dojos.find((d) => d.id === dojoId)?.name ||
-              "Ranting";
-            if (roster.length === 0) {
-              return buildUktEmptyDojoWaReportText(title, dojoName, examMeta);
-            }
-            return buildUktRantingWaReportText(
-              title,
-              dojoName,
-              roster,
-              beltFees,
-              komisiRanting,
-              examMeta,
-              resolveUktWaBendaharaPayment({
-                bankName: props.orgProfile?.bankName,
-                bankAccountNumber: props.orgProfile?.bankAccountNumber,
-                bankAccountName: props.orgProfile?.bankAccountName,
-                bendaharaCabangName: props.orgProfile?.bendaharaCabangName,
-                paymentInstructions: props.orgProfile?.paymentInstructions,
-              }),
-            );
-          })();
+    const text = buildUktSelectedDojosWaReportText(
+      title,
+      [...selectedDojoIds],
+      cabangWaDojoOptions,
+      rosterAll,
+      beltFees,
+      komisiRanting,
+      examMeta,
+      props.dojos.map((d) => ({ id: d.id, name: d.name })),
+      resolveUktWaBendaharaPayment({
+        bankName: props.orgProfile?.bankName,
+        bankAccountNumber: props.orgProfile?.bankAccountNumber,
+        bankAccountName: props.orgProfile?.bankAccountName,
+        bendaharaCabangName: props.orgProfile?.bendaharaCabangName,
+        paymentInstructions: props.orgProfile?.paymentInstructions,
+      }),
+    );
 
     if (!text) return;
 
@@ -5261,29 +5239,72 @@ export function UktDashboard(props: Props) {
             <DialogHeader>
               <DialogTitle>Pilih Laporan WA</DialogTitle>
               <DialogDescription>
-                Untuk cabang: ringkas semua ranting, atau rincian per ranting tanpa ganti akun.
+                Ringkas jika semua ranting dipilih; pilih beberapa untuk gabungan laporan
+                rinci per ranting.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
-              <Select
-                value={cabangWaSelectedDojoId ?? ""}
-                onValueChange={(v) =>
-                  setCabangWaSelectedDojoId(v ? v : null)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih ranting" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Semua ranting (ringkas)</SelectItem>
-                  {cabangWaDojoOptions.map((o) => (
-                    <SelectItem key={o.dojoId} value={o.dojoId}>
-                      {o.dojoName} ({o.count} peserta)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs text-muted-foreground">Ranting</label>
+                  {cabangWaDojoOptions.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const allSelected =
+                          cabangWaSelectedDojoIds.size === cabangWaDojoOptions.length;
+                        setCabangWaSelectedDojoIds(
+                          allSelected
+                            ? new Set()
+                            : new Set(cabangWaDojoOptions.map((o) => o.dojoId)),
+                        );
+                      }}
+                    >
+                      {cabangWaSelectedDojoIds.size === cabangWaDojoOptions.length
+                        ? "Hapus semua"
+                        : "Pilih semua"}
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
+                  {cabangWaDojoOptions.length === 0 ? (
+                    <p className="p-2 text-sm text-muted-foreground">
+                      Belum ada ranting.
+                    </p>
+                  ) : (
+                    cabangWaDojoOptions.map((o) => (
+                      <label
+                        key={o.dojoId}
+                        className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted/60"
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-inkai-red"
+                          checked={cabangWaSelectedDojoIds.has(o.dojoId)}
+                          onChange={() => {
+                            setCabangWaSelectedDojoIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(o.dojoId)) next.delete(o.dojoId);
+                              else next.add(o.dojoId);
+                              return next;
+                            });
+                          }}
+                        />
+                        <span className="flex-1">{o.dojoName}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {o.count} peserta
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                {cabangWaSelectedDojoIds.size === 0 ? (
+                  <p className="text-xs text-destructive">Pilih minimal satu ranting.</p>
+                ) : null}
+              </div>
             </div>
 
             <DialogFooter className="gap-2 sm:gap-0">
@@ -5295,8 +5316,9 @@ export function UktDashboard(props: Props) {
               </Button>
               <Button
                 className="bg-inkai-red"
+                disabled={cabangWaSelectedDojoIds.size === 0}
                 onClick={() => {
-                  void sendCabangWaReport(cabangWaSelectedDojoId ?? null);
+                  void sendCabangWaReport(cabangWaSelectedDojoIds);
                 }}
               >
                 Salin laporan
