@@ -2235,8 +2235,84 @@ export function buildUktSingleDojoWaReportText(
 }
 
 /**
+ * Laporan WA gabungan untuk 2+ ranting terpilih (bukan semua):
+ * satu roster terurut Kyu + satu hitungan A/B/C dari gabungan peserta.
+ * Tanpa baris "Termasuk N Belum Bayar".
+ */
+export function buildUktMergedDojosWaReportText(
+  periodTitle: string,
+  selectedOptions: UktWaDojoOption[],
+  rosterRows: UktMemberRow[],
+  beltFees: Record<BeltFeeKey, number>,
+  komisiRanting: number,
+  examMeta?: UktWaExamMeta,
+  payment?: UktWaBendaharaPayment | null,
+): string {
+  // Nama ranting untuk label GABUNGAN — urut alfabetis (sudah dijamin caller).
+  const dojoLabels = selectedOptions.map((o) => o.dojoName.trim().toUpperCase());
+  const mergedDojoLabel = `GABUNGAN (${dojoLabels.join(", ")})`;
+
+  // Roster dari ranting terpilih saja.
+  const selectedIds = new Set(selectedOptions.map((o) => o.dojoId));
+  const mergedRoster = rosterRows.filter((r) => selectedIds.has(r.dojoId));
+  const sortedRoster = sortUktWaRosterByKyu(mergedRoster);
+
+  const participantLines = sortedRoster.map((r, i) =>
+    formatWaParticipantLine(r, i),
+  );
+  const participantCount = sortedRoster.length;
+  const { lines, subtotalA } = buildNotaBeltLines(sortedRoster, beltFees);
+  const subtotalB = 0;
+  const totalC = participantCount * komisiRanting;
+  const grandTotal = subtotalA + subtotalB - totalC;
+
+  const paidRows = sortedRoster.filter((r) => isUktBillingPaid(r));
+  const unpaidRows = sortedRoster.filter((r) => !isUktBillingPaid(r));
+  const paidNet = uktWaNetOfNotaRows(paidRows, beltFees, komisiRanting);
+  const unpaidNet = uktWaNetOfNotaRows(unpaidRows, beltFees, komisiRanting);
+
+  const beltLines = lines.map((l) => {
+    const label = l.belt === "LAINNYA" ? "LAINNYA" : l.belt;
+    return `${label}: ${l.count} × ${formatRupiahNota(l.unitFee)} = ${formatRupiahNota(l.subtotal)}`;
+  });
+
+  const resolvedPayment = resolveUktWaBendaharaPayment(payment);
+
+  const header = buildUktWaExamHeader(periodTitle, examMeta, [
+    `*Jumlah UKT: ${formatRupiahNota(grandTotal)}*`,
+    formatUktWaMoneyPaidLine(paidNet, unpaidNet, { sudahLunasLabel: true }),
+  ]);
+
+  const out = [
+    buildUktWaPublicRosterLinkLine(),
+    "",
+    ...header,
+    "",
+    `*Ranting/Dojo: ${mergedDojoLabel}*`,
+    "",
+    "*Peserta yang terdaftar*",
+    ...participantLines,
+    "",
+    "*Rincian pembayaran*",
+    ...beltLines,
+    "",
+    `*A.* Subtotal A (Biaya UKT): _${formatRupiahNota(subtotalA)}_`,
+    `*B.* Subtotal B (Buku Rusak/Hilang): _${formatRupiahNota(subtotalB)}_`,
+    `*C.* CASHBACK Ranting (${participantCount} × ${formatRupiahNota(komisiRanting)}): - ${formatRupiahNota(totalC)}`,
+    "",
+    `*TOTAL (A+B−C): ${formatRupiahNota(grandTotal)}*`,
+    formatUktWaMoneyPaidLine(paidNet, unpaidNet, { sudahLunasLabel: true }),
+  ];
+  const paymentLines = formatUktWaBendaharaPaymentLines(resolvedPayment);
+  if (paymentLines.length > 0) {
+    out.push("", ...paymentLines);
+  }
+  return out.join("\n");
+}
+
+/**
  * Laporan WA cabang untuk pilihan multi-ranting:
- * semua = ringkas; satu = rinci; beberapa = gabungan rinci per ranting.
+ * semua = ringkas; satu = rinci; beberapa = satu laporan gabungan.
  */
 export function buildUktSelectedDojosWaReportText(
   periodTitle: string,
@@ -2283,20 +2359,16 @@ export function buildUktSelectedDojosWaReportText(
     );
   }
 
-  return selectedOptions
-    .map((o) =>
-      buildUktSingleDojoWaReportText(
-        periodTitle,
-        o.dojoId,
-        o.dojoName,
-        rosterRows,
-        beltFees,
-        komisiRanting,
-        examMeta,
-        payment,
-      ),
-    )
-    .join("\n\n");
+  // 2+ ranting (bukan semua) → satu laporan gabungan dengan satu A/B/C.
+  return buildUktMergedDojosWaReportText(
+    periodTitle,
+    selectedOptions,
+    rosterRows,
+    beltFees,
+    komisiRanting,
+    examMeta,
+    payment,
+  );
 }
 
 /** Selesai = lunas + lulus ujian + Kyu Baru diisi cabang. */
