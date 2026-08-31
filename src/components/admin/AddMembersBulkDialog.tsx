@@ -20,6 +20,7 @@ import {
 } from "@/lib/belt";
 import {
   parseBirthPlaceAndDate,
+  parseFlexibleBirthDate,
 } from "@/lib/parse-birth-date";
 import { showError, showSuccess } from "@/lib/client-toast";
 import type { AddMemberDojoOption } from "@/components/admin/AddMemberDialog";
@@ -117,9 +118,7 @@ export function AddMembersBulkDialog({
   const updateRow = useCallback((key: string, patch: Partial<BulkRow>) => {
     setRows((prev) =>
       prev.map((r) =>
-        r.key === key
-          ? { ...r, ...patch, error: undefined, ok: undefined }
-          : r,
+        r.key === key ? { ...r, ...patch, error: undefined, ok: undefined } : r,
       ),
     );
   }, []);
@@ -179,8 +178,7 @@ export function AddMembersBulkDialog({
     if (!isTabular) return;
 
     const fallbackDojo = bulkDojoId || defaultDojoId;
-    const fallbackRank =
-      formatRankLabel(bulkRank) || bulkRank.trim() || "";
+    const fallbackRank = formatRankLabel(bulkRank) || bulkRank.trim() || "";
     const parsed = parseBulkMemberPasteLines(text, dojos, fallbackDojo).map(
       (row) => ({
         key: newKey(),
@@ -330,8 +328,8 @@ export function AddMembersBulkDialog({
         <DialogHeader>
           <DialogTitle>Input Massal Anggota</DialogTitle>
           <DialogDescription>
-            NIA opsional. Paste 6 kolom dari Excel (tanpa NIA: Nama, Tempat&amp;Tgl,
-            JK, Alamat, Kyu, Ranting) didukung. Pilih{" "}
+            NIA opsional. Paste 6 kolom dari Excel (tanpa NIA: Nama,
+            Tempat&amp;Tgl, JK, Alamat, Kyu, Ranting) didukung. Pilih{" "}
             <span className="font-medium text-foreground">Kyu atau DAN</span> di
             atas untuk mengisi semua baris. Jenis kelamin &amp; Kyu teks (bisa
             paste ke sel). Tempat &amp; tanggal lahir digabung, mis.{" "}
@@ -420,7 +418,11 @@ export function AddMembersBulkDialog({
         {loading ? (
           <div className="space-y-2 rounded-lg border border-inkai-red/30 bg-inkai-red/5 px-3 py-3">
             <div className="flex items-center gap-3">
-              <InkaiLogoLoader size="sm" showDots={false} className="shrink-0" />
+              <InkaiLogoLoader
+                size="sm"
+                showDots={false}
+                className="shrink-0"
+              />
               <div className="min-w-0 flex-1 space-y-1.5">
                 <div className="flex items-center justify-between gap-2 text-xs">
                   <span className="font-medium text-foreground">
@@ -587,8 +589,7 @@ export function AddMembersBulkDialog({
                           /\r?\n/g,
                           " ",
                         );
-                        const formatted =
-                          formatRankLabel(pasted) || pasted;
+                        const formatted = formatRankLabel(pasted) || pasted;
                         updateRow(row.key, { currentRank: formatted });
                       }}
                       onBlur={(e) => {
