@@ -77,25 +77,35 @@ export function sortPublicUktRows(
 }
 
 /**
- * Urutan cetak: Kyu Lama (10→1, lalu Dan 1→10), lalu Kyu Baru (10→1),
- * lalu nama A–Z. Tidak terpengaruh sort UI layar.
+ * Urutan cetak:
+ * 1. Ranting A–Z (dikelompokkan, tidak dicampur antar ranting)
+ * 2. Kyu Lama: Kyu 10→1, lalu Dan 1→10
+ * 3. Kyu Baru: urutan yang sama
+ * 4. Nama A–Z
+ * Tidak terpengaruh sort UI layar.
  */
 export function sortPublicUktRowsForPrint(
   rows: UktPublicRegistrant[],
 ): UktPublicRegistrant[] {
   return [...rows].sort((a, b) => {
+    // 1. Kelompokkan per ranting
+    const byRanting = (a.ranting || "").localeCompare(b.ranting || "", "id");
+    if (byRanting !== 0) return byRanting;
+    // 2. Kyu Lama (Kyu 10→1, lalu Dan 1→10)
     const byKyuLama = compareRankBuckets(
       rankBucketLabel(a.kyuLama),
       rankBucketLabel(b.kyuLama),
       "asc",
     );
     if (byKyuLama !== 0) return byKyuLama;
+    // 3. Kyu Baru
     const byKyuBaru = compareRankBuckets(
       rankBucketLabel(a.kyuBaru),
       rankBucketLabel(b.kyuBaru),
       "asc",
     );
     if (byKyuBaru !== 0) return byKyuBaru;
+    // 4. Nama
     return (a.fullName || "").localeCompare(b.fullName || "", "id");
   });
 }
