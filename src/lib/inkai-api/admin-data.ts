@@ -2317,6 +2317,78 @@ export async function fetchUktDashboardData(
         });
       }
     }
+
+    // Fallback: tagihan orphan / registrationId mismatch (Inkai vs Prisma).
+    const orphanMemberIds = Array.from(regMap.entries())
+      .filter(([memberId, reg]) => {
+        const rid = String(reg.id ?? "");
+        return memberId && rid && !billingMap.has(rid);
+      })
+      .map(([memberId]) => memberId)
+      .slice(0, 200);
+    const orphanRegIds = Array.from(regMap.entries())
+      .filter(([memberId, reg]) => {
+        const rid = String(reg.id ?? "");
+        return memberId && rid && !billingMap.has(rid);
+      })
+      .map(([, reg]) => String(reg.id ?? ""))
+      .filter(Boolean)
+      .slice(0, 200);
+    if (orphanMemberIds.length > 0) {
+      const orphanBillings = await withPrismaFallback(
+        "ukt-billings-orphan",
+        () =>
+          prisma.billing.findMany({
+            where: {
+              memberId: { in: orphanMemberIds },
+              isDeleted: false,
+              status: { notIn: ["PAID", "SUCCESS", "CANCELLED", "REJECTED"] },
+              type: { in: ["EVENT", "UKT"] },
+              OR: [
+                { registrationId: null },
+                ...(orphanRegIds.length > 0
+                  ? [{ registrationId: { in: orphanRegIds } }]
+                  : []),
+              ],
+            },
+            select: {
+              id: true,
+              status: true,
+              amount: true,
+              baseFeeAmount: true,
+              registrationId: true,
+              memberId: true,
+            },
+            orderBy: { createdAt: "desc" },
+            take: 400,
+          }),
+        [] as Array<{
+          id: string;
+          status: string;
+          amount: number;
+          baseFeeAmount: number | null;
+          registrationId: string | null;
+          memberId: string;
+        }>,
+      );
+      for (const [memberId, reg] of regMap.entries()) {
+        const rid = String(reg.id ?? "");
+        if (!rid || billingMap.has(rid)) continue;
+        const match = (orphanBillings.data ?? []).find(
+          (b) =>
+            b.memberId === memberId &&
+            (!b.registrationId || b.registrationId === rid),
+        );
+        if (!match) continue;
+        billingMap.set(rid, {
+          id: match.id,
+          status: match.status,
+          amount: match.amount,
+          baseFeeAmount: match.baseFeeAmount,
+          registrationId: rid,
+        });
+      }
+    }
   }
 
   // Registrasi-first merge: peserta yang sudah terdaftar (ada di regMap) tapi
@@ -2792,6 +2864,74 @@ export async function fetchUktTableRefreshSnapshot(
         baseFeeAmount: b.baseFeeAmount,
         registrationId: rid,
       });
+    }
+  }
+
+  if (periodId && registrations.length > 0) {
+    const regByMember = new Map<string, string>();
+    for (const reg of registrations) {
+      const memberId = String(
+        (reg.member as { id?: string } | undefined)?.id ?? reg.memberId ?? "",
+      );
+      const registrationId = String(reg.id ?? "");
+      if (!memberId || !registrationId || billingMap.has(registrationId)) continue;
+      regByMember.set(memberId, registrationId);
+    }
+    const orphanMemberIds = [...regByMember.keys()].slice(0, 200);
+    const orphanRegIds = [...regByMember.values()].slice(0, 200);
+    if (orphanMemberIds.length > 0) {
+      const orphanBillings = await withPrismaFallback(
+        "ukt-refresh-billings-orphan",
+        () =>
+          prisma.billing.findMany({
+            where: {
+              memberId: { in: orphanMemberIds },
+              isDeleted: false,
+              status: { notIn: ["PAID", "SUCCESS", "CANCELLED", "REJECTED"] },
+              type: { in: ["EVENT", "UKT"] },
+              OR: [
+                { registrationId: null },
+                ...(orphanRegIds.length > 0
+                  ? [{ registrationId: { in: orphanRegIds } }]
+                  : []),
+              ],
+            },
+            select: {
+              id: true,
+              status: true,
+              amount: true,
+              baseFeeAmount: true,
+              registrationId: true,
+              memberId: true,
+            },
+            orderBy: { createdAt: "desc" },
+            take: 400,
+          }),
+        [] as Array<{
+          id: string;
+          status: string;
+          amount: number;
+          baseFeeAmount: number | null;
+          registrationId: string | null;
+          memberId: string;
+        }>,
+      );
+      for (const [memberId, registrationId] of regByMember.entries()) {
+        if (billingMap.has(registrationId)) continue;
+        const match = (orphanBillings.data ?? []).find(
+          (b) =>
+            b.memberId === memberId &&
+            (!b.registrationId || b.registrationId === registrationId),
+        );
+        if (!match) continue;
+        billingMap.set(registrationId, {
+          id: match.id,
+          status: match.status,
+          amount: match.amount,
+          baseFeeAmount: match.baseFeeAmount,
+          registrationId,
+        });
+      }
     }
   }
 

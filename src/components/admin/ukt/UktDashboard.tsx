@@ -2081,21 +2081,31 @@ export function UktDashboard(props: Props) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "approve" }),
         });
-        const data = await parseApiJson<{ error?: string }>(res);
+        const data = await parseApiJson<{ error?: string; billingId?: string }>(res);
         if (!res.ok) throw new Error(data.error || "Gagal verifikasi pembayaran");
+        patchRow(row.memberId, {
+          billingId: data.billingId ?? row.billingId,
+          billingStatus: "PAID",
+          status: "PAID",
+        });
       } else {
         const res = await fetch(`/api/admin/ukt/registrations/${row.registrationId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "mark_paid" }),
         });
-        const data = await parseApiJson<{ error?: string }>(res);
+        const data = await parseApiJson<{
+          error?: string;
+          billingId?: string;
+          billingStatus?: string;
+        }>(res);
         if (!res.ok) throw new Error(data.error || "Gagal menandai lunas");
+        patchRow(row.memberId, {
+          billingId: data.billingId ?? row.billingId,
+          billingStatus: data.billingStatus ?? "PAID",
+          status: "PAID",
+        });
       }
-      patchRow(row.memberId, {
-        billingStatus: "PAID",
-        status: "PAID",
-      });
       toast.success("Pembayaran diverifikasi — status Menunggu Ujian");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");

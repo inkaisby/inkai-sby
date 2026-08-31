@@ -2357,33 +2357,31 @@ export function isUktNotaRow(row: UktMemberRow): boolean {
   return row.billingAmount != null || Boolean(row.billingId);
 }
 
+/** Daftar mandiri PENDING belum diterima ranting — bukan target Bayar/Verifikasi. */
+export function isUktSelfRegistrationPendingRow(row: UktMemberRow): boolean {
+  return (
+    isUktSelfRegistrationPendingStatus(row.status) &&
+    (row.selfRegistration === true || !row.billingId)
+  );
+}
+
 /** Ranting boleh ajukan Bayar UKT (Menunggu Verifikasi) — belum lunas & belum diajukan. */
 export function canRantingSubmitUktPayment(row: UktMemberRow): boolean {
   if (!isUktBillingUnpaid(row)) return false;
-  // Daftar mandiri PENDING: pakai Terima, bukan Bayar UKT
-  if (
-    isUktSelfRegistrationPendingStatus(row.status) &&
-    (row.selfRegistration === true || !row.billingId)
-  ) {
-    return false;
-  }
-  if (!row.billingId) return false;
+  if (isUktSelfRegistrationPendingRow(row)) return false;
+  if (!row.registrationId) return false;
   return row.billingStatus !== "WAITING_VERIFICATION";
 }
 
 /**
  * Cabang boleh Verifikasi pembayaran UKT — bukan daftar mandiri PENDING
- * (harus lewat Terima ranting dulu).
+ * (harus lewat Terima ranting dulu). Terdaftar tanpa billingId tetap boleh
+ * (ensure billing saat klik Verifikasi).
  */
 export function canCabangVerifyUktPayment(row: UktMemberRow): boolean {
   if (!isUktBillingUnpaid(row)) return false;
-  if (
-    isUktSelfRegistrationPendingStatus(row.status) &&
-    (row.selfRegistration === true || !row.billingId)
-  ) {
-    return false;
-  }
-  return Boolean(row.billingId);
+  if (isUktSelfRegistrationPendingRow(row)) return false;
+  return Boolean(row.registrationId);
 }
 
 export function participantAmount(

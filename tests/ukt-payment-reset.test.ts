@@ -62,10 +62,23 @@ describe("UKT reset setelah Hapus tagihan", () => {
     expect(canCabangVerifyUktPayment(reset)).toBe(true);
   });
 
-  it("tanpa billingId ranting tidak melihat Bayar UKT", () => {
-    const missing = row({ billingId: null, billingStatus: null });
+  it("APPROVED tanpa billingId: ranting Bayar UKT dan cabang Verifikasi tetap tampil", () => {
+    const missing = row({ billingId: null, billingStatus: null, status: "APPROVED" });
     expect(resolveUktDisplayStatus(missing)).toBe("belum_bayar");
-    expect(canRantingSubmitUktPayment(missing)).toBe(false);
+    expect(canRantingSubmitUktPayment(missing)).toBe(true);
+    expect(canCabangVerifyUktPayment(missing)).toBe(true);
+  });
+
+  it("PENDING daftar mandiri tanpa billingId: Bayar/Verifikasi tetap disembunyikan", () => {
+    const selfPending = row({
+      billingId: null,
+      billingStatus: null,
+      status: "PENDING",
+      selfRegistration: true,
+    });
+    expect(resolveUktDisplayStatus(selfPending)).toBe("menunggu_terima_ranting");
+    expect(canRantingSubmitUktPayment(selfPending)).toBe(false);
+    expect(canCabangVerifyUktPayment(selfPending)).toBe(false);
   });
 
   it("setelah ranting Bayar UKT, cabang Verifikasi", () => {

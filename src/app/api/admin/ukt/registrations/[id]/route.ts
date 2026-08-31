@@ -1442,6 +1442,187 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
   }
 
+  if (data.action === "mark_paid") {
+    if (!isCabang) {
+      return NextResponse.json(
+        { error: "Hanya admin cabang yang dapat verifikasi pembayaran UKT" },
+        { status: 403 },
+      );
+    }
+
+    const localReg = await prisma.eventRegistration.findFirst({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        eventId: true,
+        memberId: true,
+        member: {
+          select: {
+            fullName: true,
+            currentRank: true,
+            dojoId: true,
+            nia: true,
+          },
+        },
+        event: { select: { title: true } },
+      },
+    });
+    if (!localReg) {
+      return NextResponse.json(
+        { error: "Pendaftaran tidak ditemukan" },
+        { status: 404 },
+      );
+    }
+
+    const selfMeta = await loadUktSelfRegistrationMeta(
+      localReg.eventId,
+      localReg.memberId,
+    );
+    const linkedBillingProbe = await prisma.billing.findFirst({
+      where: { registrationId: id, isDeleted: false },
+      select: { id: true },
+    });
+    const pendingSelf =
+      String(localReg.status).toUpperCase() === "PENDING" &&
+      (Boolean(selfMeta) || !linkedBillingProbe);
+    if (pendingSelf) {
+      return NextResponse.json(
+        {
+          error:
+            "Daftar mandiri harus diterima ranting (Terima) sebelum verifikasi cabang",
+        },
+        { status: 400 },
+      );
+    }
+
+    const memberName = localReg.member.fullName;
+    const periodTitle = localReg.event.title ?? "UKT";
+    const kyuLama =
+      formatRankLabel(localReg.member.currentRank) ||
+      localReg.member.currentRank ||
+      DEFAULT_MEMBER_RANK;
+
+    let billing = await prisma.billing.findFirst({
+      where: {
+        registrationId: id,
+        isDeleted: false,
+        status: { notIn: ["PAID", "SUCCESS", "CANCELLED", "REJECTED"] },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, status: true, amount: true },
+    });
+
+    if (!billing) {
+      const byMember = await prisma.billing.findFirst({
+        where: {
+          memberId: localReg.memberId,
+          isDeleted: false,
+          status: { in: ["PENDING", "WAITING_VERIFICATION"] },
+          type: { in: ["EVENT", "UKT"] },
+          OR: [{ registrationId: id }, { registrationId: null }],
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, status: true, amount: true },
+      });
+      billing = byMember;
+    }
+
+    if (!billing) {
+      const ensured = await ensureUktBillingForAcceptedRegistration({
+        eventId: localReg.eventId,
+        memberId: localReg.memberId,
+        registrationId: id,
+        memberRank: kyuLama,
+        periodTitle,
+        token: authResult.token,
+        unpaidOnly: true,
+      });
+      if (!ensured.ok) {
+        return NextResponse.json({ error: ensured.error }, { status: 400 });
+      }
+      billing = await prisma.billing.findFirst({
+        where: { id: ensured.billingId },
+        select: { id: true, status: true, amount: true },
+      });
+    }
+
+    if (!billing) {
+      return NextResponse.json(
+        { error: "Tagihan UKT tidak dapat dibuat atau ditemukan" },
+        { status: 400 },
+      );
+    }
+
+    if (billing.status === "PAID" || billing.status === "SUCCESS") {
+      return NextResponse.json({
+        success: true,
+        alreadyPaid: true,
+        billingId: billing.id,
+        billingStatus: "PAID",
+      });
+    }
+
+    await prisma.billing.update({
+      where: { id: billing.id },
+      data: { status: "PAID", registrationId: id },
+    });
+
+    void inkaiFetch(
+      "/v1/billing/verify",
+      {
+        method: "POST",
+        body: JSON.stringify({ billingId: billing.id, status: "PAID" }),
+      },
+      authResult.token,
+    ).catch(() => undefined);
+
+    void inkaiFetch(
+      `/v1/events/register/${id}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ status: "APPROVED" }),
+      },
+      authResult.token,
+    ).catch(() => undefined);
+
+    await postKasFromUktPaid({
+      user: authResult.user,
+      billingId: billing.id,
+      amount: billing.amount ?? 0,
+      memberName,
+      memberNia: localReg.member.nia,
+      periodTitle,
+      memberDojoId: localReg.member.dojoId,
+    }).catch((err) => console.error("[UKT mark_paid] kas", err));
+
+    void notifyUktStatusChange({
+      token: authResult.token,
+      memberId: localReg.memberId,
+      memberName,
+      periodTitle,
+      displayStatus: "menunggu_ujian",
+      extra: "Pembayaran UKT telah diverifikasi.",
+    }).catch((err) => console.error("[UKT mark_paid] notify member", err));
+
+    writeAuditLog({
+      userId: authResult.user.id,
+      email: authResult.user.email,
+      action: "UKT_MARK_PAID",
+      details: `Verified UKT payment (reg=${id}, billing=${billing.id})`,
+      ip: getClientIp(request),
+      userAgent: request.headers.get("user-agent"),
+      token: authResult.token,
+    });
+
+    return NextResponse.json({
+      success: true,
+      billingId: billing.id,
+      billingStatus: "PAID",
+      message: "Pembayaran diverifikasi — status Menunggu Ujian",
+    });
+  }
+
   if (data.newRank && !isCabang) {
     return NextResponse.json(
       { error: "Kyu Baru hanya dapat diubah oleh admin cabang" },
@@ -1615,53 +1796,6 @@ export async function PATCH(request: Request, context: RouteContext) {
       "Gagal memperbarui pendaftaran",
       res.status,
     );
-  }
-
-  if (data.action === "mark_paid") {
-    const registration = apiData.data as Record<string, unknown>;
-    const member = registration.member as
-      | { id?: string; fullName?: string; billings?: Array<{ id: string; status: string }> }
-      | undefined;
-    const billing = member?.billings?.find((b) => b.status === "PENDING");
-    const memberId = String(member?.id ?? registration.memberId ?? "");
-    const event = registration.event as { title?: string } | undefined;
-    if (billing) {
-      await inkaiFetch(
-        "/v1/billing/verify",
-        {
-          method: "POST",
-          body: JSON.stringify({ billingId: billing.id, status: "PAID" }),
-        },
-        authResult.token,
-      );
-      const localBilling = await prisma.billing.findFirst({
-        where: { id: billing.id },
-        select: { amount: true },
-      });
-      const memberRow = await prisma.member.findFirst({
-        where: { id: memberId || undefined },
-        select: { dojoId: true, nia: true, fullName: true },
-      });
-      await postKasFromUktPaid({
-        user: authResult.user,
-        billingId: billing.id,
-        amount: localBilling?.amount ?? 0,
-        memberName: String(member?.fullName ?? memberRow?.fullName ?? "Anggota"),
-        memberNia: memberRow?.nia,
-        periodTitle: String(event?.title ?? "UKT"),
-        memberDojoId: memberRow?.dojoId ?? null,
-      }).catch((err) => console.error("[UKT mark_paid] kas", err));
-    }
-    if (memberId) {
-      await notifyUktStatusChange({
-        token: authResult.token,
-        memberId,
-        memberName: String(member?.fullName ?? "Anggota"),
-        periodTitle: String(event?.title ?? "UKT"),
-        displayStatus: "menunggu_ujian",
-        extra: "Pembayaran UKT telah diverifikasi.",
-      });
-    }
   }
 
   writeAuditLog({
