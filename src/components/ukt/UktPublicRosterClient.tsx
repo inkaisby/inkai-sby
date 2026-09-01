@@ -388,6 +388,9 @@ export function UktPublicRosterClient() {
       const dojoLabel =
         names.length === 1 ? names[0]! : `GABUNGAN (${names.join(", ")})`;
 
+      // Hitung nomor urut per ranting (reset ke 1 tiap ganti ranting).
+      const rantingCounter = new Map<string, number>();
+
       printUktRosterDocument({
         periodTitle: period?.title?.trim() || "Pendaftaran UKT",
         dojoLabel,
@@ -395,29 +398,23 @@ export function UktPublicRosterClient() {
         showRantingColumn: showRanting,
         paper: printPaper,
         orientation: printOrientation,
-        rows: (() => {
-          let rantingNo = 0;
-          let prevRanting = "";
-          return printCandidateRows.map((r) => {
-            if (r.ranting !== prevRanting) {
-              rantingNo = 0;
-              prevRanting = r.ranting;
-            }
-            rantingNo += 1;
-            return {
-              no: rantingNo,
-              nia: r.nia || "—",
-              nama: formatMemberName(r.fullName),
-              ranting: r.ranting,
-              kyuLama: formatRankLabel(r.kyuLama) || r.kyuLama || "—",
-              kyuBaru: r.kyuBaru?.trim()
-                ? formatRankLabel(r.kyuBaru) || r.kyuBaru
-                : "—",
-              status: r.statusLabel,
-              tglDaftar: formatRegisteredAtWib(r.createdAt),
-            };
-          });
-        })(),
+        rows: printCandidateRows.map((r, i) => {
+          const n = (rantingCounter.get(r.ranting) ?? 0) + 1;
+          rantingCounter.set(r.ranting, n);
+          return {
+            no: i + 1,
+            noRanting: showRanting ? n : undefined,
+            nia: r.nia || "—",
+            nama: formatMemberName(r.fullName),
+            ranting: r.ranting,
+            kyuLama: formatRankLabel(r.kyuLama) || r.kyuLama || "—",
+            kyuBaru: r.kyuBaru?.trim()
+              ? formatRankLabel(r.kyuBaru) || r.kyuBaru
+              : "—",
+            status: r.statusLabel,
+            tglDaftar: formatRegisteredAtWib(r.createdAt),
+          };
+        }),
         origin: window.location.origin,
         printedAt: new Date().toLocaleDateString("id-ID", {
           day: "numeric",

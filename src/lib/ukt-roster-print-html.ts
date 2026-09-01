@@ -10,6 +10,8 @@ function escapeHtml(value: string): string {
 
 export type UktRosterPrintRow = {
   no: number;
+  /** Nomor urut dalam ranting yang sama — hanya dirender saat mode Gabungan. */
+  noRanting?: number;
   nia: string;
   nama: string;
   ranting?: string;
@@ -53,7 +55,7 @@ export function buildUktRosterPrintHtml(data: UktRosterPrintData): string {
   const paper = data.paper ?? "A4";
   const orientation = data.orientation ?? "landscape";
   const pageSize = uktRosterPageSizeCss(paper, orientation);
-  const colCount = data.showRantingColumn ? 9 : 8;
+  const colCount = data.showRantingColumn ? 10 : 8;
 
   const tableRows =
     data.rows.length === 0
@@ -65,12 +67,9 @@ export function buildUktRosterPrintHtml(data: UktRosterPrintData): string {
           <td class="mark">☐</td>
           <td class="no">${r.no}</td>
           <td>${escapeHtml(r.nia)}</td>
+          ${data.showRantingColumn ? `<td class="no">${r.noRanting ?? ""}</td>` : ""}
           <td>${escapeHtml(r.nama)}</td>
-          ${
-            data.showRantingColumn
-              ? `<td>${escapeHtml(r.ranting || "—")}</td>`
-              : ""
-          }
+          ${data.showRantingColumn ? `<td>${escapeHtml(r.ranting || "—")}</td>` : ""}
           <td>${escapeHtml(r.kyuLama)}</td>
           <td>${escapeHtml(r.kyuBaru)}</td>
           <td>${escapeHtml(r.status)}</td>
@@ -147,6 +146,7 @@ export function buildUktRosterPrintHtml(data: UktRosterPrintData): string {
           <th class="mark">☐</th>
           <th class="no">No</th>
           <th>NIA</th>
+          ${data.showRantingColumn ? "<th class=\"no\">No.R</th>" : ""}
           <th>Nama</th>
           ${data.showRantingColumn ? "<th>Ranting</th>" : ""}
           <th>Kyu Lama</th>
