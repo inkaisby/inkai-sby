@@ -232,10 +232,42 @@ export async function forceRegisterUktInDb(opts: {
       return { ok: false, error: "Anggota tidak ditemukan" };
     }
 
-    const event = await prisma.event.findFirst({
+    let event = await prisma.event.findFirst({
       where: { id: opts.eventId, isDeleted: false },
       select: { id: true, title: true, registrationCloseAt: true, endDate: true },
     });
+    if (!event) {
+      const serviceToken =
+        process.env.INKAI_SERVICE_TOKEN || process.env.CRON_INKAI_TOKEN;
+      if (serviceToken) {
+        const inkaiRes = await inkaiFetch(`/v1/events/${opts.eventId}`, {}, serviceToken);
+        if (inkaiRes.res.ok) {
+          const eData = (inkaiRes.data.data as Record<string, unknown>) ?? {};
+          const title = String(eData.title || "UKT");
+          const startDate = eData.startDate ? new Date(String(eData.startDate)) : new Date();
+          const endDate = eData.endDate ? new Date(String(eData.endDate)) : new Date();
+          const registrationCloseAt = eData.registrationCloseAt ? new Date(String(eData.registrationCloseAt)) : null;
+          try {
+            event = await prisma.event.upsert({
+              where: { id: opts.eventId },
+              create: {
+                id: opts.eventId,
+                title,
+                category: "UKT",
+                startDate,
+                endDate,
+                registrationCloseAt,
+                isDeleted: false,
+              },
+              update: { isDeleted: false },
+              select: { id: true, title: true, registrationCloseAt: true, endDate: true },
+            });
+          } catch (err) {
+            console.error("[forceRegisterUktInDb] upsert stub event failed", err);
+          }
+        }
+      }
+    }
     if (!event) {
       return { ok: false, error: "Periode UKT tidak ditemukan" };
     }
@@ -387,7 +419,37 @@ export async function validateUktRegistrationEligibility(
     ),
   ]);
 
-  if (!eventRes.ok) {
+  let resolvedEventData: Record<string, unknown> | null = eventRes.ok
+    ? ((eventData.data as Record<string, unknown>) ?? null)
+    : null;
+
+  if (!resolvedEventData) {
+    const serviceToken =
+      process.env.INKAI_SERVICE_TOKEN || process.env.CRON_INKAI_TOKEN;
+    if (serviceToken) {
+      const retry = await inkaiFetch(`/v1/events/${eventId}`, {}, serviceToken);
+      if (retry.res.ok) {
+        resolvedEventData = (retry.data.data as Record<string, unknown>) ?? null;
+      }
+    }
+  }
+
+  if (!resolvedEventData) {
+    const prismaEvent = await prisma.event.findFirst({
+      where: { id: eventId, isDeleted: false },
+      select: { title: true, startDate: true, endDate: true, registrationCloseAt: true },
+    });
+    if (prismaEvent) {
+      resolvedEventData = {
+        title: prismaEvent.title,
+        startDate: prismaEvent.startDate.toISOString(),
+        endDate: prismaEvent.endDate.toISOString(),
+        registrationCloseAt: prismaEvent.registrationCloseAt?.toISOString() ?? null,
+      };
+    }
+  }
+
+  if (!resolvedEventData) {
     return {
       ok: false,
       error: "Periode UKT tidak ditemukan",
@@ -410,7 +472,7 @@ export async function validateUktRegistrationEligibility(
     };
   }
 
-  const event = eventData.data as Record<string, unknown>;
+  const event = resolvedEventData;
   const member = memberResolved.member;
   const periodMeta = parseUktPeriodMetaValue(
     metaRes.res.ok

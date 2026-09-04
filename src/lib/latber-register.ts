@@ -26,7 +26,7 @@ export async function validateLatberRegistrationEligibility(
   eventId: string,
   _memberId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const event = await prisma.event.findFirst({
+  let event = await prisma.event.findFirst({
     where: { id: eventId, isDeleted: false },
     select: {
       title: true,
@@ -35,6 +35,36 @@ export async function validateLatberRegistrationEligibility(
       registrationCloseAt: true,
     },
   });
+  if (!event) {
+    const serviceToken =
+      process.env.INKAI_SERVICE_TOKEN || process.env.CRON_INKAI_TOKEN || token;
+    const inkaiRes = await inkaiFetch(`/v1/events/${eventId}`, {}, serviceToken);
+    if (inkaiRes.res.ok) {
+      const eData = (inkaiRes.data.data as Record<string, unknown>) ?? {};
+      const title = String(eData.title || "Latihan Bersama");
+      const startDate = eData.startDate ? new Date(String(eData.startDate)) : new Date();
+      const endDate = eData.endDate ? new Date(String(eData.endDate)) : new Date();
+      const registrationCloseAt = eData.registrationCloseAt ? new Date(String(eData.registrationCloseAt)) : null;
+      try {
+        await prisma.event.upsert({
+          where: { id: eventId },
+          create: {
+            id: eventId,
+            title,
+            category: "LATBER",
+            startDate,
+            endDate,
+            registrationCloseAt,
+            isDeleted: false,
+          },
+          update: { isDeleted: false },
+        });
+        event = { title, startDate, endDate, registrationCloseAt };
+      } catch {
+        event = { title, startDate, endDate, registrationCloseAt };
+      }
+    }
+  }
   if (!event) {
     return { ok: false, error: "Periode Latihan Bersama tidak ditemukan" };
   }
@@ -136,10 +166,42 @@ export async function forceRegisterLatberInDb(opts: {
     });
     if (!member) return { ok: false, error: "Anggota tidak ditemukan" };
 
-    const event = await prisma.event.findFirst({
+    let event = await prisma.event.findFirst({
       where: { id: opts.eventId, isDeleted: false },
       select: { id: true, title: true, registrationCloseAt: true, endDate: true },
     });
+    if (!event) {
+      const serviceToken =
+        process.env.INKAI_SERVICE_TOKEN || process.env.CRON_INKAI_TOKEN;
+      if (serviceToken) {
+        const inkaiRes = await inkaiFetch(`/v1/events/${opts.eventId}`, {}, serviceToken);
+        if (inkaiRes.res.ok) {
+          const eData = (inkaiRes.data.data as Record<string, unknown>) ?? {};
+          const title = String(eData.title || opts.periodTitle || "Latihan Bersama");
+          const startDate = eData.startDate ? new Date(String(eData.startDate)) : new Date();
+          const endDate = eData.endDate ? new Date(String(eData.endDate)) : new Date();
+          const registrationCloseAt = eData.registrationCloseAt ? new Date(String(eData.registrationCloseAt)) : null;
+          try {
+            event = await prisma.event.upsert({
+              where: { id: opts.eventId },
+              create: {
+                id: opts.eventId,
+                title,
+                category: "LATBER",
+                startDate,
+                endDate,
+                registrationCloseAt,
+                isDeleted: false,
+              },
+              update: { isDeleted: false },
+              select: { id: true, title: true, registrationCloseAt: true, endDate: true },
+            });
+          } catch (err) {
+            console.error("[forceRegisterLatberInDb] upsert stub event failed", err);
+          }
+        }
+      }
+    }
     if (!event) return { ok: false, error: "Periode Latihan Bersama tidak ditemukan" };
 
     const registration = existing

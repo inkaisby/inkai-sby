@@ -1414,7 +1414,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json(
         {
           error:
-            "Hanya administrator pusat yang dapat mengubah identitas anggota",
+            "Hanya pengurus cabang atau administrator yang dapat mengubah identitas anggota",
         },
         { status: 403 },
       );
@@ -1603,7 +1603,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json(
         {
           error:
-            "Hanya administrator pusat yang dapat mengubah kontak anggota",
+            "Hanya pengurus cabang atau administrator yang dapat mengubah kontak anggota",
         },
         { status: 403 },
       );

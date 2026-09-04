@@ -1485,7 +1485,21 @@ export function MembersTable({
                       {formatDateTime(m.createdAt)}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <div className="flex flex-wrap items-center gap-1">
+                      <div className="flex items-center gap-1 whitespace-nowrap">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 w-7 p-0 sm:h-8 sm:w-8"
+                          title="Ubah / Edit data anggota"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedId(m.id);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          <span className="sr-only">Edit {m.fullName}</span>
+                        </Button>
                         {canQuickReg && isSelectableRow ? (
                           <EventQuickRegisterButtons
                             variant="both"
@@ -1495,6 +1509,7 @@ export function MembersTable({
                             registeredUkt={eventRegistration[m.id]?.ukt}
                             registeredLatber={eventRegistration[m.id]?.latber}
                             onRegistered={(kind) => onEventRegistered?.(m.id, kind)}
+                            buttonClassName="h-7 text-xs px-2"
                           />
                         ) : null}
                         <MemberActions
