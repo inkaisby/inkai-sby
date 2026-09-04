@@ -1494,7 +1494,7 @@ export function MembersTable({
                           title="Ubah / Edit data anggota"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedId(m.id);
+                            void openDetail(m);
                           }}
                         >
                           <Pencil className="h-3.5 w-3.5" />
