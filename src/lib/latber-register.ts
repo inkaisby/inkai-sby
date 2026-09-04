@@ -51,7 +51,6 @@ export async function validateLatberRegistrationEligibility(
           create: {
             id: eventId,
             title,
-            category: "LATBER",
             startDate,
             endDate,
             registrationCloseAt,
@@ -187,7 +186,6 @@ export async function forceRegisterLatberInDb(opts: {
               create: {
                 id: opts.eventId,
                 title,
-                category: "LATBER",
                 startDate,
                 endDate,
                 registrationCloseAt,

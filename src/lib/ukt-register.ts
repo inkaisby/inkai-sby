@@ -253,7 +253,6 @@ export async function forceRegisterUktInDb(opts: {
               create: {
                 id: opts.eventId,
                 title,
-                category: "UKT",
                 startDate,
                 endDate,
                 registrationCloseAt,
