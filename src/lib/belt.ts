@@ -376,6 +376,26 @@ export function inferPreviousBeltRank(
   return null;
 }
 
+/** Standard INKAI promotion recommendation: Kyu 10 / Kyu 9 -> Kyu 8 Kuning, Kyu 8 -> Kyu 7, etc. */
+export function getUktTargetRank(currentRank: string | null | undefined): string | null {
+  const formatted = formatRankLabel(currentRank);
+  if (!formatted) return "Kuning (Kyu 8)";
+  const r = formatted.toLowerCase();
+  if (r.includes("kyu 10") || r.includes("kyu 9")) return "Kuning (Kyu 8)";
+  if (r.includes("kyu 8")) return "Kuning (Kyu 7)";
+  if (r.includes("kyu 7")) return "Hijau (Kyu 6)";
+  if (r.includes("kyu 6")) return "Biru (Kyu 5)";
+  if (r.includes("kyu 5")) return "Biru (Kyu 4)";
+  if (r.includes("kyu 4")) return "Coklat (Kyu 3)";
+  if (r.includes("kyu 3")) return "Coklat (Kyu 2)";
+  if (r.includes("kyu 2")) return "Coklat (Kyu 1)";
+  if (r.includes("kyu 1")) return "Hitam (DAN 1)";
+  const idx = BELT_RANK_OPTIONS.findIndex((opt) => opt.toLowerCase() === formatted.toLowerCase());
+  if (idx >= 0 && idx < BELT_RANK_OPTIONS.length - 1) return BELT_RANK_OPTIONS[idx + 1];
+  return null;
+}
+
+
 export type BeltGroup = "PUTIH" | "KUNING" | "HIJAU" | "BIRU" | "COKELAT" | "LAINNYA";
 
 export function getBeltGroup(rankRaw: string | null | undefined): BeltGroup {

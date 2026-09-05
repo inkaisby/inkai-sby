@@ -1190,6 +1190,8 @@ export type UktDepositReconRow = {
   /** null = ranting tanpa peserta (bukan PENDING) */
   depositStatus: UktDepositStatus | null;
   gapLabel: string;
+  isFullyPaid: boolean;
+  beltCounts: Record<BeltFeeKey | "LAINNYA", number>;
 };
 
 /** Rekonsiliasi setoran: total tagihan peserta terdaftar (disetor ke cabang net = kotor − komisi ranting) vs status setor ranting. */
@@ -1201,14 +1203,32 @@ export function buildUktDepositReconciliation(
     billingAmount: number | null;
     billingStatus: string | null;
     status: string;
+    kyuLama?: string | null;
+    kyuBaru?: string | null;
+    memberCurrentRank?: string | null;
   }>,
   dojos: Array<{ id: string; name: string }>,
   depositMap: Record<string, UktDepositRecord>,
   komisiRanting: number = DEFAULT_KOMISI_RANTING,
 ): UktDepositReconRow[] {
+  const createEmptyBeltCounts = (): Record<BeltFeeKey | "LAINNYA", number> => ({
+    PUTIH: 0,
+    KUNING: 0,
+    HIJAU: 0,
+    BIRU: 0,
+    COKELAT: 0,
+    LAINNYA: 0,
+  });
+
   const byDojo = new Map<
     string,
-    { name: string; participantCount: number; paidCount: number; grossAmount: number }
+    {
+      name: string;
+      participantCount: number;
+      paidCount: number;
+      grossAmount: number;
+      beltCounts: Record<BeltFeeKey | "LAINNYA", number>;
+    }
   >();
 
   for (const d of dojos) {
@@ -1217,12 +1237,13 @@ export function buildUktDepositReconciliation(
       participantCount: 0,
       paidCount: 0,
       grossAmount: 0,
+      beltCounts: createEmptyBeltCounts(),
     });
   }
 
   for (const r of rows) {
     if (!r.registrationId || !r.dojoId) continue;
-    if (r.status === "REJECTED") continue;
+    if (r.status === "REJECTED" || r.status === "CANCELLED") continue;
     let bucket = byDojo.get(r.dojoId);
     if (!bucket) {
       bucket = {
@@ -1230,10 +1251,15 @@ export function buildUktDepositReconciliation(
         participantCount: 0,
         paidCount: 0,
         grossAmount: 0,
+        beltCounts: createEmptyBeltCounts(),
       };
       byDojo.set(r.dojoId, bucket);
     }
     bucket.participantCount += 1;
+    const rankRaw = (r.kyuLama || r.kyuBaru || r.memberCurrentRank || "").trim();
+    const bg = getBeltGroup(rankRaw);
+    bucket.beltCounts[bg] = (bucket.beltCounts[bg] ?? 0) + 1;
+
     const amt = uktBaseFeeAmount(r.billingAmount) ?? 0;
     const paid =
       r.billingStatus === "PAID" ||
@@ -1256,12 +1282,17 @@ export function buildUktDepositReconciliation(
         expectedAmount: 0,
         depositStatus: null,
         gapLabel: "0 peserta",
+        isFullyPaid: false,
+        beltCounts: createEmptyBeltCounts(),
       });
       continue;
     }
     const depositStatus: UktDepositStatus = depositMap[dojoId]?.status ?? "PENDING";
     const belumBayar = Math.max(0, b.participantCount - b.paidCount);
-    const gapLabel = `Belum Bayar: ${belumBayar}, Menunggu Ujian: ${b.paidCount}`;
+    const isFullyPaid = b.participantCount > 0 && belumBayar === 0;
+    const gapLabel = isFullyPaid
+      ? "LUNAS"
+      : `Belum Bayar: ${belumBayar}, Menunggu Ujian: ${b.paidCount}`;
     const expectedAmount = Math.max(
       0,
       b.grossAmount - b.paidCount * komisiRanting,
@@ -1274,11 +1305,14 @@ export function buildUktDepositReconciliation(
       expectedAmount,
       depositStatus,
       gapLabel,
+      isFullyPaid,
+      beltCounts: b.beltCounts,
     });
   }
 
   return result.sort((a, b) => a.dojoName.localeCompare(b.dojoName, "id"));
 }
+
 
 export function parseUktExamAttendanceValue(value: unknown): boolean | null {
   if (!value || typeof value !== "object") return null;

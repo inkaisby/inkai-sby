@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UktExportDialog } from "@/components/admin/ukt/UktExportDialog";
 import { UktAdminReportModal } from "@/components/admin/ukt/UktAdminReportModal";
 import { UktHasilUjianPanel } from "@/components/admin/ukt/UktHasilUjianPanel";
+import { UktMatrixRecapPanel } from "@/components/admin/ukt/UktMatrixRecapPanel";
 import {
   hasUktHasilUjianRecap,
   isUktBillingPaid,
@@ -20,9 +21,10 @@ import {
   type UktSemester,
 } from "@/lib/ukt";
 
-export type UktReportsHubTab = "peserta" | "hasil" | "administrasi";
+export type UktReportsHubTab = "peserta" | "matrix" | "hasil" | "administrasi";
 
 type DojoOption = { id: string; name: string };
+
 
 type Props = {
   open: boolean;
@@ -110,6 +112,9 @@ export function UktReportsHubModal({
               <TabsTrigger value="peserta" className="flex-none px-3">
                 Peserta
               </TabsTrigger>
+              <TabsTrigger value="matrix" className="flex-none px-3">
+                Rekap Matrix
+              </TabsTrigger>
               <TabsTrigger value="hasil" className="flex-none px-3">
                 Hasil Ujian
               </TabsTrigger>
@@ -134,7 +139,21 @@ export function UktReportsHubModal({
                 sekretariatAddress={sekretariatAddress}
               />
             </TabsContent>
+            <TabsContent value="matrix" className="mt-0">
+              <UktMatrixRecapPanel
+                rows={rows}
+                dojos={dojos}
+                semester={semester}
+                year={year}
+                sekretariatAddress={sekretariatAddress}
+                bidangUjianName={bidangUjianName}
+                orgKetuaCabangName={orgKetuaCabangName}
+                strukturKetuaName={strukturKetuaName}
+                pengprovHeadName={pengprovHeadName}
+              />
+            </TabsContent>
             <TabsContent value="hasil" className="mt-0">
+
               <UktHasilUjianPanel
                 eventId={eventId}
                 semester={semester}

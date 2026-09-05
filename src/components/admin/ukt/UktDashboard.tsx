@@ -114,9 +114,12 @@ import {
   formatGenderLabel,
   formatMemberName,
   formatRankLabel,
+  getBeltGroup,
+  getUktTargetRank,
   inferPreviousBeltRank,
   isBlankUktRank,
 } from "@/lib/belt";
+
 import { normalizeNia } from "@/lib/member-profile-locks";
 import {
   parseUktDojoFilterValue,
@@ -1967,8 +1970,107 @@ export function UktDashboard(props: Props) {
     }
   };
 
+  const handleBulkSetKyuBaru = async (targetMode: string) => {
+    if (!isCabang || periodLocked) {
+      if (periodLocked) toast.error("Periode dikunci — Kyu Baru tidak dapat diubah");
+      return;
+    }
+    const targets = selectedRows.filter(
+      (r) => r.registrationId && canApplyUktKyuBaru(r),
+    );
+    if (targets.length === 0) {
+      toast.error("Tidak ada peserta terpilih yang dapat diisi Kyu Baru");
+      return;
+    }
+
+    const toastId = toast.loading(`Memperbarui Kyu Baru untuk ${targets.length} peserta…`);
+    setLoading(true);
+    let updatedCount = 0;
+
+    try {
+      for (const row of targets) {
+        let nextRank: string | null = null;
+        if (targetMode === "RECOMMENDED") {
+          nextRank = getUktTargetRank(row.kyuLama);
+        } else if (targetMode === "CLEAR") {
+          nextRank = "";
+        } else {
+          nextRank = targetMode;
+        }
+        if (nextRank == null || !row.registrationId) continue;
+
+        const res = await fetch(
+          `/api/admin/ukt/registrations/${row.registrationId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "update_kyu", nextRank }),
+          },
+        );
+        const data = await parseApiJson<{ error?: string; kyuBaru?: string; kyuLama?: string }>(res);
+        if (res.ok) {
+          updatedCount += 1;
+          const nextBaru = data.kyuBaru || nextRank;
+          const nextLama = displayUktKyuLama(data.kyuLama || row.kyuLama, nextBaru) || row.kyuLama;
+          patchRow(row.memberId, {
+            kyuBaru: nextBaru,
+            kyuLama: nextLama,
+            memberCurrentRank: nextBaru || row.memberCurrentRank,
+            examResult: nextBaru ? "LULUS" : row.examResult,
+          });
+        }
+      }
+
+      if (updatedCount > 0) {
+        toast.success(`Berhasil memperbarui Kyu Baru untuk ${updatedCount} peserta`, { id: toastId });
+      } else {
+        toast.error("Gagal memperbarui Kyu Baru peserta terpilih", { id: toastId });
+      }
+    } catch (e) {
+      toast.error("Terjadi kesalahan saat memperbarui Kyu Baru massal", { id: toastId });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectSpecial = (key: string) => {
+    if (key === "all") {
+      toggleSelectAllSelectable();
+      return;
+    }
+    if (key === "none") {
+      setSelectedIds(new Set());
+      return;
+    }
+    if (key === "unfilled") {
+      const ids = new Set<string>();
+      for (const r of filteredRows) {
+        if (r.registrationId && !r.kyuBaru?.trim()) {
+          ids.add(r.memberId);
+        }
+      }
+      setSelectedIds(ids);
+      toast.info(`${ids.size} peserta belum terisi Kyu Baru terpilih`);
+      return;
+    }
+    if (key.startsWith("belt:")) {
+      const belt = key.replace("belt:", "");
+      const ids = new Set<string>();
+      for (const r of filteredRows) {
+        if (r.registrationId) {
+          const bg = getBeltGroup(r.kyuLama || r.kyuBaru || r.memberCurrentRank);
+          if (bg === belt) ids.add(r.memberId);
+        }
+      }
+      setSelectedIds(ids);
+      toast.info(`${ids.size} peserta sabuk ${belt} terpilih`);
+      return;
+    }
+  };
+
   const handleDeleteBilling = async () => {
     if (!deleteBillingTarget) return;
+
     const { billingId, memberId, billingStatus } = deleteBillingTarget;
     if (isMemberPending(memberId)) return;
     setMemberPending(memberId, true);
@@ -3458,11 +3560,16 @@ export function UktDashboard(props: Props) {
               <div className="overflow-x-auto rounded-lg border">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Ranting</TableHead>
-                      <TableHead className="text-right">Peserta</TableHead>
-                      <TableHead className="text-right">Lunas</TableHead>
-                      <TableHead className="text-right">Total tagihan</TableHead>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="sticky left-0 z-10 bg-muted/50 min-w-[140px]">Ranting</TableHead>
+                      <TableHead className="w-16 text-center text-slate-700">Putih</TableHead>
+                      <TableHead className="w-16 text-center text-amber-700">Kuning</TableHead>
+                      <TableHead className="w-16 text-center text-emerald-700">Hijau</TableHead>
+                      <TableHead className="w-16 text-center text-blue-700">Biru</TableHead>
+                      <TableHead className="w-16 text-center text-orange-900">Cokelat</TableHead>
+                      <TableHead className="text-right font-semibold">Peserta</TableHead>
+                      <TableHead className="text-right font-semibold">Lunas</TableHead>
+                      <TableHead className="text-right font-semibold">Total tagihan</TableHead>
                       <TableHead>Status setor</TableHead>
                       <TableHead>Keterangan</TableHead>
                     </TableRow>
@@ -3473,12 +3580,29 @@ export function UktDashboard(props: Props) {
                         key={row.dojoId}
                         className={
                           row.participantCount === 0
-                            ? "text-muted-foreground"
+                            ? "text-muted-foreground opacity-60"
                             : undefined
                         }
                       >
-                        <TableCell className="font-medium">{row.dojoName}</TableCell>
-                        <TableCell className="text-right">{row.participantCount}</TableCell>
+                        <TableCell className="sticky left-0 z-10 bg-background font-medium">
+                          {row.dojoName}
+                        </TableCell>
+                        <TableCell className="text-center text-xs text-slate-700">
+                          {row.beltCounts?.PUTIH || "—"}
+                        </TableCell>
+                        <TableCell className="text-center text-xs text-amber-700">
+                          {row.beltCounts?.KUNING || "—"}
+                        </TableCell>
+                        <TableCell className="text-center text-xs text-emerald-700">
+                          {row.beltCounts?.HIJAU || "—"}
+                        </TableCell>
+                        <TableCell className="text-center text-xs text-blue-700">
+                          {row.beltCounts?.BIRU || "—"}
+                        </TableCell>
+                        <TableCell className="text-center text-xs text-orange-900">
+                          {row.beltCounts?.COKELAT || "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">{row.participantCount}</TableCell>
                         <TableCell className="text-right">{row.paidCount}</TableCell>
                         <TableCell className="text-right">
                           {formatRupiahNota(row.expectedAmount)}
@@ -3488,8 +3612,14 @@ export function UktDashboard(props: Props) {
                             ? uktDepositStatusLabel(row.depositStatus)
                             : "—"}
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {row.gapLabel}
+                        <TableCell>
+                          {row.isFullyPaid || (row.participantCount > 0 && row.paidCount === row.participantCount) ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400 text-xs">
+                              <CheckCircle2 className="h-3.5 w-3.5" /> Lunas
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">{row.gapLabel}</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -3931,14 +4061,55 @@ export function UktDashboard(props: Props) {
           <TableHeader>
             <TableRow className="bg-muted/50">
               <TableHead className={STICKY_CHECK_HEAD}>
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 accent-inkai-red"
-                  checked={allSelectableChecked}
-                  onChange={toggleSelectAllSelectable}
-                  title="Pilih semua yang belum lunas"
-                  aria-label="Pilih semua yang belum lunas"
-                />
+                <div className="flex items-center gap-0.5">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 cursor-pointer accent-inkai-red"
+                    checked={allSelectableChecked}
+                    onChange={toggleSelectAllSelectable}
+                    title="Pilih semua pendaftar"
+                    aria-label="Pilih semua pendaftar"
+                  />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex h-5 w-4 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+                        title="Opsi centang khusus (per sabuk / status)"
+                      >
+                        <ChevronDown className="h-3 w-3" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="z-[110] w-52">
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("all")}>
+                        ☑️ Centang Semua Pendaftar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("unfilled")}>
+                        ⚠️ Centang Khusus: Belum Isi Kyu Baru
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("belt:PUTIH")}>
+                        ⚪ Centang Khusus: Putih (Kyu 10)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("belt:KUNING")}>
+                        🟡 Centang Khusus: Kuning (Kyu 8/7)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("belt:HIJAU")}>
+                        🟢 Centang Khusus: Hijau (Kyu 6)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("belt:BIRU")}>
+                        🔵 Centang Khusus: Biru (Kyu 5/4)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("belt:COKELAT")}>
+                        🟤 Centang Khusus: Coklat (Kyu 3/2/1)
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("none")}>
+                        🚫 Batal Centang Semua
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </TableHead>
               <TableHead className="hidden w-10 sm:table-cell">No</TableHead>
               <TableHead className={cn(tableFullscreen ? "w-14" : "hidden w-14 sm:table-cell")}>
@@ -4844,6 +5015,76 @@ export function UktDashboard(props: Props) {
 
       </div>
       </div>
+
+      {/* Floating Action Bar for Bulk Selection */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-xl border border-border/80 bg-background/95 p-2 px-4 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3">
+          <div className="flex items-center gap-2">
+            <Badge variant="default" className="bg-inkai-red px-2 py-0.5 text-xs text-white">
+              {selectedIds.size} terpilih
+            </Badge>
+          </div>
+
+          {isCabang && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Select
+                onValueChange={(val) => {
+                  if (val === "RECOMMENDED") void handleBulkSetKyuBaru("RECOMMENDED");
+                  else if (val === "CLEAR") void handleBulkSetKyuBaru("CLEAR");
+                  else if (val) void handleBulkSetKyuBaru(val);
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs w-[170px] bg-background">
+                  <SelectValue placeholder="Set Kyu Baru ke..." />
+                </SelectTrigger>
+                <SelectContent className="z-[120] max-h-64">
+                  <SelectItem value="RECOMMENDED" className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    ⚡ Set Standar INKAI
+                  </SelectItem>
+                  <SelectItem value="CLEAR" className="text-amber-600 dark:text-amber-400">
+                    🧹 Bersihkan Kyu Baru
+                  </SelectItem>
+                  <DropdownMenuSeparator />
+                  {BELT_RANK_OPTIONS.map((opt) => (
+                    <SelectItem key={opt} value={opt}>
+                      {opt}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void handleBulkSetKyuBaru("RECOMMENDED")}
+                className="h-8 gap-1 text-xs border-emerald-500/40 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300"
+                title="Otomatis isi Kyu Baru rekomendasi standar INKAI (Putih Kyu 10 -> Kuning Kyu 8, dst.)"
+              >
+                ⚡ Standar INKAI
+              </Button>
+            </div>
+          )}
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => openPrintNota(true)}
+            className="h-8 gap-1 text-xs"
+          >
+            <Printer className="h-3.5 w-3.5" />
+            <span>Nota ({selectedRows.filter(isUktNotaRow).length})</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedIds(new Set())}
+            className="h-8 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Batal
+          </Button>
+        </div>
+      )}
 
       {/* Member detail drawer */}
       <Dialog open={!!selectedMember} onOpenChange={(o) => !o && setSelectedMember(null)}>
