@@ -35,6 +35,7 @@ import {
   Share2,
   Maximize2,
   Minimize2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -2626,7 +2627,7 @@ export function UktDashboard(props: Props) {
     : "h-7 max-w-36 rounded border px-1 text-xs disabled:opacity-60";
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-1.5 sm:space-y-2">
       {/* Sticky semester/tahun — disembunyikan bila shell halaman sudah punya UktTermNav */}
       {!props.hideStickyTermBar ? (
       <div className="sticky top-12 z-30 -mx-3 space-y-2 border-b border-border/50 bg-background/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/90 2xl:top-16 sm:-mx-6 sm:space-y-3 sm:px-6 sm:py-3">
@@ -4623,16 +4624,16 @@ export function UktDashboard(props: Props) {
                       }
 
                       return (
-                        <div className="flex flex-wrap items-center gap-1">
+                        <div className="flex flex-wrap items-center gap-0.5">
+                          {/* Terima / Tolak Pengajuan Mandiri */}
                           {isDojoAdmin &&
-                            (resolveUktDisplayStatus(row) ===
-                              "menunggu_terima_ranting" ||
+                            (row.status === "PENDING" ||
                               resolveUktDisplayStatus(row) ===
                                 "menunggu_konfirmasi_ranting") && (
                               <>
                                 <Button
-                                  size="sm"
-                                  className="h-7 bg-inkai-red text-xs hover:bg-inkai-red/90"
+                                  size="icon"
+                                  className="h-6.5 w-6.5 bg-inkai-red hover:bg-inkai-red/90"
                                   onClick={() =>
                                     void handleAcceptSelfRegistration(row)
                                   }
@@ -4643,13 +4644,12 @@ export function UktDashboard(props: Props) {
                                   }
                                   title="Terima pendaftaran mandiri dan konfirmasi pembayaran — teruskan ke cabang"
                                 >
-                                  <CheckCircle2 className="mr-0.5 h-3 w-3" />
-                                  Terima
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
                                 </Button>
                                 <Button
-                                  size="sm"
+                                  size="icon"
                                   variant="outline"
-                                  className="h-7 text-xs text-destructive"
+                                  className="h-6.5 w-6.5 text-destructive"
                                   onClick={() =>
                                     void handleRejectSelfRegistration(row)
                                   }
@@ -4660,31 +4660,30 @@ export function UktDashboard(props: Props) {
                                   }
                                   title="Tolak pengajuan mandiri"
                                 >
-                                  Tolak
+                                  <X className="h-3.5 w-3.5" />
                                 </Button>
                               </>
                             )}
                           {isDojoAdmin && canRantingSubmitUktPayment(row) && (
                             <Button
-                              size="sm"
-                              className="h-7 bg-inkai-red text-xs hover:bg-inkai-red/90"
+                              size="icon"
+                              className="h-6.5 w-6.5 bg-inkai-red text-white hover:bg-inkai-red/90"
                               onClick={() => void handleBayarUkt([row])}
                               disabled={
                                 loading ||
                                 periodLocked ||
                                 isMemberPending(row.memberId)
                               }
-                              title="Ajukan ke cabang untuk verifikasi (bukan lunas)"
+                              title="Ajukan ke cabang untuk verifikasi (Bayar UKT)"
                             >
-                              <Banknote className="mr-0.5 h-3 w-3" />
-                              Bayar UKT
+                              <Banknote className="h-3.5 w-3.5" />
                             </Button>
                           )}
                           {isCabang && canCabangVerifyUktPayment(row) && (
                             <Button
-                              size="sm"
+                              size="icon"
                               variant="outline"
-                              className="h-7 text-xs"
+                              className="h-6.5 w-6.5 text-emerald-600 border-emerald-300"
                               onClick={() => void handleMarkPaid(row)}
                               disabled={
                                 loading ||
@@ -4693,8 +4692,7 @@ export function UktDashboard(props: Props) {
                               }
                               title="Verifikasi pembayaran UKT"
                             >
-                              <CheckCircle2 className="mr-0.5 h-3 w-3" />
-                              {isMemberPending(row.memberId) ? "…" : "Verifikasi"}
+                              <CheckCircle2 className="h-3.5 w-3.5" />
                             </Button>
                           )}
                           {isCabang &&
@@ -4712,41 +4710,40 @@ export function UktDashboard(props: Props) {
                                   );
                                 }}
                               >
-                                <SelectTrigger className="h-7 w-[min(100%,148px)] text-xs">
+                                <SelectTrigger className="h-6.5 w-[min(100%,130px)] px-1.5 text-xs">
                                   <SelectValue placeholder="Hasil ujian" />
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="PENDING">Hasil Ujian</SelectItem>
-                                  <SelectItem value="LULUS">Hasil Ujian Lulus</SelectItem>
+                                  <SelectItem value="LULUS">Lulus</SelectItem>
                                   <SelectItem value="GAGAL">Tidak Lulus</SelectItem>
                                   <SelectItem value="MENGULANG">Mengulang</SelectItem>
                                 </SelectContent>
                               </Select>
                             )}
                           {isCabang && isUktSelesai(row) && (
-                            <Badge className="h-7 bg-emerald-600 text-xs text-white hover:bg-emerald-600">
+                            <Badge className="h-6.5 bg-emerald-600 px-2 text-[11px] text-white hover:bg-emerald-600">
                               Selesai
                             </Badge>
                           )}
                           {isDojoAdmin && isUktSelesai(row) && (
                             <Button
-                              size="sm"
+                              size="icon"
                               variant="outline"
-                              className="h-7 cursor-not-allowed text-xs opacity-70"
+                              className="h-6.5 w-6.5 cursor-not-allowed text-emerald-600 opacity-70"
                               disabled
                               title="UKT sudah selesai"
                             >
-                              <Check className="mr-0.5 h-3 w-3" />
-                              Selesai
+                              <Check className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {/* Desktop: aksi sekunder inline */}
-                          <span className="hidden sm:contents">
+                          {/* Desktop: aksi sekunder inline icon-only */}
+                          <span className="hidden sm:inline-flex sm:items-center sm:gap-0.5">
                             {isCabang && row.billingId && isUktBillingPaid(row) && (
                               <Button
-                                size="sm"
+                                size="icon"
                                 variant="outline"
-                                className="h-7 text-xs"
+                                className="h-6.5 w-6.5"
                                 onClick={() =>
                                   setDeleteBillingTarget({
                                     billingId: row.billingId!,
@@ -4758,8 +4755,7 @@ export function UktDashboard(props: Props) {
                                 disabled={loading || isMemberPending(row.memberId)}
                                 title="Hapus tagihan UKT saja (pendaftaran tetap)"
                               >
-                                <Wallet className="mr-0.5 h-3 w-3" />
-                                {isMemberPending(row.memberId) ? "…" : "Hapus tagihan"}
+                                <Wallet className="h-3.5 w-3.5 text-amber-600" />
                               </Button>
                             )}
                             {canShowUktCancelButton(
@@ -4769,9 +4765,9 @@ export function UktDashboard(props: Props) {
                               canForcePaidCancel,
                             ) ? (
                               <Button
-                                size="sm"
+                                size="icon"
                                 variant="destructive"
-                                className="h-7 text-xs"
+                                className="h-6.5 w-6.5"
                                 onClick={() =>
                                   setCancelTarget({
                                     id: row.registrationId!,
@@ -4791,12 +4787,7 @@ export function UktDashboard(props: Props) {
                                     : "Hapus pendaftaran UKT"
                                 }
                               >
-                                <Trash2 className="mr-0.5 h-3 w-3" />
-                                {isMemberPending(row.memberId)
-                                  ? "…"
-                                  : isDojoAdmin
-                                    ? "Batal UKT"
-                                    : "Hapus"}
+                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             ) : null}
                           </span>

@@ -55,30 +55,30 @@ export function UktTermNav({
   return (
     <div
       className={cn(
-        "sticky top-11 lg:top-12 z-30 -mx-3 mb-2.5 space-y-2 border-b border-border/40 bg-background/90 px-3 py-2 backdrop-blur-md 2xl:top-16 sm:-mx-6 sm:mb-3 sm:px-6 sm:py-2.5",
+        "sticky top-11 lg:top-12 z-30 -mx-3 mb-1.5 space-y-1 border-b border-border/30 bg-background/90 px-3 py-1 backdrop-blur-md 2xl:top-16 sm:-mx-6 sm:mb-2 sm:px-6 sm:py-1.5",
         pending && "opacity-80",
         className,
       )}
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
         <Select
           value={semester}
           onValueChange={(v) => go({ semester: v as UktSemester })}
         >
           <SelectTrigger
-            className="h-9 w-[8.5rem] border-border/80 bg-background text-sm font-medium shadow-none sm:h-8"
+            className="h-7.5 w-[7.5rem] border-border/80 bg-background text-xs font-medium shadow-none sm:h-7"
             aria-label="Pilih semester UKT"
           >
             <SelectValue placeholder="Semester" />
           </SelectTrigger>
-          <SelectContent className="min-w-[8.5rem]">
+          <SelectContent className="min-w-[7.5rem]">
             <SelectItem value="I">Semester I</SelectItem>
             <SelectItem value="II">Semester II</SelectItem>
           </SelectContent>
         </Select>
         <Input
           type="number"
-          className="h-9 w-20 text-sm font-medium sm:h-8"
+          className="h-7.5 w-18 text-xs font-medium sm:h-7"
           value={yearInput}
           onChange={(e) => setYearInput(e.target.value)}
           onBlur={() => {
