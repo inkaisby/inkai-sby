@@ -87,6 +87,7 @@ describe("buildUktPesertaPrintHtml CSS Alignment", () => {
       rows: [
         {
           no: 1,
+          noRanting: 1,
           nia: "26.37623",
           nama: "CONSTANTINE",
           tempatTanggalLahir: "SURABAYA, 12/06/2020",
@@ -100,7 +101,9 @@ describe("buildUktPesertaPrintHtml CSS Alignment", () => {
     });
     expect(html).toContain("vertical-align: middle");
     expect(html).toContain("text-align: center");
+    expect(html).toContain("<th>No. R</th>");
     expect(html).toContain('<td class="c">26.37623</td>');
+    expect(html).toContain('<td class="c">1</td>');
   });
 });
 

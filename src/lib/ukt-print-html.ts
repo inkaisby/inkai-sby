@@ -414,6 +414,7 @@ export type UktPesertaPrintData = {
   branchLabel: string;
   rows: Array<{
     no: number;
+    noRanting?: number;
     nia: string;
     nama: string;
     tempatTanggalLahir: string;
@@ -439,13 +440,14 @@ export function buildUktPesertaPrintHtml(data: UktPesertaPrintData): string {
     : "";
   const bodyRows =
     data.rows.length === 0
-      ? `<tr><td colspan="9" style="text-align:center;padding:12px;">Belum ada peserta</td></tr>`
+      ? `<tr><td colspan="10" style="text-align:center;padding:12px;">Belum ada peserta</td></tr>`
       : data.rows
           .map(
             (r) => `
         <tr>
           <td class="c">${r.no}</td>
           <td class="c">${escapeHtml(r.nia)}</td>
+          <td class="c">${r.noRanting ?? ""}</td>
           <td class="nama">${escapeHtml(r.nama)}</td>
           <td>${escapeHtml(r.tempatTanggalLahir)}</td>
           <td class="c">${escapeHtml(r.jenisKelamin)}</td>
@@ -535,13 +537,14 @@ export function buildUktPesertaPrintHtml(data: UktPesertaPrintData): string {
     td.nama { font-weight: 600; }
     col.c-no { width: 4%; }
     col.c-nia { width: 9%; }
-    col.c-nama { width: 18%; }
-    col.c-ttl { width: 14%; }
+    col.c-nor { width: 4%; }
+    col.c-nama { width: 17%; }
+    col.c-ttl { width: 13%; }
     col.c-jk { width: 5%; }
-    col.c-alamat { width: 22%; }
+    col.c-alamat { width: 21%; }
     col.c-kyu { width: 5%; }
     col.c-kyub { width: 6%; }
-    col.c-ranting { width: 17%; }
+    col.c-ranting { width: 16%; }
     .sign {
       margin-top: 28px;
       width: 240px;
@@ -575,6 +578,7 @@ export function buildUktPesertaPrintHtml(data: UktPesertaPrintData): string {
       <colgroup>
         <col class="c-no" />
         <col class="c-nia" />
+        <col class="c-nor" />
         <col class="c-nama" />
         <col class="c-ttl" />
         <col class="c-jk" />
@@ -587,6 +591,7 @@ export function buildUktPesertaPrintHtml(data: UktPesertaPrintData): string {
         <tr>
           <th>No. Urut</th>
           <th>No. Induk Anggota</th>
+          <th>No. R</th>
           <th>Nama</th>
           <th>Tempat Tanggal Lahir</th>
           <th>Jenis Kelamin</th>

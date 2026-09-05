@@ -2759,6 +2759,7 @@ export function formatUktBirthPlaceDate(
 
 export type UktPesertaExportRow = {
   no: number;
+  noRanting: number;
   nia: string;
   nama: string;
   tempatTanggalLahir: string;
@@ -2786,13 +2787,19 @@ export function buildUktPesertaExportRows(rows: UktMemberRow[]): UktPesertaExpor
       return (a.fullName || "").localeCompare(b.fullName || "", "id");
     });
 
+  const rantingCounter = new Map<string, number>();
   return sorted.map((r, i) => {
     // KYU di PDF/CSV = sabuk keanggotaan; setelah selesai kunci snapshot Kyu Lama
     const kyuSource = isUktSelesai(r)
       ? r.kyuLama
       : r.memberCurrentRank || r.kyuLama;
+    const rantingKey = (r.dojoName || "").trim().toUpperCase();
+    const noRanting = (rantingCounter.get(rantingKey) ?? 0) + 1;
+    rantingCounter.set(rantingKey, noRanting);
+
     return {
       no: i + 1,
+      noRanting,
       nia: r.nia || "",
       nama: formatMemberName(r.fullName),
       tempatTanggalLahir: formatUktBirthPlaceDate(r.birthPlace, r.birthDate),
@@ -2800,7 +2807,7 @@ export function buildUktPesertaExportRows(rows: UktMemberRow[]): UktPesertaExpor
       alamat: (r.address || "").trim().toUpperCase(),
       kyu: extractUktRankNumber(kyuSource),
       kyuBaru: extractUktRankNumber(r.kyuBaru),
-      ranting: (r.dojoName || "").trim().toUpperCase(),
+      ranting: rantingKey,
     };
   });
 }
@@ -2814,6 +2821,7 @@ export function buildUktPesertaCsv(rows: UktMemberRow[]): string {
   const header = [
     "NO. URUT",
     "NO. INDUK ANGGOTA",
+    "NO. RANTING",
     "NAMA",
     "TEMPAT TANGGAL LAHIR",
     "JENIS KELAMIN",
@@ -2826,6 +2834,7 @@ export function buildUktPesertaCsv(rows: UktMemberRow[]): string {
     [
       r.no,
       r.nia,
+      r.noRanting,
       r.nama,
       r.tempatTanggalLahir,
       r.jenisKelamin,
