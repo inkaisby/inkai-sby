@@ -1175,10 +1175,10 @@ export function KasLedgerClient({
           className={
             tableFullscreen
               ? "fixed inset-0 z-50 flex flex-col bg-background p-3 md:p-4"
-              : "relative min-h-0 flex-1"
+              : "relative w-full"
           }
         >
-          <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
+          <div className={cn("rounded-lg border bg-card shadow-sm", tableFullscreen && "flex h-full min-h-0 flex-col overflow-hidden")}>
             <div className="shrink-0 border-b px-4 py-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -1247,7 +1247,7 @@ export function KasLedgerClient({
                 <option key={k} value={k} />
               ))}
             </datalist>
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div className={cn(tableFullscreen ? "min-h-0 flex-1 overflow-auto" : "overflow-x-auto overflow-y-clip")}>
               <table className="w-full min-w-[880px] border-collapse text-sm">
                 <thead>
                   <tr className="sticky top-0 z-10 border-b bg-muted/95 text-left text-muted-foreground backdrop-blur">
@@ -1382,10 +1382,10 @@ export function KasLedgerClient({
         className={
           tableFullscreen
             ? "fixed inset-0 z-50 flex flex-col bg-background p-3 md:p-4"
-            : "relative min-h-0 flex-1"
+            : "relative w-full"
         }
       >
-        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border bg-card">
+        <div className={cn("rounded-lg border bg-card shadow-sm", tableFullscreen && "flex h-full min-h-0 flex-col overflow-hidden")}>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-b px-3 py-2">
             {tableFullscreen ? (
               <KasFullscreenPeriodPrint
@@ -1420,7 +1420,7 @@ export function KasLedgerClient({
               )}
             </Button>
           </div>
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className={cn(tableFullscreen ? "min-h-0 flex-1 overflow-auto" : "overflow-x-auto overflow-y-clip")}>
           <table className="w-full min-w-[920px] border-collapse text-sm">
             <thead>
               <tr className="sticky top-0 z-10 border-b bg-muted/95 text-left text-muted-foreground backdrop-blur">

@@ -51,7 +51,7 @@ async function AdminKasContent() {
     ? `${scopeLabel}. Buku ranting: iuran yang dilunasi di ranting + CASHBACK Latber. UKT dan nett Latber cabang ada di Kas cabang. Filter periode awal–akhir; tanpa backfill riwayat lama.`
     : `${scopeLabel}. Buku cabang: setoran iuran ranting, UKT, nett Latber, kwitansi non-iuran, plus Tambah manual. Cabang juga bisa koreksi lokasi baris manual antar buku wilayah.`;
   return (
-    <div data-kas-fill className="flex min-h-0 flex-1 flex-col gap-3">
+    <div data-kas-fill className="space-y-3">
       <AdminPageHeader title="Kas" description={description} className="shrink-0" />
       <KasLedgerClient scopeLabel={scopeLabel} isRanting={isRanting} />
     </div>

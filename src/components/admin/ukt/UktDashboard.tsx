@@ -4054,7 +4054,7 @@ export function UktDashboard(props: Props) {
                 activeDir={sort.dir}
                 onSort={handleSort}
               />
-              <TableHead className="min-w-28">Aksi</TableHead>
+              <TableHead className="min-w-[170px]">AKSI</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -4464,24 +4464,12 @@ export function UktDashboard(props: Props) {
                     </TableCell>
                   )}
                   <TableCell>
-                    <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 whitespace-nowrap">
                       {statusBadge(row)}
-                      {row.billingAmount != null && (
-                        <p className="text-xs text-muted-foreground">
-                          {formatRupiah(row.billingAmount)}
-                          {row.billingStatus === "PAID"
-                            ? " · Lunas"
-                            : row.billingStatus === "WAITING_VERIFICATION"
-                              ? " · Menunggu"
-                              : row.billingStatus === "PENDING"
-                                ? " · Belum bayar"
-                                : ""}
-                        </p>
-                      )}
-                      {effectiveExam && (
-                        <p className="text-xs text-muted-foreground">
-                          Hasil ujian: {effectiveExam === "LULUS" ? "Lulus" : effectiveExam}
-                        </p>
+                      {isUktBillingPaid(row) && (
+                        <span title="Tagihan UKT Lunas">
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                        </span>
                       )}
                     </div>
                   </TableCell>
@@ -4624,7 +4612,7 @@ export function UktDashboard(props: Props) {
                       }
 
                       return (
-                        <div className="flex flex-wrap items-center gap-0.5">
+                        <div className="flex items-center gap-1 shrink-0 whitespace-nowrap">
                           {/* Terima / Tolak Pengajuan Mandiri */}
                           {isDojoAdmin &&
                             (row.status === "PENDING" ||
@@ -4633,7 +4621,7 @@ export function UktDashboard(props: Props) {
                               <>
                                 <Button
                                   size="icon"
-                                  className="h-6.5 w-6.5 bg-inkai-red hover:bg-inkai-red/90"
+                                  className="h-6.5 w-6.5 bg-inkai-red hover:bg-inkai-red/90 shrink-0"
                                   onClick={() =>
                                     void handleAcceptSelfRegistration(row)
                                   }
@@ -4649,7 +4637,7 @@ export function UktDashboard(props: Props) {
                                 <Button
                                   size="icon"
                                   variant="outline"
-                                  className="h-6.5 w-6.5 text-destructive"
+                                  className="h-6.5 w-6.5 text-destructive shrink-0"
                                   onClick={() =>
                                     void handleRejectSelfRegistration(row)
                                   }
@@ -4667,7 +4655,7 @@ export function UktDashboard(props: Props) {
                           {isDojoAdmin && canRantingSubmitUktPayment(row) && (
                             <Button
                               size="icon"
-                              className="h-6.5 w-6.5 bg-inkai-red text-white hover:bg-inkai-red/90"
+                              className="h-6.5 w-6.5 bg-inkai-red text-white hover:bg-inkai-red/90 shrink-0"
                               onClick={() => void handleBayarUkt([row])}
                               disabled={
                                 loading ||
@@ -4683,7 +4671,7 @@ export function UktDashboard(props: Props) {
                             <Button
                               size="icon"
                               variant="outline"
-                              className="h-6.5 w-6.5 text-emerald-600 border-emerald-300"
+                              className="h-6.5 w-6.5 text-emerald-600 border-emerald-300 shrink-0"
                               onClick={() => void handleMarkPaid(row)}
                               disabled={
                                 loading ||
@@ -4710,7 +4698,7 @@ export function UktDashboard(props: Props) {
                                   );
                                 }}
                               >
-                                <SelectTrigger className="h-6.5 w-[min(100%,130px)] px-1.5 text-xs">
+                                <SelectTrigger className="h-6.5 w-[110px] px-1.5 text-xs shrink-0">
                                   <SelectValue placeholder="Hasil ujian" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -4722,7 +4710,7 @@ export function UktDashboard(props: Props) {
                               </Select>
                             )}
                           {isCabang && isUktSelesai(row) && (
-                            <Badge className="h-6.5 bg-emerald-600 px-2 text-[11px] text-white hover:bg-emerald-600">
+                            <Badge className="h-6.5 bg-emerald-600 px-2 text-[11px] text-white hover:bg-emerald-600 shrink-0">
                               Selesai
                             </Badge>
                           )}
@@ -4730,20 +4718,20 @@ export function UktDashboard(props: Props) {
                             <Button
                               size="icon"
                               variant="outline"
-                              className="h-6.5 w-6.5 cursor-not-allowed text-emerald-600 opacity-70"
+                              className="h-6.5 w-6.5 cursor-not-allowed text-emerald-600 opacity-70 shrink-0"
                               disabled
                               title="UKT sudah selesai"
                             >
                               <Check className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {/* Desktop: aksi sekunder inline icon-only */}
-                          <span className="hidden sm:inline-flex sm:items-center sm:gap-0.5">
+                          {/* Desktop: aksi sekunder inline icon-only di sebelah dropdown */}
+                          <span className="hidden sm:inline-flex sm:items-center sm:gap-0.5 shrink-0">
                             {isCabang && row.billingId && isUktBillingPaid(row) && (
                               <Button
                                 size="icon"
                                 variant="outline"
-                                className="h-6.5 w-6.5"
+                                className="h-6.5 w-6.5 shrink-0"
                                 onClick={() =>
                                   setDeleteBillingTarget({
                                     billingId: row.billingId!,
@@ -4767,7 +4755,7 @@ export function UktDashboard(props: Props) {
                               <Button
                                 size="icon"
                                 variant="destructive"
-                                className="h-6.5 w-6.5"
+                                className="h-6.5 w-6.5 shrink-0"
                                 onClick={() =>
                                   setCancelTarget({
                                     id: row.registrationId!,

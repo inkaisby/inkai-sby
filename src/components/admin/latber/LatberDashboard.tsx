@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Archive,
   Calendar,
+  CheckCircle2,
   Clock,
   Copy,
   Download,
@@ -1273,7 +1274,7 @@ export function LatberDashboard(props: LatberDashboardProps) {
                           <StatusBadge row={row} />
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex items-center gap-1 shrink-0 whitespace-nowrap">
                             {status === "belum_daftar" && !periodLocked && (
                               <EventQuickRegisterButtons
                                 variant="latber"
