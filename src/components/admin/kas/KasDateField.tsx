@@ -40,13 +40,13 @@ export function KasDateField({
   }
 
   return (
-    <div className="flex min-w-[12rem] flex-1 gap-1">
+    <div className="flex min-w-[10.5rem] flex-1 gap-1">
       <Input
         id={id}
         type="text"
         value={draft}
         placeholder="Selasa, 27 Januari 2026"
-        className="min-w-0 flex-1"
+        className="h-8 min-w-0 flex-1 text-xs"
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => {
           if (draft.trim() === value) return;
@@ -69,7 +69,7 @@ export function KasDateField({
         type="date"
         value={value}
         aria-label="Pilih tanggal"
-        className="w-[2.75rem] shrink-0 px-1"
+        className="h-8 w-[2.25rem] shrink-0 px-1 text-xs"
         onChange={(e) => {
           if (e.target.value) onChange(e.target.value);
         }}

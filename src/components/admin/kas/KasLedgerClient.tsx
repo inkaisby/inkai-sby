@@ -990,8 +990,8 @@ export function KasLedgerClient({
           </Button>
         </div>
 
-        <div className={`${summaryOpen ? "block" : "hidden"} space-y-2 md:block`}>
-          <div className="grid gap-3 sm:grid-cols-3">
+        <div className={`${summaryOpen ? "block" : "hidden"} space-y-1.5 md:block`}>
+          <div className="grid gap-2 sm:grid-cols-3">
             <Kpi
               label="Total masuk"
               caption={periodCaption}
@@ -1011,7 +1011,7 @@ export function KasLedgerClient({
               tone={(data?.kpis.saldoAkhir ?? 0) < 0 ? "negative" : "saldo"}
             />
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             Saldo bawa sebelum periode {formatRp(data?.kpis.opening ?? 0)} · Belum rekon{" "}
             {data?.kpis.unmatched ?? 0}
             {locked ? ` · Buku ${lockMonth} dikunci` : ""}
@@ -1021,66 +1021,126 @@ export function KasLedgerClient({
           </p>
         </div>
 
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-          <div className="-mx-1 flex items-end gap-2 overflow-x-auto px-1 pb-1 md:flex-wrap md:overflow-visible">
-            <div className="flex h-10 shrink-0 overflow-hidden rounded-md border text-xs">
-              <button
-                type="button"
-                className={`px-3 ${
-                  viewMode === "laporan"
-                    ? "bg-inkai-red text-white"
-                    : "bg-background text-muted-foreground hover:bg-muted"
-                }`}
-                onClick={() => setViewMode("laporan")}
-              >
-                Laporan Detail
-              </button>
-              <button
-                type="button"
-                className={`border-l px-3 ${
-                  viewMode === "buku"
-                    ? "bg-inkai-red text-white"
-                    : "bg-background text-muted-foreground hover:bg-muted"
-                }`}
-                onClick={() => setViewMode("buku")}
-              >
-                Buku
-              </button>
-            </div>
-            <Field label="Periode awal">
-              <KasDateField allowEmpty value={fromYmd} onChange={setFromYmd} />
-            </Field>
-            <Field label="Periode akhir">
-              <KasDateField allowEmpty value={toYmd} onChange={setToYmd} />
-            </Field>
-            {!isRanting && (data?.scopes?.length ?? 0) > 1 ? (
-              <Field label="Buku kas">
-                <select
-                  className="h-10 rounded-md border bg-background px-2 text-sm"
-                  value={scopeKey}
-                  onChange={(e) => setScopeKey(e.target.value)}
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex h-8 shrink-0 overflow-hidden rounded-md border text-xs">
+                <button
+                  type="button"
+                  className={`px-2.5 font-medium ${
+                    viewMode === "laporan"
+                      ? "bg-inkai-red text-white"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                  onClick={() => setViewMode("laporan")}
                 >
-                  {(data?.scopes ?? []).map((scope) => (
-                    <option key={`${scope.type}:${scope.id}`} value={`${scope.type}:${scope.id}`}>
-                      {scope.label}
-                    </option>
-                  ))}
-                </select>
+                  Laporan Detail
+                </button>
+                <button
+                  type="button"
+                  className={`border-l px-2.5 font-medium ${
+                    viewMode === "buku"
+                      ? "bg-inkai-red text-white"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                  onClick={() => setViewMode("buku")}
+                >
+                  Buku
+                </button>
+              </div>
+              <Field label="Periode awal">
+                <KasDateField allowEmpty value={fromYmd} onChange={setFromYmd} />
               </Field>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10 shrink-0 text-xs"
-              onClick={() => {
-                setFromYmd("");
-                setToYmd("");
-              }}
-            >
-              Semua tanggal
-            </Button>
+              <Field label="Periode akhir">
+                <KasDateField allowEmpty value={toYmd} onChange={setToYmd} />
+              </Field>
+              {!isRanting && (data?.scopes?.length ?? 0) > 1 ? (
+                <Field label="Buku kas">
+                  <select
+                    className="h-8 rounded-md border bg-background px-2 text-xs"
+                    value={scopeKey}
+                    onChange={(e) => setScopeKey(e.target.value)}
+                  >
+                    {(data?.scopes ?? []).map((scope) => (
+                      <option key={`${scope.type}:${scope.id}`} value={`${scope.type}:${scope.id}`}>
+                        {scope.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 shrink-0 text-xs px-2.5 mt-auto"
+                onClick={() => {
+                  setFromYmd("");
+                  setToYmd("");
+                }}
+              >
+                Semua tanggal
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Button type="button" variant="outline" size="sm" className="h-8 text-xs px-2.5" onClick={handlePrint}>
+                <Printer className="h-3.5 w-3.5 mr-1" />
+                Cetak
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="h-8 text-xs px-2.5" onClick={exportCsv}>
+                <Download className="h-3.5 w-3.5 mr-1" />
+                CSV
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs px-2.5 border-teal-600/40 text-teal-700 hover:bg-teal-50 dark:text-teal-300 dark:hover:bg-teal-950/30 font-medium"
+                onClick={() => setRecapDojoOpen(true)}
+              >
+                Rekap Per Ranting
+              </Button>
+              {data?.canWrite ? (
+                <>
+                  <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-md border px-2.5 text-xs hover:bg-accent">
+                    <Upload className="h-3.5 w-3.5" />
+                    Impor
+                    <input
+                      type="file"
+                      accept=".csv,.tsv,.txt"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void handleImportFile(f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <Button type="button" variant="outline" size="sm" className="h-8 text-xs px-2.5" onClick={openMassDialog}>
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Tambah massal
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 bg-inkai-red text-xs px-3 hover:bg-inkai-red/90"
+                    onClick={openAddDialog}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Tambah
+                  </Button>
+                </>
+              ) : null}
+              {data?.canLock ? (
+                <Button type="button" variant="outline" size="sm" className="h-8 text-xs px-2.5" onClick={() => void toggleLock()}>
+                  {locked ? <Unlock className="h-3.5 w-3.5 mr-1" /> : <Lock className="h-3.5 w-3.5 mr-1" />}
+                  {locked ? "Buka buku" : "Tutup buku"}
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
             <select
-              className="h-10 shrink-0 rounded-md border bg-background px-2 text-sm"
+              className="h-8 shrink-0 rounded-md border bg-background px-2 text-xs"
               value={kegiatan}
               onChange={(e) => setKegiatan(e.target.value)}
             >
@@ -1092,7 +1152,7 @@ export function KasLedgerClient({
               ))}
             </select>
             <select
-              className="h-10 shrink-0 rounded-md border bg-background px-2 text-sm"
+              className="h-8 shrink-0 rounded-md border bg-background px-2 text-xs"
               value={source}
               onChange={(e) => setSource(e.target.value)}
             >
@@ -1104,7 +1164,7 @@ export function KasLedgerClient({
               <option value="kwitansi">Kwitansi</option>
             </select>
             <select
-              className="h-10 shrink-0 rounded-md border bg-background px-2 text-sm"
+              className="h-8 shrink-0 rounded-md border bg-background px-2 text-xs"
               value={recon}
               onChange={(e) => setRecon(e.target.value)}
             >
@@ -1112,60 +1172,6 @@ export function KasLedgerClient({
               <option value="open">Belum rekon</option>
               <option value="matched">Cocok rekening</option>
             </select>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" className="text-xs" onClick={handlePrint}>
-              <Printer className="h-4 w-4" />
-              Cetak
-            </Button>
-            <Button type="button" variant="outline" className="text-xs" onClick={exportCsv}>
-              <Download className="h-4 w-4" />
-              CSV
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="text-xs border-teal-600/40 text-teal-700 hover:bg-teal-50 dark:text-teal-300 dark:hover:bg-teal-950/30 font-medium"
-              onClick={() => setRecapDojoOpen(true)}
-            >
-              Rekap Per Ranting
-            </Button>
-            {data?.canWrite ? (
-              <>
-                <label className="inline-flex h-10 cursor-pointer items-center gap-1 rounded-md border px-3 text-xs">
-                  <Upload className="h-4 w-4" />
-                  Impor
-                  <input
-                    type="file"
-                    accept=".csv,.tsv,.txt"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void handleImportFile(f);
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
-                <Button type="button" variant="outline" className="text-xs" onClick={openMassDialog}>
-                  <Plus className="h-4 w-4" />
-                  Tambah massal
-                </Button>
-                <Button
-                  type="button"
-                  className="bg-inkai-red text-xs hover:bg-inkai-red/90"
-                  onClick={openAddDialog}
-                >
-                  <Plus className="h-4 w-4" />
-                  Tambah
-                </Button>
-              </>
-            ) : null}
-            {data?.canLock ? (
-              <Button type="button" variant="outline" className="text-xs" onClick={() => void toggleLock()}>
-                {locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-                {locked ? "Buka buku" : "Tutup buku"}
-              </Button>
-            ) : null}
           </div>
         </div>
       </div>
@@ -1247,7 +1253,7 @@ export function KasLedgerClient({
                 <option key={k} value={k} />
               ))}
             </datalist>
-            <div className={cn(tableFullscreen ? "min-h-0 flex-1 overflow-auto" : "overflow-x-auto overflow-y-clip")}>
+            <div className={cn("overflow-x-auto", tableFullscreen ? "min-h-0 flex-1 overflow-y-auto" : "max-h-[calc(100vh-270px)] min-h-[300px] overflow-y-auto border-t")}>
               <table className="w-full min-w-[880px] border-collapse text-sm">
                 <thead>
                   <tr className="sticky top-0 z-10 border-b bg-muted/95 text-left text-muted-foreground backdrop-blur">
@@ -1420,7 +1426,7 @@ export function KasLedgerClient({
               )}
             </Button>
           </div>
-          <div className={cn(tableFullscreen ? "min-h-0 flex-1 overflow-auto" : "overflow-x-auto overflow-y-clip")}>
+          <div className={cn("overflow-x-auto", tableFullscreen ? "min-h-0 flex-1 overflow-y-auto" : "max-h-[calc(100vh-270px)] min-h-[300px] overflow-y-auto border-t")}>
           <table className="w-full min-w-[920px] border-collapse text-sm">
             <thead>
               <tr className="sticky top-0 z-10 border-b bg-muted/95 text-left text-muted-foreground backdrop-blur">
