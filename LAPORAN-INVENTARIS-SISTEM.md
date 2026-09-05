@@ -1212,8 +1212,10 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 5 September 2026 | **Kas Toolbar Micro-Density & Natural Document Page Scroll:** Merapatkan toolbar filter & KPI kas (`/admin/kas`) ke tinggi `h-8 text-xs` (32px) dengan penataan flex 2 baris ringkas; menyatukan penggulungan seluruh halaman (Header, KPI, Toolbar, dan Tabel) secara alami (`overflow-y-visible` pada tabel) sehingga saat pengguna mengulung halaman ke bawah, seluruh bagian atas bergeser naik ke atas secara mulus dan tabel langsung naik memenuhi layar; inventaris §6/§9/§15 |
 
 | 5 September 2026 | **Fleksibilitas Pengisian Kyu Baru & Akses Centang Peserta (`/admin/ukt`):** Update `canApplyUktKyuBaru` (`src/lib/ukt.ts`) & `selectableRows` (`src/components/admin/ukt/UktDashboard.tsx`) agar seluruh peserta yang terdaftar di UKT (termasuk status *Belum Bayar*) dapat dicentang pada checkbox tabel dan diisi/diubah Kyu Baru-nya (baik via dropdown sel individu maupun via action bar massal `⚡ Standar INKAI`, pemilih Kyu Baru, dan Centang Khusus); inventaris §6/§11/§15 |
+| 5 September 2026 | **Single-Page Print Layout Rekapitulasi Matrix UKT (`src/lib/ukt-matrix-print-html.ts`):** Mengoptimalkan CSS cetak dokumen (margin `@page` `8mm 10mm`, padding tabel `2.5px 5px`, font 8.5–9.5pt, logo 50px, jarak tanda tangan `38px`) sehingga rekapitulasi matrix 25+ ranting beserta blok tanda tangan muat sempurna 100% dalam **1 lembar kertas (1 halaman)** tanpa terpotong ke halaman 2; inventaris §6/§11/§15 |
 
 ---
 
 *Dokumen ini living inventaris organisasi (bukan laporan sekali-jadi) dan dapat dilampirkan pada presentasi pengurus Cabang / Pengprov.*
+
 

@@ -86,61 +86,62 @@ export function buildUktMatrixPrintHtml(data: UktMatrixPrintData): string {
   <style>
     @page {
       size: ${pageSize};
-      margin: 12mm 15mm;
+      margin: 8mm 10mm;
     }
     body {
       font-family: Arial, Helvetica, sans-serif;
-      font-size: 11pt;
+      font-size: 9.5pt;
       color: #0f172a;
       margin: 0;
       padding: 0;
+      line-height: 1.2;
     }
     .header {
       display: flex;
       align-items: center;
-      gap: 16px;
-      border-bottom: 3px double #1e293b;
-      padding-bottom: 10px;
-      margin-bottom: 15px;
+      gap: 12px;
+      border-bottom: 2.5px double #1e293b;
+      padding-bottom: 6px;
+      margin-bottom: 8px;
     }
     .logo {
-      width: 65px;
+      width: 50px;
       height: auto;
     }
     .header-text {
       flex: 1;
     }
     .header-text h1 {
-      font-size: 14pt;
+      font-size: 12pt;
       font-weight: bold;
-      margin: 0 0 2px 0;
+      margin: 0 0 1px 0;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
     .header-text h2 {
-      font-size: 11pt;
+      font-size: 9.5pt;
       font-weight: normal;
       margin: 0;
       color: #334155;
     }
     .header-text p {
-      font-size: 8.5pt;
-      margin: 3px 0 0 0;
+      font-size: 7.5pt;
+      margin: 2px 0 0 0;
       color: #64748b;
     }
     .doc-title {
       text-align: center;
-      margin: 15px 0;
+      margin: 8px 0;
     }
     .doc-title h3 {
-      font-size: 13pt;
+      font-size: 11pt;
       font-weight: bold;
       text-transform: uppercase;
-      margin: 0 0 4px 0;
+      margin: 0 0 2px 0;
       text-decoration: underline;
     }
     .doc-title p {
-      font-size: 10pt;
+      font-size: 8.5pt;
       font-weight: bold;
       margin: 0;
       color: #334155;
@@ -148,28 +149,30 @@ export function buildUktMatrixPrintHtml(data: UktMatrixPrintData): string {
     table.matrix-table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 10px;
-      font-size: 10pt;
+      margin-top: 6px;
+      font-size: 8.5pt;
     }
     table.matrix-table th,
     table.matrix-table td {
       border: 1px solid #334155;
-      padding: 6px 8px;
+      padding: 2.5px 5px;
     }
     table.matrix-table th {
       background-color: #f1f5f9;
       font-weight: bold;
       text-transform: uppercase;
       text-align: center;
-      font-size: 9.5pt;
+      font-size: 8.5pt;
+      padding: 3.5px 5px;
     }
     table.matrix-table tr.total-row td {
       background-color: #e2e8f0;
       font-weight: bold;
-      font-size: 10.5pt;
+      font-size: 9pt;
+      padding: 3.5px 5px;
     }
     .signatures {
-      margin-top: 35px;
+      margin-top: 14px;
       display: flex;
       justify-content: space-between;
       page-break-inside: avoid;
@@ -179,15 +182,15 @@ export function buildUktMatrixPrintHtml(data: UktMatrixPrintData): string {
       width: 45%;
     }
     .sig-box p {
-      margin: 2px 0;
-      font-size: 10pt;
+      margin: 1px 0;
+      font-size: 8.5pt;
     }
     .sig-space {
-      height: 60px;
+      height: 38px;
     }
     .printed-footer {
-      margin-top: 25px;
-      font-size: 8pt;
+      margin-top: 10px;
+      font-size: 7pt;
       color: #94a3b8;
       display: flex;
       justify-content: space-between;
