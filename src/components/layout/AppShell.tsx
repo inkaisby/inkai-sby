@@ -303,26 +303,26 @@ export function AppSidebar({
   return (
     <aside
       className={`admin-sidebar hidden h-svh ${
-        collapsed ? "w-16" : "w-64 2xl:w-72"
-      } shrink-0 flex-col border-r border-border/60 bg-gradient-to-b from-muted/40 via-background to-background transition-all duration-200 lg:flex`}
+        collapsed ? "w-14" : "w-56 xl:w-60 2xl:w-64"
+      } shrink-0 flex-col border-r border-border/40 bg-gradient-to-b from-muted/30 via-background to-background transition-all duration-200 lg:flex`}
     >
       <div
-        className={`flex h-16 shrink-0 items-center border-b border-border/60 ${
-          collapsed ? "justify-center px-2" : "justify-between px-3"
+        className={`flex h-11 shrink-0 items-center border-b border-border/40 lg:h-12 ${
+          collapsed ? "justify-center px-1.5" : "justify-between px-2.5"
         }`}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           <Image
             src="/logo-inkai.png"
             alt="INKAI"
-            width={36}
-            height={36}
-            className="rounded-full shadow-sm ring-2 ring-inkai-red/15 shrink-0"
+            width={28}
+            height={28}
+            className="rounded-full shadow-sm ring-1 ring-inkai-red/20 shrink-0"
           />
           {!collapsed ? (
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold tracking-tight">{title}</p>
-              <p className="truncate text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+              <p className="truncate text-xs font-bold tracking-tight">{title}</p>
+              <p className="truncate text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 INKAI Surabaya
               </p>
             </div>
@@ -332,19 +332,19 @@ export function AppSidebar({
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+          className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
           onClick={toggleCollapsed}
           title={collapsed ? "Buka Sidebar" : "Tutup Sidebar"}
           aria-label={collapsed ? "Buka Sidebar" : "Tutup Sidebar"}
         >
           {collapsed ? (
-            <PanelLeftOpen className="h-4 w-4" />
+            <PanelLeftOpen className="h-3.5 w-3.5" />
           ) : (
-            <PanelLeftClose className="h-4 w-4" />
+            <PanelLeftClose className="h-3.5 w-3.5" />
           )}
         </Button>
       </div>
-      <nav className={`min-h-0 flex-1 overflow-y-auto ${collapsed ? "p-1.5" : "p-3"}`}>
+      <nav className={`min-h-0 flex-1 overflow-y-auto scrollbar-ultrathin ${collapsed ? "p-1" : "p-2"}`}>
         {links.map((item) => {
           if (isNavGroup(item)) {
             return (

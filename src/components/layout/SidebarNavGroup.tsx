@@ -45,28 +45,28 @@ export function SidebarNavGroup({
   }, [groupOpen]);
 
   return (
-    <div className="mb-1">
+    <div className="mb-0.5">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={`flex w-full items-center ${
-          collapsed ? "justify-center px-2 py-2.5" : "gap-2 px-3 py-2"
-        } rounded-lg text-sm font-medium transition-colors ${
+          collapsed ? "justify-center px-2 py-1.5" : "gap-2 px-2.5 py-1.5"
+        } rounded-md text-xs font-medium transition-colors ${
           groupOpen
-            ? "bg-muted text-foreground"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            ? "bg-muted/80 text-foreground"
+            : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
         }`}
         aria-expanded={open}
         title={label}
       >
-        {Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden /> : null}
+        {Icon ? <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
         {!collapsed ? (
           <>
             <span className="min-w-0 flex-1 text-left leading-tight" title={label}>
               {label}
             </span>
             <ChevronDown
-              className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+              className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
             />
           </>
         ) : null}
@@ -76,7 +76,7 @@ export function SidebarNavGroup({
           className={
             collapsed
               ? "mt-0.5 space-y-0.5"
-              : "ml-2 mt-0.5 space-y-0.5 border-l border-border pl-2"
+              : "ml-1.5 mt-0.5 space-y-0.5 border-l border-border/40 pl-1.5"
           }
         >
           {items.map((link) => {

@@ -28,11 +28,11 @@ export function SidebarNavLink({
       prefetch
       onClick={() => startNavigation(href)}
       title={label}
-      className={`relative mb-1 flex items-center ${
-        collapsed ? "justify-center px-2 py-2.5" : "gap-2 px-3 py-2"
-      } rounded-xl text-sm font-medium transition-all duration-200 ${
+      className={`relative mb-0.5 flex items-center ${
+        collapsed ? "justify-center px-2 py-1.5" : "gap-2 px-2.5 py-1.5"
+      } rounded-md text-xs font-medium transition-all duration-200 ${
         isActive
-          ? "bg-inkai-red text-white shadow-md shadow-inkai-red/25"
+          ? "bg-inkai-red text-white shadow-sm shadow-inkai-red/20"
           : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
       } ${isPending ? "opacity-80" : ""}`}
       aria-busy={isPending}
@@ -40,7 +40,7 @@ export function SidebarNavLink({
       {isPending ? (
         <InkaiLogoLoader size="sm" showDots={false} className="shrink-0" />
       ) : Icon ? (
-        <Icon className="h-4 w-4 shrink-0" aria-hidden />
+        <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
       ) : null}
       {!collapsed ? (
         <>
