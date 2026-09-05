@@ -1213,9 +1213,11 @@ Prioritas pengembangan lanjutan yang disarankan:
 
 | 5 September 2026 | **Fleksibilitas Pengisian Kyu Baru & Akses Centang Peserta (`/admin/ukt`):** Update `canApplyUktKyuBaru` (`src/lib/ukt.ts`) & `selectableRows` (`src/components/admin/ukt/UktDashboard.tsx`) agar seluruh peserta yang terdaftar di UKT (termasuk status *Belum Bayar*) dapat dicentang pada checkbox tabel dan diisi/diubah Kyu Baru-nya (baik via dropdown sel individu maupun via action bar massal `⚡ Standar INKAI`, pemilih Kyu Baru, dan Centang Khusus); inventaris §6/§11/§15 |
 | 5 September 2026 | **Single-Page Print Layout Rekapitulasi Matrix UKT (`src/lib/ukt-matrix-print-html.ts`):** Mengoptimalkan CSS cetak dokumen (margin `@page` `8mm 10mm`, padding tabel `2.5px 5px`, font 8.5–9.5pt, logo 50px, jarak tanda tangan `38px`) sehingga rekapitulasi matrix 25+ ranting beserta blok tanda tangan muat sempurna 100% dalam **1 lembar kertas (1 halaman)** tanpa terpotong ke halaman 2; inventaris §6/§11/§15 |
+| 5 September 2026 | **Tombol Verifikasi Massal & Centang Khusus Belum Bayar (`/admin/ukt`):** Menambahkan tombol **`✓ Verifikasi (n)`** pada floating action bar massal dan opsi **`💳 Centang Khusus: Belum Bayar`** pada dropdown header tabel (`UktDashboard.tsx`); men-trigger `handleBulkMarkPaid` untuk memverifikasi pembayaran/pendaftaran seluruh peserta terpilih secara serentak sehingga status peserta langsung berubah menjadi **Menunggu Ujian**; inventaris §6/§11/§15 |
 
 ---
 
 *Dokumen ini living inventaris organisasi (bukan laporan sekali-jadi) dan dapat dilampirkan pada presentasi pengurus Cabang / Pengprov.*
+
 
 

@@ -1122,6 +1122,14 @@ export function UktDashboard(props: Props) {
     [rows, selectedIds],
   );
 
+  const verifiableRows = useMemo(
+    () =>
+      selectedRows.filter(
+        (r) => r.registrationId && canCabangVerifyUktPayment(r),
+      ),
+    [selectedRows],
+  );
+
   const allSelectableChecked =
     selectableRows.length > 0 &&
     selectableRows.every((r) => selectedIds.has(r.memberId));
@@ -2034,6 +2042,17 @@ export function UktDashboard(props: Props) {
     }
     if (key === "none") {
       setSelectedIds(new Set());
+      return;
+    }
+    if (key === "unpaid") {
+      const ids = new Set<string>();
+      for (const r of filteredRows) {
+        if (r.registrationId && canCabangVerifyUktPayment(r)) {
+          ids.add(r.memberId);
+        }
+      }
+      setSelectedIds(ids);
+      toast.info(`${ids.size} peserta belum verifikasi/bayar terpilih`);
       return;
     }
     if (key === "unfilled") {
@@ -4078,6 +4097,9 @@ export function UktDashboard(props: Props) {
                       <DropdownMenuItem onClick={() => handleSelectSpecial("all")}>
                         ☑️ Centang Semua Pendaftar
                       </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("unpaid")}>
+                        💳 Centang Khusus: Belum Bayar
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleSelectSpecial("unfilled")}>
                         ⚠️ Centang Khusus: Belum Isi Kyu Baru
                       </DropdownMenuItem>
@@ -5017,6 +5039,18 @@ export function UktDashboard(props: Props) {
 
           {isCabang && (
             <div className="flex flex-wrap items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void handleBulkMarkPaid()}
+                disabled={loading || verifiableRows.length === 0}
+                className="h-8 gap-1 text-xs border-indigo-500/40 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 disabled:opacity-50"
+                title="Verifikasi pendaftaran/pembayaran peserta terpilih agar statusnya menjadi Menunggu Ujian"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                <span>Verifikasi{verifiableRows.length > 0 ? ` (${verifiableRows.length})` : ""}</span>
+              </Button>
+
               <Select
                 onValueChange={(val) => {
                   if (val === "RECOMMENDED") void handleBulkSetKyuBaru("RECOMMENDED");
