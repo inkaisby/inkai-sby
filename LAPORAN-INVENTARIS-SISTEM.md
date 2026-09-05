@@ -1211,6 +1211,9 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 5 September 2026 | **Single-Line Row Density & Icon Optimization (UKT, Latber, Admin Global):** Menghapus Teks Biaya (`Rp XXX.000`) & teks sub-keterangan dari kolom Status di seluruh tabel admin (UKT, Latber); mengganti label teks Lunas dengan ikon centang hijau (`CheckCircle2 text-emerald-600`) yang sejajar di sebelah badge status (`Menunggu Ujian`, `Latber Lunas`); meratakan seluruh ikon aksi (`Wallet`, `Trash2`, `Pencil`, tombol cepat) secara horizontal sejajar dengan dropdown/pilihan (non-wrapping `flex-nowrap shrink-0`) sehingga seluruh baris tabel di semua halaman admin konsisten 100% single-line ultra-padat rapat; inventaris §6/§11/§15 |
 | 5 September 2026 | **Kas Toolbar Micro-Density & Natural Document Page Scroll:** Merapatkan toolbar filter & KPI kas (`/admin/kas`) ke tinggi `h-8 text-xs` (32px) dengan penataan flex 2 baris ringkas; menyatukan penggulungan seluruh halaman (Header, KPI, Toolbar, dan Tabel) secara alami (`overflow-y-visible` pada tabel) sehingga saat pengguna mengulung halaman ke bawah, seluruh bagian atas bergeser naik ke atas secara mulus dan tabel langsung naik memenuhi layar; inventaris §6/§9/§15 |
 
+| 5 September 2026 | **Fleksibilitas Pengisian Kyu Baru & Akses Centang Peserta (`/admin/ukt`):** Update `canApplyUktKyuBaru` (`src/lib/ukt.ts`) & `selectableRows` (`src/components/admin/ukt/UktDashboard.tsx`) agar seluruh peserta yang terdaftar di UKT (termasuk status *Belum Bayar*) dapat dicentang pada checkbox tabel dan diisi/diubah Kyu Baru-nya (baik via dropdown sel individu maupun via action bar massal `⚡ Standar INKAI`, pemilih Kyu Baru, dan Centang Khusus); inventaris §6/§11/§15 |
+
 ---
 
 *Dokumen ini living inventaris organisasi (bukan laporan sekali-jadi) dan dapat dilampirkan pada presentasi pengurus Cabang / Pengprov.*
+

@@ -1113,13 +1113,7 @@ export function UktDashboard(props: Props) {
   }, [sortedRows, safePage, localPageSize]);
 
   const selectableRows = useMemo(
-    () =>
-      filteredRows.filter(
-        (r) =>
-          r.registrationId &&
-          isNotaParticipant(r.status) &&
-          canCabangVerifyUktPayment(r),
-      ),
+    () => filteredRows.filter((r) => Boolean(r.registrationId)),
     [filteredRows],
   );
 
@@ -4274,11 +4268,7 @@ export function UktDashboard(props: Props) {
                       type="checkbox"
                       className="h-4 w-4 accent-inkai-red"
                       checked={selectedIds.has(row.memberId)}
-                      disabled={
-                        !row.registrationId ||
-                        !isNotaParticipant(row.status) ||
-                        !isUktBillingUnpaid(row)
-                      }
+                      disabled={!row.registrationId}
                       onChange={() => toggleSelect(row.memberId)}
                       aria-label={`Pilih ${row.fullName}`}
                     />
