@@ -101,6 +101,7 @@ describe("buildUktPesertaPrintHtml CSS Alignment", () => {
     });
     expect(html).toContain("vertical-align: middle");
     expect(html).toContain("text-align: center");
+    expect(html).toContain("page-break-inside: avoid");
     expect(html).toContain("<th>No. R</th>");
     expect(html).toContain('<td class="c">26.37623</td>');
     expect(html).toContain('<td class="c">1</td>');

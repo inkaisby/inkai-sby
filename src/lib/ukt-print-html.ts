@@ -546,17 +546,20 @@ export function buildUktPesertaPrintHtml(data: UktPesertaPrintData): string {
     col.c-kyub { width: 6%; }
     col.c-ranting { width: 16%; }
     .sign {
-      margin-top: 28px;
+      margin-top: 20px;
       width: 240px;
       margin-left: auto;
       text-align: center;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .sign .place { margin-bottom: 4px; }
-    .sign .role { margin-bottom: 48px; }
+    .sign .role { margin-bottom: 36px; }
     .sign .name {
       font-weight: 700;
       text-decoration: underline;
       text-transform: uppercase;
+      white-space: nowrap;
     }
   </style>
 </head>
