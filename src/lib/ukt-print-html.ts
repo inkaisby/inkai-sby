@@ -445,7 +445,7 @@ export function buildUktPesertaPrintHtml(data: UktPesertaPrintData): string {
             (r) => `
         <tr>
           <td class="c">${r.no}</td>
-          <td>${escapeHtml(r.nia)}</td>
+          <td class="c">${escapeHtml(r.nia)}</td>
           <td class="nama">${escapeHtml(r.nama)}</td>
           <td>${escapeHtml(r.tempatTanggalLahir)}</td>
           <td class="c">${escapeHtml(r.jenisKelamin)}</td>
@@ -517,16 +517,19 @@ export function buildUktPesertaPrintHtml(data: UktPesertaPrintData): string {
       border-collapse: collapse;
       table-layout: fixed;
     }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; break-inside: avoid; }
     th, td {
       border: 1px solid #000;
       padding: 3px 4px;
-      vertical-align: top;
+      vertical-align: middle;
       word-wrap: break-word;
     }
     th {
       font-size: 9px;
       text-transform: uppercase;
       background: #f3f3f3;
+      text-align: center;
     }
     td.c { text-align: center; }
     td.nama { font-weight: 600; }

@@ -494,7 +494,7 @@ describe("UKT Laporan WA multi-ranting picker", () => {
     expect(text).toContain("*TOTAL SEMUA: 2 peserta*");
   });
 
-  it("dua ranting = gabungan rinci alfabetis dipisah baris kosong", () => {
+  it("dua ranting = laporan gabungan multi-ranting dengan rincian tunggal", () => {
     const text = buildUktSelectedDojosWaReportText(
       "UKT Semester II-2026",
       ["d1", "d3"],
@@ -503,31 +503,12 @@ describe("UKT Laporan WA multi-ranting picker", () => {
       beltFees,
       komisi,
     );
-    const gading = buildUktSingleDojoWaReportText(
-      "UKT Semester II-2026",
-      "d1",
-      "GADING",
-      rows,
-      beltFees,
-      komisi,
-    );
-    const rungkut = buildUktSingleDojoWaReportText(
-      "UKT Semester II-2026",
-      "d3",
-      "RUNGKUT",
-      rows,
-      beltFees,
-      komisi,
-    );
-    expect(text).toBe(`${gading}\n\n${rungkut}`);
-    expect(text).toContain("*Ranting/Dojo: GADING*");
-    expect(text).toContain("*Ranting/Dojo: RUNGKUT*");
-    const gadingIdx = text.indexOf("*Ranting/Dojo: GADING*");
-    const rungkutIdx = text.indexOf("*Ranting/Dojo: RUNGKUT*");
-    expect(gadingIdx).toBeLessThan(rungkutIdx);
+    expect(text).toContain("*Ranting/Dojo: GABUNGAN (GADING, RUNGKUT)*");
+    expect(text).toContain("1. PESERTA A Kuning (Kyu 7)");
+    expect(text).toContain("2. PESERTA B Hijau (Kyu 6)");
   });
 
-  it("ranting berpeserta + ranting 0 peserta = gabungan rinci + empty", () => {
+  it("ranting berpeserta + ranting 0 peserta = laporan gabungan multi-ranting", () => {
     const text = buildUktSelectedDojosWaReportText(
       "UKT Semester II-2026",
       ["d1", "d2"],
@@ -536,20 +517,8 @@ describe("UKT Laporan WA multi-ranting picker", () => {
       beltFees,
       komisi,
     );
-    const gading = buildUktSingleDojoWaReportText(
-      "UKT Semester II-2026",
-      "d1",
-      "GADING",
-      rows,
-      beltFees,
-      komisi,
-    );
-    const kedurung = buildUktEmptyDojoWaReportText(
-      "UKT Semester II-2026",
-      "KEDURUNG",
-    );
-    expect(text).toBe(`${gading}\n\n${kedurung}`);
-    expect(text).toContain("_0 peserta_");
+    expect(text).toContain("*Ranting/Dojo: GABUNGAN (GADING, KEDURUNG)*");
+    expect(text).toContain("1. PESERTA A Kuning (Kyu 7)");
   });
 });
 

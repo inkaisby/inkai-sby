@@ -115,7 +115,9 @@ describe("latber WA/rekap", () => {
     });
     expect(text).toContain("*Pelaksanaan Latihan Bersama*");
     expect(text).toContain("_30-Aug-2026_");
-    expect(text.indexOf("_30-Aug-2026_")).toBeLessThan(text.indexOf("Hari:"));
+    expect(text.indexOf("_30-Aug-2026_")).toBeLessThan(
+      text.indexOf("*Total Ranting :"),
+    );
   });
 
   it("buildLatberNotaTotals menghitung dari semua peserta nota (bukan hanya lunas)", () => {

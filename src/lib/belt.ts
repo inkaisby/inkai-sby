@@ -412,3 +412,38 @@ export function canAssignNia(roles: string[]): boolean {
 }
 
 export const DEFAULT_MEMBER_RANK = "Putih (Kyu 10)";
+
+export type RankSortParsed = {
+  kind: 0 | 1 | 2;
+  n: number;
+  label: string;
+};
+
+/** Ekstrak urutan sabuk kanonik: Kyu (kind 0, n 10→1), Dan (kind 1, n 1→10), Lainnya (kind 2). */
+export function rankSortKey(rankRaw: string | null | undefined): RankSortParsed {
+  const formatted = formatRankLabel(rankRaw) || (rankRaw || "").trim();
+  const short = shortRankLabel(formatted);
+  const label = (short || "").trim().toLowerCase();
+
+  const kyu = label.match(/\bkyu\s*(\d+)\b/i);
+  if (kyu) return { kind: 0, n: Number(kyu[1]), label };
+
+  const dan = label.match(/\bdan\s*(\d+)\b/i);
+  if (dan) return { kind: 1, n: Number(dan[1]), label };
+
+  return { kind: 2, n: 0, label };
+}
+
+/** Urutkan sabuk: Kyu 10→1, Dan 1→10, lalu label lainnya A–Z. */
+export function compareUktRanks(
+  aRank: string | null | undefined,
+  bRank: string | null | undefined,
+): number {
+  const pa = rankSortKey(aRank);
+  const pb = rankSortKey(bRank);
+  if (pa.kind !== pb.kind) return pa.kind - pb.kind;
+  if (pa.kind === 0) return pb.n - pa.n;
+  if (pa.kind === 1) return pa.n - pb.n;
+  return pa.label.localeCompare(pb.label, "id");
+}
+

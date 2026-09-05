@@ -1,4 +1,4 @@
-import { shortRankLabel } from "@/lib/belt";
+import { formatRankLabel, shortRankLabel } from "@/lib/belt";
 import {
   compareDates,
   compareStrings,
@@ -8,7 +8,8 @@ import type { UktPublicRegistrant } from "@/lib/ukt-public";
 
 function rankBucketLabel(kyu: string | null | undefined): string {
   const raw = (kyu || "").trim();
-  const short = shortRankLabel(raw);
+  const formatted = formatRankLabel(raw) || raw;
+  const short = shortRankLabel(formatted);
   if (!short) return "lainnya";
   return short.toLowerCase();
 }

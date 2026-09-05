@@ -56,7 +56,7 @@ const TABLE_HEADERS = [
   "RANTING",
 ] as const;
 
-const CENTER_COLS = new Set([0, 1, 5, 7, 8]);
+const CENTER_COLS = new Set([0, 1, 2, 5, 7, 8]);
 
 function buildKopHtml(logoUrl: string): string {
   return `

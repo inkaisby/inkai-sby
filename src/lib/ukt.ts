@@ -5,6 +5,7 @@ import {
   getBeltGroup,
   shortRankLabel,
   isBlankUktRank,
+  compareUktRanks,
 } from "@/lib/belt";
 import { DISPORA_JATIM, isDisporaJatim } from "@/lib/venue";
 import { LATBER_PAYMENT } from "@/lib/latber";
@@ -1737,7 +1738,8 @@ function formatWaParticipantLine(row: UktMemberRow, index: number): string {
 function waRankBucketLabel(row: UktMemberRow): string {
   // Laporan WA cabang = ringkas "Jumlah per kyu" yang harus konsisten dengan tabel.
   const raw = (row.kyuLama || row.kyuBaru || "").trim();
-  const short = shortRankLabel(raw);
+  const formatted = formatRankLabel(raw) || raw;
+  const short = shortRankLabel(formatted);
   if (!short) return "Lainnya";
   return short.toLowerCase();
 }
@@ -2773,6 +2775,14 @@ export function buildUktPesertaExportRows(rows: UktMemberRow[]): UktPesertaExpor
     .sort((a, b) => {
       const byDojo = (a.dojoName || "").localeCompare(b.dojoName || "", "id");
       if (byDojo !== 0) return byDojo;
+      const kyuA = isUktSelesai(a)
+        ? a.kyuLama
+        : a.memberCurrentRank || a.kyuLama;
+      const kyuB = isUktSelesai(b)
+        ? b.kyuLama
+        : b.memberCurrentRank || b.kyuLama;
+      const byKyu = compareUktRanks(kyuA, kyuB);
+      if (byKyu !== 0) return byKyu;
       return (a.fullName || "").localeCompare(b.fullName || "", "id");
     });
 
@@ -3013,7 +3023,7 @@ export function buildUktHasilUjianRecapRows(
   const eligible = rows.filter(rowHasUktHasilUjianKyuBaru).sort((a, b) => {
     const byDojo = (a.dojoName || "").localeCompare(b.dojoName || "", "id");
     if (byDojo !== 0) return byDojo;
-    const byKyu = kyuLamaSortNumber(b.kyuLama) - kyuLamaSortNumber(a.kyuLama);
+    const byKyu = compareUktRanks(a.kyuLama, b.kyuLama);
     if (byKyu !== 0) return byKyu;
     return (a.fullName || "").localeCompare(b.fullName || "", "id");
   });
