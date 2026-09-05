@@ -1550,7 +1550,7 @@ export function MembersTable({
       >
         <SheetContent
           side="right"
-          className="w-full gap-0 overflow-y-auto sm:max-w-lg"
+          className="w-full gap-0 overflow-y-auto scrollbar-ultrathin max-h-[100dvh] sm:max-w-lg"
         >
           <SheetHeader className="border-b">
             <SheetTitle className="flex items-center gap-3 pr-8">

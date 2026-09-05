@@ -3502,7 +3502,7 @@ export function UktDashboard(props: Props) {
 
       {/* KPI Cards */}
       <div
-        className={`grid grid-cols-2 gap-3 sm:grid-cols-4 ${
+        className={`grid grid-cols-2 gap-2 sm:grid-cols-4 ${
           isArchiveView ? "lg:grid-cols-7" : "lg:grid-cols-8"
         }`}
       >
@@ -3520,12 +3520,12 @@ export function UktDashboard(props: Props) {
             }`}
             onClick={() => card.filter && handleKpiClick(card.filter)}
           >
-            <CardContent className="p-3">
+            <CardContent className="p-2.5 sm:p-3">
               <div className="flex items-center justify-between">
                 <card.icon className={`h-4 w-4 ${card.color}`} />
-                <span className="text-lg font-bold">{card.value}</span>
+                <span className="text-base font-bold sm:text-lg">{card.value}</span>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">{card.label}</p>
+              <p className="mt-0.5 text-[11px] font-medium text-muted-foreground truncate">{card.label}</p>
             </CardContent>
           </Card>
           );
@@ -4822,7 +4822,7 @@ export function UktDashboard(props: Props) {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className={cn("flex items-center justify-between", tableFullscreen && "shrink-0")}>
+        <div className={cn("sticky bottom-0 z-20 flex items-center justify-between border-t border-border/40 bg-background/95 px-3 py-2 backdrop-blur-md", tableFullscreen && "shrink-0")}>
           <p className="text-sm text-muted-foreground">
             Halaman {safePage} dari {totalPages} ({totalFiltered} data)
           </p>

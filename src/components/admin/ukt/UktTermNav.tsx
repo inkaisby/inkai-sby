@@ -55,7 +55,7 @@ export function UktTermNav({
   return (
     <div
       className={cn(
-        "sticky top-12 z-30 -mx-3 mb-3 space-y-2 border-b border-border/50 bg-background/95 px-3 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/90 2xl:top-16 sm:-mx-6 sm:mb-4 sm:px-6 sm:py-3",
+        "sticky top-11 lg:top-12 z-30 -mx-3 mb-2.5 space-y-2 border-b border-border/40 bg-background/90 px-3 py-2 backdrop-blur-md 2xl:top-16 sm:-mx-6 sm:mb-3 sm:px-6 sm:py-2.5",
         pending && "opacity-80",
         className,
       )}

@@ -19,22 +19,22 @@ export function AdminPageHeader({
   return (
     <div
       className={cn(
-        "admin-page-header mb-3 flex flex-col gap-2.5 sm:mb-4 2xl:mb-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between",
+        "admin-page-header mb-2.5 flex flex-col gap-2 sm:mb-3 2xl:mb-5 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between",
         className,
       )}
     >
       <div className="min-w-0">
-        <div className="hidden items-start gap-3 sm:flex">
+        <div className="hidden items-start gap-2.5 sm:flex">
           <span
-            className="mt-1.5 h-7 w-1 shrink-0 rounded-full bg-gradient-to-b from-inkai-red to-inkai-yellow/80"
+            className="mt-1 h-5.5 w-1 shrink-0 rounded-full bg-gradient-to-b from-inkai-red to-inkai-yellow/80"
             aria-hidden
           />
           <div className="min-w-0">
-            <h2 className="text-xl font-semibold tracking-tight text-foreground 2xl:text-2xl">
+            <h2 className="text-lg font-bold tracking-tight text-foreground sm:text-xl 2xl:text-2xl">
               {title}
             </h2>
             {description ? (
-              <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-[0.95rem]">
+              <p className="mt-0.5 max-w-2xl text-xs leading-normal text-muted-foreground sm:text-sm">
                 {description}
               </p>
             ) : null}
