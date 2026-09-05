@@ -43,13 +43,13 @@ describe("compareUktRanks", () => {
 
 describe("buildUktPesertaExportRows", () => {
   it("mengurutkan berdasarkan Ranting (A-Z) lalu Kyu 10→1 lalu Nama", () => {
-    const rows: UktMemberRow[] = [
+    const rows = [
       { registrationId: "1", dojoName: "AIRLANGGA", fullName: "ZACK", kyuLama: "Kyu 5" },
       { registrationId: "2", dojoName: "AIRLANGGA", fullName: "ALPHA", kyuLama: "Kyu 10" },
       { registrationId: "3", dojoName: "AIRLANGGA", fullName: "BOB", kyuLama: "Kyu 5" },
       { registrationId: "4", dojoName: "AIRLANGGA", fullName: "DANNY", kyuLama: "Hitam (DAN 1)" },
       { registrationId: "5", dojoName: "BENSHI", fullName: "CAROL", kyuLama: "Kyu 8" },
-    ];
+    ] as unknown as UktMemberRow[];
     const result = buildUktPesertaExportRows(rows);
     expect(result.map((r) => `${r.ranting}-${r.kyu}-${r.nama}`)).toEqual([
       "AIRLANGGA-10-ALPHA",
@@ -63,10 +63,10 @@ describe("buildUktPesertaExportRows", () => {
 
 describe("buildUktHasilUjianRecapRows", () => {
   it("mengurutkan hasil ujian per Ranting lalu Kyu 10→1 lalu Nama", () => {
-    const rows: UktMemberRow[] = [
+    const rows = [
       { registrationId: "1", dojoName: "DOJO A", fullName: "Z", kyuLama: "Kyu 3", kyuBaru: "Kyu 2", examResult: "LULUS" },
       { registrationId: "2", dojoName: "DOJO A", fullName: "A", kyuLama: "Kyu 10", kyuBaru: "Kyu 9", examResult: "LULUS" },
-    ];
+    ] as unknown as UktMemberRow[];
     const result = buildUktHasilUjianRecapRows(rows);
     expect(result.map((r) => `${r.ranting}-${r.kyuLama}-${r.nama}`)).toEqual([
       "DOJO A-10-A",

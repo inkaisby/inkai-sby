@@ -112,12 +112,12 @@ export const memberActionSchema = z.object({
       z.string().trim().regex(/^\d{16}$/, "NIK harus 16 digit"),
     ])
     .optional(),
-  /** Identitas lengkap (set_identity, pusat). */
+  /** Identitas lengkap (set_identity, ranting/cabang/pusat). */
   birthPlace: optionalBlankString(z.string().trim().max(100)),
   birthDate: optionalBlankString(z.string().trim().min(8).max(32)),
   gender: optionalBlankString(z.enum(["L", "P"])),
   address: optionalBlankString(z.string().trim().max(300)),
-  /** Email login (set_contact, pusat). */
+  /** Email login (set_contact, ranting/cabang/pusat). */
   email: optionalBlankString(
     z.string().trim().toLowerCase().email("Format email tidak valid").max(254),
   ),

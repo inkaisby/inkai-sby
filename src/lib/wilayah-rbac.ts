@@ -94,9 +94,9 @@ export function isNationalAdmin(roles: string[]) {
   return r === "ADMINISTRATOR" || r === "ADMIN_PUSAT" || r === "ADMIN";
 }
 
-/** Koreksi identitas & kontak anggota di detail admin — cabang dan administrator pusat. */
+/** Koreksi identitas & kontak anggota di detail admin — ranting, cabang dan administrator pusat. */
 export function canEditMemberIdentity(roles: string[]) {
-  return isCabangAdmin(roles);
+  return isCabangAdmin(roles) || isRantingAdmin(roles);
 }
 
 /** Admin cabang (atau setara nasional). */
