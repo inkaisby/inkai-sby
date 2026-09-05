@@ -1253,7 +1253,7 @@ export function KasLedgerClient({
                 <option key={k} value={k} />
               ))}
             </datalist>
-            <div className={cn("overflow-x-auto", tableFullscreen ? "min-h-0 flex-1 overflow-y-auto" : "overflow-y-visible border-t")}>
+            <div className={cn("overflow-x-auto overflow-y-auto", tableFullscreen ? "min-h-0 flex-1" : "max-h-[calc(100vh-210px)] min-h-[350px] border-t")}>
               <table className="w-full min-w-[880px] border-collapse text-sm">
                 <thead>
                   <tr className="sticky top-0 z-10 border-b bg-muted/95 text-left text-muted-foreground backdrop-blur">
@@ -1426,7 +1426,7 @@ export function KasLedgerClient({
               )}
             </Button>
           </div>
-          <div className={cn("overflow-x-auto", tableFullscreen ? "min-h-0 flex-1 overflow-y-auto" : "overflow-y-visible border-t")}>
+          <div className={cn("overflow-x-auto overflow-y-auto", tableFullscreen ? "min-h-0 flex-1" : "max-h-[calc(100vh-210px)] min-h-[350px] border-t")}>
           <table className="w-full min-w-[920px] border-collapse text-sm">
             <thead>
               <tr className="sticky top-0 z-10 border-b bg-muted/95 text-left text-muted-foreground backdrop-blur">
