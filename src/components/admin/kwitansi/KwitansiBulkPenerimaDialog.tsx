@@ -12,6 +12,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  KwitansiMemberPicker,
+  type KwitansiMemberSuggestItem,
+} from "@/components/admin/kwitansi/KwitansiMemberPicker";
 import { PenerimaRow } from "@/components/admin/kwitansi/KwitansiPenerimaTable";
 
 type Props = {
@@ -23,9 +27,11 @@ type Props = {
 
 type BulkItem = {
   key: string;
+  memberId?: string | null;
   namaLengkap: string;
   jabatan: string;
   nominal: string;
+  signUrl?: string | null;
 };
 
 function formatNumberWithDots(val: string | number): string {
@@ -108,6 +114,22 @@ export function KwitansiBulkPenerimaDialog({
     }
   };
 
+  const handlePickMember = (key: string, item: KwitansiMemberSuggestItem) => {
+    setItems((prev) =>
+      prev.map((it) =>
+        it.key === key
+          ? {
+              ...it,
+              memberId: item.id,
+              namaLengkap: item.fullName,
+              jabatan: item.officerTitle || it.jabatan || defaultJabatan,
+              signUrl: item.signatureUrl || it.signUrl || null,
+            }
+          : it,
+      ),
+    );
+  };
+
   const updateItem = (key: string, field: keyof BulkItem, value: string) => {
     setItems((prev) =>
       prev.map((it) => (it.key === key ? { ...it, [field]: value } : it)),
@@ -147,10 +169,10 @@ export function KwitansiBulkPenerimaDialog({
 
     const formattedRows = validItems.map((it) => ({
       namaLengkap: it.namaLengkap.trim(),
+      memberId: it.memberId ?? null,
       jabatan: it.jabatan.trim() || defaultJabatan.trim(),
       nominal: parseNumber(it.nominal) || parseNumber(defaultNominal),
-      signUrl: null,
-      memberId: null,
+      signUrl: it.signUrl ?? null,
     }));
 
     onAddBulk(formattedRows);
@@ -273,14 +295,20 @@ export function KwitansiBulkPenerimaDialog({
                     <td className="p-2 text-center text-muted-foreground">
                       {idx + 1}
                     </td>
-                    <td className="p-1">
-                      <Input
-                        className="h-8 text-xs"
-                        placeholder="Nama penerima..."
+                    <td className="p-1 min-w-[12rem]">
+                      <KwitansiMemberPicker
                         value={it.namaLengkap}
-                        onChange={(e) =>
-                          updateItem(it.key, "namaLengkap", e.target.value)
+                        onChange={(v) =>
+                          setItems((prev) =>
+                            prev.map((row) =>
+                              row.key === it.key
+                                ? { ...row, namaLengkap: v, memberId: null }
+                                : row,
+                            ),
+                          )
                         }
+                        onPick={(suggest) => handlePickMember(it.key, suggest)}
+                        placeholder="Cari / isi nama..."
                       />
                     </td>
                     <td className="p-1">

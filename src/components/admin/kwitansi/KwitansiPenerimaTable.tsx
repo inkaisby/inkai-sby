@@ -250,14 +250,13 @@ function formatNumberWithDots(val: string | number): string {
           <Button
             type="button"
             size="sm"
-            variant="outline"
             onClick={() => setBulkOpen(true)}
             title="Shortcut: Alt + Shift + A"
-            className="border-blue-600 text-blue-700 hover:bg-blue-50 font-medium"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
           >
-            <Table className="mr-1 h-3.5 w-3.5" />
-            Input Massal
-            <span className="ml-1 rounded bg-blue-100 px-1 py-0.5 text-[10px] font-mono text-blue-800">Alt+Shift+A</span>
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            Tambah massal
+            <span className="ml-1 rounded bg-white/20 px-1 py-0.5 text-[10px] font-mono">Alt+Shift+A</span>
           </Button>
         </div>
       </div>
