@@ -19,6 +19,7 @@ import {
   canAccessKas,
   canTransferKas,
   canWriteKas,
+  deleteKasBySource,
   listKasEntries,
   listKasLocks,
   listKasScopes,
@@ -155,5 +156,33 @@ export async function POST(request: Request) {
     }
     const msg = error instanceof Error ? error.message : "Gagal menyimpan kas";
     return NextResponse.json({ error: msg }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  const authResult = await requireAdmin();
+  if ("error" in authResult) return authResult.error;
+  if (!canWriteKas(authResult.user, authResult.adminDojoGrants)) {
+    return NextResponse.json({ error: "Tidak berhak menghapus kas" }, { status: 403 });
+  }
+  const url = new URL(request.url);
+  const sourceType = (url.searchParams.get("sourceType") || "").trim() as any;
+  const sourceId = (url.searchParams.get("sourceId") || "").trim();
+  if (!sourceType || !sourceId) {
+    return NextResponse.json({ error: "sourceType dan sourceId wajib" }, { status: 400 });
+  }
+
+  try {
+    const scope = await resolveKasScopeForView(authResult.user, {
+      type: request.headers.get("x-kas-scope-type"),
+      id: request.headers.get("x-kas-scope-id"),
+    });
+    const ok = await deleteKasBySource(sourceType, sourceId, scope);
+    return NextResponse.json({ success: ok });
+  } catch (error) {
+    if (error instanceof KasPeriodLockedError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    return NextResponse.json({ error: "Gagal menghapus kas" }, { status: 400 });
   }
 }

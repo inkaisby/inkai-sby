@@ -158,7 +158,20 @@ export async function postKasEntry(input: PostKasInput) {
           },
         },
       });
-      if (existing) return { row: existing, created: false as const };
+      if (existing) {
+        await assertKasMonthWritable(input.scope, input.txnDate);
+        const updatedRow = await prisma.kasEntry.update({
+          where: { id: existing.id },
+          data: {
+            txnDate: parseYmd(input.txnDate),
+            description: desc.slice(0, 500),
+            kegiatan: kegiatan.slice(0, 120),
+            amountIn,
+            amountOut,
+          },
+        });
+        return { row: updatedRow, created: false as const };
+      }
     }
     throw error;
   }
@@ -426,6 +439,20 @@ export async function deleteManualKas(id: string, scope: KasScope) {
   if (!row) return false;
   await assertKasMonthWritable(scope, row.txnDate.toISOString().slice(0, 10));
   await prisma.kasEntry.delete({ where: { id } });
+  return true;
+}
+
+export async function deleteKasBySource(
+  sourceType: KasSourceType,
+  sourceId: string,
+  scope: KasScope,
+) {
+  const row = await prisma.kasEntry.findFirst({
+    where: { sourceType, sourceId, scopeType: scope.type, scopeId: scope.id },
+  });
+  if (!row) return false;
+  await assertKasMonthWritable(scope, row.txnDate.toISOString().slice(0, 10));
+  await prisma.kasEntry.delete({ where: { id: row.id } });
   return true;
 }
 

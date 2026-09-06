@@ -20,6 +20,7 @@ type SearchParams = Promise<{
   jenis?: string;
   eventId?: string;
   event?: string;
+  no?: string;
 }>;
 
 export default function AdminKwitansiPage({
@@ -81,6 +82,7 @@ async function AdminKwitansiContent({
   const sp = await searchParams;
   const initialJenis = parseJenis(sp.jenis);
   const initialEventLabel = (sp.event || "").trim();
+  const initialNo = (sp.no || "").trim();
   const scopeLabel = await resolveScopeLabel(user);
 
   return (
@@ -93,6 +95,7 @@ async function AdminKwitansiContent({
         scopeLabel={scopeLabel}
         initialJenis={initialJenis}
         initialEventLabel={initialEventLabel}
+        initialNo={initialNo}
       />
     </>
   );

@@ -41,6 +41,7 @@ type Props = {
   scopeLabel: string;
   initialJenis?: KwitansiJenis;
   initialEventLabel?: string;
+  initialNo?: string;
 };
 
 const DRAFT_KEY = "kwitansi-draft-v1";
@@ -158,6 +159,7 @@ export function KwitansiWireframe({
   scopeLabel,
   initialJenis = "iuran",
   initialEventLabel = "",
+  initialNo = "",
 }: Props) {
   const hydrated = useRef(false);
 
@@ -199,31 +201,95 @@ export function KwitansiWireframe({
   const roleLabel = roleColumnLabel(jenis);
 
   useEffect(() => {
-    const d = readDraft();
-    if (d) {
-      setJenis(d.jenis);
-      setMode(d.mode);
-      setEventLabel(d.eventLabel || initialEventLabel);
-      setPeriodeNama(d.periodeNama ?? "");
-      setNo(d.no);
-      setTanggal(d.tanggal);
-      setTerimaDari(d.terimaDari);
-      setPenyetorName(d.penyetorName);
-      setPenyetorMemberId(d.penyetorMemberId);
-      setPenyetorSignUrl(d.penyetorSignUrl);
-      setUntukPembayaran(d.untukPembayaran);
-      setPenerima(d.penerima ?? []);
-      setActivePenerimaId(d.activePenerimaId);
-      setNoNota(d.noNota);
-      setNotaTanggal(d.notaTanggal);
-      setPajakPersen(d.pajakPersen ?? 0);
-      setNotaItems(d.notaItems ?? []);
-      setBidangUjianName(d.bidangUjianName);
-      setBidangUjianMemberId(d.bidangUjianMemberId);
-      setBidangUjianSignUrl(d.bidangUjianSignUrl);
-      setBendaharaName(d.bendaharaName);
-      setBendaharaMemberId(d.bendaharaMemberId);
-      setBendaharaSignUrl(d.bendaharaSignUrl);
+    let loadedFromArsip = false;
+    if (initialNo) {
+      try {
+        const savedRaw = localStorage.getItem("inkai_kwitansi_arsip_list");
+        if (savedRaw) {
+          const archiveList = JSON.parse(savedRaw);
+          if (Array.isArray(archiveList)) {
+            const found = archiveList.find(
+              (item: { no?: string }) => item.no === initialNo,
+            );
+            if (found) {
+              const isNp = found.no.startsWith("NP");
+              if (isNp) {
+                setJenis("pengeluaran");
+                setNoNota(found.no);
+              } else {
+                setNo(found.no);
+                if (found.jenis?.toLowerCase().includes("prestasi")) {
+                  setJenis("prestasi");
+                } else if (found.jenis?.toLowerCase().includes("lainnya")) {
+                  setJenis("lainnya");
+                } else {
+                  setJenis("iuran");
+                }
+              }
+              setPeriodeNama(found.periodeNama || "");
+              setTerimaDari(found.terimaDari || "");
+              setPenyetorName(found.penyetorName || "");
+              setUntukPembayaran(found.untukPembayaran || "");
+              if (Array.isArray(found.penerima) && found.penerima.length > 0) {
+                setPenerima(found.penerima);
+              } else if (found.penerimaName && !isNp) {
+                setPenerima([
+                  {
+                    id: `p-${Date.now()}`,
+                    namaLengkap: found.penerimaName,
+                    jabatan: "Penerima",
+                    nominal: Number(found.total) || 0,
+                    signUrl: found.penerimaSignUrl || null,
+                    selected: true,
+                  },
+                ]);
+              }
+              if (Array.isArray(found.notaItems) && found.notaItems.length > 0) {
+                setNotaItems(found.notaItems);
+              }
+              if (typeof found.pajakPersen === "number") setPajakPersen(found.pajakPersen);
+              if (found.bidangUjianName) setBidangUjianName(found.bidangUjianName);
+              if (found.bendaharaName) setBendaharaName(found.bendaharaName);
+              if (found.bidangUjianSignUrl) setBidangUjianSignUrl(found.bidangUjianSignUrl);
+              if (found.bendaharaSignUrl) setBendaharaSignUrl(found.bendaharaSignUrl);
+              if (found.penyetorSignUrl) setPenyetorSignUrl(found.penyetorSignUrl);
+              toast.info(`Memuat kwitansi ${found.no} dari Arsip`);
+              loadedFromArsip = true;
+            }
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (!loadedFromArsip) {
+      const d = readDraft();
+      if (d) {
+        setJenis(d.jenis);
+        setMode(d.mode);
+        setEventLabel(d.eventLabel || initialEventLabel);
+        setPeriodeNama(d.periodeNama ?? "");
+        setNo(d.no);
+        setTanggal(d.tanggal);
+        setTerimaDari(d.terimaDari);
+        setPenyetorName(d.penyetorName);
+        setPenyetorMemberId(d.penyetorMemberId);
+        setPenyetorSignUrl(d.penyetorSignUrl);
+        setUntukPembayaran(d.untukPembayaran);
+        setPenerima(d.penerima ?? []);
+        setActivePenerimaId(d.activePenerimaId);
+        setNoNota(d.noNota);
+        setNotaTanggal(d.notaTanggal);
+        setPajakPersen(d.pajakPersen ?? 0);
+        setNotaItems(d.notaItems ?? []);
+        setBidangUjianName(d.bidangUjianName);
+        setBidangUjianMemberId(d.bidangUjianMemberId);
+        setBidangUjianSignUrl(d.bidangUjianSignUrl);
+        setBendaharaName(d.bendaharaName);
+        setBendaharaMemberId(d.bendaharaMemberId);
+        setBendaharaSignUrl(d.bendaharaSignUrl);
+      }
     }
     hydrated.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate sekali saat mount
@@ -597,21 +663,75 @@ export function KwitansiWireframe({
       const STORAGE_KEY = "inkai_kwitansi_arsip_list";
       const savedRaw = localStorage.getItem(STORAGE_KEY);
       const existing = savedRaw ? JSON.parse(savedRaw) : [];
-      const newEntry = {
-        id: `kw-${Date.now()}`,
-        no: isNota ? noNota : no,
-        periodeNama: periodeNama.trim() || (isNota ? "Nota Pengeluaran" : "Kwitansi Pembayaran"),
-        jenis: JENIS_OPTIONS.find((j) => j.id === jenis)?.label || "Iuran/tagihan",
-        tanggal: formatTanggalId(isNota ? notaTanggal : tanggal),
-        terimaDari: previewTerimaDari,
-        total: isNota ? notaGrand : jumlah,
-        scope: scopeLabel,
-        untukPembayaran: untukWithEvent,
-        penerimaName: previewPenerimaName,
-        penyetorName: penyetorName,
-      };
-      const updated = [newEntry, ...existing];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      const targetNo = isNota ? noNota : no;
+
+      const existingIndex = Array.isArray(existing)
+        ? existing.findIndex((item: { no: string }) => item.no === targetNo)
+        : -1;
+
+      let entryId: string;
+      let updatedList: typeof existing;
+      let isUpdate = false;
+
+      if (existingIndex >= 0) {
+        isUpdate = true;
+        entryId = existing[existingIndex].id || `kw-${Date.now()}`;
+        const updatedEntry = {
+          ...existing[existingIndex],
+          id: entryId,
+          no: targetNo,
+          periodeNama: periodeNama.trim() || (isNota ? "Nota Pengeluaran" : "Kwitansi Pembayaran"),
+          jenis: JENIS_OPTIONS.find((j) => j.id === jenis)?.label || "Iuran/tagihan",
+          tanggal: formatTanggalId(isNota ? notaTanggal : tanggal),
+          terimaDari: previewTerimaDari,
+          total: isNota ? notaGrand : jumlah,
+          scope: scopeLabel,
+          untukPembayaran: untukWithEvent,
+          penerimaName: previewPenerimaName,
+          penyetorName: penyetorName,
+          penerimaSignUrl: previewPenerimaSign,
+          penyetorSignUrl,
+          notaItems: isNota ? notaItems : undefined,
+          penerima: !isNota ? penerima : undefined,
+          pajakPersen: isNota ? pajakPersen : undefined,
+          bidangUjianName: isNota ? bidangUjianName : undefined,
+          bendaharaName: isNota ? bendaharaName : undefined,
+          bidangUjianSignUrl: isNota ? bidangUjianSignUrl : undefined,
+          bendaharaSignUrl: isNota ? bendaharaSignUrl : undefined,
+          updatedAt: new Date().toISOString(),
+        };
+        existing[existingIndex] = updatedEntry;
+        updatedList = [...existing];
+      } else {
+        entryId = `kw-${Date.now()}`;
+        const newEntry = {
+          id: entryId,
+          no: targetNo,
+          periodeNama: periodeNama.trim() || (isNota ? "Nota Pengeluaran" : "Kwitansi Pembayaran"),
+          jenis: JENIS_OPTIONS.find((j) => j.id === jenis)?.label || "Iuran/tagihan",
+          tanggal: formatTanggalId(isNota ? notaTanggal : tanggal),
+          terimaDari: previewTerimaDari,
+          total: isNota ? notaGrand : jumlah,
+          scope: scopeLabel,
+          untukPembayaran: untukWithEvent,
+          penerimaName: previewPenerimaName,
+          penyetorName: penyetorName,
+          penerimaSignUrl: previewPenerimaSign,
+          penyetorSignUrl,
+          notaItems: isNota ? notaItems : undefined,
+          penerima: !isNota ? penerima : undefined,
+          pajakPersen: isNota ? pajakPersen : undefined,
+          bidangUjianName: isNota ? bidangUjianName : undefined,
+          bendaharaName: isNota ? bendaharaName : undefined,
+          bidangUjianSignUrl: isNota ? bidangUjianSignUrl : undefined,
+          bendaharaSignUrl: isNota ? bendaharaSignUrl : undefined,
+          createdAt: new Date().toISOString(),
+        };
+        updatedList = [newEntry, ...existing];
+      }
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
+
       if (jenis !== "iuran") {
         const nominal = Math.round(isNota ? notaGrand : jumlah);
         if (nominal > 0) {
@@ -620,12 +740,12 @@ export function KwitansiWireframe({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               sourceType: "kwitansi",
-              sourceId: newEntry.id,
+              sourceId: entryId,
               entries: [
                 {
                   txnDate: isNota ? notaTanggal : tanggal,
-                  description: `${newEntry.no} — ${newEntry.untukPembayaran || newEntry.periodeNama}`,
-                  kegiatan: newEntry.periodeNama,
+                  description: `${targetNo} — ${untukWithEvent || periodeNama || "Kwitansi"}`,
+                  kegiatan: periodeNama,
                   direction: isNota ? "out" : "in",
                   amount: nominal,
                 },
@@ -642,7 +762,11 @@ export function KwitansiWireframe({
           }
         }
       }
-      toast.success(`Kwitansi ${newEntry.no} berhasil disimpan ke Arsip!`);
+      toast.success(
+        isUpdate
+          ? `Kwitansi ${targetNo} berhasil diperbarui di Arsip!`
+          : `Kwitansi ${targetNo} berhasil disimpan ke Arsip!`,
+      );
     } catch {
       toast.error("Gagal menyimpan ke arsip");
     }

@@ -25,6 +25,26 @@ export type KwitansiArsipItem = {
   penyetorName?: string;
   penerimaSignUrl?: string | null;
   penyetorSignUrl?: string | null;
+  notaItems?: Array<{
+    id: string;
+    deskripsi: string;
+    jumlah: number;
+    harga: number;
+    petugas: string;
+  }>;
+  penerima?: Array<{
+    id: string;
+    namaLengkap: string;
+    jabatan: string;
+    nominal: number;
+    signUrl?: string | null;
+    selected: boolean;
+  }>;
+  pajakPersen?: number;
+  bidangUjianName?: string;
+  bendaharaName?: string;
+  bidangUjianSignUrl?: string | null;
+  bendaharaSignUrl?: string | null;
   createdAt?: string;
 };
 
@@ -79,14 +99,26 @@ export function KwitansiArsipTable() {
   const [filterJenis, setFilterJenis] = useState("all");
   const [deleteTarget, setDeleteTarget] = useState<KwitansiArsipItem | null>(null);
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount & clean up duplicates by document number (no)
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as KwitansiArsipItem[];
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setItems(parsed);
+          // Deduplicate by item.no (keep first/newest occurrence)
+          const seen = new Set<string>();
+          const deduplicated: KwitansiArsipItem[] = [];
+          for (const item of parsed) {
+            if (item.no && !seen.has(item.no)) {
+              seen.add(item.no);
+              deduplicated.push(item);
+            }
+          }
+          setItems(deduplicated);
+          if (deduplicated.length !== parsed.length) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(deduplicated));
+          }
         }
       }
     } catch {
@@ -168,12 +200,23 @@ export function KwitansiArsipTable() {
     router.push(`/admin/kwitansi?no=${encodeURIComponent(row.no)}`);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteTarget) return;
-    const next = items.filter((i) => i.id !== deleteTarget.id);
+    const target = deleteTarget;
+    const next = items.filter((i) => i.id !== target.id);
     updateItems(next);
-    toast.success(`Arsip kwitansi ${deleteTarget.no} berhasil dihapus`);
     setDeleteTarget(null);
+
+    try {
+      await fetch(
+        `/api/admin/kas?sourceType=kwitansi&sourceId=${encodeURIComponent(target.id)}`,
+        { method: "DELETE" },
+      );
+    } catch {
+      /* ignore background kas delete failure */
+    }
+
+    toast.success(`Arsip kwitansi ${target.no} berhasil dihapus`);
   };
 
   const exportCsv = () => {
