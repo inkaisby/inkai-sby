@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Table, Trash2 } from "lucide-react";
+import { KwitansiBulkPenerimaDialog } from "./KwitansiBulkPenerimaDialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -58,6 +59,7 @@ export function KwitansiPenerimaTable({
   showSelectedTotal,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nama, setNama] = useState("");
   const [memberId, setMemberId] = useState<string | null>(null);
@@ -140,6 +142,21 @@ function formatNumberWithDots(val: string | number): string {
     resetForm();
   };
 
+  const handleAddBulk = (
+    newItems: Omit<PenerimaRow, "id" | "selected">[],
+  ) => {
+    const appendedRows: PenerimaRow[] = newItems.map((it) => ({
+      id: newId(),
+      namaLengkap: it.namaLengkap,
+      memberId: it.memberId ?? null,
+      jabatan: it.jabatan,
+      nominal: it.nominal,
+      signUrl: it.signUrl ?? null,
+      selected: false,
+    }));
+    onChange([...rows, ...appendedRows]);
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -160,6 +177,12 @@ function formatNumberWithDots(val: string | number): string {
       }
 
       // Shortcut outside dialog:
+      // Alt + Shift + A or Alt + B -> Open Input Massal
+      if (!isInput && e.altKey && (e.shiftKey && e.key.toLowerCase() === "a" || e.key.toLowerCase() === "b")) {
+        e.preventDefault();
+        setBulkOpen(true);
+        return;
+      }
       // Alt + A or Alt + N -> Open "+ Tambah penerima"
       if (!isInput && e.altKey && (e.key.toLowerCase() === "a" || e.key.toLowerCase() === "n")) {
         e.preventDefault();
@@ -176,7 +199,7 @@ function formatNumberWithDots(val: string | number): string {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, nama, jabatan, nominal, signUrl, editingId, rows, onSaveArsip]);
+  }, [open, bulkOpen, nama, jabatan, nominal, signUrl, editingId, rows, onSaveArsip]);
 
   const onPick = (item: KwitansiMemberSuggestItem) => {
     setNama(item.fullName);
@@ -223,6 +246,18 @@ function formatNumberWithDots(val: string | number): string {
             <Plus className="mr-1 h-3.5 w-3.5" />
             Tambah penerima
             <span className="ml-1 rounded bg-white/20 px-1 py-0.5 text-[10px] font-mono">Alt+A</span>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setBulkOpen(true)}
+            title="Shortcut: Alt + Shift + A"
+            className="border-blue-600 text-blue-700 hover:bg-blue-50 font-medium"
+          >
+            <Table className="mr-1 h-3.5 w-3.5" />
+            Input Massal
+            <span className="ml-1 rounded bg-blue-100 px-1 py-0.5 text-[10px] font-mono text-blue-800">Alt+Shift+A</span>
           </Button>
         </div>
       </div>
@@ -408,6 +443,13 @@ function formatNumberWithDots(val: string | number): string {
           </form>
         </DialogContent>
       </Dialog>
+
+      <KwitansiBulkPenerimaDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        roleColumnLabel={roleColumnLabel}
+        onAddBulk={handleAddBulk}
+      />
     </div>
   );
 }
