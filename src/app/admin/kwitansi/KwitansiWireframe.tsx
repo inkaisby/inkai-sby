@@ -232,7 +232,11 @@ export function KwitansiWireframe({
               setUntukPembayaran(found.untukPembayaran || "");
               if (Array.isArray(found.penerima) && found.penerima.length > 0) {
                 setPenerima(found.penerima);
-              } else if (found.penerimaName && !isNp) {
+              } else if (
+                found.penerimaName &&
+                !isNp &&
+                !found.penerimaName.startsWith("Lihat Daftar Penerima")
+              ) {
                 setPenerima([
                   {
                     id: `p-${Date.now()}`,
@@ -243,6 +247,8 @@ export function KwitansiWireframe({
                     selected: true,
                   },
                 ]);
+              } else {
+                setPenerima([]);
               }
               if (Array.isArray(found.notaItems) && found.notaItems.length > 0) {
                 setNotaItems(found.notaItems);
