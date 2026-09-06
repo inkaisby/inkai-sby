@@ -1164,7 +1164,7 @@ export function UktDashboard(props: Props) {
     };
   }, [depositRecon]);
 
-  const handleCopyDepositReconToExcel = useCallback(() => {
+  const handleCopyDepositReconToExcel = useCallback(async () => {
     if (!depositRecon || depositRecon.length === 0) return;
 
     const headers = [
@@ -1181,6 +1181,7 @@ export function UktDashboard(props: Props) {
       "Keterangan",
     ];
 
+    // 1. Format TSV (Plain Text untuk Excel / Notepad)
     const rowsText = depositRecon.map((row) => {
       const ket =
         row.isFullyPaid ||
@@ -1220,10 +1221,89 @@ export function UktDashboard(props: Props) {
       "",
     ].join("\t");
 
-    const fullText = [headers.join("\t"), ...rowsText, totalRow].join("\n");
+    const fullTextTSV = [headers.join("\t"), ...rowsText, totalRow].join("\n");
 
-    void navigator.clipboard.writeText(fullText);
-    toast.success("Tabel setoran UKT berhasil disalin! Siap dipaste (Ctrl+V) di Excel.");
+    // 2. Format HTML Table (Untuk Word & Rich Text Editor agar membentuk Tabel Asli Rapi)
+    const rowsHtml = depositRecon
+      .map((row) => {
+        const ket =
+          row.isFullyPaid ||
+          (row.participantCount > 0 && row.paidCount === row.participantCount)
+            ? "Lunas"
+            : row.gapLabel || (row.participantCount === 0 ? "0 peserta" : "");
+        const statusSetor = row.depositStatus
+          ? uktDepositStatusLabel(row.depositStatus)
+          : "—";
+        const isQuiet = row.participantCount === 0;
+
+        return `<tr style="${isQuiet ? "color: #64748b;" : ""}">
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; font-weight: 500;">${row.dojoName}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center;">${row.beltCounts?.PUTIH || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center;">${row.beltCounts?.KUNING || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center;">${row.beltCounts?.HIJAU || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center;">${row.beltCounts?.BIRU || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center;">${row.beltCounts?.COKELAT || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: right; font-weight: bold;">${row.participantCount}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: right;">${row.paidCount}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: right;">${formatRupiahNota(row.expectedAmount)}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px;">${statusSetor}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px;">${ket}</td>
+        </tr>`;
+      })
+      .join("");
+
+    const htmlContent = `<table border="1" style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 9.5pt; width: 100%;">
+      <thead>
+        <tr style="background-color: #f1f5f9; font-weight: bold;">
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left;">Ranting</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">Putih</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">Kuning</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">Hijau</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">Biru</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">Cokelat</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: right;">Peserta</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: right;">Lunas</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: right;">Total Tagihan</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left;">Status Setor</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left;">Keterangan</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+        <tr style="background-color: #e2e8f0; font-weight: bold;">
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left;">JUMLAH / TOTAL</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">${depositTotals.putih || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">${depositTotals.kuning || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">${depositTotals.hijau || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">${depositTotals.biru || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">${depositTotals.cokelat || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: right;">${depositTotals.participantCount}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: right;">${depositTotals.paidCount}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: right; color: #b91c1c;">${formatRupiahNota(depositTotals.expectedAmount)}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left;" colspan="2">${depositTotals.paidCount} dari ${depositTotals.participantCount} Lunas</td>
+        </tr>
+      </tbody>
+    </table>`;
+
+    if (typeof navigator !== "undefined" && navigator.clipboard && typeof window.ClipboardItem !== "undefined") {
+      try {
+        const htmlBlob = new Blob([htmlContent], { type: "text/html" });
+        const textBlob = new Blob([fullTextTSV], { type: "text/plain" });
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": htmlBlob,
+            "text/plain": textBlob,
+          }),
+        ]);
+        toast.success("Tabel berhasil disalin! Rapi dipaste ke Word & Excel.");
+        return;
+      } catch (err) {
+        console.warn("ClipboardItem write failed, fallback to text:", err);
+      }
+    }
+
+    void navigator.clipboard.writeText(fullTextTSV);
+    toast.success("Tabel disalin ke clipboard!");
   }, [depositRecon, depositTotals]);
 
   const handlePrintDepositRecon = useCallback(() => {
@@ -3745,11 +3825,11 @@ export function UktDashboard(props: Props) {
                     size="sm"
                     variant="outline"
                     className="h-8 gap-1.5 text-xs font-medium border-emerald-600/30 bg-emerald-50/50 hover:bg-emerald-100/70 dark:bg-emerald-950/20 dark:hover:bg-emerald-900/30"
-                    onClick={handleCopyDepositReconToExcel}
-                    title="Salin tabel setoran ke clipboard (bisa langsung paste di Excel)"
+                    onClick={() => void handleCopyDepositReconToExcel()}
+                    title="Salin tabel setoran ke clipboard (rapi dipaste di Word maupun Excel)"
                   >
                     <Copy className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                    <span>Salin ke Excel</span>
+                    <span>Salin Excel & Word</span>
                   </Button>
                   <Button
                     size="sm"
@@ -3844,8 +3924,8 @@ export function UktDashboard(props: Props) {
                               size="icon"
                               variant="ghost"
                               className="h-6 w-6 text-muted-foreground hover:text-emerald-600"
-                              onClick={handleCopyDepositReconToExcel}
-                              title="Salin tabel setoran ke Excel"
+                              onClick={() => void handleCopyDepositReconToExcel()}
+                              title="Salin tabel setoran ke Word & Excel"
                             >
                               <Copy className="h-3.5 w-3.5" />
                             </Button>

@@ -232,15 +232,74 @@ export function UktMatrixRecapPanel({
     toast.success("Rekapitulasi Matrix disalin ke clipboard!");
   };
 
-  const handleCopyExcel = () => {
+  const handleCopyExcel = async () => {
     let text = `NO\tNAMA RANTING\tPUTIH\tKUNING\tHIJAU\tBIRU\tCOKLAT\tJUMLAH\n`;
     for (const r of matrixData.list) {
       text += `${r.no}\t${r.dojoName}\t${r.putih}\t${r.kuning}\t${r.hijau}\t${r.biru}\t${r.cokelat}\t${r.total}\n`;
     }
     text += `TOTAL\tJUMLAH\t${matrixData.totals.putih}\t${matrixData.totals.kuning}\t${matrixData.totals.hijau}\t${matrixData.totals.biru}\t${matrixData.totals.cokelat}\t${matrixData.totals.grandTotal}\n`;
 
+    const rowsHtml = matrixData.list
+      .map(
+        (r) => `<tr>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center;">${r.no}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; font-weight: 500;">${r.dojoName}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center;">${r.putih || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center;">${r.kuning || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center;">${r.hijau || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center;">${r.biru || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center;">${r.cokelat || 0}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 4px 8px; text-align: center; font-weight: bold; background-color: #f8fafc;">${r.total}</td>
+        </tr>`,
+      )
+      .join("");
+
+    const htmlContent = `<table border="1" style="border-collapse: collapse; font-family: Arial, sans-serif; font-size: 9.5pt; width: 100%;">
+      <thead>
+        <tr style="background-color: #f1f5f9; font-weight: bold;">
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">NO</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: left;">NAMA RANTING</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">PUTIH</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">KUNING</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">HIJAU</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">BIRU</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">COKLAT</th>
+          <th style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">JUMLAH</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+        <tr style="background-color: #e2e8f0; font-weight: bold;">
+          <td colspan="2" style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">JUMLAH / TOTAL</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">${matrixData.totals.putih}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">${matrixData.totals.kuning}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">${matrixData.totals.hijau}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">${matrixData.totals.biru}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center;">${matrixData.totals.cokelat}</td>
+          <td style="border: 1px solid #cbd5e1; padding: 5px 8px; text-align: center; color: #b91c1c;">${matrixData.totals.grandTotal}</td>
+        </tr>
+      </tbody>
+    </table>`;
+
+    if (typeof navigator !== "undefined" && navigator.clipboard && typeof window.ClipboardItem !== "undefined") {
+      try {
+        const htmlBlob = new Blob([htmlContent], { type: "text/html" });
+        const textBlob = new Blob([text], { type: "text/plain" });
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": htmlBlob,
+            "text/plain": textBlob,
+          }),
+        ]);
+        toast.success("Rekapitulasi Matrix disalin! Rapi dipaste ke Word & Excel.");
+        return;
+      } catch (err) {
+        console.warn("ClipboardItem write failed:", err);
+      }
+    }
+
     void navigator.clipboard.writeText(text);
-    toast.success("Rekapitulasi Matrix berhasil disalin! Siap dipaste di Excel.");
+    toast.success("Rekapitulasi Matrix disalin ke clipboard!");
   };
 
   const handleExportCsv = () => {
