@@ -7,6 +7,7 @@ import { Copy, Check, Eye, Pencil, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BirthDatePicker } from "@/components/ui/BirthDatePicker";
 import {
   Dialog,
   DialogContent,
@@ -1888,11 +1889,9 @@ export function MembersTable({
                       label="Tanggal lahir"
                       value={
                         canEditIdentity ? (
-                          <Input
-                            type="date"
+                          <BirthDatePicker
                             value={birthDateDraft}
-                            onChange={(e) => setBirthDateDraft(e.target.value)}
-                            className="h-8"
+                            onChange={(val) => setBirthDateDraft(val)}
                             disabled={identitySaving || loading}
                           />
                         ) : loading && !detail.birthDate ? (

@@ -35,6 +35,7 @@ type Props = {
   onChange: (rows: PenerimaRow[]) => void;
   onPrint: () => void;
   onPdf: () => void;
+  onSaveArsip?: () => void;
   onFillFromSelected?: () => void;
   showBatchActions?: boolean;
   /** Mode A: tampilkan baris Total terpilih jika ada centang */
@@ -51,6 +52,7 @@ export function KwitansiPenerimaTable({
   onChange,
   onPrint,
   onPdf,
+  onSaveArsip,
   onFillFromSelected,
   showBatchActions,
   showSelectedTotal,
@@ -79,6 +81,14 @@ export function KwitansiPenerimaTable({
     setSignUrl(null);
   };
 
+function formatNumberWithDots(val: string | number): string {
+  const digits = String(val).replace(/\D/g, "");
+  if (!digits) return "";
+  const num = parseInt(digits, 10);
+  if (isNaN(num)) return "";
+  return new Intl.NumberFormat("id-ID").format(num);
+}
+
   const openAdd = () => {
     resetForm();
     setOpen(true);
@@ -89,7 +99,7 @@ export function KwitansiPenerimaTable({
     setNama(row.namaLengkap);
     setMemberId(row.memberId ?? null);
     setJabatan(row.jabatan);
-    setNominal(String(row.nominal || ""));
+    setNominal(row.nominal ? formatNumberWithDots(row.nominal) : "");
     setSignUrl(row.signUrl ?? null);
     setOpen(true);
   };
@@ -158,6 +168,17 @@ export function KwitansiPenerimaTable({
           <Button type="button" size="sm" variant="outline" onClick={onPdf}>
             PDF daftar
           </Button>
+          {onSaveArsip ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onSaveArsip}
+              className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-medium"
+            >
+              Simpan ke Arsip
+            </Button>
+          ) : null}
           <Button type="button" size="sm" onClick={openAdd}>
             <Plus className="mr-1 h-3.5 w-3.5" />
             Tambah penerima
@@ -310,8 +331,8 @@ export function KwitansiPenerimaTable({
               <Input
                 inputMode="numeric"
                 value={nominal}
-                onChange={(e) => setNominal(e.target.value.replace(/\D/g, ""))}
-                placeholder="1500000"
+                onChange={(e) => setNominal(formatNumberWithDots(e.target.value))}
+                placeholder="1.500.000"
               />
             </div>
             <div className="space-y-1">

@@ -51,10 +51,19 @@ type Props = {
   onBendaharaSignUrl: (v: string | null) => void;
   onPrint: () => void;
   onPdf: () => void;
+  onSaveArsip?: () => void;
 };
 
 function newId() {
   return `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function formatNumberWithDots(val: string | number): string {
+  const digits = String(val).replace(/\D/g, "");
+  if (!digits) return "";
+  const num = parseInt(digits, 10);
+  if (isNaN(num)) return "";
+  return new Intl.NumberFormat("id-ID").format(num);
 }
 
 export function NotaItemTable({
@@ -80,6 +89,7 @@ export function NotaItemTable({
   onBendaharaSignUrl,
   onPrint,
   onPdf,
+  onSaveArsip,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -152,6 +162,17 @@ export function NotaItemTable({
           <Button type="button" size="sm" variant="outline" onClick={onPdf}>
             PDF nota
           </Button>
+          {onSaveArsip ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onSaveArsip}
+              className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-medium"
+            >
+              Simpan ke Arsip
+            </Button>
+          ) : null}
           <Button
             type="button"
             size="sm"
@@ -219,11 +240,12 @@ export function NotaItemTable({
                           size="icon"
                           variant="ghost"
                           className="h-8 w-8"
+
                           onClick={() => {
                             setEditingId(row.id);
                             setDeskripsi(row.deskripsi);
                             setJumlah(String(row.jumlah));
-                            setHarga(String(row.harga));
+                            setHarga(row.harga ? formatNumberWithDots(row.harga) : "");
                             setPetugas(row.petugas);
                             setPetugasMemberId(row.petugasMemberId ?? null);
                             setOpen(true);
@@ -368,7 +390,8 @@ export function NotaItemTable({
                 <Input
                   inputMode="numeric"
                   value={harga}
-                  onChange={(e) => setHarga(e.target.value.replace(/\D/g, ""))}
+                  onChange={(e) => setHarga(formatNumberWithDots(e.target.value))}
+                  placeholder="50.000"
                 />
               </div>
             </div>

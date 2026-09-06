@@ -230,8 +230,18 @@ export function KwitansiWireframe({
               setTerimaDari(found.terimaDari || "");
               setPenyetorName(found.penyetorName || "");
               setUntukPembayaran(found.untukPembayaran || "");
+              const draftData = readDraft();
               if (Array.isArray(found.penerima) && found.penerima.length > 0) {
                 setPenerima(found.penerima);
+              } else if (
+                draftData &&
+                Array.isArray(draftData.penerima) &&
+                draftData.penerima.length > 0 &&
+                (draftData.no === initialNo ||
+                  !found.penerimaName ||
+                  found.penerimaName.startsWith("Lihat Daftar Penerima"))
+              ) {
+                setPenerima(draftData.penerima);
               } else if (
                 found.penerimaName &&
                 !isNp &&
@@ -363,6 +373,8 @@ export function KwitansiWireframe({
     bendaharaMemberId,
     bendaharaSignUrl,
   ]);
+
+
 
   const sumNominal = useMemo(
     () => penerima.reduce((s, r) => s + (Number(r.nominal) || 0), 0),
@@ -778,6 +790,84 @@ export function KwitansiWireframe({
     }
   };
 
+  // Silent auto-save to archive when table or fields change (debounced 800ms)
+  useEffect(() => {
+    if (!hydrated.current) return;
+    const targetNo = isNota ? noNota : no;
+    if (!targetNo) return;
+    const t = setTimeout(() => {
+      try {
+        const STORAGE_KEY = "inkai_kwitansi_arsip_list";
+        const savedRaw = localStorage.getItem(STORAGE_KEY);
+        const existing = savedRaw ? JSON.parse(savedRaw) : [];
+        if (!Array.isArray(existing)) return;
+        const existingIndex = existing.findIndex(
+          (item: { no: string }) => item.no === targetNo,
+        );
+        if (existingIndex >= 0) {
+          const entryId = existing[existingIndex].id || `kw-${Date.now()}`;
+          const updatedEntry = {
+            ...existing[existingIndex],
+            id: entryId,
+            no: targetNo,
+            periodeNama:
+              periodeNama.trim() ||
+              (isNota ? "Nota Pengeluaran" : "Kwitansi Pembayaran"),
+            jenis:
+              JENIS_OPTIONS.find((j) => j.id === jenis)?.label ||
+              "Iuran/tagihan",
+            tanggal: formatTanggalId(isNota ? notaTanggal : tanggal),
+            terimaDari: previewTerimaDari,
+            total: isNota ? notaGrand : jumlah,
+            scope: scopeLabel,
+            untukPembayaran: untukWithEvent,
+            penerimaName: previewPenerimaName,
+            penyetorName: penyetorName,
+            penerimaSignUrl: previewPenerimaSign,
+            penyetorSignUrl,
+            notaItems: isNota ? notaItems : undefined,
+            penerima: !isNota ? penerima : undefined,
+            pajakPersen: isNota ? pajakPersen : undefined,
+            bidangUjianName: isNota ? bidangUjianName : undefined,
+            bendaharaName: isNota ? bendaharaName : undefined,
+            bidangUjianSignUrl: isNota ? bidangUjianSignUrl : undefined,
+            bendaharaSignUrl: isNota ? bendaharaSignUrl : undefined,
+            updatedAt: new Date().toISOString(),
+          };
+          existing[existingIndex] = updatedEntry;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+        }
+      } catch {
+        /* silent auto-save error ignore */
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, [
+    isNota,
+    noNota,
+    no,
+    periodeNama,
+    jenis,
+    notaTanggal,
+    tanggal,
+    previewTerimaDari,
+    notaGrand,
+    jumlah,
+    scopeLabel,
+    untukWithEvent,
+    previewPenerimaName,
+    penyetorName,
+    previewPenerimaSign,
+    penyetorSignUrl,
+    notaItems,
+    penerima,
+    pajakPersen,
+    bidangUjianName,
+    bendaharaName,
+    bidangUjianSignUrl,
+    bendaharaSignUrl,
+  ]);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -923,6 +1013,7 @@ export function KwitansiWireframe({
                 `nota-${noNota}.pdf`,
               );
             }}
+            onSaveArsip={handleSimpanArsip}
           />
         </>
       ) : (
@@ -1052,6 +1143,7 @@ export function KwitansiWireframe({
             onChange={onPenerimaChange}
             onPrint={onCetakDaftar}
             onPdf={() => void onPdfDaftar()}
+            onSaveArsip={handleSimpanArsip}
             showBatchActions={mode === "b"}
             onFillFromSelected={fillFromSelected}
             showSelectedTotal={mode === "a"}
