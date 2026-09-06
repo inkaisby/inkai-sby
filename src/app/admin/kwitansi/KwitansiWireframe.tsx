@@ -147,7 +147,7 @@ type DraftShape = {
 function readDraft(): DraftShape | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
+    const raw = localStorage.getItem(DRAFT_KEY) || sessionStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as DraftShape;
   } catch {
@@ -342,6 +342,7 @@ export function KwitansiWireframe({
       try {
         const raw = JSON.stringify(payload);
         if (raw.length > DRAFT_MAX_CHARS) return;
+        localStorage.setItem(DRAFT_KEY, raw);
         sessionStorage.setItem(DRAFT_KEY, raw);
       } catch {
         /* quota / private mode */
@@ -374,7 +375,46 @@ export function KwitansiWireframe({
     bendaharaSignUrl,
   ]);
 
+  const handleSelectJenis = (next: KwitansiJenis) => {
+    if (next === jenis) return;
+    setJenis(next);
+    if (next !== "pengeluaran") {
+      setUntukPembayaran((prev) => prev || defaultUntuk(next));
+    }
+  };
 
+  const clearDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+      sessionStorage.removeItem(DRAFT_KEY);
+    } catch {
+      /* ignore */
+    }
+    setJenis(initialJenis);
+    setMode("a");
+    setEventLabel(initialEventLabel);
+    setPeriodeNama("");
+    setNo(nextKwNo());
+    setTanggal(todayInput());
+    setTerimaDari("");
+    setPenyetorName("");
+    setPenyetorMemberId(null);
+    setPenyetorSignUrl(null);
+    setUntukPembayaran(defaultUntuk(initialJenis));
+    setPenerima([]);
+    setActivePenerimaId(null);
+    setNoNota(nextNpNo());
+    setNotaTanggal(todayInput());
+    setPajakPersen(0);
+    setNotaItems([]);
+    setBidangUjianName("");
+    setBidangUjianMemberId(null);
+    setBidangUjianSignUrl(null);
+    setBendaharaName("");
+    setBendaharaMemberId(null);
+    setBendaharaSignUrl(null);
+    toast.message("Draft dibersihkan");
+  };
 
   const sumNominal = useMemo(
     () => penerima.reduce((s, r) => s + (Number(r.nominal) || 0), 0),
@@ -436,45 +476,6 @@ export function KwitansiWireframe({
         ? effectiveRowsA[0]?.signUrl
         : null;
 
-  const changeJenis = (next: KwitansiJenis) => {
-    if (next === jenis) return;
-    setJenis(next);
-    if (next !== "pengeluaran") {
-      setUntukPembayaran((prev) => prev || defaultUntuk(next));
-    }
-  };
-
-  const clearDraft = () => {
-    try {
-      sessionStorage.removeItem(DRAFT_KEY);
-    } catch {
-      /* ignore */
-    }
-    setJenis(initialJenis);
-    setMode("a");
-    setEventLabel(initialEventLabel);
-    setPeriodeNama("");
-    setNo(nextKwNo());
-    setTanggal(todayInput());
-    setTerimaDari("");
-    setPenyetorName("");
-    setPenyetorMemberId(null);
-    setPenyetorSignUrl(null);
-    setUntukPembayaran(defaultUntuk(initialJenis));
-    setPenerima([]);
-    setActivePenerimaId(null);
-    setNoNota(nextNpNo());
-    setNotaTanggal(todayInput());
-    setPajakPersen(0);
-    setNotaItems([]);
-    setBidangUjianName("");
-    setBidangUjianMemberId(null);
-    setBidangUjianSignUrl(null);
-    setBendaharaName("");
-    setBendaharaMemberId(null);
-    setBendaharaSignUrl(null);
-    toast.message("Draft dibersihkan");
-  };
 
   const resetBaru = () => {
     if (isNota) {
@@ -953,7 +954,7 @@ export function KwitansiWireframe({
                 ? "border-inkai-red bg-inkai-red text-white"
                 : "hover:bg-muted"
             }`}
-            onClick={() => changeJenis(opt.id)}
+            onClick={() => handleSelectJenis(opt.id)}
           >
             {opt.label}
           </button>
