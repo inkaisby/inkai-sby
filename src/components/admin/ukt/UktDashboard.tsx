@@ -456,6 +456,7 @@ export function UktDashboard(props: Props) {
   const [localQ, setLocalQ] = useState("");
   const [localStatus, setLocalStatus] = useState("");
   const [localDojo, setLocalDojo] = useState(props.defaultDojoFilter || "");
+  const [localKyu, setLocalKyu] = useState("");
   const [localView, setLocalView] = useState("");
   const [localPage, setLocalPage] = useState(1);
   const [localPageSize, setLocalPageSize] = useState(25);
@@ -978,6 +979,7 @@ export function UktDashboard(props: Props) {
   const resetTableFilters = useCallback(() => {
     setLocalQ("");
     setLocalStatus("");
+    setLocalKyu("");
     setLocalView("");
     if (!isDojoAdmin || isMultiDojoAdmin) {
       setLocalDojo(isDojoAdmin ? "" : props.defaultDojoFilter || "");
@@ -1080,6 +1082,12 @@ export function UktDashboard(props: Props) {
       list = list.filter((r) => effectiveDojoIds.includes(r.dojoId));
     }
     if (localStatus) list = filterUktRowsByDisplayStatus(list, localStatus);
+    if (localKyu) {
+      list = list.filter((r) => {
+        const kyuRaw = r.kyuLama || r.kyuBaru || r.memberCurrentRank;
+        return rankBucketLabel(kyuRaw) === localKyu.toLowerCase();
+      });
+    }
     if (localQ.trim()) {
       const q = localQ.toLowerCase();
       list = list.filter(
@@ -1089,7 +1097,7 @@ export function UktDashboard(props: Props) {
       );
     }
     return list;
-  }, [rows, effectiveDojoIds, localStatus, localQ]);
+  }, [rows, effectiveDojoIds, localStatus, localKyu, localQ]);
 
   /** KPI & rekap tidak ikut filter status/cari — selalu dari peserta periode (+ranting). */
   const kpiSourceRows = useMemo(() => {
@@ -2178,6 +2186,34 @@ export function UktDashboard(props: Props) {
       toast.info(`${ids.size} peserta sabuk ${belt} terpilih`);
       return;
     }
+    if (key.startsWith("kyu:")) {
+      const targetKyu = key.replace("kyu:", "");
+      const ids = new Set<string>();
+      for (const r of filteredRows) {
+        if (r.registrationId) {
+          const kyuRaw = r.kyuLama || r.kyuBaru || r.memberCurrentRank;
+          if (rankBucketLabel(kyuRaw) === targetKyu.toLowerCase()) {
+            ids.add(r.memberId);
+          }
+        }
+      }
+      setSelectedIds(ids);
+      toast.info(`${ids.size} peserta ${targetKyu.toUpperCase()} terpilih`);
+      return;
+    }
+    if (key.startsWith("dojo:")) {
+      const dojoId = key.replace("dojo:", "");
+      const dojoObj = props.dojos.find((d) => d.id === dojoId);
+      const ids = new Set<string>();
+      for (const r of filteredRows) {
+        if (r.registrationId && r.dojoId === dojoId) {
+          ids.add(r.memberId);
+        }
+      }
+      setSelectedIds(ids);
+      toast.info(`${ids.size} peserta Ranting ${dojoObj?.name || ""} terpilih`);
+      return;
+    }
   };
 
   const handleDeleteBilling = async () => {
@@ -2798,6 +2834,7 @@ export function UktDashboard(props: Props) {
   const hasActiveFilters = Boolean(
     localQ.trim() ||
       localStatus ||
+      localKyu ||
       localView ||
       (localDojo &&
         localDojo !== (isDojoAdmin ? "" : props.defaultDojoFilter || "")),
@@ -4028,6 +4065,32 @@ export function UktDashboard(props: Props) {
           )}
 
           <Select
+            value={localKyu || "all"}
+            onValueChange={(v) => {
+              setLocalKyu(v === "all" ? "" : v);
+              setLocalPage(1);
+            }}
+          >
+            <SelectTrigger className="h-10 w-full sm:h-8 sm:w-36">
+              <SelectValue placeholder="Semua Kyu" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Kyu</SelectItem>
+              <SelectItem value="kyu 10">⚪ Putih (Kyu 10)</SelectItem>
+              <SelectItem value="kyu 9">⚪ Putih (Kyu 9)</SelectItem>
+              <SelectItem value="kyu 8">🟡 Kuning (Kyu 8)</SelectItem>
+              <SelectItem value="kyu 7">🟡 Kuning (Kyu 7)</SelectItem>
+              <SelectItem value="kyu 6">🟢 Hijau (Kyu 6)</SelectItem>
+              <SelectItem value="kyu 5">🔵 Biru (Kyu 5)</SelectItem>
+              <SelectItem value="kyu 4">🔵 Biru (Kyu 4)</SelectItem>
+              <SelectItem value="kyu 3">🟤 Coklat (Kyu 3)</SelectItem>
+              <SelectItem value="kyu 2">🟤 Coklat (Kyu 2)</SelectItem>
+              <SelectItem value="kyu 1">🟤 Coklat (Kyu 1)</SelectItem>
+              <SelectItem value="dan">⚫ Hitam / DAN</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select
             value={String(localPageSize)}
             onValueChange={(v) => {
               setLocalPageSize(parseInt(v, 10));
@@ -4190,9 +4253,9 @@ export function UktDashboard(props: Props) {
                         <ChevronDown className="h-3 w-3" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="z-[110] w-52">
+                    <DropdownMenuContent align="start" className="z-[110] w-64 max-h-96 overflow-y-auto">
                       <DropdownMenuItem onClick={() => handleSelectSpecial("all")}>
-                        ☑️ Centang Semua Pendaftar
+                        ☑️ Centang Semua Pendaftar ({filteredRows.filter((r) => r.registrationId).length})
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleSelectSpecial("unpaid")}>
                         💳 Centang Khusus: Belum Bayar
@@ -4200,22 +4263,62 @@ export function UktDashboard(props: Props) {
                       <DropdownMenuItem onClick={() => handleSelectSpecial("unfilled")}>
                         ⚠️ Centang Khusus: Belum Isi Kyu Baru
                       </DropdownMenuItem>
+
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleSelectSpecial("belt:PUTIH")}>
-                        ⚪ Centang Khusus: Putih (Kyu 10)
+                      <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        Per Kyu / Tingkat
+                      </div>
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("kyu:kyu 10")}>
+                        ⚪ Centang Khusus: Kyu 10 (Putih)
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleSelectSpecial("belt:KUNING")}>
-                        🟡 Centang Khusus: Kuning (Kyu 8/7)
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("kyu:kyu 9")}>
+                        ⚪ Centang Khusus: Kyu 9 (Putih)
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleSelectSpecial("belt:HIJAU")}>
-                        🟢 Centang Khusus: Hijau (Kyu 6)
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("kyu:kyu 8")}>
+                        🟡 Centang Khusus: Kyu 8 (Kuning)
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleSelectSpecial("belt:BIRU")}>
-                        🔵 Centang Khusus: Biru (Kyu 5/4)
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("kyu:kyu 7")}>
+                        🟡 Centang Khusus: Kyu 7 (Kuning)
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleSelectSpecial("belt:COKELAT")}>
-                        🟤 Centang Khusus: Coklat (Kyu 3/2/1)
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("kyu:kyu 6")}>
+                        🟢 Centang Khusus: Kyu 6 (Hijau)
                       </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("kyu:kyu 5")}>
+                        🔵 Centang Khusus: Kyu 5 (Biru)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("kyu:kyu 4")}>
+                        🔵 Centang Khusus: Kyu 4 (Biru)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("kyu:kyu 3")}>
+                        🟤 Centang Khusus: Kyu 3 (Coklat)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("kyu:kyu 2")}>
+                        🟤 Centang Khusus: Kyu 2 (Coklat)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("kyu:kyu 1")}>
+                        🟤 Centang Khusus: Kyu 1 (Coklat)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleSelectSpecial("kyu:dan")}>
+                        ⚫ Centang Khusus: Hitam / DAN
+                      </DropdownMenuItem>
+
+                      {props.dojos.length > 0 && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            Per Ranting / Dojo
+                          </div>
+                          {props.dojos.map((d) => (
+                            <DropdownMenuItem
+                              key={d.id}
+                              onClick={() => handleSelectSpecial(`dojo:${d.id}`)}
+                            >
+                              🥋 Centang Ranting: {d.name}
+                            </DropdownMenuItem>
+                          ))}
+                        </>
+                      )}
+
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => handleSelectSpecial("none")}>
                         🚫 Batal Centang Semua
