@@ -232,6 +232,17 @@ export function UktMatrixRecapPanel({
     toast.success("Rekapitulasi Matrix disalin ke clipboard!");
   };
 
+  const handleCopyExcel = () => {
+    let text = `NO\tNAMA RANTING\tPUTIH\tKUNING\tHIJAU\tBIRU\tCOKLAT\tJUMLAH\n`;
+    for (const r of matrixData.list) {
+      text += `${r.no}\t${r.dojoName}\t${r.putih}\t${r.kuning}\t${r.hijau}\t${r.biru}\t${r.cokelat}\t${r.total}\n`;
+    }
+    text += `TOTAL\tJUMLAH\t${matrixData.totals.putih}\t${matrixData.totals.kuning}\t${matrixData.totals.hijau}\t${matrixData.totals.biru}\t${matrixData.totals.cokelat}\t${matrixData.totals.grandTotal}\n`;
+
+    void navigator.clipboard.writeText(text);
+    toast.success("Rekapitulasi Matrix berhasil disalin! Siap dipaste di Excel.");
+  };
+
   const handleExportCsv = () => {
     let csv = `\uFEFFNO,NAMA RANTING,PUTIH,KUNING,HIJAU,BIRU,COKLAT,JUMLAH\n`;
     for (const r of matrixData.list) {
@@ -291,6 +302,16 @@ export function UktMatrixRecapPanel({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleCopyExcel}
+            className="h-9 gap-1 text-xs border-emerald-600/30 bg-emerald-50/50 hover:bg-emerald-100/70 dark:bg-emerald-950/20 dark:hover:bg-emerald-900/30"
+          >
+            <Copy className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span className="hidden sm:inline">Salin Excel</span>
+          </Button>
+
           <Button
             size="sm"
             variant="outline"

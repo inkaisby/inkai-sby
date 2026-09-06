@@ -37,6 +37,7 @@ import {
   Minimize2,
   X,
   ArrowUpDown,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -216,6 +217,7 @@ import {
   STICKY_NAME_CELL,
   STICKY_NAME_HEAD,
 } from "@/lib/admin-table-sticky";
+import { openUktMatrixPrint } from "@/lib/ukt-matrix-print-html";
 
 const SORT_KEY_LABELS: Record<string, string> = {
   nia: "NIA",
@@ -1161,6 +1163,147 @@ export function UktDashboard(props: Props) {
       expectedAmount,
     };
   }, [depositRecon]);
+
+  const handleCopyDepositReconToExcel = useCallback(() => {
+    if (!depositRecon || depositRecon.length === 0) return;
+
+    const headers = [
+      "Ranting",
+      "Putih",
+      "Kuning",
+      "Hijau",
+      "Biru",
+      "Cokelat",
+      "Peserta",
+      "Lunas",
+      "Total Tagihan",
+      "Status Setor",
+      "Keterangan",
+    ];
+
+    const rowsText = depositRecon.map((row) => {
+      const ket =
+        row.isFullyPaid ||
+        (row.participantCount > 0 && row.paidCount === row.participantCount)
+          ? "Lunas"
+          : row.gapLabel || (row.participantCount === 0 ? "0 peserta" : "");
+      const statusSetor = row.depositStatus
+        ? uktDepositStatusLabel(row.depositStatus)
+        : "—";
+
+      return [
+        row.dojoName,
+        row.beltCounts?.PUTIH || 0,
+        row.beltCounts?.KUNING || 0,
+        row.beltCounts?.HIJAU || 0,
+        row.beltCounts?.BIRU || 0,
+        row.beltCounts?.COKELAT || 0,
+        row.participantCount,
+        row.paidCount,
+        formatRupiahNota(row.expectedAmount),
+        statusSetor,
+        ket,
+      ].join("\t");
+    });
+
+    const totalRow = [
+      "JUMLAH / TOTAL",
+      depositTotals.putih || 0,
+      depositTotals.kuning || 0,
+      depositTotals.hijau || 0,
+      depositTotals.biru || 0,
+      depositTotals.cokelat || 0,
+      depositTotals.participantCount,
+      depositTotals.paidCount,
+      formatRupiahNota(depositTotals.expectedAmount),
+      `${depositTotals.paidCount} dari ${depositTotals.participantCount} Lunas`,
+      "",
+    ].join("\t");
+
+    const fullText = [headers.join("\t"), ...rowsText, totalRow].join("\n");
+
+    void navigator.clipboard.writeText(fullText);
+    toast.success("Tabel setoran UKT berhasil disalin! Siap dipaste (Ctrl+V) di Excel.");
+  }, [depositRecon, depositTotals]);
+
+  const handlePrintDepositRecon = useCallback(() => {
+    if (!depositRecon || depositRecon.length === 0) return;
+
+    const today = new Date().toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+
+    const matrixRows = depositRecon.map((r, idx) => ({
+      no: idx + 1,
+      dojoName: r.dojoName,
+      putih: r.beltCounts?.PUTIH || 0,
+      kuning: r.beltCounts?.KUNING || 0,
+      hijau: r.beltCounts?.HIJAU || 0,
+      biru: r.beltCounts?.BIRU || 0,
+      cokelat: r.beltCounts?.COKELAT || 0,
+      total: r.participantCount || 0,
+    }));
+
+    openUktMatrixPrint({
+      semester: props.semester,
+      year: props.year,
+      rows: matrixRows,
+      totalPutih: depositTotals.putih,
+      totalKuning: depositTotals.kuning,
+      totalHijau: depositTotals.hijau,
+      totalBiru: depositTotals.biru,
+      totalCokelat: depositTotals.cokelat,
+      grandTotal: depositTotals.participantCount,
+      origin: typeof window !== "undefined" ? window.location.origin : "",
+      printedAt: today,
+      sekretariatAddress: props.orgProfile?.address,
+      bidangUjianName: periodOfficers.bidangUjianName,
+      orgKetuaCabangName: props.orgProfile?.ketuaCabangName,
+      strukturKetuaName: props.strukturKetuaName,
+      pengprovHeadName: props.pengprovHeadName,
+    });
+  }, [
+    depositRecon,
+    depositTotals,
+    props.semester,
+    props.year,
+    props.orgProfile,
+    props.strukturKetuaName,
+    props.pengprovHeadName,
+    periodOfficers,
+  ]);
+
+  const handleExportDepositReconCsv = useCallback(() => {
+    if (!depositRecon || depositRecon.length === 0) return;
+
+    let csv = `\uFEFFRanting,Putih,Kuning,Hijau,Biru,Cokelat,Peserta,Lunas,Total Tagihan,Status Setor,Keterangan\n`;
+    for (const r of depositRecon) {
+      const name = `"${r.dojoName.replace(/"/g, '""')}"`;
+      const ket =
+        r.isFullyPaid ||
+        (r.participantCount > 0 && r.paidCount === r.participantCount)
+          ? "Lunas"
+          : `"${(r.gapLabel || (r.participantCount === 0 ? "0 peserta" : "")).replace(/"/g, '""')}"`;
+      const statusSetor = r.depositStatus
+        ? `"${uktDepositStatusLabel(r.depositStatus)}"`
+        : "—";
+      const tagihan = `"${formatRupiahNota(r.expectedAmount)}"`;
+
+      csv += `${name},${r.beltCounts?.PUTIH || 0},${r.beltCounts?.KUNING || 0},${r.beltCounts?.HIJAU || 0},${r.beltCounts?.BIRU || 0},${r.beltCounts?.COKELAT || 0},${r.participantCount},${r.paidCount},${tagihan},${statusSetor},${ket}\n`;
+    }
+    csv += `"JUMLAH / TOTAL",${depositTotals.putih || 0},${depositTotals.kuning || 0},${depositTotals.hijau || 0},${depositTotals.biru || 0},${depositTotals.cokelat || 0},${depositTotals.participantCount},${depositTotals.paidCount},"${formatRupiahNota(depositTotals.expectedAmount)}","${depositTotals.paidCount} dari ${depositTotals.participantCount} Lunas",\n`;
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Rekapitulasi_Setoran_UKT_Semester_${props.semester}_${props.year}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("File CSV Setoran UKT berhasil diunduh!");
+  }, [depositRecon, depositTotals, props.semester, props.year]);
 
   const filteredRows = useMemo(() => {
     if (localView === "gagal_mengulang") {
@@ -3596,6 +3739,40 @@ export function UktDashboard(props: Props) {
                   Cabang mencatat status setoran ranting (diterima / reset).
                 </p>
               </div>
+              {depositRecon.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5 text-xs font-medium border-emerald-600/30 bg-emerald-50/50 hover:bg-emerald-100/70 dark:bg-emerald-950/20 dark:hover:bg-emerald-900/30"
+                    onClick={handleCopyDepositReconToExcel}
+                    title="Salin tabel setoran ke clipboard (bisa langsung paste di Excel)"
+                  >
+                    <Copy className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>Salin ke Excel</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5 text-xs font-medium"
+                    onClick={handleExportDepositReconCsv}
+                    title="Unduh file CSV Rekapitulasi Setoran UKT"
+                  >
+                    <Download className="h-3.5 w-3.5 text-slate-600 dark:text-slate-400" />
+                    <span>Export CSV</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5 text-xs font-medium border-inkai-red/30 bg-red-50/50 hover:bg-red-100/70 dark:bg-red-950/20 dark:hover:bg-red-900/30"
+                    onClick={handlePrintDepositRecon}
+                    title="Cetak PDF Rekapitulasi Setoran UKT"
+                  >
+                    <Printer className="h-3.5 w-3.5 text-inkai-red" />
+                    <span>Cetak PDF</span>
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {props.dojos.map((d) => {
@@ -3658,7 +3835,43 @@ export function UktDashboard(props: Props) {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="sticky left-0 z-10 bg-muted/50 min-w-[140px]">Ranting</TableHead>
+                      <TableHead className="sticky left-0 z-10 bg-muted/50 min-w-[140px]">
+                        <div className="flex items-center justify-between gap-1">
+                          <span>Ranting</span>
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-muted-foreground hover:text-emerald-600"
+                              onClick={handleCopyDepositReconToExcel}
+                              title="Salin tabel setoran ke Excel"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                              onClick={handleExportDepositReconCsv}
+                              title="Unduh file CSV setoran"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-6 w-6 text-muted-foreground hover:text-inkai-red"
+                              onClick={handlePrintDepositRecon}
+                              title="Cetak PDF tabel setoran"
+                            >
+                              <Printer className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </TableHead>
                       <TableHead className="w-16 text-center text-slate-700">Putih</TableHead>
                       <TableHead className="w-16 text-center text-amber-700">Kuning</TableHead>
                       <TableHead className="w-16 text-center text-emerald-700">Hijau</TableHead>
