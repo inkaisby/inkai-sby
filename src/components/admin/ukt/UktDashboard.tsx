@@ -1126,6 +1126,42 @@ export function UktDashboard(props: Props) {
     [kpiSourceRows, props.dojos, depositMap, komisiRanting],
   );
 
+  const depositTotals = useMemo(() => {
+    let putih = 0;
+    let kuning = 0;
+    let hijau = 0;
+    let biru = 0;
+    let cokelat = 0;
+    let hitam = 0;
+    let participantCount = 0;
+    let paidCount = 0;
+    let expectedAmount = 0;
+
+    for (const r of depositRecon) {
+      putih += r.beltCounts?.PUTIH || 0;
+      kuning += r.beltCounts?.KUNING || 0;
+      hijau += r.beltCounts?.HIJAU || 0;
+      biru += r.beltCounts?.BIRU || 0;
+      cokelat += r.beltCounts?.COKELAT || 0;
+      hitam += (r.beltCounts as Record<string, number> | undefined)?.HITAM || 0;
+      participantCount += r.participantCount || 0;
+      paidCount += r.paidCount || 0;
+      expectedAmount += r.expectedAmount || 0;
+    }
+
+    return {
+      putih,
+      kuning,
+      hijau,
+      biru,
+      cokelat,
+      hitam,
+      participantCount,
+      paidCount,
+      expectedAmount,
+    };
+  }, [depositRecon]);
+
   const filteredRows = useMemo(() => {
     if (localView === "gagal_mengulang") {
       return scopedRows.filter((row) => {
@@ -3684,6 +3720,40 @@ export function UktDashboard(props: Props) {
                         </TableCell>
                       </TableRow>
                     ))}
+
+                    {/* Summary Totals Row */}
+                    <TableRow className="bg-slate-100/90 font-bold dark:bg-slate-800/90 border-t-2 border-slate-300 dark:border-slate-700">
+                      <TableCell className="sticky left-0 z-10 bg-slate-100/90 font-bold text-xs uppercase tracking-wider dark:bg-slate-800/90">
+                        JUMLAH / TOTAL
+                      </TableCell>
+                      <TableCell className="text-center text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {depositTotals.putih || "—"}
+                      </TableCell>
+                      <TableCell className="text-center text-xs font-bold text-amber-800 dark:text-amber-300">
+                        {depositTotals.kuning || "—"}
+                      </TableCell>
+                      <TableCell className="text-center text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                        {depositTotals.hijau || "—"}
+                      </TableCell>
+                      <TableCell className="text-center text-xs font-bold text-blue-800 dark:text-blue-300">
+                        {depositTotals.biru || "—"}
+                      </TableCell>
+                      <TableCell className="text-center text-xs font-bold text-orange-950 dark:text-orange-200">
+                        {depositTotals.cokelat || "—"}
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-extrabold text-foreground">
+                        {depositTotals.participantCount}
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-extrabold text-emerald-600 dark:text-emerald-400">
+                        {depositTotals.paidCount}
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-extrabold text-inkai-red">
+                        {formatRupiahNota(depositTotals.expectedAmount)}
+                      </TableCell>
+                      <TableCell colSpan={2} className="text-xs text-muted-foreground font-semibold">
+                        {depositTotals.paidCount} dari {depositTotals.participantCount} Lunas
+                      </TableCell>
+                    </TableRow>
                   </TableBody>
                 </Table>
               </div>

@@ -6,6 +6,7 @@ import {
   shortRankLabel,
   isBlankUktRank,
   compareUktRanks,
+  type BeltGroup,
 } from "@/lib/belt";
 import { DISPORA_JATIM, isDisporaJatim } from "@/lib/venue";
 import { LATBER_PAYMENT } from "@/lib/latber";
@@ -1191,7 +1192,7 @@ export type UktDepositReconRow = {
   depositStatus: UktDepositStatus | null;
   gapLabel: string;
   isFullyPaid: boolean;
-  beltCounts: Record<BeltFeeKey | "LAINNYA", number>;
+  beltCounts: Record<BeltGroup, number>;
 };
 
 /** Rekonsiliasi setoran: total tagihan peserta terdaftar (disetor ke cabang net = kotor − komisi ranting) vs status setor ranting. */
@@ -1211,12 +1212,13 @@ export function buildUktDepositReconciliation(
   depositMap: Record<string, UktDepositRecord>,
   komisiRanting: number = DEFAULT_KOMISI_RANTING,
 ): UktDepositReconRow[] {
-  const createEmptyBeltCounts = (): Record<BeltFeeKey | "LAINNYA", number> => ({
+  const createEmptyBeltCounts = (): Record<BeltGroup, number> => ({
     PUTIH: 0,
     KUNING: 0,
     HIJAU: 0,
     BIRU: 0,
     COKELAT: 0,
+    HITAM: 0,
     LAINNYA: 0,
   });
 
@@ -1227,7 +1229,7 @@ export function buildUktDepositReconciliation(
       participantCount: number;
       paidCount: number;
       grossAmount: number;
-      beltCounts: Record<BeltFeeKey | "LAINNYA", number>;
+      beltCounts: Record<BeltGroup, number>;
     }
   >();
 

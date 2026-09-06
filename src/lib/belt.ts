@@ -396,7 +396,7 @@ export function getUktTargetRank(currentRank: string | null | undefined): string
 }
 
 
-export type BeltGroup = "PUTIH" | "KUNING" | "HIJAU" | "BIRU" | "COKELAT" | "LAINNYA";
+export type BeltGroup = "PUTIH" | "KUNING" | "HIJAU" | "BIRU" | "COKELAT" | "HITAM" | "LAINNYA";
 
 export function getBeltGroup(rankRaw: string | null | undefined): BeltGroup {
   const r = (rankRaw || "").trim().toLowerCase();
@@ -405,6 +405,7 @@ export function getBeltGroup(rankRaw: string | null | undefined): BeltGroup {
   if (r.includes("hijau")) return "HIJAU";
   if (r.includes("biru")) return "BIRU";
   if (r.includes("cokelat") || r.includes("coklat")) return "COKELAT";
+  if (r.includes("hitam") || r.includes("dan")) return "HITAM";
   return "LAINNYA";
 }
 
