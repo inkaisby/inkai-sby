@@ -22,6 +22,8 @@ import {
   type UktSemester,
 } from "@/lib/ukt";
 import { printUktPesertaDocument } from "@/lib/ukt-print-html";
+import type { UktPesertaPaper } from "@/lib/ukt-peserta-xlsx";
+import { cn } from "@/lib/utils";
 
 type DojoOption = { id: string; name: string };
 
@@ -82,6 +84,8 @@ export function UktExportDialog({
   sekretariatAddress,
 }: Props) {
   const [printBusy, setPrintBusy] = useState(false);
+  const [excelBusy, setExcelBusy] = useState(false);
+  const [paper, setPaper] = useState<UktPesertaPaper>("A4");
 
   const registered = useMemo(
     () => rows.filter((r) => r.registrationId),
@@ -176,6 +180,41 @@ export function UktExportDialog({
     toast.success(`${data.length} peserta diekspor ke CSV`);
   };
 
+  const handleExcel = async () => {
+    const data = ensureRows();
+    if (!data) return;
+    setExcelBusy(true);
+    try {
+      const res = await fetch("/api/admin/ukt/export-peserta-excel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          semester,
+          year,
+          paper,
+          sekretariatAddress,
+          rows: data,
+        }),
+      });
+      if (!res.ok) {
+        const errData = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(errData.error || "Gagal membuat file Excel");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ukt-peserta-S${semester}-${year}-${paper}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${data.length} peserta diekspor ke Excel (.xlsx)`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal ekspor Excel");
+    } finally {
+      setExcelBusy(false);
+    }
+  };
+
   const handlePrint = () => {
     const data = ensureRows();
     if (!data) return;
@@ -193,6 +232,7 @@ export function UktExportDialog({
         signatoryTitle: "Bidang Ujian",
         signatoryName: bidangUjianName || "SETIA BASUKI",
         sekretariatAddress,
+        paper,
       });
       toast.success(
         `${data.length} peserta siap — di dialog cetak pilih printer atau Save as PDF`,
@@ -322,25 +362,57 @@ export function UktExportDialog({
           </p>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleCsv}
-            disabled={filteredRows.length === 0}
-          >
-            <FileSpreadsheet className="mr-1 h-4 w-4" />
-            CSV
-          </Button>
-          <Button
-            type="button"
-            className="bg-inkai-red hover:bg-inkai-red/90"
-            onClick={handlePrint}
-            disabled={filteredRows.length === 0 || printBusy}
-          >
-            <Printer className="mr-1 h-4 w-4" />
-            Print
-          </Button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-medium text-muted-foreground">Kertas:</span>
+            <div className="inline-flex rounded-lg border bg-muted/40 p-0.5">
+              {(["A4", "F4"] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPaper(p)}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-xs font-semibold transition-all",
+                    paper === p
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {p === "F4" ? "F4 (Folio)" : "A4"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCsv}
+              disabled={filteredRows.length === 0}
+            >
+              <FileSpreadsheet className="mr-1 h-4 w-4" />
+              CSV
+            </Button>
+            <Button
+              type="button"
+              className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-800"
+              onClick={() => void handleExcel()}
+              disabled={filteredRows.length === 0 || excelBusy}
+            >
+              <FileSpreadsheet className="mr-1 h-4 w-4" />
+              {excelBusy ? "Memuat…" : "Excel (.xlsx)"}
+            </Button>
+            <Button
+              type="button"
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              onClick={handlePrint}
+              disabled={filteredRows.length === 0 || printBusy}
+            >
+              <Printer className="mr-1 h-4 w-4" />
+              Print
+            </Button>
+          </div>
         </div>
     </>
   );

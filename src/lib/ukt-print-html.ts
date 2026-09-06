@@ -429,6 +429,7 @@ export type UktPesertaPrintData = {
   signatoryTitle: string;
   signatoryName: string;
   sekretariatAddress?: string;
+  paper?: "A4" | "F4";
 };
 
 export function buildUktPesertaPrintHtml(data: UktPesertaPrintData): string {
@@ -459,13 +460,18 @@ export function buildUktPesertaPrintHtml(data: UktPesertaPrintData): string {
           )
           .join("");
 
+  const pageCss =
+    data.paper === "F4"
+      ? "215mm 330mm landscape"
+      : "A4 landscape";
+
   return `<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="utf-8" />
   <title>${escapeHtml(data.title)}</title>
   <style>
-    @page { size: A4 landscape; margin: 10mm 8mm; }
+    @page { size: ${pageCss}; margin: 10mm 8mm; }
     * { box-sizing: border-box; }
     html, body {
       margin: 0;
