@@ -36,6 +36,7 @@ import {
   Maximize2,
   Minimize2,
   X,
+  ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -201,8 +202,11 @@ import {
   compareDates,
   compareNumbers,
   compareStrings,
+  compareRankBuckets,
+  rankBucketLabel,
   toggleSortKey,
   type SortDir,
+  type SortRule,
 } from "@/lib/table-sort";
 import { formatRegisteredAtWib } from "@/lib/format-wib";
 import {
@@ -212,6 +216,36 @@ import {
   STICKY_NAME_CELL,
   STICKY_NAME_HEAD,
 } from "@/lib/admin-table-sticky";
+
+const SORT_KEY_LABELS: Record<string, string> = {
+  nia: "NIA",
+  fullName: "Nama",
+  dojoName: "Ranting",
+  registeredAt: "Tgl Daftar",
+  birthPlace: "Tempat Lahir",
+  birthDate: "Tgl Lahir",
+  gender: "JK",
+  address: "Alamat",
+  kyuLama: "Kyu Lama",
+  kyuBaru: "Kyu Baru",
+  attendancePct: "Kehadiran",
+  status: "Status",
+};
+
+const AVAILABLE_SORT_OPTIONS = [
+  { key: "dojoName", label: "Ranting" },
+  { key: "kyuLama", label: "Kyu Lama" },
+  { key: "kyuBaru", label: "Kyu Baru" },
+  { key: "fullName", label: "Nama Lengkap" },
+  { key: "registeredAt", label: "Tanggal Daftar" },
+  { key: "nia", label: "NIA" },
+  { key: "status", label: "Status" },
+  { key: "attendancePct", label: "Kehadiran" },
+  { key: "birthPlace", label: "Tempat Lahir" },
+  { key: "birthDate", label: "Tanggal Lahir" },
+  { key: "gender", label: "Jenis Kelamin" },
+  { key: "address", label: "Alamat" },
+];
 
 function compareUktRows(
   a: UktMemberRow,
@@ -235,15 +269,15 @@ function compareUktRows(
     case "address":
       return compareStrings(a.address, b.address, dir);
     case "kyuLama":
-      return compareStrings(
-        formatRankLabel(a.kyuLama),
-        formatRankLabel(b.kyuLama),
+      return compareRankBuckets(
+        rankBucketLabel(a.kyuLama),
+        rankBucketLabel(b.kyuLama),
         dir,
       );
     case "kyuBaru":
-      return compareStrings(
-        formatRankLabel(a.kyuBaru ?? ""),
-        formatRankLabel(b.kyuBaru ?? ""),
+      return compareRankBuckets(
+        rankBucketLabel(a.kyuBaru ?? ""),
+        rankBucketLabel(b.kyuBaru ?? ""),
         dir,
       );
     case "attendancePct":
@@ -259,6 +293,18 @@ function compareUktRows(
     default:
       return compareStrings(a.fullName, b.fullName, dir);
   }
+}
+
+function compareUktRowsMulti(
+  a: UktMemberRow,
+  b: UktMemberRow,
+  rules: SortRule[],
+) {
+  for (const rule of rules) {
+    const res = compareUktRows(a, b, rule.key, rule.dir);
+    if (res !== 0) return res;
+  }
+  return 0;
 }
 
 export type UktPeriod = {
@@ -413,10 +459,9 @@ export function UktDashboard(props: Props) {
   const [localView, setLocalView] = useState("");
   const [localPage, setLocalPage] = useState(1);
   const [localPageSize, setLocalPageSize] = useState(25);
-  const [sort, setSort] = useState<{ key: string; dir: SortDir }>({
-    key: "fullName",
-    dir: "asc",
-  });
+  const [sortRules, setSortRules] = useState<SortRule[]>([
+    { key: "fullName", dir: "asc" },
+  ]);
   const [yearInput, setYearInput] = useState(String(props.year));
   const [editingTitle, setEditingTitle] = useState(false);
   const [periodTitle, setPeriodTitle] = useState(
@@ -1096,13 +1141,66 @@ export function UktDashboard(props: Props) {
 
   const sortedRows = useMemo(() => {
     const rows = [...filteredRows];
-    rows.sort((a, b) => compareUktRows(a, b, sort.key, sort.dir));
+    rows.sort((a, b) => compareUktRowsMulti(a, b, sortRules));
     return rows;
-  }, [filteredRows, sort]);
+  }, [filteredRows, sortRules]);
 
-  const handleSort = useCallback((key: string) => {
-    setSort((prev) => toggleSortKey(prev.key, prev.dir, key));
+  const handleSort = useCallback((key: string, e?: React.MouseEvent) => {
+    setSortRules((prev) => {
+      const isShiftKey = Boolean(e?.shiftKey);
+      const existingIndex = prev.findIndex((r) => r.key === key);
+
+      if (!isShiftKey) {
+        if (existingIndex === 0 && prev.length === 1) {
+          return [{ key, dir: prev[0].dir === "asc" ? "desc" : "asc" }];
+        }
+        return [{ key, dir: "asc" }];
+      }
+
+      if (existingIndex === -1) {
+        return [...prev, { key, dir: "asc" }];
+      } else {
+        const currentDir = prev[existingIndex].dir;
+        if (currentDir === "asc") {
+          const updated = [...prev];
+          updated[existingIndex] = { key, dir: "desc" };
+          return updated;
+        } else {
+          if (prev.length > 1) {
+            return prev.filter((_, i) => i !== existingIndex);
+          } else {
+            return [{ key, dir: "asc" }];
+          }
+        }
+      }
+    });
     setLocalPage(1);
+  }, []);
+
+  const toggleSortRuleDir = useCallback((key: string) => {
+    setSortRules((prev) =>
+      prev.map((r) =>
+        r.key === key ? { ...r, dir: r.dir === "asc" ? "desc" : "asc" } : r,
+      ),
+    );
+  }, []);
+
+  const removeSortRule = useCallback((key: string) => {
+    setSortRules((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((r) => r.key !== key);
+    });
+  }, []);
+
+  const addSortRule = useCallback((key: string) => {
+    setSortRules((prev) => {
+      if (prev.some((r) => r.key === key)) return prev;
+      return [...prev, { key, dir: "asc" }];
+    });
+  }, []);
+
+  const resetSortRules = useCallback(() => {
+    setSortRules([{ key: "fullName", dir: "asc" }]);
   }, []);
 
   const totalFiltered = sortedRows.length;
@@ -3968,10 +4066,98 @@ export function UktDashboard(props: Props) {
         </p>
       ) : null}
 
+      {/* Multi-Sort Controls Bar */}
+      <div className="mt-2 mb-1 flex flex-wrap items-center justify-between gap-2 px-1 text-xs">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+            <ArrowUpDown className="h-3.5 w-3.5 text-inkai-red" />
+            Urutan Sort:
+          </span>
+          {sortRules.map((rule, idx) => {
+            const label = SORT_KEY_LABELS[rule.key] || rule.key;
+            const isAsc = rule.dir === "asc";
+            const isKyuCol = rule.key === "kyuLama" || rule.key === "kyuBaru";
+            const dirText = isKyuCol
+              ? isAsc ? "10→1" : "1→10"
+              : isAsc ? "A-Z" : "Z-A";
+
+            return (
+              <span
+                key={rule.key}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2.5 py-0.5 text-xs font-medium text-foreground shadow-2xs transition-colors hover:border-inkai-red/40"
+              >
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-inkai-red/10 font-bold text-[10px] text-inkai-red">
+                  {idx + 1}
+                </span>
+                <span>{label}</span>
+                <button
+                  type="button"
+                  onClick={() => toggleSortRuleDir(rule.key)}
+                  className="ml-0.5 rounded px-1 text-[11px] font-semibold text-inkai-red hover:bg-inkai-red/10"
+                  title="Klik untuk ubah arah sort"
+                >
+                  ({dirText})
+                </button>
+                {sortRules.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeSortRule(rule.key)}
+                    className="ml-0.5 rounded-full p-0.5 text-muted-foreground hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950 dark:hover:text-red-400"
+                    title="Hapus dari urutan sort"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </span>
+            );
+          })}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-full border border-dashed border-border bg-muted/40 px-2.5 py-0.5 text-xs font-medium text-muted-foreground hover:border-inkai-red hover:bg-background hover:text-foreground"
+              >
+                <Plus className="h-3 w-3 text-inkai-red" />
+                Tambah Sort
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="z-[110] w-48">
+              {AVAILABLE_SORT_OPTIONS.filter(
+                (opt) =>
+                  (opt.key !== "dojoName" || showDojoColumn) &&
+                  !sortRules.some((r) => r.key === opt.key),
+              ).map((opt) => (
+                <DropdownMenuItem
+                  key={opt.key}
+                  onClick={() => addSortRule(opt.key)}
+                >
+                  {opt.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {sortRules.length > 1 && (
+            <button
+              type="button"
+              onClick={resetSortRules}
+              className="ml-1 text-xs text-muted-foreground underline hover:text-foreground"
+            >
+              Reset Sort
+            </button>
+          )}
+        </div>
+
+        <span className="hidden text-[11px] text-muted-foreground md:inline">
+          Tip: Tahan <kbd className="rounded border px-1 bg-muted font-mono text-[10px]">Shift</kbd> + Klik header tabel untuk mengurutkan beberapa kolom
+        </span>
+      </div>
+
       {/* Table */}
       <div
         className={cn(
-          "mt-2 rounded-xl border bg-card shadow-sm",
+          "mt-1 rounded-xl border bg-card shadow-sm",
           tableFullscreen && "min-h-0 flex-1 overflow-auto",
         )}
       >
@@ -4045,16 +4231,14 @@ export function UktDashboard(props: Props) {
               <SortableTableHead
                 label="NIA"
                 sortKey="nia"
-                activeKey={sort.key}
-                activeDir={sort.dir}
+                sortRules={sortRules}
                 onSort={handleSort}
                 className="hidden sm:table-cell"
               />
               <SortableTableHead
                 label="Nama Lengkap"
                 sortKey="fullName"
-                activeKey={sort.key}
-                activeDir={sort.dir}
+                sortRules={sortRules}
                 onSort={handleSort}
                 className={UKT_NAME_STICKY_HEAD}
               />
@@ -4062,8 +4246,7 @@ export function UktDashboard(props: Props) {
                 <SortableTableHead
                   label="Ranting"
                   sortKey="dojoName"
-                  activeKey={sort.key}
-                  activeDir={sort.dir}
+                  sortRules={sortRules}
                   onSort={handleSort}
                   className="hidden sm:table-cell"
                 />
@@ -4071,8 +4254,7 @@ export function UktDashboard(props: Props) {
               <SortableTableHead
                 label="Tanggal daftar"
                 sortKey="registeredAt"
-                activeKey={sort.key}
-                activeDir={sort.dir}
+                sortRules={sortRules}
                 onSort={handleSort}
                 className="whitespace-nowrap"
               />
@@ -4081,32 +4263,28 @@ export function UktDashboard(props: Props) {
                   <SortableTableHead
                     label="Tempat"
                     sortKey="birthPlace"
-                    activeKey={sort.key}
-                    activeDir={sort.dir}
+                    sortRules={sortRules}
                     onSort={handleSort}
                     className={cn(!tableFullscreen && "hidden md:table-cell")}
                   />
                   <SortableTableHead
                     label="Tgl Lahir"
                     sortKey="birthDate"
-                    activeKey={sort.key}
-                    activeDir={sort.dir}
+                    sortRules={sortRules}
                     onSort={handleSort}
                     className={cn(!tableFullscreen && "hidden lg:table-cell")}
                   />
                   <SortableTableHead
                     label="JK"
                     sortKey="gender"
-                    activeKey={sort.key}
-                    activeDir={sort.dir}
+                    sortRules={sortRules}
                     onSort={handleSort}
                     className={cn(!tableFullscreen && "hidden sm:table-cell")}
                   />
                   <SortableTableHead
                     label="Alamat"
                     sortKey="address"
-                    activeKey={sort.key}
-                    activeDir={sort.dir}
+                    sortRules={sortRules}
                     onSort={handleSort}
                     className={cn(
                       "max-w-32 truncate",
@@ -4118,15 +4296,13 @@ export function UktDashboard(props: Props) {
               <SortableTableHead
                 label="Kyu Lama"
                 sortKey="kyuLama"
-                activeKey={sort.key}
-                activeDir={sort.dir}
+                sortRules={sortRules}
                 onSort={handleSort}
               />
               <SortableTableHead
                 label="Kyu Baru"
                 sortKey="kyuBaru"
-                activeKey={sort.key}
-                activeDir={sort.dir}
+                sortRules={sortRules}
                 onSort={handleSort}
               />
               {showAttendanceCols && (
@@ -4134,8 +4310,7 @@ export function UktDashboard(props: Props) {
                   <SortableTableHead
                     label="Kehadiran"
                     sortKey="attendancePct"
-                    activeKey={sort.key}
-                    activeDir={sort.dir}
+                    sortRules={sortRules}
                     onSort={handleSort}
                     className="min-w-20"
                   />
@@ -4148,8 +4323,7 @@ export function UktDashboard(props: Props) {
               <SortableTableHead
                 label="Status"
                 sortKey="status"
-                activeKey={sort.key}
-                activeDir={sort.dir}
+                sortRules={sortRules}
                 onSort={handleSort}
               />
               <TableHead className="min-w-[170px]">AKSI</TableHead>
