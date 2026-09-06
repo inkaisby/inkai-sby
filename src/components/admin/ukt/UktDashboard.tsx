@@ -195,7 +195,7 @@ import {
   type UktRegistrationPolicy,
 } from "@/lib/ukt-registration-policy";
 import { parseApiJson } from "@/lib/api-client";
-import { canRegisterMembersToEvents } from "@/lib/wilayah-rbac";
+import { canRegisterMembersToEvents, isPengprovAdmin } from "@/lib/wilayah-rbac";
 import { SortableTableHead } from "@/components/ui/SortableTableHead";
 import {
   compareDates,
@@ -505,6 +505,7 @@ export function UktDashboard(props: Props) {
   const [waiverNote, setWaiverNote] = useState("");
 
   const isCabang = canEditKyuBaru(props.userRoles);
+  const isPengprov = isPengprovAdmin(props.userRoles) || props.primaryRole === "ADMIN_PROVINCE";
   const canEditNia = canAssignNia(props.userRoles);
   const isDojoAdmin = props.primaryRole === "ADMIN_DOJO";
   const canForcePaidCancel = isCabang;
@@ -2982,7 +2983,7 @@ export function UktDashboard(props: Props) {
                 Periode baru
               </Button>
             )}
-            {isCabang && props.selectedPeriodId && (
+            {props.selectedPeriodId && (
               <Button
                 variant="outline"
                 onClick={() => setShowExamDay(true)}
@@ -2993,136 +2994,24 @@ export function UktDashboard(props: Props) {
                 Hari-H
               </Button>
             )}
-            {isCabang && (
+            <Button
+              variant="outline"
+              onClick={() => openReportsHub()}
+              className={`hidden sm:inline-flex ${periodActionBtn}`}
+            >
+              <FileText className="mr-1 h-4 w-4" />
+              Laporan/Rekapan
+            </Button>
+            <Button
+              variant="outline"
+              onClick={buildWaReport}
+              className={`hidden sm:inline-flex ${periodActionBtn}`}
+            >
+              <MessageCircle className="mr-1 h-4 w-4" />
+              Laporan WA
+            </Button>
+            {props.selectedPeriodId && (
               <>
-                <Button
-                  variant="outline"
-                  onClick={() => openReportsHub()}
-                  className={`hidden sm:inline-flex ${periodActionBtn}`}
-                >
-                  <FileText className="mr-1 h-4 w-4" />
-                  Laporan/Rekapan
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={buildWaReport}
-                  className={`hidden sm:inline-flex ${periodActionBtn}`}
-                >
-                  <MessageCircle className="mr-1 h-4 w-4" />
-                  Laporan WA
-                </Button>
-                {props.selectedPeriodId && (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => void copyInviteLink()}
-                      className={`hidden sm:inline-flex ${periodActionBtn}`}
-                    >
-                      <Link2 className="mr-1 h-4 w-4" />
-                      Salin Undangan
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={shareInviteWa}
-                      className={`hidden sm:inline-flex ${periodActionBtn}`}
-                    >
-                      <Share2 className="mr-1 h-4 w-4" />
-                      WA Undangan
-                    </Button>
-                  </>
-                )}
-                <Button
-                  variant="outline"
-                  onClick={() => openPrintNota(false)}
-                  className={`hidden sm:inline-flex ${periodActionBtn}`}
-                >
-                  <Printer className="mr-1 h-4 w-4" />
-                  Cetak Nota
-                </Button>
-                {(viewMode === "registration" || Boolean(props.selectedPeriodId)) && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        aria-label="Aksi lainnya"
-                        className={`hidden sm:inline-flex ${periodActionBtn}`}
-                      >
-                        <MoreHorizontal className="mr-1 h-4 w-4" />
-                        Lainnya
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className="max-h-[min(24rem,70vh)] min-w-48 overflow-y-auto"
-                    >
-                      {viewMode === "registration" && (
-                        <DropdownMenuItem
-                          onClick={() => router.push("/admin/pengaturan/ukt")}
-                        >
-                          <Settings2 className="h-4 w-4" />
-                          Syarat UKT
-                        </DropdownMenuItem>
-                      )}
-                      {props.selectedPeriodId && (
-                        <DropdownMenuItem onClick={() => setEditingTitle(true)}>
-                          <Pencil className="h-4 w-4" />
-                          Ubah judul
-                        </DropdownMenuItem>
-                      )}
-                      {props.selectedPeriodId && (
-                        <DropdownMenuItem
-                          onClick={openBeltFeesDialog}
-                          disabled={periodLocked}
-                        >
-                          <Wallet className="h-4 w-4" />
-                          Biaya Sabuk
-                        </DropdownMenuItem>
-                      )}
-                      {props.selectedPeriodId && (
-                        <>
-                          <DropdownMenuSeparator />
-                          {periodLocked ? (
-                            <DropdownMenuItem
-                              onClick={() => void handlePeriodArchive(false)}
-                              disabled={loading}
-                            >
-                              <Archive className="h-4 w-4" />
-                              Buka arsip
-                            </DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem
-                              onClick={() => void handlePeriodArchive(true)}
-                              disabled={loading}
-                            >
-                              <Archive className="h-4 w-4" />
-                              Arsipkan
-                            </DropdownMenuItem>
-                          )}
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </>
-            )}
-            {isDojoAdmin && props.selectedPeriodId && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => openReportsHub()}
-                  className={`hidden sm:inline-flex ${periodActionBtn}`}
-                >
-                  <FileText className="mr-1 h-4 w-4" />
-                  Laporan/Rekapan
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={buildWaReport}
-                  className={`hidden sm:inline-flex ${periodActionBtn}`}
-                >
-                  <MessageCircle className="mr-1 h-4 w-4" />
-                  Laporan WA
-                </Button>
                 <Button
                   variant="outline"
                   onClick={() => void copyInviteLink()}
@@ -3139,55 +3028,79 @@ export function UktDashboard(props: Props) {
                   <Share2 className="mr-1 h-4 w-4" />
                   WA Undangan
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => openPrintNota(false)}
-                  className={`hidden sm:inline-flex ${periodActionBtn}`}
-                >
-                  <Printer className="mr-1 h-4 w-4" />
-                  Cetak Nota
-                </Button>
               </>
             )}
-            {!isCabang && !isDojoAdmin && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={buildWaReport}
-                  className={`hidden sm:inline-flex ${periodActionBtn}`}
+            <Button
+              variant="outline"
+              onClick={() => openPrintNota(false)}
+              className={`hidden sm:inline-flex ${periodActionBtn}`}
+            >
+              <Printer className="mr-1 h-4 w-4" />
+              Cetak Nota
+            </Button>
+            {(viewMode === "registration" || Boolean(props.selectedPeriodId)) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    aria-label="Aksi lainnya"
+                    className={`hidden sm:inline-flex ${periodActionBtn}`}
+                  >
+                    <MoreHorizontal className="mr-1 h-4 w-4" />
+                    Lainnya
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="max-h-[min(24rem,70vh)] min-w-48 overflow-y-auto"
                 >
-                  <MessageCircle className="mr-1 h-4 w-4" />
-                  Laporan WA
-                </Button>
-                {props.selectedPeriodId && (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => void copyInviteLink()}
-                      className={`hidden sm:inline-flex ${periodActionBtn}`}
+                  {viewMode === "registration" && (
+                    <DropdownMenuItem
+                      onClick={() => router.push("/admin/pengaturan/ukt")}
                     >
-                      <Link2 className="mr-1 h-4 w-4" />
-                      Salin Undangan
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={shareInviteWa}
-                      className={`hidden sm:inline-flex ${periodActionBtn}`}
+                      <Settings2 className="h-4 w-4" />
+                      Syarat UKT
+                    </DropdownMenuItem>
+                  )}
+                  {isCabang && props.selectedPeriodId && (
+                    <DropdownMenuItem onClick={() => setEditingTitle(true)}>
+                      <Pencil className="h-4 w-4" />
+                      Ubah judul
+                    </DropdownMenuItem>
+                  )}
+                  {props.selectedPeriodId && (
+                    <DropdownMenuItem
+                      onClick={openBeltFeesDialog}
+                      disabled={periodLocked}
                     >
-                      <Share2 className="mr-1 h-4 w-4" />
-                      WA Undangan
-                    </Button>
-                  </>
-                )}
-                <Button
-                  variant="outline"
-                  onClick={() => openPrintNota(false)}
-                  className={`hidden sm:inline-flex ${periodActionBtn}`}
-                >
-                  <Printer className="mr-1 h-4 w-4" />
-                  Cetak Nota
-                </Button>
-              </>
+                      <Wallet className="h-4 w-4" />
+                      Biaya Sabuk
+                    </DropdownMenuItem>
+                  )}
+                  {isCabang && props.selectedPeriodId && (
+                    <>
+                      <DropdownMenuSeparator />
+                      {periodLocked ? (
+                        <DropdownMenuItem
+                          onClick={() => void handlePeriodArchive(false)}
+                          disabled={loading}
+                        >
+                          <Archive className="h-4 w-4" />
+                          Buka arsip
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          onClick={() => void handlePeriodArchive(true)}
+                          disabled={loading}
+                        >
+                          <Archive className="h-4 w-4" />
+                          Arsipkan
+                        </DropdownMenuItem>
+                      )}
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         </CardContent>
@@ -4035,16 +3948,14 @@ export function UktDashboard(props: Props) {
             </SelectContent>
           </Select>
 
-          {!isDojoAdmin && (
-            <Button
-              type="button"
-              className="h-10 bg-inkai-red text-white hover:bg-inkai-red/90 sm:h-8"
-              onClick={() => setShowAddMember(true)}
-            >
-              <UserPlus className="mr-1 h-4 w-4" />
-              Tambah Anggota
-            </Button>
-          )}
+          <Button
+            type="button"
+            className="h-10 bg-inkai-red text-white hover:bg-inkai-red/90 sm:h-8"
+            onClick={() => setShowAddMember(true)}
+          >
+            <UserPlus className="mr-1 h-4 w-4" />
+            Tambah Anggota
+          </Button>
         </div>
       </div>
       </div>

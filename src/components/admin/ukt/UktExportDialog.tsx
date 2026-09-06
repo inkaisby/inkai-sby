@@ -171,7 +171,7 @@ export function UktExportDialog({
     if (issues.length > 0) {
       toast.message(`${issues.length} peserta punya data kurang — tetap diekspor`);
     }
-    const csv = buildUktPesertaCsv(data);
+    const csv = buildUktPesertaCsv(data, { title, semester, year });
     triggerCsvDownload(`ukt-peserta-S${semester}-${year}.csv`, csv);
     toast.success(`${data.length} peserta diekspor ke CSV`);
   };

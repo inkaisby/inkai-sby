@@ -2850,7 +2850,10 @@ export function buildUktPesertaTitle(semester: UktSemester, year: number): strin
 }
 
 /** CSV format daftar peserta ujian (kolom selaras formulir cabang). */
-export function buildUktPesertaCsv(rows: UktMemberRow[]): string {
+export function buildUktPesertaCsv(
+  rows: UktMemberRow[],
+  opts?: { title?: string; semester?: UktSemester; year?: number },
+): string {
   const header = [
     "NO. URUT",
     "NO. INDUK ANGGOTA",
@@ -2879,7 +2882,13 @@ export function buildUktPesertaCsv(rows: UktMemberRow[]): string {
       .map(csvEscape)
       .join(","),
   );
-  return `\uFEFF${header.join(",")}\n${lines.join("\n")}`;
+  const titleText =
+    opts?.title ||
+    (opts?.semester && opts?.year
+      ? buildUktPesertaTitle(opts.semester, opts.year)
+      : undefined);
+  const titleLine = titleText ? `${csvEscape(titleText)}\n\n` : "";
+  return `\uFEFF${titleLine}${header.join(",")}\n${lines.join("\n")}`;
 }
 
 export function triggerCsvDownload(filename: string, content: string) {
