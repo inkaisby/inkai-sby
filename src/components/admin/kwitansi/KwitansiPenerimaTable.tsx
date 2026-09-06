@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -140,6 +140,44 @@ function formatNumberWithDots(val: string | number): string {
     resetForm();
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT");
+
+      // Shortcut inside dialog: Ctrl + Enter or Enter in inputs submit form
+      if (open) {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+          e.preventDefault();
+          if (nama.trim()) save();
+          return;
+        }
+        return;
+      }
+
+      // Shortcut outside dialog:
+      // Alt + A or Alt + N -> Open "+ Tambah penerima"
+      if (!isInput && e.altKey && (e.key.toLowerCase() === "a" || e.key.toLowerCase() === "n")) {
+        e.preventDefault();
+        openAdd();
+        return;
+      }
+      // Alt + S -> Simpan ke Arsip
+      if (!isInput && e.altKey && e.key.toLowerCase() === "s" && onSaveArsip) {
+        e.preventDefault();
+        onSaveArsip();
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, nama, jabatan, nominal, signUrl, editingId, rows, onSaveArsip]);
+
   const onPick = (item: KwitansiMemberSuggestItem) => {
     setNama(item.fullName);
     setMemberId(item.id);
@@ -174,14 +212,17 @@ function formatNumberWithDots(val: string | number): string {
               size="sm"
               variant="outline"
               onClick={onSaveArsip}
+              title="Shortcut: Alt + S"
               className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-medium"
             >
               Simpan ke Arsip
+              <span className="ml-1 rounded bg-emerald-100 px-1 py-0.5 text-[10px] font-mono text-emerald-800">Alt+S</span>
             </Button>
           ) : null}
-          <Button type="button" size="sm" onClick={openAdd}>
+          <Button type="button" size="sm" onClick={openAdd} title="Shortcut: Alt + A atau Alt + N">
             <Plus className="mr-1 h-3.5 w-3.5" />
             Tambah penerima
+            <span className="ml-1 rounded bg-white/20 px-1 py-0.5 text-[10px] font-mono">Alt+A</span>
           </Button>
         </div>
       </div>
@@ -298,66 +339,73 @@ function formatNumberWithDots(val: string | number): string {
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="overflow-visible">
-          <DialogHeader>
-            <DialogTitle>
-              {editingId ? "Edit penerima" : "Tambah penerima"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label>Nama Lengkap</Label>
-              <KwitansiMemberPicker
-                value={nama}
-                onChange={(v) => {
-                  setNama(v);
-                  setMemberId(null);
-                }}
-                onPick={onPick}
-                placeholder="Cari nama anggota (≥2 huruf)…"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Ketik ≥2 huruf untuk cari anggota, atau nama bebas.
-              </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (nama.trim()) save();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>
+                {editingId ? "Edit penerima" : "Tambah penerima"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="space-y-1">
+                <Label>Nama Lengkap</Label>
+                <KwitansiMemberPicker
+                  value={nama}
+                  onChange={(v) => {
+                    setNama(v);
+                    setMemberId(null);
+                  }}
+                  onPick={onPick}
+                  placeholder="Cari nama anggota (≥2 huruf)…"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Ketik ≥2 huruf untuk cari anggota, atau nama bebas.
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label>{roleColumnLabel}</Label>
+                <Input
+                  value={jabatan}
+                  onChange={(e) => setJabatan(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Nominal</Label>
+                <Input
+                  inputMode="numeric"
+                  value={nominal}
+                  onChange={(e) => setNominal(formatNumberWithDots(e.target.value))}
+                  placeholder="1.500.000"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Tanda Tangan</Label>
+                <SignaturePadField
+                  label={nama || "Penerima"}
+                  valueUrl={signUrl}
+                  memberId={memberId}
+                  previewSize="md"
+                  onChange={setSignUrl}
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label>{roleColumnLabel}</Label>
-              <Input
-                value={jabatan}
-                onChange={(e) => setJabatan(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Nominal</Label>
-              <Input
-                inputMode="numeric"
-                value={nominal}
-                onChange={(e) => setNominal(formatNumberWithDots(e.target.value))}
-                placeholder="1.500.000"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Tanda Tangan</Label>
-              <SignaturePadField
-                label={nama || "Penerima"}
-                valueUrl={signUrl}
-                memberId={memberId}
-                previewSize="md"
-                onChange={setSignUrl}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-            >
-              Batal
-            </Button>
-            <Button type="button" onClick={save} disabled={!nama.trim()}>
-              Simpan
-            </Button>
-          </DialogFooter>
+            <DialogFooter className="gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
+                Batal
+              </Button>
+              <Button type="submit" disabled={!nama.trim()} title="Shortcut: Enter / Ctrl + Enter">
+                Simpan <span className="ml-1 text-[10px] font-mono opacity-80">(Enter)</span>
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

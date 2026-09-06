@@ -1217,6 +1217,7 @@ Prioritas pengembangan lanjutan yang disarankan:
 | 5 September 2026 | **Tombol Verifikasi Massal & Centang Khusus Belum Bayar (`/admin/ukt`):** Menambahkan tombol **`✓ Verifikasi (n)`** pada floating action bar massal dan opsi **`💳 Centang Khusus: Belum Bayar`** pada dropdown header tabel (`UktDashboard.tsx`); men-trigger `handleBulkMarkPaid` untuk memverifikasi pembayaran/pendaftaran seluruh peserta terpilih secara serentak sehingga status peserta langsung berubah menjadi **Menunggu Ujian**; inventaris §6/§11/§15 |
 
 | 6 September 2026 | **Pemilih Tanggal Lahir Dropdown Tgl/Bln/Thn di Kelola Anggota (`/admin/anggota`):** Mengganti input tanggal native pada edit identitas anggota dengan komponen `BirthDatePicker` (`src/components/ui/BirthDatePicker.tsx`); mendukung pilihan langsung Tanggal (01–31), Bulan (Januari–Desember), dan Tahun (descending dari 2026–1940) via dropdown select yang jauh lebih efisien untuk admin di perangkat tablet dan HP; disertai tombol toggle pemilih kalender native; inventaris §6/§9.1/§15 |
+| 6 September 2026 | **Keyboard Shortcuts Tambah & Simpan Kwitansi/Nota (`/admin/kwitansi`):** Menambahkan pintasan keyboard `Alt + A` / `Alt + N` untuk membuka modal **+ Tambah Penerima / Rincian**, `Enter` / `Ctrl + Enter` di dalam modal untuk mengeksekusi **Simpan**, dan `Alt + S` untuk **Simpan ke Arsip**; dilengkapi label indikator visual pada tombol (`Alt+A`, `Alt+S`, `Enter`); inventaris §6/§9/§15 |
 
 ---
 
