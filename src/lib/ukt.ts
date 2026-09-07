@@ -1727,7 +1727,7 @@ export function uktDisplayStatusLabel(status: UktDisplayStatus): string {
   const labels: Record<UktDisplayStatus, string> = {
     belum_daftar: "Belum Daftar",
     terdaftar: "Terdaftar",
-    belum_bayar: "Belum Bayar",
+    belum_bayar: "Belum Bayar UKT",
     menunggu_terima_ranting: "Menunggu Terima Ranting",
     menunggu_konfirmasi_ranting: "Menunggu Konfirmasi Ranting",
     menunggu_verifikasi: "Menunggu Verifikasi",

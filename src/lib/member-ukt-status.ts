@@ -157,59 +157,7 @@ export async function getMemberUktStatus(
     }),
   ]);
 
-  // Fast path: PENDING mandiri — cukup Prisma, tanpa event detail / eligibility / exam
-  if (localReg && localReg.status === "PENDING") {
-    const decoded = decodeUktRegisteredRank(
-      typeof localReg.registeredRank === "string"
-        ? localReg.registeredRank
-        : null,
-    );
-    const row: UktMemberRow = {
-      memberId,
-      registrationId: localReg.id,
-      photoUrl: null,
-      nia: null,
-      fullName: memberName ?? "",
-      birthPlace: null,
-      birthDate: null,
-      gender: null,
-      address: null,
-      kyuLama: decoded.kyuLama || "",
-      kyuBaru: decoded.kyuBaru,
-      birthCertificateUrl: null,
-      bpjsCardUrl: null,
-      dojoName: "—",
-      dojoId: "",
-      status: "PENDING",
-      billingId: null,
-      billingStatus: null,
-      billingAmount: null,
-      outstandingDues: 0,
-      pendingVerifications: 0,
-      attendanceCount: 0,
-      attendancePct: null,
-      examResult: null,
-      examPresent: null,
-      selfRegistration: true,
-      memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,
-      registeredAt: localReg.createdAt.toISOString(),
-    };
-    const displayStatus = resolveUktDisplayStatus(row);
-    return {
-      period: match,
-      registered: true,
-      registrationId: localReg.id,
-      kyuLama: row.kyuLama || null,
-      kyuBaru: row.kyuBaru ?? null,
-      displayStatus,
-      statusLabel: uktDisplayStatusLabel(displayStatus),
-      examResult: null,
-      memberPaymentConfirmedAt: row.memberPaymentConfirmedAt ?? null,
-      canSelfRegister: false,
-      blockers: [],
-      ...examPayload,
-    };
-  }
+
 
   // Belum daftar: jangan panggil eligibility berat di load kartu — gate di POST daftar
   if (!localReg) {

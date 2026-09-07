@@ -286,8 +286,11 @@ function EventList({ items }: { items: Array<Record<string, unknown>> }) {
           dojoName: "",
           dojoId: "",
           status: String(r.status ?? ""),
-          billingId: null,
-          billingStatus: null,
+          billingId: (r.billing as { id?: string })?.id ?? null,
+          billingStatus:
+            (r.billing as { status?: string })?.status ??
+            (r.billingStatus as string | null) ??
+            (r.status === "PAID" || r.status === "SUCCESS" ? "PAID" : null),
           billingAmount: null,
           outstandingDues: 0,
           pendingVerifications: 0,

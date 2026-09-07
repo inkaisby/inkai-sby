@@ -107,7 +107,7 @@ function nextStepHint(
       };
     case "belum_bayar":
       return {
-        text: "Koordinasikan pembayaran UKT dengan ketua ranting (nota).",
+        text: "Koordinasikan pembayaran biaya pendaftaran UKT dengan ketua ranting (nota).",
         href: "/dashboard/iuran",
         label: "Lihat tagihan",
       };
@@ -221,7 +221,7 @@ export function UktStatusCard({ compact = false, initialData }: Props) {
               displayStatus: nextStatus,
               statusLabel:
                 nextStatus === "belum_bayar"
-                  ? "Belum Bayar"
+                  ? "Belum Bayar UKT"
                   : "Menunggu Terima Ranting",
               canSelfRegister: false,
               blockers: [],
