@@ -185,7 +185,7 @@ export function KwitansiBulkPenerimaDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+      <DialogContent className="w-[95vw] sm:max-w-4xl lg:max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Table className="h-5 w-5 text-inkai-red" />
@@ -279,23 +279,23 @@ export function KwitansiBulkPenerimaDialog({
 
           {/* Interactive Grid Table */}
           <div className="border rounded-md overflow-x-auto">
-            <table className="w-full text-xs min-w-[550px]">
+            <table className="w-full text-xs min-w-[680px]">
               <thead>
                 <tr className="bg-muted/70 text-left font-semibold border-b">
-                  <th className="w-10 p-2 text-center">No</th>
-                  <th className="p-2">Nama Lengkap *</th>
-                  <th className="p-2 w-48">{roleColumnLabel}</th>
-                  <th className="p-2 w-36 text-right">Nominal (Rp)</th>
-                  <th className="w-10 p-2 text-center">Aksi</th>
+                  <th className="w-12 p-2 text-center">No</th>
+                  <th className="p-2 min-w-[220px]">Nama Lengkap *</th>
+                  <th className="p-2 min-w-[200px]">{roleColumnLabel}</th>
+                  <th className="p-2 w-44 min-w-[150px] text-right">Nominal (Rp)</th>
+                  <th className="w-12 p-2 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {items.map((it, idx) => (
                   <tr key={it.key} className="hover:bg-muted/30">
-                    <td className="p-2 text-center text-muted-foreground">
+                    <td className="p-2 text-center text-muted-foreground w-12">
                       {idx + 1}
                     </td>
-                    <td className="p-1 min-w-[12rem]">
+                    <td className="p-1 min-w-[220px]">
                       <KwitansiMemberPicker
                         value={it.namaLengkap}
                         onChange={(v) =>
@@ -311,7 +311,7 @@ export function KwitansiBulkPenerimaDialog({
                         placeholder="Cari / isi nama..."
                       />
                     </td>
-                    <td className="p-1">
+                    <td className="p-1 min-w-[200px]">
                       <Input
                         className="h-8 text-xs"
                         placeholder={defaultJabatan || "Sebagai / Peran"}
@@ -321,7 +321,7 @@ export function KwitansiBulkPenerimaDialog({
                         }
                       />
                     </td>
-                    <td className="p-1">
+                    <td className="p-1 w-44 min-w-[150px]">
                       <Input
                         className="h-8 text-xs text-right font-mono"
                         placeholder={defaultNominal || "0"}
@@ -336,7 +336,7 @@ export function KwitansiBulkPenerimaDialog({
                         }
                       />
                     </td>
-                    <td className="p-1 text-center">
+                    <td className="p-1 text-center w-12">
                       <Button
                         type="button"
                         size="icon"
