@@ -288,11 +288,6 @@ export function resolveUktRankColumns(
   const passed = opts?.examResult === "LULUS";
   let kyuBaru: string | null = decoded.kyuBaru || null;
 
-  // Snapshot sisi kanan (mis. || Putih) bukan hasil ujian — buang kecuali LULUS
-  if (!passed) {
-    kyuBaru = null;
-  }
-
   // Legacy LULUS tanpa dual snapshot: sabuk keanggotaan sudah naik → tampilkan sebagai Kyu Baru
   if (
     !kyuBaru &&

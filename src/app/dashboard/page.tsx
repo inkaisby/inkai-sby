@@ -195,8 +195,8 @@ export default async function MemberDashboard() {
     birthCertificateUrl: member?.birthCertificateUrl as string | undefined,
     bpjsCardUrl: member?.bpjsCardUrl as string | undefined,
   });
-  const iuranOk =
-    unpaidMonthly === 0 || Boolean(member?.allowEventWithoutDues);
+  const iuranExempt = Boolean(member?.allowEventWithoutDues);
+  const iuranOk = unpaidMonthly === 0 || iuranExempt;
 
   const checklistItems = buildMembershipChecklist({
     profileOk,
@@ -205,6 +205,7 @@ export default async function MemberDashboard() {
     attendancePct: attendanceStats.pct,
     attendanceEligible: eligible,
     unpaidCount: unpaidMonthly,
+    iuranExempt,
   });
 
   const roleLabel = isPending
@@ -270,7 +271,7 @@ export default async function MemberDashboard() {
       {isActive && <MemberUktStatus compact />}
       {isActive && <MemberLatberStatus compact />}
 
-      {unpaidMonthly > 0 && isActive && (
+      {unpaidMonthly > 0 && isActive && !iuranExempt && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
           <div className="flex items-center gap-3">
             <Wallet className="h-5 w-5 text-amber-600" />
@@ -283,6 +284,28 @@ export default async function MemberDashboard() {
             className="text-sm font-semibold text-inkai-red"
           >
             Bayar iuran →
+          </Link>
+        </div>
+      )}
+
+      {iuranExempt && isActive && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+          <div className="flex items-center gap-3">
+            <Wallet className="h-5 w-5 text-emerald-600" />
+            <div>
+              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                Pengecualian Iuran Aktif
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Anda bebas mendaftar UKT & kegiatan tanpa kewajiban melunasi iuran bulanan.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/iuran"
+            className="text-xs font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
+          >
+            Lihat iuran →
           </Link>
         </div>
       )}
@@ -394,7 +417,7 @@ export default async function MemberDashboard() {
       <section className="flex flex-col gap-4">
         <QuickActions
           checkedInToday={checkedInToday}
-          unpaidIuran={unpaidMonthly}
+          unpaidIuran={iuranExempt ? 0 : unpaidMonthly}
           documentsIncomplete={!documentsOk}
           unreadPesan={unreadPesan}
           rejectedArticles={rejectedArticlesResult.data}

@@ -239,7 +239,7 @@ export async function getMemberUktStatus(
     fetchSettingsByPrefix(token, `ukt-exam-result:${match.id}:`),
     prisma.member.findFirst({
       where: { id: memberId },
-      select: { fullName: true, currentRank: true },
+      select: { fullName: true, currentRank: true, allowEventWithoutDues: true },
     }),
   ]);
 
@@ -306,6 +306,7 @@ export async function getMemberUktStatus(
     selfRegistration: Boolean(selfMeta),
     memberPaymentConfirmedAt: selfMeta?.memberPaymentConfirmedAt ?? null,
     registeredAt: localReg.createdAt.toISOString(),
+    allowEventWithoutDues: Boolean(memberLocal?.allowEventWithoutDues),
   };
 
   const displayStatus = resolveUktDisplayStatus(row);

@@ -802,6 +802,7 @@ export type UktMemberRow = {
   /** ISO `EventRegistration.createdAt`; null untuk Belum Daftar. */
   registeredAt?: string | null;
   registrationWaiver?: UktRegistrationWaiver | null;
+  allowEventWithoutDues?: boolean;
 };
 
 /** Item snapshot refresh cepat — field pendaftaran/tagihan + identitas Prisma. */
@@ -1610,6 +1611,7 @@ export function getUktRegistrationBlockers(
     | "bpjsCardUrl"
     | "pendingVerifications"
     | "attendancePct"
+    | "allowEventWithoutDues"
   >,
   opts: {
     registrationOpen: boolean;
@@ -1633,7 +1635,8 @@ export function getUktRegistrationBlockers(
     opts.requireMinAttendance !== false && opts.enforceAttendance !== false;
   const minPct = opts.minAttendancePct ?? UKT_MIN_ATTENDANCE_PCT;
 
-  if (requireDues && row.outstandingDues > 0) blockers.push("IURAN_TUNGGAKAN");
+  if (requireDues && !row.allowEventWithoutDues && row.outstandingDues > 0)
+    blockers.push("IURAN_TUNGGAKAN");
   if (requireDocs && !hasRequiredUktDocuments(row)) blockers.push("DOKUMEN_KURANG");
   if (requireAttendance) {
     const pct = row.attendancePct ?? 0;

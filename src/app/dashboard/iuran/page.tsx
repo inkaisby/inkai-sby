@@ -41,7 +41,7 @@ export default async function IuranPage() {
     }),
     prisma.member.findFirst({
       where: { id: memberId, isDeleted: false },
-      select: { monthlyDuesAmount: true },
+      select: { monthlyDuesAmount: true, allowEventWithoutDues: true },
     }),
     getOperationalDefaults(),
   ]);
@@ -125,6 +125,18 @@ export default async function IuranPage() {
         bayar di sini — termasuk bulan sebelumnya. Bukti fisik diserahkan ke
         ranting; pengurus akan mengonfirmasi.
       </p>
+      {member?.allowEventWithoutDues && (
+        <div className="mb-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm">
+          <p className="font-bold text-emerald-800 dark:text-emerald-300">
+            Pengecualian Iuran Aktif
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Pengurus telah mengaktifkan Pengecualian Iuran untuk akun Anda. Anda
+            tidak diwajibkan melunasi iuran bulanan untuk mendaftar UKT &
+            kegiatan.
+          </p>
+        </div>
+      )}
       <IuranListClient
         billings={merged}
         monthlyDuesAmount={monthlyDuesAmount}

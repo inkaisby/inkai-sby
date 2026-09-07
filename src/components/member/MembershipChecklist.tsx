@@ -83,6 +83,7 @@ export function buildMembershipChecklist(opts: {
   attendancePct: number;
   attendanceEligible: boolean;
   unpaidCount: number;
+  iuranExempt?: boolean;
 }): ChecklistItem[] {
   return [
     {
@@ -107,11 +108,13 @@ export function buildMembershipChecklist(opts: {
       id: "iuran",
       label: "Iuran",
       ok: opts.iuranOk,
-      detail: opts.iuranOk
-        ? "Tidak ada tagihan menunggak"
-        : `${opts.unpaidCount} tagihan belum lunas`,
+      detail: opts.iuranExempt
+        ? "Pengecualian iuran aktif (bebas untuk UKT/Event)"
+        : opts.iuranOk
+          ? "Tidak ada tagihan menunggak"
+          : `${opts.unpaidCount} tagihan belum lunas`,
       href: "/dashboard/iuran",
-      cta: "Bayar / unggah bukti iuran",
+      cta: opts.iuranExempt ? "Lihat riwayat iuran" : "Bayar / unggah bukti iuran",
     },
     {
       id: "absensi",

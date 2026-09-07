@@ -7,10 +7,12 @@ import { MemberAdminPortalIconButton } from "@/components/member/MemberAdminPort
 
 export function MemberPageHeader({
   title,
+  subtitle,
   backHref = "/dashboard",
   rightSlot,
 }: {
   title: string;
+  subtitle?: string;
   backHref?: string;
   rightSlot?: React.ReactNode;
 }) {
@@ -25,9 +27,16 @@ export function MemberPageHeader({
           <ArrowLeft size={20} />
         </Link>
       </div>
-      <h1 className="pointer-events-none absolute inset-x-14 truncate text-center text-base font-extrabold sm:text-lg">
-        {title}
-      </h1>
+      <div className="pointer-events-none absolute inset-x-14 flex flex-col items-center justify-center text-center">
+        <h1 className="truncate text-base font-extrabold sm:text-lg">
+          {title}
+        </h1>
+        {subtitle && (
+          <p className="truncate text-xs font-semibold text-muted-foreground">
+            {subtitle}
+          </p>
+        )}
+      </div>
       <div className="z-[1] flex items-center justify-end gap-1.5">
         {rightSlot}
         <MemberAdminPortalIconButton />
