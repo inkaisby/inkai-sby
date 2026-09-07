@@ -1026,6 +1026,17 @@ export function KasLedgerClient({
     visibleManualLaporanIds.length > 0 &&
     visibleManualLaporanIds.every((id) => selectedIds.includes(id));
 
+  const selectedRows = useMemo(() => {
+    if (!data?.rows || selectedIds.length === 0) return [];
+    const set = new Set(selectedIds);
+    return data.rows.filter((r) => set.has(r.id));
+  }, [data?.rows, selectedIds]);
+
+  const singleDeleteRow = useMemo(() => {
+    if (!data?.rows || !deleteId) return null;
+    return data.rows.find((r) => r.id === deleteId) ?? null;
+  }, [data?.rows, deleteId]);
+
   function toggleSelectAllLaporan() {
     if (allLaporanManualSelected) {
       setSelectedIds((prev) =>
@@ -2604,22 +2615,53 @@ export function KasLedgerClient({
         onOpenChange={(o) => {
           if (!o) setDeleteId(null);
         }}
-        title="Hapus baris kas?"
-        description="Hanya baris manual yang dihapus. Jurnal otomatis tidak bisa dihapus dari sini."
+        title="Hapus baris transaksi kas?"
+        description="Baris transaksi kas terpilih akan dihapus permanen dari buku ini:"
         confirmLabel="Hapus"
         onConfirm={() => void handleDelete()}
-      />
+      >
+        {singleDeleteRow ? (
+          <div className="rounded-md border bg-muted/40 p-2.5 text-xs">
+            <p className="font-semibold text-foreground">{singleDeleteRow.description}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {formatKasDateId(singleDeleteRow.txnDate)} · {singleDeleteRow.kegiatan || singleDeleteRow.sourceType}
+            </p>
+            <p className={`font-bold mt-1 text-xs ${singleDeleteRow.amountIn ? "text-teal-700 dark:text-teal-400" : "text-inkai-red"}`}>
+              {singleDeleteRow.amountIn ? `+${formatRp(singleDeleteRow.amountIn)}` : `-${formatRp(singleDeleteRow.amountOut)}`}
+            </p>
+          </div>
+        ) : null}
+      </InkaiConfirmDialog>
 
       <InkaiConfirmDialog
         open={batchDeleteOpen}
         onOpenChange={(o) => {
           if (!o) setBatchDeleteOpen(false);
         }}
-        title={`Hapus ${selectedIds.length} baris manual?`}
-        description="Baris terpilih akan dihapus permanen dari buku ini. Jurnal otomatis tidak ikut."
+        title={`Hapus ${selectedIds.length} baris transaksi kas terpilih?`}
+        description={`Sebanyak ${selectedIds.length} baris transaksi kas terpilih akan dihapus permanen dari buku ini:`}
         confirmLabel="Hapus"
         onConfirm={() => void handleBatchDelete()}
-      />
+      >
+        <div className="max-h-48 overflow-y-auto rounded-md border bg-muted/40 p-2 text-xs space-y-1.5">
+          {selectedRows.slice(0, 15).map((r) => (
+            <div key={r.id} className="flex items-start justify-between gap-2 border-b border-border/40 pb-1.5 last:border-0 last:pb-0">
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-foreground truncate">{r.description}</p>
+                <p className="text-[10px] text-muted-foreground">{formatKasDateId(r.txnDate)} · {r.kegiatan || r.sourceType}</p>
+              </div>
+              <span className={`font-bold shrink-0 text-xs ${r.amountIn ? "text-teal-700 dark:text-teal-400" : "text-inkai-red"}`}>
+                {r.amountIn ? `+${formatRp(r.amountIn)}` : `-${formatRp(r.amountOut)}`}
+              </span>
+            </div>
+          ))}
+          {selectedRows.length > 15 ? (
+            <p className="text-[11px] text-muted-foreground text-center pt-1 italic font-medium">
+              ...dan {selectedRows.length - 15} transaksi lainnya
+            </p>
+          ) : null}
+        </div>
+      </InkaiConfirmDialog>
     </div>
   );
 }

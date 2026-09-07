@@ -1,5 +1,6 @@
 "use client";
 
+import { type ReactNode } from "react";
 import Image from "next/image";
 import {
   Dialog,
@@ -21,6 +22,7 @@ export function InkaiConfirmDialog({
   onConfirm,
   loading = false,
   variant = "default",
+  children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -31,6 +33,7 @@ export function InkaiConfirmDialog({
   onConfirm: () => void;
   loading?: boolean;
   variant?: "default" | "danger";
+  children?: ReactNode;
 }) {
   return (
     <Dialog
@@ -56,6 +59,7 @@ export function InkaiConfirmDialog({
             {description ? (
               <DialogDescription className="text-center">{description}</DialogDescription>
             ) : null}
+            {children ? <div className="mt-3 w-full text-left">{children}</div> : null}
           </DialogHeader>
         </div>
         <DialogFooter className="gap-2 px-6 py-4 sm:justify-center">
