@@ -1708,10 +1708,10 @@ export function KasLedgerClient({
                   type="button"
                   size="sm"
                   variant="destructive"
-                  className="h-7 bg-inkai-red hover:bg-inkai-red/90 px-2.5 text-xs font-medium"
+                  className="h-7 bg-inkai-red text-white hover:bg-inkai-red/90 px-2.5 text-xs font-medium"
                   onClick={() => setBatchDeleteOpen(true)}
                 >
-                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  <Trash2 className="h-3.5 w-3.5 mr-1 text-white" />
                   Hapus ({selectedIds.length})
                 </Button>
                 <Button
@@ -1987,11 +1987,11 @@ export function KasLedgerClient({
                 <Button
                   type="button"
                   size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-xs text-destructive"
+                  className="h-7 bg-inkai-red text-white hover:bg-inkai-red/90 px-2.5 text-xs font-medium"
                   onClick={() => setBatchDeleteOpen(true)}
                 >
-                  Hapus
+                  <Trash2 className="h-3.5 w-3.5 mr-1 text-white" />
+                  Hapus ({selectedIds.length})
                 </Button>
               ) : null}
               <Button
