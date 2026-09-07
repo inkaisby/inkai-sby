@@ -930,6 +930,60 @@ export function KasLedgerClient({
     );
   }
 
+  function handleCopyWaSelected() {
+    if (selectedRows.length === 0) {
+      toast.error("Belum ada transaksi yang dipilih");
+      return;
+    }
+    const totalIn = selectedRows.reduce((acc, r) => acc + (r.amountIn || 0), 0);
+    const totalOut = selectedRows.reduce((acc, r) => acc + (r.amountOut || 0), 0);
+    const netto = totalIn - totalOut;
+
+    const currentScope = (data?.scopes ?? []).find(
+      (s) => `${s.type}:${s.id}` === scopeKey,
+    );
+    const scopeName = currentScope?.label ?? scopeLabel;
+
+    const lines: string[] = [
+      `*📌 RINCIAN MUTASI TERPILIH — INKAI SURABAYA*`,
+      `*Buku Kas:* ${scopeName}`,
+      `*Total Terpilih:* ${selectedRows.length} Transaksi`,
+      ``,
+      `----------------------------------------`,
+      `📈 *Total Masuk (+):* ${formatRp(totalIn)}`,
+      `📉 *Total Keluar (-):* ${formatRp(totalOut)}`,
+      `⚖️ *Netto Terpilih:* ${netto >= 0 ? "+" : ""}${formatRp(netto)}`,
+      `----------------------------------------`,
+      ``,
+      `*📋 Rincian Mutasi (${selectedRows.length} transaksi):*`,
+    ];
+
+    selectedRows.forEach((r) => {
+      const isIn = r.amountIn > 0;
+      const nominal = isIn ? formatRp(r.amountIn) : formatRp(r.amountOut);
+      const badge = isIn ? "[MASUK]" : "[KELUAR]";
+      lines.push(`• ${badge} ${nominal} - ${r.description} (${formatKasDateId(r.txnDate)})`);
+    });
+
+    lines.push(
+      ``,
+      `_Diunduh/Dicetak pada: ${new Date().toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })} WIB_`,
+      `_Portal Resmi INKAI Surabaya — https://inkai-sby.vercel.app_`,
+    );
+
+    const waText = lines.join("\n");
+    navigator.clipboard.writeText(waText).then(
+      () => toast.success(`${selectedRows.length} transaksi terpilih berhasil disalin ke format WA!`),
+      () => toast.error("Gagal menyalin transaksi ke clipboard"),
+    );
+  }
+
   async function handleImportFile(file: File) {
     const text = await file.text();
     const drafts = parseKasImportTsv(
@@ -1626,8 +1680,19 @@ export function KasLedgerClient({
           </div>
           {data?.canWrite && selectedIds.length > 0 ? (
             <div className="pointer-events-none absolute bottom-3 left-3 z-20 print:hidden">
-              <div className="pointer-events-auto inline-flex max-w-[min(100%,24rem)] items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-md">
+              <div className="pointer-events-auto inline-flex max-w-[min(100%,28rem)] items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-md">
                 <span className="text-xs font-medium">{selectedIds.length} terpilih</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30 px-2 text-xs font-medium"
+                  onClick={handleCopyWaSelected}
+                  title="Salin rincian transaksi terpilih ke WhatsApp"
+                >
+                  <Share2 className="h-3.5 w-3.5 mr-1 text-emerald-600 dark:text-emerald-400" />
+                  Salin WA
+                </Button>
                 <Button
                   type="button"
                   size="sm"
@@ -1886,8 +1951,19 @@ export function KasLedgerClient({
         </div>
         {canSelect && selectedIds.length > 0 ? (
           <div className="pointer-events-none absolute bottom-3 left-3 z-20 print:hidden">
-            <div className="pointer-events-auto inline-flex max-w-[min(100%,24rem)] items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-md">
+            <div className="pointer-events-auto inline-flex max-w-[min(100%,28rem)] items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-md">
               <span className="text-xs font-medium">{selectedIds.length} dipilih</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30 px-2 text-xs font-medium"
+                onClick={handleCopyWaSelected}
+                title="Salin rincian transaksi terpilih ke WhatsApp"
+              >
+                <Share2 className="h-3.5 w-3.5 mr-1 text-emerald-600 dark:text-emerald-400" />
+                Salin WA
+              </Button>
               <Button
                 type="button"
                 size="sm"
