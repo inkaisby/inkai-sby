@@ -7,8 +7,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatRp } from "@/lib/terbilang";
 import { printKwitansi, printNotaPengeluaran } from "@/lib/kwitansi-print-html";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
-import { Printer, Pencil, Trash2, Download, Search, Plus, Landmark } from "lucide-react";
+import {
+  Printer,
+  Pencil,
+  Trash2,
+  Download,
+  Search,
+  Plus,
+  Landmark,
+  ArrowDownLeft,
+  ArrowUpRight,
+} from "lucide-react";
 import { toast } from "sonner";
 
 export type KwitansiArsipItem = {
@@ -98,6 +115,7 @@ export function KwitansiArsipTable() {
   const [search, setSearch] = useState("");
   const [filterJenis, setFilterJenis] = useState("all");
   const [deleteTarget, setDeleteTarget] = useState<KwitansiArsipItem | null>(null);
+  const [syncTarget, setSyncTarget] = useState<KwitansiArsipItem | null>(null);
 
   // Load from localStorage on mount & clean up duplicates by document number (no)
   useEffect(() => {
@@ -200,10 +218,12 @@ export function KwitansiArsipTable() {
     router.push(`/admin/kwitansi?no=${encodeURIComponent(row.no)}`);
   };
 
-  const handleSyncToKas = async (row: KwitansiArsipItem) => {
+  const executeSyncToKas = async (
+    row: KwitansiArsipItem,
+    direction: "in" | "out",
+  ) => {
+    setSyncTarget(null);
     try {
-      const isNota = row.no.startsWith("NP");
-      const direction = isNota ? "out" : "in";
       const nominal = Math.round(row.total);
       if (nominal <= 0) {
         toast.error("Nominal kwitansi 0, tidak dapat dicatat ke kas");
@@ -228,7 +248,7 @@ export function KwitansiArsipTable() {
       });
       if (res.ok) {
         toast.success(
-          `Kwitansi ${row.no} berhasil dimasukkan ke Jurnal Kas (${direction === "in" ? "Kas Masuk +" : "Kas Keluar -"})!`,
+          `Kwitansi ${row.no} berhasil dicatat ke Jurnal Kas (${direction === "in" ? "Kas Masuk +" : "Kas Keluar -"})!`,
         );
       } else {
         const err = await res.json().catch(() => ({}));
@@ -374,8 +394,8 @@ export function KwitansiArsipTable() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                        onClick={() => handleSyncToKas(row)}
-                        title="Masukkan ke Jurnal Kas Admin (/admin/kas)"
+                        onClick={() => setSyncTarget(row)}
+                        title="Singkronkan ke Jurnal Kas Admin (/admin/kas)"
                       >
                         <Landmark className="h-4 w-4" />
                       </Button>
@@ -417,6 +437,68 @@ export function KwitansiArsipTable() {
           </tbody>
         </table>
       </div>
+
+      {/* Sync Direction Dialog */}
+      <Dialog
+        open={Boolean(syncTarget)}
+        onOpenChange={(open) => {
+          if (!open) setSyncTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Landmark className="h-5 w-5 text-emerald-600" />
+              Singkronkan ke Jurnal Kas Admin
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs">
+            <p className="text-muted-foreground">
+              Pilih perlakuan transaksi untuk kwitansi{" "}
+              <strong className="text-foreground font-mono">{syncTarget?.no}</strong> ({syncTarget?.periodeNama}):
+            </p>
+
+            <div className="rounded-md bg-muted/50 p-2.5 flex items-center justify-between border">
+              <span className="text-muted-foreground">Total Nominal:</span>
+              <span className="font-bold font-mono text-sm text-foreground">
+                {formatRp(syncTarget?.total || 0)}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+              <Button
+                type="button"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 h-10 text-xs font-semibold"
+                onClick={() => syncTarget && executeSyncToKas(syncTarget, "in")}
+              >
+                <ArrowDownLeft className="h-4 w-4" />
+                Kas Masuk (+)
+              </Button>
+
+              <Button
+                type="button"
+                className="bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-2 h-10 text-xs font-semibold"
+                onClick={() => syncTarget && executeSyncToKas(syncTarget, "out")}
+              >
+                <ArrowUpRight className="h-4 w-4" />
+                Kas Keluar (-)
+              </Button>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSyncTarget(null)}
+            >
+              Batal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirm Delete Dialog */}
       <InkaiConfirmDialog
