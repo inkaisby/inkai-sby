@@ -23,6 +23,8 @@ import {
   Plus,
   Printer,
   RefreshCw,
+  RotateCcw,
+  Share2,
   Trash2,
   Unlock,
   Upload,
@@ -118,6 +120,7 @@ export function KasLedgerClient({
   const [kegiatan, setKegiatan] = useState("");
   const [source, setSource] = useState("all");
   const [recon, setRecon] = useState("all");
+  const [direction, setDirection] = useState<"all" | "in" | "out">("all");
   const [collapsedKegiatan, setCollapsedKegiatan] = useState<string[]>([]);
   const [massRowsOpen, setMassRowsOpen] = useState(true);
   const [data, setData] = useState<KasPayload | null>(null);
@@ -845,6 +848,88 @@ export function KasLedgerClient({
     a.click();
   }
 
+  function handleCopyWa() {
+    if (!data) {
+      toast.error("Data kas belum dimuat");
+      return;
+    }
+    const currentScope = (data.scopes ?? []).find(
+      (s) => `${s.type}:${s.id}` === scopeKey,
+    );
+    const scopeName = currentScope?.label ?? scopeLabel;
+
+    const opening = data.kpis.opening ?? 0;
+    const totalIn = data.kpis.totalIn ?? 0;
+    const totalOut = data.kpis.totalOut ?? 0;
+    const netto = totalIn - totalOut;
+    const saldoAkhir = data.kpis.saldoAkhir ?? 0;
+
+    const lines: string[] = [
+      `*📌 LAPORAN KEUANGAN KAS — INKAI SURABAYA*`,
+      `*Buku Kas:* ${scopeName}`,
+      `*Periode:* ${periodCaption}`,
+      ``,
+      `----------------------------------------`,
+      `💵 *Saldo Bawaan (Awal):* ${formatRp(opening)}`,
+      `📈 *Total Masuk (+):* ${formatRp(totalIn)}`,
+      `📉 *Total Keluar (-):* ${formatRp(totalOut)}`,
+      `⚖️ *Surplus / Defisit Periode:* ${netto >= 0 ? "+" : ""}${formatRp(netto)}`,
+      `💰 *Saldo Akhir:* ${formatRp(saldoAkhir)}`,
+      `----------------------------------------`,
+    ];
+
+    if (data.rows.length > 0) {
+      const inRows = data.rows.filter((r) => r.amountIn > 0);
+      const outRows = data.rows.filter((r) => r.amountOut > 0);
+
+      lines.push(``, `*📋 Ringkasan Mutasi (${data.rows.length} Transaksi):*`);
+
+      if (inRows.length > 0) {
+        lines.push(``, `📥 *Pemasukan (Total ${formatRp(totalIn)}):*`);
+        inRows.slice(0, 8).forEach((r) => {
+          lines.push(
+            `• [MASUK] ${formatRp(r.amountIn)} - ${r.description} (${formatKasDateId(r.txnDate)})`,
+          );
+        });
+        if (inRows.length > 8) {
+          lines.push(`  _...dan ${inRows.length - 8} transaksi masuk lainnya_`);
+        }
+      }
+
+      if (outRows.length > 0) {
+        lines.push(``, `📤 *Pengeluaran (Total ${formatRp(totalOut)}):*`);
+        outRows.slice(0, 8).forEach((r) => {
+          lines.push(
+            `• [KELUAR] ${formatRp(r.amountOut)} - ${r.description} (${formatKasDateId(r.txnDate)})`,
+          );
+        });
+        if (outRows.length > 8) {
+          lines.push(`  _...dan ${outRows.length - 8} transaksi keluar lainnya_`);
+        }
+      }
+    } else {
+      lines.push(``, `_Belum ada mutasi transaksi pada periode ini._`);
+    }
+
+    lines.push(
+      ``,
+      `_Diunduh/Dicetak pada: ${new Date().toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })} WIB_`,
+      `_Portal Resmi INKAI Surabaya — https://inkai-sby.vercel.app_`,
+    );
+
+    const waText = lines.join("\n");
+    navigator.clipboard.writeText(waText).then(
+      () => toast.success("Laporan Kas WA berhasil disalin ke clipboard!"),
+      () => toast.error("Gagal menyalin laporan ke clipboard"),
+    );
+  }
+
   async function handleImportFile(file: File) {
     const text = await file.text();
     const drafts = parseKasImportTsv(
@@ -888,8 +973,27 @@ export function KasLedgerClient({
         : toYmd
           ? `Sampai ${formatKasDateId(toYmd)}`
           : "Semua tanggal";
+  const isFiltered = Boolean(
+    fromYmd ||
+      toYmd ||
+      kegiatan ||
+      source !== "all" ||
+      recon !== "all" ||
+      direction !== "all",
+  );
+
+  function resetAllFilters() {
+    setFromYmd("");
+    setToYmd("");
+    setKegiatan("");
+    setSource("all");
+    setRecon("all");
+    setDirection("all");
+    toast.info("Seluruh filter telah dibersihkan");
+  }
+
   const extraFilterOn =
-    Boolean(kegiatan) || source !== "all" || recon !== "all";
+    Boolean(kegiatan) || source !== "all" || recon !== "all" || direction !== "all";
   const activeScopeLabel =
     data?.scopes?.find((scope) => scope.type === data.scope.type && scope.id === data.scope.id)
       ?.label ?? scopeLabel;
@@ -903,6 +1007,35 @@ export function KasLedgerClient({
       saldoAkhir: data?.kpis.saldoAkhir ?? 0,
       rows: data?.rows ?? [],
     });
+  }
+
+  const filteredLaporanRows = useMemo(() => {
+    const base = data?.rows ?? [];
+    if (direction === "all") return base;
+    if (direction === "in") return base.filter((r) => r.amountIn > 0);
+    return base.filter((r) => r.amountOut > 0);
+  }, [data?.rows, direction]);
+
+  const visibleManualLaporanIds = useMemo(() => {
+    return filteredLaporanRows
+      .filter((r) => r.sourceType === "manual" && !monthLocked(r.txnDate))
+      .map((r) => r.id);
+  }, [filteredLaporanRows, data?.lockedMonths]);
+
+  const allLaporanManualSelected =
+    visibleManualLaporanIds.length > 0 &&
+    visibleManualLaporanIds.every((id) => selectedIds.includes(id));
+
+  function toggleSelectAllLaporan() {
+    if (allLaporanManualSelected) {
+      setSelectedIds((prev) =>
+        prev.filter((id) => !visibleManualLaporanIds.includes(id)),
+      );
+      return;
+    }
+    setSelectedIds((prev) => [
+      ...new Set([...prev, ...visibleManualLaporanIds]),
+    ]);
   }
 
   const groups = visibleKasTableRows(data?.groups ?? [], collapsedKegiatan);
@@ -1012,11 +1145,21 @@ export function KasLedgerClient({
             />
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Saldo bawa sebelum periode {formatRp(data?.kpis.opening ?? 0)} · Belum rekon{" "}
-            {data?.kpis.unmatched ?? 0}
+            Saldo bawa sebelum periode {formatRp(data?.kpis.opening ?? 0)} ·{" "}
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 px-1.5 py-0.5 font-semibold transition-colors"
+              onClick={() => {
+                setRecon("open");
+                toast.info("Memfilter transaksi kas yang belum direkon");
+              }}
+              title="Klik untuk memfilter kas belum direkon"
+            >
+              Belum rekon {data?.kpis.unmatched ?? 0}
+            </button>
             {locked ? ` · Buku ${lockMonth} dikunci` : ""}
             {extraFilterOn
-              ? " · Saldo bawa dihitung dari seluruh buku, bukan filter kegiatan/sumber/rekon."
+              ? " · Saldo bawa dihitung dari seluruh buku, bukan filter kegiatan/sumber/rekon/arah."
               : ""}
           </p>
         </div>
@@ -1089,6 +1232,16 @@ export function KasLedgerClient({
               <Button type="button" variant="outline" size="sm" className="h-8 text-xs px-2.5" onClick={exportCsv}>
                 <Download className="h-3.5 w-3.5 mr-1" />
                 CSV
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs px-2.5 border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-950/30 font-medium"
+                onClick={handleCopyWa}
+              >
+                <Share2 className="h-3.5 w-3.5 mr-1 text-emerald-600 dark:text-emerald-400" />
+                Salin WA
               </Button>
               <Button
                 type="button"
@@ -1172,6 +1325,28 @@ export function KasLedgerClient({
               <option value="open">Belum rekon</option>
               <option value="matched">Cocok rekening</option>
             </select>
+            <select
+              className="h-8 shrink-0 rounded-md border bg-background px-2 text-xs"
+              value={direction}
+              onChange={(e) => setDirection(e.target.value as "all" | "in" | "out")}
+            >
+              <option value="all">Semua arah mutasi</option>
+              <option value="in">Masuk saja (+)</option>
+              <option value="out">Keluar saja (-)</option>
+            </select>
+            {isFiltered ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 shrink-0 text-xs px-2 text-muted-foreground hover:text-foreground hover:bg-muted"
+                onClick={resetAllFilters}
+                title="Reset semua filter"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                Reset filter
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -1257,6 +1432,17 @@ export function KasLedgerClient({
               <table className="w-full min-w-[880px] border-collapse text-sm">
                 <thead>
                   <tr className="sticky top-0 z-10 border-b bg-muted/95 text-left text-muted-foreground backdrop-blur">
+                    {data?.canWrite ? (
+                      <th className="w-10 p-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={allLaporanManualSelected}
+                          disabled={visibleManualLaporanIds.length === 0}
+                          aria-label="Pilih semua baris manual"
+                          onChange={toggleSelectAllLaporan}
+                        />
+                      </th>
+                    ) : null}
                     <th className="w-12 p-2 text-center">No</th>
                     <th className="p-2">Tanggal</th>
                     <th className="p-2">Keterangan</th>
@@ -1264,30 +1450,49 @@ export function KasLedgerClient({
                     <th className="p-2 text-right">Keluar</th>
                     <th className="p-2 text-right">Saldo</th>
                     <th className="p-2">Kegiatan</th>
-                    {data?.canWrite ? <th className="w-12 p-2" /> : null}
+                    {data?.canWrite ? <th className="w-12 p-2 text-center">Aksi</th> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={8} className="p-6 text-center text-muted-foreground">
+                      <td colSpan={data?.canWrite ? 9 : 8} className="p-6 text-center text-muted-foreground">
                         Memuat…
                       </td>
                     </tr>
-                  ) : (data?.rows ?? []).length === 0 ? (
+                  ) : filteredLaporanRows.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-6 text-center text-muted-foreground">
-                        Belum ada mutasi pada periode ini.
+                      <td colSpan={data?.canWrite ? 9 : 8} className="p-6 text-center text-muted-foreground">
+                        {isFiltered
+                          ? "Tidak ada mutasi yang cocok dengan filter yang dipilih."
+                          : "Belum ada mutasi pada periode ini."}
                       </td>
                     </tr>
                   ) : (
-                    (data?.rows ?? []).map((row) => {
+                    filteredLaporanRows.map((row) => {
                       const editable = canInlineEdit(row);
+                      const isManualDeletable = row.sourceType === "manual" && !monthLocked(row.txnDate);
+                      const isSelected = selectedIds.includes(row.id);
                       return (
                         <tr
                           key={row.id}
-                          className="group border-b hover:bg-muted/20"
+                          className={cn(
+                            "group border-b hover:bg-muted/20 transition-colors",
+                            isSelected && "bg-muted/40 font-medium"
+                          )}
                         >
+                          {data?.canWrite ? (
+                            <td className="p-2 text-center">
+                              {isManualDeletable ? (
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  aria-label={`Pilih baris ${row.no}`}
+                                  onChange={() => toggleSelectId(row.id)}
+                                />
+                              ) : null}
+                            </td>
+                          ) : null}
                           <td className="p-2 text-center tabular-nums">{row.no}</td>
                           <KasInlineCell
                             editable={editable}
@@ -1302,7 +1507,33 @@ export function KasLedgerClient({
                           <KasInlineCell
                             editable={editable}
                             kind="text"
-                            display={row.description}
+                            display={
+                              <div>
+                                <div>{row.description}</div>
+                                <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px]">
+                                  {row.sourceHref ? (
+                                    <Link
+                                      href={row.sourceHref}
+                                      className="inline-flex items-center gap-0.5 font-semibold text-inkai-red hover:underline"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <span>{row.sourceType}</span>
+                                    </Link>
+                                  ) : (
+                                    <span
+                                      className={cn(
+                                        "rounded px-1 py-0.2 font-medium text-[10px]",
+                                        row.sourceType === "manual"
+                                          ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                          : "bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                                      )}
+                                    >
+                                      {row.sourceType === "manual" ? "manual" : `otomatis: ${row.sourceType}`}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            }
                             initialValue={row.description}
                             onCommit={(next) =>
                               handleInlinePatch(row, { description: next })
@@ -1359,7 +1590,7 @@ export function KasLedgerClient({
                           />
                           {data?.canWrite ? (
                             <td className="p-1 text-center">
-                              {!monthLocked(row.txnDate) ? (
+                              {isManualDeletable ? (
                                 <Button
                                   type="button"
                                   size="icon"
@@ -1382,6 +1613,33 @@ export function KasLedgerClient({
               </table>
             </div>
           </div>
+          {data?.canWrite && selectedIds.length > 0 ? (
+            <div className="pointer-events-none absolute bottom-3 left-3 z-20 print:hidden">
+              <div className="pointer-events-auto inline-flex max-w-[min(100%,24rem)] items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-md">
+                <span className="text-xs font-medium">{selectedIds.length} terpilih</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  className="h-7 bg-inkai-red hover:bg-inkai-red/90 px-2.5 text-xs font-medium"
+                  onClick={() => setBatchDeleteOpen(true)}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Hapus ({selectedIds.length})
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  aria-label="Batalkan pilihan"
+                  onClick={() => setSelectedIds([])}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : (
       <div
