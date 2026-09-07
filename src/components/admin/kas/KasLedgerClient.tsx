@@ -1359,14 +1359,14 @@ export function KasLedgerClient({
                           />
                           {data?.canWrite ? (
                             <td className="p-1 text-center">
-                              {row.sourceType === "manual" &&
-                              !monthLocked(row.txnDate) ? (
+                              {!monthLocked(row.txnDate) ? (
                                 <Button
                                   type="button"
                                   size="icon"
                                   variant="ghost"
-                                  className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                                  className="h-7 w-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
                                   aria-label="Hapus"
+                                  title="Hapus baris transaksi kas"
                                   onClick={() => setDeleteId(row.id)}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />

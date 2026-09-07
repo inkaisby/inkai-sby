@@ -62,6 +62,7 @@ export type KwitansiArsipItem = {
   bendaharaName?: string;
   bidangUjianSignUrl?: string | null;
   bendaharaSignUrl?: string | null;
+  kasSyncMode?: "in" | "out" | "none";
   createdAt?: string;
 };
 
@@ -78,6 +79,7 @@ const INITIAL_DUMMY_ARSIP: KwitansiArsipItem[] = [
     untukPembayaran: "Iuran Anggota Bulan Agustus 2026",
     penerimaName: "MOHAMMAD IQBAL",
     penyetorName: "Habibur Rahman",
+    kasSyncMode: "in",
   },
   {
     id: "kw-002",
@@ -91,6 +93,7 @@ const INITIAL_DUMMY_ARSIP: KwitansiArsipItem[] = [
     untukPembayaran: "Bonus Prestasi Kejuaraan Walikota Cup",
     penerimaName: "MOHAMMAD IQBAL",
     penyetorName: "Bendahara Cabang",
+    kasSyncMode: "in",
   },
   {
     id: "np-001",
@@ -104,6 +107,7 @@ const INITIAL_DUMMY_ARSIP: KwitansiArsipItem[] = [
     untukPembayaran: "Pembelian Konsumsi Panitia Latber",
     penerimaName: "Seksi Konsumsi",
     penyetorName: "Bendahara Cabang",
+    kasSyncMode: "out",
   },
 ];
 
@@ -247,6 +251,10 @@ export function KwitansiArsipTable() {
         }),
       });
       if (res.ok) {
+        const updatedList = items.map((it) =>
+          it.id === row.id ? { ...it, kasSyncMode: direction } : it,
+        );
+        updateItems(updatedList);
         toast.success(
           `Kwitansi ${row.no} berhasil dicatat ke Jurnal Kas (${direction === "in" ? "Kas Masuk +" : "Kas Keluar -"})!`,
         );
@@ -285,7 +293,16 @@ export function KwitansiArsipTable() {
       toast.error("Tidak ada data untuk diexport");
       return;
     }
-    const headers = ["No Kwitansi", "Periode / Nama", "Jenis", "Tanggal", "Terima Dari", "Total (Rp)", "Scope"];
+    const headers = [
+      "No Kwitansi",
+      "Periode / Nama",
+      "Jenis",
+      "Tanggal",
+      "Terima Dari",
+      "Total (Rp)",
+      "Status Kas",
+      "Scope",
+    ];
     const rows = filteredItems.map((r) => [
       `"${r.no}"`,
       `"${r.periodeNama}"`,
@@ -293,6 +310,7 @@ export function KwitansiArsipTable() {
       `"${r.tanggal}"`,
       `"${r.terimaDari || ""}"`,
       r.total,
+      `"${r.kasSyncMode === "in" ? "Kas Masuk" : r.kasSyncMode === "out" ? "Kas Keluar" : "Belum Sync"}"`,
       `"${r.scope}"`,
     ]);
     const csvContent = [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
@@ -348,7 +366,7 @@ export function KwitansiArsipTable() {
 
       {/* Main Table */}
       <div className="overflow-x-auto rounded-lg border bg-card">
-        <table className="w-full min-w-[760px] border-collapse text-sm">
+        <table className="w-full min-w-[880px] border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left font-medium text-muted-foreground">
               <th className="p-3">No</th>
@@ -356,6 +374,7 @@ export function KwitansiArsipTable() {
               <th className="p-3">Jenis</th>
               <th className="p-3">Tanggal</th>
               <th className="p-3 text-right">Total</th>
+              <th className="p-3">Status Kas</th>
               <th className="p-3">Scope</th>
               <th className="p-3 text-center">Aksi</th>
             </tr>
@@ -363,7 +382,7 @@ export function KwitansiArsipTable() {
           <tbody>
             {filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                <td colSpan={8} className="p-8 text-center text-muted-foreground">
                   Tidak ada data kwitansi yang ditemukan.
                 </td>
               </tr>
@@ -385,6 +404,21 @@ export function KwitansiArsipTable() {
                   <td className="p-3 whitespace-nowrap text-muted-foreground">{row.tanggal}</td>
                   <td className="p-3 text-right font-semibold text-foreground whitespace-nowrap">
                     {formatRp(row.total)}
+                  </td>
+                  <td className="p-3 whitespace-nowrap">
+                    {row.kasSyncMode === "in" ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                        <ArrowDownLeft className="h-3 w-3 text-emerald-600 dark:text-emerald-400" /> Kas Masuk
+                      </span>
+                    ) : row.kasSyncMode === "out" ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 dark:bg-rose-950/60 px-2.5 py-0.5 text-xs font-semibold text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                        <ArrowUpRight className="h-3 w-3 text-rose-600 dark:text-rose-400" /> Kas Keluar
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700">
+                        Belum Sync
+                      </span>
+                    )}
                   </td>
                   <td className="p-3 text-xs text-muted-foreground">{row.scope}</td>
                   <td className="p-3 text-center">

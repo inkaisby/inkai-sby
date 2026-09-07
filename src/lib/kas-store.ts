@@ -434,7 +434,7 @@ export async function setKasRecon(id: string, scope: KasScope, reconStatus: "ope
 
 export async function deleteManualKas(id: string, scope: KasScope) {
   const row = await prisma.kasEntry.findFirst({
-    where: { id, scopeType: scope.type, scopeId: scope.id, sourceType: "manual" },
+    where: { id, scopeType: scope.type, scopeId: scope.id },
   });
   if (!row) return false;
   await assertKasMonthWritable(scope, row.txnDate.toISOString().slice(0, 10));
