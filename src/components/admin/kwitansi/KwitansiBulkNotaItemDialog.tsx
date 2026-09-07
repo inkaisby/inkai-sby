@@ -166,7 +166,7 @@ export function KwitansiBulkNotaItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-4 sm:p-6 overflow-hidden">
+      <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-4xl lg:max-w-5xl max-h-[90vh] flex flex-col p-4 sm:p-6 overflow-hidden">
         <DialogHeader className="shrink-0 pb-2 border-b">
           <DialogTitle className="flex items-center justify-between">
             <span>Input Massal Rincian Pengeluaran Event</span>
@@ -254,15 +254,15 @@ Banner & Spanduk	2	150000	Agus`}
                 Isi baris rincian item pengeluaran event di bawah ini. Baris tanpa deskripsi akan diabaikan.
               </p>
 
-              <div className="flex-1 overflow-y-auto border rounded-md min-h-[220px] p-2 space-y-2">
-                <table className="w-full text-xs">
+              <div className="flex-1 overflow-auto border rounded-md min-h-[220px] p-2 space-y-2">
+                <table className="w-full text-xs min-w-[680px]">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
-                      <th className="p-1.5 w-8">No</th>
-                      <th className="p-1.5">Deskripsi Item</th>
+                      <th className="p-1.5 w-10 text-center">No</th>
+                      <th className="p-1.5 min-w-[220px]">Deskripsi Item</th>
                       <th className="p-1.5 w-20 text-center">Jumlah</th>
-                      <th className="p-1.5 w-32">Harga (Rp)</th>
-                      <th className="p-1.5 w-36">Petugas (Opsional)</th>
+                      <th className="p-1.5 w-36">Harga (Rp)</th>
+                      <th className="p-1.5 w-48 sm:w-56">Petugas (Opsional)</th>
                       <th className="p-1.5 w-10 text-center"></th>
                     </tr>
                   </thead>
