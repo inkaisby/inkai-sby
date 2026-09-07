@@ -114,6 +114,8 @@ function roundThousands(n: number): number {
   return rounded - (rounded % 1000);
 }
 
+import { DEFAULT_KOMISI_RANTING } from "@/lib/ukt";
+
 export async function postKasFromUktPaid(opts: {
   user: SessionUser;
   billingId: string;
@@ -126,7 +128,7 @@ export async function postKasFromUktPaid(opts: {
 }) {
   const fee = roundThousands(opts.amount);
   if (fee <= 0) return;
-  const komisi = Math.min(fee, roundRp(opts.komisiRanting ?? 50000));
+  const komisi = Math.min(fee, roundRp(opts.komisiRanting ?? DEFAULT_KOMISI_RANTING));
   const nett = Math.max(0, fee - komisi);
   const scopes = opts.memberDojoId
     ? await resolveDojoBranchScope(opts.memberDojoId)

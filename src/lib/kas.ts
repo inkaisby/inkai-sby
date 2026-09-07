@@ -592,20 +592,8 @@ export function aggregateKasByDojo(
       if (isKomisi) {
         item.totalKomisiUkt += row.amountIn;
       } else {
-        if (row.amountIn >= 285000) {
-          const count = Math.max(1, Math.round(row.amountIn / 298000));
-          const komisi = count * 50000;
-          const nett = Math.max(0, row.amountIn - komisi);
-          item.totalUkt += nett;
-          item.totalKomisiUkt += komisi;
-          item.totalMasuk += nett;
-        } else {
-          const komisi = Math.round(row.amountIn * 0.1);
-          const nett = Math.max(0, row.amountIn - komisi);
-          item.totalUkt += nett;
-          item.totalKomisiUkt += komisi;
-          item.totalMasuk += nett;
-        }
+        item.totalUkt += row.amountIn;
+        item.totalMasuk += row.amountIn;
       }
     } else if (isLatberMatch) {
       if (isKomisi) {
