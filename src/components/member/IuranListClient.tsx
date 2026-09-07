@@ -114,9 +114,11 @@ function listPeriodOptions(billings: BillingItem[]) {
 export function IuranListClient({
   billings,
   monthlyDuesAmount,
+  isExempt = false,
 }: {
   billings: BillingItem[];
   monthlyDuesAmount: number;
+  isExempt?: boolean;
 }) {
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -196,7 +198,7 @@ export function IuranListClient({
 
   return (
     <div className="space-y-4">
-      {periodOptions.length > 0 ? (
+      {!isExempt && periodOptions.length > 0 ? (
         <div className="rounded-2xl border border-border/60 bg-card p-4">
           <p className="font-semibold">Laporkan setor periode</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -268,8 +270,9 @@ export function IuranListClient({
 
       {visible.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          Belum ada tagihan di daftar. Gunakan formulir periode di atas untuk
-          melaporkan setor bulan sebelumnya.
+          {isExempt
+            ? "Pengecualian iuran aktif. Seluruh kewajiban iuran bulanan untuk pendaftaran UKT & kegiatan dibebaskan."
+            : "Belum ada tagihan di daftar. Gunakan formulir periode di atas untuk melaporkan setor bulan sebelumnya."}
         </div>
       ) : (
         <div className="space-y-3">
@@ -280,6 +283,7 @@ export function IuranListClient({
             const amount = Number(b.amount || 0);
             const reportedAt = formatPaidAt(b.payment?.paidAt);
             const dateValue = dates[b.id] ?? todayYmd();
+            const isPaid = b.status === "PAID";
 
             return (
               <div
@@ -302,25 +306,45 @@ export function IuranListClient({
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold">
-                      Rp {amount.toLocaleString("id-ID")}
-                    </p>
+                    {!isExempt || isPaid ? (
+                      <p className="font-bold">
+                        Rp {amount.toLocaleString("id-ID")}
+                      </p>
+                    ) : null}
                     <Badge
-                      variant={b.status === "PAID" ? "default" : "secondary"}
-                      className={`mt-1 ${st.className}`}
+                      variant={
+                        isPaid
+                          ? "default"
+                          : isExempt
+                            ? "outline"
+                            : "secondary"
+                      }
+                      className={`mt-1 ${
+                        isPaid
+                          ? st.className
+                          : isExempt
+                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 font-semibold"
+                            : st.className
+                      }`}
                     >
-                      {st.label}
+                      {isPaid
+                        ? st.label
+                        : isExempt
+                          ? "Pengecualian iuran"
+                          : st.label}
                     </Badge>
                   </div>
                 </div>
 
-                {b.status === "WAITING_VERIFICATION" && reportedAt ? (
+                {!isExempt &&
+                b.status === "WAITING_VERIFICATION" &&
+                reportedAt ? (
                   <p className="mt-2 text-xs text-muted-foreground">
                     Dilaporkan setor {reportedAt} — menunggu konfirmasi ranting
                   </p>
                 ) : null}
 
-                {canReport ? (
+                {!isExempt && canReport ? (
                   <div className="mt-3 flex flex-wrap items-end gap-2">
                     <div className="space-y-1">
                       <label

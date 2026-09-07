@@ -120,11 +120,13 @@ export default async function IuranPage() {
   return (
     <>
       <MemberPageHeader title="Iuran & Tagihan" />
-      <p className="mb-4 text-sm text-muted-foreground">
-        Setor iuran secara manual ke pengurus ranting, lalu laporkan tanggal
-        bayar di sini — termasuk bulan sebelumnya. Bukti fisik diserahkan ke
-        ranting; pengurus akan mengonfirmasi.
-      </p>
+      {!member?.allowEventWithoutDues && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          Setor iuran secara manual ke pengurus ranting, lalu laporkan tanggal
+          bayar di sini — termasuk bulan sebelumnya. Bukti fisik diserahkan ke
+          ranting; pengurus akan mengonfirmasi.
+        </p>
+      )}
       {member?.allowEventWithoutDues && (
         <div className="mb-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm">
           <p className="font-bold text-emerald-800 dark:text-emerald-300">
@@ -140,6 +142,7 @@ export default async function IuranPage() {
       <IuranListClient
         billings={merged}
         monthlyDuesAmount={monthlyDuesAmount}
+        isExempt={Boolean(member?.allowEventWithoutDues)}
       />
     </>
   );

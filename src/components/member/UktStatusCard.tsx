@@ -305,10 +305,18 @@ export function UktStatusCard({ compact = false, initialData }: Props) {
         </div>
         <p className="font-bold">{data.period.title}</p>
         {data.registered ? (
-          <p className="mt-1 text-sm text-muted-foreground">
-            Sabuk saat ini: {formatRankLabel(data.kyuLama) || "—"}
-            {data.kyuBaru ? ` → Target: ${formatRankLabel(data.kyuBaru)}` : ""}
-          </p>
+          data.displayStatus === "lulus" ||
+          data.displayStatus === "selesai" ? (
+            <p className="mt-1 text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+              Anda naik / lulus UKT dari sabuk {formatRankLabel(data.kyuLama) || "—"}
+              {data.kyuBaru ? ` → Menjadi: ${formatRankLabel(data.kyuBaru)}` : ""}
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Sabuk saat ini: {formatRankLabel(data.kyuLama) || "—"}
+              {data.kyuBaru ? ` → Target: ${formatRankLabel(data.kyuBaru)}` : ""}
+            </p>
+          )
         ) : (
           <p className="mt-1 text-sm text-muted-foreground">
             Belum terdaftar pada periode aktif.

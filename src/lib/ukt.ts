@@ -6,6 +6,7 @@ import {
   shortRankLabel,
   isBlankUktRank,
   compareUktRanks,
+  ranksEqual,
   type BeltGroup,
 } from "@/lib/belt";
 import { DISPORA_JATIM, isDisporaJatim } from "@/lib/venue";
@@ -1701,6 +1702,9 @@ export function resolveUktDisplayStatus(
   if (row.status === "REJECTED") return "ditolak";
   if (examResult === "GAGAL") return "gagal";
   if (examResult === "MENGULANG") return "mengulang";
+  if (examResult === "LULUS" && row.kyuBaru?.trim()) return "selesai";
+  if (examResult === "LULUS") return "lulus";
+  if (row.kyuBaru?.trim() && ranksEqual(row.memberCurrentRank, row.kyuBaru)) return "selesai";
   if (isUktSelesai(row)) return "selesai";
 
   // Daftar mandiri: PENDING tanpa tagihan / belum diterima ranting
@@ -1714,8 +1718,6 @@ export function resolveUktDisplayStatus(
 
   const paid = isUktBillingPaid(row);
 
-  if (paid && examResult === "LULUS" && row.kyuBaru?.trim()) return "selesai";
-  if (paid && examResult === "LULUS") return "lulus";
   if (paid) return "menunggu_ujian";
   if (row.billingStatus === "WAITING_VERIFICATION") return "menunggu_verifikasi";
   if (row.billingStatus === "PENDING" || row.registrationId) return "belum_bayar";
