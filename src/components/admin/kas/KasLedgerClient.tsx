@@ -358,6 +358,16 @@ export function KasLedgerClient({
   }, [load]);
 
   useEffect(() => {
+    if (!data?.rows) return;
+    const validIds = new Set(data.rows.map((r) => r.id));
+    setSelectedIds((prev) => {
+      if (prev.length === 0) return prev;
+      const next = prev.filter((id) => validIds.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [data?.rows]);
+
+  useEffect(() => {
     if (!tableFullscreen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -759,6 +769,7 @@ export function KasLedgerClient({
       return;
     }
     toast.success("Baris dihapus");
+    setSelectedIds((prev) => prev.filter((id) => id !== deleteId));
     setDeleteId(null);
     await load();
   }
