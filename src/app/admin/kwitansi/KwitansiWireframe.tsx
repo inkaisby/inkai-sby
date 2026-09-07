@@ -18,6 +18,7 @@ import {
 } from "@/components/admin/kwitansi/NotaItemTable";
 import { KwitansiMemberPicker } from "@/components/admin/kwitansi/KwitansiMemberPicker";
 import { terbilangId } from "@/lib/terbilang";
+import { ArrowDownLeft, ArrowUpRight, Ban, Landmark } from "lucide-react";
 import {
   downloadDaftarPenerimaPdf,
   downloadKwitansiBatchPdf,
@@ -36,6 +37,7 @@ export type KwitansiJenis =
   | "lainnya";
 
 export type KwitansiMode = "a" | "b";
+export type KasSyncMode = "in" | "out" | "none";
 
 type Props = {
   scopeLabel: string;
@@ -121,6 +123,7 @@ function defaultUntuk(jenis: KwitansiJenis): string {
 type DraftShape = {
   jenis: KwitansiJenis;
   mode: KwitansiMode;
+  kasSyncMode?: KasSyncMode;
   eventLabel: string;
   periodeNama: string;
   no: string;
@@ -197,6 +200,10 @@ export function KwitansiWireframe({
   );
   const [bendaharaSignUrl, setBendaharaSignUrl] = useState<string | null>(null);
 
+  const [kasSyncMode, setKasSyncMode] = useState<KasSyncMode>(
+    initialJenis === "pengeluaran" ? "out" : "in",
+  );
+
   const isNota = jenis === "pengeluaran";
   const roleLabel = roleColumnLabel(jenis);
 
@@ -269,6 +276,11 @@ export function KwitansiWireframe({
               if (found.bidangUjianSignUrl) setBidangUjianSignUrl(found.bidangUjianSignUrl);
               if (found.bendaharaSignUrl) setBendaharaSignUrl(found.bendaharaSignUrl);
               if (found.penyetorSignUrl) setPenyetorSignUrl(found.penyetorSignUrl);
+              if (found.kasSyncMode) {
+                setKasSyncMode(found.kasSyncMode);
+              } else {
+                setKasSyncMode(isNp ? "out" : "in");
+              }
               toast.info(`Memuat kwitansi ${found.no} dari Arsip`);
               loadedFromArsip = true;
             }
@@ -284,6 +296,9 @@ export function KwitansiWireframe({
       if (d) {
         setJenis(d.jenis);
         setMode(d.mode);
+        setKasSyncMode(
+          d.kasSyncMode ?? (d.jenis === "pengeluaran" ? "out" : "in"),
+        );
         setEventLabel(d.eventLabel || initialEventLabel);
         setPeriodeNama(d.periodeNama ?? "");
         setNo(d.no);
@@ -317,6 +332,7 @@ export function KwitansiWireframe({
       const payload: DraftShape = {
         jenis,
         mode,
+        kasSyncMode,
         eventLabel,
         periodeNama,
         no,
@@ -352,6 +368,7 @@ export function KwitansiWireframe({
   }, [
     jenis,
     mode,
+    kasSyncMode,
     eventLabel,
     periodeNama,
     no,
@@ -378,6 +395,7 @@ export function KwitansiWireframe({
   const handleSelectJenis = (next: KwitansiJenis) => {
     if (next === jenis) return;
     setJenis(next);
+    setKasSyncMode(next === "pengeluaran" ? "out" : "in");
     if (next !== "pengeluaran") {
       setUntukPembayaran((prev) => prev || defaultUntuk(next));
     }
@@ -391,6 +409,7 @@ export function KwitansiWireframe({
       /* ignore */
     }
     setJenis(initialJenis);
+    setKasSyncMode(initialJenis === "pengeluaran" ? "out" : "in");
     setMode("a");
     setEventLabel(initialEventLabel);
     setPeriodeNama("");
@@ -701,6 +720,7 @@ export function KwitansiWireframe({
           no: targetNo,
           periodeNama: periodeNama.trim() || (isNota ? "Nota Pengeluaran" : "Kwitansi Pembayaran"),
           jenis: JENIS_OPTIONS.find((j) => j.id === jenis)?.label || "Iuran/tagihan",
+          kasSyncMode,
           tanggal: formatTanggalId(isNota ? notaTanggal : tanggal),
           terimaDari: previewTerimaDari,
           total: isNota ? notaGrand : jumlah,
@@ -728,6 +748,7 @@ export function KwitansiWireframe({
           no: targetNo,
           periodeNama: periodeNama.trim() || (isNota ? "Nota Pengeluaran" : "Kwitansi Pembayaran"),
           jenis: JENIS_OPTIONS.find((j) => j.id === jenis)?.label || "Iuran/tagihan",
+          kasSyncMode,
           tanggal: formatTanggalId(isNota ? notaTanggal : tanggal),
           terimaDari: previewTerimaDari,
           total: isNota ? notaGrand : jumlah,
@@ -751,7 +772,7 @@ export function KwitansiWireframe({
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
 
-      if (jenis !== "iuran") {
+      if (kasSyncMode !== "none") {
         const nominal = Math.round(isNota ? notaGrand : jumlah);
         if (nominal > 0) {
           const kasRes = await fetch("/api/admin/kas", {
@@ -765,7 +786,7 @@ export function KwitansiWireframe({
                   txnDate: isNota ? notaTanggal : tanggal,
                   description: `${targetNo} — ${untukWithEvent || periodeNama || "Kwitansi"}`,
                   kegiatan: periodeNama,
-                  direction: isNota ? "out" : "in",
+                  direction: kasSyncMode,
                   amount: nominal,
                 },
               ],
@@ -780,6 +801,11 @@ export function KwitansiWireframe({
             );
           }
         }
+      } else {
+        await fetch(
+          `/api/admin/kas?sourceType=kwitansi&sourceId=${encodeURIComponent(entryId)}`,
+          { method: "DELETE" },
+        ).catch(() => {});
       }
       toast.success(
         isUpdate
@@ -977,6 +1003,58 @@ export function KwitansiWireframe({
             onChange={(e) => setEventLabel(e.target.value)}
             placeholder="Cari / ketik nama event atau kegiatan…"
           />
+        </div>
+
+        <div className="space-y-1.5 sm:col-span-2">
+          <div className="flex items-center justify-between">
+            <Label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+              <Landmark className="h-4 w-4 text-primary" />
+              <span>Singkronisasi Jurnal Kas Admin (/admin/kas)</span>
+            </Label>
+            <span className="text-[11px] text-muted-foreground">
+              Pilih perlakuan kas saat disimpan ke arsip
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-lg border p-1.5 bg-muted/20">
+            <button
+              type="button"
+              className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-all ${
+                kasSyncMode === "in"
+                  ? "bg-emerald-600 text-white shadow-sm font-semibold ring-2 ring-emerald-600/30"
+                  : "bg-background hover:bg-muted text-muted-foreground border"
+              }`}
+              onClick={() => setKasSyncMode("in")}
+            >
+              <ArrowDownLeft className="h-4 w-4 shrink-0 text-emerald-400" />
+              <span>Kas Masuk (+ Masuk Kas)</span>
+            </button>
+
+            <button
+              type="button"
+              className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-all ${
+                kasSyncMode === "out"
+                  ? "bg-rose-600 text-white shadow-sm font-semibold ring-2 ring-rose-600/30"
+                  : "bg-background hover:bg-muted text-muted-foreground border"
+              }`}
+              onClick={() => setKasSyncMode("out")}
+            >
+              <ArrowUpRight className="h-4 w-4 shrink-0 text-rose-400" />
+              <span>Kas Keluar (- Keluar Kas)</span>
+            </button>
+
+            <button
+              type="button"
+              className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-all ${
+                kasSyncMode === "none"
+                  ? "bg-slate-700 text-white shadow-sm font-semibold ring-2 ring-slate-700/30"
+                  : "bg-background hover:bg-muted text-muted-foreground border"
+              }`}
+              onClick={() => setKasSyncMode("none")}
+            >
+              <Ban className="h-4 w-4 shrink-0 text-slate-300" />
+              <span>Tidak Catat di Kas</span>
+            </button>
+          </div>
         </div>
       </div>
 

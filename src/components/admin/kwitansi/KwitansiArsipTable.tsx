@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { formatRp } from "@/lib/terbilang";
 import { printKwitansi, printNotaPengeluaran } from "@/lib/kwitansi-print-html";
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
-import { Printer, Pencil, Trash2, Download, Search, Plus } from "lucide-react";
+import { Printer, Pencil, Trash2, Download, Search, Plus, Landmark } from "lucide-react";
 import { toast } from "sonner";
 
 export type KwitansiArsipItem = {
@@ -200,6 +200,47 @@ export function KwitansiArsipTable() {
     router.push(`/admin/kwitansi?no=${encodeURIComponent(row.no)}`);
   };
 
+  const handleSyncToKas = async (row: KwitansiArsipItem) => {
+    try {
+      const isNota = row.no.startsWith("NP");
+      const direction = isNota ? "out" : "in";
+      const nominal = Math.round(row.total);
+      if (nominal <= 0) {
+        toast.error("Nominal kwitansi 0, tidak dapat dicatat ke kas");
+        return;
+      }
+      const res = await fetch("/api/admin/kas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceType: "kwitansi",
+          sourceId: row.id,
+          entries: [
+            {
+              txnDate: new Date().toISOString().slice(0, 10),
+              description: `${row.no} — ${row.untukPembayaran || row.periodeNama || "Kwitansi"}`,
+              kegiatan: row.periodeNama,
+              direction,
+              amount: nominal,
+            },
+          ],
+        }),
+      });
+      if (res.ok) {
+        toast.success(
+          `Kwitansi ${row.no} berhasil dimasukkan ke Jurnal Kas (${direction === "in" ? "Kas Masuk +" : "Kas Keluar -"})!`,
+        );
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(
+          typeof err.error === "string" ? err.error : "Gagal mencatat ke Kas",
+        );
+      }
+    } catch {
+      toast.error("Gagal terhubung ke server kas");
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     const target = deleteTarget;
@@ -328,6 +369,16 @@ export function KwitansiArsipTable() {
                   <td className="p-3 text-xs text-muted-foreground">{row.scope}</td>
                   <td className="p-3 text-center">
                     <div className="flex items-center justify-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                        onClick={() => handleSyncToKas(row)}
+                        title="Masukkan ke Jurnal Kas Admin (/admin/kas)"
+                      >
+                        <Landmark className="h-4 w-4" />
+                      </Button>
                       <Button
                         type="button"
                         variant="ghost"
