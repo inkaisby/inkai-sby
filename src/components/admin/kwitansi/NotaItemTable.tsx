@@ -17,6 +17,7 @@ import {
   KwitansiMemberPicker,
   type KwitansiMemberSuggestItem,
 } from "@/components/admin/kwitansi/KwitansiMemberPicker";
+import { KwitansiBulkNotaItemDialog } from "@/components/admin/kwitansi/KwitansiBulkNotaItemDialog";
 import { formatRp } from "@/lib/terbilang";
 
 export type NotaItemRow = {
@@ -92,6 +93,7 @@ export function NotaItemTable({
   onSaveArsip,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deskripsi, setDeskripsi] = useState("");
   const [jumlah, setJumlah] = useState("1");
@@ -171,6 +173,12 @@ export function NotaItemTable({
       }
 
       // Shortcut outside dialog:
+      // Alt + Shift + A -> Open Input Massal
+      if (!isInput && e.altKey && e.shiftKey && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        setBulkOpen(true);
+        return;
+      }
       // Alt + A or Alt + N -> Open "+ Tambah rincian / item"
       if (!isInput && e.altKey && (e.key.toLowerCase() === "a" || e.key.toLowerCase() === "n")) {
         e.preventDefault();
@@ -226,6 +234,17 @@ export function NotaItemTable({
             <Plus className="mr-1 h-3.5 w-3.5" />
             Tambah rincian
             <span className="ml-1 rounded bg-white/20 px-1 py-0.5 text-[10px] font-mono">Alt+A</span>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => setBulkOpen(true)}
+            title="Shortcut: Alt + Shift + A"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            Input massal
+            <span className="ml-1 rounded bg-white/20 px-1 py-0.5 text-[10px] font-mono">Alt+Shift+A</span>
           </Button>
         </div>
       </div>
@@ -474,6 +493,18 @@ export function NotaItemTable({
           </form>
         </DialogContent>
       </Dialog>
+
+      <KwitansiBulkNotaItemDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        onAddBulk={(newRows) => {
+          const formattedRows: NotaItemRow[] = newRows.map((r) => ({
+            ...r,
+            id: newId(),
+          }));
+          onItemsChange([...items, ...formattedRows]);
+        }}
+      />
     </div>
   );
 }
