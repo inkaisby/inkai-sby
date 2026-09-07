@@ -474,7 +474,6 @@ export async function deleteManualKasByIds(opts: {
       id: { in: ids },
       scopeType: opts.scope.type,
       scopeId: opts.scope.id,
-      sourceType: "manual",
     },
   });
   if (rows.length === 0) return { deleted: 0 };

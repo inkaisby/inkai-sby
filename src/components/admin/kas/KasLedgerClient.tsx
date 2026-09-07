@@ -1018,7 +1018,7 @@ export function KasLedgerClient({
 
   const visibleManualLaporanIds = useMemo(() => {
     return filteredLaporanRows
-      .filter((r) => r.sourceType === "manual" && !monthLocked(r.txnDate))
+      .filter((r) => !monthLocked(r.txnDate))
       .map((r) => r.id);
   }, [filteredLaporanRows, data?.lockedMonths]);
 
@@ -1471,7 +1471,7 @@ export function KasLedgerClient({
                   ) : (
                     filteredLaporanRows.map((row) => {
                       const editable = canInlineEdit(row);
-                      const isManualDeletable = row.sourceType === "manual" && !monthLocked(row.txnDate);
+                      const isDeletable = !monthLocked(row.txnDate);
                       const isSelected = selectedIds.includes(row.id);
                       return (
                         <tr
@@ -1483,7 +1483,7 @@ export function KasLedgerClient({
                         >
                           {data?.canWrite ? (
                             <td className="p-2 text-center">
-                              {isManualDeletable ? (
+                              {isDeletable ? (
                                 <input
                                   type="checkbox"
                                   checked={isSelected}
@@ -1590,7 +1590,7 @@ export function KasLedgerClient({
                           />
                           {data?.canWrite ? (
                             <td className="p-1 text-center">
-                              {isManualDeletable ? (
+                              {isDeletable ? (
                                 <Button
                                   type="button"
                                   size="icon"
