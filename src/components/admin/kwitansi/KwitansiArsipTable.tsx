@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatRp } from "@/lib/terbilang";
 import { printKwitansi, printNotaPengeluaran } from "@/lib/kwitansi-print-html";
+import { parseToYmd } from "@/lib/kas";
 import {
   Dialog,
   DialogContent,
@@ -158,6 +159,71 @@ export function KwitansiArsipTable() {
     }
   };
 
+  // Auto-sync existing Kas entries status and dates matching Kwitansi Arsip items
+  useEffect(() => {
+    if (items.length === 0) return;
+    let cancelled = false;
+
+    async function syncKasEntriesWithArsip() {
+      try {
+        const res = await fetch("/api/admin/kas?source=kwitansi");
+        if (!res.ok || cancelled) return;
+        const json = await res.json();
+        if (!Array.isArray(json.rows)) return;
+        const kasRows: Array<{
+          id: string;
+          sourceType: string;
+          sourceId: string;
+          description: string;
+          txnDate: string;
+          amountIn: number;
+          amountOut: number;
+        }> = json.rows;
+
+        let changed = false;
+        const nextItems = items.map((item) => {
+          const match = kasRows.find(
+            (k) =>
+              k.sourceId === item.id ||
+              k.sourceId === item.no ||
+              (item.no && k.description.includes(item.no)),
+          );
+          if (!match) return item;
+
+          const expectedDirection = match.amountIn > 0 ? "in" : "out";
+          const expectedYmd = parseToYmd(item.tanggal);
+
+          if (item.kasSyncMode !== expectedDirection) {
+            changed = true;
+            item = { ...item, kasSyncMode: expectedDirection };
+          }
+
+          if (match.txnDate !== expectedYmd) {
+            void fetch(`/api/admin/kas/${match.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ txnDate: expectedYmd }),
+            });
+          }
+
+          return item;
+        });
+
+        if (changed && !cancelled) {
+          updateItems(nextItems);
+        }
+      } catch {
+        /* ignore background sync error */
+      }
+    }
+
+    void syncKasEntriesWithArsip();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [items.length]);
+
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       const matchSearch =
@@ -238,10 +304,10 @@ export function KwitansiArsipTable() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sourceType: "kwitansi",
-          sourceId: row.id,
+          sourceId: row.no || row.id,
           entries: [
             {
-              txnDate: new Date().toISOString().slice(0, 10),
+              txnDate: parseToYmd(row.tanggal),
               description: `${row.no} — ${row.untukPembayaran || row.periodeNama || "Kwitansi"}`,
               kegiatan: row.periodeNama,
               direction,

@@ -74,6 +74,32 @@ export function parseYmd(ymd: string): Date {
   return new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
 }
 
+export function parseToYmd(str: string | undefined | null): string {
+  if (!str) return ymdWib();
+  const trimmed = str.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  if (trimmed.includes("T")) return trimmed.slice(0, 10);
+
+  const months: Record<string, string> = {
+    januari: "01", februari: "02", maret: "03", april: "04", mei: "05", juni: "06",
+    juli: "07", agustus: "08", september: "09", oktober: "10", november: "11", desember: "12",
+  };
+  const parts = trimmed.toLowerCase().split(/\s+/);
+  if (parts.length >= 3) {
+    const day = parts[0].padStart(2, "0");
+    const month = months[parts[1]];
+    const year = parts[2];
+    if (day && month && year && year.length === 4) {
+      return `${year}-${month}-${day}`;
+    }
+  }
+  const d = new Date(trimmed);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().slice(0, 10);
+  }
+  return ymdWib();
+}
+
 export function formatKasDateId(ymd: string): string {
   const d = parseYmd(ymd);
   if (Number.isNaN(d.getTime())) return ymd;

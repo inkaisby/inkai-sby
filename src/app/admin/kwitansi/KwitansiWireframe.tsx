@@ -18,6 +18,7 @@ import {
 } from "@/components/admin/kwitansi/NotaItemTable";
 import { KwitansiMemberPicker } from "@/components/admin/kwitansi/KwitansiMemberPicker";
 import { terbilangId } from "@/lib/terbilang";
+import { parseToYmd } from "@/lib/kas";
 import { ArrowDownLeft, ArrowUpRight, Ban, Landmark } from "lucide-react";
 import {
   downloadDaftarPenerimaPdf,
@@ -780,10 +781,10 @@ export function KwitansiWireframe({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               sourceType: "kwitansi",
-              sourceId: entryId,
+              sourceId: targetNo || entryId,
               entries: [
                 {
-                  txnDate: isNota ? notaTanggal : tanggal,
+                  txnDate: parseToYmd(isNota ? notaTanggal : tanggal),
                   description: `${targetNo} — ${untukWithEvent || periodeNama || "Kwitansi"}`,
                   kegiatan: periodeNama,
                   direction: kasSyncMode,
