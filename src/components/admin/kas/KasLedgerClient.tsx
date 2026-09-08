@@ -148,6 +148,9 @@ export function KasLedgerClient({
   const [renameOldKegiatan, setRenameOldKegiatan] = useState("");
   const [renameNewKegiatan, setRenameNewKegiatan] = useState("");
   const [renameLoading, setRenameLoading] = useState(false);
+  const [batchKegiatanOpen, setBatchKegiatanOpen] = useState(false);
+  const [batchKegiatanName, setBatchKegiatanName] = useState("");
+  const [batchKegiatanLoading, setBatchKegiatanLoading] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [recapDojoOpen, setRecapDojoOpen] = useState(false);
   const [uktDepositMap, setUktDepositMap] = useState<Record<
@@ -693,6 +696,43 @@ export function KasLedgerClient({
       toast.error(err instanceof Error ? err.message : "Gagal mengubah nama kegiatan");
     } finally {
       setRenameLoading(false);
+    }
+  }
+
+  async function handleBatchKegiatan() {
+    if (!batchKegiatanName.trim()) {
+      toast.error("Nama kategori / kegiatan wajib diisi");
+      return;
+    }
+    if (selectedIds.length === 0) return;
+    setBatchKegiatanLoading(true);
+    try {
+      const res = await fetch("/api/admin/kas/batch-kegiatan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-kas-scope-type": data?.scope.type ?? "",
+          "x-kas-scope-id": data?.scope.id ?? "",
+        },
+        body: JSON.stringify({
+          ids: selectedIds,
+          kegiatan: batchKegiatanName.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "Gagal memperbarui kategori");
+        return;
+      }
+      toast.success(`${json.updated ?? selectedIds.length} baris digabungkan ke "${batchKegiatanName.trim()}"`);
+      setBatchKegiatanOpen(false);
+      expandKegiatan(batchKegiatanName.trim());
+      setSelectedIds([]);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal memperbarui kategori");
+    } finally {
+      setBatchKegiatanLoading(false);
     }
   }
 
@@ -2044,6 +2084,19 @@ export function KasLedgerClient({
                 <Share2 className="h-3.5 w-3.5 mr-1 text-emerald-600 dark:text-emerald-400" />
                 Salin WA
               </Button>
+              {data?.canWrite ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 border-blue-600/40 text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/30 px-2 text-xs font-medium"
+                  onClick={() => setBatchKegiatanOpen(true)}
+                  title="Gabungkan / Set Kategori Kegiatan untuk transaksi terpilih"
+                >
+                  <Pencil className="h-3.5 w-3.5 mr-1 text-blue-600 dark:text-blue-400" />
+                  Set Kategori ({selectedIds.length})
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 size="sm"
@@ -2868,6 +2921,77 @@ export function KasLedgerClient({
               disabled={renameLoading || !renameNewKegiatan.trim()}
             >
               {renameLoading ? "Menyimpan…" : "Simpan Nama Baru"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={batchKegiatanOpen} onOpenChange={setBatchKegiatanOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+              <Pencil className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              Gabungkan / Set Kategori ({selectedIds.length} Baris)
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              Sebanyak <strong className="text-foreground">{selectedIds.length} baris transaksi</strong> yang Anda centang akan digabungkan ke dalam nama kategori / kegiatan di bawah ini:
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor="batch-kegiatan-name" className="text-xs font-medium">
+                Nama Kategori / Kegiatan Baru
+              </Label>
+              <Input
+                id="batch-kegiatan-name"
+                value={batchKegiatanName}
+                placeholder="Misal: DONASI SS LINDA"
+                className="h-9 text-sm"
+                onChange={(e) => setBatchKegiatanName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleBatchKegiatan();
+                  }
+                }}
+              />
+            </div>
+            {data?.kegiatanOptions && data.kegiatanOptions.length > 0 ? (
+              <div className="space-y-1 pt-1">
+                <Label className="text-[11px] text-muted-foreground">Atau pilih dari kegiatan existing:</Label>
+                <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                  {data.kegiatanOptions.map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      className="rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:text-slate-200 transition-colors"
+                      onClick={() => setBatchKegiatanName(opt)}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setBatchKegiatanOpen(false)}
+              disabled={batchKegiatanLoading}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500"
+              onClick={() => void handleBatchKegiatan()}
+              disabled={batchKegiatanLoading || !batchKegiatanName.trim()}
+            >
+              {batchKegiatanLoading ? "Menyimpan…" : `Gabungkan (${selectedIds.length} Baris)`}
             </Button>
           </DialogFooter>
         </DialogContent>
