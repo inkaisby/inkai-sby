@@ -183,32 +183,75 @@ export function firstOfMonthWib(date = new Date()): string {
   return `${ymdWib(date).slice(0, 7)}-01`;
 }
 
+export function getKasBaseKegiatan(kegiatan: string): string {
+  const k = kegiatan.trim();
+  if (!k) return "";
+
+  // 1. Latber Persiapan UKT with any ranting suffix
+  if (/^Bayar\s+Latber\s+Persiapan\s+UKT/i.test(k) || /^Latber\s+Persiapan\s+UKT/i.test(k)) {
+    return "Bayar Latber Persiapan UKT";
+  }
+
+  // 2. Generic Latber pattern: Latber <Title> - <Dojo> or Bayar Latber <Title> - <Dojo>
+  const latberMatch = k.match(/^(?:Bayar\s+)?(Latber\s+[^-]+)(?:-[^]+)?$/i);
+  if (latberMatch?.[1]) {
+    return latberMatch[1].trim();
+  }
+
+  // 3. UKT term pattern: Bayar UKT II-2026 - DOJO, UKT II-2026 - DOJO, Bayar UKT I-2026 - DOJO
+  const uktTermMatch = k.match(/^(?:Bayar\s+)?UKT\s+((?:II?|1|2)-\d{4}|Semester\s+(?:II?|1|2)(?:-\d{4})?)(?:-[^]+)?$/i);
+  if (uktTermMatch?.[1]) {
+    return `Bayar UKT ${uktTermMatch[1].trim()}`;
+  }
+
+  // 4. Generic UKT pattern: Bayar UKT <Title> - <Dojo> or UKT <Title> - <Dojo>
+  const uktMatch = k.match(/^(?:Bayar\s+)?(UKT\s+[^-]+)(?:-[^]+)?$/i);
+  if (uktMatch?.[1]) {
+    const raw = uktMatch[1].trim();
+    return raw.toLowerCase().startsWith("bayar ") ? raw : `Bayar ${raw}`;
+  }
+
+  return k;
+}
+
 export function groupKasTable(rows: KasLedgerRow[]): KasTableRow[] {
   const out: KasTableRow[] = [];
-  let i = 0;
-  while (i < rows.length) {
-    const kegiatan = rows[i].kegiatan.trim();
-    if (!kegiatan) {
+  const processed = new Set<number>();
+
+  for (let i = 0; i < rows.length; i += 1) {
+    if (processed.has(i)) continue;
+    const baseK = getKasBaseKegiatan(rows[i].kegiatan);
+    if (!baseK) {
       out.push({ kind: "entry", ...rows[i] });
-      i += 1;
+      processed.add(i);
       continue;
     }
-    let j = i;
-    let totalIn = 0;
-    let totalOut = 0;
-    while (j < rows.length && rows[j].kegiatan.trim() === kegiatan) {
-      totalIn += rows[j].amountIn;
-      totalOut += rows[j].amountOut;
-      j += 1;
+
+    const matchingIndices: number[] = [];
+    for (let k = i; k < rows.length; k += 1) {
+      if (!processed.has(k) && getKasBaseKegiatan(rows[k].kegiatan) === baseK) {
+        matchingIndices.push(k);
+      }
     }
-    if (j - i >= 2) {
-      out.push({ kind: "group", kegiatan, totalIn, totalOut });
+
+    if (matchingIndices.length >= 2) {
+      let totalIn = 0;
+      let totalOut = 0;
+      for (const idx of matchingIndices) {
+        totalIn += rows[idx].amountIn;
+        totalOut += rows[idx].amountOut;
+      }
+      out.push({ kind: "group", kegiatan: baseK, totalIn, totalOut });
+      for (const idx of matchingIndices) {
+        out.push({ kind: "entry", ...rows[idx] });
+        processed.add(idx);
+      }
+    } else {
+      out.push({ kind: "entry", ...rows[i] });
+      processed.add(i);
     }
-    for (let k = i; k < j; k += 1) {
-      out.push({ kind: "entry", ...rows[k] });
-    }
-    i = j;
   }
+
   return out;
 }
 
@@ -233,7 +276,8 @@ export function visibleKasTableRows(
       continue;
     }
     const k = row.kegiatan.trim();
-    if (skipKegiatan && k === skipKegiatan) continue;
+    const base = getKasBaseKegiatan(k);
+    if (skipKegiatan && (k === skipKegiatan || base === skipKegiatan)) continue;
     skipKegiatan = null;
     out.push(row);
   }

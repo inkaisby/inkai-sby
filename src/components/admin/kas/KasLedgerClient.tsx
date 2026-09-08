@@ -115,11 +115,17 @@ export function KasLedgerClient({
     return "";
   }, [searchParams]);
 
-  const [fromYmd, setFromYmd] = useState(firstOfMonthWib);
-  const [toYmd, setToYmd] = useState(ymdWib);
-  const [kegiatan, setKegiatan] = useState("");
-  const [source, setSource] = useState("all");
-  const [recon, setRecon] = useState("all");
+  const [fromYmd, setFromYmd] = useState(() => {
+    const f = searchParams.get("from");
+    return f && isValidYmd(f) ? f : firstOfMonthWib();
+  });
+  const [toYmd, setToYmd] = useState(() => {
+    const t = searchParams.get("to");
+    return t && isValidYmd(t) ? t : ymdWib();
+  });
+  const [kegiatan, setKegiatan] = useState(() => searchParams.get("kegiatan") || "");
+  const [source, setSource] = useState(() => searchParams.get("source") || "all");
+  const [recon, setRecon] = useState(() => searchParams.get("recon") || "all");
   const [direction, setDirection] = useState<"all" | "in" | "out">("all");
   const [collapsedKegiatan, setCollapsedKegiatan] = useState<string[]>([]);
   const [massRowsOpen, setMassRowsOpen] = useState(true);
