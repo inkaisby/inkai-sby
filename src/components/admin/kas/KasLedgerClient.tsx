@@ -1849,6 +1849,11 @@ export function KasLedgerClient({
                           )}
                           {row.kegiatan}
                         </button>
+                        {row.count ? (
+                          <span className="inline-flex items-center rounded-full bg-slate-200/90 dark:bg-slate-700/90 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200 shadow-xs">
+                            {row.count} item
+                          </span>
+                        ) : null}
                         {data?.canTransfer && !isRanting ? (
                           <Button
                             type="button"

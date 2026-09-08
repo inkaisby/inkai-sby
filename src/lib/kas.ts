@@ -45,6 +45,7 @@ export type KasGroupHeader = {
   kegiatan: string;
   totalIn: number;
   totalOut: number;
+  count?: number;
 };
 
 export type KasTableRow =
@@ -187,25 +188,33 @@ export function getKasBaseKegiatan(kegiatan: string): string {
   const k = kegiatan.trim();
   if (!k) return "";
 
-  // 1. Latber Persiapan UKT with any ranting suffix
-  if (/^Bayar\s+Latber\s+Persiapan\s+UKT/i.test(k) || /^Latber\s+Persiapan\s+UKT/i.test(k)) {
+  // 1. Latber Persiapan UKT with any ranting suffix or variation
+  if (
+    /persiapan\s*ukt/i.test(k) &&
+    (/latber/i.test(k) || /latihan\s+bersama/i.test(k))
+  ) {
     return "Bayar Latber Persiapan UKT";
   }
 
   // 2. Generic Latber pattern: Latber <Title> - <Dojo> or Bayar Latber <Title> - <Dojo>
-  const latberMatch = k.match(/^(?:Bayar\s+)?(Latber\s+[^-]+)(?:-[^]+)?$/i);
+  const latberMatch = k.match(/^(?:Bayar\s+)?(Latber(?:\s+UKT)?\s+[^-—]+)(?:[-—][^]+)?$/i);
   if (latberMatch?.[1]) {
     return latberMatch[1].trim();
   }
 
   // 3. UKT term pattern: Bayar UKT II-2026 - DOJO, UKT II-2026 - DOJO, Bayar UKT I-2026 - DOJO
-  const uktTermMatch = k.match(/^(?:Bayar\s+)?UKT\s+((?:II?|1|2)-\d{4}|Semester\s+(?:II?|1|2)(?:-\d{4})?)(?:-[^]+)?$/i);
+  const uktTermMatch = k.match(/^(?:Bayar\s+)?UKT\s+((?:II?|1|2)-\d{4}|Semester\s+(?:II?|1|2)(?:-\d{4})?)(?:[-—][^]+)?$/i);
   if (uktTermMatch?.[1]) {
     return `Bayar UKT ${uktTermMatch[1].trim()}`;
   }
 
-  // 4. Generic UKT pattern: Bayar UKT <Title> - <Dojo> or UKT <Title> - <Dojo>
-  const uktMatch = k.match(/^(?:Bayar\s+)?(UKT\s+[^-]+)(?:-[^]+)?$/i);
+  // 4. UKT pendaftaran pattern: Bayar UKT Biaya pendaftaran UKT Semester II...
+  if (/biaya\s+pendaftaran\s+ukt\s+semester\s+II/i.test(k) || /ukt\s+semester\s+II/i.test(k)) {
+    return "Bayar UKT Semester II-2026";
+  }
+
+  // 5. Generic UKT pattern: Bayar UKT <Title> - <Dojo> or UKT <Title> - <Dojo>
+  const uktMatch = k.match(/^(?:Bayar\s+)?(UKT\s+[^-—]+)(?:[-—][^]+)?$/i);
   if (uktMatch?.[1]) {
     const raw = uktMatch[1].trim();
     return raw.toLowerCase().startsWith("bayar ") ? raw : `Bayar ${raw}`;
@@ -241,7 +250,13 @@ export function groupKasTable(rows: KasLedgerRow[]): KasTableRow[] {
         totalIn += rows[idx].amountIn;
         totalOut += rows[idx].amountOut;
       }
-      out.push({ kind: "group", kegiatan: baseK, totalIn, totalOut });
+      out.push({
+        kind: "group",
+        kegiatan: baseK,
+        totalIn,
+        totalOut,
+        count: matchingIndices.length,
+      });
       for (const idx of matchingIndices) {
         out.push({ kind: "entry", ...rows[idx] });
         processed.add(idx);
