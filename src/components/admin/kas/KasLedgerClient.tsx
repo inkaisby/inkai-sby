@@ -144,6 +144,10 @@ export function KasLedgerClient({
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [batchTransferOpen, setBatchTransferOpen] = useState(false);
   const [batchTarget, setBatchTarget] = useState("");
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameOldKegiatan, setRenameOldKegiatan] = useState("");
+  const [renameNewKegiatan, setRenameNewKegiatan] = useState("");
+  const [renameLoading, setRenameLoading] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [recapDojoOpen, setRecapDojoOpen] = useState(false);
   const [uktDepositMap, setUktDepositMap] = useState<Record<
@@ -649,6 +653,47 @@ export function KasLedgerClient({
     setBatchTarget("");
     setSelectedIds([]);
     await load();
+  }
+
+  function openRenameKegiatan(kegiatanName: string) {
+    setRenameOldKegiatan(kegiatanName);
+    setRenameNewKegiatan(kegiatanName);
+    setRenameOpen(true);
+  }
+
+  async function handleRenameKegiatan() {
+    if (!renameOldKegiatan.trim() || !renameNewKegiatan.trim()) {
+      toast.error("Nama kegiatan wajib diisi");
+      return;
+    }
+    setRenameLoading(true);
+    try {
+      const res = await fetch("/api/admin/kas/rename-kegiatan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-kas-scope-type": data?.scope.type ?? "",
+          "x-kas-scope-id": data?.scope.id ?? "",
+        },
+        body: JSON.stringify({
+          oldKegiatan: renameOldKegiatan,
+          newKegiatan: renameNewKegiatan,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "Gagal mengubah nama kegiatan");
+        return;
+      }
+      toast.success(`Nama kegiatan diperbarui (${json.updated ?? 0} baris)`);
+      setRenameOpen(false);
+      expandKegiatan(renameNewKegiatan);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal mengubah nama kegiatan");
+    } finally {
+      setRenameLoading(false);
+    }
   }
 
   function monthLocked(ymd: string) {
@@ -1854,6 +1899,19 @@ export function KasLedgerClient({
                             {row.count} item
                           </span>
                         ) : null}
+                        {data?.canWrite ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            title="Ubah nama kategori kegiatan ini"
+                            onClick={() => openRenameKegiatan(row.kegiatan)}
+                          >
+                            <Pencil className="h-3 w-3 mr-1 text-slate-500 dark:text-slate-400" />
+                            Ubah nama
+                          </Button>
+                        ) : null}
                         {data?.canTransfer && !isRanting ? (
                           <Button
                             type="button"
@@ -2760,6 +2818,60 @@ export function KasLedgerClient({
           ) : null}
         </div>
       </InkaiConfirmDialog>
+
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+              <Pencil className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              Ubah Nama Kategori / Kegiatan
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              Seluruh baris transaksi di dalam kategori <strong className="text-foreground">{renameOldKegiatan}</strong> akan diperbarui dengan nama kategori baru ini.
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor="rename-new-kegiatan" className="text-xs font-medium">
+                Nama Kategori / Kegiatan Baru
+              </Label>
+              <Input
+                id="rename-new-kegiatan"
+                value={renameNewKegiatan}
+                placeholder="Misal: Bayar Latber Persiapan UKT"
+                className="h-9 text-sm"
+                onChange={(e) => setRenameNewKegiatan(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleRenameKegiatan();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setRenameOpen(false)}
+              disabled={renameLoading}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+              onClick={() => void handleRenameKegiatan()}
+              disabled={renameLoading || !renameNewKegiatan.trim()}
+            >
+              {renameLoading ? "Menyimpan…" : "Simpan Nama Baru"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -530,6 +530,37 @@ export async function updateManualKas(
   });
 }
 
+export async function renameKasKegiatan(opts: {
+  scope: KasScope;
+  oldKegiatan: string;
+  newKegiatan: string;
+}): Promise<{ updated: number }> {
+  const oldK = opts.oldKegiatan.trim();
+  const newK = opts.newKegiatan.trim().slice(0, 120);
+  if (!oldK || !newK) throw new Error("Nama kegiatan tidak valid");
+
+  const rows = await prisma.kasEntry.findMany({
+    where: { scopeType: opts.scope.type, scopeId: opts.scope.id },
+  });
+
+  const matchingIds: string[] = [];
+  for (const row of rows) {
+    const k = row.kegiatan.trim();
+    if (k === oldK || k.toLowerCase().startsWith(oldK.toLowerCase())) {
+      matchingIds.push(row.id);
+    }
+  }
+
+  if (matchingIds.length === 0) return { updated: 0 };
+
+  const result = await prisma.kasEntry.updateMany({
+    where: { id: { in: matchingIds } },
+    data: { kegiatan: newK },
+  });
+
+  return { updated: result.count };
+}
+
 export async function transferManualKas(opts: {
   id: string;
   sourceScope: KasScope;
