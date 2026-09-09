@@ -452,40 +452,88 @@ export async function fetchAdminMembersScoped(
     ],
   };
 
+  const memberSelect = {
+    id: true,
+    fullName: true,
+    nia: true,
+    mshNumber: true,
+    currentRank: true,
+    status: true,
+    dojoId: true,
+    userId: true,
+    birthCertificateUrl: true,
+    bpjsCardUrl: true,
+    bpjsCardNumber: true,
+    ...(photoSelect),
+    createdAt: true,
+    monthlyDuesAmount: true,
+    dojo: {
+      select: {
+        name: true,
+        isDeleted: true,
+        branch: { select: { name: true } },
+      },
+    },
+    user: { select: { photoUrl: true } },
+  };
+
   try {
-    const [total, rows] = await Promise.all([
+    let [total, rows] = await Promise.all([
       prisma.member.count({ where }),
       prisma.member.findMany({
         where,
-        select: {
-          id: true,
-          fullName: true,
-          nia: true,
-          mshNumber: true,
-          currentRank: true,
-          status: true,
-          dojoId: true,
-          userId: true,
-          birthCertificateUrl: true,
-          bpjsCardUrl: true,
-          bpjsCardNumber: true,
-          ...(photoSelect),
-          createdAt: true,
-          monthlyDuesAmount: true,
-          dojo: {
-            select: {
-              name: true,
-              isDeleted: true,
-              branch: { select: { name: true } },
-            },
-          },
-          user: { select: { photoUrl: true } },
-        },
+        select: memberSelect,
         orderBy,
         skip: (page - 1) * limit,
         take: limit,
       }),
     ]);
+
+    if (total === 0 && search && search.length >= 2 && status) {
+      const fallbackWhere = {
+        AND: [
+          memberScopeWhere(user, {
+            dojoId: opts.dojoId,
+            dojoIds: opts.dojoIds,
+          }),
+          ...(opts.docsIncomplete ? [docsIncompleteClause()] : []),
+          ...(opts.missingNia ? [missingNiaClause()] : []),
+          ...(opts.withoutAccount ? [withoutAccountClause()] : []),
+          ...(opts.duplicateIdentity ? [duplicateIdentityClause(dupIds)] : []),
+          {
+            OR: [
+              {
+                fullName: {
+                  contains: search,
+                  mode: "insensitive" as const,
+                },
+              },
+              { nia: { contains: search, mode: "insensitive" as const } },
+              {
+                mshNumber: {
+                  contains: search,
+                  mode: "insensitive" as const,
+                },
+              },
+            ],
+          },
+        ],
+      };
+      const [fbTotal, fbRows] = await Promise.all([
+        prisma.member.count({ where: fallbackWhere }),
+        prisma.member.findMany({
+          where: fallbackWhere,
+          select: memberSelect,
+          orderBy,
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+      ]);
+      if (fbTotal > 0) {
+        total = fbTotal;
+        rows = fbRows;
+      }
+    }
 
     const members: AdminMemberRow[] = rows.map((m) => ({
       id: m.id,
