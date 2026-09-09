@@ -184,36 +184,41 @@ export function firstOfMonthWib(date = new Date()): string {
   return `${ymdWib(date).slice(0, 7)}-01`;
 }
 
-export function getKasBaseKegiatan(kegiatan: string): string {
+export function getKasBaseKegiatan(kegiatan: string, sourceType?: string): string {
   const k = kegiatan.trim();
   if (!k) return "";
 
-  // 1. Latber Persiapan UKT with any ranting suffix or variation
-  if (
-    /persiapan\s*ukt/i.test(k) &&
-    (/latber/i.test(k) || /latihan\s+bersama/i.test(k))
-  ) {
-    return "Bayar Latber Persiapan UKT";
+  const isLatber =
+    sourceType === "latber" ||
+    /latber/i.test(k) ||
+    /latihan\s+bersama/i.test(k);
+
+  if (isLatber) {
+    if (/persiapan\s*ukt/i.test(k)) {
+      return "Bayar Latber Persiapan UKT";
+    }
+    if (/semester\s+II|II-2026|UKT\s+II/i.test(k)) {
+      return "Bayar Latber UKT Semester II-2026";
+    }
+    const latberMatch = k.match(/^(?:Bayar\s+)?(Latber(?:\s+UKT)?\s+[^-—]+)(?:[-—][^]+)?$/i);
+    if (latberMatch?.[1]) {
+      return latberMatch[1].trim();
+    }
+    return "Bayar Latber UKT";
   }
 
-  // 2. Generic Latber pattern: Latber <Title> - <Dojo> or Bayar Latber <Title> - <Dojo>
-  const latberMatch = k.match(/^(?:Bayar\s+)?(Latber(?:\s+UKT)?\s+[^-—]+)(?:[-—][^]+)?$/i);
-  if (latberMatch?.[1]) {
-    return latberMatch[1].trim();
-  }
-
-  // 3. UKT term pattern: Bayar UKT II-2026 - DOJO, UKT II-2026 - DOJO, Bayar UKT I-2026 - DOJO
+  // UKT term pattern: Bayar UKT II-2026 - DOJO, UKT II-2026 - DOJO, Bayar UKT I-2026 - DOJO
   const uktTermMatch = k.match(/^(?:Bayar\s+)?UKT\s+((?:II?|1|2)-\d{4}|Semester\s+(?:II?|1|2)(?:-\d{4})?)(?:[-—][^]+)?$/i);
   if (uktTermMatch?.[1]) {
     return `Bayar UKT ${uktTermMatch[1].trim()}`;
   }
 
-  // 4. UKT pendaftaran pattern: Bayar UKT Biaya pendaftaran UKT Semester II...
+  // UKT pendaftaran pattern: Bayar UKT Biaya pendaftaran UKT Semester II...
   if (/biaya\s+pendaftaran\s+ukt\s+semester\s+II/i.test(k) || /ukt\s+semester\s+II/i.test(k)) {
     return "Bayar UKT Semester II-2026";
   }
 
-  // 5. Generic UKT pattern: Bayar UKT <Title> - <Dojo> or UKT <Title> - <Dojo>
+  // Generic UKT pattern: Bayar UKT <Title> - <Dojo> or UKT <Title> - <Dojo>
   const uktMatch = k.match(/^(?:Bayar\s+)?(UKT\s+[^-—]+)(?:[-—][^]+)?$/i);
   if (uktMatch?.[1]) {
     const raw = uktMatch[1].trim();
@@ -229,7 +234,7 @@ export function groupKasTable(rows: KasLedgerRow[]): KasTableRow[] {
 
   for (let i = 0; i < rows.length; i += 1) {
     if (processed.has(i)) continue;
-    const baseK = getKasBaseKegiatan(rows[i].kegiatan);
+    const baseK = getKasBaseKegiatan(rows[i].kegiatan, rows[i].sourceType);
     if (!baseK) {
       out.push({ kind: "entry", ...rows[i] });
       processed.add(i);
@@ -238,7 +243,10 @@ export function groupKasTable(rows: KasLedgerRow[]): KasTableRow[] {
 
     const matchingIndices: number[] = [];
     for (let k = i; k < rows.length; k += 1) {
-      if (!processed.has(k) && getKasBaseKegiatan(rows[k].kegiatan) === baseK) {
+      if (
+        !processed.has(k) &&
+        getKasBaseKegiatan(rows[k].kegiatan, rows[k].sourceType) === baseK
+      ) {
         matchingIndices.push(k);
       }
     }
@@ -291,7 +299,7 @@ export function visibleKasTableRows(
       continue;
     }
     const k = row.kegiatan.trim();
-    const base = getKasBaseKegiatan(k);
+    const base = getKasBaseKegiatan(k, row.sourceType);
     if (skipKegiatan && (k === skipKegiatan || base === skipKegiatan)) continue;
     skipKegiatan = null;
     out.push(row);
