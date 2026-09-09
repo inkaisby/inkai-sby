@@ -583,16 +583,16 @@ export function KasLedgerClient({
     await load();
   }
 
-  function countManualForKegiatan(kegiatanName: string) {
+  function countRowsForKegiatan(kegiatanName: string) {
     return (data?.rows ?? []).filter(
-      (r) => r.sourceType === "manual" && r.kegiatan === kegiatanName,
+      (r) => r.kegiatan === kegiatanName,
     ).length;
   }
 
   function openTransferKegiatan(kegiatanName: string) {
-    const n = countManualForKegiatan(kegiatanName);
+    const n = countRowsForKegiatan(kegiatanName);
     if (n === 0) {
-      toast.error("Tidak ada baris manual");
+      toast.error("Tidak ada baris untuk dipindahkan");
       return;
     }
     setTransferKegiatan(kegiatanName);
@@ -1172,15 +1172,15 @@ export function KasLedgerClient({
     return base.filter((r) => r.amountOut > 0);
   }, [data?.rows, direction]);
 
-  const visibleManualLaporanIds = useMemo(() => {
+  const visibleSelectableLaporanIds = useMemo(() => {
     return filteredLaporanRows
       .filter((r) => !monthLocked(r.txnDate))
       .map((r) => r.id);
   }, [filteredLaporanRows, data?.lockedMonths]);
 
-  const allLaporanManualSelected =
-    visibleManualLaporanIds.length > 0 &&
-    visibleManualLaporanIds.every((id) => selectedIds.includes(id));
+  const allLaporanSelected =
+    visibleSelectableLaporanIds.length > 0 &&
+    visibleSelectableLaporanIds.every((id) => selectedIds.includes(id));
 
   const selectedRows = useMemo(() => {
     if (!data?.rows || selectedIds.length === 0) return [];
@@ -1194,14 +1194,14 @@ export function KasLedgerClient({
   }, [data?.rows, deleteId]);
 
   function toggleSelectAllLaporan() {
-    if (allLaporanManualSelected) {
+    if (allLaporanSelected) {
       setSelectedIds((prev) =>
-        prev.filter((id) => !visibleManualLaporanIds.includes(id)),
+        prev.filter((id) => !visibleSelectableLaporanIds.includes(id)),
       );
       return;
     }
     setSelectedIds((prev) => [
-      ...new Set([...prev, ...visibleManualLaporanIds]),
+      ...new Set([...prev, ...visibleSelectableLaporanIds]),
     ]);
   }
 
@@ -1603,9 +1603,9 @@ export function KasLedgerClient({
                       <th className="w-10 p-2 text-center">
                         <input
                           type="checkbox"
-                          checked={allLaporanManualSelected}
-                          disabled={visibleManualLaporanIds.length === 0}
-                          aria-label="Pilih semua baris manual"
+                          checked={allLaporanSelected}
+                          disabled={visibleSelectableLaporanIds.length === 0}
+                          aria-label="Pilih semua baris"
                           onChange={toggleSelectAllLaporan}
                         />
                       </th>
@@ -2069,18 +2069,16 @@ export function KasLedgerClient({
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            {row.sourceType === "manual" ? (
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8"
-                                aria-label="Hapus"
-                                onClick={() => setDeleteId(row.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            ) : null}
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              aria-label="Hapus"
+                              onClick={() => setDeleteId(row.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </>
                         ) : null}
                       </div>
@@ -2313,7 +2311,7 @@ export function KasLedgerClient({
           </DialogHeader>
           <div className="grid gap-3">
             <p className="text-sm text-muted-foreground">
-              Memindahkan {selectedIds.length} baris manual ke buku tujuan.
+              Memindahkan {selectedIds.length} baris ke buku tujuan.
             </p>
             <Field label="Buku tujuan">
               <select
@@ -2374,8 +2372,8 @@ export function KasLedgerClient({
           {transferKegiatan ? (
             <div className="grid gap-3">
               <p className="text-sm text-muted-foreground">
-                Memindahkan {countManualForKegiatan(transferKegiatan)} baris manual
-                kegiatan {transferKegiatan}. Baris otomatis tidak ikut.
+                Memindahkan {countRowsForKegiatan(transferKegiatan)} baris
+                kegiatan {transferKegiatan}.
               </p>
               <Field label="Buku tujuan">
                 <select

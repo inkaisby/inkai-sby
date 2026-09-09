@@ -583,7 +583,6 @@ export async function transferManualKas(opts: {
       id: opts.id,
       scopeType: opts.sourceScope.type,
       scopeId: opts.sourceScope.id,
-      sourceType: "manual",
     },
   });
   if (!row) return null;
@@ -654,7 +653,6 @@ export async function transferManualKasByKegiatan(opts: {
     where: {
       scopeType: opts.sourceScope.type,
       scopeId: opts.sourceScope.id,
-      sourceType: "manual",
       kegiatan,
     },
     orderBy: [{ txnDate: "asc" }, { createdAt: "asc" }],
@@ -728,7 +726,6 @@ export async function transferManualKasByIds(opts: {
       id: { in: ids },
       scopeType: opts.sourceScope.type,
       scopeId: opts.sourceScope.id,
-      sourceType: "manual",
     },
     orderBy: [{ txnDate: "asc" }, { createdAt: "asc" }],
   });

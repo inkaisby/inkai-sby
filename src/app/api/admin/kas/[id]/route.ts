@@ -71,7 +71,7 @@ export async function DELETE(_request: Request, context: Ctx) {
     const ok = await deleteManualKas(id, scope);
     if (!ok) {
       return NextResponse.json(
-        { error: "Hanya baris manual yang dapat dihapus" },
+        { error: "Baris tidak ditemukan" },
         { status: 400 },
       );
     }

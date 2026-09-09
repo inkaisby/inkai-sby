@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     });
     if (result.moved === 0) {
       return NextResponse.json(
-        { error: "Tidak ada baris manual valid" },
+        { error: "Tidak ada baris valid" },
         { status: 400 },
       );
     }
