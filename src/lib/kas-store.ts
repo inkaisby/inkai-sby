@@ -318,7 +318,6 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
             b.description || "Latber Persiapan UKT",
             b.member.dojo?.name,
           );
-          const fee = b.amount && b.amount % 1000 === 0 ? b.amount : 45000;
           await prisma.kasEntry.create({
             data: {
               scopeType: "branch",
@@ -326,7 +325,7 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
               txnDate: b.createdAt,
               description: desc,
               kegiatan,
-              amountIn: Math.max(0, fee - 5000),
+              amountIn: 40000,
               amountOut: 0,
               sourceType: "latber",
               sourceId: `${b.id}:cabang`,
@@ -335,6 +334,19 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
           });
         }
       }
+    }
+
+    if (scope.type === "branch") {
+      await prisma.kasEntry.updateMany({
+        where: {
+          scopeType: "branch",
+          sourceType: "latber",
+          amountIn: { gt: 40000 },
+        },
+        data: {
+          amountIn: 40000,
+        },
+      });
     }
   } catch (e) {
     console.error("[KAS AUTO-SYNC] Latber kas sync error", e);
