@@ -255,7 +255,6 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
           ? { member: { dojoId: scope.id } }
           : { member: { dojo: { branchId: scope.id } } }),
         OR: [
-          { type: "EVENT" },
           { description: { contains: "Latber", mode: "insensitive" } },
           { description: { contains: "Latihan Bersama", mode: "insensitive" } },
         ],
@@ -274,10 +273,10 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
     });
 
     for (const b of paidLatberBillings) {
+      const desc = b.description ?? "";
       const isLatber =
-        b.type === "EVENT" ||
-        /latber/i.test(b.description ?? "") ||
-        /latihan bersama/i.test(b.description ?? "");
+        (/latber/i.test(desc) || /latihan bersama/i.test(desc)) &&
+        !/^UKT\b/i.test(desc);
       if (!isLatber || !b.member?.dojoId) continue;
 
       if (scope.type === "dojo") {
