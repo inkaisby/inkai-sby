@@ -1781,9 +1781,9 @@ export function KasLedgerClient({
             </div>
           </div>
           {data?.canWrite && selectedIds.length > 0 ? (
-            <div className="pointer-events-none absolute bottom-3 left-3 z-20 print:hidden">
-              <div className="pointer-events-auto inline-flex max-w-[min(100%,28rem)] items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-md">
-                <span className="text-xs font-medium">{selectedIds.length} terpilih</span>
+            <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 print:hidden">
+              <div className="pointer-events-auto inline-flex max-w-[min(100vw-2rem,36rem)] flex-wrap items-center justify-center gap-2 rounded-xl border border-border/80 bg-background/95 p-2 px-3 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3">
+                <span className="text-xs font-semibold px-1">{selectedIds.length} terpilih</span>
                 <Button
                   type="button"
                   size="sm"
@@ -1795,6 +1795,30 @@ export function KasLedgerClient({
                   <Share2 className="h-3.5 w-3.5 mr-1 text-emerald-600 dark:text-emerald-400" />
                   Salin WA
                 </Button>
+                {data?.canWrite ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 border-blue-600/40 text-blue-700 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-950/30 px-2 text-xs font-medium"
+                    onClick={() => setBatchKegiatanOpen(true)}
+                    title="Gabungkan / Set Kategori Kegiatan untuk transaksi terpilih"
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-1 text-blue-600 dark:text-blue-400" />
+                    Kelompokkan kegiatan ({selectedIds.length})
+                  </Button>
+                ) : null}
+                {data?.canTransfer && !isRanting ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 border-amber-600/40 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30 px-2 text-xs font-medium"
+                    onClick={openBatchTransfer}
+                  >
+                    Pindah lokasi
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   size="sm"
@@ -2070,9 +2094,9 @@ export function KasLedgerClient({
           </div>
         </div>
         {canSelect && selectedIds.length > 0 ? (
-          <div className="pointer-events-none absolute bottom-3 left-3 z-20 print:hidden">
-            <div className="pointer-events-auto inline-flex max-w-[min(100%,28rem)] items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-md">
-              <span className="text-xs font-medium">{selectedIds.length} dipilih</span>
+          <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 print:hidden">
+            <div className="pointer-events-auto inline-flex max-w-[min(100vw-2rem,36rem)] flex-wrap items-center justify-center gap-2 rounded-xl border border-border/80 bg-background/95 p-2 px-3 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3">
+              <span className="text-xs font-semibold px-1">{selectedIds.length} dipilih</span>
               <Button
                 type="button"
                 size="sm"
@@ -2094,17 +2118,20 @@ export function KasLedgerClient({
                   title="Gabungkan / Set Kategori Kegiatan untuk transaksi terpilih"
                 >
                   <Pencil className="h-3.5 w-3.5 mr-1 text-blue-600 dark:text-blue-400" />
-                  Set Kategori ({selectedIds.length})
+                  Kelompokkan kegiatan ({selectedIds.length})
                 </Button>
               ) : null}
-              <Button
-                type="button"
-                size="sm"
-                className="h-7 bg-inkai-red px-2 text-xs hover:bg-inkai-red/90"
-                onClick={openBatchTransfer}
-              >
-                Pindah lokasi
-              </Button>
+              {data?.canTransfer && !isRanting ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 border-amber-600/40 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30 px-2 text-xs font-medium"
+                  onClick={openBatchTransfer}
+                >
+                  Pindah lokasi
+                </Button>
+              ) : null}
               {data?.canWrite ? (
                 <Button
                   type="button"
