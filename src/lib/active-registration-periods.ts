@@ -3,6 +3,7 @@ import { fetchUktEventsCached } from "@/lib/inkai-api/admin-data";
 import {
   findActiveLatberPeriod,
   isLatberEventTitle,
+  isLatberRegistrationOpen,
   latberPeriodMetaKey,
   parseLatberPeriodMetaValue,
   periodOptionFromLatberEvent,
@@ -12,6 +13,7 @@ import {
   currentSemester,
   findUktPeriodForTerm,
   isUktAdminEventTitle,
+  isUktRegistrationOpen,
   parseUktPeriodMetaValue,
   uktPeriodMetaKey,
 } from "@/lib/ukt";
@@ -256,7 +258,18 @@ export async function resolveActiveLatberRegistrationPeriod(
   }
 
   const active = findActiveLatberPeriod(periods);
-  if (!active || active.archived || active.locked) return null;
+  if (
+    !active ||
+    active.archived ||
+    active.locked ||
+    !isLatberRegistrationOpen({
+      startDate: active.startDate ?? "",
+      endDate: active.endDate ?? active.startDate ?? "",
+      registrationCloseAt: active.registrationCloseAt,
+    })
+  ) {
+    return null;
+  }
   return { id: active.id, title: active.title };
 }
 
@@ -317,6 +330,17 @@ export async function resolveActiveUktRegistrationPeriod(
   const year = new Date().getFullYear();
   const semester = currentSemester();
   const active = findUktPeriodForTerm(periods, semester, year);
-  if (!active || active.archived || active.locked) return null;
+  if (
+    !active ||
+    active.archived ||
+    active.locked ||
+    !isUktRegistrationOpen({
+      startDate: active.startDate ?? "",
+      endDate: active.endDate ?? active.startDate ?? "",
+      registrationCloseAt: active.registrationCloseAt,
+    })
+  ) {
+    return null;
+  }
   return { id: active.id, title: active.title };
 }

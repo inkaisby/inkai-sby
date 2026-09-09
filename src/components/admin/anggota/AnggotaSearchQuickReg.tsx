@@ -136,8 +136,8 @@ export function AnggotaSearchQuickReg({
             </li>
           ) : null}
           {suggestions.map((m) => {
-            const showUkt = Boolean(activeUkt) && !m.registeredUkt;
-            const showLatber = Boolean(activeLatber) && !m.registeredLatber;
+            const showUkt = Boolean(activeUkt?.id) && !m.registeredUkt;
+            const showLatber = Boolean(activeLatber?.id) && !m.registeredLatber;
             const showActions = showUkt || showLatber;
             return (
               <li

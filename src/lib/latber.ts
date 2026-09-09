@@ -344,7 +344,16 @@ export function periodOptionFromLatberEvent(
 export function findActiveLatberPeriod(
   periods: LatberPeriodOption[],
 ): LatberPeriodOption | null {
-  const open = periods.filter((p) => !p.archived && !p.locked);
+  const open = periods.filter(
+    (p) =>
+      !p.archived &&
+      !p.locked &&
+      isLatberRegistrationOpen({
+        startDate: p.startDate ?? "",
+        endDate: p.endDate ?? p.startDate ?? "",
+        registrationCloseAt: p.registrationCloseAt,
+      }),
+  );
   if (open.length === 0) return null;
   return open.sort((a, b) => {
     const da = new Date(a.startDate || 0).getTime();
