@@ -1206,16 +1206,16 @@ export function KasLedgerClient({
   }
 
   const groups = visibleKasTableRows(data?.groups ?? [], collapsedKegiatan);
-  const canSelect = Boolean(data?.canTransfer && !isRanting);
-  const visibleManualIds = groups
+  const canSelect = Boolean(data?.canWrite);
+  const visibleSelectableIds = groups
     .filter(
       (row): row is Extract<KasTableRow, { kind: "entry" }> =>
-        row.kind === "entry" && row.sourceType === "manual",
+        row.kind === "entry" && !monthLocked(row.txnDate),
     )
     .map((row) => row.id);
   const allVisibleSelected =
-    visibleManualIds.length > 0 &&
-    visibleManualIds.every((id) => selectedIds.includes(id));
+    visibleSelectableIds.length > 0 &&
+    visibleSelectableIds.every((id) => selectedIds.includes(id));
   const colSpan = canSelect ? 9 : 8;
 
   function pruneSelectedIds(groups: KasTableRow[], collapsed: string[]) {
@@ -1223,7 +1223,7 @@ export function KasLedgerClient({
       visibleKasTableRows(groups, collapsed)
         .filter(
           (row): row is Extract<KasTableRow, { kind: "entry" }> =>
-            row.kind === "entry" && row.sourceType === "manual",
+            row.kind === "entry" && !monthLocked(row.txnDate),
         )
         .map((row) => row.id),
     );
@@ -1253,10 +1253,10 @@ export function KasLedgerClient({
 
   function toggleSelectAllVisible() {
     if (allVisibleSelected) {
-      setSelectedIds((prev) => prev.filter((id) => !visibleManualIds.includes(id)));
+      setSelectedIds((prev) => prev.filter((id) => !visibleSelectableIds.includes(id)));
       return;
     }
-    setSelectedIds((prev) => [...new Set([...prev, ...visibleManualIds])]);
+    setSelectedIds((prev) => [...new Set([...prev, ...visibleSelectableIds])]);
   }
 
   function openBatchTransfer() {
@@ -1895,8 +1895,8 @@ export function KasLedgerClient({
                     <input
                       type="checkbox"
                       checked={allVisibleSelected}
-                      disabled={visibleManualIds.length === 0}
-                      aria-label="Pilih semua baris manual tampil"
+                      disabled={visibleSelectableIds.length === 0}
+                      aria-label="Pilih semua baris tampil"
                       onChange={toggleSelectAllVisible}
                     />
                   </th>
@@ -2009,7 +2009,7 @@ export function KasLedgerClient({
                   <tr key={row.id} className="border-b">
                     {canSelect ? (
                       <td className="p-3">
-                        {row.sourceType === "manual" ? (
+                        {!monthLocked(row.txnDate) ? (
                           <input
                             type="checkbox"
                             checked={selectedIds.includes(row.id)}
