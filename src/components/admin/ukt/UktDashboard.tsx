@@ -1576,12 +1576,15 @@ export function UktDashboard(props: Props) {
     props.canCreatePeriod &&
     (!hasTermPeriod || Boolean(props.createMode));
   const goBackToCreatePeriod = () => {
-    navigatePeriod({
-      semester: props.semester,
-      year: String(props.year),
-      period: "",
-      create: "1",
-    });
+    navigatePeriod(
+      {
+        semester: props.semester,
+        year: String(props.year),
+        period: "",
+        create: "1",
+      },
+      "/admin/ukt",
+    );
   };
 
   const handleKpiClick = (filter: string) => {
@@ -1670,12 +1673,15 @@ export function UktDashboard(props: Props) {
       );
       setShowCreateWizard(false);
       setWizardStep(0);
-      navigatePeriod({
-        semester: props.semester,
-        year: String(props.year),
-        period: data.event?.id ?? "",
-        create: "",
-      });
+      navigatePeriod(
+        {
+          semester: props.semester,
+          year: String(props.year),
+          period: data.event?.id ?? "",
+          create: "",
+        },
+        "/admin/ukt",
+      );
       void requestServerRowsSync({ silent: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal");
@@ -3518,19 +3524,32 @@ export function UktDashboard(props: Props) {
 
       {viewMode === "archive" && !props.selectedPeriodId && (
         <Card className="border-muted">
-          <CardContent className="flex flex-wrap items-center gap-3 p-4 text-sm text-muted-foreground">
-            <Archive className="h-4 w-4 shrink-0" />
-            <span>
-              Belum ada arsip UKT untuk{" "}
-              <b className="text-foreground">
-                {formatUktPeriodLabel(props.semester, props.year)}
-              </b>
-              . Periode aktif dikelola di menu{" "}
-              <a href="/admin/ukt" className="underline font-medium text-foreground">
-                Pendaftaran
-              </a>
-              .
-            </span>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-3">
+              <Archive className="h-4 w-4 shrink-0" />
+              <span>
+                Belum ada arsip UKT untuk{" "}
+                <b className="text-foreground">
+                  {formatUktPeriodLabel(props.semester, props.year)}
+                </b>
+                . Periode aktif dikelola di menu{" "}
+                <a href="/admin/ukt" className="underline font-medium text-foreground">
+                  Pendaftaran
+                </a>
+                .
+              </span>
+            </div>
+            {isCabang && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={goBackToCreatePeriod}
+                className="bg-inkai-red hover:bg-inkai-red/90 text-xs text-white"
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Buat Periode Baru
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}

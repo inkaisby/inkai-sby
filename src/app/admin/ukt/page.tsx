@@ -12,6 +12,7 @@ import {
   isUktPeriodActiveView,
   parseUktEventTitle,
   resolveUktAdminCanonicalRedirect,
+  uktPeriodBelongsToTerm,
   type UktDepositRecord,
   type UktPeriodMeta,
   type UktSemester,
@@ -205,15 +206,26 @@ async function UktDashboardSection({
     targetSemester = data.targetSemester ?? semester;
     targetYear = data.targetYear ?? year;
 
-    // Periode aktif di URL selalu dipertahankan (hindari loncat / strip → blink).
+    // Periode di URL yang di-arsip/kunci di-handle agar tidak terjebak loop redirect.
     if (!createMode && periodFromUrl) {
       const fromUrl = periods.find((p) => p.id === periodFromUrl);
       if (fromUrl && !isUktPeriodActiveView(fromUrl)) {
-        redirect(
-          buildUktAdminUrl(targetSemester, targetYear, periodFromUrl, {
-            basePath: "/admin/ukt/arsip",
-          }),
+        // Jika ada periode aktif lain di term ini, alihkan ke periode aktif di Pendaftaran.
+        // Jika tidak ada periode aktif (semua diarsip), alihkan ke pendaftaran bersih (createMode) agar tidak terpental ke arsip.
+        const activeMatch = periods.find(
+          (p) => uktPeriodBelongsToTerm(p, targetSemester, targetYear) && isUktPeriodActiveView(p),
         );
+        if (activeMatch) {
+          redirect(buildUktAdminUrl(targetSemester, targetYear, activeMatch.id));
+        } else if (canCreatePeriod) {
+          redirect(buildUktAdminUrl(targetSemester, targetYear, null, { create: true }));
+        } else {
+          redirect(
+            buildUktAdminUrl(targetSemester, targetYear, periodFromUrl, {
+              basePath: "/admin/ukt/arsip",
+            }),
+          );
+        }
       }
       if (fromUrl && isUktPeriodActiveView(fromUrl)) {
         selectedPeriodId = periodFromUrl;

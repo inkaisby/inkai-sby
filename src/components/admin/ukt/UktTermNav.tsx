@@ -100,6 +100,62 @@ export function UktTermNav({
         {pending ? (
           <span className="text-xs text-muted-foreground">Memuat…</span>
         ) : null}
+
+        {/* Tab switcher & Buat Periode cepat */}
+        <div className="ml-auto flex items-center gap-1.5">
+          <div className="flex items-center rounded-md border border-border/80 bg-muted/40 p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                const href = buildUktAdminUrl(semester, year, null, { basePath: "/admin/ukt" });
+                startTransition(() => {
+                  router.push(href);
+                });
+              }}
+              className={cn(
+                "rounded px-2 py-0.5 font-medium transition-colors",
+                basePath === "/admin/ukt" && !createMode
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              📋 Pendaftaran
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const href = buildUktAdminUrl(semester, year, null, { basePath: "/admin/ukt/arsip" });
+                startTransition(() => {
+                  router.push(href);
+                });
+              }}
+              className={cn(
+                "rounded px-2 py-0.5 font-medium transition-colors",
+                basePath === "/admin/ukt/arsip"
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              📦 Arsip UKT
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const href = buildUktAdminUrl(semester, year, null, {
+                create: true,
+                basePath: "/admin/ukt",
+              });
+              startTransition(() => {
+                router.push(href);
+              });
+            }}
+            className="inline-flex h-7 items-center rounded-md bg-inkai-red px-2.5 text-xs font-medium text-white transition-colors hover:bg-inkai-red/90"
+          >
+            + Buat Periode
+          </button>
+        </div>
       </div>
     </div>
   );
