@@ -578,14 +578,13 @@ export async function deleteKasByKegiatan(opts: {
     );
   });
 
-  if (rows.length === 0) return { deleted: 0 };
+  const uniqueDates = Array.from(new Set(rows.map((r) => r.txnDate.toISOString().slice(0, 10))));
+  for (const txnDate of uniqueDates) {
+    await assertKasMonthWritable(opts.scope, txnDate);
+  }
 
-  await prisma.$transaction(async (tx) => {
-    for (const row of rows) {
-      const txnDate = row.txnDate.toISOString().slice(0, 10);
-      await assertKasMonthWritable(opts.scope, txnDate);
-      await tx.kasEntry.delete({ where: { id: row.id } });
-    }
+  await prisma.kasEntry.deleteMany({
+    where: { id: { in: rows.map((r) => r.id) } },
   });
 
   writeAuditLog({
@@ -737,12 +736,13 @@ export async function deleteManualKasByIds(opts: {
   });
   if (rows.length === 0) return { deleted: 0 };
 
-  await prisma.$transaction(async (tx) => {
-    for (const row of rows) {
-      const txnDate = row.txnDate.toISOString().slice(0, 10);
-      await assertKasMonthWritable(opts.scope, txnDate);
-      await tx.kasEntry.delete({ where: { id: row.id } });
-    }
+  const uniqueDates = Array.from(new Set(rows.map((r) => r.txnDate.toISOString().slice(0, 10))));
+  for (const txnDate of uniqueDates) {
+    await assertKasMonthWritable(opts.scope, txnDate);
+  }
+
+  await prisma.kasEntry.deleteMany({
+    where: { id: { in: rows.map((r) => r.id) } },
   });
 
   writeAuditLog({
@@ -969,18 +969,17 @@ export async function transferManualKasByKegiatan(opts: {
     return { moved: 0 };
   }
 
-  await prisma.$transaction(async (tx) => {
-    for (const row of rows) {
-      const txnDate = row.txnDate.toISOString().slice(0, 10);
-      await assertKasMonthWritable(opts.targetScope, txnDate);
-      await tx.kasEntry.update({
-        where: { id: row.id },
-        data: {
-          scopeType: opts.targetScope.type,
-          scopeId: opts.targetScope.id,
-        },
-      });
-    }
+  const uniqueDates1 = Array.from(new Set(rows.map((r) => r.txnDate.toISOString().slice(0, 10))));
+  for (const txnDate of uniqueDates1) {
+    await assertKasMonthWritable(opts.targetScope, txnDate);
+  }
+
+  await prisma.kasEntry.updateMany({
+    where: { id: { in: rows.map((r) => r.id) } },
+    data: {
+      scopeType: opts.targetScope.type,
+      scopeId: opts.targetScope.id,
+    },
   });
 
   writeAuditLog({
@@ -1041,18 +1040,17 @@ export async function transferManualKasByIds(opts: {
     return { moved: 0 };
   }
 
-  await prisma.$transaction(async (tx) => {
-    for (const row of rows) {
-      const txnDate = row.txnDate.toISOString().slice(0, 10);
-      await assertKasMonthWritable(opts.targetScope, txnDate);
-      await tx.kasEntry.update({
-        where: { id: row.id },
-        data: {
-          scopeType: opts.targetScope.type,
-          scopeId: opts.targetScope.id,
-        },
-      });
-    }
+  const uniqueDates2 = Array.from(new Set(rows.map((r) => r.txnDate.toISOString().slice(0, 10))));
+  for (const txnDate of uniqueDates2) {
+    await assertKasMonthWritable(opts.targetScope, txnDate);
+  }
+
+  await prisma.kasEntry.updateMany({
+    where: { id: { in: rows.map((r) => r.id) } },
+    data: {
+      scopeType: opts.targetScope.type,
+      scopeId: opts.targetScope.id,
+    },
   });
 
   writeAuditLog({
