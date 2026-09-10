@@ -542,12 +542,35 @@ export async function deleteKasByKegiatan(opts: {
     throw new Error("Nama kegiatan wajib diisi");
   }
 
-  const rows = await prisma.kasEntry.findMany({
+  let dojoName: string | null = null;
+  if (opts.scope.type === "dojo") {
+    const dojo = await prisma.dojo.findFirst({
+      where: { id: opts.scope.id },
+      select: { name: true },
+    });
+    dojoName = dojo?.name?.trim() || null;
+  }
+
+  const allRows = await prisma.kasEntry.findMany({
     where: {
       scopeType: opts.scope.type,
       scopeId: opts.scope.id,
-      kegiatan,
     },
+  });
+
+  const targetK = kegiatan.toLowerCase();
+  const rows = allRows.filter((row) => {
+    const rawK = row.kegiatan.trim().toLowerCase();
+    const normalizedK = normalizeKasKegiatan(row.kegiatan, dojoName).trim().toLowerCase();
+
+    return (
+      rawK === targetK ||
+      normalizedK === targetK ||
+      rawK.startsWith(targetK + "-") ||
+      rawK.startsWith(targetK + " -") ||
+      normalizedK.startsWith(targetK + "-") ||
+      normalizedK.startsWith(targetK + " -")
+    );
   });
 
   if (rows.length === 0) return { deleted: 0 };
