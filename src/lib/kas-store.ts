@@ -11,6 +11,7 @@ import { SITE_BRANCH_NAME } from "@/lib/site";
 import type { AdminDojoGrants } from "@/lib/admin-dojo-grants";
 import { isAdminPathAllowedByGrants } from "@/lib/admin-dojo-grants";
 import {
+  getKasBaseKegiatan,
   parseYmd,
   rupiahInt,
   yearMonthFromYmd,
@@ -562,14 +563,18 @@ export async function deleteKasByKegiatan(opts: {
   const rows = allRows.filter((row) => {
     const rawK = row.kegiatan.trim().toLowerCase();
     const normalizedK = normalizeKasKegiatan(row.kegiatan, dojoName).trim().toLowerCase();
+    const baseK = getKasBaseKegiatan(row.kegiatan, row.sourceType).trim().toLowerCase();
 
     return (
       rawK === targetK ||
       normalizedK === targetK ||
+      baseK === targetK ||
       rawK.startsWith(targetK + "-") ||
       rawK.startsWith(targetK + " -") ||
       normalizedK.startsWith(targetK + "-") ||
-      normalizedK.startsWith(targetK + " -")
+      normalizedK.startsWith(targetK + " -") ||
+      baseK.startsWith(targetK + "-") ||
+      baseK.startsWith(targetK + " -")
     );
   });
 
@@ -793,14 +798,35 @@ export async function renameKasKegiatan(opts: {
   const newK = opts.newKegiatan.trim().slice(0, 120);
   if (!oldK || !newK) throw new Error("Nama kegiatan tidak valid");
 
+  let dojoName: string | null = null;
+  if (opts.scope.type === "dojo") {
+    const dojo = await prisma.dojo.findFirst({
+      where: { id: opts.scope.id },
+      select: { name: true },
+    });
+    dojoName = dojo?.name?.trim() || null;
+  }
+
   const rows = await prisma.kasEntry.findMany({
     where: { scopeType: opts.scope.type, scopeId: opts.scope.id },
   });
 
   const matchingIds: string[] = [];
+  const oldKLower = oldK.toLowerCase();
   for (const row of rows) {
     const k = row.kegiatan.trim();
-    if (k === oldK || k.toLowerCase().startsWith(oldK.toLowerCase())) {
+    const kLower = k.toLowerCase();
+    const normalizedKLower = normalizeKasKegiatan(row.kegiatan, dojoName).trim().toLowerCase();
+    const baseKLower = getKasBaseKegiatan(row.kegiatan, row.sourceType).trim().toLowerCase();
+
+    if (
+      kLower === oldKLower ||
+      normalizedKLower === oldKLower ||
+      baseKLower === oldKLower ||
+      kLower.startsWith(oldKLower) ||
+      normalizedKLower.startsWith(oldKLower) ||
+      baseKLower.startsWith(oldKLower)
+    ) {
       matchingIds.push(row.id);
     }
   }
@@ -904,13 +930,40 @@ export async function transferManualKasByKegiatan(opts: {
     throw new KasScopeError("Buku tujuan di luar wilayah Anda");
   }
 
-  const rows = await prisma.kasEntry.findMany({
+  let dojoName: string | null = null;
+  if (opts.sourceScope.type === "dojo") {
+    const dojo = await prisma.dojo.findFirst({
+      where: { id: opts.sourceScope.id },
+      select: { name: true },
+    });
+    dojoName = dojo?.name?.trim() || null;
+  }
+
+  const allRows = await prisma.kasEntry.findMany({
     where: {
       scopeType: opts.sourceScope.type,
       scopeId: opts.sourceScope.id,
-      kegiatan,
     },
     orderBy: [{ txnDate: "asc" }, { createdAt: "asc" }],
+  });
+
+  const targetK = kegiatan.toLowerCase();
+  const rows = allRows.filter((row) => {
+    const rawK = row.kegiatan.trim().toLowerCase();
+    const normalizedK = normalizeKasKegiatan(row.kegiatan, dojoName).trim().toLowerCase();
+    const baseK = getKasBaseKegiatan(row.kegiatan, row.sourceType).trim().toLowerCase();
+
+    return (
+      rawK === targetK ||
+      normalizedK === targetK ||
+      baseK === targetK ||
+      rawK.startsWith(targetK + "-") ||
+      rawK.startsWith(targetK + " -") ||
+      normalizedK.startsWith(targetK + "-") ||
+      normalizedK.startsWith(targetK + " -") ||
+      baseK.startsWith(targetK + "-") ||
+      baseK.startsWith(targetK + " -")
+    );
   });
   if (rows.length === 0) {
     return { moved: 0 };

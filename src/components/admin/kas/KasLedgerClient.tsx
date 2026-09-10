@@ -654,7 +654,7 @@ export function KasLedgerClient({
       deleteKegiatanCount > 5 || deleteKegiatanTotalIn + deleteKegiatanTotalOut > 1000000;
     if (
       isHighRisk &&
-      deleteKegiatanConfirmInput.trim() !== deleteKegiatanName.trim()
+      deleteKegiatanConfirmInput.trim().toLowerCase() !== deleteKegiatanName.trim().toLowerCase()
     ) {
       toast.error(
         `Ketik "${deleteKegiatanName}" secara presisi untuk mengonfirmasi`,
@@ -3221,7 +3221,7 @@ export function KasLedgerClient({
                 disabled={
                   deleteKegiatanLoading ||
                   ((deleteKegiatanCount > 5 || deleteKegiatanTotalIn + deleteKegiatanTotalOut > 1000000) &&
-                    deleteKegiatanConfirmInput.trim() !== deleteKegiatanName.trim())
+                    deleteKegiatanConfirmInput.trim().toLowerCase() !== deleteKegiatanName.trim().toLowerCase())
                 }
               >
                 {deleteKegiatanLoading
