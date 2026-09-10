@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import {
   ChevronDown,
   ChevronRight,
+  Copy,
   Download,
   Lock,
   Maximize2,
@@ -151,6 +152,13 @@ export function KasLedgerClient({
   const [batchKegiatanOpen, setBatchKegiatanOpen] = useState(false);
   const [batchKegiatanName, setBatchKegiatanName] = useState("");
   const [batchKegiatanLoading, setBatchKegiatanLoading] = useState(false);
+  const [deleteKegiatanOpen, setDeleteKegiatanOpen] = useState(false);
+  const [deleteKegiatanName, setDeleteKegiatanName] = useState("");
+  const [deleteKegiatanCount, setDeleteKegiatanCount] = useState(0);
+  const [deleteKegiatanTotalIn, setDeleteKegiatanTotalIn] = useState(0);
+  const [deleteKegiatanTotalOut, setDeleteKegiatanTotalOut] = useState(0);
+  const [deleteKegiatanConfirmInput, setDeleteKegiatanConfirmInput] = useState("");
+  const [deleteKegiatanLoading, setDeleteKegiatanLoading] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [recapDojoOpen, setRecapDojoOpen] = useState(false);
   const [uktDepositMap, setUktDepositMap] = useState<Record<
@@ -624,6 +632,90 @@ export function KasLedgerClient({
     setTransferKegiatan(null);
     setTransferKegiatanTarget("");
     await load();
+  }
+
+  function openDeleteKegiatan(
+    kegiatanName: string,
+    count: number,
+    totalIn: number,
+    totalOut: number,
+  ) {
+    setDeleteKegiatanName(kegiatanName);
+    setDeleteKegiatanCount(count);
+    setDeleteKegiatanTotalIn(totalIn);
+    setDeleteKegiatanTotalOut(totalOut);
+    setDeleteKegiatanConfirmInput("");
+    setDeleteKegiatanOpen(true);
+  }
+
+  async function handleDeleteKegiatan() {
+    if (!deleteKegiatanName || !data?.scope) return;
+    const isHighRisk =
+      deleteKegiatanCount > 5 || deleteKegiatanTotalIn + deleteKegiatanTotalOut > 1000000;
+    if (
+      isHighRisk &&
+      deleteKegiatanConfirmInput.trim() !== deleteKegiatanName.trim()
+    ) {
+      toast.error(
+        `Ketik "${deleteKegiatanName}" secara presisi untuk mengonfirmasi`,
+      );
+      return;
+    }
+    setDeleteKegiatanLoading(true);
+    try {
+      const res = await fetch("/api/admin/kas/delete-kegiatan", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-kas-scope-type": data.scope.type,
+          "x-kas-scope-id": data.scope.id,
+        },
+        body: JSON.stringify({ kegiatan: deleteKegiatanName }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "Gagal menghapus kegiatan");
+        return;
+      }
+      toast.success(
+        `Kegiatan "${deleteKegiatanName}" beserta ${json.deleted} item terhapus`,
+      );
+      setDeleteKegiatanOpen(false);
+      await load();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Gagal menghapus kegiatan",
+      );
+    } finally {
+      setDeleteKegiatanLoading(false);
+    }
+  }
+
+  function handleCopyKegiatanDetails() {
+    const rows = (data?.rows ?? []).filter(
+      (r) => r.kegiatan === deleteKegiatanName,
+    );
+    if (rows.length === 0) {
+      toast.error("Tidak ada baris transaksi untuk disalin");
+      return;
+    }
+    const lines = [
+      `*📋 RINCIAN TRANSAKSI KEGIATAN: ${deleteKegiatanName}*`,
+      `*Total Item:* ${rows.length} Transaksi`,
+      `*Total Masuk:* ${formatRp(deleteKegiatanTotalIn)}`,
+      `*Total Keluar:* ${formatRp(deleteKegiatanTotalOut)}`,
+      `----------------------------------------`,
+      ...rows.map(
+        (r) =>
+          `• [${r.amountIn > 0 ? "MASUK" : "KELUAR"}] ${formatRp(
+            r.amountIn || r.amountOut,
+          )} - ${r.description} (${formatKasDateId(r.txnDate)})`,
+      ),
+    ];
+    navigator.clipboard.writeText(lines.join("\n")).then(
+      () => toast.success("Rincian kegiatan berhasil disalin ke clipboard!"),
+      () => toast.error("Gagal menyalin rincian"),
+    );
   }
 
   async function handleBatchTransfer() {
@@ -1999,6 +2091,26 @@ export function KasLedgerClient({
                             Tambah item
                           </Button>
                         ) : null}
+                        {data?.canWrite ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/60 hover:bg-red-50 dark:hover:bg-red-950/50"
+                            title={`Hapus kegiatan "${row.kegiatan}" beserta seluruh ${row.count} item di dalamnya`}
+                            onClick={() =>
+                              openDeleteKegiatan(
+                                row.kegiatan,
+                                row.count ?? 0,
+                                row.totalIn,
+                                row.totalOut,
+                              )
+                            }
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Hapus kegiatan
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                     <td className="p-3 text-right">{formatRp(row.totalIn)}</td>
@@ -3018,6 +3130,105 @@ export function KasLedgerClient({
             >
               {batchKegiatanLoading ? "Menyimpan…" : `Gabungkan (${selectedIds.length} Baris)`}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteKegiatanOpen} onOpenChange={setDeleteKegiatanOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold text-red-600 dark:text-red-400">
+              <Trash2 className="h-5 w-5 shrink-0" />
+              Hapus Kegiatan "{deleteKegiatanName}"
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs text-foreground">
+            <div className="rounded-md border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 p-3 text-red-900 dark:text-red-200 space-y-1.5">
+              <p className="font-semibold text-sm">⚠️ Konfirmasi Penghapusan Massal</p>
+              <p>
+                Tindakan ini akan menghapus seluruh{" "}
+                <strong>{deleteKegiatanCount} item transaksi kas</strong> yang berada di bawah kegiatan{" "}
+                <strong>"{deleteKegiatanName}"</strong> secara permanen dari Buku Kas.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 rounded-md border p-2.5 bg-muted/30">
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Total Masuk (+):</span>
+                <span className="font-semibold text-teal-700 dark:text-teal-400 text-sm">
+                  {formatRp(deleteKegiatanTotalIn)}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Total Keluar (-):</span>
+                <span className="font-semibold text-red-600 dark:text-red-400 text-sm">
+                  {formatRp(deleteKegiatanTotalOut)}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-muted-foreground">
+              💡 <em>Penghapusan ini murni menghapus catatan pembukuan Kas. Data pendaftaran & status LUNAS peserta di menu UKT/Latber tetap 100% aman dan tidak terpengaruh.</em>
+            </p>
+
+            {(deleteKegiatanCount > 5 || deleteKegiatanTotalIn + deleteKegiatanTotalOut > 1000000) ? (
+              <div className="space-y-1.5 pt-1">
+                <Label htmlFor="delete-kegiatan-confirm" className="text-xs font-semibold text-red-700 dark:text-red-300">
+                  Ketik nama kegiatan secara presisi untuk mengonfirmasi:
+                </Label>
+                <div className="text-[11px] font-mono select-all bg-muted px-2 py-1 rounded border">
+                  {deleteKegiatanName}
+                </div>
+                <Input
+                  id="delete-kegiatan-confirm"
+                  value={deleteKegiatanConfirmInput}
+                  placeholder={`Ketik "${deleteKegiatanName}"`}
+                  className="h-9 text-xs"
+                  onChange={(e) => setDeleteKegiatanConfirmInput(e.target.value)}
+                />
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0 flex-wrap sm:flex-nowrap justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs shrink-0"
+              onClick={handleCopyKegiatanDetails}
+              title="Salin rincian transaksi kegiatan ini ke clipboard sebelum dihapus"
+            >
+              <Copy className="h-3.5 w-3.5 mr-1" />
+              Salin WA Rincian
+            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => setDeleteKegiatanOpen(false)}
+                disabled={deleteKegiatanLoading}
+              >
+                Batal
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                className="text-xs bg-red-600 hover:bg-red-700 text-white"
+                onClick={() => void handleDeleteKegiatan()}
+                disabled={
+                  deleteKegiatanLoading ||
+                  ((deleteKegiatanCount > 5 || deleteKegiatanTotalIn + deleteKegiatanTotalOut > 1000000) &&
+                    deleteKegiatanConfirmInput.trim() !== deleteKegiatanName.trim())
+                }
+              >
+                {deleteKegiatanLoading
+                  ? "Menghapus…"
+                  : `Hapus (${deleteKegiatanCount} item)`}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

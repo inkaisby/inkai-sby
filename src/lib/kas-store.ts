@@ -530,9 +530,51 @@ async function syncMissingUktKasForScope(scope: KasScope) {
   }
 }
 
+export async function deleteKasByKegiatan(opts: {
+  scope: KasScope;
+  kegiatan: string;
+  user: SessionUser;
+  email?: string | null;
+  token?: string | null;
+}): Promise<{ deleted: number }> {
+  const kegiatan = opts.kegiatan.trim();
+  if (!kegiatan) {
+    throw new Error("Nama kegiatan wajib diisi");
+  }
+
+  const rows = await prisma.kasEntry.findMany({
+    where: {
+      scopeType: opts.scope.type,
+      scopeId: opts.scope.id,
+      kegiatan,
+    },
+  });
+
+  if (rows.length === 0) return { deleted: 0 };
+
+  await prisma.$transaction(async (tx) => {
+    for (const row of rows) {
+      const txnDate = row.txnDate.toISOString().slice(0, 10);
+      await assertKasMonthWritable(opts.scope, txnDate);
+      await tx.kasEntry.delete({ where: { id: row.id } });
+    }
+  });
+
+  writeAuditLog({
+    userId: opts.user.id,
+    email: opts.email,
+    action: "KAS_DELETE_KEGIATAN",
+    details: `${kegiatan} x${rows.length} ${opts.scope.type}:${opts.scope.id}`,
+    token: opts.token,
+  });
+
+  return { deleted: rows.length };
+}
+
 export async function listKasEntries(scope: KasScope) {
-  await syncMissingLatberKasForScope(scope);
-  await syncMissingUktKasForScope(scope);
+  // Auto-sync dinonaktifkan agar pembukuan Kas murni dikelola secara manual oleh pengurus
+  // await syncMissingLatberKasForScope(scope);
+  // await syncMissingUktKasForScope(scope);
   let dojoName: string | null = null;
   if (scope.type === "dojo") {
     const dojo = await prisma.dojo.findFirst({
