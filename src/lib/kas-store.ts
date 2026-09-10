@@ -19,7 +19,7 @@ import {
   type KasScope,
   type KasSourceType,
 } from "@/lib/kas";
-import { formatLatberKasKegiatan } from "@/lib/kas-kegiatan";
+import { formatLatberKasKegiatan, formatUktKasKegiatan } from "@/lib/kas-kegiatan";
 
 export class KasPeriodLockedError extends Error {
   constructor(yearMonth: string) {
@@ -263,6 +263,7 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
         member: {
           select: {
             id: true,
+            isDeleted: true,
             dojoId: true,
             fullName: true,
             nia: true,
@@ -270,23 +271,63 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
           },
         },
       },
+      orderBy: { createdAt: "desc" },
     });
+
+    const regIds = paidLatberBillings
+      .map((b) => b.registrationId)
+      .filter((id): id is string => Boolean(id));
+
+    const activeRegs =
+      regIds.length > 0
+        ? await prisma.eventRegistration.findMany({
+            where: {
+              id: { in: regIds },
+              status: { notIn: ["REJECTED", "CANCELLED"] },
+            },
+            select: { id: true, status: true, eventId: true },
+          })
+        : [];
+
+    const activeRegMap = new Map(activeRegs.map((r) => [r.id, r]));
+
+    const existingLatberKasEntries = await prisma.kasEntry.findMany({
+      where: {
+        scopeType: scope.type,
+        scopeId: scope.id,
+        sourceType: "latber",
+      },
+      select: { id: true, sourceId: true },
+    });
+
+    const validSourceIds = new Set<string>();
+    const seenRegIds = new Set<string>();
 
     for (const b of paidLatberBillings) {
       const desc = b.description ?? "";
       const isLatber =
         (/latber/i.test(desc) || /latihan bersama/i.test(desc)) &&
         !/^UKT\b/i.test(desc);
-      if (!isLatber || !b.member?.dojoId) continue;
+      if (!isLatber || !b.member?.dojoId || b.member.isDeleted) continue;
+
+      if (b.registrationId) {
+        const reg = activeRegMap.get(b.registrationId);
+        if (!reg) {
+          continue;
+        }
+        if (seenRegIds.has(b.registrationId)) {
+          continue;
+        }
+        seenRegIds.add(b.registrationId);
+      }
 
       if (scope.type === "dojo") {
-        const exists = await prisma.kasEntry.findFirst({
-          where: { sourceType: "latber", sourceId: `${b.id}:ranting` },
-          select: { id: true },
-        });
+        const sourceId = `${b.id}:ranting`;
+        validSourceIds.add(sourceId);
+        const exists = existingLatberKasEntries.some((e) => e.sourceId === sourceId);
         if (!exists) {
           const nia = b.member.nia ? ` (${b.member.nia})` : "";
-          const desc = `${b.member.fullName}${nia}`;
+          const descStr = `${b.member.fullName}${nia}`;
           const kegiatan = formatLatberKasKegiatan(
             b.description || "Latber Persiapan UKT",
             b.member.dojo?.name,
@@ -296,24 +337,23 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
               scopeType: "dojo",
               scopeId: b.member.dojoId,
               txnDate: b.createdAt,
-              description: `CASHBACK ranting — ${desc}`,
+              description: `CASHBACK ranting — ${descStr}`,
               kegiatan,
               amountIn: 5000,
               amountOut: 0,
               sourceType: "latber",
-              sourceId: `${b.id}:ranting`,
+              sourceId,
               sourceHref: "/admin/latber",
             },
           });
         }
       } else if (scope.type === "branch" && b.member.dojo?.branchId) {
-        const exists = await prisma.kasEntry.findFirst({
-          where: { sourceType: "latber", sourceId: `${b.id}:cabang` },
-          select: { id: true },
-        });
+        const sourceId = `${b.id}:cabang`;
+        validSourceIds.add(sourceId);
+        const exists = existingLatberKasEntries.some((e) => e.sourceId === sourceId);
         if (!exists) {
           const nia = b.member.nia ? ` (${b.member.nia})` : "";
-          const desc = `${b.member.fullName}${nia}`;
+          const descStr = `${b.member.fullName}${nia}`;
           const kegiatan = formatLatberKasKegiatan(
             b.description || "Latber Persiapan UKT",
             b.member.dojo?.name,
@@ -323,17 +363,27 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
               scopeType: "branch",
               scopeId: b.member.dojo.branchId,
               txnDate: b.createdAt,
-              description: desc,
+              description: descStr,
               kegiatan,
               amountIn: 40000,
               amountOut: 0,
               sourceType: "latber",
-              sourceId: `${b.id}:cabang`,
+              sourceId,
               sourceHref: "/admin/latber",
             },
           });
         }
       }
+    }
+
+    const staleIds = existingLatberKasEntries
+      .filter((e) => !validSourceIds.has(e.sourceId))
+      .map((e) => e.id);
+
+    if (staleIds.length > 0) {
+      await prisma.kasEntry.deleteMany({
+        where: { id: { in: staleIds } },
+      });
     }
 
     if (scope.type === "branch") {
@@ -353,8 +403,136 @@ async function syncMissingLatberKasForScope(scope: KasScope) {
   }
 }
 
+async function syncMissingUktKasForScope(scope: KasScope) {
+  try {
+    const paidUktBillings = await prisma.billing.findMany({
+      where: {
+        isDeleted: false,
+        status: { in: ["PAID", "SUCCESS"] },
+        ...(scope.type === "dojo"
+          ? { member: { dojoId: scope.id } }
+          : { member: { dojo: { branchId: scope.id } } }),
+        OR: [
+          { type: { contains: "UKT", mode: "insensitive" } },
+          { description: { contains: "UKT", mode: "insensitive" } },
+        ],
+      },
+      include: {
+        member: {
+          select: {
+            id: true,
+            isDeleted: true,
+            dojoId: true,
+            fullName: true,
+            nia: true,
+            dojo: { select: { id: true, branchId: true, name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const regIds = paidUktBillings
+      .map((b) => b.registrationId)
+      .filter((id): id is string => Boolean(id));
+
+    const activeRegs =
+      regIds.length > 0
+        ? await prisma.eventRegistration.findMany({
+            where: {
+              id: { in: regIds },
+              status: { notIn: ["REJECTED", "CANCELLED"] },
+            },
+            select: { id: true, status: true, eventId: true },
+          })
+        : [];
+
+    const activeRegMap = new Map(activeRegs.map((r) => [r.id, r]));
+
+    const existingUktKasEntries = await prisma.kasEntry.findMany({
+      where: {
+        scopeType: scope.type,
+        scopeId: scope.id,
+        sourceType: "ukt",
+      },
+      select: { id: true, sourceId: true },
+    });
+
+    const validSourceIds = new Set<string>();
+    const seenRegIds = new Set<string>();
+
+    for (const b of paidUktBillings) {
+      const desc = b.description ?? "";
+      const isUkt = /\bUKT\b/i.test(desc) || /\bUKT\b/i.test(b.type ?? "");
+      if (!isUkt || !b.member?.dojoId || b.member.isDeleted) continue;
+
+      if (b.registrationId) {
+        const reg = activeRegMap.get(b.registrationId);
+        if (!reg) {
+          continue;
+        }
+        if (seenRegIds.has(b.registrationId)) {
+          continue;
+        }
+        seenRegIds.add(b.registrationId);
+      }
+
+      if (scope.type === "branch" && b.member.dojo?.branchId) {
+        const sourceId = b.id;
+        validSourceIds.add(sourceId);
+        validSourceIds.add(`${b.id}:cabang`);
+        const exists = existingUktKasEntries.some(
+          (e) => e.sourceId === sourceId || e.sourceId === `${b.id}:cabang`,
+        );
+        if (!exists) {
+          const nia = b.member.nia ? ` (${b.member.nia})` : "";
+          const descStr = `${b.member.fullName}${nia}`;
+          const kegiatan = formatUktKasKegiatan(
+            b.description || "UKT",
+            b.member.dojo?.name,
+          );
+          const fee = b.amount - (b.amount % 1000);
+          const komisi = Math.min(fee, 50000);
+          const nett = Math.max(0, fee - komisi);
+          await prisma.kasEntry.create({
+            data: {
+              scopeType: "branch",
+              scopeId: b.member.dojo.branchId,
+              txnDate: b.createdAt,
+              description: descStr,
+              kegiatan,
+              amountIn: nett,
+              amountOut: 0,
+              sourceType: "ukt",
+              sourceId,
+              sourceHref: "/admin/ukt",
+            },
+          });
+        }
+      }
+    }
+
+    const staleIds = existingUktKasEntries
+      .filter(
+        (e) =>
+          !validSourceIds.has(e.sourceId) &&
+          !validSourceIds.has(e.sourceId.replace(/:cabang$/, "")),
+      )
+      .map((e) => e.id);
+
+    if (staleIds.length > 0) {
+      await prisma.kasEntry.deleteMany({
+        where: { id: { in: staleIds } },
+      });
+    }
+  } catch (e) {
+    console.error("[KAS AUTO-SYNC] UKT kas sync error", e);
+  }
+}
+
 export async function listKasEntries(scope: KasScope) {
   await syncMissingLatberKasForScope(scope);
+  await syncMissingUktKasForScope(scope);
   let dojoName: string | null = null;
   if (scope.type === "dojo") {
     const dojo = await prisma.dojo.findFirst({
