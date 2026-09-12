@@ -1552,7 +1552,9 @@ export function MembersTable({
                 fullName: m.fullName,
                 nia: m.nia,
                 currentRank: m.currentRank,
+                dojoId: m.dojoId,
                 dojoName: m.dojo?.name,
+                cabangName: m.dojo?.branch?.name || SITE_BRANCH_NAME,
                 mshNumber: m.mshNumber,
               }));
             setBarcodePrintMembers(selectedMembers);
@@ -2636,6 +2638,7 @@ export function MembersTable({
           if (!next) setBarcodePrintMembers(null);
         }}
         members={barcodePrintMembers || []}
+        dojos={dojos}
       />
     </>
   );

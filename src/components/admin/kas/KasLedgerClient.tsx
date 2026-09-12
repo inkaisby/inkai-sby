@@ -248,7 +248,10 @@ export function KasLedgerClient({
 
   const dojoSummaries = useMemo(() => {
     const base = aggregateKasByDojo(data?.rows ?? [], officialDojoList);
-    return base.map((item) => {
+    const map = new Map<string, DojoKasSummary>();
+
+    // 1. Load base records from existing Kas transactions
+    for (const item of base) {
       const dojoId =
         item.dojoId ||
         matchKasDojoId(item.dojoName, officialDojoList) ||
@@ -258,11 +261,42 @@ export function KasLedgerClient({
         uktDepositMap,
         uktDepositLoadError,
       );
-      return {
+      map.set(item.dojoName.toUpperCase(), {
         ...item,
         dojoId,
-        uktDepositLabel: display.label,
-      } satisfies DojoKasSummary;
+        uktDepositLabel: display.label ?? "—",
+      });
+    }
+
+    // 2. Ensure ALL official dojos from officialDojoList are included
+    for (const dojo of officialDojoList) {
+      const dojoName = dojo.name.toUpperCase();
+      if (!map.has(dojoName)) {
+        const display = kasUktDepositDisplay(
+          dojo.id,
+          uktDepositMap,
+          uktDepositLoadError,
+        );
+        map.set(dojoName, {
+          dojoName,
+          isOfficialDojo: true,
+          dojoId: dojo.id,
+          totalUkt: 0,
+          totalKomisiUkt: 0,
+          totalLatber: 0,
+          totalKomisiLatber: 0,
+          totalIuran: 0,
+          totalLainnya: 0,
+          totalMasuk: 0,
+          uktDepositLabel: display.label ?? "—",
+        });
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      if (b.totalMasuk !== a.totalMasuk) return b.totalMasuk - a.totalMasuk;
+      if (b.totalUkt !== a.totalUkt) return b.totalUkt - a.totalUkt;
+      return a.dojoName.localeCompare(b.dojoName, "id");
     });
   }, [data?.rows, officialDojoList, uktDepositMap, uktDepositLoadError]);
 
@@ -2705,7 +2739,7 @@ export function KasLedgerClient({
                                         <span
                                           className={cn(
                                             "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border",
-                                            d.uktDepositLabel.includes("diterima") || d.uktDepositLabel.includes("Lunas")
+                                            (d.uktDepositLabel || "").includes("diterima") || (d.uktDepositLabel || "").includes("Lunas")
                                               ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300"
                                               : "bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300",
                                           )}

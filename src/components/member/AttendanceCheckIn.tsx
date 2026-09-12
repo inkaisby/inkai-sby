@@ -207,14 +207,16 @@ export function AttendanceCheckIn({
       }
 
       const pos = await getPosition();
+      const activeQrPayload = (directQrPayload || qrPayload).trim();
+      const extractedFromQr = activeQrPayload ? parseDojoQrPayload(activeQrPayload) : null;
+
       const dojoId =
+        extractedFromQr ||
         selectedDojoId ||
         (selectedEventId
           ? events.find((e) => e.id === selectedEventId)?.hostDojoId
           : null) ||
         undefined;
-
-      const activeQrPayload = (directQrPayload || qrPayload).trim();
 
       const res = await fetch("/api/member/attendance/checkin", {
         method: "POST",

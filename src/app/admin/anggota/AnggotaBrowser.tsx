@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Archive } from "lucide-react";
+import { Archive, CreditCard } from "lucide-react";
 import { AnggotaExportMenu } from "@/components/admin/anggota/AnggotaExportMenu";
 import {
   MemberBarcodePrintModal,
   type PrintableMemberItem,
 } from "@/components/admin/anggota/MemberBarcodePrintModal";
+import { Button } from "@/components/ui/button";
+import { fetchAnggotaExportMembers } from "@/lib/anggota-export";
+import { SITE_BRANCH_NAME } from "@/lib/site";
 import {
   SettingsPagination,
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
@@ -529,6 +532,47 @@ export function AnggotaBrowser({
             Lihat arsip
           </Link>
         ) : null}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={async () => {
+            try {
+              setLoading(true);
+              const rows = await fetchAnggotaExportMembers(exportParams);
+              const mapped = (rows.length > 0 ? rows : members).map((r) => ({
+                id: r.id,
+                fullName: r.fullName,
+                nia: r.nia,
+                currentRank: r.currentRank,
+                dojoId: r.dojoId,
+                dojoName: r.dojo?.name,
+                cabangName: r.dojo?.branch?.name || SITE_BRANCH_NAME,
+                mshNumber: r.mshNumber,
+              }));
+              setBarcodeExportMembers(mapped);
+            } catch {
+              setBarcodeExportMembers(
+                members.map((r) => ({
+                  id: r.id,
+                  fullName: r.fullName,
+                  nia: r.nia,
+                  currentRank: r.currentRank,
+                  dojoId: r.dojoId,
+                  dojoName: r.dojo?.name,
+                  cabangName: r.dojo?.branch?.name || SITE_BRANCH_NAME,
+                  mshNumber: r.mshNumber,
+                }))
+              );
+            } finally {
+              setLoading(false);
+            }
+          }}
+          className="gap-1.5 border-inkai-red/40 text-inkai-red hover:bg-inkai-red/10"
+        >
+          <CreditCard className="h-3.5 w-3.5 text-inkai-red" />
+          Cetak Kartu
+        </Button>
         <AnggotaExportMenu
           exportParams={exportParams}
           total={total}
@@ -539,7 +583,9 @@ export function AnggotaBrowser({
               fullName: r.fullName,
               nia: r.nia,
               currentRank: r.currentRank,
+              dojoId: r.dojoId,
               dojoName: r.dojo?.name,
+              cabangName: r.dojo?.branch?.name || SITE_BRANCH_NAME,
               mshNumber: r.mshNumber,
             }));
             setBarcodeExportMembers(mapped);
@@ -655,7 +701,8 @@ export function AnggotaBrowser({
           if (!open) setBarcodeExportMembers(null);
         }}
         members={barcodeExportMembers || []}
-        title="Cetak Barcode Anggota (Massal)"
+        dojos={dojos}
+        title="Cetak Barcode / Kartu Anggota"
       />
     </AnggotaKpiCards>
     </>
