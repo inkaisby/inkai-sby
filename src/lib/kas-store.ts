@@ -240,17 +240,7 @@ export async function voidKasBySource(opts: {
   }
 }
 
-function normalizeKasDisplayAmount(amount: number, sourceType: string, description: string): number {
-  if (amount <= 0) return 0;
-  const isUktOrLatber =
-    sourceType === "ukt" ||
-    sourceType === "latber" ||
-    /\bUKT\b/i.test(description) ||
-    /latihan bersama/i.test(description) ||
-    /\blatber\b/i.test(description);
-  if (isUktOrLatber) {
-    return amount - (amount % 1000);
-  }
+function normalizeKasDisplayAmount(amount: number, _sourceType: string, _description: string): number {
   return amount;
 }
 
