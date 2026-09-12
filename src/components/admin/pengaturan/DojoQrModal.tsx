@@ -205,6 +205,9 @@ export function DojoQrModal({ open, onOpenChange, dojo }: DojoQrModalProps) {
             />
           </div>
 
+          <p className="mt-3 font-mono text-[11px] text-muted-foreground break-all bg-muted px-2 py-1 rounded">
+            {payload}
+          </p>
 
           <div className="mt-5 flex w-full flex-col gap-2 sm:flex-row">
             <Button

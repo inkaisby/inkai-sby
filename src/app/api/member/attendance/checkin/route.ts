@@ -69,53 +69,29 @@ export async function POST(request: Request) {
   let resolvedDojoName = "";
   const qrPayloadRaw = parsed.data.qrPayload?.trim() || "";
   const dojoIdFromQr = qrPayloadRaw ? parseDojoQrPayload(qrPayloadRaw) : null;
-  const isQrScan = Boolean(
-    dojoIdFromQr || parsed.data.method === "QR_SCAN" || qrPayloadRaw,
-  );
+  const isQrScan = Boolean(dojoIdFromQr || parsed.data.method === "QR_SCAN");
 
-  // Jika QR Scan aktif & mengandung dojoId / payload QR: QR melegitimasi keberadaan fisik di dojo/ranting manapun
+  // Jika QR Scan aktif & mengandung dojoId valid: QR melegitimasi keberadaan fisik di dojo
   if (dojoIdFromQr) {
     resolvedDojoId = dojoIdFromQr;
-  } else if (isQrScan && qrPayloadRaw && !resolvedDojoId) {
-    resolvedDojoId = qrPayloadRaw;
   }
 
   if (resolvedDojoId) {
-    const targetId = resolvedDojoId;
-    const target = dojos.find(
-      (d) =>
-        d.id === targetId ||
-        d.name.toLowerCase() === targetId.toLowerCase(),
-    );
+    const target = dojos.find((d) => d.id === resolvedDojoId);
     if (target) {
-      resolvedDojoId = target.id;
       resolvedDojoName = target.name;
     } else {
       const dbDojo = await prisma.dojo.findFirst({
-        where: {
-          OR: [
-            { id: targetId },
-            { name: { equals: targetId, mode: "insensitive" } },
-          ],
-          isDeleted: false,
-        },
+        where: { id: resolvedDojoId, isDeleted: false },
         select: { id: true, name: true },
       });
       if (dbDojo) {
-        resolvedDojoId = dbDojo.id;
         resolvedDojoName = dbDojo.name;
       } else if (!isQrScan) {
         return NextResponse.json(
           { error: "Dojo tidak ditemukan atau belum terdaftar" },
           { status: 400 },
         );
-      } else {
-        const cleanName = targetId.startsWith("INKAI:")
-          ? targetId.split(":")[3] ||
-            targetId.split(":")[2] ||
-            "Dojo"
-          : targetId;
-        resolvedDojoName = cleanName;
       }
     }
 
@@ -158,7 +134,7 @@ export async function POST(request: Request) {
   let biometricOk = false;
   const bioToken =
     typeof (body as { biometricToken?: string } | null)?.biometricToken ===
-    "string"
+      "string"
       ? (body as { biometricToken: string }).biometricToken
       : "";
   if (bioToken) {

@@ -54,6 +54,12 @@ export async function resolveKasScope(user: SessionUser): Promise<KasScope> {
   return { type: "branch", id: branch.id };
 }
 
+export function isSuperAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const clean = email.toLowerCase().trim();
+  return clean === "inkaisby@gmail.com" || clean === "inkai.sby@gmail.com";
+}
+
 export function canAccessKas(
   user: SessionUser,
   grants?: AdminDojoGrants | null,
@@ -73,12 +79,14 @@ export function canWriteKas(
 }
 
 export function canLockKasPeriod(user: SessionUser): boolean {
+  if (isSuperAdminEmail(user.email)) return true;
   const role = getPrimaryAdminRole(user.roles ?? []);
   return role !== "ADMIN_DOJO";
 }
 
 export function canTransferKas(user: SessionUser): boolean {
-  return canLockKasPeriod(user);
+  if (isSuperAdminEmail(user.email)) return true;
+  return false;
 }
 
 export async function isKasMonthLocked(
@@ -632,10 +640,9 @@ export async function listKasEntries(scope: KasScope) {
 export async function listKasScopes(user: SessionUser): Promise<
   Array<{ type: "branch" | "dojo"; id: string; label: string }>
 > {
-  const role = getPrimaryAdminRole(user.roles ?? []);
-  if (role === "ADMIN_DOJO") {
+  if (!isSuperAdminEmail(user.email)) {
     const scope = await resolveKasScope(user);
-    return [{ type: scope.type, id: scope.id, label: "Ranting" }];
+    return [{ type: scope.type, id: scope.id, label: scope.type === "dojo" ? "Ranting" : "Cabang" }];
   }
 
   const out: Array<{ type: "branch" | "dojo"; id: string; label: string }> = [];
@@ -674,11 +681,11 @@ export async function resolveKasScopeForView(
   const fallback = await resolveKasScope(user);
   const type = override?.type === "branch" || override?.type === "dojo" ? override.type : null;
   const id = override?.id?.trim() || null;
-  if (!type || !id || !canTransferKas(user)) return fallback;
+  if (!type || !id || !isSuperAdminEmail(user.email)) return fallback;
 
   const allowed = await listKasScopes(user);
   const match = allowed.find((s) => s.type === type && s.id === id);
-  if (!match) throw new KasScopeError("Buku kas di luar wilayah Anda");
+  if (!match) return fallback;
   return { type, id };
 }
 

@@ -12,9 +12,18 @@ import { cn } from "@/lib/utils";
 export function AdminAbsensiProgressTable({
   rows,
   semesterLabel,
+  onEditLog,
 }: {
   rows: MemberAttendanceProgress[];
   semesterLabel: string;
+  onEditLog?: (log: {
+    id: string;
+    fullName: string;
+    nia: string;
+    dojoId?: string;
+    dojoName?: string;
+    checkInAt: string;
+  }) => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = useMemo(
@@ -104,6 +113,7 @@ export function AdminAbsensiProgressTable({
         }}
         member={selected}
         semesterLabel={semesterLabel}
+        onEditLog={onEditLog}
       />
     </>
   );

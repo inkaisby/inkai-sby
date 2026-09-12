@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { AdminPageLoader } from "@/components/ui/AdminPageLoader";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { KasLedgerClient } from "@/components/admin/kas/KasLedgerClient";
+import { isSuperAdminEmail } from "@/lib/kas-store";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,9 @@ export default function AdminKasPage() {
 }
 
 async function resolveScopeLabel(user: SessionUser): Promise<string> {
+  if (isSuperAdminEmail(user.email)) {
+    return "Semua Buku Kas (Super Admin)";
+  }
   const role = getPrimaryAdminRole(user.roles ?? []);
   if (role === "ADMIN_DOJO" && user.managedDojoId) {
     const dojo = await prisma.dojo.findFirst({

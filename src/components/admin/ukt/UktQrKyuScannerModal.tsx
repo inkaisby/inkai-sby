@@ -391,7 +391,7 @@ export function UktQrKyuScannerModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+      <DialogContent className="w-full max-w-[calc(100%-1.5rem)] sm:max-w-3xl md:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 shadow-2xl rounded-2xl">
         <DialogHeader className="space-y-1">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2 text-xl font-bold">
@@ -587,7 +587,7 @@ export function UktQrKyuScannerModal({
                 </div>
 
                 {/* Preset Buttons Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-5 lg:grid-cols-5 gap-2 pt-1">
                   {QUICK_KYU_PRESETS.map((preset) => {
                     const isSelected =
                       formatRankLabel(targetKyu).toLowerCase() ===
@@ -601,17 +601,17 @@ export function UktQrKyuScannerModal({
                         type="button"
                         onClick={() => setTargetKyu(preset)}
                         className={cn(
-                          "flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-semibold border transition-all",
+                          "flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-xs font-semibold border transition-all",
                           isSelected
                             ? "border-emerald-600 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200 ring-2 ring-emerald-500 shadow-sm"
                             : "border-border/60 bg-muted/30 hover:bg-muted text-muted-foreground hover:text-foreground",
                         )}
                       >
                         <span
-                          className="h-2.5 w-2.5 rounded-full shrink-0 border border-black/20"
+                          className="h-3 w-3 rounded-full shrink-0 border border-black/20"
                           style={{ backgroundColor: visual.bg }}
                         />
-                        <span>{shortName}</span>
+                        <span className="truncate">{shortName}</span>
                       </button>
                     );
                   })}

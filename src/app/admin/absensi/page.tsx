@@ -18,6 +18,8 @@ type SearchParams = Promise<{
   view?: string;
   semester?: string;
   year?: string;
+  cabangId?: string;
+  dojoId?: string;
 }>;
 
 export default function AdminAbsensiPage({
@@ -55,6 +57,8 @@ async function AdminAbsensiContent({
     date: params.date,
     semester: params.semester,
     year: Number(params.year) || undefined,
+    cabangId: params.cabangId,
+    dojoId: params.dojoId,
   });
 
   return (
@@ -74,6 +78,10 @@ async function AdminAbsensiContent({
         dateStr={payload.dateStr}
         semester={payload.semester}
         year={payload.year}
+        selectedCabangId={payload.selectedCabangId}
+        selectedDojoId={payload.selectedDojoId}
+        cabangs={payload.cabangs}
+        dojos={payload.dojos}
         q={q}
         presentCount={payload.presentCount}
         dayLogs={payload.dayLogs}

@@ -82,66 +82,47 @@ export function parseDojoQrPayload(raw: string): string | null {
   if (trimmed.startsWith("INKAI:DOJO:")) {
     const parts = trimmed.split(":");
     if (parts[2]) return parts[2].trim();
-    if (parts[1]) return parts[1].trim();
   }
 
-  // Format 2: DOJO:<dojoId> or RANTING:<dojoId>
-  if (trimmed.startsWith("DOJO:") || trimmed.startsWith("RANTING:")) {
+  // Format 2: DOJO:<dojoId>
+  if (trimmed.startsWith("DOJO:")) {
     const parts = trimmed.split(":");
     if (parts[1]) return parts[1].trim();
   }
 
-  // Format 3: INKAI:EVENT:<eventId> or EVENT:<eventId>
-  if (trimmed.startsWith("INKAI:EVENT:") || trimmed.startsWith("EVENT:")) {
-    const parts = trimmed.split(":");
-    if (parts.length > 1) return parts[parts.length - 1].trim();
-  }
-
-  // Format 4: JSON {"dojoId": "..."} or {"id": "..."} or {"dojo": "..."} or {"ranting": "..."}
+  // Format 3: JSON {"dojoId": "..."} or {"id": "..."}
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
     try {
       const obj = JSON.parse(trimmed) as Record<string, unknown>;
-      const possibleId =
-        obj.dojoId ||
-        obj.dojo ||
-        obj.rantingId ||
-        obj.ranting ||
-        obj.id ||
-        obj.eventId;
-      if (typeof possibleId === "string" && possibleId.trim()) {
-        return possibleId.trim();
+      if (typeof obj.dojoId === "string" && obj.dojoId.trim()) {
+        return obj.dojoId.trim();
+      }
+      if (typeof obj.id === "string" && obj.id.trim()) {
+        return obj.id.trim();
       }
     } catch {
       /* ignore json error */
     }
   }
 
-  // Format 5: URL dengan query ?dojoId=... atau pathname /dojo/... atau /v/... atau /ranting/...
+  // Format 4: URL dengan query ?dojoId=... atau pathname /dojo/...
   if (trimmed.includes("http://") || trimmed.includes("https://")) {
     try {
       const url = new URL(trimmed);
-      const dojoParam =
-        url.searchParams.get("dojoId") ||
-        url.searchParams.get("dojo") ||
-        url.searchParams.get("ranting") ||
-        url.searchParams.get("id");
+      const dojoParam = url.searchParams.get("dojoId") || url.searchParams.get("dojo");
       if (dojoParam) return dojoParam.trim();
-
       const pathParts = url.pathname.split("/").filter(Boolean);
-      const keywords = ["dojo", "ranting", "v", "kegiatan", "event"];
-      for (const kw of keywords) {
-        const idx = pathParts.indexOf(kw);
-        if (idx !== -1 && pathParts[idx + 1]) {
-          return pathParts[idx + 1].trim();
-        }
+      const dojoIdx = pathParts.indexOf("dojo");
+      if (dojoIdx !== -1 && pathParts[dojoIdx + 1]) {
+        return pathParts[dojoIdx + 1].trim();
       }
     } catch {
       /* ignore url error */
     }
   }
 
-  // Format 6: Direct string ID / Name / Text (fallback for any scanned QR code at any dojo/location)
-  if (trimmed.length > 0) {
+  // Format 5: Direct string ID (e.g. CUID or UUID or alphanumeric)
+  if (/^[a-zA-Z0-9_-]{10,64}$/.test(trimmed)) {
     return trimmed;
   }
 

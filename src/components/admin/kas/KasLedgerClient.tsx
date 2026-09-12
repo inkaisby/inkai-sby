@@ -17,7 +17,6 @@ import {
   ChevronRight,
   Copy,
   Download,
-  FolderSearch,
   Lock,
   Maximize2,
   Minimize2,
@@ -26,9 +25,7 @@ import {
   Printer,
   RefreshCw,
   RotateCcw,
-  Search,
   Share2,
-  Sparkles,
   Trash2,
   Unlock,
   Upload,
@@ -48,7 +45,6 @@ import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 import { formatRp } from "@/lib/terbilang";
 import {
   aggregateKasByDojo,
-  extractDojoNameFromKasRow,
   firstOfMonthWib,
   formatKasDateId,
   formatRecapDojoTextForWa,
@@ -103,28 +99,6 @@ function emptyMassRow(txnDate: string): DraftRow {
 
 function isValidYmd(ymd: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(ymd);
-}
-
-function getBulanLaluBounds() {
-  const d = new Date();
-  d.setMonth(d.getMonth() - 1);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const lastDay = new Date(y, d.getMonth() + 1, 0).getDate();
-  return { from: `${y}-${m}-01`, to: `${y}-${m}-${String(lastDay).padStart(2, "0")}` };
-}
-
-function getSemesterUktBounds() {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = d.getMonth();
-  if (m < 6) return { from: `${y}-01-01`, to: `${y}-06-30` };
-  return { from: `${y}-07-01`, to: `${y}-12-31` };
-}
-
-function getTahunIniBounds() {
-  const y = new Date().getFullYear();
-  return { from: `${y}-01-01`, to: `${y}-12-31` };
 }
 
 export function KasLedgerClient({
@@ -203,21 +177,6 @@ export function KasLedgerClient({
   const [uktDepositLoading, setUktDepositLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"buku" | "laporan">("laporan");
   const [tableFullscreen, setTableFullscreen] = useState(false);
-  const [mutasiMode, setMutasiMode] = useState<"form" | "explorer">("form");
-  const [explorerTab, setExplorerTab] = useState<"ranting" | "preset">("ranting");
-  const [explorerSearch, setExplorerSearch] = useState("");
-  const [selectedExplorerDojos, setSelectedExplorerDojos] = useState<Set<string>>(new Set());
-  const [expandedDojos, setExpandedDojos] = useState<Set<string>>(new Set());
-  const [submitting, setSubmitting] = useState(false);
-
-  function toggleExpandDojo(dojoName: string) {
-    setExpandedDojos((prev) => {
-      const next = new Set(prev);
-      if (next.has(dojoName)) next.delete(dojoName);
-      else next.add(dojoName);
-      return next;
-    });
-  }
   const [form, setForm] = useState({
     txnDate: ymdWib(),
     description: "",
@@ -248,10 +207,7 @@ export function KasLedgerClient({
 
   const dojoSummaries = useMemo(() => {
     const base = aggregateKasByDojo(data?.rows ?? [], officialDojoList);
-    const map = new Map<string, DojoKasSummary>();
-
-    // 1. Load base records from existing Kas transactions
-    for (const item of base) {
+    return base.map((item) => {
       const dojoId =
         item.dojoId ||
         matchKasDojoId(item.dojoName, officialDojoList) ||
@@ -261,42 +217,11 @@ export function KasLedgerClient({
         uktDepositMap,
         uktDepositLoadError,
       );
-      map.set(item.dojoName.toUpperCase(), {
+      return {
         ...item,
         dojoId,
-        uktDepositLabel: display.label ?? "—",
-      });
-    }
-
-    // 2. Ensure ALL official dojos from officialDojoList are included
-    for (const dojo of officialDojoList) {
-      const dojoName = dojo.name.toUpperCase();
-      if (!map.has(dojoName)) {
-        const display = kasUktDepositDisplay(
-          dojo.id,
-          uktDepositMap,
-          uktDepositLoadError,
-        );
-        map.set(dojoName, {
-          dojoName,
-          isOfficialDojo: true,
-          dojoId: dojo.id,
-          totalUkt: 0,
-          totalKomisiUkt: 0,
-          totalLatber: 0,
-          totalKomisiLatber: 0,
-          totalIuran: 0,
-          totalLainnya: 0,
-          totalMasuk: 0,
-          uktDepositLabel: display.label ?? "—",
-        });
-      }
-    }
-
-    return Array.from(map.values()).sort((a, b) => {
-      if (b.totalMasuk !== a.totalMasuk) return b.totalMasuk - a.totalMasuk;
-      if (b.totalUkt !== a.totalUkt) return b.totalUkt - a.totalUkt;
-      return a.dojoName.localeCompare(b.dojoName, "id");
+        uktDepositLabel: display.label,
+      } satisfies DojoKasSummary;
     });
   }, [data?.rows, officialDojoList, uktDepositMap, uktDepositLoadError]);
 
@@ -376,7 +301,7 @@ export function KasLedgerClient({
   }, [qs]);
 
   useEffect(() => {
-    if (!recapDojoOpen && !addOpen && mutasiMode !== "explorer") return;
+    if (!recapDojoOpen) return;
     let cancelled = false;
     setUktDepositLoading(true);
     const params = new URLSearchParams();
@@ -416,7 +341,7 @@ export function KasLedgerClient({
     return () => {
       cancelled = true;
     };
-  }, [recapDojoOpen, addOpen, mutasiMode, fromYmd, toYmd]);
+  }, [recapDojoOpen, fromYmd, toYmd]);
 
   const [selectionQs, setSelectionQs] = useState(qs);
   if (qs !== selectionQs) {
@@ -432,7 +357,7 @@ export function KasLedgerClient({
       if (!res.ok) throw new Error(json.error || "Gagal memuat");
       setData(json);
       const nextScopeKey = `${json.scope.type}:${json.scope.id}`;
-      setScopeKey((prev) => prev || nextScopeKey);
+      setScopeKey(nextScopeKey);
       if (collapseSeedQsRef.current !== qs) {
         collapseSeedQsRef.current = qs;
         setCollapsedKegiatan(
@@ -565,9 +490,6 @@ export function KasLedgerClient({
     setMoveOpen(false);
     setMoveScopeKey("");
     setPostScopeKey("");
-    setMutasiMode("form");
-    setSelectedExplorerDojos(new Set());
-    setExplorerSearch("");
     setForm({
       txnDate: ymdWib(),
       description: "",
@@ -1549,92 +1471,17 @@ export function KasLedgerClient({
                   </select>
                 </Field>
               ) : null}
-              <div className="flex flex-wrap items-center gap-1.5 mt-auto pt-1 sm:pt-0">
-                <span className="text-[11px] font-medium text-muted-foreground self-center mr-0.5">Preset:</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFromYmd(firstOfMonthWib());
-                    setToYmd(ymdWib());
-                    toast.info("Filter tanggal: Bulan Ini");
-                  }}
-                  className={cn(
-                    "h-8 rounded-md px-2.5 text-xs font-medium border transition-colors",
-                    fromYmd === firstOfMonthWib() && toYmd === ymdWib()
-                      ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
-                      : "bg-background hover:bg-muted text-muted-foreground",
-                  )}
-                >
-                  Bulan Ini
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const b = getBulanLaluBounds();
-                    setFromYmd(b.from);
-                    setToYmd(b.to);
-                    toast.info("Filter tanggal: Bulan Lalu");
-                  }}
-                  className={cn(
-                    "h-8 rounded-md px-2.5 text-xs font-medium border transition-colors",
-                    fromYmd === getBulanLaluBounds().from && toYmd === getBulanLaluBounds().to
-                      ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
-                      : "bg-background hover:bg-muted text-muted-foreground",
-                  )}
-                >
-                  Bulan Lalu
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const b = getSemesterUktBounds();
-                    setFromYmd(b.from);
-                    setToYmd(b.to);
-                    toast.info("Filter tanggal: Semester UKT");
-                  }}
-                  className={cn(
-                    "h-8 rounded-md px-2.5 text-xs font-medium border transition-colors",
-                    fromYmd === getSemesterUktBounds().from && toYmd === getSemesterUktBounds().to
-                      ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
-                      : "bg-background hover:bg-muted text-muted-foreground",
-                  )}
-                >
-                  Semester UKT
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const b = getTahunIniBounds();
-                    setFromYmd(b.from);
-                    setToYmd(b.to);
-                    toast.info("Filter tanggal: Tahun Ini");
-                  }}
-                  className={cn(
-                    "h-8 rounded-md px-2.5 text-xs font-medium border transition-colors",
-                    fromYmd === getTahunIniBounds().from && toYmd === getTahunIniBounds().to
-                      ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
-                      : "bg-background hover:bg-muted text-muted-foreground",
-                  )}
-                >
-                  Tahun Ini
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFromYmd("");
-                    setToYmd("");
-                    toast.info("Filter tanggal: Semua Tanggal");
-                  }}
-                  className={cn(
-                    "h-8 rounded-md px-2.5 text-xs font-medium border transition-colors",
-                    !fromYmd && !toYmd
-                      ? "bg-primary text-primary-foreground border-primary font-bold shadow-xs"
-                      : "bg-background hover:bg-muted text-muted-foreground",
-                  )}
-                >
-                  Semua Tanggal
-                </button>
-              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 shrink-0 text-xs px-2.5 mt-auto"
+                onClick={() => {
+                  setFromYmd("");
+                  setToYmd("");
+                }}
+              >
+                Semua tanggal
+              </Button>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               <Button type="button" variant="outline" size="sm" className="h-8 text-xs px-2.5" onClick={handlePrint}>
@@ -2428,630 +2275,117 @@ export function KasLedgerClient({
           if (!o) closeMutasiDialog();
         }}
       >
-        <DialogContent className={cn("transition-all duration-200 overflow-y-auto max-h-[92vh]", !editId && mutasiMode === "explorer" ? "sm:max-w-4xl" : "sm:max-w-xl")}>
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <span>{editId ? "Ubah mutasi" : "Tambah mutasi"}</span>
-              {!editId && (
-                <span className="text-xs font-normal text-muted-foreground">
-                  {mutasiMode === "explorer" ? "Mode Explorer Ranting" : "Mode Isian Form"}
-                </span>
-              )}
-            </DialogTitle>
+            <DialogTitle>{editId ? "Ubah mutasi" : "Tambah mutasi"}</DialogTitle>
           </DialogHeader>
-
-          {/* Mode Switcher Bar */}
-          {!editId && (
-            <div className="flex items-center gap-1 rounded-lg bg-muted p-1 text-xs">
-              <button
-                type="button"
-                onClick={() => setMutasiMode("form")}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md font-medium transition-all",
-                  mutasiMode === "form"
-                    ? "bg-background text-foreground shadow-sm font-bold"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Tanggal">
+              <KasDateField
+                value={form.txnDate}
+                onChange={(txnDate) => setForm({ ...form, txnDate })}
+              />
+            </Field>
+            <Field label="Arah">
+              <select
+                className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+                value={form.direction}
+                onChange={(e) =>
+                  setForm({ ...form, direction: e.target.value as "in" | "out" })
+                }
               >
-                <Pencil className="h-3.5 w-3.5" />
-                <span>Form Isian Manual</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMutasiMode("explorer");
-                  setRecapDojoOpen(true);
-                }}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md font-medium transition-all",
-                  mutasiMode === "explorer"
-                    ? "bg-emerald-600 text-white shadow-sm font-bold"
-                    : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40",
-                )}
-              >
-                <FolderSearch className="h-3.5 w-3.5" />
-                <span>⚡ Explorer Setoran Ranting (UKT & Latber)</span>
-              </button>
+                <option value="in">Masuk</option>
+                <option value="out">Keluar</option>
+              </select>
+            </Field>
+            <div className="sm:col-span-2">
+            <Field label="Keterangan">
+              <Input
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+              />
+            </Field>
             </div>
-          )}
-
-          {mutasiMode === "form" || editId ? (
-            /* Standard Form View */
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Tanggal">
-                <KasDateField
-                  value={form.txnDate}
-                  onChange={(txnDate) => setForm({ ...form, txnDate })}
-                />
-              </Field>
-              <Field label="Arah">
-                <select
-                  className="h-10 w-full rounded-md border bg-background px-2 text-sm"
-                  value={form.direction}
-                  onChange={(e) =>
-                    setForm({ ...form, direction: e.target.value as "in" | "out" })
-                  }
-                >
-                  <option value="in">Masuk</option>
-                  <option value="out">Keluar</option>
-                </select>
-              </Field>
+            <Field label="Kegiatan">
+              <Input
+                list="kas-kegiatan-options"
+                value={form.kegiatan}
+                onChange={(e) => setForm({ ...form, kegiatan: e.target.value })}
+                placeholder="Pilih atau ketik kegiatan"
+                maxLength={120}
+                autoComplete="off"
+              />
+              <datalist id="kas-kegiatan-options">
+                {(data?.kegiatanOptions ?? []).map((k) => (
+                  <option key={k} value={k} />
+                ))}
+              </datalist>
+            </Field>
+            <Field label="Nominal">
+              <Input
+                type="number"
+                min={1}
+                value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              />
+            </Field>
+            {!editId && canPickLokasi() ? (
               <div className="sm:col-span-2">
-                <Field label="Keterangan">
-                  <Input
-                    value={form.description}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
-                    placeholder="misal: Setoran UKT Semester II 2026 - Ranting AIRLANGGA"
-                  />
+                <Field label="Lokasi">
+                  <select
+                    className="h-10 w-full rounded-md border bg-background px-2 text-sm"
+                    value={postScopeKey}
+                    onChange={(e) => setPostScopeKey(e.target.value)}
+                  >
+                    {(data?.scopes ?? []).map((scope) => (
+                      <option
+                        key={`${scope.type}:${scope.id}`}
+                        value={`${scope.type}:${scope.id}`}
+                      >
+                        {scope.label}
+                      </option>
+                    ))}
+                  </select>
                 </Field>
               </div>
-              <Field label="Kegiatan">
-                <Input
-                  list="kas-kegiatan-options"
-                  value={form.kegiatan}
-                  onChange={(e) => setForm({ ...form, kegiatan: e.target.value })}
-                  placeholder="Pilih atau ketik kegiatan"
-                  maxLength={120}
-                  autoComplete="off"
-                />
-                <datalist id="kas-kegiatan-options">
-                  {(data?.kegiatanOptions ?? []).map((k) => (
-                    <option key={k} value={k} />
-                  ))}
-                </datalist>
-              </Field>
-              <Field label="Nominal">
-                <Input
-                  type="number"
-                  min={1}
-                  value={form.amount}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
-                  placeholder="Nominal rupiah"
-                />
-              </Field>
-              {!editId && canPickLokasi() ? (
-                <div className="sm:col-span-2">
-                  <Field label="Lokasi">
-                    <select
-                      className="h-10 w-full rounded-md border bg-background px-2 text-sm"
-                      value={postScopeKey}
-                      onChange={(e) => setPostScopeKey(e.target.value)}
-                    >
-                      {(data?.scopes ?? []).map((scope) => (
-                        <option
-                          key={`${scope.type}:${scope.id}`}
-                          value={`${scope.type}:${scope.id}`}
-                        >
-                          {scope.label}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
-              ) : null}
-              {editId && data?.canTransfer && !isRanting ? (
-                <div className="sm:col-span-2 rounded-md border border-dashed p-3">
-                  <label className="flex items-center gap-2 text-sm font-medium">
-                    <input
-                      type="checkbox"
-                      checked={moveOpen}
-                      onChange={(e) => setMoveOpen(e.target.checked)}
-                    />
-                    Pindah ke buku lain
-                  </label>
-                  {moveOpen ? (
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <Field label="Buku tujuan">
-                        <select
-                          className="h-10 rounded-md border bg-background px-2 text-sm"
-                          value={moveScopeKey}
-                          onChange={(e) => setMoveScopeKey(e.target.value)}
-                        >
-                          <option value="">Pilih buku tujuan</option>
-                          {(data?.scopes ?? [])
-                            .filter((scope) => `${scope.type}:${scope.id}` !== scopeKey)
-                            .map((scope) => (
-                              <option key={`${scope.type}:${scope.id}`} value={`${scope.type}:${scope.id}`}>
-                                {scope.label}
-                              </option>
-                            ))}
-                        </select>
-                      </Field>
-                      <p className="text-xs text-muted-foreground">
-                        Baris akan hilang dari buku saat ini dan muncul di buku tujuan.
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            /* Explorer View Mode */
-            <div className="space-y-3">
-              {/* Sub-Tabs inside Explorer */}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-                <div className="flex items-center gap-1.5 text-xs font-semibold">
-                  <button
-                    type="button"
-                    onClick={() => setExplorerTab("ranting")}
-                    className={cn(
-                      "px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5",
-                      explorerTab === "ranting"
-                        ? "bg-primary text-primary-foreground font-bold shadow-sm"
-                        : "bg-muted text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <span>🏛️ Total Tagihan Ranting ({dojoSummaries.length})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExplorerTab("preset")}
-                    className={cn(
-                      "px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5",
-                      explorerTab === "preset"
-                        ? "bg-primary text-primary-foreground font-bold shadow-sm"
-                        : "bg-muted text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <span>⚡ Preset Mutasi Rutin</span>
-                  </button>
-                </div>
-
-                {explorerTab === "ranting" && (
-                  <div className="relative w-full sm:w-56">
-                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={explorerSearch}
-                      onChange={(e) => setExplorerSearch(e.target.value)}
-                      placeholder="Cari ranting..."
-                      className="h-8 pl-8 text-xs"
-                    />
+            ) : null}
+            {editId && data?.canTransfer && !isRanting ? (
+              <div className="sm:col-span-2 rounded-md border border-dashed p-3">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={moveOpen}
+                    onChange={(e) => setMoveOpen(e.target.checked)}
+                  />
+                  Pindah ke buku lain
+                </label>
+                {moveOpen ? (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <Field label="Buku tujuan">
+                      <select
+                        className="h-10 rounded-md border bg-background px-2 text-sm"
+                        value={moveScopeKey}
+                        onChange={(e) => setMoveScopeKey(e.target.value)}
+                      >
+                        <option value="">Pilih buku tujuan</option>
+                        {(data?.scopes ?? [])
+                          .filter((scope) => `${scope.type}:${scope.id}` !== scopeKey)
+                          .map((scope) => (
+                            <option key={`${scope.type}:${scope.id}`} value={`${scope.type}:${scope.id}`}>
+                              {scope.label}
+                            </option>
+                          ))}
+                      </select>
+                    </Field>
+                    <p className="text-xs text-muted-foreground">
+                      Baris akan hilang dari buku saat ini dan muncul di buku tujuan.
+                    </p>
                   </div>
-                )}
+                ) : null}
               </div>
-
-              {explorerTab === "ranting" ? (
-                /* Ranting Explorer Table */
-                <div className="space-y-2">
-                  <div className="max-h-[340px] overflow-auto rounded-lg border bg-card">
-                    <table className="w-full text-left text-xs">
-                      <thead className="sticky top-0 z-10 border-b bg-muted/90 backdrop-blur font-semibold text-muted-foreground">
-                        <tr>
-                          <th className="p-2.5 w-8 text-center">
-                            <input
-                              type="checkbox"
-                              checked={
-                                dojoSummaries.length > 0 &&
-                                dojoSummaries
-                                  .filter((d) => !explorerSearch.trim() || d.dojoName.toLowerCase().includes(explorerSearch.toLowerCase()))
-                                  .every((d) => selectedExplorerDojos.has(d.dojoName))
-                              }
-                              onChange={(e) => {
-                                const visible = dojoSummaries.filter(
-                                  (d) => !explorerSearch.trim() || d.dojoName.toLowerCase().includes(explorerSearch.toLowerCase()),
-                                );
-                                if (e.target.checked) {
-                                  setSelectedExplorerDojos(
-                                    new Set(visible.map((d) => d.dojoName)),
-                                  );
-                                } else {
-                                  setSelectedExplorerDojos(new Set());
-                                }
-                              }}
-                              className="rounded"
-                            />
-                          </th>
-                          <th className="p-2.5 min-w-[160px]">Ranting / Dojo</th>
-                          <th className="p-2.5 text-right">Setoran Masuk</th>
-                          <th className="p-2.5 text-right">CASHBACK</th>
-                          <th className="p-2.5 whitespace-nowrap">Status Setor</th>
-                          <th className="p-2.5 text-right w-24">Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y">
-                        {dojoSummaries
-                          .filter((d) => !explorerSearch.trim() || d.dojoName.toLowerCase().includes(explorerSearch.toLowerCase()))
-                          .length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="p-6 text-center text-muted-foreground">
-                              {explorerSearch ? "Ranting tidak ditemukan." : "Tidak ada transaksi ranting."}
-                            </td>
-                          </tr>
-                        ) : (
-                          dojoSummaries
-                            .filter((d) => !explorerSearch.trim() || d.dojoName.toLowerCase().includes(explorerSearch.toLowerCase()))
-                            .map((d) => {
-                              const isChecked = selectedExplorerDojos.has(d.dojoName);
-                              const isExpanded = expandedDojos.has(d.dojoName);
-                              const displayAmt = d.totalUkt || d.totalMasuk || 0;
-                              const matchingRows = (data?.rows ?? []).filter((r) => {
-                                const found = extractDojoNameFromKasRow(r, officialDojoList);
-                                return found && found.toUpperCase() === d.dojoName.toUpperCase();
-                              });
-
-                              return (
-                                <Fragment key={d.dojoName}>
-                                  <tr
-                                    className={cn(
-                                      "hover:bg-muted/40 transition-colors",
-                                      isChecked && "bg-emerald-50/50 dark:bg-emerald-950/20",
-                                      isExpanded && "bg-muted/20",
-                                    )}
-                                  >
-                                    <td className="p-2.5 text-center">
-                                      <input
-                                        type="checkbox"
-                                        checked={isChecked}
-                                        onChange={(e) => {
-                                          const next = new Set(selectedExplorerDojos);
-                                          if (e.target.checked) next.add(d.dojoName);
-                                          else next.delete(d.dojoName);
-                                          setSelectedExplorerDojos(next);
-                                        }}
-                                        className="rounded"
-                                      />
-                                    </td>
-                                    <td className="p-2.5 font-bold uppercase tracking-wide">
-                                      <div className="flex items-center gap-1.5">
-                                        <button
-                                          type="button"
-                                          onClick={() => toggleExpandDojo(d.dojoName)}
-                                          className="p-1 hover:bg-muted rounded text-muted-foreground transition-colors"
-                                          title="Buka/tutup rincian transaksi & peserta"
-                                        >
-                                          {isExpanded ? (
-                                            <ChevronDown className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                                          ) : (
-                                            <ChevronRight className="h-4 w-4" />
-                                          )}
-                                        </button>
-                                        <span>{d.dojoName}</span>
-                                      </div>
-                                    </td>
-                                    <td className="p-2.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">
-                                      {formatRp(displayAmt)}
-                                    </td>
-                                    <td className="p-2.5 text-right text-muted-foreground">
-                                      {formatRp(d.totalKomisiUkt + d.totalKomisiLatber)}
-                                    </td>
-                                    <td className="p-2.5">
-                                      <div className="flex flex-wrap items-center gap-1">
-                                        <span
-                                          className={cn(
-                                            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border",
-                                            (d.uktDepositLabel || "").includes("diterima") || (d.uktDepositLabel || "").includes("Lunas")
-                                              ? "bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300"
-                                              : "bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300",
-                                          )}
-                                        >
-                                          {d.uktDepositLabel}
-                                        </span>
-                                        {matchingRows.reduce((sum, r) => sum + r.amountIn, 0) > 0 && (
-                                          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border bg-teal-100 text-teal-900 border-teal-400 dark:bg-teal-950 dark:text-teal-200" title="Setoran ranting ini sudah pernah tercatat di Buku Kas">
-                                            ✓ Dicatat di Kas ({formatRp(matchingRows.reduce((sum, r) => sum + r.amountIn, 0))})
-                                          </span>
-                                        )}
-                                      </div>
-                                    </td>
-                                    <td className="p-2.5 text-right">
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        className={cn(
-                                          "h-7 text-[11px] px-2",
-                                          matchingRows.reduce((sum, r) => sum + r.amountIn, 0) > 0 && "border-amber-400 text-amber-900 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/30",
-                                        )}
-                                        onClick={() => {
-                                          const recordedAmt = matchingRows.reduce((sum, r) => sum + r.amountIn, 0);
-                                          const isUkt = d.totalUkt > 0 || !d.totalLatber;
-                                          const amt = d.totalUkt || d.totalMasuk || 0;
-                                          setForm({
-                                            txnDate: form.txnDate,
-                                            direction: "in",
-                                            description: `Setoran ${isUkt ? "UKT " + (uktDepositPeriod?.title || "Periode Aktif") : "Latber"} - Ranting ${d.dojoName}`,
-                                            kegiatan: isUkt ? "UKT" : "LATBER",
-                                            amount: amt > 0 ? String(amt) : "",
-                                          });
-                                          setMutasiMode("form");
-                                          if (recordedAmt > 0) {
-                                            toast.warning(`Perhatian: Setoran ${d.dojoName} sudah pernah tercatat di Kas sebesar ${formatRp(recordedAmt)}. Mohon periksa kembali agar tidak ganda.`);
-                                          } else {
-                                            toast.success(`Format setoran ${d.dojoName} dimasukkan ke form`);
-                                          }
-                                        }}
-                                      >
-                                        Pilih 1 Item
-                                      </Button>
-                                    </td>
-                                  </tr>
-
-                                  {isExpanded && (
-                                    <tr className="bg-muted/30 dark:bg-muted/10 border-b">
-                                      <td colSpan={6} className="p-3 text-xs">
-                                        <div className="space-y-2.5 rounded-md border bg-background p-3 shadow-xs">
-                                          <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-                                            <div className="font-semibold text-foreground flex items-center gap-1.5">
-                                              <span>📊 Breakdown Rincian Setoran {d.dojoName}</span>
-                                            </div>
-                                            {d.dojoId && (
-                                              <Link
-                                                href={`/admin/ukt?dojo=${d.dojoId}${uktDepositPeriod ? `&period=${uktDepositPeriod.id}` : ""}`}
-                                                target="_blank"
-                                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline bg-blue-50 dark:bg-blue-950/50 px-2.5 py-1 rounded border border-blue-200 dark:border-blue-800"
-                                              >
-                                                <span>🔗 Lihat Daftar Nama Anggota & Pembayaran di UKT</span>
-                                              </Link>
-                                            )}
-                                          </div>
-
-                                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                                            <div className="rounded border bg-muted/30 p-2">
-                                              <span className="text-muted-foreground block">Tagihan UKT:</span>
-                                              <span className="font-bold text-emerald-700 dark:text-emerald-400">{formatRp(d.totalUkt)}</span>
-                                            </div>
-                                            <div className="rounded border bg-muted/30 p-2">
-                                              <span className="text-muted-foreground block">Cashback Dojo:</span>
-                                              <span className="font-bold text-amber-600 dark:text-amber-400">{formatRp(d.totalKomisiUkt + d.totalKomisiLatber)}</span>
-                                            </div>
-                                            <div className="rounded border bg-muted/30 p-2">
-                                              <span className="text-muted-foreground block">Setoran Latber:</span>
-                                              <span className="font-bold text-teal-700 dark:text-teal-400">{formatRp(d.totalLatber)}</span>
-                                            </div>
-                                            <div className="rounded border bg-muted/30 p-2">
-                                              <span className="text-muted-foreground block">Nett Kas Masuk:</span>
-                                              <span className="font-bold text-foreground">{formatRp(d.totalMasuk)}</span>
-                                            </div>
-                                          </div>
-
-                                          {matchingRows.length > 0 ? (
-                                            <div className="space-y-1 pt-1">
-                                              <p className="text-[11px] font-semibold text-muted-foreground">Catatan Mutasi Kas Ranting Ini ({matchingRows.length} transaksi):</p>
-                                              <div className="max-h-36 overflow-y-auto space-y-1 rounded border p-2 bg-muted/20">
-                                                {matchingRows.map((mr) => (
-                                                  <div key={mr.id} className="flex items-center justify-between text-[11px] border-b border-border/40 pb-1 last:border-0 last:pb-0">
-                                                    <span className="truncate pr-2 font-medium">{mr.txnDate} · {mr.description}</span>
-                                                    <span className="font-bold text-emerald-700 dark:text-emerald-400 shrink-0">+{formatRp(mr.amountIn)}</span>
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          ) : (
-                                            <p className="text-[11px] text-muted-foreground italic">Belum ada catatan mutasi kas yang diinput untuk ranting ini di rentang tanggal terpilih.</p>
-                                          )}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  )}
-                                </Fragment>
-                              );
-                            })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Bulk Selection Summary Bar */}
-                  {selectedExplorerDojos.size > 0 && (
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-2 p-3 rounded-lg border-2 border-emerald-500/80 bg-emerald-50 dark:bg-emerald-950/60 shadow-sm">
-                      <div className="text-xs text-emerald-900 dark:text-emerald-100 font-semibold">
-                        <span>
-                          {selectedExplorerDojos.size} Ranting Terpilih — Total Setoran:{" "}
-                        </span>
-                        <span className="text-sm font-extrabold text-emerald-700 dark:text-emerald-300">
-                          {formatRp(
-                            dojoSummaries
-                              .filter((d) => selectedExplorerDojos.has(d.dojoName))
-                              .reduce((sum, d) => sum + (d.totalUkt || d.totalMasuk || 0), 0),
-                          )}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-8 text-xs flex-1 sm:flex-initial"
-                          onClick={() => {
-                            const selectedList = dojoSummaries.filter((d) =>
-                              selectedExplorerDojos.has(d.dojoName),
-                            );
-                            const names = selectedList.map((d) => d.dojoName).join(", ");
-                            const total = selectedList.reduce(
-                              (sum, d) => sum + (d.totalUkt || d.totalMasuk || 0),
-                              0,
-                            );
-                            setForm({
-                              txnDate: form.txnDate,
-                              direction: "in",
-                              description: `Setoran UKT ${uktDepositPeriod?.title || ""} - Ranting ${names}`,
-                              kegiatan: "UKT",
-                              amount: String(total),
-                            });
-                            setMutasiMode("form");
-                            toast.success("Mutasi gabungan diisi ke form");
-                          }}
-                        >
-                          Gabung ke 1 Mutasi
-                        </Button>
-
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={submitting}
-                          className="h-8 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex-1 sm:flex-initial"
-                          onClick={async () => {
-                            const selectedList = dojoSummaries.filter((d) =>
-                              selectedExplorerDojos.has(d.dojoName),
-                            );
-                            const entries = selectedList.map((d) => {
-                              const isUkt = d.totalUkt > 0 || !d.totalLatber;
-                              const amt = d.totalUkt || d.totalMasuk || 0;
-                              return {
-                                txnDate: form.txnDate,
-                                direction: "in" as const,
-                                description: `Setoran ${isUkt ? "UKT " + (uktDepositPeriod?.title || "Periode Aktif") : "Latber"} - Ranting ${d.dojoName}`,
-                                kegiatan: isUkt ? "UKT" : "LATBER",
-                                amount: amt,
-                              };
-                            });
-                            try {
-                              setSubmitting(true);
-                              await postEntries(entries, postScopeKey || scopeKey);
-                              toast.success(`Berhasil menambahkan ${entries.length} mutasi setoran ke Kas!`);
-                              closeMutasiDialog();
-                            } catch (err) {
-                              toast.error(err instanceof Error ? err.message : "Gagal simpan");
-                            } finally {
-                              setSubmitting(false);
-                            }
-                          }}
-                        >
-                          <Sparkles className="mr-1 h-3.5 w-3.5" />
-                          Simpan Multi-Batch ({selectedExplorerDojos.size} Baris)
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                /* Preset Mutasi Cepat Tab */
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 py-1">
-                  {[
-                    {
-                      title: "Setoran UKT Ranting",
-                      direction: "in" as const,
-                      kegiatan: "UKT",
-                      defaultDesc: `Setoran UKT ${uktDepositPeriod?.title || "Periode Aktif"} - Ranting `,
-                      icon: "🏛️",
-                      badge: "Kas Masuk",
-                      badgeColor: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-                    },
-                    {
-                      title: "Setoran Latber Ranting",
-                      direction: "in" as const,
-                      kegiatan: "LATBER",
-                      defaultDesc: "Setoran Latber - Ranting ",
-                      icon: "🥋",
-                      badge: "Kas Masuk",
-                      badgeColor: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-                    },
-                    {
-                      title: "Setoran Iuran Bulanan",
-                      direction: "in" as const,
-                      kegiatan: "Iuran",
-                      defaultDesc: "Setoran Iuran Anggota - Ranting ",
-                      icon: "💳",
-                      badge: "Kas Masuk",
-                      badgeColor: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-                    },
-                    {
-                      title: "Sewa Gedung / Tempat Ujian",
-                      direction: "out" as const,
-                      kegiatan: "Operasional",
-                      defaultDesc: "Pembayaran Sewa Gedung & Tempat Ujian",
-                      icon: "🏢",
-                      badge: "Kas Keluar",
-                      badgeColor: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
-                    },
-                    {
-                      title: "Honorarium Penguji & Panitia",
-                      direction: "out" as const,
-                      kegiatan: "UKT",
-                      defaultDesc: "Honorarium Penguji & Panitia Pelaksana UKT",
-                      icon: "🤝",
-                      badge: "Kas Keluar",
-                      badgeColor: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
-                    },
-                    {
-                      title: "Konsumsi Panitia & Ujian",
-                      direction: "out" as const,
-                      kegiatan: "Konsumsi",
-                      defaultDesc: "Biaya Konsumsi Panitia & Penguji UKT/Latber",
-                      icon: "🍱",
-                      badge: "Kas Keluar",
-                      badgeColor: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
-                    },
-                    {
-                      title: "Pengadaan Medali, Sabuk & Piagam",
-                      direction: "out" as const,
-                      kegiatan: "Perlengkapan",
-                      defaultDesc: "Pengadaan Sabuk, Medali & Sertifikat UKT",
-                      icon: "🥇",
-                      badge: "Kas Keluar",
-                      badgeColor: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
-                    },
-                    {
-                      title: "CASHBACK / Komisi Ranting",
-                      direction: "out" as const,
-                      kegiatan: "UKT",
-                      defaultDesc: "Pencairan Cashback / Komisi Ranting ",
-                      icon: "💰",
-                      badge: "Kas Keluar",
-                      badgeColor: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300",
-                    },
-                  ].map((preset) => (
-                    <button
-                      key={preset.title}
-                      type="button"
-                      onClick={() => {
-                        setForm({
-                          txnDate: form.txnDate,
-                          direction: preset.direction,
-                          description: preset.defaultDesc,
-                          kegiatan: preset.kegiatan,
-                          amount: form.amount,
-                        });
-                        setMutasiMode("form");
-                        toast.success(`Format "${preset.title}" siap diisi`);
-                      }}
-                      className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-all text-left group hover:border-emerald-500/60"
-                    >
-                      <span className="text-2xl p-1 rounded-md bg-muted/60 shrink-0">
-                        {preset.icon}
-                      </span>
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <h4 className="font-bold text-xs group-hover:text-emerald-600 transition-colors">
-                            {preset.title}
-                          </h4>
-                          <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0", preset.badgeColor)}>
-                            {preset.badge}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {preset.defaultDesc}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          <DialogFooter className="gap-2">
+            ) : null}
+          </div>
+          <DialogFooter>
             <Button type="button" variant="outline" onClick={closeMutasiDialog}>
               Batal
             </Button>
@@ -3059,21 +2393,19 @@ export function KasLedgerClient({
               <Button
                 type="button"
                 variant="outline"
+                onClick={() => void handleTransfer()}
                 disabled={!moveScopeKey}
-                onClick={handleTransfer}
               >
                 Pindahkan
               </Button>
             ) : null}
-            {mutasiMode === "form" || editId ? (
-              <Button
-                type="button"
-                className="bg-inkai-red hover:bg-inkai-red/90 font-bold text-white"
-                onClick={() => void (editId ? handleEdit() : handleAdd())}
-              >
-                Simpan
-              </Button>
-            ) : null}
+            <Button
+              type="button"
+              className="bg-inkai-red hover:bg-inkai-red/90"
+              onClick={() => void (editId ? handleEdit() : handleAdd())}
+            >
+              Simpan
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3513,163 +2845,67 @@ export function KasLedgerClient({
                       </td>
                     </tr>
                   ) : (
-                    filteredDojoSummaries.map((item, idx) => {
-                      const isExpanded = expandedDojos.has(item.dojoName);
-                      const matchingRows = (data?.rows ?? []).filter((r) => {
-                        const found = extractDojoNameFromKasRow(r, officialDojoList);
-                        return found && found.toUpperCase() === item.dojoName.toUpperCase();
-                      });
-
-                      return (
-                        <Fragment key={item.dojoName}>
-                          <tr
+                    filteredDojoSummaries.map((item, idx) => (
+                      <tr
+                        key={item.dojoName}
+                        className="hover:bg-muted/50 cursor-pointer transition-colors"
+                        title={`Klik untuk memfilter transaksi ${item.dojoName}`}
+                        onClick={() => {
+                          setKegiatan(item.dojoName);
+                          setRecapDojoOpen(false);
+                          toast.info(`Memfilter kas untuk ranting: ${item.dojoName}`);
+                        }}
+                      >
+                        <td className="p-2 sm:p-2.5 text-muted-foreground">{idx + 1}</td>
+                        <td className="p-2 sm:p-2.5 font-semibold text-slate-900 dark:text-slate-100">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{item.dojoName}</span>
+                            {item.totalUkt > 0 && item.totalLatber > 0 ? (
+                              <span className="rounded bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 px-1.5 py-0.5 text-[10px] font-medium">
+                                UKT + Latber
+                              </span>
+                            ) : item.totalUkt > 0 ? (
+                              <span className="rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 px-1.5 py-0.5 text-[10px] font-medium">
+                                UKT
+                              </span>
+                            ) : (
+                              <span className="rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 px-1.5 py-0.5 text-[10px] font-medium">
+                                Latber
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
+                          {item.totalUkt > 0 ? formatRp(item.totalUkt) : "-"}
+                        </td>
+                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
+                          {item.totalKomisiUkt > 0 ? formatRp(item.totalKomisiUkt) : "-"}
+                        </td>
+                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
+                          {item.totalLatber > 0 ? formatRp(item.totalLatber) : "-"}
+                        </td>
+                        <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
+                          {item.totalKomisiLatber > 0 ? formatRp(item.totalKomisiLatber) : "-"}
+                        </td>
+                        <td className="p-2 sm:p-2.5 text-right font-bold text-teal-800 dark:text-teal-300 whitespace-nowrap">
+                          {formatRp(item.totalMasuk)}
+                        </td>
+                        <td className="p-2 sm:p-2.5 whitespace-nowrap">
+                          <span
                             className={cn(
-                              "hover:bg-muted/50 transition-colors",
-                              isExpanded && "bg-muted/20",
+                              "rounded px-1.5 py-0.5 text-[10px] font-medium",
+                              item.uktDepositLabel === "Setoran diterima"
+                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"
+                                : item.uktDepositLabel === "Belum setor"
+                                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                                  : "bg-muted text-muted-foreground",
                             )}
                           >
-                            <td className="p-2 sm:p-2.5 text-muted-foreground">{idx + 1}</td>
-                            <td className="p-2 sm:p-2.5 font-semibold text-slate-900 dark:text-slate-100">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleExpandDojo(item.dojoName);
-                                  }}
-                                  className="p-0.5 hover:bg-muted rounded text-muted-foreground transition-colors"
-                                  title="Buka / tutup rincian breakdown"
-                                >
-                                  {isExpanded ? (
-                                    <ChevronDown className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                                  ) : (
-                                    <ChevronRight className="h-4 w-4" />
-                                  )}
-                                </button>
-                                <span
-                                  className="cursor-pointer hover:underline"
-                                  title={`Klik nama untuk memfilter transaksi ${item.dojoName}`}
-                                  onClick={() => {
-                                    setKegiatan(item.dojoName);
-                                    setRecapDojoOpen(false);
-                                    toast.info(`Memfilter kas untuk ranting: ${item.dojoName}`);
-                                  }}
-                                >
-                                  {item.dojoName}
-                                </span>
-                                {item.totalUkt > 0 && item.totalLatber > 0 ? (
-                                  <span className="rounded bg-teal-100 dark:bg-teal-900/60 text-teal-800 dark:text-teal-200 px-1.5 py-0.5 text-[10px] font-medium">
-                                    UKT + Latber
-                                  </span>
-                                ) : item.totalUkt > 0 ? (
-                                  <span className="rounded bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 px-1.5 py-0.5 text-[10px] font-medium">
-                                    UKT
-                                  </span>
-                                ) : (
-                                  <span className="rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 px-1.5 py-0.5 text-[10px] font-medium">
-                                    Latber
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
-                              {item.totalUkt > 0 ? formatRp(item.totalUkt) : "-"}
-                            </td>
-                            <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
-                              {item.totalKomisiUkt > 0 ? formatRp(item.totalKomisiUkt) : "-"}
-                            </td>
-                            <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
-                              {item.totalLatber > 0 ? formatRp(item.totalLatber) : "-"}
-                            </td>
-                            <td className="p-2 sm:p-2.5 text-right whitespace-nowrap">
-                              {item.totalKomisiLatber > 0 ? formatRp(item.totalKomisiLatber) : "-"}
-                            </td>
-                            <td className="p-2 sm:p-2.5 text-right font-bold text-teal-800 dark:text-teal-300 whitespace-nowrap">
-                              {formatRp(item.totalMasuk)}
-                            </td>
-                            <td className="p-2 sm:p-2.5 whitespace-nowrap">
-                              <div className="flex flex-wrap items-center gap-1">
-                                <span
-                                  className={cn(
-                                    "rounded px-1.5 py-0.5 text-[10px] font-medium",
-                                    item.uktDepositLabel === "Setoran diterima"
-                                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200"
-                                      : item.uktDepositLabel === "Belum setor"
-                                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
-                                        : "bg-muted text-muted-foreground",
-                                  )}
-                                >
-                                  {item.uktDepositLabel || "—"}
-                                </span>
-                                {matchingRows.reduce((sum, r) => sum + r.amountIn, 0) > 0 && (
-                                  <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold border bg-teal-100 text-teal-900 border-teal-400 dark:bg-teal-950 dark:text-teal-200" title="Setoran ranting ini sudah pernah tercatat di Buku Kas">
-                                    ✓ Dicatat di Kas ({formatRp(matchingRows.reduce((sum, r) => sum + r.amountIn, 0))})
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-
-                          {isExpanded && (
-                            <tr className="bg-muted/30 dark:bg-muted/10 border-b">
-                              <td colSpan={8} className="p-3 text-xs">
-                                <div className="space-y-2.5 rounded-md border bg-background p-3 shadow-xs">
-                                  <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
-                                    <div className="font-semibold text-foreground flex items-center gap-1.5">
-                                      <span>📊 Rincian Detail Ranting {item.dojoName}</span>
-                                    </div>
-                                    {item.dojoId && (
-                                      <Link
-                                        href={`/admin/ukt?dojo=${item.dojoId}${uktDepositPeriod ? `&period=${uktDepositPeriod.id}` : ""}`}
-                                        target="_blank"
-                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline bg-blue-50 dark:bg-blue-950/50 px-2.5 py-1 rounded border border-blue-200 dark:border-blue-800"
-                                      >
-                                        <span>🔗 Lihat Daftar Nama Anggota & Pembayaran Lunas di Halaman UKT</span>
-                                      </Link>
-                                    )}
-                                  </div>
-
-                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                                    <div className="rounded border bg-muted/30 p-2">
-                                      <span className="text-muted-foreground block">Tagihan UKT:</span>
-                                      <span className="font-bold text-emerald-700 dark:text-emerald-400">{formatRp(item.totalUkt)}</span>
-                                    </div>
-                                    <div className="rounded border bg-muted/30 p-2">
-                                      <span className="text-muted-foreground block">Cashback Dojo:</span>
-                                      <span className="font-bold text-amber-600 dark:text-amber-400">{formatRp(item.totalKomisiUkt + item.totalKomisiLatber)}</span>
-                                    </div>
-                                    <div className="rounded border bg-muted/30 p-2">
-                                      <span className="text-muted-foreground block">Setoran Latber:</span>
-                                      <span className="font-bold text-teal-700 dark:text-teal-400">{formatRp(item.totalLatber)}</span>
-                                    </div>
-                                    <div className="rounded border bg-muted/30 p-2">
-                                      <span className="text-muted-foreground block">Nett Kas Masuk:</span>
-                                      <span className="font-bold text-foreground">{formatRp(item.totalMasuk)}</span>
-                                    </div>
-                                  </div>
-
-                                  {matchingRows.length > 0 ? (
-                                    <div className="space-y-1 pt-1">
-                                      <p className="text-[11px] font-semibold text-muted-foreground">Transaksi Kas Tercatat ({matchingRows.length} item):</p>
-                                      <div className="max-h-36 overflow-y-auto space-y-1 rounded border p-2 bg-muted/20">
-                                        {matchingRows.map((mr) => (
-                                          <div key={mr.id} className="flex items-center justify-between text-[11px] border-b border-border/40 pb-1 last:border-0 last:pb-0">
-                                            <span className="truncate pr-2 font-medium">{mr.txnDate} · {mr.description}</span>
-                                            <span className="font-bold text-emerald-700 dark:text-emerald-400 shrink-0">+{formatRp(mr.amountIn)}</span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <p className="text-[11px] text-muted-foreground italic">Belum ada catatan transaksi kas yang diinput untuk ranting ini di periode terpilih.</p>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      );
-                    })
+                            {item.uktDepositLabel || "—"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
                 {dojoSummaries.length > 0 ? (

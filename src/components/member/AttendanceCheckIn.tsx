@@ -207,16 +207,14 @@ export function AttendanceCheckIn({
       }
 
       const pos = await getPosition();
-      const activeQrPayload = (directQrPayload || qrPayload).trim();
-      const extractedFromQr = activeQrPayload ? parseDojoQrPayload(activeQrPayload) : null;
-
       const dojoId =
-        extractedFromQr ||
         selectedDojoId ||
         (selectedEventId
           ? events.find((e) => e.id === selectedEventId)?.hostDojoId
           : null) ||
         undefined;
+
+      const activeQrPayload = (directQrPayload || qrPayload).trim();
 
       const res = await fetch("/api/member/attendance/checkin", {
         method: "POST",
@@ -376,18 +374,6 @@ export function AttendanceCheckIn({
           Bukan di sini?
         </Button>
 
-        {defaultDojoId && homeDojoName ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-xs gap-1 text-inkai-red hover:bg-inkai-red/10"
-            onClick={() => setMyDojoQrOpen(true)}
-          >
-            <QrCode className="h-3.5 w-3.5" />
-            Barcode Dojo Saya
-          </Button>
-        ) : null}
 
         {bioSupported && !bioRegistered ? (
           <Button

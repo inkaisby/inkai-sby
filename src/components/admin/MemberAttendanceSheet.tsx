@@ -19,6 +19,7 @@ export type AttendanceLogRow = {
   id: string;
   checkInAt: string;
   method?: string;
+  dojoId?: string;
   dojoName?: string;
   eventTitle?: string | null;
 };
@@ -38,11 +39,20 @@ export function MemberAttendanceSheet({
   onOpenChange,
   member,
   semesterLabel,
+  onEditLog,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   member: MemberAttendanceProgress | null;
   semesterLabel: string;
+  onEditLog?: (log: {
+    id: string;
+    fullName: string;
+    nia: string;
+    dojoId?: string;
+    dojoName?: string;
+    checkInAt: string;
+  }) => void;
 }) {
   if (!member) return null;
   const progress = attendanceProgressLabel(member.pct);
@@ -104,13 +114,33 @@ export function MemberAttendanceSheet({
             member.logs.map((log) => (
               <div
                 key={log.id}
-                className="rounded-xl border border-border/60 bg-card px-3 py-2.5 text-sm"
+                className="flex items-center justify-between gap-2 rounded-xl border border-border/60 bg-card px-3 py-2.5 text-sm"
               >
-                <p className="font-medium">{log.dojoName || "—"}</p>
-                <p className="text-xs text-muted-foreground">
-                  {log.eventTitle || log.method || "—"} ·{" "}
-                  {new Date(log.checkInAt).toLocaleString("id-ID")}
-                </p>
+                <div>
+                  <p className="font-medium">{log.dojoName || "—"}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {log.eventTitle || log.method || "—"} ·{" "}
+                    {new Date(log.checkInAt).toLocaleString("id-ID")}
+                  </p>
+                </div>
+                {onEditLog ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onEditLog({
+                        id: log.id,
+                        fullName: member.fullName,
+                        nia: member.nia || "",
+                        dojoId: log.dojoId,
+                        dojoName: log.dojoName,
+                        checkInAt: log.checkInAt,
+                      })
+                    }
+                    className="rounded-lg border px-2 py-1 text-xs hover:bg-muted font-medium"
+                  >
+                    Koreksi
+                  </button>
+                ) : null}
               </div>
             ))
           )}
