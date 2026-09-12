@@ -50,7 +50,9 @@ async function AdminKasContent() {
     redirect(adminFallbackPath(user.roles ?? [], adminDojoGrants));
   }
   const scopeLabel = await resolveScopeLabel(user);
-  const isRanting = getPrimaryAdminRole(user.roles ?? []) === "ADMIN_DOJO";
+  const isRanting =
+    !isSuperAdminEmail(user.email) &&
+    getPrimaryAdminRole(user.roles ?? []) === "ADMIN_DOJO";
   const description = isRanting
     ? `${scopeLabel}. Buku ranting: iuran yang dilunasi di ranting + CASHBACK Latber. UKT dan nett Latber cabang ada di Kas cabang. Filter periode awal–akhir; tanpa backfill riwayat lama.`
     : `${scopeLabel}. Buku cabang: setoran iuran ranting, UKT, nett Latber, kwitansi non-iuran, plus Tambah manual. Cabang juga bisa koreksi lokasi baris manual antar buku wilayah.`;

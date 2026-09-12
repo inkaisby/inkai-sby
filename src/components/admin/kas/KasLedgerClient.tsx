@@ -2280,6 +2280,73 @@ export function KasLedgerClient({
             <DialogTitle>{editId ? "Ubah mutasi" : "Tambah mutasi"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
+            {!editId && dojoSummaries.length > 0 ? (
+              <div className="sm:col-span-2 rounded-lg border border-teal-300/80 bg-teal-50/70 p-2.5 dark:border-teal-800/80 dark:bg-teal-950/40">
+                <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
+                  <span className="text-xs font-bold text-teal-800 dark:text-teal-300 flex items-center gap-1">
+                    ⚡ Ambil dari Total Tagihan / Setoran Ranting
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Pilih untuk auto-fill form
+                  </span>
+                </div>
+                <select
+                  className="h-9 w-full rounded-md border border-teal-300 bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-teal-500 dark:border-teal-700"
+                  defaultValue=""
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) return;
+                    const [dojoName, type, amountStr] = val.split("::");
+                    const amount = Number(amountStr) || 0;
+                    let desc = `Setoran Ranting ${dojoName}`;
+                    if (type === "ukt") desc = `Setoran UKT Ranting ${dojoName}`;
+                    else if (type === "latber") desc = `Setoran Latber Ranting ${dojoName}`;
+                    else if (type === "iuran") desc = `Setoran Iuran Ranting ${dojoName}`;
+
+                    setForm({
+                      txnDate: form.txnDate || ymdWib(),
+                      direction: "in",
+                      description: desc,
+                      kegiatan: dojoName,
+                      amount: amount > 0 ? String(amount) : "",
+                    });
+                    toast.success(`Form terisi dari total tagihan ${dojoName} (${formatRp(amount)})`);
+                    e.target.value = "";
+                  }}
+                >
+                  <option value="">-- Pilih Ranting / Event untuk Auto-Fill Nominal Tagihan --</option>
+                  {dojoSummaries.map((d) => (
+                    <optgroup key={d.dojoName} label={`Ranting ${d.dojoName}`}>
+                      {d.totalMasuk > 0 ? (
+                        <option value={`${d.dojoName}::total::${d.totalMasuk}`}>
+                          {d.dojoName} — Total Setoran: {formatRp(d.totalMasuk)}
+                        </option>
+                      ) : null}
+                      {d.totalUkt > 0 ? (
+                        <option value={`${d.dojoName}::ukt::${d.totalUkt}`}>
+                          {d.dojoName} — Setoran UKT (Lunas): {formatRp(d.totalUkt)}
+                        </option>
+                      ) : null}
+                      {d.totalLatber > 0 ? (
+                        <option value={`${d.dojoName}::latber::${d.totalLatber}`}>
+                          {d.dojoName} — Setoran Latber (Lunas): {formatRp(d.totalLatber)}
+                        </option>
+                      ) : null}
+                      {d.totalIuran > 0 ? (
+                        <option value={`${d.dojoName}::iuran::${d.totalIuran}`}>
+                          {d.dojoName} — Setoran Iuran (Lunas): {formatRp(d.totalIuran)}
+                        </option>
+                      ) : null}
+                      {d.totalMasuk === 0 && d.totalUkt === 0 && d.totalLatber === 0 ? (
+                        <option value={`${d.dojoName}::total::0`}>
+                          {d.dojoName} — Belum ada setoran lunas (Rp 0)
+                        </option>
+                      ) : null}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             <Field label="Tanggal">
               <KasDateField
                 value={form.txnDate}
@@ -2835,12 +2902,13 @@ export function KasLedgerClient({
                     <th className="p-2 sm:p-2.5 text-right">CASHBACK Latber</th>
                     <th className="p-2 sm:p-2.5 text-right font-bold">Total Masuk</th>
                     <th className="p-2 sm:p-2.5 whitespace-nowrap">Status setor UKT</th>
+                    <th className="p-2 sm:p-2.5 text-center whitespace-nowrap">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {filteredDojoSummaries.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="p-4 text-center text-muted-foreground">
+                      <td colSpan={9} className="p-4 text-center text-muted-foreground">
                         {recapSearchQuery ? "Ranting tidak ditemukan." : "Tidak ada transaksi kas masuk pada periode ini."}
                       </td>
                     </tr>
@@ -2903,6 +2971,34 @@ export function KasLedgerClient({
                           >
                             {item.uktDepositLabel || "—"}
                           </span>
+                        </td>
+                        <td className="p-2 sm:p-2.5 text-center whitespace-nowrap">
+                          {data?.canWrite ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-[11px] border-teal-600/40 text-teal-700 hover:bg-teal-50 dark:text-teal-300 dark:hover:bg-teal-950/40 font-medium px-2"
+                              title="Ambil nominal setoran tagihan & masukan ke Kas"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRecapDojoOpen(false);
+                                setPostScopeKey(scopeKey || `${data?.scope.type}:${data?.scope.id}`);
+                                setEditId(null);
+                                setForm({
+                                  txnDate: ymdWib(),
+                                  direction: "in",
+                                  description: `Setoran Ranting ${item.dojoName}`,
+                                  kegiatan: item.dojoName,
+                                  amount: item.totalMasuk > 0 ? String(item.totalMasuk) : "",
+                                });
+                                setAddOpen(true);
+                                toast.success(`Form Tambah Mutasi terisi dari setoran ${item.dojoName}`);
+                              }}
+                            >
+                              ⚡ Ambil ke Kas
+                            </Button>
+                          ) : null}
                         </td>
                       </tr>
                     ))

@@ -37,6 +37,13 @@ export class KasScopeError extends Error {
 }
 
 export async function resolveKasScope(user: SessionUser): Promise<KasScope> {
+  if (isSuperAdminEmail(user.email)) {
+    const mainBranch = await prisma.branch.findFirst({
+      where: { name: SITE_BRANCH_NAME, isDeleted: false },
+      select: { id: true },
+    });
+    if (mainBranch) return { type: "branch", id: mainBranch.id };
+  }
   const role = getPrimaryAdminRole(user.roles ?? []);
   if (role === "ADMIN_DOJO") {
     const id = user.managedDojoId ?? user.managedDojoIds?.[0];
@@ -64,6 +71,7 @@ export function canAccessKas(
   user: SessionUser,
   grants?: AdminDojoGrants | null,
 ): boolean {
+  if (isSuperAdminEmail(user.email)) return true;
   const role = getPrimaryAdminRole(user.roles ?? []);
   if (role !== "ADMIN_DOJO") return true;
   if (!grants) return true;
@@ -75,6 +83,7 @@ export function canWriteKas(
   user: SessionUser,
   grants?: AdminDojoGrants | null,
 ): boolean {
+  if (isSuperAdminEmail(user.email)) return true;
   return canAccessKas(user, grants);
 }
 
@@ -647,7 +656,7 @@ export async function listKasScopes(user: SessionUser): Promise<
 
   const out: Array<{ type: "branch" | "dojo"; id: string; label: string }> = [];
   const branches = await prisma.branch.findMany({
-    where: buildBranchFilter(user),
+    where: { isDeleted: false },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
@@ -660,7 +669,7 @@ export async function listKasScopes(user: SessionUser): Promise<
   }
 
   const dojos = await prisma.dojo.findMany({
-    where: buildDojoFilter(user),
+    where: { isDeleted: false },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
