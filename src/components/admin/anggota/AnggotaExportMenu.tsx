@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Download, FileText, MessageSquare, Printer } from "lucide-react";
+import { ChevronDown, Download, FileText, MessageSquare, Printer, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -25,10 +25,12 @@ export function AnggotaExportMenu({
   exportParams,
   total,
   dojoName,
+  onPrintBarcodesAll,
 }: {
   exportParams: AnggotaExportFilterParams;
   total: number;
   dojoName?: string;
+  onPrintBarcodesAll?: (rows: AdminMemberRow[]) => void;
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -102,6 +104,19 @@ export function AnggotaExportMenu({
     }
   }
 
+  async function handleBarcodes() {
+    try {
+      const rows = await loadExportRows();
+      if (rows.length === 0) {
+        toast.error("Tidak ada anggota untuk dicetak");
+        return;
+      }
+      onPrintBarcodesAll?.(rows);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal memuat barcode anggota");
+    }
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -117,7 +132,11 @@ export function AnggotaExportMenu({
           <ChevronDown className="h-3.5 w-3.5 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-44">
+      <DropdownMenuContent align="start" className="w-52">
+        <DropdownMenuItem onClick={() => void handleBarcodes()} disabled={loading}>
+          <QrCode className="mr-2 h-4 w-4 text-inkai-red" />
+          Cetak Barcode Massal
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => void handleCsv()} disabled={loading}>
           <Download className="mr-2 h-4 w-4" />
           CSV

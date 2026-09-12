@@ -228,16 +228,15 @@ async function applyKyuBaruToMember(opts: {
   const fromMember =
     formatRankLabel(memberCurrentRank) || memberCurrentRank;
 
-  // Kyu Lama dikunci dari sabuk keanggotaan saat apply (bukan infer dari Kyu Baru)
-  let kyuLama =
-    fromMember && !ranksEqual(fromMember, kyuBaru) ? fromMember : "";
-  if (!kyuLama && decoded.kyuLama && !isBlankUktRank(decoded.kyuLama) && !ranksEqual(decoded.kyuLama, kyuBaru)) {
+  // Kyu Lama dipertahankan dari snapshot pendaftaran (decoded.kyuLama atau hint dari row.kyuLama)
+  let kyuLama = "";
+  if (decoded.kyuLama && !isBlankUktRank(decoded.kyuLama) && !ranksEqual(decoded.kyuLama, kyuBaru)) {
     kyuLama = decoded.kyuLama;
-  }
-  if (!kyuLama && hint && !ranksEqual(hint, kyuBaru) && !isBlankUktRank(hint)) {
+  } else if (hint && !isBlankUktRank(hint) && !ranksEqual(hint, kyuBaru)) {
     kyuLama = hint;
-  }
-  if (!kyuLama) {
+  } else if (fromMember && !ranksEqual(fromMember, kyuBaru)) {
+    kyuLama = fromMember;
+  } else {
     kyuLama = inferPreviousBeltRank(kyuBaru) || DEFAULT_MEMBER_RANK;
   }
 

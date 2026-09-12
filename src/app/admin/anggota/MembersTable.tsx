@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
-import { Copy, Check, Eye, Pencil, Wallet } from "lucide-react";
+import { Copy, Check, Eye, Pencil, Printer, QrCode, Wallet } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,11 @@ import { MemberAvatarRing } from "@/components/admin/ukt/MemberAvatarRing";
 import { DocumentPreviewDialog } from "@/components/admin/DocumentPreviewDialog";
 import { MemberDocumentsEditor } from "@/components/admin/MemberDocumentsEditor";
 import { FileUploadField } from "@/components/admin/FileUploadField";
+import {
+  MemberBarcodePrintModal,
+  type PrintableMemberItem,
+} from "@/components/admin/anggota/MemberBarcodePrintModal";
+import { SITE_URL } from "@/lib/site";
 import {
   MergeMemberDialog,
   type MergeCandidate,
@@ -412,6 +417,9 @@ export function MembersTable({
   const [mshSaving, setMshSaving] = useState(false);
   const [nameSavingId, setNameSavingId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState("");
+  const [barcodePrintMembers, setBarcodePrintMembers] = useState<
+    PrintableMemberItem[] | null
+  >(null);
   const [docsEditMember, setDocsEditMember] = useState<AdminMemberRow | null>(
     null,
   );
@@ -1536,6 +1544,19 @@ export function MembersTable({
           selectedIds={[...selectedIds]}
           onClear={clearSelection}
           onSuccess={onMembersChanged}
+          onPrintBarcodes={() => {
+            const selectedMembers = members
+              .filter((m) => selectedIds.has(m.id))
+              .map((m) => ({
+                id: m.id,
+                fullName: m.fullName,
+                nia: m.nia,
+                currentRank: m.currentRank,
+                dojoName: m.dojo?.name,
+                mshNumber: m.mshNumber,
+              }));
+            setBarcodePrintMembers(selectedMembers);
+          }}
         />
       ) : null}
 
@@ -1667,6 +1688,70 @@ export function MembersTable({
                     </ul>
                   </section>
                 ) : null}
+
+                <section className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-2.5">
+                  <h3 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    <QrCode className="h-4 w-4 text-inkai-red" />
+                    Kode QR / Barcode Kartu Anggota
+                  </h3>
+                  <div className="flex flex-col sm:flex-row items-center gap-3">
+                    <div className="rounded-xl border bg-white p-2 shrink-0 shadow-xs">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=6&data=${encodeURIComponent(`${SITE_URL}/v/${typeof detail.nia === "string" && detail.nia.trim() ? detail.nia.trim() : selectedId}`)}`}
+                        alt={`QR ${fullName}`}
+                        className="h-28 w-28 object-contain"
+                      />
+                    </div>
+                    <div className="flex-1 text-center sm:text-left space-y-1.5">
+                      <p className="text-xs font-extrabold uppercase">{fullName}</p>
+                      <p className="text-xs font-bold text-inkai-red font-mono">
+                        {typeof detail.nia === "string" && detail.nia.trim() ? `NIA ${detail.nia.trim()}` : "Tanpa NIA"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground leading-tight">
+                        Scan QR ini untuk verifikasi kartu & status keanggotaan INKAI Surabaya.
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 pt-1 justify-center sm:justify-start">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs gap-1"
+                          onClick={() => {
+                            const link = `${SITE_URL}/v/${typeof detail.nia === "string" && detail.nia.trim() ? detail.nia.trim() : selectedId}`;
+                            void navigator.clipboard?.writeText(link);
+                            showSuccess("Link verifikasi QR disalin");
+                          }}
+                        >
+                          <Copy className="h-3 w-3" />
+                          Salin Link
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-7 text-xs gap-1 bg-inkai-red hover:bg-inkai-red/90"
+                          onClick={() => {
+                            if (selectedId) {
+                              setBarcodePrintMembers([
+                                {
+                                  id: selectedId,
+                                  fullName,
+                                  nia: typeof detail.nia === "string" ? detail.nia : null,
+                                  currentRank,
+                                  dojoName: dojo?.name,
+                                  mshNumber: typeof detail.mshNumber === "string" ? detail.mshNumber : null,
+                                },
+                              ]);
+                            }
+                          }}
+                        >
+                          <Printer className="h-3 w-3" />
+                          Cetak Barcode
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
 
                 <section className="space-y-2.5">
                   <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -2543,6 +2628,14 @@ export function MembersTable({
         }}
         title={docPreview?.title || "Dokumen"}
         url={docPreview?.url ?? null}
+      />
+
+      <MemberBarcodePrintModal
+        open={Boolean(barcodePrintMembers)}
+        onOpenChange={(next) => {
+          if (!next) setBarcodePrintMembers(null);
+        }}
+        members={barcodePrintMembers || []}
       />
     </>
   );

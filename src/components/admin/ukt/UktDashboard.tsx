@@ -38,6 +38,9 @@ import {
   X,
   ArrowUpDown,
   Copy,
+  Zap,
+  QrCode,
+  ScanLine,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -70,7 +73,10 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -108,6 +114,13 @@ const AddMemberDialog = dynamic(
     import("@/components/admin/AddMemberDialog").then((m) => m.AddMemberDialog),
   { ssr: false },
 );
+const UktQrKyuScannerModal = dynamic(
+  () =>
+    import("@/components/admin/ukt/UktQrKyuScannerModal").then(
+      (m) => m.UktQrKyuScannerModal,
+    ),
+  { ssr: false },
+);
 import {
   BELT_RANK_OPTIONS,
   canAssignNia,
@@ -120,6 +133,7 @@ import {
   getUktTargetRank,
   inferPreviousBeltRank,
   isBlankUktRank,
+  shortRankLabel,
 } from "@/lib/belt";
 
 import { normalizeNia } from "@/lib/member-profile-locks";
@@ -217,6 +231,14 @@ import {
   STICKY_NAME_CELL,
   STICKY_NAME_HEAD,
 } from "@/lib/admin-table-sticky";
+
+function parseKyuNumber(rankRaw: string | null | undefined): number | null {
+  if (!rankRaw) return null;
+  const match = rankRaw.match(/\bkyu\s*(\d+)\b/i);
+  if (match) return parseInt(match[1], 10);
+  if (/^\d{1,2}$/.test(rankRaw.trim())) return parseInt(rankRaw.trim(), 10);
+  return null;
+}
 import { openUktMatrixPrint } from "@/lib/ukt-matrix-print-html";
 
 const SORT_KEY_LABELS: Record<string, string> = {
@@ -459,6 +481,7 @@ export function UktDashboard(props: Props) {
   const [localStatus, setLocalStatus] = useState("");
   const [localDojo, setLocalDojo] = useState(props.defaultDojoFilter || "");
   const [localKyu, setLocalKyu] = useState("");
+  const [selectedTransition, setSelectedTransition] = useState<string | null>(null);
   const [localView, setLocalView] = useState("");
   const [localPage, setLocalPage] = useState(1);
   const [localPageSize, setLocalPageSize] = useState(25);
@@ -551,6 +574,7 @@ export function UktDashboard(props: Props) {
   const [waiverTarget, setWaiverTarget] = useState<UktMemberRow | null>(null);
   const [waiverBlockers, setWaiverBlockers] = useState<UktRegistrationBlocker[]>([]);
   const [waiverNote, setWaiverNote] = useState("");
+  const [showQrKyuModal, setShowQrKyuModal] = useState(false);
 
   const isCabang = canEditKyuBaru(props.userRoles);
   const isPengprov = isPengprovAdmin(props.userRoles) || props.primaryRole === "ADMIN_PROVINCE";
@@ -983,6 +1007,7 @@ export function UktDashboard(props: Props) {
     setLocalStatus("");
     setLocalKyu("");
     setLocalView("");
+    setSelectedTransition(null);
     if (!isDojoAdmin || isMultiDojoAdmin) {
       setLocalDojo(isDojoAdmin ? "" : props.defaultDojoFilter || "");
     }
@@ -1098,8 +1123,41 @@ export function UktDashboard(props: Props) {
           (r.nia?.toLowerCase().includes(q) ?? false),
       );
     }
+    if (selectedTransition) {
+      if (selectedTransition === "pending") {
+        list = list.filter((r) => !r.kyuBaru || isBlankUktRank(r.kyuBaru));
+      } else if (selectedTransition === "jump2plus") {
+        list = list.filter((r) => {
+          const lamaRaw = displayUktKyuLama(r.kyuLama, r.kyuBaru) || r.kyuLama;
+          const baruRaw = r.kyuBaru;
+          if (!baruRaw || isBlankUktRank(baruRaw)) return false;
+          const numFrom = parseKyuNumber(lamaRaw);
+          const numTo = parseKyuNumber(baruRaw);
+          return numFrom != null && numTo != null && numFrom - numTo >= 2;
+        });
+      } else if (selectedTransition === "jump3plus") {
+        list = list.filter((r) => {
+          const lamaRaw = displayUktKyuLama(r.kyuLama, r.kyuBaru) || r.kyuLama;
+          const baruRaw = r.kyuBaru;
+          if (!baruRaw || isBlankUktRank(baruRaw)) return false;
+          const numFrom = parseKyuNumber(lamaRaw);
+          const numTo = parseKyuNumber(baruRaw);
+          return numFrom != null && numTo != null && numFrom - numTo >= 3;
+        });
+      } else {
+        list = list.filter((r) => {
+          const lamaRaw = displayUktKyuLama(r.kyuLama, r.kyuBaru) || r.kyuLama;
+          const baruRaw = r.kyuBaru;
+          if (!baruRaw || isBlankUktRank(baruRaw)) return false;
+          const fromLabel = shortRankLabel(lamaRaw) || "—";
+          const toLabel = shortRankLabel(baruRaw) || "—";
+          const key = `${fromLabel} ➔ ${toLabel}`;
+          return key === selectedTransition;
+        });
+      }
+    }
     return list;
-  }, [rows, effectiveDojoIds, localStatus, localKyu, localQ]);
+  }, [rows, effectiveDojoIds, localStatus, localKyu, localQ, selectedTransition]);
 
   /** KPI & rekap tidak ikut filter status/cari — selalu dari peserta periode (+ranting). */
   const kpiSourceRows = useMemo(() => {
@@ -1116,6 +1174,87 @@ export function UktDashboard(props: Props) {
     () => computeUktOperationalKpi(kpiSourceRows),
     [kpiSourceRows],
   );
+
+  const rankTransitions = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        key: string;
+        fromLabel: string;
+        toLabel: string;
+        count: number;
+        rawFrom: string;
+        rawTo: string;
+        jump: number | null;
+      }
+    >();
+    let pendingCount = 0;
+    let jump2plusCount = 0;
+    let jump3plusCount = 0;
+
+    for (const r of kpiSourceRows) {
+      const lamaRaw = displayUktKyuLama(r.kyuLama, r.kyuBaru) || r.kyuLama;
+      const baruRaw = r.kyuBaru;
+
+      if (!baruRaw || isBlankUktRank(baruRaw)) {
+        pendingCount++;
+        continue;
+      }
+
+      const fromLabel = shortRankLabel(lamaRaw) || "—";
+      const toLabel = shortRankLabel(baruRaw) || "—";
+      const key = `${fromLabel} ➔ ${toLabel}`;
+
+      const numFrom = parseKyuNumber(lamaRaw);
+      const numTo = parseKyuNumber(baruRaw);
+      const jump = numFrom != null && numTo != null ? numFrom - numTo : null;
+
+      if (jump != null && jump >= 2) {
+        jump2plusCount++;
+      }
+      if (jump != null && jump >= 3) {
+        jump3plusCount++;
+      }
+
+      const existing = map.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        map.set(key, {
+          key,
+          fromLabel,
+          toLabel,
+          count: 1,
+          rawFrom: lamaRaw || "",
+          rawTo: baruRaw || "",
+          jump,
+        });
+      }
+    }
+
+    const list = Array.from(map.values()).sort((a, b) => {
+      const bucketA = rankBucketLabel(a.rawFrom);
+      const bucketB = rankBucketLabel(b.rawFrom);
+      const cmp = compareRankBuckets(bucketA, bucketB, "asc");
+      if (cmp !== 0) return cmp;
+      return compareRankBuckets(
+        rankBucketLabel(a.rawTo),
+        rankBucketLabel(b.rawTo),
+        "asc",
+      );
+    });
+
+    const totalAssigned = kpiSourceRows.length - pendingCount;
+
+    return {
+      list,
+      pendingCount,
+      jump2plusCount,
+      jump3plusCount,
+      totalAssigned,
+      total: kpiSourceRows.length,
+    };
+  }, [kpiSourceRows]);
 
   const depositRecon = useMemo(
     () =>
@@ -2178,8 +2317,11 @@ export function UktDashboard(props: Props) {
       }>(res);
       if (!res.ok) throw new Error(data.error || "Gagal memperbarui kyu");
       const nextBaru = data.kyuBaru || newRank;
-      const nextLama =
-        displayUktKyuLama(data.kyuLama || row.kyuLama, nextBaru) || row.kyuLama;
+      const nextLama = !isBlankUktRank(row.kyuLama)
+        ? row.kyuLama
+        : !isBlankUktRank(data.kyuLama)
+          ? data.kyuLama
+          : row.kyuLama;
       patchRow(row.memberId, {
         kyuBaru: nextBaru,
         kyuLama: nextLama,
@@ -2385,7 +2527,11 @@ export function UktDashboard(props: Props) {
         if (res.ok) {
           updatedCount += 1;
           const nextBaru = data.kyuBaru || nextRank;
-          const nextLama = displayUktKyuLama(data.kyuLama || row.kyuLama, nextBaru) || row.kyuLama;
+          const nextLama = !isBlankUktRank(row.kyuLama)
+            ? row.kyuLama
+            : !isBlankUktRank(data.kyuLama)
+              ? data.kyuLama
+              : row.kyuLama;
           patchRow(row.memberId, {
             kyuBaru: nextBaru,
             kyuLama: nextLama,
@@ -4106,6 +4252,160 @@ export function UktDashboard(props: Props) {
         })}
       </div>
 
+      {/* Rekap Perubahan Kyu (Kyu Lama ➔ Kyu Baru) */}
+      <Card className="border-border/60 bg-card/60 shadow-xs">
+        <CardContent className="p-2.5 sm:p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2 mb-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <ArrowUpDown className="h-4 w-4 text-inkai-red" />
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-foreground sm:text-sm">
+                Rekap Perubahan Kyu (Kyu Lama ➔ Kyu Baru)
+              </h3>
+              {selectedTransition && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-xs text-inkai-red hover:bg-inkai-red/10"
+                  onClick={() => setSelectedTransition(null)}
+                >
+                  <X className="mr-1 h-3 w-3" /> Reset Filter Perubahan
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              {rankTransitions.jump2plusCount > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={selectedTransition === "jump2plus" ? "default" : "outline"}
+                  className={cn(
+                    "h-6 px-2 text-[11px] font-semibold gap-1 transition-colors",
+                    selectedTransition === "jump2plus"
+                      ? "bg-amber-600 hover:bg-amber-700 text-white"
+                      : "border-amber-400/80 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30",
+                  )}
+                  onClick={() =>
+                    setSelectedTransition(
+                      selectedTransition === "jump2plus" ? null : "jump2plus",
+                    )
+                  }
+                  title="Filter peserta yang naik 2 tingkat atau lebih (mis. Kyu 10 ke 8)"
+                >
+                  ⚡ Naik 2+ Tingkat ({rankTransitions.jump2plusCount})
+                </Button>
+              )}
+              {rankTransitions.jump3plusCount > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={selectedTransition === "jump3plus" ? "default" : "outline"}
+                  className={cn(
+                    "h-6 px-2 text-[11px] font-semibold gap-1 transition-colors",
+                    selectedTransition === "jump3plus"
+                      ? "bg-rose-600 hover:bg-rose-700 text-white"
+                      : "border-rose-400/80 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30",
+                  )}
+                  onClick={() =>
+                    setSelectedTransition(
+                      selectedTransition === "jump3plus" ? null : "jump3plus",
+                    )
+                  }
+                  title="Filter peserta yang naik 3 tingkat atau lebih (mis. Kyu 10 ke 7)"
+                >
+                  🔥 Naik 3+ Tingkat ({rankTransitions.jump3plusCount})
+                </Button>
+              )}
+              <Badge variant="outline" className="font-mono text-[11px]">
+                {rankTransitions.totalAssigned} dari {rankTransitions.total} peserta terisi Kyu Baru
+              </Badge>
+            </div>
+          </div>
+
+          {rankTransitions.list.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic py-0.5">
+              {rankTransitions.total === 0
+                ? "Belum ada peserta terdaftar pada periode ini."
+                : "Belum ada peserta yang diisi Kyu Baru."}
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {rankTransitions.list.map((item) => {
+                const isActive = selectedTransition === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() =>
+                      setSelectedTransition(isActive ? null : item.key)
+                    }
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-all text-left cursor-pointer",
+                      isActive
+                        ? "border-inkai-red bg-inkai-red/10 ring-2 ring-inkai-red font-semibold shadow-xs"
+                        : "border-border/80 bg-muted/40 hover:bg-muted/70 hover:border-border",
+                    )}
+                    title={`Klik untuk filter peserta ${item.key}`}
+                  >
+                    <span className="font-medium text-foreground">
+                      {item.fromLabel} <span className="text-muted-foreground">➔</span> {item.toLabel}
+                    </span>
+                    {item.jump != null && item.jump === 2 && (
+                      <span className="rounded bg-amber-500/15 px-1 py-0.2 text-[10px] font-bold text-amber-700 dark:text-amber-400">
+                        +2 tingkat
+                      </span>
+                    )}
+                    {item.jump != null && item.jump >= 3 && (
+                      <span className="rounded bg-rose-500/20 px-1 py-0.2 text-[10px] font-bold text-rose-700 dark:text-rose-400">
+                        +{item.jump} tingkat 🔥
+                      </span>
+                    )}
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "font-bold text-[11px] px-1.5 py-0",
+                        isActive
+                          ? "bg-inkai-red text-white"
+                          : "bg-inkai-red/10 text-inkai-red",
+                      )}
+                    >
+                      {item.count} peserta
+                    </Badge>
+                  </button>
+                );
+              })}
+              {rankTransitions.pendingCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedTransition(
+                      selectedTransition === "pending" ? null : "pending",
+                    )
+                  }
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md border border-dashed px-2 py-1 text-xs transition-all cursor-pointer",
+                    selectedTransition === "pending"
+                      ? "border-amber-600 bg-amber-100/80 dark:bg-amber-950/50 ring-2 ring-amber-500 font-semibold"
+                      : "border-amber-400/60 bg-amber-50/50 dark:bg-amber-950/20 hover:bg-amber-100/50",
+                  )}
+                  title="Klik untuk filter peserta yang belum diisi Kyu Baru"
+                >
+                  <span className="text-amber-700 dark:text-amber-400 font-medium">
+                    Belum isi Kyu Baru
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className="border-amber-400 text-amber-700 dark:text-amber-400 font-semibold text-[11px] px-1.5 py-0"
+                  >
+                    {rankTransitions.pendingCount} peserta
+                  </Badge>
+                </button>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {isDojoAdmin && (
         <details
           className="rounded-xl border border-muted bg-card open:pb-0"
@@ -4351,6 +4651,17 @@ export function UktDashboard(props: Props) {
 
           <Button
             type="button"
+            variant="default"
+            className="h-10 sm:h-8 bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-sm"
+            onClick={() => setShowQrKyuModal(true)}
+            title="Buka Scanner QR & Barcode untuk ubah Kyu Baru instan"
+          >
+            <Zap className="mr-1.5 h-4 w-4 fill-white" />
+            <span>Scan Express Kyu</span>
+          </Button>
+
+          <Button
+            type="button"
             variant="outline"
             className="hidden h-10 sm:inline-flex sm:h-8"
             onClick={() => setCompactView((v) => !v)}
@@ -4458,17 +4769,29 @@ export function UktDashboard(props: Props) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Kyu</SelectItem>
-              <SelectItem value="kyu 10">⚪ Putih (Kyu 10)</SelectItem>
-              <SelectItem value="kyu 9">⚪ Putih (Kyu 9)</SelectItem>
-              <SelectItem value="kyu 8">🟡 Kuning (Kyu 8)</SelectItem>
-              <SelectItem value="kyu 7">🟡 Kuning (Kyu 7)</SelectItem>
-              <SelectItem value="kyu 6">🟢 Hijau (Kyu 6)</SelectItem>
-              <SelectItem value="kyu 5">🔵 Biru (Kyu 5)</SelectItem>
-              <SelectItem value="kyu 4">🔵 Biru (Kyu 4)</SelectItem>
-              <SelectItem value="kyu 3">🟤 Coklat (Kyu 3)</SelectItem>
-              <SelectItem value="kyu 2">🟤 Coklat (Kyu 2)</SelectItem>
-              <SelectItem value="kyu 1">🟤 Coklat (Kyu 1)</SelectItem>
-              <SelectItem value="dan">⚫ Hitam / DAN</SelectItem>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel className="font-bold text-[11px] uppercase tracking-wider text-inkai-red px-2 py-1">
+                  🥋 TINGKAT KYU
+                </SelectLabel>
+                <SelectItem value="kyu 10">⚪ Putih (Kyu 10)</SelectItem>
+                <SelectItem value="kyu 9">⚪ Putih (Kyu 9)</SelectItem>
+                <SelectItem value="kyu 8">🟡 Kuning (Kyu 8)</SelectItem>
+                <SelectItem value="kyu 7">🟡 Kuning (Kyu 7)</SelectItem>
+                <SelectItem value="kyu 6">🟢 Hijau (Kyu 6)</SelectItem>
+                <SelectItem value="kyu 5">🔵 Biru (Kyu 5)</SelectItem>
+                <SelectItem value="kyu 4">🔵 Biru (Kyu 4)</SelectItem>
+                <SelectItem value="kyu 3">🟤 Coklat (Kyu 3)</SelectItem>
+                <SelectItem value="kyu 2">🟤 Coklat (Kyu 2)</SelectItem>
+                <SelectItem value="kyu 1">🟤 Coklat (Kyu 1)</SelectItem>
+              </SelectGroup>
+              <SelectSeparator />
+              <SelectGroup>
+                <SelectLabel className="font-bold text-[11px] uppercase tracking-wider text-amber-600 dark:text-amber-400 px-2 py-1">
+                  ⚫ SABUK HITAM / DAN
+                </SelectLabel>
+                <SelectItem value="dan">⚫ Hitam / DAN</SelectItem>
+              </SelectGroup>
             </SelectContent>
           </Select>
 
@@ -4501,6 +4824,31 @@ export function UktDashboard(props: Props) {
           </Button>
         </div>
       </div>
+      {selectedTransition && (
+        <div className="flex flex-wrap items-center gap-2 pt-1 pb-0.5">
+          <span className="text-xs font-semibold text-muted-foreground">Filter Perubahan Kyu:</span>
+          <Badge
+            variant="secondary"
+            className="flex items-center gap-1.5 bg-inkai-red/15 text-inkai-red font-semibold text-xs py-1 px-2.5 shadow-xs border border-inkai-red/30"
+          >
+            {selectedTransition === "jump2plus"
+              ? "⚡ Naik 2+ Tingkat"
+              : selectedTransition === "jump3plus"
+                ? "🔥 Naik 3+ Tingkat"
+                : selectedTransition === "pending"
+                  ? "Belum isi Kyu Baru"
+                  : `Transisi: ${selectedTransition}`}
+            <button
+              type="button"
+              className="ml-1 rounded-full hover:bg-inkai-red/20 p-0.5 cursor-pointer"
+              onClick={() => setSelectedTransition(null)}
+              title="Hapus filter transisi"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </Badge>
+        </div>
+      )}
       </div>
 
       {!isArchiveView && !tableFullscreen ? (
@@ -5016,66 +5364,9 @@ export function UktDashboard(props: Props) {
                     onClick={(e) => e.stopPropagation()}
                     onPointerDown={(e) => e.stopPropagation()}
                   >
-                    {row.registrationId && isCabang ? (
-                      (() => {
-                        const lamaLabel =
-                          formatRankLabel(
-                            displayUktKyuLama(row.kyuLama, row.kyuBaru) || "",
-                          ) || "";
-                        const lamaOptions = [
-                          ...BELT_RANK_OPTIONS,
-                        ] as string[];
-                        if (
-                          lamaLabel &&
-                          !(BELT_RANK_OPTIONS as readonly string[]).includes(
-                            lamaLabel,
-                          )
-                        ) {
-                          lamaOptions.push(lamaLabel);
-                        }
-                        return (
-                          <Select
-                            value={lamaLabel || undefined}
-                            disabled={
-                              periodLocked ||
-                              loading ||
-                              isMemberPending(row.memberId)
-                            }
-                            onValueChange={(next) => {
-                              if (!next || !row.registrationId) return;
-                              void handleKyuLamaUpdate(
-                                row.registrationId,
-                                next,
-                                row,
-                              );
-                            }}
-                          >
-                            <SelectTrigger
-                              size="sm"
-                              className={cn(kyuSelectClass, "w-auto")}
-                              title="Ubah Kyu Lama (snapshot pendaftaran)"
-                              aria-label={`Ubah Kyu Lama ${row.fullName}`}
-                            >
-                              <SelectValue placeholder="— Pilih —" />
-                            </SelectTrigger>
-                            <SelectContent
-                              position="popper"
-                              className="z-[100] max-h-64"
-                            >
-                              {lamaOptions.map((opt) => (
-                                <SelectItem key={opt} value={opt}>
-                                  {opt}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        );
-                      })()
-                    ) : (
-                      <Badge variant="secondary" className="text-xs">
-                        {displayUktKyuLama(row.kyuLama, row.kyuBaru) || "—"}
-                      </Badge>
-                    )}
+                    <Badge variant="secondary" className="text-xs">
+                      {displayUktKyuLama(row.kyuLama, row.kyuBaru) || "—"}
+                    </Badge>
                   </TableCell>
                   <TableCell
                     onClick={(e) => e.stopPropagation()}
@@ -5105,6 +5396,12 @@ export function UktDashboard(props: Props) {
                           : isUktSelesai(row)
                             ? formatRankLabel(row.kyuBaru || "") || "—"
                             : "— Setelah verifikasi —";
+                        const kyuRankOptions = baruOptions.filter(
+                          (opt) => !opt.toLowerCase().includes("dan"),
+                        );
+                        const danRankOptions = baruOptions.filter((opt) =>
+                          opt.toLowerCase().includes("dan"),
+                        );
                         return (
                           <Select
                             value={baruLabel || undefined}
@@ -5138,13 +5435,33 @@ export function UktDashboard(props: Props) {
                             </SelectTrigger>
                             <SelectContent
                               position="popper"
-                              className="z-[100] max-h-64"
+                              className="z-[100] max-h-64 min-w-44"
                             >
-                              {baruOptions.map((opt) => (
-                                <SelectItem key={opt} value={opt}>
-                                  {opt}
-                                </SelectItem>
-                              ))}
+                              <SelectGroup>
+                                <SelectLabel className="font-bold text-[11px] uppercase tracking-wider text-inkai-red px-2 py-1">
+                                  🥋 SABUK KYU (WARNA)
+                                </SelectLabel>
+                                {kyuRankOptions.map((opt) => (
+                                  <SelectItem key={opt} value={opt}>
+                                    {opt}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                              {danRankOptions.length > 0 && (
+                                <>
+                                  <SelectSeparator />
+                                  <SelectGroup>
+                                    <SelectLabel className="font-bold text-[11px] uppercase tracking-wider text-amber-600 dark:text-amber-400 px-2 py-1">
+                                      ⚫ SABUK HITAM / DAN
+                                    </SelectLabel>
+                                    {danRankOptions.map((opt) => (
+                                      <SelectItem key={opt} value={opt}>
+                                        {opt}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectGroup>
+                                </>
+                              )}
                             </SelectContent>
                           </Select>
                         );
@@ -6054,6 +6371,19 @@ export function UktDashboard(props: Props) {
           dojos={props.dojos}
           initialDojoId={effectiveDojo || undefined}
           locked={periodLocked}
+        />
+      ) : null}
+
+      {showQrKyuModal ? (
+        <UktQrKyuScannerModal
+          open={showQrKyuModal}
+          onOpenChange={setShowQrKyuModal}
+          allRows={rows}
+          selectedPeriodId={props.selectedPeriodId || undefined}
+          periodLocked={periodLocked}
+          onUpdateKyuBaru={async (registrationId, newRank, row) => {
+            await handleKyuUpdate(registrationId, newRank, row);
+          }}
         />
       ) : null}
 

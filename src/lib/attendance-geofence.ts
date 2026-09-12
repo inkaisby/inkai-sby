@@ -30,11 +30,12 @@ export type GeofenceMatch = {
   distanceMeters: number;
 };
 
-/** Dojo dalam radius, diurutkan terdekat. */
+/** Dojo dalam radius, diurutkan terdekat. Toleransi default 150m untuk indoor GPS drift. */
 export function matchDojosInGeofence(
   latitude: number,
   longitude: number,
   dojos: GeofencedDojo[],
+  overrideRadiusMeters?: number,
 ): GeofenceMatch[] {
   const hits: GeofenceMatch[] = [];
   for (const dojo of dojos) {
@@ -44,7 +45,7 @@ export function matchDojosInGeofence(
       dojo.latitude,
       dojo.longitude,
     );
-    const radius = Math.max(10, dojo.geofenceRadius || 50);
+    const radius = overrideRadiusMeters ?? Math.max(150, dojo.geofenceRadius || 150);
     if (distanceMeters <= radius) {
       hits.push({ dojo, distanceMeters });
     }
@@ -57,8 +58,75 @@ export function pickNearestInGeofence(
   latitude: number,
   longitude: number,
   dojos: GeofencedDojo[],
+  overrideRadiusMeters?: number,
 ): GeofenceMatch | null {
-  return matchDojosInGeofence(latitude, longitude, dojos)[0] ?? null;
+  return matchDojosInGeofence(latitude, longitude, dojos, overrideRadiusMeters)[0] ?? null;
+}
+
+/**
+ * Memformat payload QR Ranting/Dojo standar INKAI Surabaya.
+ */
+export function buildDojoQrPayload(dojoId: string, dojoName?: string): string {
+  return `INKAI:DOJO:${dojoId.trim()}${dojoName ? `:${dojoName.trim()}` : ""}`;
+}
+
+/**
+ * Mengekstrak dojoId dari string hasil scan QR Code.
+ */
+export function parseDojoQrPayload(raw: string): string | null {
+  if (!raw || typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  // Format 1: INKAI:DOJO:<dojoId> or INKAI:DOJO:<dojoId>:<name>
+  if (trimmed.startsWith("INKAI:DOJO:")) {
+    const parts = trimmed.split(":");
+    if (parts[2]) return parts[2].trim();
+  }
+
+  // Format 2: DOJO:<dojoId>
+  if (trimmed.startsWith("DOJO:")) {
+    const parts = trimmed.split(":");
+    if (parts[1]) return parts[1].trim();
+  }
+
+  // Format 3: JSON {"dojoId": "..."} or {"id": "..."}
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    try {
+      const obj = JSON.parse(trimmed) as Record<string, unknown>;
+      if (typeof obj.dojoId === "string" && obj.dojoId.trim()) {
+        return obj.dojoId.trim();
+      }
+      if (typeof obj.id === "string" && obj.id.trim()) {
+        return obj.id.trim();
+      }
+    } catch {
+      /* ignore json error */
+    }
+  }
+
+  // Format 4: URL dengan query ?dojoId=... atau pathname /dojo/...
+  if (trimmed.includes("http://") || trimmed.includes("https://")) {
+    try {
+      const url = new URL(trimmed);
+      const dojoParam = url.searchParams.get("dojoId") || url.searchParams.get("dojo");
+      if (dojoParam) return dojoParam.trim();
+      const pathParts = url.pathname.split("/").filter(Boolean);
+      const dojoIdx = pathParts.indexOf("dojo");
+      if (dojoIdx !== -1 && pathParts[dojoIdx + 1]) {
+        return pathParts[dojoIdx + 1].trim();
+      }
+    } catch {
+      /* ignore url error */
+    }
+  }
+
+  // Format 5: Direct string ID (e.g. CUID or UUID or alphanumeric)
+  if (/^[a-zA-Z0-9_-]{10,64}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  return null;
 }
 
 export async function loadGeofencedDojosForCabang(): Promise<GeofencedDojo[]> {
@@ -92,6 +160,6 @@ export async function loadGeofencedDojosForCabang(): Promise<GeofencedDojo[]> {
       name: d.name,
       latitude: d.latitude,
       longitude: d.longitude,
-      geofenceRadius: d.geofenceRadius || 50,
+      geofenceRadius: d.geofenceRadius || 150,
     }));
 }

@@ -18,6 +18,7 @@ import {
   type DeactivateReasonCode,
   type MemberStatusKind,
 } from "@/lib/member-lifecycle";
+import { QrCode } from "lucide-react";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { postMemberBulkChunked } from "@/lib/member-bulk-client";
 import { BulkProgressBar } from "@/components/admin/BulkProgressBar";
@@ -29,11 +30,13 @@ export function BulkDeactivateBar({
   pendingIds = [],
   onClear,
   onSuccess,
+  onPrintBarcodes,
 }: {
   selectedIds: string[];
   pendingIds?: string[];
   onClear: () => void;
   onSuccess?: () => void;
+  onPrintBarcodes?: () => void;
 }) {
   const router = useRouter();
   const [dialogKind, setDialogKind] = useState<DialogKind>(null);
@@ -220,6 +223,19 @@ export function BulkDeactivateBar({
               onClick={() => void approvePending()}
             >
               Setujui {pendingIds.length} pending
+            </Button>
+          ) : null}
+          {onPrintBarcodes ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={loading}
+              onClick={onPrintBarcodes}
+              className="gap-1.5 border-inkai-red/40 text-inkai-red hover:bg-inkai-red/10"
+            >
+              <QrCode className="h-3.5 w-3.5" />
+              Cetak Barcode ({selectedIds.length})
             </Button>
           ) : null}
           <Button

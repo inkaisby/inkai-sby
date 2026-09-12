@@ -7,6 +7,7 @@ import {
   loadGeofencedDojosForCabang,
   pickNearestInGeofence,
   matchDojosInGeofence,
+  parseDojoQrPayload,
 } from "@/lib/attendance-geofence";
 import { jakartaDayKey, isCheckedInOnJakartaDay } from "@/lib/ukt";
 import { hasLatberAttendanceOnJakartaDay } from "@/lib/latber-attendance";
@@ -66,38 +67,68 @@ export async function POST(request: Request) {
   const { latitude, longitude } = parsed.data;
   let resolvedDojoId = parsed.data.dojoId;
   let resolvedDojoName = "";
+  const qrPayloadRaw = parsed.data.qrPayload?.trim() || "";
+  const dojoIdFromQr = qrPayloadRaw ? parseDojoQrPayload(qrPayloadRaw) : null;
+  const isQrScan = Boolean(dojoIdFromQr || parsed.data.method === "QR_SCAN");
+
+  // Jika QR Scan aktif & mengandung dojoId valid: QR melegitimasi keberadaan fisik di dojo
+  if (dojoIdFromQr) {
+    resolvedDojoId = dojoIdFromQr;
+  }
 
   if (resolvedDojoId) {
     const target = dojos.find((d) => d.id === resolvedDojoId);
-    if (!target) {
-      return NextResponse.json(
-        { error: "Dojo tidak ditemukan atau belum punya geofence" },
-        { status: 400 },
-      );
+    if (target) {
+      resolvedDojoName = target.name;
+    } else {
+      const dbDojo = await prisma.dojo.findFirst({
+        where: { id: resolvedDojoId, isDeleted: false },
+        select: { id: true, name: true },
+      });
+      if (dbDojo) {
+        resolvedDojoName = dbDojo.name;
+      } else if (!isQrScan) {
+        return NextResponse.json(
+          { error: "Dojo tidak ditemukan atau belum terdaftar" },
+          { status: 400 },
+        );
+      }
     }
-    const inFence = matchDojosInGeofence(latitude, longitude, [target]);
-    if (!inFence.length) {
-      return NextResponse.json(
-        {
-          error: `Lokasi di luar area ${target.name}. Dekati titik absensi dojo.`,
-        },
-        { status: 400 },
-      );
+
+    // Jika bukan QR scan dan dojo punya titik koordinat, periksa geofence toleransi (500m jika manual)
+    if (!isQrScan && target) {
+      const inFence = matchDojosInGeofence(latitude, longitude, [target], 500);
+      if (!inFence.length) {
+        return NextResponse.json(
+          {
+            error: `Lokasi Anda terpaut jauh dari ${target.name}. Gunakan Scan Kode QR Ranting atau mendekat ke dojo.`,
+          },
+          { status: 400 },
+        );
+      }
     }
-    resolvedDojoName = target.name;
   } else {
-    const nearest = pickNearestInGeofence(latitude, longitude, dojos);
-    if (!nearest) {
-      return NextResponse.json(
-        {
-          error:
-            "Di luar area absensi. Dekati dojo ber-geofence atau pilih lokasi lewat “Bukan di sini?”.",
-        },
-        { status: 400 },
-      );
+    // Otomatis terdekat via GPS (toleransi 200m, fallback 500m terdekat)
+    const nearest = pickNearestInGeofence(latitude, longitude, dojos, 200);
+    if (nearest) {
+      resolvedDojoId = nearest.dojo.id;
+      resolvedDojoName = nearest.dojo.name;
+    } else {
+      // Fallback: periksa apakah ada dojo terdekat dalam radius 500m
+      const relaxedNearest = pickNearestInGeofence(latitude, longitude, dojos, 500);
+      if (relaxedNearest) {
+        resolvedDojoId = relaxedNearest.dojo.id;
+        resolvedDojoName = relaxedNearest.dojo.name;
+      } else {
+        return NextResponse.json(
+          {
+            error:
+              "Di luar area absensi dojo. Dekati dojo ber-geofence, pilih lokasi via “Bukan di sini?”, atau Scan Kode QR Ranting.",
+          },
+          { status: 400 },
+        );
+      }
     }
-    resolvedDojoId = nearest.dojo.id;
-    resolvedDojoName = nearest.dojo.name;
   }
 
   let biometricOk = false;
@@ -112,7 +143,7 @@ export async function POST(request: Request) {
 
   const method =
     parsed.data.method ||
-    (parsed.data.qrPayload ? "QR_SCAN" : biometricOk ? "GPS" : "GPS");
+    (isQrScan ? "QR_SCAN" : biometricOk ? "GPS" : "GPS");
 
   const payload = {
     latitude,

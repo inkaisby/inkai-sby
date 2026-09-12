@@ -1,12 +1,28 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { showError, showSuccess } from "@/lib/client-toast";
-import { Fingerprint, Loader2, MapPin } from "lucide-react";
+import { parseDojoQrPayload } from "@/lib/attendance-geofence";
+import { DojoQrModal } from "@/components/admin/pengaturan/DojoQrModal";
+import {
+  Camera,
+  Fingerprint,
+  Loader2,
+  MapPin,
+  QrCode,
+  RefreshCw,
+  X,
+} from "lucide-react";
 
 function bufferToBase64Url(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf);
@@ -48,6 +64,17 @@ export function AttendanceCheckIn({
   const [bioSupported, setBioSupported] = useState(false);
   const [bioRegistered, setBioRegistered] = useState(false);
   const [bioBusy, setBioBusy] = useState(false);
+
+  // Camera Scanner States
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanLoopRef = useRef<number | null>(null);
+
+  // Dojo QR Modal View state
+  const [myDojoQrOpen, setMyDojoQrOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.PublicKeyCredential) return;
@@ -171,7 +198,7 @@ export function AttendanceCheckIn({
       : null;
   }
 
-  async function checkIn(withBiometric: boolean) {
+  async function checkIn(withBiometric: boolean, directQrPayload?: string) {
     setLoading(true);
     try {
       let biometricToken: string | null = null;
@@ -187,14 +214,16 @@ export function AttendanceCheckIn({
           : null) ||
         undefined;
 
+      const activeQrPayload = (directQrPayload || qrPayload).trim();
+
       const res = await fetch("/api/member/attendance/checkin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
-          method: qrPayload.trim() ? "QR_SCAN" : "GPS",
-          qrPayload: qrPayload.trim() || undefined,
+          method: activeQrPayload ? "QR_SCAN" : "GPS",
+          qrPayload: activeQrPayload || undefined,
           dojoId: dojoId || undefined,
           eventId: selectedEventId || undefined,
           biometricToken: biometricToken || undefined,
@@ -226,19 +255,111 @@ export function AttendanceCheckIn({
     }
   }
 
+  // Camera Barcode Scanner Functions
+  function stopScan() {
+    if (scanLoopRef.current != null) {
+      cancelAnimationFrame(scanLoopRef.current);
+      scanLoopRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    setScanOpen(false);
+    setScanError(null);
+  }
+
+  async function startScan(targetFacingMode: "environment" | "user" = facingMode) {
+    setScanError(null);
+    setScanOpen(true);
+    setFacingMode(targetFacingMode);
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: targetFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      const video = videoRef.current;
+      if (!video) return;
+      video.srcObject = stream;
+      await video.play();
+
+      if (window.BarcodeDetector) {
+        const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+        const tick = async () => {
+          if (!videoRef.current || videoRef.current.readyState < 2) {
+            scanLoopRef.current = requestAnimationFrame(() => void tick());
+            return;
+          }
+          try {
+            const codes = await detector.detect(videoRef.current);
+            const raw = codes[0]?.rawValue;
+            if (raw) {
+              handleQrDetected(raw);
+              return;
+            }
+          } catch {
+            /* loop continues */
+          }
+          scanLoopRef.current = requestAnimationFrame(() => void tick());
+        };
+        scanLoopRef.current = requestAnimationFrame(() => void tick());
+      } else {
+        setScanError("Browser ini tidak mendukung pembacaan otomatis via BarcodeDetector. Tempel kode QR secara manual.");
+      }
+    } catch (e) {
+      console.error("[Camera error]", e);
+      setScanError("Tidak dapat mengakses kamera. Pastikan izin kamera aktif pada browser.");
+    }
+  }
+
+  function handleQrDetected(raw: string) {
+    if (typeof window !== "undefined" && window.navigator?.vibrate) {
+      window.navigator.vibrate([100, 50, 100]);
+    }
+    stopScan();
+    const dojoIdExtracted = parseDojoQrPayload(raw);
+    showSuccess("Kode QR Dojo terdeteksi! Melakukan absensi...");
+    setQrPayload(raw);
+    void checkIn(false, raw);
+  }
+
+  useEffect(() => {
+    return () => stopScan();
+  }, []);
+
   return (
     <div className="mb-6 rounded-2xl border border-border/60 bg-card p-4">
-      <h3 className="mb-1 font-semibold">Absen sekarang</h3>
+      <h3 className="mb-1 font-semibold flex items-center gap-2">
+        <MapPin className="h-4 w-4 text-inkai-red" />
+        Absen Sekarang
+      </h3>
       <p className="mb-1 text-sm text-muted-foreground">
         {homeDojoName
           ? `Dojo Anda: ${homeDojoName}`
-          : "Gunakan lokasi perangkat di area dojo."}
+          : "Gunakan lokasi perangkat atau Scan Kode QR Ranting di area dojo."}
       </p>
       <p className="mb-3 text-xs text-muted-foreground">
-        GPS menentukan dojo terdekat. Latihan bersama? ketuk “Bukan di sini?”.
+        GPS menentukan dojo terdekat. Kendala lokasi? Gunakan tombol <strong>Scan Kode QR Ranting</strong> atau <strong>Bukan di sini?</strong>.
       </p>
 
       <div className="mb-3 flex flex-wrap gap-2">
+        <Button
+          type="button"
+          className="bg-inkai-red hover:bg-inkai-red/90 text-white text-xs gap-1.5 shadow-sm"
+          size="sm"
+          onClick={() => void startScan("environment")}
+        >
+          <Camera className="h-3.5 w-3.5" />
+          Scan Kode QR Ranting
+        </Button>
+
         <Button
           type="button"
           variant="outline"
@@ -252,6 +373,20 @@ export function AttendanceCheckIn({
         >
           Bukan di sini?
         </Button>
+
+        {defaultDojoId && homeDojoName ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-xs gap-1 text-inkai-red hover:bg-inkai-red/10"
+            onClick={() => setMyDojoQrOpen(true)}
+          >
+            <QrCode className="h-3.5 w-3.5" />
+            Barcode Dojo Saya
+          </Button>
+        ) : null}
+
         {bioSupported && !bioRegistered ? (
           <Button
             type="button"
@@ -277,7 +412,7 @@ export function AttendanceCheckIn({
             <p className="text-xs text-muted-foreground">Memuat lokasi…</p>
           ) : (
             <>
-              <Label className="text-xs">Pilih dojo</Label>
+              <Label className="text-xs">Pilih dojo tempat latihan hari ini</Label>
               <select
                 className="h-10 w-full rounded-lg border bg-background px-2 text-sm"
                 value={selectedDojoId || ""}
@@ -286,7 +421,7 @@ export function AttendanceCheckIn({
                   setSelectedEventId(null);
                 }}
               >
-                <option value="">Otomatis (terdekat)</option>
+                <option value="">Otomatis (terdekat via GPS)</option>
                 {dojos.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.name}
@@ -321,14 +456,15 @@ export function AttendanceCheckIn({
 
       <button
         type="button"
-        className="mb-3 text-xs font-semibold text-inkai-red"
+        className="mb-3 text-xs font-semibold text-inkai-red hover:underline"
         onClick={() => setQrOpen((v) => !v)}
       >
-        {qrOpen ? "Sembunyikan kode QR" : "Punya kode QR?"}
+        {qrOpen ? "Sembunyikan ketik kode QR" : "Punya kode QR manual?"}
       </button>
+
       {qrOpen ? (
         <div className="mb-3 space-y-1.5">
-          <Label htmlFor="qr-payload">Kode QR dojo (opsional)</Label>
+          <Label htmlFor="qr-payload">Kode QR Dojo / Ranting (opsional)</Label>
           <Input
             id="qr-payload"
             value={qrPayload}
@@ -350,7 +486,7 @@ export function AttendanceCheckIn({
           ) : (
             <MapPin className="h-4 w-4" />
           )}
-          Absen dengan lokasi
+          Absen Dengan Lokasi GPS
         </Button>
         {bioSupported && bioRegistered ? (
           <Button
@@ -365,10 +501,93 @@ export function AttendanceCheckIn({
             ) : (
               <Fingerprint className="h-4 w-4" />
             )}
-            Absen biometrik
+            Absen Biometrik
           </Button>
         ) : null}
       </div>
+
+      {/* Camera QR Scanner Modal */}
+      <Dialog open={scanOpen} onOpenChange={(open) => { if (!open) stopScan(); }}>
+        <DialogContent className="sm:max-w-md p-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between text-base font-bold">
+              <span className="flex items-center gap-2">
+                <Camera className="h-5 w-5 text-inkai-red" />
+                Scan Kode QR Dojo Ranting
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={stopScan}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center">
+            {scanError ? (
+              <div className="w-full rounded-xl bg-destructive/10 p-4 text-center text-xs text-destructive">
+                <p className="font-semibold">{scanError}</p>
+                <p className="mt-2 text-muted-foreground">
+                  Gunakan input teks manual "Punya kode QR manual?" atau izinkan akses kamera pada peramban Anda.
+                </p>
+              </div>
+            ) : (
+              <div className="relative aspect-square w-full max-w-[320px] overflow-hidden rounded-2xl border-2 border-inkai-red/50 bg-black">
+                <video
+                  ref={videoRef}
+                  className="h-full w-full object-cover"
+                  playsInline
+                  muted
+                />
+                {/* Viewfinder frame overlay */}
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="h-48 w-48 rounded-2xl border-2 border-dashed border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]" />
+                </div>
+                <div className="pointer-events-none absolute bottom-3 left-0 right-0 text-center text-xs font-semibold text-white drop-shadow">
+                  Arahkan kamera ke Barcode Poster Dojo
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3 flex w-full items-center justify-between gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1 text-xs"
+                onClick={() =>
+                  void startScan(facingMode === "environment" ? "user" : "environment")
+                }
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Ganti Kamera
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground"
+                onClick={stopScan}
+              >
+                Tutup
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Member Home Dojo QR Modal */}
+      {defaultDojoId && homeDojoName ? (
+        <DojoQrModal
+          open={myDojoQrOpen}
+          onOpenChange={setMyDojoQrOpen}
+          dojo={{ id: defaultDojoId, name: homeDojoName }}
+        />
+      ) : null}
     </div>
   );
 }

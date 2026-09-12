@@ -234,6 +234,23 @@ export default async function MemberDashboard() {
         unreadPesan={unreadPesan}
       />
 
+      {member ? (
+        <MemberCard
+          nia={nia}
+          name={displayName}
+          dojo={dojoLine || "—"}
+          highestBelt={belt}
+          mshNumber={mshNumber}
+          qrValue={qrValue}
+        />
+      ) : impersonating ? (
+        <ImpersonationDataNotice />
+      ) : (
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          Data anggota belum tersedia. Hubungi admin cabang/dojo Anda.
+        </div>
+      )}
+
       {isPending && (
         <div className="flex items-start gap-3 rounded-2xl border border-inkai-yellow/40 bg-inkai-yellow/10 p-4">
           <Bell className="mt-0.5 h-5 w-5 shrink-0 text-inkai-yellow" />
@@ -316,23 +333,6 @@ export default async function MemberDashboard() {
           readyLabel="Siap ikut ujian & kegiatan — pantau Status UKT dan menu Kegiatan."
         />
       ) : null}
-
-      {member ? (
-        <MemberCard
-          nia={nia}
-          name={displayName}
-          dojo={dojoLine || "—"}
-          highestBelt={belt}
-          mshNumber={mshNumber}
-          qrValue={qrValue}
-        />
-      ) : impersonating ? (
-        <ImpersonationDataNotice />
-      ) : (
-        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-          Data anggota belum tersedia. Hubungi admin cabang/dojo Anda.
-        </div>
-      )}
 
       {member && dojoLine ? (
         <DojoTodayCard

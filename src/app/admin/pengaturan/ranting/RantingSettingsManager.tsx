@@ -28,9 +28,10 @@ import {
   CredentialsReveal,
   type CredentialPayload,
 } from "@/components/admin/pengaturan/CredentialsReveal";
-import { Archive, KeyRound, Pencil, Star, Users } from "lucide-react";
+import { Archive, KeyRound, Pencil, QrCode, Star, Users } from "lucide-react";
 import { ManagedDojoMatrix } from "@/components/admin/pengaturan/ManagedDojoMatrix";
 import { WilayahAccountsPanel } from "@/components/admin/pengaturan/WilayahAccountsPanel";
+import { DojoQrModal } from "@/components/admin/pengaturan/DojoQrModal";
 
 export type RantingRow = {
   id: string;
@@ -97,6 +98,7 @@ export function RantingSettingsManager({
   const [targetName, setTargetName] = useState("");
   const [form, setForm] = useState({ ...emptyForm, branchId: defaultBranchId });
   const [detailDojoId, setDetailDojoId] = useState<string | null>(null);
+  const [qrDojoTarget, setQrDojoTarget] = useState<RantingRow | null>(null);
   const [credential, setCredential] = useState<CredentialPayload | null>(null);
   /** Cabang/pengprov: boleh ubah email & password login ranting di form data. */
   const canEditCredentials = !selfManagedOnly;
@@ -671,6 +673,17 @@ export function RantingSettingsManager({
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex flex-wrap justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={loading}
+                        onClick={() => setQrDojoTarget(d)}
+                        className="gap-1 text-inkai-red hover:text-inkai-red/90 hover:bg-inkai-red/10"
+                        title="Lihat & Cetak Barcode / QR Dojo"
+                      >
+                        <QrCode className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">QR Dojo</span>
+                      </Button>
                       {!selfManagedOnly ? (
                         <>
                           <Button
@@ -685,6 +698,11 @@ export function RantingSettingsManager({
                           </Button>
                           <AdminMoreActions
                             items={[
+                              {
+                                label: "Kode QR / Barcode Poster",
+                                onSelect: () => setQrDojoTarget(d),
+                                disabled: loading,
+                              },
                               {
                                 label: "Data",
                                 onSelect: () => openEdit(d),
@@ -822,6 +840,14 @@ export function RantingSettingsManager({
           ) : null}
         </SheetContent>
       </Sheet>
+
+      <DojoQrModal
+        open={Boolean(qrDojoTarget)}
+        onOpenChange={(open) => {
+          if (!open) setQrDojoTarget(null);
+        }}
+        dojo={qrDojoTarget}
+      />
     </div>
   );
 }

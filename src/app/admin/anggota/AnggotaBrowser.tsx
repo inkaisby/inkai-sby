@@ -5,6 +5,10 @@ import Link from "next/link";
 import { Archive } from "lucide-react";
 import { AnggotaExportMenu } from "@/components/admin/anggota/AnggotaExportMenu";
 import {
+  MemberBarcodePrintModal,
+  type PrintableMemberItem,
+} from "@/components/admin/anggota/MemberBarcodePrintModal";
+import {
   SettingsPagination,
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
 import type { AdminMemberRow } from "@/lib/inkai-api/admin-data";
@@ -146,6 +150,9 @@ export function AnggotaBrowser({
     Record<string, MemberEventRegistrationFlags>
   >(initialEventRegistration ?? {});
   const [loading, setLoading] = useState(false);
+  const [barcodeExportMembers, setBarcodeExportMembers] = useState<
+    PrintableMemberItem[] | null
+  >(null);
   const [error, setError] = useState<string | null>(hasError ? "Gagal memuat data anggota." : null);
   const abortRef = useRef<AbortController | null>(null);
   const reqIdRef = useRef(0);
@@ -526,6 +533,17 @@ export function AnggotaBrowser({
           exportParams={exportParams}
           total={total}
           dojoName={activeDojoName || undefined}
+          onPrintBarcodesAll={(rows) => {
+            const mapped = rows.map((r) => ({
+              id: r.id,
+              fullName: r.fullName,
+              nia: r.nia,
+              currentRank: r.currentRank,
+              dojoName: r.dojo?.name,
+              mshNumber: r.mshNumber,
+            }));
+            setBarcodeExportMembers(mapped);
+          }}
         />
       </div>
 
@@ -629,6 +647,15 @@ export function AnggotaBrowser({
           const patch = parseHrefToFilters(href, filters.pageSize);
           applyFilters(patch, { resetPage: false });
         }}
+      />
+
+      <MemberBarcodePrintModal
+        open={Boolean(barcodeExportMembers)}
+        onOpenChange={(open) => {
+          if (!open) setBarcodeExportMembers(null);
+        }}
+        members={barcodeExportMembers || []}
+        title="Cetak Barcode Anggota (Massal)"
       />
     </AnggotaKpiCards>
     </>
