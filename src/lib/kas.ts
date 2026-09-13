@@ -11,6 +11,7 @@ export type KasSourceType =
   | "iuran"
   | "ukt"
   | "latber"
+  | "event"
   | "kwitansi"
   | "void";
 
@@ -45,6 +46,7 @@ export type KasGroupHeader = {
   kegiatan: string;
   totalIn: number;
   totalOut: number;
+  lastSaldo?: number;
   count?: number;
 };
 
@@ -258,11 +260,14 @@ export function groupKasTable(rows: KasLedgerRow[]): KasTableRow[] {
         totalIn += rows[idx].amountIn;
         totalOut += rows[idx].amountOut;
       }
+      const lastIdx = matchingIndices[matchingIndices.length - 1];
+      const lastSaldo = rows[lastIdx]?.saldo;
       out.push({
         kind: "group",
         kegiatan: baseK,
         totalIn,
         totalOut,
+        lastSaldo,
         count: matchingIndices.length,
       });
       for (const idx of matchingIndices) {

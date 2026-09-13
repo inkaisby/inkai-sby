@@ -88,7 +88,14 @@ export function buildKasPrintHtml(data: KasPrintData): string {
         <th>Kegiatan</th>
       </tr>
     </thead>
-    <tbody>${body || `<tr><td colspan="7" class="c">Tidak ada data</td></tr>`}</tbody>
+    <tbody>${
+      body ||
+      `<tr><td colspan="7" class="c" style="padding: 16px; color: #555;">Tidak ada mutasi yang cocok dengan filter yang dipilih (${escapeHtml(
+        data.periodLabel,
+      )}).<br/>Saldo kas berjalan tercatat sebesar <strong>${escapeHtml(
+        formatRp(data.saldoAkhir),
+      )}</strong>.</td></tr>`
+    }</tbody>
   </table>
 </body>
 </html>`;

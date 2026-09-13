@@ -133,21 +133,38 @@ export async function postKasFromUktPaid(opts: {
   const scopes = opts.memberDojoId
     ? await resolveDojoBranchScope(opts.memberDojoId)
     : { dojo: null, branch: null, dojoName: null };
-  const branch = scopes.branch;
-  if (!branch) return;
   const nia = opts.memberNia ? ` (${opts.memberNia})` : "";
-  await postKasEntry({
-    scope: branch,
-    txnDate: ymdWib(),
-    description: `${opts.memberName}${nia}`,
-    kegiatan: formatUktKasKegiatan(opts.periodTitle, scopes.dojoName),
-    direction: "in",
-    amount: nett,
-    sourceType: "ukt",
-    sourceId: opts.billingId,
-    sourceHref: `/admin/ukt`,
-    createdById: opts.user.id,
-  });
+  const kegiatan = formatUktKasKegiatan(opts.periodTitle, scopes.dojoName);
+
+  if (scopes.branch && nett > 0) {
+    await postKasEntry({
+      scope: scopes.branch,
+      txnDate: ymdWib(),
+      description: `${opts.memberName}${nia}`,
+      kegiatan,
+      direction: "in",
+      amount: nett,
+      sourceType: "ukt",
+      sourceId: `${opts.billingId}:cabang`,
+      sourceHref: `/admin/ukt`,
+      createdById: opts.user.id,
+    });
+  }
+
+  if (scopes.dojo && komisi > 0) {
+    await postKasEntry({
+      scope: scopes.dojo,
+      txnDate: ymdWib(),
+      description: `Komisi ranting — ${opts.memberName}${nia}`,
+      kegiatan,
+      direction: "in",
+      amount: komisi,
+      sourceType: "ukt",
+      sourceId: `${opts.billingId}:ranting`,
+      sourceHref: `/admin/ukt`,
+      createdById: opts.user.id,
+    });
+  }
 }
 
 export async function postKasFromLatberPaid(opts: {
@@ -200,22 +217,75 @@ export async function postKasFromLatberPaid(opts: {
   }
 }
 
+export async function postKasFromEventPaid(opts: {
+  user: SessionUser;
+  billingId: string;
+  amount: number;
+  memberName: string;
+  memberNia?: string | null;
+  eventTitle: string;
+  memberDojoId?: string | null;
+}) {
+  const fee = roundThousands(opts.amount);
+  if (fee <= 0) return;
+  const scopes = opts.memberDojoId
+    ? await resolveDojoBranchScope(opts.memberDojoId)
+    : { dojo: null, branch: null, dojoName: null };
+  const nia = opts.memberNia ? ` (${opts.memberNia})` : "";
+  const desc = `${opts.memberName}${nia}`;
+  const kegiatan = opts.eventTitle.trim() || "Event / Kegiatan";
+
+  if (scopes.branch) {
+    await postKasEntry({
+      scope: scopes.branch,
+      txnDate: ymdWib(),
+      description: desc,
+      kegiatan,
+      direction: "in",
+      amount: fee,
+      sourceType: "event",
+      sourceId: `${opts.billingId}:cabang`,
+      sourceHref: `/admin/kegiatan`,
+      createdById: opts.user.id,
+    });
+  }
+
+  if (scopes.dojo) {
+    await postKasEntry({
+      scope: scopes.dojo,
+      txnDate: ymdWib(),
+      description: desc,
+      kegiatan,
+      direction: "in",
+      amount: fee,
+      sourceType: "event",
+      sourceId: `${opts.billingId}:ranting`,
+      sourceHref: `/admin/kegiatan`,
+      createdById: opts.user.id,
+    });
+  }
+}
+
 export async function voidKasFromBilling(billingId: string, userId?: string) {
   await voidKasBySource({ sourceType: "iuran", sourceId: `${billingId}:branch`, actorUserId: userId });
   await voidKasBySource({ sourceType: "iuran", sourceId: `${billingId}:dojo`, actorUserId: userId });
   await voidKasBySource({ sourceType: "ukt", sourceId: billingId, actorUserId: userId });
+  await voidKasBySource({ sourceType: "ukt", sourceId: `${billingId}:cabang`, actorUserId: userId });
+  await voidKasBySource({ sourceType: "ukt", sourceId: `${billingId}:ranting`, actorUserId: userId });
   await voidKasBySource({ sourceType: "latber", sourceId: `${billingId}:cabang`, actorUserId: userId });
   await voidKasBySource({ sourceType: "latber", sourceId: `${billingId}:ranting`, actorUserId: userId });
+  await voidKasBySource({ sourceType: "event", sourceId: `${billingId}:cabang`, actorUserId: userId });
+  await voidKasBySource({ sourceType: "event", sourceId: `${billingId}:ranting`, actorUserId: userId });
 }
 
 export function classifyBillingForKas(billing: {
   type?: string | null;
   description?: string | null;
   registrationId?: string | null;
-}): "iuran" | "ukt" | "latber" | "skip" {
+}): "iuran" | "ukt" | "latber" | "event" | "skip" {
   const blob = `${billing.type ?? ""} ${billing.description ?? ""}`;
   if (isLatberEventTitle(blob) || /latihan bersama/i.test(blob)) return "latber";
   if (/\bUKT\b/i.test(blob)) return "ukt";
-  if (billing.registrationId) return "skip";
+  if (billing.registrationId || /\bevent\b/i.test(blob) || /\bgashuku\b/i.test(blob) || /\bkejuaraan\b/i.test(blob) || /\bpertandingan\b/i.test(blob)) return "event";
   return "iuran";
 }

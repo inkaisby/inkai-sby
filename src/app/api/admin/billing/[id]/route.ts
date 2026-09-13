@@ -19,6 +19,7 @@ import { isUktEventBilling } from "@/lib/ukt-self-registration";
 import { recreatePendingUktBillingAfterDelete } from "@/lib/ukt-register";
 import {
   classifyBillingForKas,
+  postKasFromEventPaid,
   postKasFromIuranPaid,
   postKasFromLatberPaid,
   postKasFromUktPaid,
@@ -508,6 +509,16 @@ export async function PATCH(request: Request, context: RouteContext) {
           memberName: scope.billing.member.fullName ?? "Peserta",
           memberNia: scope.billing.member.nia,
           periodTitle: scope.billing.description || "Latihan Bersama",
+          memberDojoId: scope.billing.member.dojoId,
+        });
+      } else if (kind === "event") {
+        await postKasFromEventPaid({
+          user: authResult.user,
+          billingId: id,
+          amount: scope.billing.amount,
+          memberName: scope.billing.member.fullName ?? "Peserta",
+          memberNia: scope.billing.member.nia,
+          eventTitle: scope.billing.description || "Event / Kegiatan",
           memberDojoId: scope.billing.member.dojoId,
         });
       }

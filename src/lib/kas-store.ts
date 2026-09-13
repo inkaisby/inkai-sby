@@ -485,7 +485,37 @@ async function syncMissingUktKasForScope(scope: KasScope) {
         seenRegIds.add(b.registrationId);
       }
 
-      if (scope.type === "branch" && b.member.dojo?.branchId) {
+      if (scope.type === "dojo") {
+        const sourceId = `${b.id}:ranting`;
+        validSourceIds.add(sourceId);
+        const exists = existingUktKasEntries.some((e) => e.sourceId === sourceId);
+        if (!exists) {
+          const nia = b.member.nia ? ` (${b.member.nia})` : "";
+          const descStr = `${b.member.fullName}${nia}`;
+          const kegiatan = formatUktKasKegiatan(
+            b.description || "UKT",
+            b.member.dojo?.name,
+          );
+          const fee = b.amount - (b.amount % 1000);
+          const komisi = Math.min(fee, 50000);
+          if (komisi > 0) {
+            await prisma.kasEntry.create({
+              data: {
+                scopeType: "dojo",
+                scopeId: b.member.dojoId,
+                txnDate: b.createdAt,
+                description: `Komisi ranting — ${descStr}`,
+                kegiatan,
+                amountIn: komisi,
+                amountOut: 0,
+                sourceType: "ukt",
+                sourceId,
+                sourceHref: "/admin/ukt",
+              },
+            });
+          }
+        }
+      } else if (scope.type === "branch" && b.member.dojo?.branchId) {
         const sourceId = b.id;
         validSourceIds.add(sourceId);
         validSourceIds.add(`${b.id}:cabang`);
@@ -524,7 +554,8 @@ async function syncMissingUktKasForScope(scope: KasScope) {
       .filter(
         (e) =>
           !validSourceIds.has(e.sourceId) &&
-          !validSourceIds.has(e.sourceId.replace(/:cabang$/, "")),
+          !validSourceIds.has(e.sourceId.replace(/:cabang$/, "")) &&
+          !validSourceIds.has(e.sourceId.replace(/:ranting$/, "")),
       )
       .map((e) => e.id);
 

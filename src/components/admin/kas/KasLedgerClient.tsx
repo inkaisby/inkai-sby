@@ -1573,6 +1573,7 @@ export function KasLedgerClient({
               <option value="iuran">Iuran</option>
               <option value="ukt">UKT</option>
               <option value="latber">Latber</option>
+              <option value="event">Event / Kegiatan</option>
               <option value="kwitansi">Kwitansi</option>
             </select>
             <select
@@ -1648,13 +1649,18 @@ export function KasLedgerClient({
                     />
                   ) : null}
                   <div
-                    className={`rounded-md border-2 px-3 py-1.5 text-sm font-bold ${
+                    className={`flex flex-col items-end rounded-md border-2 px-3 py-1 text-right text-xs md:text-sm font-bold ${
                       (data?.kpis.saldoAkhir ?? 0) < 0
-                        ? "border-red-600 text-red-700"
-                        : "border-green-700 text-green-800"
+                        ? "border-red-600 text-red-700 dark:text-red-400"
+                        : "border-green-700 text-green-800 dark:text-green-400"
                     }`}
                   >
-                    Saldo akhir {formatRp(data?.kpis.saldoAkhir ?? 0)}
+                    <div>Saldo akhir {formatRp(data?.kpis.saldoAkhir ?? 0)}</div>
+                    {filteredLaporanRows.length === 0 && (fromYmd || toYmd) ? (
+                      <div className="text-[10px] font-normal opacity-80">
+                        (per {formatKasDateId(toYmd || fromYmd)})
+                      </div>
+                    ) : null}
                   </div>
                   <Button
                     type="button"
@@ -1722,9 +1728,26 @@ export function KasLedgerClient({
                   ) : filteredLaporanRows.length === 0 ? (
                     <tr>
                       <td colSpan={data?.canWrite ? 9 : 8} className="p-6 text-center text-muted-foreground">
-                        {isFiltered
-                          ? "Tidak ada mutasi yang cocok dengan filter yang dipilih."
-                          : "Belum ada mutasi pada periode ini."}
+                        <div className="space-y-1.5">
+                          <p className="font-medium text-foreground">
+                            {isFiltered
+                              ? "Tidak ada mutasi yang cocok dengan filter yang dipilih."
+                              : "Belum ada mutasi pada periode ini."}
+                          </p>
+                          {data?.kpis?.saldoAkhir !== undefined && (fromYmd || toYmd) ? (
+                            <p className="text-xs text-muted-foreground">
+                              Saldo kas berjalan per{" "}
+                              <span className="font-semibold text-foreground">
+                                {formatKasDateId(toYmd || fromYmd)}
+                              </span>{" "}
+                              tercatat sebesar{" "}
+                              <span className="font-semibold text-foreground">
+                                {formatRp(data.kpis.saldoAkhir)}
+                              </span>{" "}
+                              (akumulasi transaksi sebelumnya, tanpa mutasi baru pada rentang filter ini).
+                            </p>
+                          ) : null}
+                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -2013,11 +2036,30 @@ export function KasLedgerClient({
             ) : groups.length === 0 ? (
               <tr>
                 <td colSpan={colSpan} className="p-6 text-center text-muted-foreground">
-                  Belum ada mutasi pada periode ini.{" "}
-                  {isRanting
-                    ? "Ranting hanya melihat iuran lunas di ranting dan CASHBACK Latber (bukan UKT cabang). "
-                    : ""}
-                  Gunakan Tambah, Tambah massal, atau tunggu verifikasi. Isi Saldo awal sekali jika pindah dari Excel.
+                  <div className="space-y-1.5">
+                    <p className="font-medium text-foreground">
+                      Belum ada mutasi pada periode ini.
+                    </p>
+                    <p className="text-xs">
+                      {isRanting
+                        ? "Ranting melihat iuran lunas di ranting, Komisi UKT ranting (Rp 50.000/peserta), dan CASHBACK Latber (Rp 5.000/peserta). "
+                        : ""}
+                      Gunakan Tambah, Tambah massal, atau tunggu verifikasi. Isi Saldo awal sekali jika pindah dari Excel.
+                    </p>
+                    {data?.kpis?.saldoAkhir !== undefined && (fromYmd || toYmd) ? (
+                      <p className="text-xs text-muted-foreground">
+                        Saldo kas berjalan per{" "}
+                        <span className="font-semibold text-foreground">
+                          {formatKasDateId(toYmd || fromYmd)}
+                        </span>{" "}
+                        tercatat sebesar{" "}
+                        <span className="font-semibold text-foreground">
+                          {formatRp(data.kpis.saldoAkhir)}
+                        </span>{" "}
+                        (akumulasi saldo dari periode sebelumnya).
+                      </p>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ) : (
@@ -2115,7 +2157,10 @@ export function KasLedgerClient({
                     </td>
                     <td className="p-3 text-right">{formatRp(row.totalIn)}</td>
                     <td className="p-3 text-right">{formatRp(row.totalOut)}</td>
-                    <td colSpan={3} />
+                    <td className="p-3 text-right font-medium tabular-nums">
+                      {row.lastSaldo !== undefined ? formatRp(row.lastSaldo) : "—"}
+                    </td>
+                    <td colSpan={2} />
                   </tr>
                 ) : (
                   <tr key={row.id} className="border-b">
