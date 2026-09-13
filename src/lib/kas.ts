@@ -574,8 +574,10 @@ export function extractDojoNameFromKasRow(
         }
       }
     }
-    // If an official list is provided, but no official dojo name matched in text, return null (fallback to TANPA RANTING)
-    return null;
+    // If viewing single dojo scope (officialNames has 1 item), attribute entry to that dojo
+    if (officialNames.length === 1) {
+      return officialNames[0];
+    }
   }
 
   // 2. Check pattern 'Ranting <DojoName>' or 'Dojo <DojoName>'

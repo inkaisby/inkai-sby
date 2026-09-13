@@ -672,7 +672,21 @@ export async function listKasScopes(user: SessionUser): Promise<
 > {
   if (!isSuperAdminEmail(user.email)) {
     const scope = await resolveKasScope(user);
-    return [{ type: scope.type, id: scope.id, label: scope.type === "dojo" ? "Ranting" : "Cabang" }];
+    let label = scope.type === "dojo" ? "Ranting" : "Cabang";
+    if (scope.type === "dojo") {
+      const dojo = await prisma.dojo.findFirst({
+        where: { id: scope.id },
+        select: { name: true },
+      });
+      if (dojo?.name) label = `Ranting ${dojo.name}`;
+    } else if (scope.type === "branch") {
+      const branch = await prisma.branch.findFirst({
+        where: { id: scope.id },
+        select: { name: true },
+      });
+      if (branch?.name) label = `Cabang ${branch.name}`;
+    }
+    return [{ type: scope.type, id: scope.id, label }];
   }
 
   const out: Array<{ type: "branch" | "dojo"; id: string; label: string }> = [];
