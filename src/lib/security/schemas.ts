@@ -1090,7 +1090,7 @@ export const kasDeleteBatchSchema = z.object({
   ids: z
     .array(z.string().trim().min(1).max(64))
     .min(1)
-    .max(100),
+    .max(5000),
 });
 
 export const kasLockSchema = z.object({

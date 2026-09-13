@@ -774,8 +774,8 @@ export async function deleteManualKasByIds(opts: {
 }): Promise<{ deleted: number }> {
   const ids = [...new Set(opts.ids.map((id) => id.trim()).filter(Boolean))];
   if (ids.length === 0) return { deleted: 0 };
-  if (ids.length > 100) {
-    throw new Error("Maksimal 100 baris per penghapusan");
+  if (ids.length > 5000) {
+    throw new Error("Maksimal 5000 baris per penghapusan");
   }
 
   const rows = await prisma.kasEntry.findMany({

@@ -959,8 +959,8 @@ export function KasLedgerClient({
 
   async function handleBatchDelete() {
     if (!data?.scope || selectedIds.length === 0) return;
-    if (selectedIds.length > 100) {
-      toast.error("Maksimal 100 baris per penghapusan");
+    if (selectedIds.length > 5000) {
+      toast.error("Maksimal 5000 baris per penghapusan");
       return;
     }
     const res = await fetch("/api/admin/kas/delete-batch", {
