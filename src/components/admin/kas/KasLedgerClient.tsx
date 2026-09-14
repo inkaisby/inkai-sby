@@ -49,6 +49,7 @@ import {
   firstOfMonthWib,
   formatKasDateId,
   formatRecapDojoTextForWa,
+  getKasBaseKegiatan,
   groupKasTable,
   kasGroupKegiatanNames,
   KAS_MAX_BATCH,
@@ -179,22 +180,66 @@ export function KasLedgerClient({
   const [uktDepositLoading, setUktDepositLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"buku" | "laporan">("laporan");
   const [tableFullscreen, setTableFullscreen] = useState(false);
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [draggedItem, setDraggedItem] = useState<{
+    type: "group" | "entry";
+    key: string;
+  } | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
-  async function handleDropReorder(sourceId: string, targetId: string) {
-    if (!data?.rows || sourceId === targetId) return;
+  async function handleDropReorder(
+    source: { type: "group" | "entry"; key: string },
+    target: { type: "group" | "entry"; key: string },
+  ) {
+    if (!data?.rows || (source.type === target.type && source.key === target.key)) return;
+
     const currentRows = [...data.rows];
-    const sourceIndex = currentRows.findIndex((r) => r.id === sourceId);
-    const targetIndex = currentRows.findIndex((r) => r.id === targetId);
-    if (sourceIndex < 0 || targetIndex < 0) return;
 
-    const [movedRow] = currentRows.splice(sourceIndex, 1);
-    currentRows.splice(targetIndex, 0, movedRow);
+    // Extract source entries to move
+    let sourceEntries: KasLedgerRow[] = [];
+    if (source.type === "group") {
+      sourceEntries = currentRows.filter(
+        (r) => getKasBaseKegiatan(r.kegiatan, r.sourceType) === source.key || r.kegiatan === source.key,
+      );
+    } else {
+      const found = currentRows.find((r) => r.id === source.key);
+      if (found) sourceEntries = [found];
+    }
+
+    if (sourceEntries.length === 0) return;
+
+    // Do nothing if dropping group onto one of its own entries
+    if (
+      source.type === "group" &&
+      target.type === "entry" &&
+      sourceEntries.some((r) => r.id === target.key)
+    ) {
+      return;
+    }
+
+    // Filter out source entries from remaining rows
+    const sourceIdSet = new Set(sourceEntries.map((r) => r.id));
+    const remainingRows = currentRows.filter((r) => !sourceIdSet.has(r.id));
+
+    // Determine target insertion index in remainingRows
+    let targetIndex = -1;
+    if (target.type === "group") {
+      targetIndex = remainingRows.findIndex(
+        (r) => getKasBaseKegiatan(r.kegiatan, r.sourceType) === target.key || r.kegiatan === target.key,
+      );
+    } else {
+      targetIndex = remainingRows.findIndex((r) => r.id === target.key);
+    }
+
+    if (targetIndex < 0) {
+      targetIndex = remainingRows.length;
+    }
+
+    // Insert source entries into remainingRows at targetIndex
+    remainingRows.splice(targetIndex, 0, ...sourceEntries);
 
     // Recalculate no & running saldo optimistically
     let saldo = data.kpis.opening ?? 0;
-    const reorderedRows = currentRows.map((row, i) => {
+    const reorderedRows = remainingRows.map((row, i) => {
       saldo += row.amountIn - row.amountOut;
       return { ...row, no: i + 1, saldo };
     });
@@ -224,13 +269,17 @@ export function KasLedgerClient({
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error || "Gagal menyimpan urutan baris");
+        toast.error(json.error || "Gagal menyimpan urutan baris/kegiatan");
         await load();
         return;
       }
-      toast.success("Urutan baris diperbarui");
-    } catch (err) {
-      toast.error("Gagal menyimpan urutan baris");
+      toast.success(
+        source.type === "group"
+          ? `Urutan kegiatan "${source.key}" berhasil diperbarui`
+          : "Urutan baris kas diperbarui",
+      );
+    } catch {
+      toast.error("Gagal menyimpan urutan");
       await load();
     }
   }
@@ -1755,6 +1804,9 @@ export function KasLedgerClient({
                 <thead>
                   <tr className="sticky top-0 z-10 border-b bg-muted/95 text-left text-muted-foreground backdrop-blur">
                     {data?.canWrite ? (
+                      <th className="w-8 p-2 text-center" title="Geser baris untuk mengubah urutan (Drag & Drop)"></th>
+                    ) : null}
+                    {data?.canWrite ? (
                       <th className="w-10 p-2 text-center">
                         <input
                           type="checkbox"
@@ -1778,13 +1830,13 @@ export function KasLedgerClient({
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={data?.canWrite ? 9 : 8} className="p-6 text-center text-muted-foreground">
+                      <td colSpan={data?.canWrite ? 10 : 8} className="p-6 text-center text-muted-foreground">
                         Memuat…
                       </td>
                     </tr>
                   ) : filteredLaporanRows.length === 0 ? (
                     <tr>
-                      <td colSpan={data?.canWrite ? 9 : 8} className="p-6 text-center text-muted-foreground">
+                      <td colSpan={data?.canWrite ? 10 : 8} className="p-6 text-center text-muted-foreground">
                         <div className="space-y-1.5">
                           <p className="font-medium text-foreground">
                             {isFiltered
@@ -1817,9 +1869,51 @@ export function KasLedgerClient({
                           key={row.id}
                           className={cn(
                             "group border-b hover:bg-muted/20 transition-colors",
-                            isSelected && "bg-muted/40 font-medium"
+                            isSelected && "bg-muted/40 font-medium",
+                            draggedItem?.type === "entry" && draggedItem.key === row.id && "opacity-40 bg-muted/40",
+                            dragOverKey === row.id && "border-t-2 border-primary bg-primary/5",
                           )}
+                          draggable={Boolean(data?.canWrite && !monthLocked(row.txnDate))}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("application/json", JSON.stringify({ type: "entry", key: row.id }));
+                            e.dataTransfer.effectAllowed = "move";
+                            setDraggedItem({ type: "entry", key: row.id });
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = "move";
+                            if (dragOverKey !== row.id) {
+                              setDragOverKey(row.id);
+                            }
+                          }}
+                          onDragLeave={() => {
+                            if (dragOverKey === row.id) {
+                              setDragOverKey(null);
+                            }
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            setDragOverKey(null);
+                            let payload = draggedItem;
+                            try {
+                              const raw = e.dataTransfer.getData("application/json");
+                              if (raw) payload = JSON.parse(raw);
+                            } catch {}
+                            setDraggedItem(null);
+                            if (payload) void handleDropReorder(payload, { type: "entry", key: row.id });
+                          }}
+                          onDragEnd={() => {
+                            setDraggedItem(null);
+                            setDragOverKey(null);
+                          }}
                         >
+                          {data?.canWrite ? (
+                            <td className="w-8 p-2 text-center text-muted-foreground cursor-grab active:cursor-grabbing hover:text-foreground">
+                              <span title="Geser baris (Drag & Drop)">
+                                <GripVertical className="h-4 w-4 inline-block text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" />
+                              </span>
+                            </td>
+                          ) : null}
                           {data?.canWrite ? (
                             <td className="p-2 text-center">
                               {isDeletable ? (
@@ -2125,8 +2219,56 @@ export function KasLedgerClient({
             ) : (
               groups.map((row, idx) =>
                 row.kind === "group" ? (
-                  <tr key={`g-${row.kegiatan}-${idx}`} className="bg-muted/50 font-medium">
-                    <td colSpan={(canSelect ? 4 : 3) + (data?.canWrite ? 1 : 0)} className="p-3">
+                  <tr
+                    key={`g-${row.kegiatan}-${idx}`}
+                    className={cn(
+                      "bg-muted/50 font-medium transition-colors",
+                      draggedItem?.type === "group" && draggedItem.key === row.kegiatan && "opacity-40 bg-muted/40",
+                      dragOverKey === `g-${row.kegiatan}` && "border-t-2 border-primary bg-primary/5",
+                    )}
+                    draggable={Boolean(data?.canWrite)}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("application/json", JSON.stringify({ type: "group", key: row.kegiatan }));
+                      e.dataTransfer.effectAllowed = "move";
+                      setDraggedItem({ type: "group", key: row.kegiatan });
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      const key = `g-${row.kegiatan}`;
+                      if (dragOverKey !== key) {
+                        setDragOverKey(key);
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverKey === `g-${row.kegiatan}`) {
+                        setDragOverKey(null);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOverKey(null);
+                      let payload = draggedItem;
+                      try {
+                        const raw = e.dataTransfer.getData("application/json");
+                        if (raw) payload = JSON.parse(raw);
+                      } catch {}
+                      setDraggedItem(null);
+                      if (payload) void handleDropReorder(payload, { type: "group", key: row.kegiatan });
+                    }}
+                    onDragEnd={() => {
+                      setDraggedItem(null);
+                      setDragOverKey(null);
+                    }}
+                  >
+                    {data?.canWrite ? (
+                      <td className="w-8 p-3 text-center text-muted-foreground cursor-grab active:cursor-grabbing hover:text-foreground">
+                        <span title="Geser grup kegiatan ini (Drag & Drop)">
+                          <GripVertical className="h-4 w-4 inline-block text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" />
+                        </span>
+                      </td>
+                    ) : null}
+                    <td colSpan={canSelect ? 4 : 3} className="p-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
@@ -2245,37 +2387,41 @@ export function KasLedgerClient({
                     key={row.id}
                     className={cn(
                       "border-b transition-colors",
-                      draggedId === row.id && "opacity-40 bg-muted/40",
-                      dragOverId === row.id && draggedId !== row.id && "border-t-2 border-primary bg-primary/5",
+                      draggedItem?.type === "entry" && draggedItem.key === row.id && "opacity-40 bg-muted/40",
+                      dragOverKey === row.id && "border-t-2 border-primary bg-primary/5",
                     )}
                     draggable={Boolean(data?.canWrite && !monthLocked(row.txnDate))}
                     onDragStart={(e) => {
-                      e.dataTransfer.setData("text/plain", row.id);
+                      e.dataTransfer.setData("application/json", JSON.stringify({ type: "entry", key: row.id }));
                       e.dataTransfer.effectAllowed = "move";
-                      setDraggedId(row.id);
+                      setDraggedItem({ type: "entry", key: row.id });
                     }}
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.dataTransfer.dropEffect = "move";
-                      if (dragOverId !== row.id) {
-                        setDragOverId(row.id);
+                      if (dragOverKey !== row.id) {
+                        setDragOverKey(row.id);
                       }
                     }}
                     onDragLeave={() => {
-                      if (dragOverId === row.id) {
-                        setDragOverId(null);
+                      if (dragOverKey === row.id) {
+                        setDragOverKey(null);
                       }
                     }}
                     onDrop={(e) => {
                       e.preventDefault();
-                      setDragOverId(null);
-                      const sourceId = e.dataTransfer.getData("text/plain") || draggedId;
-                      setDraggedId(null);
-                      if (sourceId) void handleDropReorder(sourceId, row.id);
+                      setDragOverKey(null);
+                      let payload = draggedItem;
+                      try {
+                        const raw = e.dataTransfer.getData("application/json");
+                        if (raw) payload = JSON.parse(raw);
+                      } catch {}
+                      setDraggedItem(null);
+                      if (payload) void handleDropReorder(payload, { type: "entry", key: row.id });
                     }}
                     onDragEnd={() => {
-                      setDraggedId(null);
-                      setDragOverId(null);
+                      setDraggedItem(null);
+                      setDragOverKey(null);
                     }}
                   >
                     {data?.canWrite ? (
