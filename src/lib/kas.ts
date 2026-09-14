@@ -260,8 +260,7 @@ export function groupKasTable(rows: KasLedgerRow[]): KasTableRow[] {
         totalIn += rows[idx].amountIn;
         totalOut += rows[idx].amountOut;
       }
-      const lastIdx = matchingIndices[matchingIndices.length - 1];
-      const lastSaldo = rows[lastIdx]?.saldo;
+      const lastSaldo = totalIn - totalOut;
       out.push({
         kind: "group",
         kegiatan: baseK,
@@ -270,8 +269,11 @@ export function groupKasTable(rows: KasLedgerRow[]): KasTableRow[] {
         lastSaldo,
         count: matchingIndices.length,
       });
+
+      let groupSaldo = 0;
       for (const idx of matchingIndices) {
-        out.push({ kind: "entry", ...rows[idx] });
+        groupSaldo += rows[idx].amountIn - rows[idx].amountOut;
+        out.push({ kind: "entry", ...rows[idx], saldo: groupSaldo });
         processed.add(idx);
       }
     } else {

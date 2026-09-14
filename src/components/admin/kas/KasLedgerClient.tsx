@@ -2070,7 +2070,7 @@ export function KasLedgerClient({
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 text-left"
+                          className="inline-flex items-center gap-1 text-left font-semibold text-foreground hover:text-primary transition-colors"
                           aria-expanded={!collapsedKegiatan.includes(row.kegiatan)}
                           aria-label={
                             collapsedKegiatan.includes(row.kegiatan)
@@ -2097,6 +2097,24 @@ export function KasLedgerClient({
                             {row.count} item
                           </span>
                         ) : null}
+                        {(() => {
+                          const netKegiatan = row.totalIn - row.totalOut;
+                          if (netKegiatan === 0) return null;
+                          const isSurplus = netKegiatan >= 0;
+                          return (
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold shadow-xs border",
+                                isSurplus
+                                  ? "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-200 border-emerald-300/60 dark:border-emerald-800"
+                                  : "bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border-amber-300/60 dark:border-amber-800",
+                              )}
+                              title={`Net Pemasukan/Pengeluaran bersih kegiatan "${row.kegiatan}": Total Masuk (${formatRp(row.totalIn)}) - Total Keluar (${formatRp(row.totalOut)})`}
+                            >
+                              {isSurplus ? `Net Kegiatan: +${formatRp(netKegiatan)}` : `Net Kegiatan: -${formatRp(Math.abs(netKegiatan))}`}
+                            </span>
+                          );
+                        })()}
                         {data?.canWrite ? (
                           <Button
                             type="button"
@@ -2158,7 +2176,16 @@ export function KasLedgerClient({
                     <td className="p-3 text-right">{formatRp(row.totalIn)}</td>
                     <td className="p-3 text-right">{formatRp(row.totalOut)}</td>
                     <td className="p-3 text-right font-medium tabular-nums">
-                      {row.lastSaldo !== undefined ? formatRp(row.lastSaldo) : "—"}
+                      {row.lastSaldo !== undefined ? (
+                        <div title="Akumulasi Saldo Bersih Kegiatan ini (seperti spreadsheet)">
+                          <span>{formatRp(row.lastSaldo)}</span>
+                          <div className="text-[10px] font-normal text-muted-foreground leading-tight">
+                            Saldo Kegiatan
+                          </div>
+                        </div>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td colSpan={2} />
                   </tr>
@@ -2196,7 +2223,11 @@ export function KasLedgerClient({
                     <td className="p-3 text-right">
                       {row.amountOut ? formatRp(row.amountOut) : "—"}
                     </td>
-                    <td className="p-3 text-right">{formatRp(row.saldo)}</td>
+                    <td className="p-3 text-right font-mono text-xs">
+                      <div title="Saldo Akumulasi Kegiatan (seperti spreadsheet)">
+                        {formatRp(row.saldo)}
+                      </div>
+                    </td>
                     <td className="p-3">{row.kegiatan || "—"}</td>
                     <td className="p-3 text-center">
                       <div className="flex justify-center gap-1">
