@@ -190,21 +190,21 @@ export function getKasBaseKegiatan(kegiatan: string, sourceType?: string): strin
   const k = kegiatan.trim();
   if (!k) return "";
 
-  const isLatber =
+  const isLatberPayment =
     sourceType === "latber" ||
-    /latber/i.test(k) ||
-    /latihan\s+bersama/i.test(k);
+    /^(?:Bayar\s+)?(?:Latber|Latihan\s+Bersama)/i.test(k);
 
-  if (isLatber) {
+  if (isLatberPayment) {
     if (/persiapan\s*ukt/i.test(k)) {
       return "Bayar Latber Persiapan UKT";
     }
     if (/semester\s+II|II-2026|UKT\s+II/i.test(k)) {
       return "Bayar Latber UKT Semester II-2026";
     }
-    const latberMatch = k.match(/^(?:Bayar\s+)?(Latber(?:\s+UKT)?\s+[^-—]+)(?:[-—][^]+)?$/i);
+    const latberMatch = k.match(/^(?:Bayar\s+)?(Latber(?:\s+UKT)?(?:\s+[^-—]+)?)(?:[-—][^]+)?$/i);
     if (latberMatch?.[1]) {
-      return latberMatch[1].trim();
+      const raw = latberMatch[1].trim();
+      return raw.toLowerCase().startsWith("bayar ") ? raw : `Bayar ${raw}`;
     }
     return "Bayar Latber UKT";
   }
@@ -216,7 +216,7 @@ export function getKasBaseKegiatan(kegiatan: string, sourceType?: string): strin
   }
 
   // UKT pendaftaran pattern: Bayar UKT Biaya pendaftaran UKT Semester II...
-  if (/biaya\s+pendaftaran\s+ukt\s+semester\s+II/i.test(k) || /ukt\s+semester\s+II/i.test(k)) {
+  if (/^(?:Bayar\s+)?UKT\b/i.test(k) && (/biaya\s+pendaftaran\s+ukt\s+semester\s+II/i.test(k) || /ukt\s+semester\s+II/i.test(k))) {
     return "Bayar UKT Semester II-2026";
   }
 
