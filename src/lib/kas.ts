@@ -119,8 +119,6 @@ export function sortKasEntries<T extends { txnDate: string; createdAt: string }>
   rows: T[],
 ): T[] {
   return [...rows].sort((a, b) => {
-    const byDate = a.txnDate.localeCompare(b.txnDate);
-    if (byDate !== 0) return byDate;
     return a.createdAt.localeCompare(b.createdAt);
   });
 }
@@ -260,7 +258,8 @@ export function groupKasTable(rows: KasLedgerRow[]): KasTableRow[] {
         totalIn += rows[idx].amountIn;
         totalOut += rows[idx].amountOut;
       }
-      const lastSaldo = totalIn - totalOut;
+      const lastIdx = matchingIndices[matchingIndices.length - 1];
+      const lastSaldo = rows[lastIdx]?.saldo;
       out.push({
         kind: "group",
         kegiatan: baseK,
@@ -269,11 +268,8 @@ export function groupKasTable(rows: KasLedgerRow[]): KasTableRow[] {
         lastSaldo,
         count: matchingIndices.length,
       });
-
-      let groupSaldo = 0;
       for (const idx of matchingIndices) {
-        groupSaldo += rows[idx].amountIn - rows[idx].amountOut;
-        out.push({ kind: "entry", ...rows[idx], saldo: groupSaldo });
+        out.push({ kind: "entry", ...rows[idx] });
         processed.add(idx);
       }
     } else {

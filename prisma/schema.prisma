@@ -566,12 +566,14 @@ model KasEntry {
   sourceId    String
   sourceHref  String?
   reconStatus String   @default("open")
+  sortOrder   Int      @default(0)
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@unique([sourceType, sourceId, scopeId])
   @@index([scopeType, scopeId, txnDate, createdAt])
+  @@index([scopeType, scopeId, sortOrder, createdAt])
   @@index([scopeType, scopeId, kegiatan])
 }
 

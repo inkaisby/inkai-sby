@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Copy,
   Download,
+  GripVertical,
   Lock,
   Maximize2,
   Minimize2,
@@ -48,6 +49,7 @@ import {
   firstOfMonthWib,
   formatKasDateId,
   formatRecapDojoTextForWa,
+  groupKasTable,
   kasGroupKegiatanNames,
   KAS_MAX_BATCH,
   mergeMassPasteRows,
@@ -177,6 +179,61 @@ export function KasLedgerClient({
   const [uktDepositLoading, setUktDepositLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"buku" | "laporan">("laporan");
   const [tableFullscreen, setTableFullscreen] = useState(false);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  async function handleDropReorder(sourceId: string, targetId: string) {
+    if (!data?.rows || sourceId === targetId) return;
+    const currentRows = [...data.rows];
+    const sourceIndex = currentRows.findIndex((r) => r.id === sourceId);
+    const targetIndex = currentRows.findIndex((r) => r.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+
+    const [movedRow] = currentRows.splice(sourceIndex, 1);
+    currentRows.splice(targetIndex, 0, movedRow);
+
+    // Recalculate no & running saldo optimistically
+    let saldo = data.kpis.opening ?? 0;
+    const reorderedRows = currentRows.map((row, i) => {
+      saldo += row.amountIn - row.amountOut;
+      return { ...row, no: i + 1, saldo };
+    });
+
+    const orderedIds = reorderedRows.map((r) => r.id);
+
+    // Optimistically update data state
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            rows: reorderedRows,
+            groups: groupKasTable(reorderedRows),
+          }
+        : prev,
+    );
+
+    try {
+      const res = await fetch("/api/admin/kas/reorder", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-kas-scope-type": data.scope.type,
+          "x-kas-scope-id": data.scope.id,
+        },
+        body: JSON.stringify({ orderedIds }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "Gagal menyimpan urutan baris");
+        await load();
+        return;
+      }
+      toast.success("Urutan baris diperbarui");
+    } catch (err) {
+      toast.error("Gagal menyimpan urutan baris");
+      await load();
+    }
+  }
   const [form, setForm] = useState({
     txnDate: ymdWib(),
     description: "",
@@ -2005,6 +2062,9 @@ export function KasLedgerClient({
           <table className="w-full min-w-[920px] border-collapse text-sm">
             <thead>
               <tr className="sticky top-0 z-10 border-b bg-muted/95 text-left text-muted-foreground backdrop-blur">
+                {data?.canWrite ? (
+                  <th className="w-8 p-3 text-center" title="Geser baris untuk mengubah urutan (Drag & Drop)"></th>
+                ) : null}
                 {canSelect ? (
                   <th className="w-10 p-3">
                     <input
@@ -2029,13 +2089,13 @@ export function KasLedgerClient({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={colSpan} className="p-6 text-center text-muted-foreground">
+                <td colSpan={colSpan + (data?.canWrite ? 1 : 0)} className="p-6 text-center text-muted-foreground">
                   Memuat…
                 </td>
               </tr>
             ) : groups.length === 0 ? (
               <tr>
-                <td colSpan={colSpan} className="p-6 text-center text-muted-foreground">
+                <td colSpan={colSpan + (data?.canWrite ? 1 : 0)} className="p-6 text-center text-muted-foreground">
                   <div className="space-y-1.5">
                     <p className="font-medium text-foreground">
                       Belum ada mutasi pada periode ini.
@@ -2066,7 +2126,7 @@ export function KasLedgerClient({
               groups.map((row, idx) =>
                 row.kind === "group" ? (
                   <tr key={`g-${row.kegiatan}-${idx}`} className="bg-muted/50 font-medium">
-                    <td colSpan={canSelect ? 4 : 3} className="p-3">
+                    <td colSpan={(canSelect ? 4 : 3) + (data?.canWrite ? 1 : 0)} className="p-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
@@ -2176,21 +2236,55 @@ export function KasLedgerClient({
                     <td className="p-3 text-right">{formatRp(row.totalIn)}</td>
                     <td className="p-3 text-right">{formatRp(row.totalOut)}</td>
                     <td className="p-3 text-right font-medium tabular-nums">
-                      {row.lastSaldo !== undefined ? (
-                        <div title="Akumulasi Saldo Bersih Kegiatan ini (seperti spreadsheet)">
-                          <span>{formatRp(row.lastSaldo)}</span>
-                          <div className="text-[10px] font-normal text-muted-foreground leading-tight">
-                            Saldo Kegiatan
-                          </div>
-                        </div>
-                      ) : (
-                        "—"
-                      )}
+                      {row.lastSaldo !== undefined ? formatRp(row.lastSaldo) : "—"}
                     </td>
                     <td colSpan={2} />
                   </tr>
                 ) : (
-                  <tr key={row.id} className="border-b">
+                  <tr
+                    key={row.id}
+                    className={cn(
+                      "border-b transition-colors",
+                      draggedId === row.id && "opacity-40 bg-muted/40",
+                      dragOverId === row.id && draggedId !== row.id && "border-t-2 border-primary bg-primary/5",
+                    )}
+                    draggable={Boolean(data?.canWrite && !monthLocked(row.txnDate))}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", row.id);
+                      e.dataTransfer.effectAllowed = "move";
+                      setDraggedId(row.id);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (dragOverId !== row.id) {
+                        setDragOverId(row.id);
+                      }
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverId === row.id) {
+                        setDragOverId(null);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOverId(null);
+                      const sourceId = e.dataTransfer.getData("text/plain") || draggedId;
+                      setDraggedId(null);
+                      if (sourceId) void handleDropReorder(sourceId, row.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedId(null);
+                      setDragOverId(null);
+                    }}
+                  >
+                    {data?.canWrite ? (
+                      <td className="w-8 p-3 text-center text-muted-foreground cursor-grab active:cursor-grabbing hover:text-foreground">
+                        <span title="Geser baris (Drag & Drop)">
+                          <GripVertical className="h-4 w-4 inline-block text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" />
+                        </span>
+                      </td>
+                    ) : null}
                     {canSelect ? (
                       <td className="p-3">
                         {!monthLocked(row.txnDate) ? (
@@ -2223,11 +2317,7 @@ export function KasLedgerClient({
                     <td className="p-3 text-right">
                       {row.amountOut ? formatRp(row.amountOut) : "—"}
                     </td>
-                    <td className="p-3 text-right font-mono text-xs">
-                      <div title="Saldo Akumulasi Kegiatan (seperti spreadsheet)">
-                        {formatRp(row.saldo)}
-                      </div>
-                    </td>
+                    <td className="p-3 text-right">{formatRp(row.saldo)}</td>
                     <td className="p-3">{row.kegiatan || "—"}</td>
                     <td className="p-3 text-center">
                       <div className="flex justify-center gap-1">

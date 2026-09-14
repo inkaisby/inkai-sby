@@ -650,7 +650,7 @@ export async function listKasEntries(scope: KasScope) {
   }
   const rows = await prisma.kasEntry.findMany({
     where: { scopeType: scope.type, scopeId: scope.id },
-    orderBy: [{ txnDate: "asc" }, { createdAt: "asc" }],
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
   return rows.map((row) => ({
     id: row.id,
@@ -1197,4 +1197,23 @@ export async function resolveDojoBranchScope(dojoId: string): Promise<{
     branch: dojo.branchId ? { type: "branch", id: dojo.branchId } : null,
     dojoName: dojo.name?.trim() || null,
   };
+}
+
+export async function reorderKasEntries(opts: {
+  scope: KasScope;
+  orderedIds: string[];
+}) {
+  if (opts.orderedIds.length === 0) return { reordered: 0 };
+  const updates = opts.orderedIds.map((id, index) =>
+    prisma.kasEntry.updateMany({
+      where: {
+        id,
+        scopeType: opts.scope.type,
+        scopeId: opts.scope.id,
+      },
+      data: { sortOrder: index + 1 },
+    }),
+  );
+  await prisma.$transaction(updates);
+  return { reordered: opts.orderedIds.length };
 }
