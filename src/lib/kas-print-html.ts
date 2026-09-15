@@ -43,6 +43,85 @@ export function buildKasPrintHtml(data: KasPrintData): string {
     )
     .join("");
 
+  // Build Chart section for print output
+  let chartHtml = "";
+  if (data.rows && data.rows.length > 0) {
+    const selectedSet =
+      data.selectedKegiatanList && data.selectedKegiatanList.length > 0
+        ? new Set(data.selectedKegiatanList)
+        : null;
+
+    const filteredRows = selectedSet
+      ? data.rows.filter((r) => selectedSet.has((r.kegiatan || "Tanpa Kegiatan").trim()))
+      : data.rows;
+
+    const kegiatanMap = new Map<string, { name: string; in: number; out: number; count: number }>();
+    for (const r of filteredRows) {
+      const kName = (r.kegiatan || "Tanpa Kegiatan").trim() || "Tanpa Kegiatan";
+      const current = kegiatanMap.get(kName) || { name: kName, in: 0, out: 0, count: 0 };
+      current.in += r.amountIn;
+      current.out += r.amountOut;
+      current.count += 1;
+      kegiatanMap.set(kName, current);
+    }
+
+    const kegiatanItems = Array.from(kegiatanMap.values())
+      .sort((a, b) => (b.in + b.out) - (a.in + a.out))
+      .slice(0, 6);
+
+    let maxVal = 1;
+    for (const item of kegiatanItems) {
+      if (item.in > maxVal) maxVal = item.in;
+      if (item.out > maxVal) maxVal = item.out;
+    }
+
+    const chartBars = kegiatanItems
+      .map((item) => {
+        const inPct = Math.min(100, Math.max(3, Math.round((item.in / maxVal) * 100)));
+        const outPct = Math.min(100, Math.max(3, Math.round((item.out / maxVal) * 100)));
+        const net = item.in - item.out;
+
+        return `
+        <div style="margin-bottom: 5px;">
+          <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; margin-bottom: 2px;">
+            <span>${escapeHtml(item.name)} <span style="font-weight: 400; color: #64748b;">(${item.count} mutasi)</span></span>
+            <span style="color: ${net >= 0 ? "#15803d" : "#b91c1c"};">Net: ${formatRp(net)}</span>
+          </div>
+          ${
+            item.in > 0
+              ? `<div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+                  <span style="width: 45px; font-size: 9px; color: #15803d; font-weight: 600;">Masuk</span>
+                  <div style="flex: 1; background: #e2e8f0; height: 9px; border-radius: 2px; overflow: hidden;">
+                    <div style="width: ${inPct}%; background: #16a34a; height: 100%;"></div>
+                  </div>
+                  <span style="width: 90px; text-align: right; font-size: 9px; font-weight: 700; color: #15803d;">${formatRp(item.in)}</span>
+                </div>`
+              : ""
+          }
+          ${
+            item.out > 0
+              ? `<div style="display: flex; align-items: center; gap: 6px;">
+                  <span style="width: 45px; font-size: 9px; color: #b91c1c; font-weight: 600;">Keluar</span>
+                  <div style="flex: 1; background: #e2e8f0; height: 9px; border-radius: 2px; overflow: hidden;">
+                    <div style="width: ${outPct}%; background: #dc2626; height: 100%;"></div>
+                  </div>
+                  <span style="width: 90px; text-align: right; font-size: 9px; font-weight: 700; color: #b91c1c;">${formatRp(item.out)}</span>
+                </div>`
+              : ""
+          }
+        </div>`;
+      })
+      .join("");
+
+    chartHtml = `
+    <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; page-break-inside: avoid;">
+      <div style="font-weight: 700; font-size: 11px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 6px;">
+        📈 GRAFIK VISUAL ARUS KAS PER KEGIATAN
+      </div>
+      ${chartBars || '<div style="font-size: 10px; color: #64748b;">Tidak ada data kegiatan.</div>'}
+    </div>`;
+  }
+
   // Build SWOT section if available
   let swotHtml = "";
   if (data.swotAnalysis) {
@@ -78,7 +157,7 @@ export function buildKasPrintHtml(data: KasPrintData): string {
     swotHtml = `
     <div class="swot-section" style="page-break-inside: avoid; margin-bottom: 16px;">
       <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px;">
-        <div style="font-weight: 700; font-size: 13px; color: #0f172a;">📊 RINGKASAN GRAFIK & ANALISIS SWOT KEUANGAN</div>
+        <div style="font-weight: 700; font-size: 13px; color: #0f172a;">📊 RINGKASAN & ANALISIS SWOT KEUANGAN</div>
         <div style="font-size: 10px; color: #475569; margin-top: 2px;">
           Filter Kegiatan: <strong>${escapeHtml(kegListStr)}</strong> · 
           Total Masuk: <strong style="color: #15803d;">${formatRp(sw.metricsSummary.totalIn)}</strong> · 
@@ -165,6 +244,8 @@ export function buildKasPrintHtml(data: KasPrintData): string {
     <div>Periode: ${escapeHtml(data.periodLabel)} · Dicetak ${escapeHtml(data.printedAt)}</div>
     <div class="saldo">Saldo akhir ${escapeHtml(formatRp(data.saldoAkhir))}</div>
   </div>
+
+  ${chartHtml}
 
   ${swotHtml}
 

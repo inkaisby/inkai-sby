@@ -3,6 +3,8 @@
 import React, { useMemo, useState, useEffect } from "react";
 import {
   BarChart3,
+  PieChart as PieChartIcon,
+  TrendingUp,
   ShieldCheck,
   AlertTriangle,
   Lightbulb,
@@ -15,6 +17,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Sparkles,
+  Percent,
 } from "lucide-react";
 import { formatRp } from "@/lib/terbilang";
 import type { KasLedgerRow } from "@/lib/kas";
@@ -59,6 +62,16 @@ export type KasChartSwotPanelProps = {
   scopeLabel: string;
   onSwotCalculated?: (swot: KasSwotAnalysisResult, selectedKegiatanList: string[]) => void;
 };
+
+const DONUT_COLORS = [
+  "#16a34a", // emerald
+  "#2563eb", // blue
+  "#d97706", // amber
+  "#9333ea", // purple
+  "#0891b2", // cyan
+  "#e11d48", // rose
+  "#475569", // slate
+];
 
 export function computeKasSwotAnalysis(
   rows: KasLedgerRow[],
@@ -239,15 +252,24 @@ export function computeKasSwotAnalysis(
   if (netCashFlow < 0) {
     recommendations.push("Prioritaskan pengetatan anggaran operasional dan tunda pengeluaran non-urgent hingga kas mencapai surplus.");
   } else {
-    recommendations.push("Pertahankan tren surplus kas saat ini dan alokasikan sebagian dana untuk cadangan operasional darurat.");
+    recommendations.push("Pertahankan tren surplus kas saat ini dan alokasikan minimal 15-20% dana ke Pos Cadangan Darurat Operasional Dojo.");
   }
+
   if (unmatchedCount > 0) {
-    recommendations.push(`Segera selesaikan rekonsiliasi ${unmatchedCount} transaksi 'Belum rekon' untuk memastikan saldo kas fisik cocok 100%.`);
+    recommendations.push(`Segera selesaikan rekonsiliasi ${unmatchedCount} transaksi 'Belum rekon' untuk memastikan validitas pencatatan kas fisik vs rekening bank.`);
   }
+
   if (topIncomeKegiatan !== "Belum Ada") {
-    recommendations.push(`Diversifikasi program penerimaan agar organisasi tidak terlalu bergantung penuh pada sektor ${topIncomeKegiatan}.`);
+    recommendations.push(`Diversifikasi sumber pendapatan agar tidak terlalu terpusat pada sektor '${topIncomeKegiatan}' dengan membuka lini kegiatan produktif baru.`);
   }
-  recommendations.push("Lakukan tinjauan kas rutin tiap akhir bulan bersama pengurus cabang dan ranting.");
+
+  // Program Produktif & Pengembangan Pendapatan Organisasi
+  recommendations.push("Pengembangan Unit Usaha Karategi & Merchandise Resmi: Membuka lini penjualan seragam, sabuk, protektor, dan atribut INKAI terpusat cabang untuk menambah kas rutin.");
+  recommendations.push("Program Kejuaraan & Workshop Productivity: Mengadakan event kejuaraan internal/open, Gashuku, atau privat coaching kelas khusus dengan skema bagi hasil transparan.");
+  recommendations.push("Penguatan Basis Recurring Income: Mengintensifkan penagihan iuran bulanan anggota dojo melalui pengingat otomatis dan pembayaran digital.");
+  recommendations.push("Kemitraan & Sponsorship Strategis: Menggandeng sponsor lokal dan mitra peralatan olahraga untuk mendukung dana kejuaraan/event dan memangkas pengeluaran kas.");
+  recommendations.push("Tinjauan Kas & Pengawasan Keuangan Rutin: Melakukan evaluasi kas bulanan secara transparan bersama pengurus cabang dan seluruh penanggung jawab ranting.");
+
 
   return {
     strengths,
@@ -279,7 +301,7 @@ export function KasChartSwotPanel({
   onSwotCalculated,
 }: KasChartSwotPanelProps) {
   const [activeTab, setActiveTab] = useState<"grafik" | "swot">("grafik");
-  const [chartMode, setChartMode] = useState<"trend" | "kegiatan" | "net">("trend");
+  const [chartMode, setChartMode] = useState<"trend" | "donut" | "net" | "kegiatan">("trend");
   const [directionFilter, setDirectionFilter] = useState<"all" | "in" | "out">("all");
   const [isKegiatanMenuOpen, setIsKegiatanMenuOpen] = useState(false);
 
@@ -412,6 +434,64 @@ export function KasChartSwotPanel({
   const activeTotalIn = useMemo(() => activeRows.reduce((a, r) => a + r.amountIn, 0), [activeRows]);
   const activeTotalOut = useMemo(() => activeRows.reduce((a, r) => a + r.amountOut, 0), [activeRows]);
   const activeNet = activeTotalIn - activeTotalOut;
+
+  // Donut Chart Segments calculation for Pemasukan
+  const donutSegments = useMemo(() => {
+    const total = directionFilter === "out" ? activeTotalOut : activeTotalIn;
+    if (total <= 0) return [];
+    
+    const targetItems = directionFilter === "out"
+      ? kegiatanBreakdown.filter((k) => k.out > 0).map((k) => ({ name: k.name, val: k.out }))
+      : kegiatanBreakdown.filter((k) => k.in > 0).map((k) => ({ name: k.name, val: k.in }));
+
+    const radius = 40;
+    const circumference = 2 * Math.PI * radius;
+    let accumulated = 0;
+
+    return targetItems.map((item, idx) => {
+      const pct = item.val / total;
+      const strokeDasharray = `${pct * circumference} ${circumference}`;
+      const strokeDashoffset = -accumulated * circumference;
+      accumulated += pct;
+
+      return {
+        ...item,
+        pct: Math.round(pct * 100),
+        color: DONUT_COLORS[idx % DONUT_COLORS.length],
+        strokeDasharray,
+        strokeDashoffset,
+      };
+    });
+  }, [kegiatanBreakdown, activeTotalIn, activeTotalOut, directionFilter]);
+
+  // Area Line SVG path calculation for Net Cash Flow
+  const areaSvgPath = useMemo(() => {
+    if (trendData.length === 0) return { lineD: "", areaD: "", zeroY: 60, points: [] };
+    const width = 360;
+    const height = 120;
+    const padding = 20;
+
+    const nets = trendData.map((d) => d.in - d.out);
+    const maxNet = Math.max(...nets, 1);
+    const minNet = Math.min(...nets, 0);
+    const rangeNet = maxNet - minNet || 1;
+
+    const points = trendData.map((d, i) => {
+      const x = padding + (i / Math.max(trendData.length - 1, 1)) * (width - 2 * padding);
+      const net = d.in - d.out;
+      const y = height - padding - ((net - minNet) / rangeNet) * (height - 2 * padding);
+      return { x, y, net, label: d.label };
+    });
+
+    const zeroY = height - padding - ((0 - minNet) / rangeNet) * (height - 2 * padding);
+
+    const lineD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+    const firstX = points[0]?.x ?? padding;
+    const lastX = points[points.length - 1]?.x ?? (width - padding);
+    const areaD = `${lineD} L ${lastX.toFixed(1)} ${zeroY.toFixed(1)} L ${firstX.toFixed(1)} ${zeroY.toFixed(1)} Z`;
+
+    return { lineD, areaD, zeroY, points };
+  }, [trendData]);
 
   return (
     <div className="rounded-xl border bg-card/95 p-3 sm:p-4 text-card-foreground shadow-sm transition-all dark:border-zinc-800 dark:bg-zinc-950/80">
@@ -581,39 +661,54 @@ export function KasChartSwotPanel({
         <div className="mt-4 space-y-4">
           {/* Chart Sub-Controls */}
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-0.5 text-xs font-medium">
+            <div className="flex flex-wrap items-center gap-1 rounded-lg border bg-muted/40 p-0.5 text-xs font-medium">
               <button
                 type="button"
                 onClick={() => setChartMode("trend")}
-                className={`rounded px-2.5 py-1 transition-colors ${
+                className={`inline-flex items-center gap-1 rounded px-2.5 py-1 transition-colors ${
                   chartMode === "trend"
                     ? "bg-background text-foreground shadow-2xs font-semibold"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Tren Per Bulan
+                <BarChart3 className="h-3.5 w-3.5 text-emerald-600" />
+                Tren Bulanan
               </button>
               <button
                 type="button"
-                onClick={() => setChartMode("kegiatan")}
-                className={`rounded px-2.5 py-1 transition-colors ${
-                  chartMode === "kegiatan"
+                onClick={() => setChartMode("donut")}
+                className={`inline-flex items-center gap-1 rounded px-2.5 py-1 transition-colors ${
+                  chartMode === "donut"
                     ? "bg-background text-foreground shadow-2xs font-semibold"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Distribusi Kegiatan
+                <PieChartIcon className="h-3.5 w-3.5 text-amber-500" />
+                Proporsi Donut
               </button>
               <button
                 type="button"
                 onClick={() => setChartMode("net")}
-                className={`rounded px-2.5 py-1 transition-colors ${
+                className={`inline-flex items-center gap-1 rounded px-2.5 py-1 transition-colors ${
                   chartMode === "net"
                     ? "bg-background text-foreground shadow-2xs font-semibold"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Arus Kas Bersih
+                <TrendingUp className="h-3.5 w-3.5 text-blue-600" />
+                Arus Kas Bersih (Area)
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartMode("kegiatan")}
+                className={`inline-flex items-center gap-1 rounded px-2.5 py-1 transition-colors ${
+                  chartMode === "kegiatan"
+                    ? "bg-background text-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Percent className="h-3.5 w-3.5 text-purple-600" />
+                Distribusi & Efisiensi
               </button>
             </div>
 
@@ -739,7 +834,160 @@ export function KasChartSwotPanel({
             </div>
           )}
 
-          {/* VIEW 2: DISTRIBUSI KEGIATAN */}
+          {/* VIEW 2: DONUT CHART PROPORSI (PIE SVG) */}
+          {chartMode === "donut" && (
+            <div className="rounded-lg border bg-card p-3 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span>
+                  Proporsi Porsi Kas {directionFilter === "out" ? "Pengeluaran" : "Pemasukan"} per Kegiatan
+                </span>
+                <span className="text-[11px] text-muted-foreground font-normal">Donut Breakdown</span>
+              </div>
+
+              {donutSegments.length === 0 ? (
+                <div className="flex h-44 items-center justify-center text-xs text-muted-foreground">
+                  Tidak ada data untuk donat chart.
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 items-center">
+                  {/* SVG Donut */}
+                  <div className="flex justify-center relative">
+                    <svg viewBox="0 0 100 100" className="w-44 h-44 -rotate-90 transform">
+                      {donutSegments.map((seg, i) => (
+                        <circle
+                          key={i}
+                          cx="50"
+                          cy="50"
+                          r="40"
+                          fill="transparent"
+                          stroke={seg.color}
+                          strokeWidth="16"
+                          strokeDasharray={seg.strokeDasharray}
+                          strokeDashoffset={seg.strokeDashoffset}
+                          className="transition-all duration-500 hover:opacity-80"
+                        />
+                      ))}
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                      <span className="text-[10px] text-muted-foreground uppercase font-medium">Total</span>
+                      <span className="text-xs font-bold text-foreground">
+                        {formatRp(directionFilter === "out" ? activeTotalOut : activeTotalIn)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Legend Table */}
+                  <div className="space-y-1.5 text-xs">
+                    {donutSegments.map((seg, i) => (
+                      <div key={i} className="flex items-center justify-between gap-2 p-1 rounded hover:bg-muted/50">
+                        <div className="flex items-center gap-2 truncate">
+                          <span
+                            className="h-3 w-3 rounded-xs shrink-0"
+                            style={{ backgroundColor: seg.color }}
+                          />
+                          <span className="truncate font-medium text-foreground">{seg.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 font-mono">
+                          <span className="font-bold text-foreground">{seg.pct}%</span>
+                          <span className="text-muted-foreground text-[11px]">{formatRp(seg.val)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VIEW 3: ARUS KAS BERSIH (AREA LINE SVG CHART) */}
+          {chartMode === "net" && (
+            <div className="rounded-lg border bg-card p-3 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span>Grafik Area Trajektori Arus Kas Bersih (Net Cash Flow)</span>
+                <span className="text-[11px] text-muted-foreground">Area Hijau/Biru = Surplus · Garis Nol</span>
+              </div>
+
+              {trendData.length === 0 ? (
+                <div className="flex h-36 items-center justify-center text-xs text-muted-foreground">
+                  Tidak ada data.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* SVG Area Chart */}
+                  <div className="relative w-full overflow-hidden">
+                    <svg viewBox="0 0 360 120" className="w-full h-36">
+                      <defs>
+                        <linearGradient id="netGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#2563eb" stopOpacity="0.3" />
+                          <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
+
+                      {/* Zero baseline */}
+                      <line
+                        x1="20"
+                        y1={areaSvgPath.zeroY}
+                        x2="340"
+                        y2={areaSvgPath.zeroY}
+                        stroke="#94a3b8"
+                        strokeDasharray="4 4"
+                        strokeWidth="1"
+                      />
+
+                      {/* Area Fill */}
+                      <path d={areaSvgPath.areaD} fill="url(#netGradient)" />
+
+                      {/* Line Stroke */}
+                      <path
+                        d={areaSvgPath.lineD}
+                        fill="none"
+                        stroke="#2563eb"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      {/* Dots */}
+                      {areaSvgPath.points.map((p, i) => (
+                        <circle
+                          key={i}
+                          cx={p.x}
+                          cy={p.y}
+                          r="4"
+                          className={p.net >= 0 ? "fill-emerald-500 stroke-white dark:stroke-zinc-900" : "fill-rose-500 stroke-white dark:stroke-zinc-900"}
+                          strokeWidth="2"
+                        />
+                      ))}
+                    </svg>
+                  </div>
+
+                  {/* Monthly Net List */}
+                  <div className="grid gap-1.5 sm:grid-cols-3 text-xs">
+                    {trendData.map((d) => {
+                      const net = d.in - d.out;
+                      return (
+                        <div
+                          key={d.key}
+                          className="flex items-center justify-between p-1.5 rounded border bg-background/50"
+                        >
+                          <span className="font-medium text-muted-foreground">{d.label}</span>
+                          <span
+                            className={`font-mono font-bold ${
+                              net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                            }`}
+                          >
+                            {net >= 0 ? `+${formatRp(net)}` : formatRp(net)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* VIEW 4: DISTRIBUSI & EFISIENSI KEGIATAN */}
           {chartMode === "kegiatan" && (
             <div className="space-y-3">
               {displayKegiatanBreakdown.length === 0 ? (
@@ -749,7 +997,7 @@ export function KasChartSwotPanel({
               ) : (
                 <div className="rounded-lg border bg-card p-3 shadow-2xs space-y-3">
                   <div className="flex items-center justify-between text-xs font-semibold">
-                    <span>Porsi Arus Kas Berdasarkan Kegiatan ({displayKegiatanBreakdown.length} Kegiatan)</span>
+                    <span>Porsi & Rasio Efisiensi Berdasarkan Kegiatan ({displayKegiatanBreakdown.length} Kegiatan)</span>
                     <span className="text-[11px] text-muted-foreground font-normal">Diurutkan nominal terbesar</span>
                   </div>
 
@@ -818,53 +1066,6 @@ export function KasChartSwotPanel({
                       );
                     })}
                   </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* VIEW 3: ARUS KAS BERSIH (NET CASH FLOW) */}
-          {chartMode === "net" && (
-            <div className="rounded-lg border bg-card p-3 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span>Perkembangan Net Surplus / Defisit per Bulan</span>
-                <span className="text-[11px] text-muted-foreground">Pemasukan dikurangi Pengeluaran</span>
-              </div>
-
-              {trendData.length === 0 ? (
-                <div className="flex h-36 items-center justify-center text-xs text-muted-foreground">
-                  Tidak ada data.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {trendData.map((d) => {
-                    const net = d.in - d.out;
-                    const isPositive = net >= 0;
-                    const absNet = Math.abs(net);
-                    const maxAbs = Math.max(...trendData.map((td) => Math.abs(td.in - td.out)), 1);
-                    const pct = Math.round((absNet / maxAbs) * 100);
-
-                    return (
-                      <div key={d.key} className="flex items-center gap-3 text-xs">
-                        <span className="w-20 font-medium text-foreground text-[11px]">{d.label}</span>
-                        <div className="h-4 flex-1 overflow-hidden rounded bg-muted/40 relative">
-                          <div
-                            className={`h-full transition-all duration-500 ${
-                              isPositive ? "bg-blue-600 dark:bg-blue-500" : "bg-red-600 dark:bg-red-500"
-                            }`}
-                            style={{ width: `${Math.max(pct, 3)}%` }}
-                          />
-                        </div>
-                        <span
-                          className={`w-28 text-right font-mono text-[11px] font-bold ${
-                            isPositive ? "text-blue-600 dark:text-blue-400" : "text-red-600 dark:text-red-400"
-                          }`}
-                        >
-                          {isPositive ? `+${formatRp(net)}` : formatRp(net)}
-                        </span>
-                      </div>
-                    );
-                  })}
                 </div>
               )}
             </div>
@@ -946,7 +1147,7 @@ export function KasChartSwotPanel({
               <div className="flex items-center gap-2 font-semibold text-blue-800 dark:text-blue-300 text-xs border-b border-blue-200 dark:border-blue-900/40 pb-1.5">
                 <Lightbulb className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
                 <span>PELUANG (OPPORTUNITIES)</span>
-                <span className="ml-auto rounded-full bg-blue-200/70 dark:bg-blue-900/60 px-1.5 text-[10px] font-bold text-blue-900 dark:text-blue-200">
+                <span className="ml-auto rounded-full bg-blue-200/70 dark:bg-blue-950/60 px-1.5 text-[10px] font-bold text-blue-900 dark:text-blue-200">
                   {swotResult.opportunities.length}
                 </span>
               </div>
