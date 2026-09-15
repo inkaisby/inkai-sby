@@ -355,6 +355,9 @@ Pusat / Nasional
    - Tabel Mutasi & Detail Transaksi Kas diatur mulai di **halaman baru tersendiri** (`page-break-before: always;`) dan dilengkapi **judul center di atas tabel** (`📋 TABEL MUTASI & DETAIL TRANSAKSI KAS`).
 8. **Format Tanggal Tanda Tangan Cetak (DD-MM-YYYY)**:
    - Format tanggal pada blok tanda tangan Bendahara diubah dari `YYYY-MM-DD` (`2026-09-15`) menjadi format Indonesia `DD-MM-YYYY` (`15-09-2026` / `14-09-2025`).
+9. **Pengurutan Kronologis Tanggal Transaksi Tabel Kas (A-Z / Terkuno ke Terbaru)**:
+   - Pengurutan data tabel transaksi kas (`sortKasEntries` & `listKasEntries`) kini memprioritaskan tanggal transaksi `txnDate: "asc"` (A-Z / terkuno ke terbaru, misal *25 Januari 2026* mendahului *24 Mei 2026*).
+   - Perhitungan saldo berjalan (*running saldo*) otomatis terhitung akurat sesuai tanggal urutan kronologis.
 ```
 
 ### 9.4 Kegiatan & absensi

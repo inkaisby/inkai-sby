@@ -119,6 +119,8 @@ export function sortKasEntries<T extends { txnDate: string; createdAt: string }>
   rows: T[],
 ): T[] {
   return [...rows].sort((a, b) => {
+    const dateCmp = a.txnDate.localeCompare(b.txnDate);
+    if (dateCmp !== 0) return dateCmp;
     return a.createdAt.localeCompare(b.createdAt);
   });
 }

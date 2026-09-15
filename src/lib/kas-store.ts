@@ -650,7 +650,7 @@ export async function listKasEntries(scope: KasScope) {
   }
   const rows = await prisma.kasEntry.findMany({
     where: { scopeType: scope.type, scopeId: scope.id },
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    orderBy: [{ txnDate: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
   });
   return rows.map((row) => ({
     id: row.id,
