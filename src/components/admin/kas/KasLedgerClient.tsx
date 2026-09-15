@@ -67,6 +67,10 @@ import type { UktDepositRecord } from "@/lib/ukt";
 import { printKasDocument } from "@/lib/kas-print-html";
 import { KasDateField } from "@/components/admin/kas/KasDateField";
 import { KasInlineCell } from "@/components/admin/kas/KasInlineCell";
+import {
+  KasChartSwotPanel,
+  type KasSwotAnalysisResult,
+} from "@/components/admin/kas/KasChartSwotPanel";
 import { cn } from "@/lib/utils";
 
 type KasPayload = {
@@ -118,6 +122,9 @@ export function KasLedgerClient({
     if (type && id) return `${type}:${id}`;
     return "";
   }, [searchParams]);
+
+  const [swotData, setSwotData] = useState<KasSwotAnalysisResult | undefined>(undefined);
+  const [chartSelectedKegiatan, setChartSelectedKegiatan] = useState<string[]>([]);
 
   const [fromYmd, setFromYmd] = useState(() => {
     const f = searchParams.get("from");
@@ -1360,6 +1367,8 @@ export function KasLedgerClient({
       printedAt: `${ymdWib()} WIB`,
       saldoAkhir: data?.kpis.saldoAkhir ?? 0,
       rows: data?.rows ?? [],
+      swotAnalysis: swotData,
+      selectedKegiatanList: chartSelectedKegiatan,
     });
   }
 
@@ -1527,6 +1536,20 @@ export function KasLedgerClient({
               ? " · Saldo bawa dihitung dari seluruh buku, bukan filter kegiatan/sumber/rekon/arah."
               : ""}
           </p>
+
+          {/* Interactive Charts & SWOT Analysis Panel */}
+          <div className="pt-2">
+            <KasChartSwotPanel
+              rows={data?.rows ?? []}
+              kpis={data?.kpis ?? { totalIn: 0, totalOut: 0, saldoAkhir: 0, opening: 0, unmatched: 0 }}
+              periodCaption={periodCaption}
+              scopeLabel={activeScopeLabel}
+              onSwotCalculated={(swot, selectedList) => {
+                setSwotData(swot);
+                setChartSelectedKegiatan(selectedList);
+              }}
+            />
+          </div>
         </div>
 
         <div className="flex flex-col gap-2">
