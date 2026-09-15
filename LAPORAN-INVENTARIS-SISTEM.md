@@ -350,7 +350,9 @@ Pusat / Nasional
 6. **Urutan Seri Kegiatan Berpenomoran & Angka Romawi (Natural Series Sorting & Manual Reorder)**:
    - Pengurutan seksi *EFISIENSI & NOMINAL MUTASI PER KEGIATAN* dilengkapi *smart comparator* berbasis pola seri yang mendukung **Angka Arab (1, 2, 3, 4)** dan **Angka Romawi (I, II, III, IV, V)**.
    - Seri kegiatan seperti `HONOR PELATIH LATBER 1..4`, `RANTING BAYAR UKT I-2026` vs `UKT II-2026`, `PENGELUARAN UKT I` vs `UKT II`, dan `SEMESTER I` vs `SEMESTER II` secara otomatis diurutkan secara kronologis dan rapi.
-   - **Dukungan Urutan Manual (Drag & Drop)**: Apabila admin menggeser/mengurutkan baris/grup kegiatan secara manual di tabel UI `/admin/kas` (menggunakan handle `GripVertical`), hasil urutan manual tersebut tersimpan ke database (`/api/admin/kas/reorder`) dan secara otomatis **100% selaras diikutsertakan ke dokumen cetak**.
+7. **Pemisahan Halaman Analisis SWOT & Tabel Transaksi**:
+   - Modul Analisis SWOT Keuangan (`swot-section`) diatur agar mulai bersih di **1 halaman tersendiri (1 Halaman Utuh)** (`page-break-before: always; page-break-inside: avoid;`).
+   - Tabel Mutasi & Detail Transaksi Kas diatur mulai di **halaman baru tersendiri** (`page-break-before: always;`) dan dilengkapi **judul center di atas tabel** (`📋 TABEL MUTASI & DETAIL TRANSAKSI KAS`).
 ```
 
 ### 9.4 Kegiatan & absensi

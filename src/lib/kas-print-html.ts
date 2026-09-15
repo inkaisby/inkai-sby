@@ -359,8 +359,8 @@ export function buildKasPrintHtml(data: KasPrintData): string {
       .join("");
 
     swotHtml = `
-    <div class="swot-section" style="margin-bottom: 14px;">
-      <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; page-break-inside: avoid;">
+    <div class="swot-section" style="page-break-before: always; page-break-inside: avoid; margin-bottom: 14px;">
+      <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px;">
         <div style="font-weight: 700; font-size: 12px; color: #0f172a;">📊 RINGKASAN & ANALISIS SWOT KEUANGAN</div>
         <div style="font-size: 9px; color: #475569; margin-top: 2px;">
           Filter Kegiatan: <strong>${escapeHtml(kegListStr)}</strong> · 
@@ -389,7 +389,7 @@ export function buildKasPrintHtml(data: KasPrintData): string {
         </div>
       </div>
 
-      <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; margin-top: 8px; page-break-inside: avoid;">
+      <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; margin-top: 8px;">
         <div style="font-weight: 700; font-size: 11px; color: #1e293b; margin-bottom: 4px;">🎯 REKOMENDASI STRATEGIS KEUANGAN</div>
         <ol style="margin: 0; padding-left: 18px; font-size: 10px; line-height: 1.4; color: #334155;">${recItems}</ol>
       </div>
@@ -412,8 +412,8 @@ export function buildKasPrintHtml(data: KasPrintData): string {
     .meta { display: flex; justify-content: space-between; margin-bottom: 10px; align-items: center; }
     .saldo { border: 2px solid #15803d; padding: 4px 8px; font-weight: 700; color: #15803d; font-size: 11px; border-radius: 4px; }
     
-    .swot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; page-break-inside: avoid; }
-    .swot-box { border-radius: 6px; padding: 6px 10px; font-size: 10px; border: 1px solid #ddd; page-break-inside: avoid; }
+    .swot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .swot-box { border-radius: 6px; padding: 6px 10px; font-size: 10px; border: 1px solid #ddd; }
     .swot-title { font-weight: 700; font-size: 11px; padding-bottom: 3px; border-bottom: 1px solid #ccc; margin-bottom: 4px; }
     .swot-box ul { margin: 0; padding-left: 14px; }
     .swot-box li { margin-bottom: 3px; }
@@ -460,27 +460,32 @@ export function buildKasPrintHtml(data: KasPrintData): string {
 
   ${swotHtml}
 
-  <table>
-    <thead>
-      <tr>
-        <th class="c">No</th>
-        <th>Tanggal</th>
-        <th>Keterangan</th>
-        <th class="r">Masuk</th>
-        <th class="r">Keluar</th>
-        <th class="r">Saldo</th>
-        <th>Kegiatan</th>
-      </tr>
-    </thead>
-    <tbody>${
-      body ||
-      `<tr><td colspan="7" class="c" style="padding: 16px; color: #555;">Tidak ada mutasi yang cocok dengan filter yang dipilih (${escapeHtml(
-        data.periodLabel,
-      )}).<br/>Saldo kas berjalan tercatat sebesar <strong>${escapeHtml(
-        formatRp(data.saldoAkhir),
-      )}</strong>.</td></tr>`
-    }</tbody>
-  </table>
+  <div style="page-break-before: always;">
+    <h2 style="text-align: center; font-size: 13px; font-weight: 700; color: #0f172a; margin: 0 0 10px 0; border-bottom: 2px solid #cbd5e1; padding-bottom: 4px;">
+      📋 TABEL MUTASI & DETAIL TRANSAKSI KAS
+    </h2>
+    <table>
+      <thead>
+        <tr>
+          <th class="c">No</th>
+          <th>Tanggal</th>
+          <th>Keterangan</th>
+          <th class="r">Masuk</th>
+          <th class="r">Keluar</th>
+          <th class="r">Saldo</th>
+          <th>Kegiatan</th>
+        </tr>
+      </thead>
+      <tbody>${
+        body ||
+        `<tr><td colspan="7" class="c" style="padding: 16px; color: #555;">Tidak ada mutasi yang cocok dengan filter yang dipilih (${escapeHtml(
+          data.periodLabel,
+        )}).<br/>Saldo kas berjalan tercatat sebesar <strong>${escapeHtml(
+          formatRp(data.saldoAkhir),
+        )}</strong>.</td></tr>`
+      }</tbody>
+    </table>
+  </div>
 
   <div class="signature-container">
     <div class="signature-box">
