@@ -182,7 +182,7 @@ export function buildKasPrintHtml(data: KasPrintData): string {
         const net = item.in - item.out;
 
         return `
-        <div style="margin-bottom: 4px;">
+        <div style="margin-bottom: 4px; page-break-inside: avoid;">
           <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: 700; margin-bottom: 1px;">
             <span>${escapeHtml(item.name)} <span style="font-weight: 400; color: #64748b;">(${item.count} mutasi)</span></span>
             <span style="color: ${net >= 0 ? "#15803d" : "#b91c1c"}; font-family: monospace;">Net: ${formatRp(net)}</span>
@@ -214,12 +214,12 @@ export function buildKasPrintHtml(data: KasPrintData): string {
       .join("");
 
     allChartsHtml = `
-    <div style="page-break-inside: avoid; margin-bottom: 12px;">
+    <div style="margin-bottom: 12px;">
       <div style="font-weight: 700; font-size: 11px; color: #0f172a; border-bottom: 2px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 8px;">
         📊 VISUALISASI & DIAGRAM GRAFIK KEUANGAN KAS
       </div>
 
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; page-break-inside: avoid;">
         <!-- CHART 1: DONUT CHART PROPORSI -->
         <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px;">
           <div style="font-weight: 700; font-size: 10px; color: #1e293b; margin-bottom: 4px; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
@@ -268,7 +268,7 @@ export function buildKasPrintHtml(data: KasPrintData): string {
 
       <!-- CHART 3: PERBANDINGAN PORSI & EFISIENSI BAR PER KEGIATAN -->
       <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px; margin-bottom: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px; margin-bottom: 6px; page-break-after: avoid;">
           <span style="font-weight: 700; font-size: 10px; color: #1e293b;">⚖️ EFISIENSI & NOMINAL MUTASI PER KEGIATAN</span>
           <span style="font-size: 9px; font-weight: 600; color: #64748b;">(Total ${kegiatanItems.length} Kegiatan Terdaftar)</span>
         </div>
@@ -311,10 +311,10 @@ export function buildKasPrintHtml(data: KasPrintData): string {
       .join("");
 
     swotHtml = `
-    <div class="swot-section" style="page-break-inside: avoid; margin-bottom: 16px;">
-      <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px;">
-        <div style="font-weight: 700; font-size: 13px; color: #0f172a;">📊 RINGKASAN & ANALISIS SWOT KEUANGAN</div>
-        <div style="font-size: 10px; color: #475569; margin-top: 2px;">
+    <div class="swot-section" style="margin-bottom: 14px;">
+      <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; page-break-inside: avoid;">
+        <div style="font-weight: 700; font-size: 12px; color: #0f172a;">📊 RINGKASAN & ANALISIS SWOT KEUANGAN</div>
+        <div style="font-size: 9px; color: #475569; margin-top: 2px;">
           Filter Kegiatan: <strong>${escapeHtml(kegListStr)}</strong> · 
           Total Masuk: <strong style="color: #15803d;">${formatRp(sw.metricsSummary.totalIn)}</strong> · 
           Total Keluar: <strong style="color: #b91c1c;">${formatRp(sw.metricsSummary.totalOut)}</strong> · 
@@ -341,7 +341,7 @@ export function buildKasPrintHtml(data: KasPrintData): string {
         </div>
       </div>
 
-      <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; margin-top: 8px;">
+      <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; margin-top: 8px; page-break-inside: avoid;">
         <div style="font-weight: 700; font-size: 11px; color: #1e293b; margin-bottom: 4px;">🎯 REKOMENDASI STRATEGIS KEUANGAN</div>
         <ol style="margin: 0; padding-left: 18px; font-size: 10px; line-height: 1.4; color: #334155;">${recItems}</ol>
       </div>
@@ -364,8 +364,8 @@ export function buildKasPrintHtml(data: KasPrintData): string {
     .meta { display: flex; justify-content: space-between; margin-bottom: 10px; align-items: center; }
     .saldo { border: 2px solid #15803d; padding: 4px 8px; font-weight: 700; color: #15803d; font-size: 11px; border-radius: 4px; }
     
-    .swot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .swot-box { border-radius: 6px; padding: 6px 10px; font-size: 10px; border: 1px solid #ddd; }
+    .swot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; page-break-inside: avoid; }
+    .swot-box { border-radius: 6px; padding: 6px 10px; font-size: 10px; border: 1px solid #ddd; page-break-inside: avoid; }
     .swot-title { font-weight: 700; font-size: 11px; padding-bottom: 3px; border-bottom: 1px solid #ccc; margin-bottom: 4px; }
     .swot-box ul { margin: 0; padding-left: 14px; }
     .swot-box li { margin-bottom: 3px; }
@@ -380,6 +380,7 @@ export function buildKasPrintHtml(data: KasPrintData): string {
     .t-title { color: #b45309; border-color: #fcd34d; }
 
     table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    tr { page-break-inside: avoid; }
     th, td { border: 1px solid #333; padding: 4px 6px; font-size: 10px; }
     th { background: #f3f4f6; font-weight: 700; }
     td.c, th.c { text-align: center; }

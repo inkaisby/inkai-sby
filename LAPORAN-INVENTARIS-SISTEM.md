@@ -344,6 +344,9 @@ Pusat / Nasional
 4. **Fitur Ekspor Kas Excel (.xlsx)**:
    - Tombol **CSV** pada toolbar `/admin/kas` telah diganti menjadi **Excel** (`FileSpreadsheet` icon).
    - Mengunduh file spreadsheet `.xlsx` rapi dengan header merah INKAI, alignment rapi, format angka Excel (`#,##0`), serta baris `TOTAL KESELURUHAN`.
+5. **Optimasi Tata Letak Halaman Cetak (Print Pagination)**:
+   - Menghapus pembatasan `page-break-inside: avoid` pada container luar grafik dan SWOT section untuk mencegah pendorongan halaman (page-push) yang menyebabkan halaman 1 kosong besar.
+   - Mengatur `page-break-inside: avoid` terbatas secara presisi pada tiap baris kegiatan, box SWOT, dan baris tabel transaksi sehingga seluruh elemen mengalir rapat dari Halaman 1 tanpa ada ruang kosong terbuang.
 ```
 
 ### 9.4 Kegiatan & absensi
