@@ -23,11 +23,22 @@ export type KasPrintData = {
   selectedKegiatanList?: string[];
 };
 
+const DONUT_COLORS = [
+  "#16a34a", // emerald
+  "#2563eb", // blue
+  "#d97706", // amber
+  "#9333ea", // purple
+  "#0891b2", // cyan
+  "#e11d48", // rose
+  "#475569", // slate
+];
+
 export function buildKasPrintHtml(data: KasPrintData): string {
   const logoUrl = `${data.origin.replace(/\/$/, "")}/logo-inkai.png`;
   const sekretariat =
     data.sekretariatAddress?.trim() ||
     "Sekretariat: Jl. Raya Kertajaya Indah No. 77 Surabaya";
+
   const body = data.rows
     .map(
       (r) => `
@@ -43,8 +54,8 @@ export function buildKasPrintHtml(data: KasPrintData): string {
     )
     .join("");
 
-  // Build Chart section for print output
-  let chartHtml = "";
+  // Build All Visual Charts Section (Donut, Area Line, Bar Chart)
+  let allChartsHtml = "";
   if (data.rows && data.rows.length > 0) {
     const selectedSet =
       data.selectedKegiatanList && data.selectedKegiatanList.length > 0
@@ -55,6 +66,10 @@ export function buildKasPrintHtml(data: KasPrintData): string {
       ? data.rows.filter((r) => selectedSet.has((r.kegiatan || "Tanpa Kegiatan").trim()))
       : data.rows;
 
+    const totalIn = filteredRows.reduce((a, r) => a + r.amountIn, 0);
+    const totalOut = filteredRows.reduce((a, r) => a + r.amountOut, 0);
+
+    // 1. Kegiatan Breakdown & Bars
     const kegiatanMap = new Map<string, { name: string; in: number; out: number; count: number }>();
     for (const r of filteredRows) {
       const kName = (r.kegiatan || "Tanpa Kegiatan").trim() || "Tanpa Kegiatan";
@@ -66,8 +81,7 @@ export function buildKasPrintHtml(data: KasPrintData): string {
     }
 
     const kegiatanItems = Array.from(kegiatanMap.values())
-      .sort((a, b) => (b.in + b.out) - (a.in + a.out))
-      .slice(0, 6);
+      .sort((a, b) => (b.in + b.out) - (a.in + a.out));
 
     let maxVal = 1;
     for (const item of kegiatanItems) {
@@ -75,37 +89,124 @@ export function buildKasPrintHtml(data: KasPrintData): string {
       if (item.out > maxVal) maxVal = item.out;
     }
 
+    // Donut Segments (Pemasukan or Pengeluaran)
+    const donutTargetItems = totalIn >= totalOut
+      ? kegiatanItems.filter((k) => k.in > 0).map((k) => ({ name: k.name, val: k.in }))
+      : kegiatanItems.filter((k) => k.out > 0).map((k) => ({ name: k.name, val: k.out }));
+
+    const donutTotal = totalIn >= totalOut ? totalIn : totalOut;
+    const donutLabel = totalIn >= totalOut ? "Pemasukan" : "Pengeluaran";
+
+    let accumulatedPct = 0;
+    const radius = 35;
+    const circumference = 2 * Math.PI * radius;
+
+    const donutSvgCircles = donutTargetItems.map((item, idx) => {
+      const pct = donutTotal > 0 ? item.val / donutTotal : 0;
+      const strokeDasharray = `${(pct * circumference).toFixed(1)} ${circumference.toFixed(1)}`;
+      const strokeDashoffset = (-accumulatedPct * circumference).toFixed(1);
+      accumulatedPct += pct;
+      const color = DONUT_COLORS[idx % DONUT_COLORS.length];
+      return `<circle cx="45" cy="45" r="${radius}" fill="transparent" stroke="${color}" stroke-width="14" stroke-dasharray="${strokeDasharray}" stroke-dashoffset="${strokeDashoffset}" />`;
+    }).join("");
+
+    const donutLegendRows = donutTargetItems.map((item, idx) => {
+      const pct = donutTotal > 0 ? Math.round((item.val / donutTotal) * 100) : 0;
+      const color = DONUT_COLORS[idx % DONUT_COLORS.length];
+      return `
+        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 9px; margin-bottom: 2px;">
+          <div style="display: flex; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap;">
+            <span style="display: inline-block; width: 8px; height: 8px; background: ${color}; border-radius: 1px; flex-shrink: 0;"></span>
+            <span style="font-weight: 600; color: #1e293b; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(item.name)}</span>
+          </div>
+          <div style="font-family: monospace; font-weight: 700; flex-shrink: 0; margin-left: 6px;">
+            <span>${pct}%</span> <span style="color: #64748b; font-weight: 400; font-size: 8px;">(${formatRp(item.val)})</span>
+          </div>
+        </div>`;
+    }).join("");
+
+    // Monthly Trend & Area Line Chart
+    const monthlyMap = new Map<string, { label: string; in: number; out: number; net: number }>();
+    for (const r of filteredRows) {
+      const ym = r.txnDate.slice(0, 7);
+      let label = ym;
+      const parts = ym.split("-");
+      if (parts.length === 2) {
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+        const mIdx = parseInt(parts[1], 10) - 1;
+        if (mIdx >= 0 && mIdx < 12) label = `${monthNames[mIdx]} ${parts[0]}`;
+      }
+      const curr = monthlyMap.get(ym) || { label, in: 0, out: 0, net: 0 };
+      curr.in += r.amountIn;
+      curr.out += r.amountOut;
+      curr.net = curr.in - curr.out;
+      monthlyMap.set(ym, curr);
+    }
+
+    const monthlyTrendList = Array.from(monthlyMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map((entry) => entry[1]);
+
+    // Area Line SVG path
+    let areaSvgPath = { lineD: "", areaD: "", zeroY: 45, points: [] as { x: number; y: number; net: number; label: string }[] };
+    if (monthlyTrendList.length > 0) {
+      const width = 280;
+      const height = 90;
+      const padding = 15;
+
+      const nets = monthlyTrendList.map((d) => d.net);
+      const maxNet = Math.max(...nets, 1);
+      const minNet = Math.min(...nets, 0);
+      const rangeNet = maxNet - minNet || 1;
+
+      const pts = monthlyTrendList.map((d, i) => {
+        const x = padding + (i / Math.max(monthlyTrendList.length - 1, 1)) * (width - 2 * padding);
+        const y = height - padding - ((d.net - minNet) / rangeNet) * (height - 2 * padding);
+        return { x, y, net: d.net, label: d.label };
+      });
+
+      const zeroY = height - padding - ((0 - minNet) / rangeNet) * (height - 2 * padding);
+      const lineD = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+      const firstX = pts[0]?.x ?? padding;
+      const lastX = pts[pts.length - 1]?.x ?? (width - padding);
+      const areaD = `${lineD} L ${lastX.toFixed(1)} ${zeroY.toFixed(1)} L ${firstX.toFixed(1)} ${zeroY.toFixed(1)} Z`;
+
+      areaSvgPath = { lineD, areaD, zeroY, points: pts };
+    }
+
+    // Bar Chart Rows per Kegiatan
     const chartBars = kegiatanItems
+      .slice(0, 8)
       .map((item) => {
         const inPct = Math.min(100, Math.max(3, Math.round((item.in / maxVal) * 100)));
         const outPct = Math.min(100, Math.max(3, Math.round((item.out / maxVal) * 100)));
         const net = item.in - item.out;
 
         return `
-        <div style="margin-bottom: 5px;">
-          <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 700; margin-bottom: 2px;">
+        <div style="margin-bottom: 4px;">
+          <div style="display: flex; justify-content: space-between; font-size: 9px; font-weight: 700; margin-bottom: 1px;">
             <span>${escapeHtml(item.name)} <span style="font-weight: 400; color: #64748b;">(${item.count} mutasi)</span></span>
-            <span style="color: ${net >= 0 ? "#15803d" : "#b91c1c"};">Net: ${formatRp(net)}</span>
+            <span style="color: ${net >= 0 ? "#15803d" : "#b91c1c"}; font-family: monospace;">Net: ${formatRp(net)}</span>
           </div>
           ${
             item.in > 0
-              ? `<div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
-                  <span style="width: 45px; font-size: 9px; color: #15803d; font-weight: 600;">Masuk</span>
-                  <div style="flex: 1; background: #e2e8f0; height: 9px; border-radius: 2px; overflow: hidden;">
+              ? `<div style="display: flex; align-items: center; gap: 4px; margin-bottom: 1px;">
+                  <span style="width: 40px; font-size: 8px; color: #15803d; font-weight: 600;">Masuk</span>
+                  <div style="flex: 1; background: #e2e8f0; height: 8px; border-radius: 2px; overflow: hidden;">
                     <div style="width: ${inPct}%; background: #16a34a; height: 100%;"></div>
                   </div>
-                  <span style="width: 90px; text-align: right; font-size: 9px; font-weight: 700; color: #15803d;">${formatRp(item.in)}</span>
+                  <span style="width: 80px; text-align: right; font-size: 8px; font-weight: 700; color: #15803d; font-family: monospace;">${formatRp(item.in)}</span>
                 </div>`
               : ""
           }
           ${
             item.out > 0
-              ? `<div style="display: flex; align-items: center; gap: 6px;">
-                  <span style="width: 45px; font-size: 9px; color: #b91c1c; font-weight: 600;">Keluar</span>
-                  <div style="flex: 1; background: #e2e8f0; height: 9px; border-radius: 2px; overflow: hidden;">
+              ? `<div style="display: flex; align-items: center; gap: 4px;">
+                  <span style="width: 40px; font-size: 8px; color: #b91c1c; font-weight: 600;">Keluar</span>
+                  <div style="flex: 1; background: #e2e8f0; height: 8px; border-radius: 2px; overflow: hidden;">
                     <div style="width: ${outPct}%; background: #dc2626; height: 100%;"></div>
                   </div>
-                  <span style="width: 90px; text-align: right; font-size: 9px; font-weight: 700; color: #b91c1c;">${formatRp(item.out)}</span>
+                  <span style="width: 80px; text-align: right; font-size: 8px; font-weight: 700; color: #b91c1c; font-family: monospace;">${formatRp(item.out)}</span>
                 </div>`
               : ""
           }
@@ -113,12 +214,66 @@ export function buildKasPrintHtml(data: KasPrintData): string {
       })
       .join("");
 
-    chartHtml = `
-    <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; page-break-inside: avoid;">
-      <div style="font-weight: 700; font-size: 11px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 6px;">
-        📈 GRAFIK VISUAL ARUS KAS PER KEGIATAN
+    allChartsHtml = `
+    <div style="page-break-inside: avoid; margin-bottom: 12px;">
+      <div style="font-weight: 700; font-size: 11px; color: #0f172a; border-bottom: 2px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 8px;">
+        📊 VISUALISASI & DIAGRAM GRAFIK KEUANGAN KAS
       </div>
-      ${chartBars || '<div style="font-size: 10px; color: #64748b;">Tidak ada data kegiatan.</div>'}
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+        <!-- CHART 1: DONUT CHART PROPORSI -->
+        <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px;">
+          <div style="font-weight: 700; font-size: 10px; color: #1e293b; margin-bottom: 4px; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
+            🍩 PROPORSI ${donutLabel.toUpperCase()} PER KEGIATAN
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="position: relative; width: 90px; height: 90px; flex-shrink: 0;">
+              <svg viewBox="0 0 90 90" style="width: 90px; height: 90px; transform: rotate(-90deg);">
+                ${donutSvgCircles || '<circle cx="45" cy="45" r="35" fill="transparent" stroke="#e2e8f0" stroke-width="14" />'}
+              </svg>
+              <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+                <span style="font-size: 7px; color: #64748b; text-transform: uppercase;">Total ${donutLabel}</span>
+                <span style="font-size: 8px; font-weight: 700; color: #0f172a; font-family: monospace;">${formatRp(donutTotal)}</span>
+              </div>
+            </div>
+            <div style="flex: 1; min-width: 0; max-height: 90px; overflow-y: auto;">
+              ${donutLegendRows || '<div style="font-size: 8px; color: #64748b;">Tidak ada data donat.</div>'}
+            </div>
+          </div>
+        </div>
+
+        <!-- CHART 2: AREA LINE ARUS KAS BERSIH -->
+        <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px;">
+          <div style="font-weight: 700; font-size: 10px; color: #1e293b; margin-bottom: 4px; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px;">
+            📈 TRAJEKTORI ARUS KAS BERSIH (NET)
+          </div>
+          <div style="width: 100%; height: 90px;">
+            <svg viewBox="0 0 280 90" style="width: 100%; height: 68px;">
+              <defs>
+                <linearGradient id="printNetGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#2563eb" stop-opacity="0.35" />
+                  <stop offset="100%" stop-color="#2563eb" stop-opacity="0.0" />
+                </linearGradient>
+              </defs>
+              <line x1="15" y1="${areaSvgPath.zeroY}" x2="265" y2="${areaSvgPath.zeroY}" stroke="#94a3b8" stroke-dasharray="3 3" stroke-width="1" />
+              ${areaSvgPath.areaD ? `<path d="${areaSvgPath.areaD}" fill="url(#printNetGrad)" />` : ""}
+              ${areaSvgPath.lineD ? `<path d="${areaSvgPath.lineD}" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" />` : ""}
+              ${areaSvgPath.points.map((p) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="${p.net >= 0 ? "#16a34a" : "#dc2626"}" stroke="#ffffff" stroke-width="1" />`).join("")}
+            </svg>
+            <div style="display: flex; justify-content: space-between; font-size: 8px; color: #475569; font-weight: 600; margin-top: -2px;">
+              ${monthlyTrendList.map((m) => `<span>${m.label}: <strong style="color:${m.net >= 0 ? "#15803d" : "#b91c1c"};">${formatRp(m.net)}</strong></span>`).join(" · ")}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CHART 3: PERBANDINGAN PORSI & EFISIENSI BAR PER KEGIATAN -->
+      <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px;">
+        <div style="font-weight: 700; font-size: 10px; color: #1e293b; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px; margin-bottom: 4px;">
+          ⚖️ EFISIENSI & NOMINAL MUTASI PER KEGIATAN
+        </div>
+        ${chartBars || '<div style="font-size: 9px; color: #64748b;">Tidak ada data kegiatan.</div>'}
+      </div>
     </div>`;
   }
 
@@ -245,7 +400,7 @@ export function buildKasPrintHtml(data: KasPrintData): string {
     <div class="saldo">Saldo akhir ${escapeHtml(formatRp(data.saldoAkhir))}</div>
   </div>
 
-  ${chartHtml}
+  ${allChartsHtml}
 
   ${swotHtml}
 
@@ -277,4 +432,3 @@ export function buildKasPrintHtml(data: KasPrintData): string {
 export function printKasDocument(data: KasPrintData): void {
   openHtmlPrintWindow(buildKasPrintHtml(data));
 }
-
