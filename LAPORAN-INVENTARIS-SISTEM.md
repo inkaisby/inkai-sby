@@ -347,6 +347,10 @@ Pusat / Nasional
 5. **Optimasi Tata Letak Halaman Cetak (Print Pagination)**:
    - Menghapus pembatasan `page-break-inside: avoid` pada container luar grafik dan SWOT section untuk mencegah pendorongan halaman (page-push) yang menyebabkan halaman 1 kosong besar.
    - Mengatur `page-break-inside: avoid` terbatas secara presisi pada tiap baris kegiatan, box SWOT, dan baris tabel transaksi sehingga seluruh elemen mengalir rapat dari Halaman 1 tanpa ada ruang kosong terbuang.
+6. **Urutan Seri Kegiatan Berpenomoran & Angka Romawi (Natural Series Sorting & Manual Reorder)**:
+   - Pengurutan seksi *EFISIENSI & NOMINAL MUTASI PER KEGIATAN* dilengkapi *smart comparator* berbasis pola seri yang mendukung **Angka Arab (1, 2, 3, 4)** dan **Angka Romawi (I, II, III, IV, V)**.
+   - Seri kegiatan seperti `HONOR PELATIH LATBER 1..4`, `RANTING BAYAR UKT I-2026` vs `UKT II-2026`, `PENGELUARAN UKT I` vs `UKT II`, dan `SEMESTER I` vs `SEMESTER II` secara otomatis diurutkan secara kronologis dan rapi.
+   - **Dukungan Urutan Manual (Drag & Drop)**: Apabila admin menggeser/mengurutkan baris/grup kegiatan secara manual di tabel UI `/admin/kas` (menggunakan handle `GripVertical`), hasil urutan manual tersebut tersimpan ke database (`/api/admin/kas/reorder`) dan secara otomatis **100% selaras diikutsertakan ke dokumen cetak**.
 ```
 
 ### 9.4 Kegiatan & absensi

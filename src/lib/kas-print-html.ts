@@ -70,18 +70,66 @@ export function buildKasPrintHtml(data: KasPrintData): string {
     const totalOut = filteredRows.reduce((a, r) => a + r.amountOut, 0);
 
     // 1. Kegiatan Breakdown & Bars
-    const kegiatanMap = new Map<string, { name: string; in: number; out: number; count: number }>();
+    const kegiatanMap = new Map<
+      string,
+      { name: string; in: number; out: number; count: number; firstAppearanceIndex: number }
+    >();
+    let orderIndex = 0;
     for (const r of filteredRows) {
       const kName = (r.kegiatan || "Tanpa Kegiatan").trim() || "Tanpa Kegiatan";
-      const current = kegiatanMap.get(kName) || { name: kName, in: 0, out: 0, count: 0 };
+      const current = kegiatanMap.get(kName) || {
+        name: kName,
+        in: 0,
+        out: 0,
+        count: 0,
+        firstAppearanceIndex: orderIndex,
+      };
       current.in += r.amountIn;
       current.out += r.amountOut;
       current.count += 1;
       kegiatanMap.set(kName, current);
+      orderIndex++;
     }
 
-    const kegiatanItems = Array.from(kegiatanMap.values())
-      .sort((a, b) => (b.in + b.out) - (a.in + a.out));
+    const parseSeriesInfo = (name: string) => {
+      const trimmed = name.trim();
+      if (trimmed === "Tanpa Kegiatan") return { basePattern: "tanpa kegiatan", seriesNum: null };
+
+      // Normalize Roman numerals (I, II, III, IV, V, VI, VII, VIII, IX, X)
+      const romanMapped = trimmed
+        .replace(/(^|[\s\-_])VIII([\s\-_]|$)/gi, "$18$2")
+        .replace(/(^|[\s\-_])VII([\s\-_]|$)/gi, "$17$2")
+        .replace(/(^|[\s\-_])VI([\s\-_]|$)/gi, "$16$2")
+        .replace(/(^|[\s\-_])IV([\s\-_]|$)/gi, "$14$2")
+        .replace(/(^|[\s\-_])V([\s\-_]|$)/gi, "$15$2")
+        .replace(/(^|[\s\-_])III([\s\-_]|$)/gi, "$13$2")
+        .replace(/(^|[\s\-_])II([\s\-_]|$)/gi, "$12$2")
+        .replace(/(^|[\s\-_])I([\s\-_]|$)/gi, "$11$2");
+
+      const allNums = Array.from(romanMapped.matchAll(/\d+/g)).map((m) => parseInt(m[0], 10));
+      if (allNums.length === 0) return { basePattern: trimmed.toLowerCase(), seriesNum: null };
+
+      let selectedNum = allNums[0];
+      if (allNums.length > 1 && allNums[allNums.length - 1] >= 2000 && allNums[allNums.length - 1] <= 2100) {
+        selectedNum = allNums[0];
+      }
+
+      const basePattern = romanMapped.replace(new RegExp(`\\b${selectedNum}\\b`), "#").toLowerCase().trim();
+      return { basePattern, seriesNum: selectedNum };
+    };
+
+    const kegiatanItems = Array.from(kegiatanMap.values()).sort((a, b) => {
+      const infoA = parseSeriesInfo(a.name);
+      const infoB = parseSeriesInfo(b.name);
+
+      if (infoA.basePattern === infoB.basePattern && infoA.seriesNum !== null && infoB.seriesNum !== null) {
+        if (infoA.seriesNum !== infoB.seriesNum) {
+          return infoA.seriesNum - infoB.seriesNum;
+        }
+      }
+
+      return a.firstAppearanceIndex - b.firstAppearanceIndex;
+    });
 
     let maxVal = 1;
     for (const item of kegiatanItems) {
