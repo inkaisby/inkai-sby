@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Copy,
@@ -1395,6 +1396,61 @@ export function KasLedgerClient({
     return data.rows.filter((r) => set.has(r.id));
   }, [data?.rows, selectedIds]);
 
+  const selectedSubtotals = useMemo(() => {
+    if (selectedRows.length === 0) {
+      return { count: 0, totalIn: 0, totalOut: 0, net: 0, unmatchedCount: 0, matchedCount: 0 };
+    }
+    let totalIn = 0;
+    let totalOut = 0;
+    let unmatchedCount = 0;
+    let matchedCount = 0;
+    for (const r of selectedRows) {
+      totalIn += r.amountIn;
+      totalOut += r.amountOut;
+      if (r.reconStatus === "matched") {
+        matchedCount += 1;
+      } else {
+        unmatchedCount += 1;
+      }
+    }
+    return {
+      count: selectedRows.length,
+      totalIn,
+      totalOut,
+      net: totalIn - totalOut,
+      unmatchedCount,
+      matchedCount,
+    };
+  }, [selectedRows]);
+
+  async function handleBatchRecon(targetStatus: "matched" | "open") {
+    if (selectedIds.length === 0) return;
+    const label = targetStatus === "matched" ? "Cocok rekening" : "Belum rekon";
+    try {
+      const res = await fetch("/api/admin/kas/batch-recon", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-kas-scope-type": data?.scope.type ?? "",
+          "x-kas-scope-id": data?.scope.id ?? "",
+        },
+        body: JSON.stringify({
+          ids: selectedIds,
+          reconStatus: targetStatus,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || `Gagal memperbarui status ${label}`);
+        return;
+      }
+      toast.success(`${json.updated} transaksi ditandai '${label}'`);
+      await load();
+    } catch (err) {
+      toast.error(`Gagal memperbarui status ${label}`);
+    }
+  }
+
   const singleDeleteRow = useMemo(() => {
     if (!data?.rows || !deleteId) return null;
     return data.rows.find((r) => r.id === deleteId) ?? null;
@@ -2071,8 +2127,47 @@ export function KasLedgerClient({
           </div>
           {data?.canWrite && selectedIds.length > 0 ? (
             <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 print:hidden">
-              <div className="pointer-events-auto inline-flex max-w-[min(100vw-2rem,36rem)] flex-wrap items-center justify-center gap-2 rounded-xl border border-border/80 bg-background/95 p-2 px-3 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3">
-                <span className="text-xs font-semibold px-1">{selectedIds.length} terpilih</span>
+              <div className="pointer-events-auto inline-flex max-w-[min(100vw-1.5rem,56rem)] flex-wrap items-center justify-center gap-1.5 rounded-xl border border-border/80 bg-background/95 p-2 px-3 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3">
+                <div className="flex items-center gap-1.5 rounded-md bg-muted/70 px-2.5 py-1 text-xs font-semibold text-foreground">
+                  <span>{selectedSubtotals.count} dipilih</span>
+                  <span className="text-muted-foreground">•</span>
+                  <span
+                    className={
+                      selectedSubtotals.net >= 0
+                        ? "text-emerald-600 dark:text-emerald-400 font-bold"
+                        : "text-rose-600 dark:text-rose-400 font-bold"
+                    }
+                    title={`Total Masuk: ${formatRp(selectedSubtotals.totalIn)} | Total Keluar: ${formatRp(selectedSubtotals.totalOut)}`}
+                  >
+                    Net: {selectedSubtotals.net >= 0 ? "+" : ""}{formatRp(selectedSubtotals.net)}
+                  </span>
+                </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 text-xs font-semibold shadow-2xs"
+                  onClick={() => handleBatchRecon("matched")}
+                  title="Tandai seluruh transaksi terpilih sebagai 'Cocok rekening'"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                  Cocok rekening ({selectedIds.length})
+                </Button>
+
+                {selectedSubtotals.matchedCount > 0 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 border-amber-600/50 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30 px-2 text-xs font-medium"
+                    onClick={() => handleBatchRecon("open")}
+                    title="Kembalikan transaksi terpilih menjadi 'Belum rekon'"
+                  >
+                    <Unlock className="h-3.5 w-3.5 mr-1 text-amber-600 dark:text-amber-400" />
+                    Buka rekon ({selectedSubtotals.matchedCount})
+                  </Button>
+                )}
+
                 <Button
                   type="button"
                   size="sm"
@@ -2084,6 +2179,7 @@ export function KasLedgerClient({
                   <Share2 className="h-3.5 w-3.5 mr-1 text-emerald-600 dark:text-emerald-400" />
                   Salin WA
                 </Button>
+
                 {data?.canWrite ? (
                   <Button
                     type="button"
@@ -2097,6 +2193,7 @@ export function KasLedgerClient({
                     Kelompokkan kegiatan ({selectedIds.length})
                   </Button>
                 ) : null}
+
                 {data?.canTransfer && !isRanting ? (
                   <Button
                     type="button"
@@ -2108,6 +2205,7 @@ export function KasLedgerClient({
                     Pindah lokasi
                   </Button>
                 ) : null}
+
                 <Button
                   type="button"
                   size="sm"
@@ -2118,6 +2216,7 @@ export function KasLedgerClient({
                   <Trash2 className="h-3.5 w-3.5 mr-1 text-white" />
                   Hapus ({selectedIds.length})
                 </Button>
+
                 <Button
                   type="button"
                   size="icon"
@@ -2540,8 +2639,47 @@ export function KasLedgerClient({
         </div>
         {canSelect && selectedIds.length > 0 ? (
           <div className="pointer-events-none fixed bottom-4 left-1/2 z-50 -translate-x-1/2 print:hidden">
-            <div className="pointer-events-auto inline-flex max-w-[min(100vw-2rem,36rem)] flex-wrap items-center justify-center gap-2 rounded-xl border border-border/80 bg-background/95 p-2 px-3 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3">
-              <span className="text-xs font-semibold px-1">{selectedIds.length} dipilih</span>
+            <div className="pointer-events-auto inline-flex max-w-[min(100vw-1.5rem,56rem)] flex-wrap items-center justify-center gap-1.5 rounded-xl border border-border/80 bg-background/95 p-2 px-3 shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-3">
+              <div className="flex items-center gap-1.5 rounded-md bg-muted/70 px-2.5 py-1 text-xs font-semibold text-foreground">
+                <span>{selectedSubtotals.count} dipilih</span>
+                <span className="text-muted-foreground">•</span>
+                <span
+                  className={
+                    selectedSubtotals.net >= 0
+                      ? "text-emerald-600 dark:text-emerald-400 font-bold"
+                      : "text-rose-600 dark:text-rose-400 font-bold"
+                  }
+                  title={`Total Masuk: ${formatRp(selectedSubtotals.totalIn)} | Total Keluar: ${formatRp(selectedSubtotals.totalOut)}`}
+                >
+                  Net: {selectedSubtotals.net >= 0 ? "+" : ""}{formatRp(selectedSubtotals.net)}
+                </span>
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 text-xs font-semibold shadow-2xs"
+                onClick={() => handleBatchRecon("matched")}
+                title="Tandai seluruh transaksi terpilih sebagai 'Cocok rekening'"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                Cocok rekening ({selectedIds.length})
+              </Button>
+
+              {selectedSubtotals.matchedCount > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 border-amber-600/50 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/30 px-2 text-xs font-medium"
+                  onClick={() => handleBatchRecon("open")}
+                  title="Kembalikan transaksi terpilih menjadi 'Belum rekon'"
+                >
+                  <Unlock className="h-3.5 w-3.5 mr-1 text-amber-600 dark:text-amber-400" />
+                  Buka rekon ({selectedSubtotals.matchedCount})
+                </Button>
+              )}
+
               <Button
                 type="button"
                 size="sm"
@@ -2553,6 +2691,7 @@ export function KasLedgerClient({
                 <Share2 className="h-3.5 w-3.5 mr-1 text-emerald-600 dark:text-emerald-400" />
                 Salin WA
               </Button>
+
               {data?.canWrite ? (
                 <Button
                   type="button"
@@ -2566,6 +2705,7 @@ export function KasLedgerClient({
                   Kelompokkan kegiatan ({selectedIds.length})
                 </Button>
               ) : null}
+
               {data?.canTransfer && !isRanting ? (
                 <Button
                   type="button"
@@ -2577,6 +2717,7 @@ export function KasLedgerClient({
                   Pindah lokasi
                 </Button>
               ) : null}
+
               {data?.canWrite ? (
                 <Button
                   type="button"
@@ -2588,6 +2729,7 @@ export function KasLedgerClient({
                   Hapus ({selectedIds.length})
                 </Button>
               ) : null}
+
               <Button
                 type="button"
                 size="icon"
