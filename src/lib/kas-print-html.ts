@@ -11,6 +11,15 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function formatDateDdMmYyyy(printedAt: string): string {
+  const datePart = printedAt.split(" ")[0] || "";
+  const parts = datePart.split("-");
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return datePart;
+}
+
 export type KasPrintData = {
   origin: string;
   scopeLabel: string;
@@ -495,7 +504,7 @@ export function buildKasPrintHtml(data: KasPrintData): string {
       <div class="name">( .................................... )</div>
     </div>
     <div class="signature-box">
-      <div>Surabaya, ${escapeHtml(data.printedAt.split(" ")[0] || "")}</div>
+      <div>Surabaya, ${escapeHtml(formatDateDdMmYyyy(data.printedAt))}</div>
       <div class="role">Bendahara</div>
       <div class="space"></div>
       <div class="name">( .................................... )</div>

@@ -353,6 +353,8 @@ Pusat / Nasional
 7. **Pemisahan Halaman Analisis SWOT & Tabel Transaksi**:
    - Modul Analisis SWOT Keuangan (`swot-section`) diatur agar mulai bersih di **1 halaman tersendiri (1 Halaman Utuh)** (`page-break-before: always; page-break-inside: avoid;`).
    - Tabel Mutasi & Detail Transaksi Kas diatur mulai di **halaman baru tersendiri** (`page-break-before: always;`) dan dilengkapi **judul center di atas tabel** (`📋 TABEL MUTASI & DETAIL TRANSAKSI KAS`).
+8. **Format Tanggal Tanda Tangan Cetak (DD-MM-YYYY)**:
+   - Format tanggal pada blok tanda tangan Bendahara diubah dari `YYYY-MM-DD` (`2026-09-15`) menjadi format Indonesia `DD-MM-YYYY` (`15-09-2026` / `14-09-2025`).
 ```
 
 ### 9.4 Kegiatan & absensi
