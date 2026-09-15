@@ -174,9 +174,8 @@ export function buildKasPrintHtml(data: KasPrintData): string {
       areaSvgPath = { lineD, areaD, zeroY, points: pts };
     }
 
-    // Bar Chart Rows per Kegiatan
+    // Bar Chart Rows per Kegiatan (Display ALL activities)
     const chartBars = kegiatanItems
-      .slice(0, 8)
       .map((item) => {
         const inPct = Math.min(100, Math.max(3, Math.round((item.in / maxVal) * 100)));
         const outPct = Math.min(100, Math.max(3, Math.round((item.out / maxVal) * 100)));
@@ -269,12 +268,14 @@ export function buildKasPrintHtml(data: KasPrintData): string {
 
       <!-- CHART 3: PERBANDINGAN PORSI & EFISIENSI BAR PER KEGIATAN -->
       <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px;">
-        <div style="font-weight: 700; font-size: 10px; color: #1e293b; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px; margin-bottom: 4px;">
-          ⚖️ EFISIENSI & NOMINAL MUTASI PER KEGIATAN
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px; margin-bottom: 6px;">
+          <span style="font-weight: 700; font-size: 10px; color: #1e293b;">⚖️ EFISIENSI & NOMINAL MUTASI PER KEGIATAN</span>
+          <span style="font-size: 9px; font-weight: 600; color: #64748b;">(Total ${kegiatanItems.length} Kegiatan Terdaftar)</span>
         </div>
         ${chartBars || '<div style="font-size: 9px; color: #64748b;">Tidak ada data kegiatan.</div>'}
       </div>
     </div>`;
+
   }
 
   // Build SWOT section if available
@@ -383,6 +384,12 @@ export function buildKasPrintHtml(data: KasPrintData): string {
     th { background: #f3f4f6; font-weight: 700; }
     td.c, th.c { text-align: center; }
     td.r, th.r { text-align: right; }
+
+    .signature-container { display: flex; justify-content: space-between; margin-top: 28px; padding: 0 40px; page-break-inside: avoid; }
+    .signature-box { text-align: center; width: 220px; }
+    .signature-box .role { font-weight: 700; margin-top: 2px; }
+    .signature-box .space { height: 55px; }
+    .signature-box .name { font-weight: 700; }
   </style>
 </head>
 <body>
@@ -425,6 +432,21 @@ export function buildKasPrintHtml(data: KasPrintData): string {
       )}</strong>.</td></tr>`
     }</tbody>
   </table>
+
+  <div class="signature-container">
+    <div class="signature-box">
+      <div>Mengetahui,</div>
+      <div class="role">Ketua</div>
+      <div class="space"></div>
+      <div class="name">( .................................... )</div>
+    </div>
+    <div class="signature-box">
+      <div>Surabaya, ${escapeHtml(data.printedAt.split(" ")[0] || "")}</div>
+      <div class="role">Bendahara</div>
+      <div class="space"></div>
+      <div class="name">( .................................... )</div>
+    </div>
+  </div>
 </body>
 </html>`;
 }

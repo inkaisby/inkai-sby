@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Copy,
   Download,
+  FileSpreadsheet,
   GripVertical,
   Lock,
   Maximize2,
@@ -1139,21 +1140,172 @@ export function KasLedgerClient({
     await load();
   }
 
-  function exportCsv() {
-    const rows = data?.rows ?? [];
-    const lines = [
-      "No,Tanggal,Keterangan,Masuk,Keluar,Saldo,Kegiatan,Sumber",
-      ...rows.map(
-        (r) =>
-          `${r.no},"${formatKasDateId(r.txnDate)}","${r.description.replace(/"/g, '""')}",${r.amountIn},${r.amountOut},${r.saldo},"${r.kegiatan}","${r.sourceType}"`,
-      ),
-    ];
-    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download =
-      fromYmd || toYmd ? `kas-${fromYmd || "awal"}_${toYmd || "akhir"}.csv` : "kas-semua.csv";
-    a.click();
+  async function exportExcel() {
+    if (!data?.rows || data.rows.length === 0) {
+      toast.error("Tidak ada data kas untuk diekspor");
+      return;
+    }
+
+    try {
+      toast.loading("Menyiapkan file Excel...", { id: "export-excel" });
+      const ExcelJS = (await import("exceljs")).default;
+      const wb = new ExcelJS.Workbook();
+      wb.creator = "INKAI Surabaya";
+      wb.created = new Date();
+
+      const sheet = wb.addWorksheet("Laporan Kas", {
+        pageSetup: { orientation: "landscape", fitToPage: true },
+      });
+
+      // Header judul Laporan
+      sheet.mergeCells("A1:H1");
+      const titleCell = sheet.getCell("A1");
+      titleCell.value = "LAPORAN KEUANGAN KAS — INKAI SURABAYA";
+      titleCell.font = { bold: true, size: 13, name: "Calibri", color: { argb: "FFB91C1C" } };
+      titleCell.alignment = { vertical: "middle", horizontal: "left" };
+
+      sheet.mergeCells("A2:H2");
+      const subCell = sheet.getCell("A2");
+      subCell.value = `Buku Kas: ${activeScopeLabel} | Periode: ${periodCaption} | Dicetak: ${new Date().toLocaleDateString("id-ID")} WIB`;
+      subCell.font = { italic: true, size: 9, name: "Calibri", color: { argb: "FF475569" } };
+      subCell.alignment = { vertical: "middle", horizontal: "left" };
+
+      sheet.addRow([]); // Baris 3 kosong
+
+      // Header Tabel (Baris 4)
+      const headerRow = sheet.addRow([
+        "No",
+        "Tanggal",
+        "Keterangan",
+        "Masuk (Rp)",
+        "Keluar (Rp)",
+        "Saldo (Rp)",
+        "Kegiatan",
+        "Sumber",
+      ]);
+
+      headerRow.height = 24;
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10, name: "Calibri" };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFB91C1C" },
+        };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FF991B1B" } },
+          left: { style: "thin", color: { argb: "FF991B1B" } },
+          bottom: { style: "thin", color: { argb: "FF991B1B" } },
+          right: { style: "thin", color: { argb: "FF991B1B" } },
+        };
+      });
+
+      let totalIn = 0;
+      let totalOut = 0;
+
+      data.rows.forEach((r) => {
+        totalIn += r.amountIn || 0;
+        totalOut += r.amountOut || 0;
+
+        const row = sheet.addRow([
+          r.no,
+          r.txnDate ? formatKasDateId(r.txnDate) : "—",
+          r.description,
+          r.amountIn || 0,
+          r.amountOut || 0,
+          r.saldo || 0,
+          r.kegiatan || "—",
+          r.sourceType || "manual",
+        ]);
+
+        row.getCell(1).alignment = { horizontal: "center", vertical: "middle" };
+        row.getCell(2).alignment = { horizontal: "center", vertical: "middle" };
+        row.getCell(3).alignment = { horizontal: "left", vertical: "middle" };
+
+        row.getCell(4).numFmt = "#,##0";
+        row.getCell(4).alignment = { horizontal: "right", vertical: "middle" };
+        row.getCell(5).numFmt = "#,##0";
+        row.getCell(5).alignment = { horizontal: "right", vertical: "middle" };
+        row.getCell(6).numFmt = "#,##0";
+        row.getCell(6).alignment = { horizontal: "right", vertical: "middle" };
+
+        row.getCell(7).alignment = { horizontal: "left", vertical: "middle" };
+        row.getCell(8).alignment = { horizontal: "center", vertical: "middle" };
+
+        row.eachCell((cell) => {
+          cell.font = { name: "Calibri", size: 10 };
+          cell.border = {
+            top: { style: "thin", color: { argb: "FFE2E8F0" } },
+            left: { style: "thin", color: { argb: "FFE2E8F0" } },
+            bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+            right: { style: "thin", color: { argb: "FFE2E8F0" } },
+          };
+        });
+      });
+
+      // Total Row
+      const lastSaldo = data.rows.length > 0 ? data.rows[data.rows.length - 1].saldo : 0;
+      const summaryRow = sheet.addRow([
+        "",
+        "",
+        "TOTAL KESELURUHAN",
+        totalIn,
+        totalOut,
+        lastSaldo,
+        "",
+        "",
+      ]);
+
+      summaryRow.height = 22;
+      summaryRow.eachCell((cell, colNumber) => {
+        cell.font = { bold: true, size: 10, name: "Calibri" };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFF1F5F9" },
+        };
+        if (colNumber === 4 || colNumber === 5 || colNumber === 6) {
+          cell.numFmt = "#,##0";
+          cell.alignment = { horizontal: "right", vertical: "middle" };
+        } else if (colNumber === 3) {
+          cell.alignment = { horizontal: "left", vertical: "middle" };
+        }
+        cell.border = {
+          top: { style: "medium", color: { argb: "FF334155" } },
+          bottom: { style: "double", color: { argb: "FF334155" } },
+          left: { style: "thin", color: { argb: "FFE2E8F0" } },
+          right: { style: "thin", color: { argb: "FFE2E8F0" } },
+        };
+      });
+
+      sheet.getColumn(1).width = 8;
+      sheet.getColumn(2).width = 16;
+      sheet.getColumn(3).width = 40;
+      sheet.getColumn(4).width = 18;
+      sheet.getColumn(5).width = 18;
+      sheet.getColumn(6).width = 20;
+      sheet.getColumn(7).width = 28;
+      sheet.getColumn(8).width = 14;
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const filename =
+        fromYmd || toYmd ? `kas-${fromYmd || "awal"}_${toYmd || "akhir"}.xlsx` : "laporan-kas-semua.xlsx";
+
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+
+      toast.success("File Excel (.xlsx) berhasil diunduh!", { id: "export-excel" });
+    } catch (err) {
+      console.error(err);
+      toast.error("Gagal mengekspor file Excel", { id: "export-excel" });
+    }
   }
 
   function handleCopyWa() {
@@ -1673,9 +1825,9 @@ export function KasLedgerClient({
                 <Printer className="h-3.5 w-3.5 mr-1" />
                 Cetak
               </Button>
-              <Button type="button" variant="outline" size="sm" className="h-8 text-xs px-2.5" onClick={exportCsv}>
-                <Download className="h-3.5 w-3.5 mr-1" />
-                CSV
+              <Button type="button" variant="outline" size="sm" className="h-8 text-xs px-2.5" onClick={exportExcel}>
+                <FileSpreadsheet className="h-3.5 w-3.5 mr-1 text-emerald-600 dark:text-emerald-400" />
+                Excel
               </Button>
               <Button
                 type="button"
