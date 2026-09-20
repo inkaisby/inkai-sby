@@ -590,3 +590,81 @@ model KasPeriodLock {
   @@unique([scopeType, scopeId, yearMonth])
   @@index([scopeType, scopeId])
 }
+
+/// Persuratan resmi (Surat Masuk & Surat Keluar) organisasi INKAI.
+model SuratEntry {
+  id                 String    @id @default(uuid())
+  type               String    // MASUK | KELUAR
+  nomorSurat         String
+  tanggalSurat       DateTime  @db.Date
+  pengirim           String?
+  tujuan             String?
+  perihal            String
+  kategori           String    @default("UNDANGAN") // SK | UNDANGAN | TUGAS | KETERANGAN | PERMOHONAN | PEMBERITAHUAN | REKOMENDASI | LAINNYA
+  status             String    @default("DRAFT") // DRAFT | WAITING_APPROVAL | APPROVED | ISSUED | REJECTED | ARCHIVED
+  fileUrl            String?
+  disposisi          String?   @db.Text
+  templateKey        String?   // SURAT_TUGAS | SURAT_UNDANGAN | SURAT_KETERANGAN | REKOMENDASI | SK_PENGURUS
+  templateData       Json?     // Payload parameter generator
+  paperSize          String    @default("A4") // A4 | F4
+  signatureMode      String    @default("SYSTEM") // SYSTEM | MANUAL | DRAW
+  signedKetuaUrl     String?
+  signedSekretarisUrl String?
+  stampUrl           String?
+  scopeType          String    @default("BRANCH") // PROVINCE | BRANCH | DOJO
+  scopeId            String    @default("main")
+  eventId            String?   // Terikat event / UKT tertentu (opsional)
+  deliveredToMembers Boolean   @default(false)
+  createdById        String?
+  approvedById       String?
+  approvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([scopeType, scopeId, type, createdAt])
+  @@index([scopeType, scopeId, status])
+  @@index([nomorSurat])
+  @@index([eventId])
+}
+
+/// Repository arsip berkas digital & SK pengurus.
+model ArsipDokumen {
+  id                 String    @id @default(uuid())
+  judul              String
+  nomorDokumen       String?
+  kategori           String    @default("DOKUMEN_RESMI") // SK_PENGURUS | AD_ART | PROPOSAL | LPJ | SERTIFIKAT | BERITA_ACARA | DOKUMEN_RESMI
+  fileUrl            String
+  keterangan         String?   @db.Text
+  tanggalBerlaku     DateTime? @db.Date
+  tanggalKadaluarsa  DateTime? @db.Date
+  scopeType          String    @default("BRANCH") // PROVINCE | BRANCH | DOJO
+  scopeId            String    @default("main")
+  createdById        String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([scopeType, scopeId, kategori, createdAt])
+  @@index([tanggalKadaluarsa])
+}
+
+/// Notulensi & risalah rapat sekretariat/pengurus.
+model NotulenRapat {
+  id            String    @id @default(uuid())
+  judulRapat    String
+  tanggalRapat  DateTime  @db.Date
+  lokasi        String?
+  pimpinanRapat String?
+  pesertaHadir  Json?     // Array nama / jabatan
+  agenda        String    @db.Text
+  pembahasan    String    @db.Text
+  keputusan     String    @db.Text
+  actionItems   Json?     // Array [{ task, assignee, dueDate, status }]
+  scopeType     String    @default("BRANCH") // PROVINCE | BRANCH | DOJO
+  scopeId       String    @default("main")
+  createdById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([scopeType, scopeId, tanggalRapat])
+}
+

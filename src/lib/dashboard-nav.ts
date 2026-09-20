@@ -90,6 +90,17 @@ const LATBER_NAV_GROUP: NavGroup = {
   ],
 };
 
+const SEKRETARIAT_NAV_GROUP: NavGroup = {
+  label: "Sekretariat",
+  children: [
+    { href: "/admin/sekretaris", label: "Dashboard" },
+    { href: "/admin/sekretaris/surat", label: "Surat & Persuratan" },
+    { href: "/admin/sekretaris/generator", label: "Generator Surat" },
+    { href: "/admin/sekretaris/dokumen", label: "Dokumen & SK" },
+    { href: "/admin/sekretaris/rapat", label: "Notulen Rapat" },
+  ],
+};
+
 export const ADMIN_LINKS: NavItem[] = [
   { href: "/admin", label: "Beranda Admin" },
   {
@@ -104,6 +115,7 @@ export const ADMIN_LINKS: NavItem[] = [
   KEUANGAN_NAV_GROUP,
   UKT_NAV_GROUP,
   LATBER_NAV_GROUP,
+  SEKRETARIAT_NAV_GROUP,
   { href: "/admin/kegiatan", label: "Event & Kegiatan" },
   { href: "/admin/absensi", label: "Absensi" },
   {
@@ -173,6 +185,7 @@ export function getAdminNavLinks(
     KEUANGAN_NAV_GROUP,
     UKT_NAV_GROUP,
     LATBER_NAV_GROUP,
+    SEKRETARIAT_NAV_GROUP,
     { href: "/admin/kegiatan", label: "Event & Kegiatan" },
     { href: "/admin/absensi", label: "Absensi" },
     {
