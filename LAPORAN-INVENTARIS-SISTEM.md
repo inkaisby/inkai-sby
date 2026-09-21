@@ -3,7 +3,7 @@
 **Aplikasi:** Portal web Institut Karate-Do Indonesia (INKAI) Cabang Surabaya  
 **Repository:** `inkai-sby`  
 **Platform:** Next.js (App Router) + Inkai API + PostgreSQL (Supabase/Prisma)  
-**Tanggal dokumen:** 23 Juli 2026  
+**Tanggal dokumen:** 21 September 2026  
 **Peran:** living context untuk pengurus & agent — baca sebelum develop; update bersamaan dengan perubahan kode. Nama file ini **tetap**.
 
 ---
