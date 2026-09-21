@@ -206,12 +206,12 @@ export default function SuratGeneratorPage() {
   return (
     <div className="space-y-6 pb-16">
       {/* Header Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 p-6 rounded-3xl shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-sm transition-colors">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <FileSpreadsheet className="w-6 h-6 text-red-600" /> Generator & Template Surat PDF
+          <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <FileSpreadsheet className="w-6 h-6 text-red-600 dark:text-red-400" /> Generator & Template Surat PDF
           </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-1">
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
             Buat surat resmi A4/F4 dengan Kop INKAI Surabaya, WYSIWYG editor, & TTD/Stempel otomatis.
           </p>
         </div>
@@ -236,8 +236,8 @@ export default function SuratGeneratorPage() {
       </div>
 
       {/* Preset Template Tabs */}
-      <div className="bg-white border border-slate-200 p-4 rounded-3xl shadow-sm space-y-3">
-        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm space-y-3">
+        <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
           Pilihan Templat Surat Organisasi:
         </div>
         <div className="flex flex-wrap gap-2">
@@ -255,7 +255,7 @@ export default function SuratGeneratorPage() {
               className={`px-4 py-2 rounded-xl text-xs font-bold transition border ${
                 templateKey === t.key
                   ? "bg-red-600 border-red-500 text-white shadow-md shadow-red-600/20"
-                  : "bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100"
+                  : "bg-slate-50 border-slate-200 text-slate-700 hover:text-slate-900 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 dark:hover:text-white"
               }`}
             >
               {t.label}
@@ -267,78 +267,78 @@ export default function SuratGeneratorPage() {
       {/* Split Grid: Editor (Left) vs Live Preview (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Editor Form Parameters (6 Cols) */}
-        <div className="lg:col-span-6 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5 text-xs">
-          <h2 className="font-bold text-slate-900 text-base border-b border-slate-100 pb-3 flex items-center justify-between">
+        <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-5 text-xs">
+          <h2 className="font-bold text-slate-900 dark:text-white text-base border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
             <span>📝 Parameter & Editor Isi Surat</span>
-            <span className="text-xs text-red-600 font-mono font-bold">Format: {kategori}</span>
+            <span className="text-xs text-red-600 dark:text-red-400 font-mono font-bold">Format: {kategori}</span>
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-600 mb-1 font-semibold">Nomor Surat</label>
+              <label className="block text-slate-600 dark:text-slate-400 mb-1 font-semibold">Nomor Surat</label>
               <input
                 type="text"
                 value={nomorSurat}
                 onChange={(e) => setNomorSurat(e.target.value)}
                 placeholder="AUTO / Nomor manual"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-mono focus:bg-white focus:border-red-500"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-mono focus:bg-white dark:focus:bg-slate-900 focus:border-red-500"
               />
               {nomorSurat === "AUTO" && (
-                <div className="text-[11px] text-red-600 mt-1 font-bold">Preview: {nextNumberPreview}</div>
+                <div className="text-[11px] text-red-600 dark:text-red-400 mt-1 font-bold">Preview: {nextNumberPreview}</div>
               )}
             </div>
 
             <div>
-              <label className="block text-slate-600 mb-1 font-semibold">Tanggal Surat</label>
+              <label className="block text-slate-600 dark:text-slate-400 mb-1 font-semibold">Tanggal Surat</label>
               <input
                 type="date"
                 value={tanggalSurat}
                 onChange={(e) => setTanggalSurat(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:bg-white focus:border-red-500"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-900 focus:border-red-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-slate-600 mb-1 font-semibold">Perihal Surat</label>
+            <label className="block text-slate-600 dark:text-slate-400 mb-1 font-semibold">Perihal Surat</label>
             <input
               type="text"
               value={perihal}
               onChange={(e) => setPerihal(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-semibold focus:bg-white focus:border-red-500"
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-semibold focus:bg-white dark:focus:bg-slate-900 focus:border-red-500"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-600 mb-1 font-semibold">Tujuan / Kepada</label>
+              <label className="block text-slate-600 dark:text-slate-400 mb-1 font-semibold">Tujuan / Kepada</label>
               <input
                 type="text"
                 value={tujuan}
                 onChange={(e) => setTujuan(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:bg-white focus:border-red-500"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-900 focus:border-red-500"
               />
             </div>
 
             <div>
-              <label className="block text-slate-600 mb-1 font-semibold">Tempat Ditetapkan</label>
+              <label className="block text-slate-600 dark:text-slate-400 mb-1 font-semibold">Tempat Ditetapkan</label>
               <input
                 type="text"
                 value={ditetapkanDi}
                 onChange={(e) => setDitetapkanDi(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:bg-white focus:border-red-500"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-900 focus:border-red-500"
               />
             </div>
           </div>
 
           {/* Paper & TTD Controls */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
             <div>
-              <label className="block text-slate-700 mb-1 font-bold">Ukuran Kertas Print</label>
+              <label className="block text-slate-700 dark:text-slate-300 mb-1 font-bold">Ukuran Kertas Print</label>
               <select
                 value={paperSize}
                 onChange={(e) => setPaperSize(e.target.value as any)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-bold"
+                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-bold"
               >
                 <option value="A4">A4 (210 × 297 mm)</option>
                 <option value="F4">F4 / Folio (215 × 330 mm)</option>
@@ -346,11 +346,11 @@ export default function SuratGeneratorPage() {
             </div>
 
             <div>
-              <label className="block text-slate-700 mb-1 font-bold">Mode Tanda Tangan</label>
+              <label className="block text-slate-700 dark:text-slate-300 mb-1 font-bold">Mode Tanda Tangan</label>
               <select
                 value={signatureMode}
                 onChange={(e) => setSignatureMode(e.target.value as any)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-bold"
+                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-bold"
               >
                 <option value="SYSTEM">TTD & Stempel Digital</option>
                 <option value="MANUAL">Kosong (TTD Basah Manual)</option>
@@ -360,13 +360,13 @@ export default function SuratGeneratorPage() {
 
           {/* Rich Text Editor Toolbar */}
           <div className="space-y-2">
-            <label className="block text-slate-700 font-bold">WYSIWYG Format & Style Toolbar</label>
-            <div className="flex flex-wrap items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-2xl">
+            <label className="block text-slate-700 dark:text-slate-300 font-bold">WYSIWYG Format & Style Toolbar</label>
+            <div className="flex flex-wrap items-center gap-2 p-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl">
               {/* Font Family Selector */}
               <select
                 value={fontFamily}
                 onChange={(e) => setFontFamily(e.target.value)}
-                className="bg-white border border-slate-300 text-slate-800 rounded-lg px-2 py-1 text-xs font-semibold"
+                className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-lg px-2 py-1 text-xs font-semibold"
               >
                 <option value="'Times New Roman', Times, serif">Times New Roman</option>
                 <option value="Arial, sans-serif">Arial</option>
@@ -378,7 +378,7 @@ export default function SuratGeneratorPage() {
               <select
                 value={fontSize}
                 onChange={(e) => setFontSize(e.target.value)}
-                className="bg-white border border-slate-300 text-slate-800 rounded-lg px-2 py-1 text-xs font-semibold"
+                className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-lg px-2 py-1 text-xs font-semibold"
               >
                 <option value="10pt">10 pt</option>
                 <option value="11pt">11 pt</option>
@@ -386,14 +386,14 @@ export default function SuratGeneratorPage() {
                 <option value="14pt">14 pt</option>
               </select>
 
-              <div className="h-4 w-px bg-slate-300 mx-1" />
+              <div className="h-4 w-px bg-slate-300 dark:bg-slate-800 mx-1" />
 
               <button
                 type="button"
                 onClick={() => {
                   setContentHtml(contentHtml + "<b>Teks Tebal</b> ");
                 }}
-                className="p-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg shadow-xs font-bold"
+                className="p-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xs font-bold"
                 title="Tebal (Bold)"
               >
                 <Bold className="w-3.5 h-3.5" />
@@ -403,7 +403,7 @@ export default function SuratGeneratorPage() {
                 onClick={() => {
                   setContentHtml(contentHtml + "<i>Teks Miring</i> ");
                 }}
-                className="p-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg shadow-xs italic"
+                className="p-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xs italic"
                 title="Miring (Italic)"
               >
                 <Italic className="w-3.5 h-3.5" />
@@ -413,7 +413,7 @@ export default function SuratGeneratorPage() {
                 onClick={() => {
                   setContentHtml(contentHtml + "<u>Garis Bawah</u> ");
                 }}
-                className="p-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg shadow-xs underline"
+                className="p-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xs underline"
                 title="Garis Bawah (Underline)"
               >
                 <Underline className="w-3.5 h-3.5" />
@@ -424,22 +424,22 @@ export default function SuratGeneratorPage() {
               rows={4}
               value={contentHtml}
               onChange={(e) => setContentHtml(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-red-500 rounded-2xl p-3 text-slate-900 font-sans"
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:bg-white dark:focus:bg-slate-900 focus:border-red-500 rounded-2xl p-3 text-slate-900 dark:text-white font-sans"
               placeholder="Ketik narasi pembuka / poin-poin surat..."
             />
           </div>
 
           {/* Interactive Table Personel Editor */}
-          <div className="space-y-3 pt-3 border-t border-slate-100">
+          <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-500" /> Interactive Table Panitia / Personel ({tableRows.length})
+              <h3 className="font-bold text-slate-900 dark:text-white text-xs flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-500 dark:text-amber-400" /> Interactive Table Panitia / Personel ({tableRows.length})
               </h3>
 
               <button
                 type="button"
                 onClick={() => addTableRow()}
-                className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 text-xs font-bold transition"
+                className="inline-flex items-center gap-1 px-3 py-1 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-800/50 text-xs font-bold transition"
               >
                 <Plus className="w-3.5 h-3.5" /> Tambah Baris
               </button>
@@ -453,10 +453,10 @@ export default function SuratGeneratorPage() {
                 placeholder="⚡ Cari Nama Anggota System untuk mengisi tabel otomatis..."
                 value={memberSearch}
                 onChange={(e) => searchMembers(e.target.value)}
-                className="w-full bg-slate-50 border border-amber-300 rounded-xl pl-8 pr-3 py-1.5 text-slate-900 text-xs placeholder-slate-400 focus:outline-none focus:bg-white focus:border-amber-500"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-amber-300 dark:border-amber-700/50 rounded-xl pl-8 pr-3 py-1.5 text-slate-900 dark:text-white text-xs placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:border-amber-500"
               />
               {memberSuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl divide-y divide-slate-100 overflow-hidden">
+                <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
                   {memberSuggestions.map((m) => (
                     <button
                       key={m.id}
@@ -467,10 +467,10 @@ export default function SuratGeneratorPage() {
                         setMemberSuggestions([]);
                         toast.success(`Ditambahkan: ${m.fullName}`);
                       }}
-                      className="w-full p-2.5 text-left hover:bg-slate-50 transition flex items-center justify-between text-xs"
+                      className="w-full p-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition flex items-center justify-between text-xs"
                     >
-                      <span className="font-bold text-slate-900">{m.fullName}</span>
-                      <span className="text-[10px] text-slate-500">{m.currentRank} ({m.dojo?.name})</span>
+                      <span className="font-bold text-slate-900 dark:text-white">{m.fullName}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400">{m.currentRank} ({m.dojo?.name})</span>
                     </button>
                   ))}
                 </div>
@@ -480,26 +480,26 @@ export default function SuratGeneratorPage() {
             {/* Table Rows Inputs */}
             <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
               {tableRows.map((row, i) => (
-                <div key={i} className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
-                  <span className="text-slate-400 font-mono w-5 text-center">{i + 1}</span>
+                <div key={i} className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <span className="text-slate-400 dark:text-slate-500 font-mono w-5 text-center">{i + 1}</span>
                   <input
                     type="text"
                     value={row.NAMA}
                     placeholder="Nama Lengkap"
                     onChange={(e) => updateTableRow(i, "NAMA", e.target.value)}
-                    className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-900 font-bold focus:border-red-500"
+                    className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 text-slate-900 dark:text-white font-bold focus:border-red-500"
                   />
                   <input
                     type="text"
                     value={row.JABATAN}
                     placeholder="Jabatan / Tugas"
                     onChange={(e) => updateTableRow(i, "JABATAN", e.target.value)}
-                    className="flex-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 focus:border-red-500"
+                    className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 text-slate-700 dark:text-slate-300 focus:border-red-500"
                   />
                   <button
                     type="button"
                     onClick={() => removeTableRow(i)}
-                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg transition"
+                    className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -509,40 +509,40 @@ export default function SuratGeneratorPage() {
           </div>
 
           {/* Pejabat TTD inputs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
             <div>
-              <label className="block text-slate-600 mb-1 font-semibold">Nama Ketua TTD</label>
+              <label className="block text-slate-600 dark:text-slate-400 mb-1 font-semibold">Nama Ketua TTD</label>
               <input
                 type="text"
                 value={ketuaName}
                 onChange={(e) => setKetuaName(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 font-bold focus:bg-white"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-slate-900 dark:text-white font-bold focus:bg-white dark:focus:bg-slate-900"
               />
             </div>
             <div>
-              <label className="block text-slate-600 mb-1 font-semibold">Nama Sekretaris TTD</label>
+              <label className="block text-slate-600 dark:text-slate-400 mb-1 font-semibold">Nama Sekretaris TTD</label>
               <input
                 type="text"
                 value={sekretarisName}
                 onChange={(e) => setSekretarisName(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-900 font-bold focus:bg-white"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-slate-900 dark:text-white font-bold focus:bg-white dark:focus:bg-slate-900"
               />
             </div>
           </div>
         </div>
 
         {/* Live Preview Panel (6 Cols) */}
-        <div className="lg:col-span-6 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-between">
-          <div className="w-full flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-            <h2 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <Printer className="w-4 h-4 text-red-600" /> Pratinjau Live PDF Cetak ({paperSize})
+        <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm flex flex-col items-center justify-between">
+          <div className="w-full flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+            <h2 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
+              <Printer className="w-4 h-4 text-red-600 dark:text-red-400" /> Pratinjau Live PDF Cetak ({paperSize})
             </h2>
-            <span className="text-xs text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+            <span className="text-xs text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 px-2.5 py-1 rounded-full">
               Presisi 1 Halaman
             </span>
           </div>
 
-          <div className="w-full flex-1 bg-slate-100 rounded-2xl p-4 overflow-auto flex justify-center border border-slate-200">
+          <div className="w-full flex-1 bg-slate-100 dark:bg-slate-950 rounded-2xl p-4 overflow-auto flex justify-center border border-slate-200 dark:border-slate-800">
             <div className="bg-white rounded-lg shadow-2xl overflow-hidden transform scale-[0.75] origin-top sm:scale-[0.85]">
               <iframe
                 title="Live Generator Preview"
