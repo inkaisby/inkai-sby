@@ -1,4 +1,5 @@
 import { getRomanMonth } from "@/lib/sekretaris-rbac";
+import { LOGO_FORKI_BASE64, LOGO_INKAI_BASE64, STEMPEL_INKAI_BASE64 } from "@/lib/logos-base64";
 
 export type PrintSuratOptions = {
   nomorSurat: string;
@@ -72,6 +73,7 @@ export function buildSuratPrintHtml(opts: PrintSuratOptions): string {
   else if (opts.kategori === "PERMOHONAN") judulSurat = "SURAT PERMOHONAN";
   else if (opts.kategori === "REKOMENDASI") judulSurat = "SURAT REKOMENDASI";
   else if (opts.kategori === "PEMBERITAHUAN") judulSurat = "SURAT PEMBERITAHUAN";
+  else if (opts.kategori === "RAPAT" || opts.kategori === "NOTULEN") judulSurat = "RESUME & NOTULENSI RAPAT";
 
   // Signature rendering mode
   const isManual = opts.signatureMode === "MANUAL";
@@ -88,8 +90,10 @@ export function buildSuratPrintHtml(opts: PrintSuratOptions): string {
       : `<div style="height:60px; display:flex; align-items:center; justify-content:center; font-style:italic; color:#4b5563; font-size:10pt;">[ TTD Digital ]</div>`;
 
   const stampImg = !isManual && opts.stampUrl
-    ? `<img src="${opts.stampUrl}" style="height:70px; object-fit:contain; opacity:0.85;" alt="Stempel Basah" />`
-    : `<div style="width:70px; height:70px; border:2px dashed #9ca3af; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:7pt; color:#6b7280; text-align:center;">STEMPEL INKAI</div>`;
+    ? `<img src="${opts.stampUrl}" style="height:75px; width:75px; object-fit:contain;" alt="Stempel Basah" />`
+    : isManual
+      ? `<div style="width:75px; height:75px;"></div>`
+      : `<img src="${STEMPEL_INKAI_BASE64}" style="height:75px; width:75px; object-fit:contain;" alt="Stempel INKAI Kota Surabaya" />`;
 
   // Default sample table if provided
   let tableSectionHtml = "";
@@ -146,11 +150,30 @@ export function buildSuratPrintHtml(opts: PrintSuratOptions): string {
     .sheet {
       width: ${paperWidthCss};
       min-height: ${paperHeightCss};
-      padding: 0;
+      padding: 12mm 16mm 14mm 16mm;
       margin: 0 auto;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      box-sizing: border-box;
+      background: #fff;
+    }
+    @media print {
+      @page {
+        size: ${paperSize} portrait;
+        margin: 8mm 12mm 10mm 12mm;
+      }
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+      }
+      .sheet {
+        padding: 0 !important;
+        width: 100% !important;
+        min-height: auto !important;
+        box-shadow: none !important;
+      }
     }
     .kop-header {
       display: flex;
@@ -261,7 +284,7 @@ export function buildSuratPrintHtml(opts: PrintSuratOptions): string {
     <div>
       <!-- Kop Surat -->
       <div class="kop-header">
-        <img src="/logo-forki.png" class="kop-logo" alt="FORKI" onError="this.style.visibility='hidden'" />
+        <img src="${LOGO_FORKI_BASE64}" class="kop-logo" alt="FORKI" />
         <div class="kop-text">
           <h2>PENGURUS KOTA</h2>
           <h1>INSTITUT KARATE-DO INDONESIA</h1>
@@ -269,7 +292,7 @@ export function buildSuratPrintHtml(opts: PrintSuratOptions): string {
           <p>Sekretariat : Jl. Raya Kertajaya Indah No. 77, Manyar Sabrangan, Kec. Mulyorejo, Surabaya, Jawa Timur, 60116.</p>
           <p>Contact Person : 085731241840 – 089656346642 | inkaisby@gmail.com</p>
         </div>
-        <img src="/logo-inkai.png" class="kop-logo" alt="INKAI" onError="this.style.visibility='hidden'" />
+        <img src="${LOGO_INKAI_BASE64}" class="kop-logo" alt="INKAI" />
       </div>
       <div class="kop-divider"></div>
 

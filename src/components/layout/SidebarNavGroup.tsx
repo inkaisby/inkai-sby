@@ -11,6 +11,35 @@ function hrefPathname(href: string) {
   return href.split("?")[0].split("#")[0];
 }
 
+function isLinkActive(
+  linkHref: string,
+  items: NavLink[],
+  pathname: string,
+): boolean {
+  const currentPath = hrefPathname(linkHref);
+
+  if (pathname === currentPath) {
+    return true;
+  }
+
+  if (!pathname.startsWith(`${currentPath}/`)) {
+    return false;
+  }
+
+  const hasBetterSiblingMatch = items.some((sibling) => {
+    if (sibling.href === linkHref) return false;
+    const siblingPath = hrefPathname(sibling.href);
+    if (siblingPath === currentPath) return false;
+
+    const isExact = pathname === siblingPath;
+    const isPrefix = pathname.startsWith(`${siblingPath}/`);
+
+    return (isExact || isPrefix) && siblingPath.length > currentPath.length;
+  });
+
+  return !hasBetterSiblingMatch;
+}
+
 export function SidebarNavGroup({
   label,
   items,
@@ -21,22 +50,8 @@ export function SidebarNavGroup({
   collapsed?: boolean;
 }) {
   const pathname = usePathname();
-  const childActive = items.some((c) => {
-    const path = hrefPathname(c.href);
-    // /admin/ukt, /admin/latber, & /admin/kwitansi (Pendaftaran/Pembuatan) exact — jangan ikut arsip
-    if (path === "/admin/ukt") return pathname === "/admin/ukt";
-    if (path === "/admin/latber") return pathname === "/admin/latber";
-    if (path === "/admin/kwitansi") return pathname === "/admin/kwitansi";
-    if (path === "/admin/kas") return pathname === "/admin/kas";
-    return pathname === path || pathname.startsWith(`${path}/`);
-  });
-  // Buka grup jika di salah satu child (termasuk nested path di bawah UKT)
-  const groupOpen =
-    childActive ||
-    items.some((c) => {
-      const path = hrefPathname(c.href);
-      return pathname === path || pathname.startsWith(`${path}/`);
-    });
+  const childActive = items.some((c) => isLinkActive(c.href, items, pathname));
+  const groupOpen = childActive;
   const [open, setOpen] = useState(groupOpen);
   const Icon = getNavIcon(label);
 
@@ -80,17 +95,7 @@ export function SidebarNavGroup({
           }
         >
           {items.map((link) => {
-            const path = hrefPathname(link.href);
-            // Exact-only: parent paths that have sibling sub-routes (UKT Pendaftaran vs Arsip, Kwitansi Pembuatan vs Arsip)
-            const exactOnly =
-              path === "/admin/pengaturan" ||
-              path === "/admin/ukt" ||
-              path === "/admin/latber" ||
-              path === "/admin/kwitansi" ||
-              path === "/admin/kas";
-            const isActive =
-              pathname === path ||
-              (!exactOnly && pathname.startsWith(`${path}/`));
+            const isActive = isLinkActive(link.href, items, pathname);
             return (
               <SidebarNavLink
                 key={link.href}
