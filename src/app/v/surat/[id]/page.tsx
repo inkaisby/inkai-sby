@@ -8,10 +8,11 @@ export const dynamic = "force-dynamic";
 export default async function SuratVerificationPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const surat = await prisma.suratEntry.findUnique({
-    where: { id: params.id },
+    where: { id },
   });
 
   if (!surat) {

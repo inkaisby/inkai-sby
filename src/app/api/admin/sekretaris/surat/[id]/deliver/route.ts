@@ -2,14 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-session";
 import { prisma } from "@/lib/prisma";
 
+type Ctx = { params: Promise<{ id: string }> };
+
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: Ctx
 ) {
   try {
     const { session } = await requireAdminSession();
+    const { id } = await context.params;
     const surat = await prisma.suratEntry.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!surat) {
@@ -18,7 +21,7 @@ export async function POST(
 
     // Mark as delivered to members
     const updatedSurat = await prisma.suratEntry.update({
-      where: { id: params.id },
+      where: { id },
       data: { deliveredToMembers: true },
     });
 

@@ -2,14 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin-session";
 import { prisma } from "@/lib/prisma";
 
+type Ctx = { params: Promise<{ id: string }> };
+
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: Ctx
 ) {
   try {
     await requireAdminSession();
+    const { id } = await context.params;
     const item = await prisma.arsipDokumen.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
     if (!item) {
       return NextResponse.json({ success: false, error: "Dokumen tidak ditemukan" }, { status: 404 });
@@ -22,10 +25,11 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: Ctx
 ) {
   try {
     await requireAdminSession();
+    const { id } = await context.params;
     const body = await req.json();
 
     const updateData: any = {};
@@ -50,7 +54,7 @@ export async function PATCH(
     });
 
     const item = await prisma.arsipDokumen.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
     });
 
@@ -62,12 +66,13 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: Ctx
 ) {
   try {
     await requireAdminSession();
+    const { id } = await context.params;
     await prisma.arsipDokumen.delete({
-      where: { id: params.id },
+      where: { id },
     });
     return NextResponse.json({ success: true });
   } catch (error: any) {
