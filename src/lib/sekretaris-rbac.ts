@@ -24,6 +24,37 @@ export function resolveSekretarisScope(user: SessionUser): SekretarisScope {
 }
 
 /**
+ * Resolves human-readable scope label (e.g., "Cabang Surabaya", "Ranting Airlangga").
+ */
+export async function resolveSekretarisScopeLabel(
+  user: SessionUser,
+  prismaClient: any
+): Promise<{ scopeType: string; scopeName: string }> {
+  const scope = resolveSekretarisScope(user);
+
+  if (scope.scopeType === "DOJO" && scope.scopeId) {
+    try {
+      const dojo = await prismaClient.dojo.findFirst({
+        where: { id: scope.scopeId },
+        select: { name: true },
+      });
+      return {
+        scopeType: "DOJO",
+        scopeName: dojo?.name ? `Ranting ${dojo.name}` : "Ranting",
+      };
+    } catch (e) {
+      return { scopeType: "DOJO", scopeName: "Ranting" };
+    }
+  }
+
+  if (scope.scopeType === "PROVINCE") {
+    return { scopeType: "PROVINCE", scopeName: "Pengprov Jatim" };
+  }
+
+  return { scopeType: "BRANCH", scopeName: "Pengcab Surabaya" };
+}
+
+/**
  * Build Prisma filter for Surat / Dokumen / Notulen entries.
  */
 export function buildSekretarisFilter(user: SessionUser) {

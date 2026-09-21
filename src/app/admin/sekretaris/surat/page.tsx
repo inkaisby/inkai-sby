@@ -194,12 +194,12 @@ export default function SuratManagementPage() {
   return (
     <div className="space-y-6 pb-12">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 p-6 rounded-3xl shadow-sm">
         <div>
-          <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
-            <Mail className="w-6 h-6 text-red-500" /> Kelola Persuratan Resmi
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <Mail className="w-6 h-6 text-red-600" /> Kelola Persuratan Resmi
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-600 mt-1">
             Buku Surat Masuk & Surat Keluar dengan penomoran otomatis & delivery ke portal anggota.
           </p>
         </div>
@@ -211,7 +211,7 @@ export default function SuratManagementPage() {
               setFormData({ ...formData, type: activeTab });
               setIsFormOpen(true);
             }}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-lg shadow-red-600/30 transition"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-md shadow-red-600/20 transition active:scale-95"
           >
             <Plus className="w-4 h-4" /> Tambah {activeTab === "KELUAR" ? "Surat Keluar" : "Surat Masuk"}
           </button>
@@ -219,17 +219,17 @@ export default function SuratManagementPage() {
       </div>
 
       {/* Tabs & Search Filter Toolbar */}
-      <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl space-y-4 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div className="bg-white border border-slate-200 p-4 rounded-3xl space-y-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-4">
           {/* Tab Switcher */}
-          <div className="flex items-center bg-slate-800/80 p-1.5 rounded-2xl border border-slate-700/80">
+          <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
             <button
               type="button"
               onClick={() => setActiveTab("KELUAR")}
               className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition ${
                 activeTab === "KELUAR"
-                  ? "bg-red-600 text-white shadow-lg shadow-red-600/30"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-red-600 text-white shadow-md shadow-red-600/20"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
               <Send className="w-4 h-4" /> Surat Keluar
@@ -239,8 +239,8 @@ export default function SuratManagementPage() {
               onClick={() => setActiveTab("MASUK")}
               className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition ${
                 activeTab === "MASUK"
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-600/30"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
               <Inbox className="w-4 h-4" /> Surat Masuk
@@ -250,7 +250,7 @@ export default function SuratManagementPage() {
           <button
             type="button"
             onClick={fetchItems}
-            className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition border border-slate-700"
+            className="p-2 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition border border-slate-200"
             title="Refresh data"
           >
             <RefreshCw className="w-4 h-4" />
@@ -266,14 +266,14 @@ export default function SuratManagementPage() {
               placeholder="Cari Nomor / Perihal / Pengirim / Tujuan..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500 transition"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-red-500 transition"
             />
           </div>
 
           <select
             value={filterKategori}
             onChange={(e) => setFilterKategori(e.target.value)}
-            className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-red-500 transition"
+            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-red-500 transition"
           >
             <option value="">Semua Kategori</option>
             <option value="UNDANGAN">Surat Undangan</option>
@@ -288,7 +288,7 @@ export default function SuratManagementPage() {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-red-500 transition"
+            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-red-500 transition"
           >
             <option value="">Semua Status</option>
             <option value="DRAFT">DRAFT</option>
@@ -300,10 +300,10 @@ export default function SuratManagementPage() {
       </div>
 
       {/* Table Data */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+      <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-300">
-            <thead className="bg-slate-950 text-slate-400 font-bold uppercase tracking-wider text-[11px] border-b border-slate-800">
+          <table className="w-full text-left text-xs text-slate-700">
+            <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200">
               <tr>
                 <th className="py-3.5 px-4 w-12 text-center">No</th>
                 <th className="py-3.5 px-4">Nomor Surat</th>
@@ -315,7 +315,7 @@ export default function SuratManagementPage() {
                 <th className="py-3.5 px-4 text-center">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-500">
@@ -330,18 +330,18 @@ export default function SuratManagementPage() {
                 </tr>
               ) : (
                 items.map((item, idx) => (
-                  <tr key={item.id} className="hover:bg-slate-800/40 transition">
+                  <tr key={item.id} className="hover:bg-slate-50/80 transition">
                     <td className="py-3.5 px-4 text-center font-mono text-slate-400">{idx + 1}</td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-red-400">{item.nomorSurat}</td>
-                    <td className="py-3.5 px-4 text-slate-300">
+                    <td className="py-3.5 px-4 font-mono font-bold text-red-600">{item.nomorSurat}</td>
+                    <td className="py-3.5 px-4 text-slate-700">
                       {new Date(item.tanggalSurat).toLocaleDateString("id-ID")}
                     </td>
-                    <td className="py-3.5 px-4 font-semibold text-white max-w-xs truncate">{item.perihal}</td>
-                    <td className="py-3.5 px-4 text-slate-300 max-w-xs truncate">
+                    <td className="py-3.5 px-4 font-bold text-slate-900 max-w-xs truncate">{item.perihal}</td>
+                    <td className="py-3.5 px-4 text-slate-600 max-w-xs truncate">
                       {activeTab === "KELUAR" ? item.tujuan || "-" : item.pengirim || "-"}
                     </td>
                     <td className="py-3.5 px-4">
-                      <span className="px-2 py-1 bg-slate-800 border border-slate-700 rounded-lg text-[10px] font-semibold text-slate-300">
+                      <span className="px-2 py-1 bg-slate-100 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700">
                         {item.kategori}
                       </span>
                     </td>
@@ -349,10 +349,10 @@ export default function SuratManagementPage() {
                       <span
                         className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold ${
                           item.status === "ISSUED" || item.status === "APPROVED"
-                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                             : item.status === "WAITING_APPROVAL"
-                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                            : "bg-slate-800 text-slate-400 border border-slate-700"
+                            ? "bg-amber-50 text-amber-700 border border-amber-200"
+                            : "bg-slate-100 text-slate-600 border border-slate-200"
                         }`}
                       >
                         {item.status}
@@ -364,10 +364,10 @@ export default function SuratManagementPage() {
                         <button
                           type="button"
                           onClick={() => openPrintModal(item)}
-                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition"
+                          className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-lg transition"
                           title="Pratinjau & Cetak A4/F4"
                         >
-                          <Printer className="w-3.5 h-3.5 text-red-400" />
+                          <Printer className="w-3.5 h-3.5 text-red-600" />
                         </button>
 
                         {/* Deliver to member */}
@@ -376,19 +376,19 @@ export default function SuratManagementPage() {
                           onClick={() => handleDeliverToMembers(item.id, item.perihal)}
                           className={`p-1.5 rounded-lg transition ${
                             item.deliveredToMembers
-                              ? "bg-emerald-600/20 text-emerald-400 border border-emerald-500/30"
-                              : "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900"
                           }`}
                           title={item.deliveredToMembers ? "Sudah Tersampaikan ke Anggota" : "Kirim ke Portal Anggota"}
                         >
-                          <Share2 className="w-3.5 h-3.5" />
+                          <Share2 className="w-3.5 h-3.5 text-emerald-600" />
                         </button>
 
                         {/* Delete */}
                         <button
                           type="button"
                           onClick={() => handleDelete(item.id, item.nomorSurat)}
-                          className="p-1.5 bg-slate-800 hover:bg-red-900/40 text-slate-400 hover:text-red-300 rounded-lg transition"
+                          className="p-1.5 bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 rounded-lg transition"
                           title="Hapus Surat"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -405,14 +405,14 @@ export default function SuratManagementPage() {
 
       {/* Add Surat Modal */}
       {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl p-6 shadow-2xl space-y-4">
-            <h2 className="text-lg font-bold text-white flex items-center justify-between border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl p-6 shadow-2xl space-y-4">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center justify-between border-b border-slate-100 pb-3">
               <span>Tambah {activeTab === "KELUAR" ? "Surat Keluar" : "Surat Masuk"}</span>
               <button
                 type="button"
                 onClick={() => setIsFormOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-600"
               >
                 ✕
               </button>
@@ -421,73 +421,73 @@ export default function SuratManagementPage() {
             <form onSubmit={handleCreateSurat} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-400 mb-1 font-medium">Nomor Surat</label>
+                  <label className="block text-slate-600 mb-1 font-semibold">Nomor Surat</label>
                   <input
                     type="text"
                     value={formData.nomorSurat}
                     onChange={(e) => setFormData({ ...formData, nomorSurat: e.target.value })}
                     placeholder="Ketik 'AUTO' atau nomor manual"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-mono focus:bg-white focus:border-red-500"
                   />
                   {formData.nomorSurat === "AUTO" && nextNumberPreview && (
-                    <div className="text-[11px] text-red-400 mt-1">Auto: {nextNumberPreview}</div>
+                    <div className="text-[11px] text-red-600 mt-1 font-bold">Auto: {nextNumberPreview}</div>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 mb-1 font-medium">Tanggal Surat</label>
+                  <label className="block text-slate-600 mb-1 font-semibold">Tanggal Surat</label>
                   <input
                     type="date"
                     value={formData.tanggalSurat}
                     onChange={(e) => setFormData({ ...formData, tanggalSurat: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:bg-white focus:border-red-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1 font-medium">Perihal Surat *</label>
+                <label className="block text-slate-600 mb-1 font-semibold">Perihal Surat *</label>
                 <input
                   type="text"
                   required
                   placeholder="Mis. Undangan Latber / Surat Tugas UKT"
                   value={formData.perihal}
                   onChange={(e) => setFormData({ ...formData, perihal: e.target.value })}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 font-semibold focus:bg-white focus:border-red-500"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {activeTab === "KELUAR" ? (
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Tujuan / Kepada</label>
+                    <label className="block text-slate-600 mb-1 font-semibold">Tujuan / Kepada</label>
                     <input
                       type="text"
                       placeholder="Mis. Seluruh Ketua Dojo / Ranting"
                       value={formData.tujuan}
                       onChange={(e) => setFormData({ ...formData, tujuan: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:bg-white focus:border-red-500"
                     />
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-slate-400 mb-1 font-medium">Pengirim Surat</label>
+                    <label className="block text-slate-600 mb-1 font-semibold">Pengirim Surat</label>
                     <input
                       type="text"
                       placeholder="Mis. Dispora Jatim / Pengprov INKAI"
                       value={formData.pengirim}
                       onChange={(e) => setFormData({ ...formData, pengirim: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:bg-white focus:border-red-500"
                     />
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-slate-400 mb-1 font-medium">Kategori Surat</label>
+                  <label className="block text-slate-600 mb-1 font-semibold">Kategori Surat</label>
                   <select
                     value={formData.kategori}
                     onChange={(e) => setFormData({ ...formData, kategori: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:bg-white focus:border-red-500"
                   >
                     <option value="UNDANGAN">Surat Undangan</option>
                     <option value="TUGAS">Surat Tugas</option>
@@ -502,29 +502,29 @@ export default function SuratManagementPage() {
 
               {activeTab === "MASUK" && (
                 <div>
-                  <label className="block text-slate-400 mb-1 font-medium">Ringkasan Disposisi</label>
+                  <label className="block text-slate-600 mb-1 font-semibold">Ringkasan Disposisi</label>
                   <textarea
                     rows={2}
                     placeholder="Disposisi pimpinan / catatan arahan..."
                     value={formData.disposisi}
                     onChange={(e) => setFormData({ ...formData, disposisi: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:bg-white focus:border-red-500"
                   />
                 </div>
               )}
 
-              <div className="pt-4 border-t border-slate-800 flex justify-end gap-2">
+              <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsFormOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold"
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold shadow-lg shadow-red-600/30"
+                  className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-md shadow-red-600/20"
                 >
                   {saving ? "Simpan..." : "Simpan Surat"}
                 </button>
