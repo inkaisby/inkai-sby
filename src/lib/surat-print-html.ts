@@ -62,7 +62,7 @@ export function buildSuratPrintHtml(opts: PrintSuratOptions): string {
       ];
 
   const dojosFormatted = dojosList
-    .map((d, i) => `<span style="display:inline-block; margin-right:12px; white-space:nowrap;">${i + 1}. ${d}</span>`)
+    .map((d, i) => `<span class="ranting-item"><span class="ranting-num">${i + 1}.</span>${d}</span>`)
     .join("");
 
   // Default Judul & Nomor
@@ -89,10 +89,10 @@ export function buildSuratPrintHtml(opts: PrintSuratOptions): string {
       ? `<div style="height:60px;"></div>`
       : `<div style="height:60px; display:flex; align-items:center; justify-content:center; font-style:italic; color:#4b5563; font-size:10pt;">[ TTD Digital ]</div>`;
 
-  const stampImg = !isManual && opts.stampUrl
-    ? `<img src="${opts.stampUrl}" style="height:75px; width:75px; object-fit:contain;" alt="Stempel Basah" />`
-    : isManual
-      ? `<div style="width:75px; height:75px;"></div>`
+  const stampImg = isManual || opts.stampUrl === "NONE"
+    ? `<div style="width:75px; height:75px;"></div>`
+    : opts.stampUrl
+      ? `<img src="${opts.stampUrl}" style="height:75px; width:75px; object-fit:contain;" alt="Stempel Basah" />`
       : `<img src="${STEMPEL_INKAI_BASE64}" style="height:75px; width:75px; object-fit:contain;" alt="Stempel INKAI Kota Surabaya" />`;
 
   // Default sample table if provided
@@ -265,12 +265,39 @@ export function buildSuratPrintHtml(opts: PrintSuratOptions): string {
     }
     .footer-ranting {
       border-top: 1.5px solid #000;
-      padding-top: 4px;
+      padding-top: 5px;
       margin-top: 16px;
       font-size: 7.5pt;
-      line-height: 1.35;
+      line-height: 1.4;
       font-family: Arial, sans-serif;
       page-break-inside: avoid;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .footer-ranting-label {
+      font-weight: 800;
+      white-space: nowrap;
+      flex-shrink: 0;
+      padding-top: 1px;
+      letter-spacing: 0.5px;
+    }
+    .footer-ranting-list {
+      flex: 1;
+      display: flex;
+      flex-wrap: wrap;
+      column-gap: 12px;
+      row-gap: 3px;
+    }
+    .ranting-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      white-space: nowrap;
+    }
+    .ranting-num {
+      font-weight: 700;
+      color: #111;
     }
     @media print {
       body { background: none; }
@@ -344,7 +371,10 @@ export function buildSuratPrintHtml(opts: PrintSuratOptions): string {
 
     <!-- Footer Dynamic Ranting Aktif -->
     <div class="footer-ranting">
-      <strong>RTG :</strong> ${dojosFormatted}
+      <div class="footer-ranting-label">RTG :</div>
+      <div class="footer-ranting-list">
+        ${dojosFormatted}
+      </div>
     </div>
   </div>
 </body>

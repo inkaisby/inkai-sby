@@ -35,10 +35,13 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  PenTool,
+  ArrowLeftRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { buildSuratPrintHtml } from "@/lib/surat-print-html";
 import { SuratPrintModal } from "@/components/admin/sekretaris/SuratPrintModal";
+import { SignatureCanvasModal } from "@/components/admin/sekretaris/SignatureCanvasModal";
 
 export default function SuratGeneratorPage() {
   const [templateKey, setTemplateKey] = useState<
@@ -59,6 +62,131 @@ export default function SuratGeneratorPage() {
   const [paperSize, setPaperSize] = useState<"A4" | "F4">("A4");
   const [signatureMode, setSignatureMode] = useState<"SYSTEM" | "MANUAL">("SYSTEM");
   const [previewZoom, setPreviewZoom] = useState<number>(0.7);
+
+  // Digital Signature Canvas & Pejabat state with localStorage persistence
+  const [signedKetuaUrl, setSignedKetuaUrl] = useState<string | null>(null);
+  const [signedSekretarisUrl, setSignedSekretarisUrl] = useState<string | null>(null);
+  const [isKetuaCanvasOpen, setIsKetuaCanvasOpen] = useState(false);
+  const [isSekretarisCanvasOpen, setIsSekretarisCanvasOpen] = useState(false);
+  const [showStamp, setShowStamp] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedKetua = localStorage.getItem("INKAI_TTD_KETUA");
+      if (savedKetua) setSignedKetuaUrl(savedKetua);
+      const savedSekretaris = localStorage.getItem("INKAI_TTD_SEKRETARIS");
+      if (savedSekretaris) setSignedSekretarisUrl(savedSekretaris);
+
+      const savedKetuaName = localStorage.getItem("INKAI_SURAT_KETUA_NAME");
+      if (savedKetuaName) setKetuaName(savedKetuaName);
+      const savedKetuaJab = localStorage.getItem("INKAI_SURAT_KETUA_JABATAN");
+      if (savedKetuaJab) setKetuaJabatan(savedKetuaJab);
+
+      const savedSekretarisName = localStorage.getItem("INKAI_SURAT_SEKRETARIS_NAME");
+      if (savedSekretarisName) setSekretarisName(savedSekretarisName);
+      const savedSekretarisJab = localStorage.getItem("INKAI_SURAT_SEKRETARIS_JABATAN");
+      if (savedSekretarisJab) setSekretarisJabatan(savedSekretarisJab);
+
+      const savedKota = localStorage.getItem("INKAI_SURAT_DITETAPKAN_DI");
+      if (savedKota) setDitetapkanDi(savedKota);
+    }
+  }, []);
+
+  const updateKetuaName = (val: string) => {
+    setKetuaName(val);
+    if (typeof window !== "undefined") localStorage.setItem("INKAI_SURAT_KETUA_NAME", val);
+  };
+  const updateKetuaJabatan = (val: string) => {
+    setKetuaJabatan(val);
+    if (typeof window !== "undefined") localStorage.setItem("INKAI_SURAT_KETUA_JABATAN", val);
+  };
+  const updateSekretarisName = (val: string) => {
+    setSekretarisName(val);
+    if (typeof window !== "undefined") localStorage.setItem("INKAI_SURAT_SEKRETARIS_NAME", val);
+  };
+  const updateSekretarisJabatan = (val: string) => {
+    setSekretarisJabatan(val);
+    if (typeof window !== "undefined") localStorage.setItem("INKAI_SURAT_SEKRETARIS_JABATAN", val);
+  };
+  const updateDitetapkanDi = (val: string) => {
+    setDitetapkanDi(val);
+    if (typeof window !== "undefined") localStorage.setItem("INKAI_SURAT_DITETAPKAN_DI", val);
+  };
+
+  const handleSwapPejabatTtd = () => {
+    const kName = ketuaName;
+    const kJab = ketuaJabatan;
+    const kUrl = signedKetuaUrl;
+
+    setKetuaName(sekretarisName);
+    setKetuaJabatan(sekretarisJabatan);
+    setSignedKetuaUrl(signedSekretarisUrl);
+
+    setSekretarisName(kName);
+    setSekretarisJabatan(kJab);
+    setSignedSekretarisUrl(kUrl);
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("INKAI_SURAT_KETUA_NAME", sekretarisName);
+      localStorage.setItem("INKAI_SURAT_KETUA_JABATAN", sekretarisJabatan);
+      localStorage.setItem("INKAI_SURAT_SEKRETARIS_NAME", kName);
+      localStorage.setItem("INKAI_SURAT_SEKRETARIS_JABATAN", kJab);
+      if (signedSekretarisUrl) localStorage.setItem("INKAI_TTD_KETUA", signedSekretarisUrl);
+      else localStorage.removeItem("INKAI_TTD_KETUA");
+      if (kUrl) localStorage.setItem("INKAI_TTD_SEKRETARIS", kUrl);
+      else localStorage.removeItem("INKAI_TTD_SEKRETARIS");
+    }
+    toast.success("Posisi Pejabat & TTD Ketua dan Sekretaris berhasil ditukar!");
+  };
+
+  const insertSnippet = (snippetHtml: string, titleStr: string) => {
+    if (visualEditorRef.current) {
+      visualEditorRef.current.focus();
+      try {
+        document.execCommand("insertHTML", false, snippetHtml);
+      } catch (err) {
+        visualEditorRef.current.innerHTML += snippetHtml;
+      }
+      setContentHtml(visualEditorRef.current.innerHTML);
+    } else {
+      setContentHtml((prev) => prev + snippetHtml);
+    }
+    toast.success(`Paragraf "${titleStr}" disisipkan ke editor!`);
+  };
+
+  const handleSaveKetuaSignature = (dataUrl: string) => {
+    setSignedKetuaUrl(dataUrl);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("INKAI_TTD_KETUA", dataUrl);
+    }
+    setIsKetuaCanvasOpen(false);
+    toast.success("Tanda tangan Ketua berhasil disimpan & tersimpan permanen!");
+  };
+
+  const handleClearKetuaSignature = () => {
+    setSignedKetuaUrl(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("INKAI_TTD_KETUA");
+    }
+    toast.info("Tanda tangan Ketua telah dihapus");
+  };
+
+  const handleSaveSekretarisSignature = (dataUrl: string) => {
+    setSignedSekretarisUrl(dataUrl);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("INKAI_TTD_SEKRETARIS", dataUrl);
+    }
+    setIsSekretarisCanvasOpen(false);
+    toast.success("Tanda tangan Sekretaris berhasil disimpan & tersimpan permanen!");
+  };
+
+  const handleClearSekretarisSignature = () => {
+    setSignedSekretarisUrl(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("INKAI_TTD_SEKRETARIS");
+    }
+    toast.info("Tanda tangan Sekretaris telah dihapus");
+  };
 
   // Rich text styling
   const [fontFamily, setFontFamily] = useState("'Times New Roman', Times, serif");
@@ -85,6 +213,128 @@ export default function SuratGeneratorPage() {
   const [showTextColorPicker, setShowTextColorPicker] = useState(false);
   const [showBgColorPicker, setShowBgColorPicker] = useState(false);
 
+  // Active formatting state for selection / cursor position
+  const [activeStyles, setActiveStyles] = useState({
+    bold: false,
+    italic: false,
+    underline: false,
+    strikeThrough: false,
+    justifyLeft: false,
+    justifyCenter: false,
+    justifyRight: false,
+    justifyFull: false,
+    insertUnorderedList: false,
+    insertOrderedList: false,
+  });
+
+  const updateSelectionState = () => {
+    if (!visualEditorRef.current) return;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const anchorNode = selection.anchorNode;
+    if (!anchorNode || !visualEditorRef.current.contains(anchorNode)) return;
+
+    let bold = false;
+    let italic = false;
+    let underline = false;
+    let strikeThrough = false;
+    let justifyLeft = false;
+    let justifyCenter = false;
+    let justifyRight = false;
+    let justifyFull = false;
+    let insertUnorderedList = false;
+    let insertOrderedList = false;
+
+    try {
+      bold = document.queryCommandState("bold");
+    } catch (_) {}
+    try {
+      italic = document.queryCommandState("italic");
+    } catch (_) {}
+    try {
+      underline = document.queryCommandState("underline");
+    } catch (_) {}
+    try {
+      strikeThrough = document.queryCommandState("strikeThrough");
+    } catch (_) {}
+    try {
+      justifyLeft = document.queryCommandState("justifyLeft");
+    } catch (_) {}
+    try {
+      justifyCenter = document.queryCommandState("justifyCenter");
+    } catch (_) {}
+    try {
+      justifyRight = document.queryCommandState("justifyRight");
+    } catch (_) {}
+    try {
+      justifyFull = document.queryCommandState("justifyFull");
+    } catch (_) {}
+    try {
+      insertUnorderedList = document.queryCommandState("insertUnorderedList");
+    } catch (_) {}
+    try {
+      insertOrderedList = document.queryCommandState("insertOrderedList");
+    } catch (_) {}
+
+    // Fallback checks on DOM node hierarchy
+    let curr: Node | null = anchorNode;
+    while (curr && curr !== visualEditorRef.current) {
+      if (curr.nodeType === Node.ELEMENT_NODE) {
+        const el = curr as HTMLElement;
+        const tag = el.tagName?.toLowerCase();
+        if (
+          tag === "b" ||
+          tag === "strong" ||
+          el.style?.fontWeight === "bold" ||
+          el.style?.fontWeight === "700" ||
+          Number(el.style?.fontWeight) >= 700
+        ) {
+          bold = true;
+        }
+        if (tag === "i" || tag === "em" || el.style?.fontStyle === "italic") {
+          italic = true;
+        }
+        if (tag === "u" || el.style?.textDecoration?.includes("underline")) {
+          underline = true;
+        }
+        if (
+          tag === "s" ||
+          tag === "strike" ||
+          tag === "del" ||
+          el.style?.textDecoration?.includes("line-through")
+        ) {
+          strikeThrough = true;
+        }
+        if (tag === "ul") insertUnorderedList = true;
+        if (tag === "ol") insertOrderedList = true;
+      }
+      curr = curr.parentNode;
+    }
+
+    setActiveStyles({
+      bold,
+      italic,
+      underline,
+      strikeThrough,
+      justifyLeft,
+      justifyCenter,
+      justifyRight,
+      justifyFull,
+      insertUnorderedList,
+      insertOrderedList,
+    });
+  };
+
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      updateSelectionState();
+    };
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+    };
+  }, []);
+
   // Sync contentHtml to visual editor div when contentHtml changes externally
   useEffect(() => {
     if (visualEditorRef.current && visualEditorRef.current.innerHTML !== contentHtml) {
@@ -103,12 +353,14 @@ export default function SuratGeneratorPage() {
     if (visualEditorRef.current) {
       setContentHtml(visualEditorRef.current.innerHTML);
     }
+    setTimeout(updateSelectionState, 20);
   };
 
   const handleVisualInput = () => {
     if (visualEditorRef.current) {
       setContentHtml(visualEditorRef.current.innerHTML);
     }
+    updateSelectionState();
   };
 
   // Next number preview
@@ -143,21 +395,29 @@ export default function SuratGeneratorPage() {
     fetchRapatList();
   }, []);
 
-  const fetchNextNumber = async (kat: string, date: string) => {
+  const fetchNextNumber = async (kat: string, date: string, overwrite: boolean = false) => {
     try {
       const res = await fetch(`/api/admin/sekretaris/surat/next-number?kategori=${kat}&date=${date}`);
       const data = await res.json();
-      if (data.success) {
-        setNextNumberPreview(data.nextNumber);
+      if (data.success && data.nextNumber) {
+        const generated = data.nextNumber;
+        setNextNumberPreview(generated);
+        setNomorSurat((prev) => {
+          if (overwrite || prev === "AUTO" || !prev || prev === nextNumberPreview) {
+            return generated;
+          }
+          return prev;
+        });
+        if (overwrite) {
+          toast.success(`Nomor Surat diperbarui: ${generated}`);
+        }
       }
     } catch (err) {}
   };
 
   useEffect(() => {
-    if (nomorSurat === "AUTO") {
-      fetchNextNumber(kategori, tanggalSurat);
-    }
-  }, [kategori, tanggalSurat, nomorSurat]);
+    fetchNextNumber(kategori, tanggalSurat);
+  }, [kategori, tanggalSurat]);
 
   // Handle template selection preset
   const handleSelectTemplate = (key: typeof templateKey) => {
@@ -304,7 +564,7 @@ export default function SuratGeneratorPage() {
   };
 
   const currentOpts = {
-    nomorSurat: nomorSurat === "AUTO" ? nextNumberPreview : nomorSurat,
+    nomorSurat: nomorSurat || nextNumberPreview || "AUTO",
     tanggalSurat,
     perihal,
     kategori,
@@ -315,6 +575,9 @@ export default function SuratGeneratorPage() {
     ketuaJabatan,
     sekretarisName,
     sekretarisJabatan,
+    signedKetuaUrl,
+    signedSekretarisUrl,
+    stampUrl: showStamp ? null : "NONE",
     ditetapkanDi,
     fontFamily,
     fontSize,
@@ -328,7 +591,7 @@ export default function SuratGeneratorPage() {
   const handleSaveToSuratKeluar = async () => {
     setSaving(true);
     try {
-      const finalNomor = nomorSurat === "AUTO" ? nextNumberPreview : nomorSurat;
+      const finalNomor = nomorSurat || nextNumberPreview || "AUTO";
       const res = await fetch("/api/admin/sekretaris/surat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -461,17 +724,27 @@ export default function SuratGeneratorPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-600 dark:text-slate-400 mb-1 font-semibold">Nomor Surat</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-slate-600 dark:text-slate-400 font-semibold">Nomor Surat</label>
+                <button
+                  type="button"
+                  onClick={() => fetchNextNumber(kategori, tanggalSurat, true)}
+                  className="text-[11px] font-bold text-red-600 dark:text-red-400 hover:underline flex items-center gap-1"
+                  title="Generate Ulang Nomor Surat Otomatis"
+                >
+                  <Sparkles className="w-3 h-3" /> Auto Gen
+                </button>
+              </div>
               <input
                 type="text"
                 value={nomorSurat}
                 onChange={(e) => setNomorSurat(e.target.value)}
-                placeholder="AUTO / Nomor manual"
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-mono focus:bg-white dark:focus:bg-slate-900 focus:border-red-500"
+                placeholder="001/INKAI-KOTA.SBY/ST/IX/2026"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-mono font-bold focus:bg-white dark:focus:bg-slate-900 focus:border-red-500"
               />
-              {nomorSurat === "AUTO" && (
-                <div className="text-[11px] text-red-600 dark:text-red-400 mt-1 font-bold">Preview: {nextNumberPreview}</div>
-              )}
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 italic">
+                Nomor terisi otomatis dan dapat diedit langsung sesuai kebutuhan.
+              </p>
             </div>
 
             <div>
@@ -517,14 +790,14 @@ export default function SuratGeneratorPage() {
             </div>
           </div>
 
-          {/* Paper & TTD Controls */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
+          {/* Paper, TTD & Stamp Controls */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800">
             <div>
-              <label className="block text-slate-700 dark:text-slate-300 mb-1 font-bold">Ukuran Kertas Print</label>
+              <label className="block text-slate-700 dark:text-slate-300 mb-1 font-bold text-xs">Ukuran Kertas Print</label>
               <select
                 value={paperSize}
                 onChange={(e) => setPaperSize(e.target.value as any)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-bold"
+                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-white font-bold text-xs"
               >
                 <option value="A4">A4 (210 × 297 mm)</option>
                 <option value="F4">F4 / Folio (215 × 330 mm)</option>
@@ -532,24 +805,70 @@ export default function SuratGeneratorPage() {
             </div>
 
             <div>
-              <label className="block text-slate-700 dark:text-slate-300 mb-1 font-bold">Mode Tanda Tangan</label>
+              <label className="block text-slate-700 dark:text-slate-300 mb-1 font-bold text-xs">Mode Tanda Tangan</label>
               <select
                 value={signatureMode}
                 onChange={(e) => setSignatureMode(e.target.value as any)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white font-bold"
+                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl px-2.5 py-1.5 text-slate-900 dark:text-white font-bold text-xs"
               >
                 <option value="SYSTEM">TTD & Stempel Digital</option>
                 <option value="MANUAL">Kosong (TTD Basah Manual)</option>
               </select>
             </div>
+
+            <div>
+              <label className="block text-slate-700 dark:text-slate-300 mb-1 font-bold text-xs">Stempel INKAI SBY</label>
+              <button
+                type="button"
+                onClick={() => setShowStamp(!showStamp)}
+                className={`w-full py-1.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                  showStamp
+                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800"
+                    : "bg-white dark:bg-slate-900 text-slate-500 border-slate-300 dark:border-slate-700"
+                }`}
+              >
+                {showStamp ? "✓ Tampilkan Stempel" : "❌ Sembunyikan Stempel"}
+              </button>
+            </div>
           </div>
 
           {/* Rich Text Editor Toolbar */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <label className="block text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-red-600 dark:text-red-400" /> WYSIWYG Visual Editor & Style Toolbar
               </label>
+
+              {/* Quick Preset Snippet Chips */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    insertSnippet(
+                      `<p style="margin-bottom:8px;">I. Berkenaan dengan agenda organisasi Pengurus Kota INKAI Surabaya, bersama ini menugaskan/mengundangkan personel di bawah ini:</p>`,
+                      "Pembuka Surat"
+                    )
+                  }
+                  className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-red-50 hover:text-red-600 transition"
+                  title="Sisipkan Paragraf Pembuka Standard"
+                >
+                  + Pembuka
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    insertSnippet(
+                      `<p style="margin-top:8px;">Demikian surat resmi ini disampaikan untuk dilaksanakan dengan penuh rasa tanggung jawab serta dilaporkan kepada Ketua Pengurus Kota INKAI Surabaya.</p>`,
+                      "Penutup Surat"
+                    )
+                  }
+                  className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-red-50 hover:text-red-600 transition"
+                  title="Sisipkan Paragraf Penutup Standard"
+                >
+                  + Penutup
+                </button>
+              </div>
+            </div>
 
               {/* Editor Mode Switcher */}
               <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] font-bold">
@@ -632,7 +951,11 @@ export default function SuratGeneratorPage() {
               <button
                 type="button"
                 onClick={() => execCmd("bold")}
-                className="p-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg font-bold shadow-xs transition"
+                className={`p-1.5 border rounded-lg font-bold shadow-xs transition ${
+                  activeStyles.bold
+                    ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20"
+                    : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                }`}
                 title="Tebal (Bold)"
               >
                 <Bold className="w-3.5 h-3.5" />
@@ -640,7 +963,11 @@ export default function SuratGeneratorPage() {
               <button
                 type="button"
                 onClick={() => execCmd("italic")}
-                className="p-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg italic shadow-xs transition"
+                className={`p-1.5 border rounded-lg italic shadow-xs transition ${
+                  activeStyles.italic
+                    ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20"
+                    : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                }`}
                 title="Miring (Italic)"
               >
                 <Italic className="w-3.5 h-3.5" />
@@ -648,7 +975,11 @@ export default function SuratGeneratorPage() {
               <button
                 type="button"
                 onClick={() => execCmd("underline")}
-                className="p-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg underline shadow-xs transition"
+                className={`p-1.5 border rounded-lg underline shadow-xs transition ${
+                  activeStyles.underline
+                    ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20"
+                    : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                }`}
                 title="Garis Bawah (Underline)"
               >
                 <Underline className="w-3.5 h-3.5" />
@@ -656,7 +987,11 @@ export default function SuratGeneratorPage() {
               <button
                 type="button"
                 onClick={() => execCmd("strikeThrough")}
-                className="p-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg line-through shadow-xs transition"
+                className={`p-1.5 border rounded-lg line-through shadow-xs transition ${
+                  activeStyles.strikeThrough
+                    ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20"
+                    : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                }`}
                 title="Coret (Strikethrough)"
               >
                 <Strikethrough className="w-3.5 h-3.5" />
@@ -668,7 +1003,11 @@ export default function SuratGeneratorPage() {
               <button
                 type="button"
                 onClick={() => execCmd("justifyLeft")}
-                className="p-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xs transition"
+                className={`p-1.5 border rounded-lg shadow-xs transition ${
+                  activeStyles.justifyLeft
+                    ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20"
+                    : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                }`}
                 title="Rata Kiri (Align Left)"
               >
                 <AlignLeft className="w-3.5 h-3.5" />
@@ -676,7 +1015,11 @@ export default function SuratGeneratorPage() {
               <button
                 type="button"
                 onClick={() => execCmd("justifyCenter")}
-                className="p-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xs transition"
+                className={`p-1.5 border rounded-lg shadow-xs transition ${
+                  activeStyles.justifyCenter
+                    ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20"
+                    : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                }`}
                 title="Rata Tengah (Align Center)"
               >
                 <AlignCenter className="w-3.5 h-3.5" />
@@ -684,7 +1027,11 @@ export default function SuratGeneratorPage() {
               <button
                 type="button"
                 onClick={() => execCmd("justifyRight")}
-                className="p-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xs transition"
+                className={`p-1.5 border rounded-lg shadow-xs transition ${
+                  activeStyles.justifyRight
+                    ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20"
+                    : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                }`}
                 title="Rata Kanan (Align Right)"
               >
                 <AlignRight className="w-3.5 h-3.5" />
@@ -692,7 +1039,11 @@ export default function SuratGeneratorPage() {
               <button
                 type="button"
                 onClick={() => execCmd("justifyFull")}
-                className="p-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xs transition"
+                className={`p-1.5 border rounded-lg shadow-xs transition ${
+                  activeStyles.justifyFull
+                    ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20"
+                    : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                }`}
                 title="Rata Kanan Kiri (Justify)"
               >
                 <AlignJustify className="w-3.5 h-3.5" />
@@ -704,7 +1055,11 @@ export default function SuratGeneratorPage() {
               <button
                 type="button"
                 onClick={() => execCmd("insertUnorderedList")}
-                className="p-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xs transition"
+                className={`p-1.5 border rounded-lg shadow-xs transition ${
+                  activeStyles.insertUnorderedList
+                    ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20"
+                    : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                }`}
                 title="Daftar Berbutir (Bullet List)"
               >
                 <List className="w-3.5 h-3.5" />
@@ -712,7 +1067,11 @@ export default function SuratGeneratorPage() {
               <button
                 type="button"
                 onClick={() => execCmd("insertOrderedList")}
-                className="p-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xs transition"
+                className={`p-1.5 border rounded-lg shadow-xs transition ${
+                  activeStyles.insertOrderedList
+                    ? "bg-red-600 text-white border-red-600 shadow-md shadow-red-600/20"
+                    : "bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                }`}
                 title="Daftar Berpenomoran (Numbered List)"
               >
                 <ListOrdered className="w-3.5 h-3.5" />
@@ -826,6 +1185,11 @@ export default function SuratGeneratorPage() {
                 suppressContentEditableWarning
                 onInput={handleVisualInput}
                 onBlur={handleVisualInput}
+                onKeyUp={updateSelectionState}
+                onMouseUp={updateSelectionState}
+                onFocus={updateSelectionState}
+                onClick={updateSelectionState}
+                onSelect={updateSelectionState}
                 style={{
                   fontFamily: fontFamily,
                   fontSize: fontSize,
@@ -921,25 +1285,129 @@ export default function SuratGeneratorPage() {
             </div>
           </div>
 
-          {/* Pejabat TTD inputs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <div>
-              <label className="block text-slate-600 dark:text-slate-400 mb-1 font-semibold">Nama Ketua TTD</label>
-              <input
-                type="text"
-                value={ketuaName}
-                onChange={(e) => setKetuaName(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-slate-900 dark:text-white font-bold focus:bg-white dark:focus:bg-slate-900"
-              />
+          {/* Pejabat TTD inputs & Digital Signature Canvas */}
+          <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-slate-800 dark:text-slate-200 text-xs">
+                Pejabat Tanda Tangan Digital & Stempel
+              </h4>
+              <button
+                type="button"
+                onClick={handleSwapPejabatTtd}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 text-[11px] font-bold transition"
+                title="Tukar Posisi Ketua ⇄ Sekretaris"
+              >
+                <ArrowLeftRight className="w-3 h-3 text-red-500" /> Tukar Posisi Pejabat
+              </button>
             </div>
-            <div>
-              <label className="block text-slate-600 dark:text-slate-400 mb-1 font-semibold">Nama Sekretaris TTD</label>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Ketua TTD Block */}
+              <div className="space-y-2 bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <label className="block text-slate-700 dark:text-slate-300 text-xs font-bold">
+                  Nama Ketua TTD
+                </label>
+                <input
+                  type="text"
+                  value={ketuaName}
+                  onChange={(e) => updateKetuaName(e.target.value)}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-slate-900 dark:text-white font-bold text-xs focus:border-red-500 focus:outline-none"
+                />
+
+              <div className="pt-1 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsKetuaCanvasOpen(true)}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/60 text-xs font-bold transition shadow-xs"
+                >
+                  <PenTool className="w-3.5 h-3.5" />
+                  {signedKetuaUrl ? "Ubah Canvas TTD Ketua" : "✍️ Canvas TTD Ketua"}
+                </button>
+
+                {signedKetuaUrl && (
+                  <button
+                    type="button"
+                    onClick={handleClearKetuaSignature}
+                    className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-white dark:hover:bg-slate-900 rounded-lg transition"
+                    title="Hapus TTD Ketua"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* TTD Preview Thumbnail */}
+              {signedKetuaUrl ? (
+                <div className="mt-1 p-2 bg-white dark:bg-slate-900 rounded-xl border border-blue-200 dark:border-blue-900/40 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={signedKetuaUrl}
+                      alt="TTD Ketua"
+                      className="h-9 max-w-[120px] object-contain border border-slate-100 dark:border-slate-800 rounded bg-white p-0.5"
+                    />
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 block">✓ TTD Tersimpan</span>
+                      <span className="text-[9px] text-slate-400 block">Siap pakai di kwitansi & surat</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 italic">Belum ada hasil gambar TTD Ketua.</p>
+              )}
+            </div>
+
+            {/* Sekretaris TTD Block */}
+            <div className="space-y-2 bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
+              <label className="block text-slate-700 dark:text-slate-300 text-xs font-bold">
+                Nama Sekretaris TTD
+              </label>
               <input
                 type="text"
                 value={sekretarisName}
-                onChange={(e) => setSekretarisName(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-slate-900 dark:text-white font-bold focus:bg-white dark:focus:bg-slate-900"
+                onChange={(e) => updateSekretarisName(e.target.value)}
+                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-slate-900 dark:text-white font-bold text-xs focus:border-red-500 focus:outline-none"
               />
+
+              <div className="pt-1 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsSekretarisCanvasOpen(true)}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800/60 text-xs font-bold transition shadow-xs"
+                >
+                  <PenTool className="w-3.5 h-3.5" />
+                  {signedSekretarisUrl ? "Ubah Canvas TTD Sekretaris" : "✍️ Canvas TTD Sekretaris"}
+                </button>
+
+                {signedSekretarisUrl && (
+                  <button
+                    type="button"
+                    onClick={handleClearSekretarisSignature}
+                    className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-white dark:hover:bg-slate-900 rounded-lg transition"
+                    title="Hapus TTD Sekretaris"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* TTD Preview Thumbnail */}
+              {signedSekretarisUrl ? (
+                <div className="mt-1 p-2 bg-white dark:bg-slate-900 rounded-xl border border-purple-200 dark:border-purple-900/40 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={signedSekretarisUrl}
+                      alt="TTD Sekretaris"
+                      className="h-9 max-w-[120px] object-contain border border-slate-100 dark:border-slate-800 rounded bg-white p-0.5"
+                    />
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 block">✓ TTD Tersimpan</span>
+                      <span className="text-[9px] text-slate-400 block">Siap pakai di kwitansi & surat</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 italic">Belum ada hasil gambar TTD Sekretaris.</p>
+              )}
             </div>
           </div>
         </div>
@@ -1022,6 +1490,28 @@ export default function SuratGeneratorPage() {
           isOpen={isPrintModalOpen}
           onClose={() => setIsPrintModalOpen(false)}
           options={currentOpts as any}
+        />
+      )}
+
+      {/* Signature Canvas Modal for Ketua */}
+      {isKetuaCanvasOpen && (
+        <SignatureCanvasModal
+          isOpen={isKetuaCanvasOpen}
+          onClose={() => setIsKetuaCanvasOpen(false)}
+          onSave={handleSaveKetuaSignature}
+          title={`Tanda Tangan Digital Ketua (${ketuaName})`}
+          initialDataUrl={signedKetuaUrl}
+        />
+      )}
+
+      {/* Signature Canvas Modal for Sekretaris */}
+      {isSekretarisCanvasOpen && (
+        <SignatureCanvasModal
+          isOpen={isSekretarisCanvasOpen}
+          onClose={() => setIsSekretarisCanvasOpen(false)}
+          onSave={handleSaveSekretarisSignature}
+          title={`Tanda Tangan Digital Sekretaris (${sekretarisName})`}
+          initialDataUrl={signedSekretarisUrl}
         />
       )}
     </div>

@@ -13,15 +13,19 @@ import {
   CircleDollarSign,
   ClipboardCheck,
   ClipboardList,
+  FileEdit,
   FileText,
+  FolderArchive,
   GraduationCap,
   Home,
   Images,
   Layers,
-  Newspaper,
   LayoutDashboard,
+  Mail,
   MapPin,
   MessageSquare,
+  Newspaper,
+  Notebook,
   Radio,
   ReceiptText,
   ScrollText,
@@ -41,6 +45,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   // Admin — top-level
   "Beranda Admin": LayoutDashboard,
   Keanggotaan: Users,
+  Sekretariat: ScrollText,
   "Iuran Anggota": Wallet,
   Keuangan: Banknote,
   Kas: CircleDollarSign,
@@ -82,6 +87,13 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   "Geofencing Absensi": MapPin,
   "Akun Saya": User,
 
+  // Sekretariat children
+  Dashboard: LayoutDashboard,
+  "Surat & Persuratan": Mail,
+  "Generator Surat": FileEdit,
+  "Dokumen & SK": FolderArchive,
+  "Notulen Rapat": Notebook,
+
   // Member dashboard
   Beranda: Home,
   "Profil Saya": User,
@@ -95,3 +107,4 @@ const NAV_ICONS: Record<string, LucideIcon> = {
 export function getNavIcon(label: string): LucideIcon | null {
   return NAV_ICONS[label] ?? null;
 }
+

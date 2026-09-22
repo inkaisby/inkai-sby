@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Printer, Copy, Check, FileText, Settings, Layers } from "lucide-react";
+import { X, Printer, Copy, Check, FileText, Send, Download } from "lucide-react";
 import { buildSuratPrintHtml, PrintSuratOptions } from "@/lib/surat-print-html";
 import { toast } from "sonner";
 
@@ -45,7 +45,7 @@ export function SuratPrintModal({ isOpen, onClose, options }: SuratPrintModalPro
     }, 400);
   };
 
-  const handleCopyWaText = () => {
+  const generateWaText = () => {
     const tgl = options.tanggalSurat
       ? new Date(options.tanggalSurat).toLocaleDateString("id-ID", {
           day: "2-digit",
@@ -54,20 +54,126 @@ export function SuratPrintModal({ isOpen, onClose, options }: SuratPrintModalPro
         })
       : "-";
 
-    const waText = `*PENGURUS KOTA INKAI SURABAYA*
-*${options.kategori === "SK" ? "SURAT KEPUTUSAN" : "SURAT RESMI / UNDANGAN"}*
+    const getKategoriLabel = (kat: string) => {
+      switch (kat?.toUpperCase()) {
+        case "TUGAS":
+        case "SURAT_TUGAS":
+          return "SURAT TUGAS";
+        case "UNDANGAN":
+        case "SURAT_UNDANGAN":
+          return "SURAT UNDANGAN";
+        case "KETERANGAN":
+        case "SURAT_KETERANGAN":
+          return "SURAT KETERANGAN";
+        case "REKOMENDASI":
+          return "SURAT REKOMENDASI";
+        case "SK":
+        case "SK_PENGURUS":
+          return "SURAT KEPUTUSAN";
+        case "RAPAT":
+        case "RESUME_RAPAT":
+          return "RESUME & NOTULENSI RAPAT";
+        case "PERMOHONAN":
+          return "SURAT PERMOHONAN";
+        default:
+          return kat ? `SURAT ${kat}` : "SURAT RESMI / UNDANGAN";
+      }
+    };
+
+    let bodyText = "";
+    if (options.contentHtml) {
+      bodyText = options.contentHtml
+        .replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, "\n\n*$1*\n")
+        .replace(/<li[^>]*>(.*?)<\/li>/gi, "\n• $1")
+        .replace(/<(b|strong)[^>]*>(.*?)<\/(b|strong)>/gi, "*$2*")
+        .replace(/<(i|em)[^>]*>(.*?)<\/(i|em)>/gi, "_$2_")
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/p>/gi, "\n\n")
+        .replace(/<\/div>/gi, "\n")
+        .replace(/<\/tr>/gi, "\n")
+        .replace(/<\/(td|th)>/gi, "  ")
+        .replace(/<[^>]+>/g, "")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'");
+
+      bodyText = bodyText
+        .split("\n")
+        .map((line) => line.trimEnd())
+        .join("\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+    }
+
+    let tableText = "";
+    if (options.tableRows && options.tableRows.length > 0) {
+      const headers = (options.tableHeaders || ["NO", "NAMA", "JABATAN"]).filter((h) => h !== "NO");
+      tableText = options.tableRows
+        .map((row, idx) => {
+          const details = headers.map((h) => row[h]).filter(Boolean).join(" - ");
+          return `${idx + 1}. ${details}`;
+        })
+        .join("\n");
+    }
+
+    const kategoriHeader = getKategoriLabel(options.kategori);
+
+    let waText = `*PENGURUS KOTA INKAI SURABAYA*
+*${kategoriHeader}*
 ----------------------------------------
 📌 *Nomor:* ${options.nomorSurat}
 📌 *Perihal:* ${options.perihal}
-📅 *Tanggal:* ${tgl}
-${options.tujuan ? `👤 *Tujuan:* ${options.tujuan}\n` : ""}
+📅 *Tanggal:* ${tgl}`;
+
+    if (options.tujuan) {
+      waText += `\n👤 *Tujuan:* ${options.tujuan}`;
+    }
+
+    if (bodyText) {
+      waText += `\n----------------------------------------\n${bodyText}`;
+    }
+
+    if (tableText) {
+      waText += `\n----------------------------------------\n📋 *DAFTAR TABEL / PERSONEL:*\n${tableText}`;
+    }
+
+    waText += `\n----------------------------------------
 Demikian surat resmi ini disampaikan untuk dapat dilaksanakan sebagaimana mestinya. Terima kasih.
+
 _OSS! INKAI Cabang Surabaya_`;
 
+    return waText;
+  };
+
+  const handleCopyWaText = () => {
+    const waText = generateWaText();
     navigator.clipboard.writeText(waText);
     setCopiedWa(true);
-    toast.success("Teks Ringkasan WA berhasil disalin ke clipboard!");
+    toast.success("Teks Format WA berisi isi surat berhasil disalin!");
     setTimeout(() => setCopiedWa(false), 3000);
+  };
+
+  const handleOpenWaDirect = () => {
+    const waText = generateWaText();
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(waText)}`;
+    window.open(url, "_blank");
+    toast.success("Membuka WhatsApp...");
+  };
+
+  const handleDownloadHtml = () => {
+    const blob = new Blob([htmlContent], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Surat-${options.nomorSurat.replace(/[\/\\:]/g, "_")}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("File Dokumen HTML berhasil diunduh!");
   };
 
   return (
@@ -135,14 +241,35 @@ _OSS! INKAI Cabang Surabaya_`;
               </button>
             </div>
 
+            {/* WA Direct Share */}
+            <button
+              type="button"
+              onClick={handleOpenWaDirect}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 text-xs font-semibold transition shadow-xs"
+              title="Buka Langsung di WhatsApp Web / App"
+            >
+              <Send className="w-3.5 h-3.5" /> Kirim ke WA
+            </button>
+
             {/* WA Copy */}
             <button
               type="button"
               onClick={handleCopyWaText}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/30 border border-emerald-500/30 text-xs font-semibold transition"
+              title="Salin Teks WA"
             >
               {copiedWa ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              {copiedWa ? "Tersalin!" : "Salin Format WA"}
+              {copiedWa ? "Tersalin!" : "Salin WA"}
+            </button>
+
+            {/* Download HTML */}
+            <button
+              type="button"
+              onClick={handleDownloadHtml}
+              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 rounded-xl transition"
+              title="Unduh Dokumen HTML"
+            >
+              <Download className="w-4 h-4" />
             </button>
 
             {/* Print Button */}
