@@ -180,13 +180,13 @@ export function SignatureCanvasModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl sm:max-w-4xl lg:max-w-5xl shadow-2xl overflow-hidden flex flex-col transition-all">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <PenTool className="w-5 h-5 text-red-600 dark:text-red-400" />
-            <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+            <h3 className="font-bold text-slate-900 dark:text-white text-base">
               {title}
             </h3>
           </div>
@@ -200,23 +200,24 @@ export function SignatureCanvasModal({
         </div>
 
         {/* Controls Toolbar */}
-        <div className="px-6 py-3 bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="px-6 py-3 bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
           {/* Pen Color Switcher */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
             <span className="text-slate-500 font-semibold mr-1">Tinta:</span>
             {[
               { color: "#001b66", name: "Biru Tua Resmi" },
               { color: "#000000", name: "Hitam Pekat" },
               { color: "#1e3a8a", name: "Biru Basah" },
+              { color: "#dc2626", name: "Merah" },
             ].map((c) => (
               <button
                 key={c.color}
                 type="button"
                 onClick={() => setPenColor(c.color)}
                 style={{ backgroundColor: c.color }}
-                className={`w-5 h-5 rounded-full border-2 transition ${
+                className={`w-6 h-6 rounded-full border-2 transition hover:scale-110 ${
                   penColor === c.color
-                    ? "border-red-500 scale-110 shadow-sm"
+                    ? "border-red-500 scale-110 shadow-md ring-2 ring-red-500/20"
                     : "border-white dark:border-slate-700"
                 }`}
                 title={c.name}
@@ -225,17 +226,17 @@ export function SignatureCanvasModal({
           </div>
 
           {/* Pen Thickness Switcher */}
-          <div className="flex items-center gap-1">
-            <span className="text-slate-500 font-semibold mr-1">Tebal:</span>
-            {[2, 3, 4].map((w) => (
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-500 font-semibold mr-1">Tebal Pen:</span>
+            {[2, 3, 4, 5, 6].map((w) => (
               <button
                 key={w}
                 type="button"
                 onClick={() => setPenWidth(w)}
-                className={`px-2 py-0.5 rounded-md font-bold transition border ${
+                className={`px-2.5 py-1 rounded-lg font-bold transition text-xs border ${
                   penWidth === w
-                    ? "bg-red-600 text-white border-red-600"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                    ? "bg-red-600 text-white border-red-600 shadow-sm"
+                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
                 }`}
               >
                 {w}px
@@ -244,8 +245,8 @@ export function SignatureCanvasModal({
           </div>
 
           {/* Upload File Option */}
-          <label className="cursor-pointer inline-flex items-center gap-1 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white font-semibold">
-            <Upload className="w-3.5 h-3.5" /> Unggah PNG
+          <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white font-semibold text-xs transition shadow-xs">
+            <Upload className="w-3.5 h-3.5 text-blue-500" /> Unggah PNG / Gambar TTD
             <input
               type="file"
               accept="image/*"
@@ -256,8 +257,8 @@ export function SignatureCanvasModal({
         </div>
 
         {/* Interactive Canvas Area */}
-        <div className="p-6 bg-slate-100 dark:bg-slate-950 flex flex-col items-center">
-          <div className="w-full h-52 bg-white rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 relative overflow-hidden shadow-inner">
+        <div className="p-4 sm:p-6 bg-slate-100 dark:bg-slate-950 flex flex-col items-center">
+          <div className="w-full h-64 sm:h-80 md:h-[340px] bg-white rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 relative overflow-hidden shadow-inner">
             <canvas
               ref={canvasRef}
               onMouseDown={startDrawing}
@@ -270,9 +271,10 @@ export function SignatureCanvasModal({
               className="w-full h-full cursor-crosshair touch-none"
             />
             {!hasDrawn && (
-              <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center text-slate-300 dark:text-slate-600">
-                <PenTool className="w-8 h-8 mb-1 opacity-50" />
-                <span className="text-xs font-semibold">Goreskan tanda tangan di sini (Mouse / Layar Sentuh)</span>
+              <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center text-slate-300 dark:text-slate-600 p-4 text-center">
+                <PenTool className="w-10 h-10 mb-2 opacity-40 animate-pulse text-red-500" />
+                <span className="text-sm font-bold text-slate-400 dark:text-slate-500">Goreskan tanda tangan di sini (Mouse / Layar Sentuh / Stylus)</span>
+                <span className="text-xs text-slate-300 dark:text-slate-600 mt-1">Area canvas luas & presisi tinggi</span>
               </div>
             )}
           </div>

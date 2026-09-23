@@ -116,7 +116,7 @@ function roundThousands(n: number): number {
 
 import { DEFAULT_KOMISI_RANTING } from "@/lib/ukt";
 
-export async function postKasFromUktPaid(opts: {
+export async function postKasFromUktPaid(_opts: {
   user: SessionUser;
   billingId: string;
   amount: number;
@@ -126,48 +126,11 @@ export async function postKasFromUktPaid(opts: {
   memberDojoId?: string | null;
   komisiRanting?: number;
 }) {
-  const fee = roundThousands(opts.amount);
-  if (fee <= 0) return;
-  const komisi = Math.min(fee, roundRp(opts.komisiRanting ?? DEFAULT_KOMISI_RANTING));
-  const nett = Math.max(0, fee - komisi);
-  const scopes = opts.memberDojoId
-    ? await resolveDojoBranchScope(opts.memberDojoId)
-    : { dojo: null, branch: null, dojoName: null };
-  const nia = opts.memberNia ? ` (${opts.memberNia})` : "";
-  const kegiatan = formatUktKasKegiatan(opts.periodTitle, scopes.dojoName);
-
-  if (scopes.branch && nett > 0) {
-    await postKasEntry({
-      scope: scopes.branch,
-      txnDate: ymdWib(),
-      description: `${opts.memberName}${nia}`,
-      kegiatan,
-      direction: "in",
-      amount: nett,
-      sourceType: "ukt",
-      sourceId: `${opts.billingId}:cabang`,
-      sourceHref: `/admin/ukt`,
-      createdById: opts.user.id,
-    });
-  }
-
-  if (scopes.dojo && komisi > 0) {
-    await postKasEntry({
-      scope: scopes.dojo,
-      txnDate: ymdWib(),
-      description: `Komisi ranting — ${opts.memberName}${nia}`,
-      kegiatan,
-      direction: "in",
-      amount: komisi,
-      sourceType: "ukt",
-      sourceId: `${opts.billingId}:ranting`,
-      sourceHref: `/admin/ukt`,
-      createdById: opts.user.id,
-    });
-  }
+  // Integrasi otomatis posting ke Kas dari Verifikasi UKT diputuskan/dinonaktifkan
+  return;
 }
 
-export async function postKasFromLatberPaid(opts: {
+export async function postKasFromLatberPaid(_opts: {
   user: SessionUser;
   billingId: string;
   feeAmount: number;
@@ -177,44 +140,8 @@ export async function postKasFromLatberPaid(opts: {
   periodTitle: string;
   memberDojoId: string | null;
 }) {
-  const fee = roundThousands(opts.feeAmount);
-  const komisi = Math.min(fee, roundRp(opts.komisiRanting));
-  const nett = Math.max(0, fee - komisi);
-  const scopes = opts.memberDojoId
-    ? await resolveDojoBranchScope(opts.memberDojoId)
-    : { dojo: null, branch: null, dojoName: null };
-  const nia = opts.memberNia ? ` (${opts.memberNia})` : "";
-  const desc = `${opts.memberName}${nia}`;
-  const kegiatan = formatLatberKasKegiatan(opts.periodTitle, scopes.dojoName);
-
-  if (scopes.branch && nett > 0) {
-    await postKasEntry({
-      scope: scopes.branch,
-      txnDate: ymdWib(),
-      description: desc,
-      kegiatan,
-      direction: "in",
-      amount: nett,
-      sourceType: "latber",
-      sourceId: `${opts.billingId}:cabang`,
-      sourceHref: `/admin/latber`,
-      createdById: opts.user.id,
-    });
-  }
-  if (scopes.dojo && komisi > 0) {
-    await postKasEntry({
-      scope: scopes.dojo,
-      txnDate: ymdWib(),
-      description: `CASHBACK ranting — ${desc}`,
-      kegiatan,
-      direction: "in",
-      amount: komisi,
-      sourceType: "latber",
-      sourceId: `${opts.billingId}:ranting`,
-      sourceHref: `/admin/latber`,
-      createdById: opts.user.id,
-    });
-  }
+  // Integrasi otomatis posting ke Kas dari Verifikasi Latber diputuskan/dinonaktifkan
+  return;
 }
 
 export async function postKasFromEventPaid(opts: {

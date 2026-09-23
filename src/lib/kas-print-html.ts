@@ -20,6 +20,19 @@ function formatDateDdMmYyyy(printedAt: string): string {
   return datePart;
 }
 
+export type KasPrintPaper = "A4" | "F4";
+export type KasPrintOrientation = "portrait" | "landscape";
+
+export function getKasPageSizeCss(
+  paper: KasPrintPaper = "A4",
+  orientation: KasPrintOrientation = "portrait",
+): string {
+  if (paper === "F4") {
+    return orientation === "landscape" ? "330mm 215mm" : "215mm 330mm";
+  }
+  return `${paper.toLowerCase()} ${orientation}`;
+}
+
 export type KasPrintData = {
   origin: string;
   scopeLabel: string;
@@ -30,6 +43,9 @@ export type KasPrintData = {
   sekretariatAddress?: string;
   swotAnalysis?: KasSwotAnalysisResult;
   selectedKegiatanList?: string[];
+  docType?: "laporan" | "buku";
+  paper?: KasPrintPaper;
+  orientation?: KasPrintOrientation;
 };
 
 const DONUT_COLORS = [
@@ -405,13 +421,17 @@ export function buildKasPrintHtml(data: KasPrintData): string {
     </div>`;
   }
 
+  const paper = data.paper ?? "A4";
+  const orientation = data.orientation ?? "landscape";
+  const pageSizeCss = getKasPageSizeCss(paper, orientation);
+
   return `<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="utf-8" />
   <title>Laporan Keuangan Detail</title>
   <style>
-    @page { size: A4 landscape; margin: 10mm; }
+    @page { size: ${pageSizeCss}; margin: ${orientation === "landscape" ? "10mm" : "12mm 15mm"}; }
     body { font-family: Arial, sans-serif; font-size: 10px; color: #111; line-height: 1.3; }
     .kop { display: flex; gap: 12px; align-items: center; border-bottom: 2px solid #b91c1c; padding-bottom: 8px; }
     .kop img { height: 50px; width: 50px; object-fit: contain; }
@@ -514,6 +534,152 @@ export function buildKasPrintHtml(data: KasPrintData): string {
 </html>`;
 }
 
+export function buildBukuKasPrintHtml(data: KasPrintData): string {
+  const logoUrl = `${data.origin.replace(/\/$/, "")}/logo-inkai.png`;
+  const sekretariat =
+    data.sekretariatAddress?.trim() ||
+    "Sekretariat: Jl. Raya Kertajaya Indah No. 77 Surabaya";
+
+  const totalIn = data.rows.reduce((a, r) => a + r.amountIn, 0);
+  const totalOut = data.rows.reduce((a, r) => a + r.amountOut, 0);
+  const firstRow = data.rows[0];
+  const openingSaldo = firstRow ? firstRow.saldo - firstRow.amountIn + firstRow.amountOut : 0;
+
+  const body = data.rows
+    .map(
+      (r) => `
+      <tr>
+        <td class="c">${r.no}</td>
+        <td class="c">${escapeHtml(formatKasDateId(r.txnDate))}</td>
+        <td>${escapeHtml(r.description)}</td>
+        <td>${escapeHtml(r.kegiatan || "—")}</td>
+        <td class="r">${r.amountIn ? escapeHtml(formatRp(r.amountIn)) : "—"}</td>
+        <td class="r">${r.amountOut ? escapeHtml(formatRp(r.amountOut)) : "—"}</td>
+        <td class="r font-bold">${escapeHtml(formatRp(r.saldo))}</td>
+      </tr>`,
+    )
+    .join("");
+
+  const paper = data.paper ?? "A4";
+  const orientation = data.orientation ?? "portrait";
+  const pageSizeCss = getKasPageSizeCss(paper, orientation);
+
+  const isRantingScope =
+    data.scopeLabel.toLowerCase().includes("ranting") ||
+    data.scopeLabel.toLowerCase().includes("dojo");
+  const ketuaTitle = isRantingScope
+    ? `Ketua ${escapeHtml(data.scopeLabel)}`
+    : "Ketua INKAI Cabang Surabaya";
+
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <title>Buku Kas Umum - ${escapeHtml(data.scopeLabel)}</title>
+  <style>
+    @page { size: ${pageSizeCss}; margin: ${orientation === "landscape" ? "10mm" : "12mm 15mm"}; }
+    body { font-family: 'Times New Roman', Times, serif; font-size: 11pt; color: #000; line-height: 1.35; margin: 0; padding: 0; }
+    .kop { display: flex; gap: 14px; align-items: center; border-bottom: 3px double #000; padding-bottom: 8px; margin-bottom: 12px; }
+    .kop img { height: 60px; width: 60px; object-fit: contain; }
+    .kop-text { flex: 1; text-align: center; }
+    .kop-text .org { font-size: 13pt; font-weight: bold; letter-spacing: 0.5px; }
+    .kop-text .sub { font-size: 11pt; font-weight: bold; }
+    .kop-text .addr { font-size: 8.5pt; font-family: Arial, sans-serif; margin-top: 2px; }
+    
+    .doc-title { text-align: center; margin: 12px 0 6px 0; }
+    .doc-title h1 { font-size: 14pt; font-weight: bold; text-decoration: underline; margin: 0; letter-spacing: 1px; }
+    .doc-title p { font-size: 10pt; font-weight: bold; margin: 2px 0 0 0; }
+
+    .meta-box { display: flex; justify-content: space-between; font-size: 10pt; margin-bottom: 10px; font-family: Arial, sans-serif; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 9.5pt; font-family: Arial, sans-serif; }
+    tr { page-break-inside: avoid; }
+    th, td { border: 1px solid #000; padding: 5px 6px; }
+    th { background: #f1f5f9; font-weight: 700; text-align: center; text-transform: uppercase; font-size: 8.5pt; }
+    td.c, th.c { text-align: center; }
+    td.r, th.r { text-align: right; }
+    .font-bold { font-weight: 700; }
+    .bg-summary { background-color: #f8fafc; font-weight: 700; }
+
+    .signature-container { display: flex; justify-content: space-between; margin-top: 30px; padding: 0 30px; page-break-inside: avoid; font-size: 10pt; }
+    .signature-box { text-align: center; width: 220px; }
+    .signature-box .role { font-weight: 700; margin-top: 2px; }
+    .signature-box .space { height: 60px; }
+    .signature-box .name { font-weight: 700; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="kop">
+    <img src="${escapeHtml(logoUrl)}" alt="Logo INKAI" />
+    <div class="kop-text">
+      <div class="org">INSTITUT KARATE-DO INDONESIA (INKAI)</div>
+      <div class="sub">PENGURUS KOTA SURABAYA · ${escapeHtml(data.scopeLabel.toUpperCase())}</div>
+      <div class="addr">${escapeHtml(sekretariat.startsWith("Sekretariat") ? sekretariat : `Sekretariat: ${sekretariat}`)}</div>
+    </div>
+  </div>
+
+  <div class="doc-title">
+    <h1>BUKU KAS UMUM</h1>
+    <p>PERIODE: ${escapeHtml(data.periodLabel.toUpperCase())}</p>
+  </div>
+
+  <div class="meta-box">
+    <div>Dicetak: <strong>${escapeHtml(data.printedAt)}</strong></div>
+    <div>Saldo Akhir: <strong>${escapeHtml(formatRp(data.saldoAkhir))}</strong></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 32px;">NO</th>
+        <th style="width: 80px;">TANGGAL</th>
+        <th>URAIAN / KETERANGAN TRANSAKSI</th>
+        <th style="width: 130px;">KEGIATAN</th>
+        <th style="width: 100px;" class="r">DEBET (MASUK)</th>
+        <th style="width: 100px;" class="r">KREDIT (KELUAR)</th>
+        <th style="width: 105px;" class="r">SALDO (RP)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${
+        data.rows.length > 0
+          ? `<tr class="bg-summary">
+              <td class="c">—</td>
+              <td class="c">${escapeHtml(formatKasDateId(firstRow.txnDate))}</td>
+              <td colspan="4"><em>SALDO AWAL MUTASI PERIODE INI</em></td>
+              <td class="r">${escapeHtml(formatRp(openingSaldo))}</td>
+            </tr>
+            ${body}
+            <tr class="bg-summary">
+              <td colspan="4" class="r">TOTAL PENERIMAAN / PENGELUARAN PERIODE INI</td>
+              <td class="r" style="color:#15803d;">${escapeHtml(formatRp(totalIn))}</td>
+              <td class="r" style="color:#b91c1c;">${escapeHtml(formatRp(totalOut))}</td>
+              <td class="r">${escapeHtml(formatRp(data.saldoAkhir))}</td>
+            </tr>`
+          : `<tr><td colspan="7" class="c" style="padding: 20px; color: #555;">Tidak ada catatan transaksi kas pada periode ${escapeHtml(data.periodLabel)}.</td></tr>`
+      }
+    </tbody>
+  </table>
+
+  <div class="signature-container">
+    <div class="signature-box">
+      <div>Mengetahui,</div>
+      <div class="role">${ketuaTitle}</div>
+      <div class="space"></div>
+      <div class="name">( .................................... )</div>
+    </div>
+    <div class="signature-box">
+      <div>Surabaya, ${escapeHtml(formatDateDdMmYyyy(data.printedAt))}</div>
+      <div class="role">Bendahara</div>
+      <div class="space"></div>
+      <div class="name">( .................................... )</div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
 export function printKasDocument(data: KasPrintData): void {
-  openHtmlPrintWindow(buildKasPrintHtml(data));
+  const html = data.docType === "buku" ? buildBukuKasPrintHtml(data) : buildKasPrintHtml(data);
+  openHtmlPrintWindow(html);
 }

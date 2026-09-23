@@ -284,20 +284,23 @@ export function buildSuratPrintHtml(opts: PrintSuratOptions): string {
     }
     .footer-ranting-list {
       flex: 1;
-      display: flex;
-      flex-wrap: wrap;
-      column-gap: 12px;
-      row-gap: 3px;
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 2px 6px;
     }
     .ranting-item {
       display: inline-flex;
       align-items: center;
       gap: 2px;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 7pt;
     }
     .ranting-num {
       font-weight: 700;
       color: #111;
+      flex-shrink: 0;
     }
     @media print {
       body { background: none; }
