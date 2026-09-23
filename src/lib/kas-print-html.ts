@@ -1,6 +1,6 @@
 import { formatRp } from "@/lib/terbilang";
 import { openHtmlPrintWindow } from "@/lib/ukt-print-html";
-import { formatKasDateId, type KasLedgerRow } from "@/lib/kas";
+import { formatKasDateId, getKasBaseKegiatan, type KasLedgerRow } from "@/lib/kas";
 import type { KasSwotAnalysisResult } from "@/components/admin/kas/KasChartSwotPanel";
 
 function escapeHtml(value: string): string {
@@ -545,19 +545,73 @@ export function buildBukuKasPrintHtml(data: KasPrintData): string {
   const firstRow = data.rows[0];
   const openingSaldo = firstRow ? firstRow.saldo - firstRow.amountIn + firstRow.amountOut : 0;
 
-  const body = data.rows
-    .map(
-      (r) => `
+  // Aggregate rows by Kegiatan (Global summary per kegiatan)
+  type KegiatanSummaryGroup = {
+    kegiatan: string;
+    dateStart: string;
+    dateEnd: string;
+    totalIn: number;
+    totalOut: number;
+    count: number;
+    lastSaldo: number;
+  };
+
+  const groupedMap = new Map<string, KegiatanSummaryGroup>();
+  const groupOrder: string[] = [];
+
+  let runningSaldo = openingSaldo;
+
+  for (const r of data.rows) {
+    const rawK = (r.kegiatan || "").trim();
+    const baseK = getKasBaseKegiatan(rawK, r.sourceType) || rawK || "Tanpa Kegiatan / Umum";
+
+    runningSaldo += r.amountIn - r.amountOut;
+
+    let group = groupedMap.get(baseK);
+    if (!group) {
+      group = {
+        kegiatan: baseK,
+        dateStart: r.txnDate,
+        dateEnd: r.txnDate,
+        totalIn: r.amountIn,
+        totalOut: r.amountOut,
+        count: 1,
+        lastSaldo: runningSaldo,
+      };
+      groupedMap.set(baseK, group);
+      groupOrder.push(baseK);
+    } else {
+      if (r.txnDate < group.dateStart) group.dateStart = r.txnDate;
+      if (r.txnDate > group.dateEnd) group.dateEnd = r.txnDate;
+      group.totalIn += r.amountIn;
+      group.totalOut += r.amountOut;
+      group.count += 1;
+      group.lastSaldo = runningSaldo;
+    }
+  }
+
+  const body = groupOrder
+    .map((key, idx) => {
+      const g = groupedMap.get(key)!;
+      const dateStr =
+        g.dateStart === g.dateEnd
+          ? formatKasDateId(g.dateStart)
+          : `${formatKasDateId(g.dateStart)} – ${formatKasDateId(g.dateEnd)}`;
+      const countBadge =
+        g.count > 1
+          ? ` <span style="font-size: 8.5pt; color: #475569; font-weight: normal;">(${g.count} mutasi)</span>`
+          : "";
+
+      return `
       <tr>
-        <td class="c">${r.no}</td>
-        <td class="c">${escapeHtml(formatKasDateId(r.txnDate))}</td>
-        <td>${escapeHtml(r.description)}</td>
-        <td>${escapeHtml(r.kegiatan || "—")}</td>
-        <td class="r">${r.amountIn ? escapeHtml(formatRp(r.amountIn)) : "—"}</td>
-        <td class="r">${r.amountOut ? escapeHtml(formatRp(r.amountOut)) : "—"}</td>
-        <td class="r font-bold">${escapeHtml(formatRp(r.saldo))}</td>
-      </tr>`,
-    )
+        <td class="c">${idx + 1}</td>
+        <td class="c">${escapeHtml(dateStr)}</td>
+        <td class="font-bold">${escapeHtml(g.kegiatan)}${countBadge}</td>
+        <td class="r">${g.totalIn ? escapeHtml(formatRp(g.totalIn)) : "—"}</td>
+        <td class="r">${g.totalOut ? escapeHtml(formatRp(g.totalOut)) : "—"}</td>
+        <td class="r font-bold">${escapeHtml(formatRp(g.lastSaldo))}</td>
+      </tr>`;
+    })
     .join("");
 
   const paper = data.paper ?? "A4";
@@ -620,7 +674,7 @@ export function buildBukuKasPrintHtml(data: KasPrintData): string {
 
   <div class="doc-title">
     <h1>BUKU KAS UMUM</h1>
-    <p>PERIODE: ${escapeHtml(data.periodLabel.toUpperCase())}</p>
+    <p>RINGKASAN GLOBAL PER KEGIATAN · PERIODE: ${escapeHtml(data.periodLabel.toUpperCase())}</p>
   </div>
 
   <div class="meta-box">
@@ -632,12 +686,11 @@ export function buildBukuKasPrintHtml(data: KasPrintData): string {
     <thead>
       <tr>
         <th style="width: 32px;">NO</th>
-        <th style="width: 80px;">TANGGAL</th>
-        <th>URAIAN / KETERANGAN TRANSAKSI</th>
-        <th style="width: 130px;">KEGIATAN</th>
-        <th style="width: 100px;" class="r">DEBET (MASUK)</th>
-        <th style="width: 100px;" class="r">KREDIT (KELUAR)</th>
-        <th style="width: 105px;" class="r">SALDO (RP)</th>
+        <th style="width: 140px;">PERIODE / TANGGAL</th>
+        <th>NAMA KEGIATAN / URAIAN GLOBAL</th>
+        <th style="width: 115px;" class="r">DEBET (MASUK)</th>
+        <th style="width: 115px;" class="r">KREDIT (KELUAR)</th>
+        <th style="width: 120px;" class="r">SALDO (RP)</th>
       </tr>
     </thead>
     <tbody>
@@ -646,17 +699,19 @@ export function buildBukuKasPrintHtml(data: KasPrintData): string {
           ? `<tr class="bg-summary">
               <td class="c">—</td>
               <td class="c">${escapeHtml(formatKasDateId(firstRow.txnDate))}</td>
-              <td colspan="4"><em>SALDO AWAL MUTASI PERIODE INI</em></td>
+              <td><em>SALDO AWAL MUTASI PERIODE INI</em></td>
+              <td class="r">—</td>
+              <td class="r">—</td>
               <td class="r">${escapeHtml(formatRp(openingSaldo))}</td>
             </tr>
             ${body}
             <tr class="bg-summary">
-              <td colspan="4" class="r">TOTAL PENERIMAAN / PENGELUARAN PERIODE INI</td>
+              <td colspan="3" class="r">TOTAL PENERIMAAN / PENGELUARAN PERIODE INI</td>
               <td class="r" style="color:#15803d;">${escapeHtml(formatRp(totalIn))}</td>
               <td class="r" style="color:#b91c1c;">${escapeHtml(formatRp(totalOut))}</td>
               <td class="r">${escapeHtml(formatRp(data.saldoAkhir))}</td>
             </tr>`
-          : `<tr><td colspan="7" class="c" style="padding: 20px; color: #555;">Tidak ada catatan transaksi kas pada periode ${escapeHtml(data.periodLabel)}.</td></tr>`
+          : `<tr><td colspan="6" class="c" style="padding: 20px; color: #555;">Tidak ada catatan transaksi kas pada periode ${escapeHtml(data.periodLabel)}.</td></tr>`
       }
     </tbody>
   </table>

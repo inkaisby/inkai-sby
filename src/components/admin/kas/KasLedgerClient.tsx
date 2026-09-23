@@ -4030,10 +4030,10 @@ export function KasLedgerClient({
                   </div>
                   <div className="space-y-0.5">
                     <div className="flex items-center gap-1.5 font-semibold text-xs text-foreground">
-                      <span>📖 Buku Kas Umum (Buku Kas Klasik)</span>
+                      <span>📖 Buku Kas Umum Klasik (Ringkasan per Kegiatan)</span>
                     </div>
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      Format akuntansi klasik dengan Saldo Bawaan (Awal), Debet (Pemasukan), Kredit (Pengeluaran), dan Saldo Berjalan.
+                      Format akuntansi klasik ringkasan per kegiatan secara global (Pemasukan, Pengeluaran, & Saldo Berjalan per Kegiatan) tanpa rincian detail keterangan transaksi.
                     </p>
                   </div>
                 </button>
