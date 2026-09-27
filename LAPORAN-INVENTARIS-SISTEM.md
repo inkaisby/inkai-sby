@@ -372,8 +372,9 @@ Pusat / Nasional
 - **Cabang** dapat membuat event non-UKT di `/admin/kegiatan` & Kejuaraan Pertandingan di `/admin/pertandingan` (Kejurprov FORKI 2026, Karate Cup, Gashuku, dll.).
 - **Kejuaraan Pertandingan (`/admin/pertandingan` & `/pertandingan`)**:
   - `DOJO_ALLOWED_PREFIXES` di `src/lib/admin-page-access.ts` telah ditambahkan `/admin/pertandingan` sehingga seluruh akun admin ranting (`ADMIN_DOJO`) dapat mengakses penuh halaman pendaftaran kejuaraan & roster.
-  - Klik **"🏆 Daftarkan"** pada dropdown pencarian keanggotaan kini **langsung memasukkan atlet ke tabel pendaftar kejuaraan** (tanpa perlu membuka modal) dan menutup dropdown pencarian secara instan.
-  - Kolom **Kelas Pertandingan** di setiap baris tabel pendaftar dilengkapi dropdown `<select>` interaktif, sehingga admin/panitia dapat memilih atau mengganti kelas pertandingan (dan biayanya) langsung secara inline di tabel (`PATCH /api/admin/pertandingan/registrations`).
+  - Klik **"🏆 Daftarkan"** pada dropdown pencarian keanggotaan (baik di admin `/admin/pertandingan` maupun portal publik `/pertandingan`) kini **langsung mendaftarkan atlet ke tabel roster kejuaraan** tanpa perlu mengisi/membuka modal "Pendaftaran Peserta Tamu / Eksternal".
+  - API `POST /api/public/pertandingan/guest-register` kini mendukung opsi `memberId` untuk pendaftaran langsung anggota INKAI terdaftar di portal publik.
+  - Kolom **Kelas Pertandingan** di setiap baris tabel pendaftar admin dilengkapi dropdown `<select>` interaktif, sehingga admin/panitia dapat memilih atau mengganti kelas pertandingan (dan biayanya) langsung secara inline di tabel (`PATCH /api/admin/pertandingan/registrations`).
   - Modal **Pendaftaran Kontingen / Dojo** (`showBatchRegModal`) diperluas menjadi `max-w-4xl lg:max-w-5xl` dengan layout grid 12 kolom (`grid-cols-1 md:grid-cols-12`) untuk pendaftaran masal.
   - Dropdown **Pilih Dojo / Ranting** terisi otomatis (`batchReg.dojoId`) dari data `dojoId` atlet yang dipilih dan di-set `disabled` untuk mencegah kesalahan pemilihan ranting secara manual.
   - Halaman publik `/pertandingan` menampilkan Sekilas Keterangan & Ketentuan Pertandingan + OpenGraph preview metadata (`/pertandingan/layout.tsx`).

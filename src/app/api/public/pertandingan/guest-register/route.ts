@@ -7,6 +7,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const {
       eventId,
+      memberId,
       fullName,
       gender,
       birthDate,
@@ -22,6 +23,58 @@ export async function POST(request: Request) {
       birthCertificateUrl,
       bpjsCardUrl,
     } = body;
+
+    // Handle registration for existing INKAI member (via search suggestion)
+    if (memberId && eventId) {
+      const eventObj = await prisma.event.findUnique({
+        where: { id: eventId },
+        include: { tournamentCategories: { orderBy: { createdAt: "asc" } } },
+      });
+      if (!eventObj || eventObj.isDeleted) {
+        return NextResponse.json({ error: "Event kejuaraan tidak ditemukan." }, { status: 404 });
+      }
+
+      const memberObj = await prisma.member.findUnique({
+        where: { id: memberId },
+        select: { id: true, dojoId: true, fullName: true },
+      });
+      if (!memberObj) {
+        return NextResponse.json({ error: "Data anggota tidak ditemukan." }, { status: 404 });
+      }
+
+      const existingReg = await prisma.tournamentRegistration.findFirst({
+        where: { eventId, memberId },
+      });
+      if (existingReg) {
+        return NextResponse.json({ error: "Anggota sudah terdaftar pada event kejuaraan ini." }, { status: 400 });
+      }
+
+      const targetCatId = categoryId || eventObj.tournamentCategories[0]?.id;
+      if (!targetCatId) {
+        return NextResponse.json({ error: "Kategori kelas pertandingan belum tersedia." }, { status: 400 });
+      }
+
+      const registration = await prisma.tournamentRegistration.create({
+        data: {
+          eventId,
+          dojoId: memberObj.dojoId,
+          memberId: memberObj.id,
+          categoryId: targetCatId,
+          status: "REGISTERED",
+        },
+        include: {
+          member: true,
+          dojo: true,
+          category: true,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: `Berhasil mendaftarkan ${memberObj.fullName}!`,
+        registration,
+      });
+    }
 
     if (!eventId || !fullName || !gender || !birthDate || !categoryId) {
       return NextResponse.json(

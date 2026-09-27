@@ -712,27 +712,40 @@ export default function PublicPertandinganPage() {
                           </span>
                         ) : (
                           <button
-                            onClick={() => {
-                              setGuestForm({
-                                fullName: m.fullName,
-                                gender: m.gender || "MALE",
-                                birthDate: m.birthDate || "",
-                                dojoName: m.dojoName || "",
-                                currentRank: m.currentRank || "Putih (Kyu 10)",
-                                phone: m.phone || "",
-                                weight: "",
-                                categoryId: "",
-                                agreedTerms: false,
-                                email: "",
-                                password: "",
-                                photoUrl: m.photoUrl || "",
-                                birthCertificateUrl: m.birthCertificateUrl || "",
-                                bpjsCardUrl: m.bpjsCardUrl || "",
-                              });
-                              setShowGuestModal(true);
-                              setShowSuggestDropdown(false);
+                            onClick={async () => {
+                              if (!selectedEventId) {
+                                alert("Pilih event kejuaraan terlebih dahulu.");
+                                return;
+                              }
+                              const firstCat = activeEvent?.tournamentCategories?.[0];
+                              if (!firstCat) {
+                                alert("Belum ada kategori kelas pertandingan pada event ini.");
+                                return;
+                              }
+                              try {
+                                const res = await fetch("/api/public/pertandingan/guest-register", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    eventId: selectedEventId,
+                                    memberId: m.id,
+                                    categoryId: firstCat.id,
+                                    agreedTerms: true,
+                                  }),
+                                });
+                                const data = await res.json();
+                                if (res.ok) {
+                                  setShowSuggestDropdown(false);
+                                  await fetchPublicData();
+                                } else {
+                                  alert(data.error || "Gagal melakukan pendaftaran.");
+                                }
+                              } catch (err) {
+                                console.error(err);
+                                alert("Terjadi kesalahan saat pendaftaran.");
+                              }
                             }}
-                            className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[11px] transition shadow-sm"
+                            className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[11px] transition shadow-sm shrink-0 flex items-center gap-1"
                           >
                             🏆 Daftarkan
                           </button>
