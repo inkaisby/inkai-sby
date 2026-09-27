@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import {
   Trophy,
@@ -104,6 +104,8 @@ export default function PublicPertandinganPage() {
 
   // Guest Registration Modal state
   const [showGuestModal, setShowGuestModal] = useState(false);
+  const [systemDojos, setSystemDojos] = useState<{ id: string; name: string }[]>([]);
+  const [isCustomDojo, setIsCustomDojo] = useState(false);
   const [guestForm, setGuestForm] = useState({
     fullName: "",
     gender: "MALE",
@@ -135,6 +137,26 @@ export default function PublicPertandinganPage() {
     fee: number;
   } | null>(null);
 
+  const dojoOptionsList = useMemo(() => {
+    const defaults = [
+      "Dojo Airlangga",
+      "Dojo Gubeng",
+      "Dojo ITS",
+      "Dojo Unair",
+      "Dojo Smala",
+      "Dojo Smada",
+      "Dojo Tambaksari",
+      "Dojo Rungkut",
+      "Dojo Wonokromo",
+    ];
+    const set = new Set<string>();
+    systemDojos.forEach((d) => {
+      if (d.name) set.add(d.name.trim());
+    });
+    defaults.forEach((name) => set.add(name));
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "id"));
+  }, [systemDojos]);
+
   const fetchPublicData = async () => {
     setLoading(true);
     try {
@@ -153,6 +175,7 @@ export default function PublicPertandinganPage() {
       }
       if (data.registrations) setRegistrations(data.registrations);
       if (data.summary) setSummary(data.summary);
+      if (data.dojos) setSystemDojos(data.dojos);
     } catch (err) {
       console.error("Failed to fetch public tournament data", err);
     } finally {
@@ -919,18 +942,53 @@ export default function PublicPertandinganPage() {
                   </select>
                 </div>
 
-                {/* Dojo Asal */}
+                {/* Dojo Asal Dropdown / Custom Input */}
                 <div>
                   <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    Dojo / Kontingen Asal
+                    Dojo / Kontingen Asal *
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Dojo Airlangga / Kontingen Malang"
-                    value={guestForm.dojoName}
-                    onChange={(e) => setGuestForm({ ...guestForm, dojoName: e.target.value })}
+                  <select
+                    value={
+                      isCustomDojo
+                        ? "CUSTOM"
+                        : dojoOptionsList.includes(guestForm.dojoName)
+                        ? guestForm.dojoName
+                        : guestForm.dojoName
+                        ? "CUSTOM"
+                        : ""
+                    }
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "CUSTOM") {
+                        setIsCustomDojo(true);
+                        setGuestForm({ ...guestForm, dojoName: "" });
+                      } else {
+                        setIsCustomDojo(false);
+                        setGuestForm({ ...guestForm, dojoName: val });
+                      }
+                    }}
                     className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm"
-                  />
+                  >
+                    <option value="">-- Pilih Ranting / Dojo Kontingen --</option>
+                    {dojoOptionsList.map((dojoName: string) => (
+                      <option key={dojoName} value={dojoName}>
+                        🏛️ {dojoName}
+                      </option>
+                    ))}
+                    <option value="CUSTOM">➕ Lainnya / Kontingen Luar (Ketik Manual)</option>
+                  </select>
+
+                  {(isCustomDojo ||
+                    (!dojoOptionsList.includes(guestForm.dojoName) && guestForm.dojoName !== "")) && (
+                    <input
+                      type="text"
+                      required
+                      placeholder="Tuliskan nama Dojo / Kontingen luar..."
+                      value={guestForm.dojoName}
+                      onChange={(e) => setGuestForm({ ...guestForm, dojoName: e.target.value })}
+                      className="w-full mt-2 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm animate-fadeIn"
+                    />
+                  )}
                 </div>
 
                 {/* No. WhatsApp / HP */}

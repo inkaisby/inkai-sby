@@ -86,10 +86,17 @@ export async function GET(request: Request) {
     const uniqueDojos = new Set(registrations.map(r => r.dojo.name)).size;
     const uniqueAthletes = new Set(registrations.map(r => r.member.fullName)).size;
 
+    const dojos = await prisma.dojo.findMany({
+      where: { isDeleted: false },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+
     return NextResponse.json({
       events,
       activeEventId,
       registrations,
+      dojos,
       summary: {
         totalRegistrations,
         uniqueDojos,
