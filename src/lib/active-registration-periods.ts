@@ -344,3 +344,33 @@ export async function resolveActiveUktRegistrationPeriod(
   }
   return { id: active.id, title: active.title };
 }
+
+/** Periode Pertandingan / Kejuaraan aktif — ringan untuk quick-reg. */
+export async function resolveActivePertandinganRegistrationPeriod(
+  _token?: string,
+): Promise<ActiveRegistrationPeriod> {
+  const { data } = await withPrismaFallback(
+    "active-pertandingan-periods-prisma",
+    () =>
+      prisma.event.findMany({
+        where: { isDeleted: false },
+        select: {
+          id: true,
+          title: true,
+        },
+        orderBy: { startDate: "desc" },
+      }),
+    [],
+  );
+
+  const active = (data || []).find((e) => {
+    const upper = (e.title || "").toUpperCase().trim();
+    if (upper.startsWith("UKT") || upper.includes("UKT ") || upper.includes("UJIAN KENAIKAN TINGKAT")) return false;
+    if (upper.startsWith("LATBER") || upper.includes("LATBER") || upper.includes("LATIHAN BERSAMA")) return false;
+    return true;
+  });
+
+  if (!active) return null;
+  return { id: active.id, title: active.title };
+}
+

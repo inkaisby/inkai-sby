@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const search = searchParams.get("search");
 
     // Fetch active tournament events
-    const events = await prisma.event.findMany({
+    const allEvents = await prisma.event.findMany({
       where: {
         isDeleted: false,
       },
@@ -26,6 +26,13 @@ export async function GET(request: Request) {
         },
       },
       orderBy: { startDate: "desc" },
+    });
+
+    const events = allEvents.filter((e) => {
+      const upper = (e.title || "").toUpperCase().trim();
+      if (upper.startsWith("UKT") || upper.includes("UKT ") || upper.includes("UJIAN KENAIKAN TINGKAT")) return false;
+      if (upper.startsWith("LATBER") || upper.includes("LATBER") || upper.includes("LATIHAN BERSAMA")) return false;
+      return true;
     });
 
     const activeEventId = eventId || (events.length > 0 ? events[0].id : null);

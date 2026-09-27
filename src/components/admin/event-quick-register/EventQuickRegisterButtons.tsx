@@ -10,15 +10,17 @@ import {
 } from "@/lib/event-quick-register";
 import { showError, showSuccess } from "@/lib/client-toast";
 
-export type EventQuickRegisterVariant = "ukt" | "latber" | "both";
+export type EventQuickRegisterVariant = "ukt" | "latber" | "pertandingan" | "both" | "all";
 
 type Props = {
   variant: EventQuickRegisterVariant;
   memberId: string;
   uktEventId?: string | null;
   latberEventId?: string | null;
+  pertandinganEventId?: string | null;
   registeredUkt?: boolean;
   registeredLatber?: boolean;
+  registeredPertandingan?: boolean;
   /** Bila diisi, abaikan POST internal (wajib untuk UKT dashboard). */
   onRegister?: (kind: EventRegistrationKind) => void | Promise<void>;
   onRegistered?: (kind: EventRegistrationKind) => void;
@@ -28,6 +30,8 @@ type Props = {
   uktDisabledTitle?: string;
   latberDisabled?: boolean;
   latberDisabledTitle?: string;
+  pertandinganDisabled?: boolean;
+  pertandinganDisabledTitle?: string;
   extraActions?: React.ReactNode;
   className?: string;
   buttonClassName?: string;
@@ -40,8 +44,10 @@ export function EventQuickRegisterButtons({
   memberId,
   uktEventId,
   latberEventId,
+  pertandinganEventId,
   registeredUkt = false,
   registeredLatber = false,
+  registeredPertandingan = false,
   onRegister,
   onRegistered,
   pendingMemberId = null,
@@ -50,6 +56,8 @@ export function EventQuickRegisterButtons({
   uktDisabledTitle,
   latberDisabled = false,
   latberDisabledTitle,
+  pertandinganDisabled = false,
+  pertandinganDisabledTitle,
   extraActions,
   className,
   buttonClassName = "h-7 text-xs",
@@ -62,15 +70,19 @@ export function EventQuickRegisterButtons({
   if (hidden || disabled) return extraActions ? <>{extraActions}</> : null;
 
   const showUkt =
-    (variant === "ukt" || variant === "both") &&
+    (variant === "ukt" || variant === "both" || variant === "all") &&
     Boolean(uktEventId) &&
     !registeredUkt;
   const showLatber =
-    (variant === "latber" || variant === "both") &&
+    (variant === "latber" || variant === "both" || variant === "all") &&
     Boolean(latberEventId) &&
     !registeredLatber;
+  const showPertandingan =
+    (variant === "pertandingan" || variant === "all" || variant === "both") &&
+    Boolean(pertandinganEventId) &&
+    !registeredPertandingan;
 
-  if (!showUkt && !showLatber && !extraActions) return null;
+  if (!showUkt && !showLatber && !showPertandingan && !extraActions) return null;
 
   async function runRegister(kind: EventRegistrationKind, eventId: string) {
     if (onRegister) {
@@ -165,6 +177,27 @@ export function EventQuickRegisterButtons({
           ) : (
             "Daftar Latber"
           )}
+        </Button>
+      ) : null}
+      {showPertandingan && pertandinganEventId ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className={cn("bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/60 font-semibold", buttonClassName)}
+          disabled={pertandinganDisabled}
+          title={
+            typeof pertandinganDisabledTitle === "string"
+              ? pertandinganDisabledTitle
+              : undefined
+          }
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation();
+            window.location.href = `/admin/pertandingan?eventId=${pertandinganEventId}&registerMemberId=${memberId}`;
+          }}
+        >
+          🏆 Daftar Kejuaraan
         </Button>
       ) : null}
       {extraActions}

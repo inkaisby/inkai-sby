@@ -118,6 +118,7 @@ export function AnggotaBrowser({
   hasError,
   activeUkt = null,
   activeLatber = null,
+  activePertandingan = null,
   canQuickReg = false,
   initialEventRegistration = null,
 }: {
@@ -139,6 +140,7 @@ export function AnggotaBrowser({
   hasError?: boolean;
   activeUkt?: ActiveRegistrationPeriod;
   activeLatber?: ActiveRegistrationPeriod;
+  activePertandingan?: ActiveRegistrationPeriod;
   canQuickReg?: boolean;
   initialEventRegistration?: Record<string, MemberEventRegistrationFlags> | null;
 }) {
@@ -614,6 +616,7 @@ export function AnggotaBrowser({
           canQuickReg={canQuickReg}
           activeUkt={activeUkt}
           activeLatber={activeLatber}
+          activePertandingan={activePertandingan}
           eventRegistration={eventRegistration}
           onEventRegistered={(memberId, kind) => {
             setEventRegistration((prev) => ({

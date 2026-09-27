@@ -31,7 +31,14 @@ export async function GET(request: Request) {
       orderBy: { startDate: "desc" },
     });
 
-    return NextResponse.json({ events });
+    const filteredEvents = events.filter((e) => {
+      const upper = (e.title || "").toUpperCase().trim();
+      if (upper.startsWith("UKT") || upper.includes("UKT ") || upper.includes("UJIAN KENAIKAN TINGKAT")) return false;
+      if (upper.startsWith("LATBER") || upper.includes("LATBER") || upper.includes("LATIHAN BERSAMA")) return false;
+      return true;
+    });
+
+    return NextResponse.json({ events: filteredEvents });
   } catch (error: any) {
     console.error("GET /api/admin/pertandingan/events error:", error);
     return NextResponse.json({ error: error.message || "Failed to fetch events" }, { status: 500 });

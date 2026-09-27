@@ -34,9 +34,6 @@ import {
   Send,
   QrCode,
   CreditCard,
-  Copy,
-  Check,
-  Share2,
 } from "lucide-react";
 
 interface CategoryDetail {
@@ -56,6 +53,7 @@ interface EventItem {
   startDate: string;
   endDate: string;
   eventTime?: string;
+  registrationCloseAt?: string | null;
   location?: string;
   rulesContent?: string | null;
   tournamentCategories?: CategoryDetail[];
@@ -99,7 +97,35 @@ export default function PublicPertandinganPage() {
   const [selectedDojoName, setSelectedDojoName] = useState("");
   const [selectedCategoryName, setSelectedCategoryName] = useState("");
   const [showRulesModal, setShowRulesModal] = useState(false);
+  const [showFullOverview, setShowFullOverview] = useState(true);
   const [previewDoc, setPreviewDoc] = useState<{ url: string; title: string } | null>(null);
+
+  // Member suggestions search state
+  const [memberSuggestions, setMemberSuggestions] = useState<any[]>([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [showSuggestDropdown, setShowSuggestDropdown] = useState(false);
+
+  useEffect(() => {
+    if (search.trim().length < 2) {
+      setMemberSuggestions([]);
+      setShowSuggestDropdown(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSuggestLoading(true);
+      try {
+        const res = await fetch(`/api/public/pertandingan/suggest?q=${encodeURIComponent(search)}&eventId=${selectedEventId}`);
+        const data = await res.json();
+        setMemberSuggestions(data.suggestions || []);
+        setShowSuggestDropdown(true);
+      } catch {
+        setMemberSuggestions([]);
+      } finally {
+        setSuggestLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, selectedEventId]);
 
   // Correction / Deletion WA Modal state
   const [correctionTarget, setCorrectionTarget] = useState<RegistrationItem | null>(null);
@@ -161,23 +187,6 @@ export default function PublicPertandinganPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, "id"));
   }, [systemDojos]);
 
-  const [copiedRulesLink, setCopiedRulesLink] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const eventParam = params.get("event") || params.get("eventId");
-      const rulesParam = params.get("rules") || params.get("ketentuan");
-
-      if (eventParam) {
-        setSelectedEventId(eventParam);
-      }
-      if (rulesParam === "true" || rulesParam === "1") {
-        setShowRulesModal(true);
-      }
-    }
-  }, []);
-
   const fetchPublicData = async () => {
     setLoading(true);
     try {
@@ -209,42 +218,6 @@ export default function PublicPertandinganPage() {
   }, [selectedEventId, search]);
 
   const activeEvent = events.find((e) => e.id === selectedEventId);
-
-  const getRulesShareUrl = () => {
-    const eventId = selectedEventId || (events[0]?.id || "");
-    if (typeof window === "undefined") return `/pertandingan?event=${eventId}&rules=true`;
-    const baseUrl = `${window.location.origin}${window.location.pathname}`;
-    return eventId ? `${baseUrl}?event=${eventId}&rules=true` : `${baseUrl}?rules=true`;
-  };
-
-  const handleCopyRulesLink = () => {
-    const url = getRulesShareUrl();
-    navigator.clipboard.writeText(url);
-    setCopiedRulesLink(true);
-    setTimeout(() => setCopiedRulesLink(false), 3000);
-  };
-
-  const handleShareWaRules = () => {
-    const targetUrl = getRulesShareUrl();
-    const title = activeEvent?.title || "Kejuaraan Karate INKAI Surabaya";
-    const dateStr = activeEvent?.startDate
-      ? new Date(activeEvent.startDate).toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })
-      : "Minggu, 04 Oktober 2026";
-    const timeStr = activeEvent?.eventTime || "08.00 – 12.00 WIB";
-    const locStr = activeEvent?.location || "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya";
-
-    const message =
-      `*UNDANGAN & KETENTUAN KEJUARAAN KARATE INKAI SURABAYA*\n` +
-      `-------------------------------------------\n` +
-      `🏆 *Event:* ${title}\n` +
-      `📅 *Hari/Tanggal:* ${dateStr}\n` +
-      `⏰ *Pukul:* ${timeStr}\n` +
-      `📍 *Tempat:* ${locStr}\n\n` +
-      `📖 *Ketentuan & Informasi Lengkap Pertandingan:* \n${targetUrl}\n\n` +
-      `Silakan buka tautan di atas untuk membaca ketentuan pertandingan, pendaftaran atlet, & roster resmi!`;
-
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
-  };
 
   // Filter categories by birth date and gender for Guest Modal
   const availableCategories = (activeEvent?.tournamentCategories || []).filter((cat) => {
@@ -436,30 +409,15 @@ export default function PublicPertandinganPage() {
               Daftar Peserta Tamu / Eksternal
             </button>
 
-            <button
-              onClick={() => setShowRulesModal(true)}
-              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold text-sm rounded-xl backdrop-blur transition border border-white/20 flex items-center gap-2"
-            >
-              <BookOpen className="w-4 h-4 text-yellow-300" />
-              Ketentuan Pertandingan
-            </button>
-
-            <button
-              onClick={handleCopyRulesLink}
-              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold text-sm rounded-xl backdrop-blur transition border border-white/20 flex items-center gap-2"
-              title="Salin tautan langsung ketentuan pertandingan ini"
-            >
-              {copiedRulesLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-cyan-300" />}
-              {copiedRulesLink ? "Tautan Disalin!" : "Salin Link Ketentuan"}
-            </button>
-
-            <button
-              onClick={handleShareWaRules}
-              className="px-4 py-2.5 bg-emerald-600/90 hover:bg-emerald-600 text-white font-semibold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
-            >
-              <Send className="w-4 h-4 text-white" />
-              WA Undangan & Ketentuan
-            </button>
+            {activeEvent?.rulesContent && (
+              <button
+                onClick={() => setShowRulesModal(true)}
+                className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold text-sm rounded-xl backdrop-blur transition border border-white/20 flex items-center gap-2"
+              >
+                <BookOpen className="w-4 h-4 text-yellow-300" />
+                Baca Ketentuan Pertandingan
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -486,6 +444,28 @@ export default function PublicPertandinganPage() {
 
           {activeEvent && (
             <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              <span
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${
+                  !activeEvent.registrationCloseAt ||
+                  new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+                    : "bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
+                }`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    !activeEvent.registrationCloseAt ||
+                    new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
+                      ? "bg-emerald-500 animate-pulse"
+                      : "bg-red-500"
+                  }`}
+                />
+                {!activeEvent.registrationCloseAt ||
+                new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
+                  ? "Pendaftaran Terbuka"
+                  : "Pendaftaran Ditutup"}
+              </span>
+
               <span className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
                 <Calendar className="w-4 h-4 text-red-500" />
                 {new Date(activeEvent.startDate).toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
@@ -501,6 +481,143 @@ export default function PublicPertandinganPage() {
             </div>
           )}
         </div>
+
+        {/* Card Sekilas Keterangan & Ketentuan Pertandingan */}
+        {activeEvent && (
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-red-200 dark:border-red-900/40 shadow-sm overflow-hidden transition">
+            <div className="bg-gradient-to-r from-red-900 via-red-800 to-red-950 p-4 md:p-5 text-white flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-yellow-500/20 text-yellow-300 rounded-xl border border-yellow-500/30">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-base md:text-lg flex items-center gap-2">
+                    📌 Sekilas Keterangan & Ketentuan Pertandingan
+                  </h2>
+                  <p className="text-xs text-red-200">
+                    Informasi jadwal, tempat pelaksanaan, proposal ketentuan, dan syarat pendaftaran event.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowFullOverview(!showFullOverview)}
+                className="self-start md:self-auto px-3.5 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-semibold border border-white/20 transition flex items-center gap-1.5"
+              >
+                {showFullOverview ? "Sembunyikan Sekilas Details" : "Tampilkan Sekilas Details"}
+              </button>
+            </div>
+
+            {showFullOverview && (
+              <div className="p-4 md:p-6 space-y-6">
+                {/* Grid Info Pelaksanaan */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-red-50/50 dark:bg-red-950/20 p-4 rounded-xl border border-red-100 dark:border-red-900/30 flex items-start gap-3">
+                    <Calendar className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <div className="text-xs text-zinc-500 font-medium">Hari & Tanggal</div>
+                      <div className="text-sm font-bold text-zinc-900 dark:text-white">
+                        {new Date(activeEvent.startDate).toLocaleDateString("id-ID", {
+                          weekday: "long",
+                          day: "2-digit",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-amber-50/50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-100 dark:border-amber-900/30 flex items-start gap-3">
+                    <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <div className="text-xs text-zinc-500 font-medium">Waktu / Pukul</div>
+                      <div className="text-sm font-bold text-zinc-900 dark:text-white">
+                        {activeEvent.eventTime || "08.00 – 12.00 WIB"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-50/50 dark:bg-emerald-950/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/30 flex items-start gap-3">
+                    <MapPin className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <div className="text-xs text-zinc-500 font-medium">Tempat Pelaksanaan</div>
+                      <div className="text-sm font-bold text-zinc-900 dark:text-white">
+                        {activeEvent.location || "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Deskripsi & Ketentuan Editor */}
+                {activeEvent.description && (
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700">
+                    <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Keterangan Singkat</div>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">{activeEvent.description}</p>
+                  </div>
+                )}
+
+                {/* Content Ketentuan Pertandingan */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2">
+                    <h3 className="font-bold text-sm md:text-base flex items-center gap-2 text-zinc-900 dark:text-white">
+                      <BookOpen className="w-4 h-4 text-red-600 dark:text-red-400" />
+                      Ketentuan & Syarat Pertandingan
+                    </h3>
+                    <button
+                      onClick={() => setShowRulesModal(true)}
+                      className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline flex items-center gap-1"
+                    >
+                      Buka Modal Ketentuan Lengkap <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {activeEvent.rulesContent ? (
+                    <div
+                      className="prose dark:prose-invert max-w-none text-sm bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 max-h-60 overflow-y-auto leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: activeEvent.rulesContent }}
+                    />
+                  ) : (
+                    <div className="bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs md:text-sm text-zinc-700 dark:text-zinc-300 space-y-2">
+                      <p className="font-semibold text-red-600 dark:text-red-400">Ringkasan Ketentuan Resmi:</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>Peserta adalah Karateka anggota resmi INKAI Cabang Surabaya & Dojo Terdaftar.</li>
+                        <li>Wajib menyertakan fotokopi / berkas Akte Kelahiran & Kartu BPJS Kesehatan / Surat Sehat.</li>
+                        <li>Menggunakan Karate-Gi standar INKAI dan perlengkapan sabuk / protector sesuai ketentuan jenis kelas (Kata / Kumite).</li>
+                        <li>Penimbangan badan atlet dilakukan sebelum jalannya pertandingan sesuai kelas berat yang didaftarkan.</li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                {/* Categories Overview */}
+                {activeEvent.tournamentCategories && activeEvent.tournamentCategories.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
+                      <Swords className="w-4 h-4 text-amber-500" />
+                      Kategori Kelas Tersedia ({activeEvent.tournamentCategories.length} Kategori)
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                      {activeEvent.tournamentCategories.map((cat) => (
+                        <div
+                          key={cat.id}
+                          className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-between text-xs"
+                        >
+                          <div>
+                            <div className="font-bold text-zinc-900 dark:text-white">{cat.name}</div>
+                            <div className="text-zinc-500 font-medium">{cat.categoryType} · {cat.gender === "MALE" ? "Putra" : cat.gender === "FEMALE" ? "Putri" : "Campuran"}</div>
+                          </div>
+                          <div className="font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800/50">
+                            Rp {cat.fee.toLocaleString("id-ID")}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Summary Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -539,15 +656,91 @@ export default function PublicPertandinganPage() {
         <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             {/* Search */}
-            <div className="relative w-full md:w-64">
+            <div className="relative w-full md:w-80">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <input
                 type="text"
-                placeholder="Cari nama atlet, NIA..."
+                placeholder="Cari nama atlet, NIA, keanggotaan..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
+                onFocus={() => {
+                  if (memberSuggestions.length > 0) setShowSuggestDropdown(true);
+                }}
                 className="w-full pl-9 pr-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm focus:ring-2 focus:ring-red-500"
               />
+
+              {/* Suggestions Dropdown */}
+              {showSuggestDropdown && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-80 overflow-y-auto">
+                  <div className="p-2.5 bg-zinc-100 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                    <span>💡 Keanggotaan INKAI (DB)</span>
+                    <button
+                      onClick={() => setShowSuggestDropdown(false)}
+                      className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {suggestLoading && (
+                    <div className="p-3 text-center text-xs text-zinc-500">Mencari keanggotaan INKAI...</div>
+                  )}
+
+                  {!suggestLoading && memberSuggestions.length === 0 && (
+                    <div className="p-3 text-center text-xs text-zinc-500">Tidak ada anggota yang cocok dengan kata kunci.</div>
+                  )}
+
+                  {!suggestLoading &&
+                    memberSuggestions.map((m) => (
+                      <div
+                        key={m.id}
+                        className="p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800 border-b border-zinc-100 dark:border-zinc-800/60 last:border-b-0 flex items-center justify-between gap-2 text-xs"
+                      >
+                        <div>
+                          <div className="font-bold text-zinc-900 dark:text-white flex items-center gap-1.5">
+                            {m.fullName}
+                            {m.nia && <span className="text-[10px] text-zinc-400 font-mono">({m.nia})</span>}
+                          </div>
+                          <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                            {m.dojoName} · <span className="text-red-600 dark:text-red-400">{m.currentRank}</span>
+                          </div>
+                        </div>
+
+                        {m.isRegistered ? (
+                          <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-md font-semibold text-[10px]">
+                            ✅ Terdaftar
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setGuestForm({
+                                fullName: m.fullName,
+                                gender: m.gender || "MALE",
+                                birthDate: m.birthDate || "",
+                                dojoName: m.dojoName || "",
+                                currentRank: m.currentRank || "Putih (Kyu 10)",
+                                phone: m.phone || "",
+                                weight: "",
+                                categoryId: "",
+                                agreedTerms: false,
+                                email: "",
+                                password: "",
+                                photoUrl: m.photoUrl || "",
+                                birthCertificateUrl: m.birthCertificateUrl || "",
+                                bpjsCardUrl: m.bpjsCardUrl || "",
+                              });
+                              setShowGuestModal(true);
+                              setShowSuggestDropdown(false);
+                            }}
+                            className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[11px] transition shadow-sm"
+                          >
+                            🏆 Daftarkan
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
 
             {/* Filter Dojo */}
@@ -1280,84 +1473,30 @@ export default function PublicPertandinganPage() {
       {showRulesModal && activeEvent && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-3xl w-full p-6 space-y-4 shadow-2xl max-h-[85vh] flex flex-col">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 border-zinc-200 dark:border-zinc-800 gap-3">
+            <div className="flex items-center justify-between border-b pb-3 border-zinc-200 dark:border-zinc-800">
               <h3 className="font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-red-600" />
                 Ketentuan & Proposal Pertandingan: {activeEvent.title}
               </h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleCopyRulesLink}
-                  className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition"
-                  title="Salin tautan langsung ketentuan pertandingan ini"
-                >
-                  {copiedRulesLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-blue-500" />}
-                  {copiedRulesLink ? "Disalin!" : "Salin Link"}
-                </button>
-                <button
-                  onClick={handleShareWaRules}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  WA Undangan
-                </button>
-                <button onClick={() => setShowRulesModal(false)} className="text-zinc-500 hover:text-zinc-800 text-lg leading-none p-1">
-                  ✕
-                </button>
-              </div>
+              <button onClick={() => setShowRulesModal(false)} className="text-zinc-500 hover:text-zinc-800">
+                ✕
+              </button>
             </div>
             
-            <div className="flex-1 overflow-y-auto prose dark:prose-invert prose-sm max-w-none text-zinc-700 dark:text-zinc-300 p-4 border rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
-              {activeEvent.rulesContent ? (
-                <div dangerouslySetInnerHTML={{ __html: activeEvent.rulesContent }} />
-              ) : (
-                <div className="space-y-4 not-prose">
-                  <div className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-xl space-y-2">
-                    <h4 className="font-bold text-red-900 dark:text-red-200 text-sm flex items-center gap-2">
-                      <Trophy className="w-4 h-4 text-red-600" />
-                      Informasi & Ketentuan Pelaksanaan Pertandingan
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-red-800 dark:text-red-300">
-                      <div><strong>Nama Event:</strong> {activeEvent.title}</div>
-                      <div><strong>Tanggal:</strong> {new Date(activeEvent.startDate).toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</div>
-                      <div><strong>Waktu:</strong> {activeEvent.eventTime || "08.00 – 12.00 WIB"}</div>
-                      <div className="sm:col-span-2"><strong>Lokasi:</strong> {activeEvent.location || "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya"}</div>
-                    </div>
-                  </div>
+            <div
+              className="flex-1 overflow-y-auto prose dark:prose-invert prose-sm max-w-none text-zinc-700 dark:text-zinc-300 p-4 border rounded-xl bg-zinc-50 dark:bg-zinc-800/50"
+              dangerouslySetInnerHTML={{ __html: activeEvent.rulesContent || "<p>Ketentuan pertandingan belum diterbitkan.</p>" }}
+            />
 
-                  <div className="text-xs space-y-2 text-zinc-700 dark:text-zinc-300 not-prose">
-                    <p className="font-semibold text-zinc-900 dark:text-white">Ketentuan Umum Pendaftaran & Roster Atlet:</p>
-                    <ul className="list-disc pl-5 space-y-1.5 leading-relaxed">
-                      <li>Pendaftaran dilakukan oleh Admin Dojo/Kontingen atau Peserta Tamu Mandiri melalui portal resmi ini.</li>
-                      <li>Setiap atlet didaftarkan sesuai dengan kelompok umur, jenis kelamin (KATA / KUMITE), dan kategori kelas yang tersedia.</li>
-                      <li>Berkas verifikasi wajib yang perlu dilengkapi: Foto Profil, Akte Kelahiran, dan BPJS/Asuransi Kesehatan.</li>
-                      <li>Timbang badan dan pemeriksaan ulang dokumen fisik dilaksanakan di lokasi pertandingan sebelum sesi match dimulai.</li>
-                      <li>Untuk perubahan data atau pembatalan, peserta/official dapat menghubungi panitia pelaksana via kontak WhatsApp resmi.</li>
-                    </ul>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+            <div className="flex justify-between items-center pt-3 border-t border-zinc-200 dark:border-zinc-800">
               <span className="text-xs text-zinc-500">Institut Karate-Do Indonesia Cabang Surabaya</span>
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <button
-                  type="button"
-                  onClick={handleCopyRulesLink}
-                  className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-semibold text-xs rounded-xl flex items-center gap-1.5 transition"
-                >
-                  {copiedRulesLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-blue-500" />}
-                  {copiedRulesLink ? "Tautan Disalin!" : "Salin Link Ketentuan"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowRulesModal(false)}
-                  className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs rounded-xl shadow transition"
-                >
-                  Tutup
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowRulesModal(false)}
+                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs rounded-xl shadow"
+              >
+                Tutup
+              </button>
             </div>
           </div>
         </div>

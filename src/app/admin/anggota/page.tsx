@@ -29,6 +29,7 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { canRegisterMembersToEvents } from "@/lib/wilayah-rbac";
 import {
   resolveActiveLatberRegistrationPeriod,
+  resolveActivePertandinganRegistrationPeriod,
   resolveActiveUktRegistrationPeriod,
 } from "@/lib/active-registration-periods";
 import { buildMemberEventRegistrationMap } from "@/lib/ukt-suggest";
@@ -136,7 +137,7 @@ async function AdminAnggotaContent({
       isDojoAdmin && !dojoId && allowlist.length > 0 ? allowlist : undefined,
   };
 
-  const [result, dojos, statusCounts, activeUkt, activeLatber] = await Promise.all([
+  const [result, dojos, statusCounts, activeUkt, activeLatber, activePertandingan] = await Promise.all([
     fetchAdminMembersScoped(user, {
       page,
       limit: pageSize,
@@ -154,6 +155,7 @@ async function AdminAnggotaContent({
     fetchAdminMemberStatusCountsCached(user, scopeOpts),
     resolveActiveUktRegistrationPeriod(token),
     resolveActiveLatberRegistrationPeriod(token),
+    resolveActivePertandinganRegistrationPeriod(token),
   ]);
 
   const managedDojoOptions = isDojoAdmin ? dojos : [];
@@ -244,6 +246,7 @@ async function AdminAnggotaContent({
       hasError={!result.ok}
       activeUkt={activeUkt}
       activeLatber={activeLatber}
+      activePertandingan={activePertandingan}
       canQuickReg={canRegisterMembersToEvents(user.roles ?? [])}
       initialEventRegistration={eventRegistrationMap}
     />

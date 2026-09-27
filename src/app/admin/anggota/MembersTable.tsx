@@ -381,6 +381,7 @@ export function MembersTable({
   canQuickReg = false,
   activeUkt = null,
   activeLatber = null,
+  activePertandingan = null,
   eventRegistration = {},
   onEventRegistered,
 }: {
@@ -398,6 +399,7 @@ export function MembersTable({
   canQuickReg?: boolean;
   activeUkt?: ActiveRegistrationPeriod;
   activeLatber?: ActiveRegistrationPeriod;
+  activePertandingan?: ActiveRegistrationPeriod;
   eventRegistration?: Record<string, MemberEventRegistrationFlags>;
   onEventRegistered?: (memberId: string, kind: EventRegistrationKind) => void;
 }) {
@@ -1511,10 +1513,11 @@ export function MembersTable({
                         </Button>
                         {canQuickReg && isSelectableRow ? (
                           <EventQuickRegisterButtons
-                            variant="both"
+                            variant="all"
                             memberId={m.id}
                             uktEventId={activeUkt?.id}
                             latberEventId={activeLatber?.id}
+                            pertandinganEventId={activePertandingan?.id}
                             registeredUkt={eventRegistration[m.id]?.ukt}
                             registeredLatber={eventRegistration[m.id]?.latber}
                             onRegistered={(kind) => onEventRegistered?.(m.id, kind)}
