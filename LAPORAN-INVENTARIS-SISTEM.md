@@ -371,6 +371,7 @@ Pusat / Nasional
 ### 9.4 Kegiatan, Kejuaraan Pertandingan & absensi
 - **Cabang** dapat membuat event non-UKT di `/admin/kegiatan` & Kejuaraan Pertandingan di `/admin/pertandingan` (Kejurprov FORKI 2026, Karate Cup, Gashuku, dll.).
 - **Kejuaraan Pertandingan (`/admin/pertandingan` & `/pertandingan`)**:
+  - `DOJO_ALLOWED_PREFIXES` di `src/lib/admin-page-access.ts` telah ditambahkan `/admin/pertandingan` sehingga seluruh akun admin ranting (`ADMIN_DOJO`) dapat mengakses penuh halaman pendaftaran kejuaraan & roster.
   - Klik **"🏆 Daftarkan"** pada dropdown pencarian keanggotaan kini **langsung memasukkan atlet ke tabel pendaftar kejuaraan** (tanpa perlu membuka modal) dan menutup dropdown pencarian secara instan.
   - Kolom **Kelas Pertandingan** di setiap baris tabel pendaftar dilengkapi dropdown `<select>` interaktif, sehingga admin/panitia dapat memilih atau mengganti kelas pertandingan (dan biayanya) langsung secara inline di tabel (`PATCH /api/admin/pertandingan/registrations`).
   - Modal **Pendaftaran Kontingen / Dojo** (`showBatchRegModal`) diperluas menjadi `max-w-4xl lg:max-w-5xl` dengan layout grid 12 kolom (`grid-cols-1 md:grid-cols-12`) untuk pendaftaran masal.
