@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import {
   Trophy,
@@ -31,6 +31,21 @@ import {
   BookOpen,
   Save,
   Download,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  List,
+  ListOrdered,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
+  RotateCcw,
+  Code,
+  Copy,
+  Check,
+  Send,
 } from "lucide-react";
 import { generateTournamentIdCardsHtml, generateTournamentRosterHtml } from "@/lib/tournament-print-html";
 
@@ -40,6 +55,7 @@ interface EventItem {
   description?: string;
   startDate: string;
   endDate: string;
+  eventTime?: string;
   location?: string;
   rulesContent?: string | null;
   _count?: {
@@ -139,10 +155,26 @@ export default function AdminPertandinganPage() {
     description: "",
     startDate: "",
     endDate: "",
+    eventTime: "",
     location: "",
   });
 
   const [rulesInput, setRulesInput] = useState("");
+  const [rulesMode, setRulesMode] = useState<"VISUAL" | "HTML">("VISUAL");
+  const rulesEditorRef = useRef<HTMLDivElement>(null);
+
+  const execRulesCmd = (command: string, value: string | undefined = undefined) => {
+    document.execCommand(command, false, value);
+    if (rulesEditorRef.current) {
+      setRulesInput(rulesEditorRef.current.innerHTML);
+    }
+  };
+
+  useEffect(() => {
+    if (showRulesEditorModal && rulesEditorRef.current) {
+      rulesEditorRef.current.innerHTML = rulesInput || DEFAULT_TOURNAMENT_RULES_TEMPLATE;
+    }
+  }, [showRulesEditorModal]);
 
   const [batchReg, setBatchReg] = useState({
     dojoId: "",
@@ -247,7 +279,7 @@ export default function AdminPertandinganPage() {
       const data = await res.json();
       if (res.ok) {
         setShowNewEventModal(false);
-        setEventForm({ title: "", description: "", startDate: "", endDate: "", location: "" });
+        setEventForm({ title: "", description: "", startDate: "", endDate: "", eventTime: "", location: "" });
         await fetchEvents();
         if (data.event) setSelectedEventId(data.event.id);
       } else {
@@ -500,16 +532,54 @@ export default function AdminPertandinganPage() {
 
   const activeEvent = events.find(e => e.id === selectedEventId);
 
+  const [copiedRulesLink, setCopiedRulesLink] = useState(false);
+
+  const getRulesShareUrl = () => {
+    const eventId = selectedEventId || (events[0]?.id || "");
+    if (typeof window === "undefined") return `/pertandingan?event=${eventId}&rules=true`;
+    const baseUrl = `${window.location.origin}/pertandingan`;
+    return eventId ? `${baseUrl}?event=${eventId}&rules=true` : `${baseUrl}?rules=true`;
+  };
+
+  const handleCopyRulesLink = () => {
+    const url = getRulesShareUrl();
+    navigator.clipboard.writeText(url);
+    setCopiedRulesLink(true);
+    setTimeout(() => setCopiedRulesLink(false), 3000);
+  };
+
+  const handleShareWaRules = () => {
+    const targetUrl = getRulesShareUrl();
+    const title = activeEvent?.title || "Kejuaraan Karate INKAI Surabaya";
+    const dateStr = activeEvent?.startDate
+      ? new Date(activeEvent.startDate).toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })
+      : "Minggu, 04 Oktober 2026";
+    const timeStr = activeEvent?.eventTime || "08.00 – 12.00 WIB";
+    const locStr = activeEvent?.location || "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya";
+
+    const message =
+      `*UNDANGAN & KETENTUAN KEJUARAAN KARATE INKAI SURABAYA*\n` +
+      `-------------------------------------------\n` +
+      `🏆 *Event:* ${title}\n` +
+      `📅 *Hari/Tanggal:* ${dateStr}\n` +
+      `⏰ *Pukul:* ${timeStr}\n` +
+      `📍 *Tempat:* ${locStr}\n\n` +
+      `📖 *Ketentuan & Informasi Lengkap Pertandingan:* \n${targetUrl}\n\n` +
+      `Silakan buka tautan di atas untuk membaca ketentuan pertandingan, pendaftaran atlet, & roster resmi!`;
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
+  };
+
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-4 md:p-6 space-y-4 md:space-y-6 w-full max-w-[1600px] mx-auto">
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-red-900 via-red-800 to-red-950 text-white p-6 rounded-2xl shadow-xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-red-900 via-red-800 to-red-950 text-white p-5 md:p-6 rounded-2xl shadow-xl">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Trophy className="w-8 h-8 text-yellow-400 animate-pulse" />
-            <h1 className="text-2xl font-bold tracking-tight">Pendaftaran & Roster Kejuaraan</h1>
+            <Trophy className="w-7 h-7 md:w-8 md:h-8 text-yellow-400 animate-pulse" />
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight">Pendaftaran & Roster Kejuaraan</h1>
           </div>
-          <p className="text-sm text-red-200">
+          <p className="text-xs md:text-sm text-red-200">
             CRUD Event Pertandingan, Editor Ketentuan, Berkas Profil (Foto/Akte/BPJS), Timbang Badan, & ID Card
           </p>
         </div>
@@ -517,7 +587,14 @@ export default function AdminPertandinganPage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => {
-              setEventForm({ title: "", description: "", startDate: "", endDate: "", location: "" });
+              setEventForm({
+                title: "UKT Semester II-2026",
+                description: "Pelaksanaan Kejuaraan & Ujian Kenaikan Tingkat Karate INKAI Cabang Kota Surabaya",
+                startDate: "2026-10-04",
+                endDate: "2026-10-04",
+                eventTime: "08.00 – 12.00 WIB",
+                location: "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya",
+              });
               setShowNewEventModal(true);
             }}
             className="flex items-center gap-1.5 px-3 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-semibold text-xs md:text-sm rounded-xl transition shadow-lg"
@@ -532,7 +609,26 @@ export default function AdminPertandinganPage() {
             className="flex items-center gap-1.5 px-3 py-2 bg-white/20 hover:bg-white/30 text-white font-semibold text-xs md:text-sm rounded-xl backdrop-blur transition disabled:opacity-50"
           >
             <BookOpen className="w-4 h-4 text-yellow-300" />
-            📜 Editor Ketentuan
+            📜 Ketentuan Pertandingan
+          </button>
+
+          <button
+            onClick={handleCopyRulesLink}
+            disabled={!selectedEventId}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white/10 hover:bg-white/20 text-white font-medium text-xs md:text-sm rounded-xl backdrop-blur transition disabled:opacity-50"
+            title="Salin tautan langsung ketentuan pertandingan ini"
+          >
+            {copiedRulesLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-cyan-300" />}
+            {copiedRulesLink ? "Tautan Disalin!" : "Salin Link Ketentuan"}
+          </button>
+
+          <button
+            onClick={handleShareWaRules}
+            disabled={!selectedEventId}
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600/90 hover:bg-emerald-600 text-white font-semibold text-xs md:text-sm rounded-xl transition shadow disabled:opacity-50"
+          >
+            <Send className="w-4 h-4" />
+            WA Undangan
           </button>
 
           <Link
@@ -546,8 +642,8 @@ export default function AdminPertandinganPage() {
       </div>
 
       {/* Selector & CRUD Event Pertandingan */}
-      <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+      <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
           <div className="flex items-center gap-2">
             <Trophy className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
             <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Kejuaraan:</span>
@@ -556,7 +652,7 @@ export default function AdminPertandinganPage() {
           <select
             value={selectedEventId}
             onChange={(e) => setSelectedEventId(e.target.value)}
-            className="w-full md:w-80 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm font-medium focus:ring-2 focus:ring-red-500"
+            className="w-full sm:w-80 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs md:text-sm font-medium focus:ring-2 focus:ring-red-500"
           >
             {events.length === 0 && <option value="">Belum ada event kejuaraan</option>}
             {events.map((ev) => (
@@ -575,7 +671,8 @@ export default function AdminPertandinganPage() {
                     description: activeEvent.description || "",
                     startDate: activeEvent.startDate ? activeEvent.startDate.split("T")[0] : "",
                     endDate: activeEvent.endDate ? activeEvent.endDate.split("T")[0] : "",
-                    location: activeEvent.location || "",
+                    eventTime: activeEvent.eventTime || "08.00 – 12.00 WIB",
+                    location: activeEvent.location || "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya",
                   });
                   setShowEditEventModal(activeEvent);
                 }}
@@ -597,77 +694,78 @@ export default function AdminPertandinganPage() {
         </div>
 
         {activeEvent && (
-          <div className="flex items-center gap-4 text-xs text-zinc-500 dark:text-zinc-400">
-            <span className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+            <span className="flex items-center gap-1.5 bg-zinc-50 dark:bg-zinc-800 px-2.5 py-1 rounded-md border border-zinc-200 dark:border-zinc-700">
               <Calendar className="w-3.5 h-3.5 text-red-500" />
               {new Date(activeEvent.startDate).toLocaleDateString("id-ID")} - {new Date(activeEvent.endDate).toLocaleDateString("id-ID")}
             </span>
-            <span className="flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-red-500" />
-              {activeEvent.location || "Surabaya"}
+            <span className="flex items-center gap-1.5 bg-zinc-50 dark:bg-zinc-800 px-2.5 py-1 rounded-md border border-zinc-200 dark:border-zinc-700 max-w-xs md:max-w-md truncate">
+              <MapPin className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+              <span className="truncate">{activeEvent.location || "Surabaya"}</span>
             </span>
           </div>
         )}
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-red-100 dark:bg-red-950/50 rounded-xl text-red-600 dark:text-red-400">
-            <Users className="w-6 h-6" />
+      {/* KPI Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        <div className="bg-white dark:bg-zinc-900 p-3.5 md:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-3 md:gap-4">
+          <div className="p-2.5 md:p-3 bg-red-100 dark:bg-red-950/50 rounded-xl text-red-600 dark:text-red-400 flex-shrink-0">
+            <Users className="w-5 h-5 md:w-6 md:h-6" />
           </div>
-          <div>
-            <div className="text-2xl font-bold text-zinc-900 dark:text-white">{summary.totalCount || 0}</div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">Total Pendaftaran Kelas</div>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-yellow-100 dark:bg-yellow-950/50 rounded-xl text-yellow-600 dark:text-yellow-400">
-            <UserCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-2xl font-bold text-zinc-900 dark:text-white">{summary.uniqueAthletes || 0}</div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">Total Atlet Unik</div>
+          <div className="min-w-0">
+            <div className="text-xl md:text-2xl font-bold text-zinc-900 dark:text-white truncate">{summary.totalCount || 0}</div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">Total Pendaftaran Kelas</div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-blue-100 dark:bg-blue-950/50 rounded-xl text-blue-600 dark:text-blue-400">
-            <Building2 className="w-6 h-6" />
+        <div className="bg-white dark:bg-zinc-900 p-3.5 md:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-3 md:gap-4">
+          <div className="p-2.5 md:p-3 bg-yellow-100 dark:bg-yellow-950/50 rounded-xl text-yellow-600 dark:text-yellow-400 flex-shrink-0">
+            <UserCheck className="w-5 h-5 md:w-6 md:h-6" />
           </div>
-          <div>
-            <div className="text-2xl font-bold text-zinc-900 dark:text-white">{summary.uniqueDojos || 0}</div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">Kontingen / Dojo</div>
+          <div className="min-w-0">
+            <div className="text-xl md:text-2xl font-bold text-zinc-900 dark:text-white truncate">{summary.uniqueAthletes || 0}</div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">Total Atlet Unik</div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-emerald-100 dark:bg-emerald-950/50 rounded-xl text-emerald-600 dark:text-emerald-400">
-            <DollarSign className="w-6 h-6" />
+        <div className="bg-white dark:bg-zinc-900 p-3.5 md:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-3 md:gap-4">
+          <div className="p-2.5 md:p-3 bg-blue-100 dark:bg-blue-950/50 rounded-xl text-blue-600 dark:text-blue-400 flex-shrink-0">
+            <Building2 className="w-5 h-5 md:w-6 md:h-6" />
           </div>
-          <div>
-            <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+          <div className="min-w-0">
+            <div className="text-xl md:text-2xl font-bold text-zinc-900 dark:text-white truncate">{summary.uniqueDojos || 0}</div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">Kontingen / Dojo</div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-zinc-900 p-3.5 md:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center gap-3 md:gap-4">
+          <div className="p-2.5 md:p-3 bg-emerald-100 dark:bg-emerald-950/50 rounded-xl text-emerald-600 dark:text-emerald-400 flex-shrink-0">
+            <DollarSign className="w-5 h-5 md:w-6 md:h-6" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-lg md:text-xl font-bold text-emerald-600 dark:text-emerald-400 truncate">
               Rp {(summary.totalFee || 0).toLocaleString("id-ID")}
             </div>
-            <div className="text-xs text-zinc-500 dark:text-zinc-400">Total Biaya Pendaftaran</div>
+            <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">Total Biaya Pendaftaran</div>
           </div>
         </div>
       </div>
 
       {/* Toolbar Controls */}
-      <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-4">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+      <div className="bg-white dark:bg-zinc-900 p-3 md:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3 shadow-sm">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          {/* Filter Inputs Group */}
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
             {/* Search Input */}
-            <div className="relative w-full md:w-60">
+            <div className="relative w-full sm:w-52 lg:w-60">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <input
                 type="text"
                 placeholder="Cari atlet, NIA, dojo..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-red-500"
+                className="w-full pl-9 pr-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs md:text-sm focus:ring-2 focus:ring-red-500"
               />
             </div>
 
@@ -675,7 +773,7 @@ export default function AdminPertandinganPage() {
             <select
               value={selectedDojoId}
               onChange={(e) => setSelectedDojoId(e.target.value)}
-              className="px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
+              className="w-full sm:w-auto px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs md:text-sm"
             >
               <option value="">Semua Dojo / Kontingen</option>
               {dojos.map((d) => (
@@ -687,7 +785,7 @@ export default function AdminPertandinganPage() {
             <select
               value={selectedCategoryId}
               onChange={(e) => setSelectedCategoryId(e.target.value)}
-              className="px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
+              className="w-full sm:w-auto px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs md:text-sm"
             >
               <option value="">Semua Kategori Kelas</option>
               {categories.map((c) => (
@@ -699,7 +797,7 @@ export default function AdminPertandinganPage() {
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
+              className="w-full sm:w-auto px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs md:text-sm"
             >
               <option value="">Semua Status</option>
               <option value="REGISTERED">Tercatat</option>
@@ -712,7 +810,7 @@ export default function AdminPertandinganPage() {
             <select
               value={selectedPaymentMethod}
               onChange={(e) => setSelectedPaymentMethod(e.target.value)}
-              className="px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm font-semibold text-blue-700 dark:text-blue-400"
+              className="w-full sm:w-auto px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs md:text-sm font-semibold text-blue-700 dark:text-blue-400"
             >
               <option value="">Semua Metode Bayar</option>
               <option value="TRANSFER">🏦 Transfer / QRIS</option>
@@ -720,10 +818,11 @@ export default function AdminPertandinganPage() {
             </select>
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+          {/* Action Buttons Group */}
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-start lg:justify-end">
             <button
               onClick={() => setShowBatchRegModal(true)}
-              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-medium text-xs md:text-sm rounded-lg flex items-center gap-1.5 transition"
+              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-medium text-xs md:text-sm rounded-lg flex items-center gap-1.5 transition shadow-xs whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
               Daftar Kontingen
@@ -732,7 +831,7 @@ export default function AdminPertandinganPage() {
             <button
               onClick={printIdCards}
               disabled={registrations.length === 0}
-              className="px-3 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-medium text-xs md:text-sm rounded-lg flex items-center gap-1.5 transition disabled:opacity-50"
+              className="px-3 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-medium text-xs md:text-sm rounded-lg flex items-center gap-1.5 transition disabled:opacity-50 whitespace-nowrap"
             >
               <CreditCard className="w-4 h-4 text-red-500" />
               Cetak ID Card
@@ -741,7 +840,7 @@ export default function AdminPertandinganPage() {
             <button
               onClick={exportToExcel}
               disabled={displayedRegistrations.length === 0}
-              className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-semibold text-xs md:text-sm rounded-lg flex items-center gap-1.5 border border-emerald-200 dark:border-emerald-800 transition disabled:opacity-50"
+              className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-semibold text-xs md:text-sm rounded-lg flex items-center gap-1.5 border border-emerald-200 dark:border-emerald-800 transition disabled:opacity-50 whitespace-nowrap"
               title="Ekspor Roster Terfilter ke Excel (.csv)"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
@@ -751,7 +850,7 @@ export default function AdminPertandinganPage() {
             <button
               onClick={printRoster}
               disabled={displayedRegistrations.length === 0}
-              className="px-3 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-medium text-xs md:text-sm rounded-lg flex items-center gap-1.5 transition disabled:opacity-50"
+              className="px-3 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-medium text-xs md:text-sm rounded-lg flex items-center gap-1.5 transition disabled:opacity-50 whitespace-nowrap"
             >
               <Printer className="w-4 h-4 text-emerald-500" />
               Cetak Roster
@@ -760,6 +859,7 @@ export default function AdminPertandinganPage() {
             <button
               onClick={fetchRegistrations}
               className="p-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 rounded-lg transition"
+              title="Refresh Data"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -769,18 +869,18 @@ export default function AdminPertandinganPage() {
 
       {/* Tabel Roster Pendaftar & Berkas Profil */}
       <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto w-full">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
-                <th className="py-3 px-4">No</th>
-                <th className="py-3 px-4">Atlet / Foto</th>
-                <th className="py-3 px-4">Dojo / Kontingen</th>
-                <th className="py-3 px-4">Berkas Profil (Akte / BPJS)</th>
-                <th className="py-3 px-4">Kelas Pertandingan</th>
-                <th className="py-3 px-4">Biaya Cabang</th>
-                <th className="py-3 px-4">Status & Berat Badan</th>
-                <th className="py-3 px-4 text-right">Aksi</th>
+                <th className="py-3.5 px-4 w-12 text-center whitespace-nowrap">No</th>
+                <th className="py-3.5 px-4 min-w-[200px]">Atlet / Foto</th>
+                <th className="py-3.5 px-4 min-w-[140px] whitespace-nowrap">Dojo / Kontingen</th>
+                <th className="py-3.5 px-4 min-w-[160px] whitespace-nowrap">Berkas Profil (Akte / BPJS)</th>
+                <th className="py-3.5 px-4 min-w-[180px]">Kelas Pertandingan</th>
+                <th className="py-3.5 px-4 min-w-[120px] whitespace-nowrap text-right">Biaya Cabang</th>
+                <th className="py-3.5 px-4 min-w-[170px] whitespace-nowrap">Status & Berat Badan</th>
+                <th className="py-3.5 px-4 min-w-[140px] whitespace-nowrap text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
@@ -798,11 +898,11 @@ export default function AdminPertandinganPage() {
                 </tr>
               ) : (
                 displayedRegistrations.map((reg, idx) => (
-                  <tr key={reg.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition">
-                    <td className="py-3 px-4 font-mono text-xs text-zinc-500">{idx + 1}</td>
+                  <tr key={reg.id} className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition">
+                    <td className="py-3 px-4 text-center font-mono text-xs text-zinc-500 whitespace-nowrap">{idx + 1}</td>
                     
                     {/* Atlet & Foto Profil */}
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 min-w-[200px]">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-100 border border-zinc-300 dark:border-zinc-700 flex-shrink-0">
                           {reg.member.photoUrl ? (
@@ -813,30 +913,30 @@ export default function AdminPertandinganPage() {
                             </div>
                           )}
                         </div>
-                        <div>
-                          <div className="font-semibold text-zinc-900 dark:text-white">{reg.member.fullName}</div>
-                          <div className="text-xs text-zinc-500">NIA: {reg.member.nia || "-"} • {reg.member.currentRank || "Putih"}</div>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-zinc-900 dark:text-white truncate">{reg.member.fullName}</div>
+                          <div className="text-xs text-zinc-500 whitespace-nowrap">NIA: {reg.member.nia || "-"} • {reg.member.currentRank || "Putih"}</div>
                         </div>
                       </div>
                     </td>
 
-                    <td className="py-3 px-4 font-medium text-zinc-800 dark:text-zinc-200">
+                    <td className="py-3 px-4 font-medium text-zinc-800 dark:text-zinc-200 whitespace-nowrap">
                       {reg.dojo.name}
                     </td>
 
                     {/* Berkas Profile Integration (Akte & BPJS) */}
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         {reg.member.birthCertificateUrl ? (
                           <button
                             onClick={() => setPreviewDocModal({ title: `Akte Kelahiran - ${reg.member.fullName}`, url: reg.member.birthCertificateUrl! })}
-                            className="px-2 py-1 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-1 hover:underline"
+                            className="px-2 py-1 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-1 hover:underline whitespace-nowrap"
                           >
                             <FileText className="w-3 h-3 text-emerald-600" />
                             Akte OK
                           </button>
                         ) : (
-                          <span className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded text-[11px] text-zinc-400 flex items-center gap-1">
+                          <span className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded text-[11px] text-zinc-400 flex items-center gap-1 whitespace-nowrap">
                             <AlertCircle className="w-3 h-3" /> Tanpa Akte
                           </span>
                         )}
@@ -844,31 +944,31 @@ export default function AdminPertandinganPage() {
                         {reg.member.bpjsCardUrl ? (
                           <button
                             onClick={() => setPreviewDocModal({ title: `Kartu BPJS - ${reg.member.fullName}`, url: reg.member.bpjsCardUrl! })}
-                            className="px-2 py-1 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded text-[11px] font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1 hover:underline"
+                            className="px-2 py-1 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded text-[11px] font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1 hover:underline whitespace-nowrap"
                           >
                             <ShieldCheck className="w-3 h-3 text-blue-600" />
                             BPJS OK
                           </button>
                         ) : (
-                          <span className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded text-[11px] text-zinc-400 flex items-center gap-1">
+                          <span className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded text-[11px] text-zinc-400 flex items-center gap-1 whitespace-nowrap">
                             <AlertCircle className="w-3 h-3" /> Tanpa BPJS
                           </span>
                         )}
                       </div>
                     </td>
 
-                    <td className="py-3 px-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900">
+                    <td className="py-3 px-4 min-w-[180px]">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900 leading-normal">
                         {reg.category.name}
                       </span>
                     </td>
 
-                    <td className="py-3 px-4 font-semibold text-zinc-900 dark:text-zinc-100">
+                    <td className="py-3 px-4 font-semibold text-zinc-900 dark:text-zinc-100 text-right whitespace-nowrap">
                       Rp {reg.category.fee.toLocaleString("id-ID")}
                     </td>
 
                     {/* Status & Berat Badan & Metode Pembayaran */}
-                    <td className="py-3 px-4">
+                    <td className="py-3 px-4 whitespace-nowrap">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
@@ -905,7 +1005,7 @@ export default function AdminPertandinganPage() {
                       </div>
                     </td>
 
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => {
@@ -947,35 +1047,209 @@ export default function AdminPertandinganPage() {
         </div>
       </div>
 
-      {/* Modal Editor Ketentuan Pertandingan */}
+      {/* Modal Ketentuan Pertandingan */}
       {showRulesEditorModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-3xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] flex flex-col">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-4xl w-full p-6 space-y-4 shadow-2xl max-h-[92vh] flex flex-col">
             <div className="flex items-center justify-between border-b pb-3 border-zinc-200 dark:border-zinc-800">
               <h2 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-yellow-500" />
-                Editor Ketentuan & Peraturan Pertandingan
+                Ketentuan Pertandingan
               </h2>
-              <button
-                type="button"
-                onClick={() => setRulesInput(DEFAULT_TOURNAMENT_RULES_TEMPLATE)}
-                className="text-xs text-red-600 dark:text-red-400 font-semibold hover:underline flex items-center gap-1"
-              >
-                ⚡ Reset Templat Standar INKAI
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRulesMode(rulesMode === "VISUAL" ? "HTML" : "VISUAL")}
+                  className="text-xs text-zinc-600 dark:text-zinc-400 font-medium hover:text-zinc-900 dark:hover:text-white flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                  title="Beralih antara mode visual Word dan mode kode HTML"
+                >
+                  <Code className="w-3.5 h-3.5 text-blue-500" />
+                  {rulesMode === "VISUAL" ? "Kode HTML" : "Tampilan Word"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm("Reset ketentuan pertandingan ke templat standar INKAI?")) {
+                      setRulesInput(DEFAULT_TOURNAMENT_RULES_TEMPLATE);
+                      if (rulesEditorRef.current) {
+                        rulesEditorRef.current.innerHTML = DEFAULT_TOURNAMENT_RULES_TEMPLATE;
+                      }
+                    }
+                  }}
+                  className="text-xs text-red-600 dark:text-red-400 font-semibold hover:underline flex items-center gap-1"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Reset Templat INKAI
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto space-y-3">
+            <div className="flex-1 overflow-y-auto space-y-3 flex flex-col">
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Tuliskan bab ketentuan pertandingan, peraturan Kumite/Kata, persyaratan berkas, serta sistem protes. Format HTML didukung.
+                Tuliskan bab ketentuan pertandingan, persyaratan berkas, serta aturan tanding. Gunakan alat format teks di bawah ini (seperti Microsoft Word) untuk mengatur teks tebal, miring, judul bab, dan daftar nomor.
               </p>
-              <textarea
-                rows={14}
-                value={rulesInput}
-                onChange={(e) => setRulesInput(e.target.value)}
-                placeholder="Tuliskan ketentuan pertandingan di sini..."
-                className="w-full p-3 font-mono text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-red-500"
-              />
+
+              {/* Word-like Text Formatting Toolbar */}
+              {rulesMode === "VISUAL" && (
+                <div className="flex flex-wrap items-center gap-1.5 p-2 bg-zinc-100 dark:bg-zinc-800/80 rounded-xl border border-zinc-200 dark:border-zinc-700">
+                  {/* Font Style */}
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("bold")}
+                    className="p-1.5 bg-white dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                    title="Tebal (Bold)"
+                  >
+                    <Bold className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("italic")}
+                    className="p-1.5 bg-white dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                    title="Miring (Italic)"
+                  >
+                    <Italic className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("underline")}
+                    className="p-1.5 bg-white dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                    title="Garis Bawah (Underline)"
+                  >
+                    <Underline className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("strikeThrough")}
+                    className="p-1.5 bg-white dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                    title="Coret (Strikethrough)"
+                  >
+                    <Strikethrough className="w-4 h-4" />
+                  </button>
+
+                  <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-1" />
+
+                  {/* Headings */}
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("formatBlock", "h3")}
+                    className="px-2.5 py-1 text-xs font-bold bg-white dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                    title="Judul Bab (Heading 3)"
+                  >
+                    Bab (H3)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("formatBlock", "h4")}
+                    className="px-2.5 py-1 text-xs font-bold bg-white dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                    title="Sub Judul (Heading 4)"
+                  >
+                    Sub Bab (H4)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("formatBlock", "p")}
+                    className="px-2 py-1 text-xs bg-white dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                    title="Teks Paragraf Biasa"
+                  >
+                    Paragraf
+                  </button>
+
+                  <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-1" />
+
+                  {/* Lists */}
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("insertOrderedList")}
+                    className="p-1.5 bg-white dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                    title="Daftar Nomor (1. 2. 3.)"
+                  >
+                    <ListOrdered className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("insertUnorderedList")}
+                    className="p-1.5 bg-white dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                    title="Daftar Poin (Bullet List)"
+                  >
+                    <List className="w-4 h-4" />
+                  </button>
+
+                  <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-1" />
+
+                  {/* Alignment */}
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("justifyLeft")}
+                    className="p-1.5 bg-white dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                    title="Rata Kiri"
+                  >
+                    <AlignLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("justifyCenter")}
+                    className="p-1.5 bg-white dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                    title="Rata Tengah"
+                  >
+                    <AlignCenter className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("justifyRight")}
+                    className="p-1.5 bg-white dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                    title="Rata Kanan"
+                  >
+                    <AlignRight className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("justifyFull")}
+                    className="p-1.5 bg-white dark:bg-zinc-900 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg border border-zinc-200 dark:border-zinc-700 transition"
+                    title="Rata Kanan Kiri (Justify)"
+                  >
+                    <AlignJustify className="w-4 h-4" />
+                  </button>
+
+                  <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-1" />
+
+                  <button
+                    type="button"
+                    onClick={() => execRulesCmd("removeFormat")}
+                    className="px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition"
+                    title="Hapus Format Teks"
+                  >
+                    Hapus Format
+                  </button>
+                </div>
+              )}
+
+              {/* Visual Editable Area (Word-like) vs Code */}
+              {rulesMode === "VISUAL" ? (
+                <div
+                  ref={rulesEditorRef}
+                  contentEditable
+                  onInput={() => {
+                    if (rulesEditorRef.current) {
+                      setRulesInput(rulesEditorRef.current.innerHTML);
+                    }
+                  }}
+                  className="flex-1 min-h-[300px] p-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm leading-relaxed overflow-y-auto text-zinc-900 dark:text-zinc-100 prose dark:prose-invert max-w-none"
+                />
+              ) : (
+                <textarea
+                  rows={14}
+                  value={rulesInput}
+                  onChange={(e) => {
+                    setRulesInput(e.target.value);
+                    if (rulesEditorRef.current) {
+                      rulesEditorRef.current.innerHTML = e.target.value;
+                    }
+                  }}
+                  placeholder="Tuliskan ketentuan pertandingan di sini..."
+                  className="w-full p-3 font-mono text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-red-500 flex-1 min-h-[300px]"
+                />
+              )}
             </div>
 
             <div className="flex justify-between items-center pt-3 border-t border-zinc-200 dark:border-zinc-800">
@@ -1016,7 +1290,7 @@ export default function AdminPertandinganPage() {
                 <input
                   type="text"
                   required
-                  placeholder="mis. Kejuaraan Karate INKAI Surabaya Cup 2026"
+                  placeholder="mis. UKT Semester II-2026 atau Kejuaraan Karate INKAI Surabaya Cup 2026"
                   value={eventForm.title}
                   onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
                   className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
@@ -1024,14 +1298,14 @@ export default function AdminPertandinganPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Lokasi / Gelanggang *</label>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Lokasi / Tempat / Gelanggang *</label>
                 <input
                   type="text"
                   required
-                  placeholder="mis. GOR Pancasila Surabaya"
+                  placeholder="mis. Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya"
                   value={eventForm.location}
                   onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
+                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm text-ellipsis"
                 />
               </div>
 
@@ -1056,6 +1330,28 @@ export default function AdminPertandinganPage() {
                     className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Pukul / Jam Pelaksanaan</label>
+                <input
+                  type="text"
+                  placeholder="mis. 08.00 – 12.00 WIB"
+                  value={eventForm.eventTime}
+                  onChange={(e) => setEventForm({ ...eventForm, eventTime: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Deskripsi / Catatan Event</label>
+                <textarea
+                  rows={2}
+                  placeholder="mis. Pelaksanaan Kejuaraan & Ujian Kenaikan Tingkat Karate INKAI Cabang Kota Surabaya..."
+                  value={eventForm.description}
+                  onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm resize-none"
+                />
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

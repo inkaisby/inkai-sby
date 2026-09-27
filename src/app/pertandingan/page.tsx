@@ -34,6 +34,9 @@ import {
   Send,
   QrCode,
   CreditCard,
+  Copy,
+  Check,
+  Share2,
 } from "lucide-react";
 
 interface CategoryDetail {
@@ -52,6 +55,7 @@ interface EventItem {
   description?: string;
   startDate: string;
   endDate: string;
+  eventTime?: string;
   location?: string;
   rulesContent?: string | null;
   tournamentCategories?: CategoryDetail[];
@@ -157,6 +161,23 @@ export default function PublicPertandinganPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, "id"));
   }, [systemDojos]);
 
+  const [copiedRulesLink, setCopiedRulesLink] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const eventParam = params.get("event") || params.get("eventId");
+      const rulesParam = params.get("rules") || params.get("ketentuan");
+
+      if (eventParam) {
+        setSelectedEventId(eventParam);
+      }
+      if (rulesParam === "true" || rulesParam === "1") {
+        setShowRulesModal(true);
+      }
+    }
+  }, []);
+
   const fetchPublicData = async () => {
     setLoading(true);
     try {
@@ -188,6 +209,42 @@ export default function PublicPertandinganPage() {
   }, [selectedEventId, search]);
 
   const activeEvent = events.find((e) => e.id === selectedEventId);
+
+  const getRulesShareUrl = () => {
+    const eventId = selectedEventId || (events[0]?.id || "");
+    if (typeof window === "undefined") return `/pertandingan?event=${eventId}&rules=true`;
+    const baseUrl = `${window.location.origin}${window.location.pathname}`;
+    return eventId ? `${baseUrl}?event=${eventId}&rules=true` : `${baseUrl}?rules=true`;
+  };
+
+  const handleCopyRulesLink = () => {
+    const url = getRulesShareUrl();
+    navigator.clipboard.writeText(url);
+    setCopiedRulesLink(true);
+    setTimeout(() => setCopiedRulesLink(false), 3000);
+  };
+
+  const handleShareWaRules = () => {
+    const targetUrl = getRulesShareUrl();
+    const title = activeEvent?.title || "Kejuaraan Karate INKAI Surabaya";
+    const dateStr = activeEvent?.startDate
+      ? new Date(activeEvent.startDate).toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })
+      : "Minggu, 04 Oktober 2026";
+    const timeStr = activeEvent?.eventTime || "08.00 – 12.00 WIB";
+    const locStr = activeEvent?.location || "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya";
+
+    const message =
+      `*UNDANGAN & KETENTUAN KEJUARAAN KARATE INKAI SURABAYA*\n` +
+      `-------------------------------------------\n` +
+      `🏆 *Event:* ${title}\n` +
+      `📅 *Hari/Tanggal:* ${dateStr}\n` +
+      `⏰ *Pukul:* ${timeStr}\n` +
+      `📍 *Tempat:* ${locStr}\n\n` +
+      `📖 *Ketentuan & Informasi Lengkap Pertandingan:* \n${targetUrl}\n\n` +
+      `Silakan buka tautan di atas untuk membaca ketentuan pertandingan, pendaftaran atlet, & roster resmi!`;
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
+  };
 
   // Filter categories by birth date and gender for Guest Modal
   const availableCategories = (activeEvent?.tournamentCategories || []).filter((cat) => {
@@ -379,15 +436,30 @@ export default function PublicPertandinganPage() {
               Daftar Peserta Tamu / Eksternal
             </button>
 
-            {activeEvent?.rulesContent && (
-              <button
-                onClick={() => setShowRulesModal(true)}
-                className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold text-sm rounded-xl backdrop-blur transition border border-white/20 flex items-center gap-2"
-              >
-                <BookOpen className="w-4 h-4 text-yellow-300" />
-                Baca Ketentuan Pertandingan
-              </button>
-            )}
+            <button
+              onClick={() => setShowRulesModal(true)}
+              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold text-sm rounded-xl backdrop-blur transition border border-white/20 flex items-center gap-2"
+            >
+              <BookOpen className="w-4 h-4 text-yellow-300" />
+              Ketentuan Pertandingan
+            </button>
+
+            <button
+              onClick={handleCopyRulesLink}
+              className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-semibold text-sm rounded-xl backdrop-blur transition border border-white/20 flex items-center gap-2"
+              title="Salin tautan langsung ketentuan pertandingan ini"
+            >
+              {copiedRulesLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-cyan-300" />}
+              {copiedRulesLink ? "Tautan Disalin!" : "Salin Link Ketentuan"}
+            </button>
+
+            <button
+              onClick={handleShareWaRules}
+              className="px-4 py-2.5 bg-emerald-600/90 hover:bg-emerald-600 text-white font-semibold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
+            >
+              <Send className="w-4 h-4 text-white" />
+              WA Undangan & Ketentuan
+            </button>
           </div>
         </div>
       </div>
@@ -413,14 +485,18 @@ export default function PublicPertandinganPage() {
           </div>
 
           {activeEvent && (
-            <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              <span className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg">
+            <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              <span className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
                 <Calendar className="w-4 h-4 text-red-500" />
-                {new Date(activeEvent.startDate).toLocaleDateString("id-ID")} - {new Date(activeEvent.endDate).toLocaleDateString("id-ID")}
+                {new Date(activeEvent.startDate).toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
               </span>
-              <span className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg">
-                <MapPin className="w-4 h-4 text-red-500" />
-                {activeEvent.location || "Surabaya"}
+              <span className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                <Clock className="w-4 h-4 text-amber-500" />
+                {activeEvent.eventTime || "08.00 – 12.00 WIB"}
+              </span>
+              <span className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                <MapPin className="w-4 h-4 text-emerald-500" />
+                {activeEvent.location || "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya"}
               </span>
             </div>
           )}
@@ -1204,30 +1280,84 @@ export default function PublicPertandinganPage() {
       {showRulesModal && activeEvent && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-3xl w-full p-6 space-y-4 shadow-2xl max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between border-b pb-3 border-zinc-200 dark:border-zinc-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 border-zinc-200 dark:border-zinc-800 gap-3">
               <h3 className="font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-red-600" />
                 Ketentuan & Proposal Pertandingan: {activeEvent.title}
               </h3>
-              <button onClick={() => setShowRulesModal(false)} className="text-zinc-500 hover:text-zinc-800">
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCopyRulesLink}
+                  className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition"
+                  title="Salin tautan langsung ketentuan pertandingan ini"
+                >
+                  {copiedRulesLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-blue-500" />}
+                  {copiedRulesLink ? "Disalin!" : "Salin Link"}
+                </button>
+                <button
+                  onClick={handleShareWaRules}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 transition"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  WA Undangan
+                </button>
+                <button onClick={() => setShowRulesModal(false)} className="text-zinc-500 hover:text-zinc-800 text-lg leading-none p-1">
+                  ✕
+                </button>
+              </div>
             </div>
             
-            <div
-              className="flex-1 overflow-y-auto prose dark:prose-invert prose-sm max-w-none text-zinc-700 dark:text-zinc-300 p-4 border rounded-xl bg-zinc-50 dark:bg-zinc-800/50"
-              dangerouslySetInnerHTML={{ __html: activeEvent.rulesContent || "<p>Ketentuan pertandingan belum diterbitkan.</p>" }}
-            />
+            <div className="flex-1 overflow-y-auto prose dark:prose-invert prose-sm max-w-none text-zinc-700 dark:text-zinc-300 p-4 border rounded-xl bg-zinc-50 dark:bg-zinc-800/50">
+              {activeEvent.rulesContent ? (
+                <div dangerouslySetInnerHTML={{ __html: activeEvent.rulesContent }} />
+              ) : (
+                <div className="space-y-4 not-prose">
+                  <div className="p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-xl space-y-2">
+                    <h4 className="font-bold text-red-900 dark:text-red-200 text-sm flex items-center gap-2">
+                      <Trophy className="w-4 h-4 text-red-600" />
+                      Informasi & Ketentuan Pelaksanaan Pertandingan
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-red-800 dark:text-red-300">
+                      <div><strong>Nama Event:</strong> {activeEvent.title}</div>
+                      <div><strong>Tanggal:</strong> {new Date(activeEvent.startDate).toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</div>
+                      <div><strong>Waktu:</strong> {activeEvent.eventTime || "08.00 – 12.00 WIB"}</div>
+                      <div className="sm:col-span-2"><strong>Lokasi:</strong> {activeEvent.location || "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya"}</div>
+                    </div>
+                  </div>
 
-            <div className="flex justify-between items-center pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                  <div className="text-xs space-y-2 text-zinc-700 dark:text-zinc-300 not-prose">
+                    <p className="font-semibold text-zinc-900 dark:text-white">Ketentuan Umum Pendaftaran & Roster Atlet:</p>
+                    <ul className="list-disc pl-5 space-y-1.5 leading-relaxed">
+                      <li>Pendaftaran dilakukan oleh Admin Dojo/Kontingen atau Peserta Tamu Mandiri melalui portal resmi ini.</li>
+                      <li>Setiap atlet didaftarkan sesuai dengan kelompok umur, jenis kelamin (KATA / KUMITE), dan kategori kelas yang tersedia.</li>
+                      <li>Berkas verifikasi wajib yang perlu dilengkapi: Foto Profil, Akte Kelahiran, dan BPJS/Asuransi Kesehatan.</li>
+                      <li>Timbang badan dan pemeriksaan ulang dokumen fisik dilaksanakan di lokasi pertandingan sebelum sesi match dimulai.</li>
+                      <li>Untuk perubahan data atau pembatalan, peserta/official dapat menghubungi panitia pelaksana via kontak WhatsApp resmi.</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
               <span className="text-xs text-zinc-500">Institut Karate-Do Indonesia Cabang Surabaya</span>
-              <button
-                type="button"
-                onClick={() => setShowRulesModal(false)}
-                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs rounded-xl shadow"
-              >
-                Tutup
-              </button>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={handleCopyRulesLink}
+                  className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-semibold text-xs rounded-xl flex items-center gap-1.5 transition"
+                >
+                  {copiedRulesLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-blue-500" />}
+                  {copiedRulesLink ? "Tautan Disalin!" : "Salin Link Ketentuan"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRulesModal(false)}
+                  className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs rounded-xl shadow transition"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
         </div>

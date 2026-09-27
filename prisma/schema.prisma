@@ -283,6 +283,7 @@ model Event {
   description         String?
   startDate           DateTime
   endDate             DateTime
+  eventTime           String?
   registrationCloseAt DateTime?
   location            String?
   rulesContent        String?             @db.Text

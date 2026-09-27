@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { title, description, startDate, endDate, registrationCloseAt, location, branchId } = body;
+    const { title, description, startDate, endDate, eventTime, registrationCloseAt, location, branchId } = body;
 
     if (!title || !startDate || !endDate) {
       return NextResponse.json({ error: "Judul, tanggal mulai, dan tanggal selesai wajib diisi" }, { status: 400 });
@@ -58,8 +58,9 @@ export async function POST(request: Request) {
         description: description || "Kejuaraan Karate INKAI",
         startDate: new Date(startDate),
         endDate: new Date(endDate),
+        eventTime: eventTime || "08.00 – 12.00 WIB",
         registrationCloseAt: registrationCloseAt ? new Date(registrationCloseAt) : null,
-        location: location || "Gelanggang Olahraga Surabaya",
+        location: location || "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya",
         branchId: branchId || session.user.managedBranchId || null,
         createdById: session.user.id,
       },
@@ -178,7 +179,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, title, description, startDate, endDate, registrationCloseAt, location, rulesContent } = body;
+    const { id, title, description, startDate, endDate, eventTime, registrationCloseAt, location, rulesContent } = body;
 
     if (!id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
@@ -189,6 +190,7 @@ export async function PATCH(request: Request) {
     if (description !== undefined) updateData.description = description;
     if (startDate) updateData.startDate = new Date(startDate);
     if (endDate) updateData.endDate = new Date(endDate);
+    if (eventTime !== undefined) updateData.eventTime = eventTime;
     if (registrationCloseAt !== undefined) {
       updateData.registrationCloseAt = registrationCloseAt ? new Date(registrationCloseAt) : null;
     }
