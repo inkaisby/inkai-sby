@@ -83,6 +83,8 @@ interface MemberItem {
   currentRank?: string;
   gender?: string;
   birthDate?: string;
+  dojoId?: string;
+  dojo?: { id: string; name: string };
   photoUrl?: string;
   birthCertificateUrl?: string;
   bpjsCardUrl?: string;
@@ -167,20 +169,6 @@ export default function AdminPertandinganPage() {
     return () => clearTimeout(timer);
   }, [search, selectedEventId]);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const regMemberId = params.get("registerMemberId");
-      if (regMemberId) {
-        setBatchReg((prev) => ({
-          ...prev,
-          entries: [{ memberId: regMemberId, categoryId: "" }],
-        }));
-        setShowBatchRegModal(true);
-      }
-    }
-  }, []);
-
   // Modals
   const [showNewEventModal, setShowNewEventModal] = useState(false);
   const [showEditEventModal, setShowEditEventModal] = useState<EventItem | null>(null);
@@ -222,6 +210,32 @@ export default function AdminPertandinganPage() {
     officialPhone: "",
     entries: [{ memberId: "", categoryId: "" }],
   });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const regMemberId = params.get("registerMemberId");
+      if (regMemberId) {
+        setBatchReg((prev) => ({
+          ...prev,
+          entries: [{ memberId: regMemberId, categoryId: "" }],
+        }));
+        setShowBatchRegModal(true);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showBatchRegModal) return;
+    const firstMemberId = batchReg.entries.find((e) => e.memberId)?.memberId;
+    if (firstMemberId && members.length > 0) {
+      const targetMember = members.find((m) => m.id === firstMemberId);
+      const detectedDojoId = targetMember?.dojoId || targetMember?.dojo?.id;
+      if (detectedDojoId && detectedDojoId !== batchReg.dojoId) {
+        setBatchReg((prev) => ({ ...prev, dojoId: detectedDojoId }));
+      }
+    }
+  }, [batchReg.entries, members, showBatchRegModal]);
 
   const [actualWeightInput, setActualWeightInput] = useState("");
   const [weightStatusInput, setWeightStatusInput] = useState("VERIFIED");
@@ -404,12 +418,23 @@ export default function AdminPertandinganPage() {
         return;
       }
 
+      let targetDojoId = batchReg.dojoId;
+      if (!targetDojoId && validEntries.length > 0) {
+        const m = members.find((mem) => mem.id === validEntries[0].memberId);
+        targetDojoId = m?.dojoId || m?.dojo?.id || "";
+      }
+
+      if (!targetDojoId) {
+        alert("Dojo / Ranting atlet tidak ditemukan. Pastikan data anggota memiliki Dojo.");
+        return;
+      }
+
       const res = await fetch("/api/admin/pertandingan/registrations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId: selectedEventId,
-          dojoId: batchReg.dojoId,
+          dojoId: targetDojoId,
           officialName: batchReg.officialName,
           officialPhone: batchReg.officialPhone,
           entries: validEntries,
@@ -1469,21 +1494,39 @@ export default function AdminPertandinganPage() {
 
       {/* Modal Pendaftaran Kontingen (Batch) */}
       {showBatchRegModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-              <Users className="w-5 h-5 text-red-600" />
-              Pendaftaran Kontingen / Dojo
-            </h2>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-4xl lg:max-w-5xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3 border-zinc-200 dark:border-zinc-800">
+              <h2 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-red-600" />
+                Pendaftaran Kontingen / Dojo
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowBatchRegModal(false)}
+                className="text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
             <form onSubmit={handleBatchRegister} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-zinc-50 dark:bg-zinc-800/60 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700/60">
                 <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Pilih Dojo / Ranting *</label>
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center justify-between mb-1">
+                    <span>Pilih Dojo / Ranting *</span>
+                    {batchReg.dojoId && (
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.5 rounded font-medium">
+                        ✓ Otomatis dari Atlet
+                      </span>
+                    )}
+                  </label>
                   <select
                     required
+                    disabled
                     value={batchReg.dojoId}
                     onChange={(e) => setBatchReg({ ...batchReg, dojoId: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
+                    className="w-full px-3 py-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm text-zinc-700 dark:text-zinc-300 cursor-not-allowed opacity-90 font-medium"
                   >
                     <option value="">-- Pilih Dojo --</option>
                     {dojos.map((d) => (
@@ -1493,92 +1536,102 @@ export default function AdminPertandinganPage() {
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Nama Official / Manager</label>
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1 block">Nama Official / Manager</label>
                   <input
                     type="text"
                     placeholder="mis. Sensei Ahmad"
                     value={batchReg.officialName}
                     onChange={(e) => setBatchReg({ ...batchReg, officialName: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
+                    className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">No. WA Official</label>
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1 block">No. WA Official</label>
                   <input
                     type="text"
                     placeholder="08123456789"
                     value={batchReg.officialPhone}
                     onChange={(e) => setBatchReg({ ...batchReg, officialPhone: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
+                    className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm text-zinc-900 dark:text-zinc-100"
                   />
                 </div>
               </div>
 
               {/* Entries list */}
               <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Daftar Atlet & Kategori Kelas</span>
+                <div className="flex items-center justify-between pb-1 border-b border-zinc-200 dark:border-zinc-800">
+                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400">Daftar Atlet & Kategori Kelas Pertandingan</span>
                   <button
                     type="button"
                     onClick={() => setBatchReg({
                       ...batchReg,
                       entries: [...batchReg.entries, { memberId: "", categoryId: "" }],
                     })}
-                    className="text-xs text-red-600 dark:text-red-400 font-semibold hover:underline flex items-center gap-1"
+                    className="text-xs bg-red-50 hover:bg-red-100 dark:bg-red-950/50 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1 border border-red-200 dark:border-red-900"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Baris Baru
+                    <Plus className="w-3.5 h-3.5" /> + Baris Baru
                   </button>
                 </div>
 
                 {batchReg.entries.map((entry, idx) => (
-                  <div key={idx} className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800/50 p-2 rounded-xl border border-zinc-200 dark:border-zinc-700">
-                    <span className="text-xs font-mono text-zinc-400 pl-1">{idx + 1}.</span>
-                    
-                    <select
-                      required
-                      value={entry.memberId}
-                      onChange={(e) => {
-                        const next = [...batchReg.entries];
-                        next[idx].memberId = e.target.value;
-                        setBatchReg({ ...batchReg, entries: next });
-                      }}
-                      className="flex-1 px-2 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs"
-                    >
-                      <option value="">-- Pilih Atlet / Anggota --</option>
-                      {members.map((m) => (
-                        <option key={m.id} value={m.id}>{m.fullName} ({m.currentRank})</option>
-                      ))}
-                    </select>
-
-                    <select
-                      required
-                      value={entry.categoryId}
-                      onChange={(e) => {
-                        const next = [...batchReg.entries];
-                        next[idx].categoryId = e.target.value;
-                        setBatchReg({ ...batchReg, entries: next });
-                      }}
-                      className="flex-1 px-2 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs"
-                    >
-                      <option value="">-- Pilih Kelas Pertandingan --</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name} (Rp {c.fee.toLocaleString("id-ID")})</option>
-                      ))}
-                    </select>
-
-                    {batchReg.entries.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = batchReg.entries.filter((_, i) => i !== idx);
+                  <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-zinc-50 dark:bg-zinc-800/40 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700/70 items-center">
+                    <div className="md:col-span-5 flex items-center gap-2">
+                      <span className="text-xs font-mono text-zinc-400 font-bold w-5 shrink-0">{idx + 1}.</span>
+                      <select
+                        required
+                        value={entry.memberId}
+                        onChange={(e) => {
+                          const next = [...batchReg.entries];
+                          next[idx].memberId = e.target.value;
                           setBatchReg({ ...batchReg, entries: next });
                         }}
-                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                        className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-medium text-zinc-900 dark:text-zinc-100"
                       >
-                        <XCircle className="w-4 h-4" />
-                      </button>
-                    )}
+                        <option value="">-- Pilih Atlet / Anggota --</option>
+                        {members.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.fullName} ({m.dojo?.name || "Dojo -"}) - {m.currentRank || "Kyu"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="md:col-span-6">
+                      <select
+                        required
+                        value={entry.categoryId}
+                        onChange={(e) => {
+                          const next = [...batchReg.entries];
+                          next[idx].categoryId = e.target.value;
+                          setBatchReg({ ...batchReg, entries: next });
+                        }}
+                        className="w-full px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-medium text-zinc-900 dark:text-zinc-100"
+                      >
+                        <option value="">-- Pilih Kelas Pertandingan --</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} (Rp {c.fee.toLocaleString("id-ID")})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="md:col-span-1 flex justify-end">
+                      {batchReg.entries.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = batchReg.entries.filter((_, i) => i !== idx);
+                            setBatchReg({ ...batchReg, entries: next });
+                          }}
+                          className="p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-950/60 rounded-lg transition"
+                          title="Hapus Baris"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

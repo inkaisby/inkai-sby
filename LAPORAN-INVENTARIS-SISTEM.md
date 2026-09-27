@@ -368,8 +368,13 @@ Pusat / Nasional
    - Perhitungan saldo berjalan (*running saldo*) otomatis terhitung akurat sesuai tanggal urutan kronologis.
 ```
 
-### 9.4 Kegiatan & absensi
-- **Cabang** dapat membuat event non-UKT di `/admin/kegiatan` (Gashuku, pertandingan, dll.).
+### 9.4 Kegiatan, Kejuaraan Pertandingan & absensi
+- **Cabang** dapat membuat event non-UKT di `/admin/kegiatan` & Kejuaraan Pertandingan di `/admin/pertandingan` (Kejurprov FORKI 2026, Karate Cup, Gashuku, dll.).
+- **Kejuaraan Pertandingan (`/admin/pertandingan` & `/pertandingan`)**:
+  - Modal **Pendaftaran Kontingen / Dojo** (`showBatchRegModal`) diperluas menjadi `max-w-4xl lg:max-w-5xl` dengan layout grid 12 kolom (`grid-cols-1 md:grid-cols-12`) agar nama atlet, sabuk, dan pilihan kelas pertandingan berbiaya tampil utuh tanpa terpotong atau scroll horizontal.
+  - Dropdown **Pilih Dojo / Ranting** terisi otomatis (`batchReg.dojoId`) dari data `dojoId` atlet yang dipilih dan di-set `disabled` untuk mencegah kesalahan pemilihan ranting secara manual.
+  - Halaman publik `/pertandingan` menampilkan Sekilas Keterangan & Ketentuan Pertandingan + OpenGraph preview metadata (`/pertandingan/layout.tsx`).
+  - Pencarian suggest anggota dan registrasi cepat event dari `/admin/anggota` (`EventQuickRegisterButtons.tsx`).
 - Anggota mendaftar event jika profil/dokumen/iuran memenuhi syarat.
 - Anggota check-in di `/dashboard/absensi`: GPS otomatis ke dojo ber-geofence terdekat; override “Bukan di sini?”; QR opsional; biometrik HP (WebAuthn) opsional + GPS tetap wajib; maks **1×/hari** (Asia/Jakarta), termasuk kredit hari Latber lunas.
 - % kehadiran semester = **hari unik** / 48 (check-in GPS + kredit Latber lunas, tanpa dobel hari); badge progres bertahap (MULAI LATIHAN … LAYAK UJIAN); min UKT 75%.
