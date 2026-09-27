@@ -6,8 +6,8 @@ export const SITE_PROVINCE_NAME = "JAWA TIMUR";
 
 export const SITE_CONTACT = {
   address: "Jl. Raya Darmo Permai III No. 12, Surabaya, Jawa Timur 60226",
-  phone: "081331053100",
-  whatsapp: "6281331053100",
+  phone: "082257203462",
+  whatsapp: "6282257203462",
   email: "inkai.sby@gmail.com",
   instagram: "https://instagram.com/inkaisurabaya",
   mapsUrl: "https://maps.google.com/?q=INKAI+Surabaya",

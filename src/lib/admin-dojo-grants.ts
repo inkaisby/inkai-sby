@@ -22,6 +22,8 @@ export const ADMIN_DOJO_SIDEBAR_OPTIONS = [
   { path: "/admin/ukt/arsip", label: "UKT — Arsip" },
   { path: "/admin/latber", label: "Latihan Bersama — Pendaftaran" },
   { path: "/admin/latber/arsip", label: "Latihan Bersama — Arsip" },
+  { path: "/admin/pertandingan", label: "Pertandingan — Pendaftaran & Roster" },
+  { path: "/admin/pertandingan/kategori", label: "Pertandingan — Kategori Kelas" },
   { path: "/admin/kegiatan", label: "Event & Kegiatan" },
   { path: "/admin/absensi", label: "Absensi" },
   { path: "/admin/materi", label: "Materi Digital" },
@@ -192,6 +194,17 @@ function softBackfillKas(paths: string[]): string[] {
   return paths;
 }
 
+function softBackfillPertandingan(paths: string[]): string[] {
+  const PERTANDINGAN_PATHS = ["/admin/pertandingan", "/admin/pertandingan/kategori"];
+  const hasPertandingan = PERTANDINGAN_PATHS.every((p) => paths.includes(p));
+  if (hasPertandingan) return paths;
+  const next = [...paths];
+  for (const p of PERTANDINGAN_PATHS) {
+    if (!next.includes(p)) next.push(p);
+  }
+  return next;
+}
+
 function normalizeSidebarPaths(paths: unknown): string[] {
   if (!Array.isArray(paths)) return [...DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS];
   const allowed = new Set<string>(DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS);
@@ -202,8 +215,10 @@ function normalizeSidebarPaths(paths: unknown): string[] {
     }
   }
   const normalized = out.length ? out : ["/admin"];
-  return softBackfillKas(
-    softBackfillKwitansi(softBackfillLatber(softBackfillAbsensi(normalized))),
+  return softBackfillPertandingan(
+    softBackfillKas(
+      softBackfillKwitansi(softBackfillLatber(softBackfillAbsensi(normalized))),
+    ),
   );
 }
 

@@ -90,6 +90,14 @@ const LATBER_NAV_GROUP: NavGroup = {
   ],
 };
 
+const PERTANDINGAN_NAV_GROUP: NavGroup = {
+  label: "Kejuaraan / Pertandingan",
+  children: [
+    { href: "/admin/pertandingan", label: "Pendaftaran & Roster" },
+    { href: "/admin/pertandingan/kategori", label: "Kategori Kelas" },
+  ],
+};
+
 const SEKRETARIAT_NAV_GROUP: NavGroup = {
   label: "Sekretariat",
   children: [
@@ -116,6 +124,7 @@ export const ADMIN_LINKS: NavItem[] = [
   { href: "/admin/iuran", label: "Iuran Anggota" },
   UKT_NAV_GROUP,
   LATBER_NAV_GROUP,
+  PERTANDINGAN_NAV_GROUP,
   { href: "/admin/kegiatan", label: "Event & Kegiatan" },
   { href: "/admin/absensi", label: "Absensi" },
   {
@@ -186,6 +195,7 @@ export function getAdminNavLinks(
     { href: "/admin/iuran", label: "Iuran Anggota" },
     UKT_NAV_GROUP,
     LATBER_NAV_GROUP,
+    PERTANDINGAN_NAV_GROUP,
     { href: "/admin/kegiatan", label: "Event & Kegiatan" },
     { href: "/admin/absensi", label: "Absensi" },
     {
@@ -216,6 +226,7 @@ export const MEMBER_LINKS: NavItem[] = [
   { href: "/dashboard/absensi", label: "Absensi" },
   { href: "/dashboard/iuran", label: "Iuran" },
   { href: "/dashboard/kegiatan", label: "Kegiatan Saya" },
+  { href: "/dashboard/pertandingan", label: "Pendaftaran Kejuaraan" },
   { href: "/dashboard/prestasi", label: "Prestasi & Sabuk" },
   { href: "/dashboard/artikel", label: "Artikel" },
   { href: "/dashboard/materi", label: "Materi Digital" },

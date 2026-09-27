@@ -57,10 +57,11 @@ model Dojo {
   bankName           String?
   bankAccountNumber  String?
   bankAccountName    String?
-  attendances        Attendance[]
-  branch             Branch       @relation(fields: [branchId], references: [id])
-  members            Member[]
-  admins             User[]       @relation("DojoAdmin")
+  attendances             Attendance[]
+  branch                  Branch                   @relation(fields: [branchId], references: [id])
+  members                 Member[]
+  admins                  User[]                   @relation("DojoAdmin")
+  tournamentRegistrations TournamentRegistration[]
 
   @@unique([name, branchId])
 }
@@ -197,6 +198,7 @@ model Member {
   attendances           Attendance[]
   billings              Billing[]
   eventRegistrations    EventRegistration[]
+  tournamentRegistrations TournamentRegistration[]
   dojo                  Dojo                @relation(fields: [dojoId], references: [id])
   parentUser            User?               @relation("ParentChildren", fields: [parentUserId], references: [id])
   user                  User?               @relation(fields: [userId], references: [id])
@@ -283,6 +285,7 @@ model Event {
   endDate             DateTime
   registrationCloseAt DateTime?
   location            String?
+  rulesContent        String?             @db.Text
   branchId            String?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
@@ -292,6 +295,8 @@ model Event {
   branch              Branch?             @relation(fields: [branchId], references: [id])
   categories          EventCategory[]
   registrations       EventRegistration[]
+  tournamentCategories TournamentCategory[]
+  tournamentRegistrations TournamentRegistration[]
   verifications       Verification[]
   attendances         Attendance[]
 
@@ -323,6 +328,53 @@ model EventRegistration {
   member             Member         @relation(fields: [memberId], references: [id])
 
   @@unique([eventId, memberId])
+  @@index([eventId, status])
+}
+
+model TournamentCategory {
+  id            String                   @id @default(uuid())
+  eventId       String
+  name          String
+  categoryType  String                   // KATA_INDIVIDUAL | KATA_TEAM | KUMITE_INDIVIDUAL | KUMITE_TEAM
+  gender        String                   // MALE | FEMALE | MIXED
+  minAge        Int?
+  maxAge        Int?
+  minBirthDate  DateTime?                @db.Date
+  maxBirthDate  DateTime?                @db.Date
+  minWeight     Float?
+  maxWeight     Float?
+  fee           Float                    @default(0)
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  event         Event                    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registrations TournamentRegistration[]
+
+  @@index([eventId])
+}
+
+model TournamentRegistration {
+  id                 String             @id @default(uuid())
+  eventId            String
+  dojoId             String
+  memberId           String
+  categoryId         String
+  registeredByUserId String?
+  status             String             @default("REGISTERED") // REGISTERED | PAID | VERIFIED | REJECTED
+  actualWeight       Float?
+  officialName       String?
+  officialPhone      String?
+  notes              String?
+  billingId          String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  event              Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  dojo               Dojo               @relation(fields: [dojoId], references: [id])
+  member             Member             @relation(fields: [memberId], references: [id])
+  category           TournamentCategory @relation(fields: [categoryId], references: [id])
+
+  @@unique([eventId, memberId, categoryId])
+  @@index([eventId, dojoId])
+  @@index([memberId])
   @@index([eventId, status])
 }
 

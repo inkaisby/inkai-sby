@@ -16,6 +16,7 @@ import {
   ArrowRightLeft,
   History,
   Newspaper,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -35,6 +36,7 @@ type Action = {
 };
 
 const MORE_LINKS = [
+  { icon: Trophy, label: "Kejuaraan", href: "/dashboard/pertandingan" },
   { icon: Newspaper, label: "Artikel", href: "/dashboard/artikel" },
   { icon: ShoppingBag, label: "Store", href: "/dashboard/store" },
   { icon: Scroll, label: "Piagam", href: "/dashboard/prestasi?tab=Piagam" },
