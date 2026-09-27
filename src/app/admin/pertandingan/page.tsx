@@ -476,6 +476,24 @@ export default function AdminPertandinganPage() {
     }
   };
 
+  const handleUpdateCategory = async (id: string, categoryId: string) => {
+    try {
+      const res = await fetch("/api/admin/pertandingan/registrations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, categoryId }),
+      });
+      if (res.ok) {
+        fetchRegistrations();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Gagal mengubah kelas pertandingan");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleUpdateWeight = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!showWeightModal) return;
@@ -846,17 +864,34 @@ export default function AdminPertandinganPage() {
                           </span>
                         ) : (
                           <button
-                            onClick={() => {
-                              setBatchReg({
-                                dojoId: m.dojoId || "",
-                                officialName: "",
-                                officialPhone: "",
-                                entries: [{ memberId: m.id, categoryId: "" }],
-                              });
-                              setShowBatchRegModal(true);
-                              setShowSuggestDropdown(false);
+                            onClick={async () => {
+                              if (categories.length === 0) {
+                                alert("Belum ada kategori kelas pertandingan pada event ini. Buat/kelola kelas terlebih dahulu.");
+                                return;
+                              }
+                              try {
+                                const res = await fetch("/api/admin/pertandingan/registrations", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    eventId: selectedEventId,
+                                    dojoId: m.dojoId || m.dojo?.id || "",
+                                    entries: [{ memberId: m.id, categoryId: categories[0].id }],
+                                  }),
+                                });
+                                const data = await res.json();
+                                if (res.ok) {
+                                  setShowSuggestDropdown(false);
+                                  await fetchRegistrations();
+                                } else {
+                                  alert(data.error || "Gagal meregistrasikan atlet");
+                                }
+                              } catch (err) {
+                                console.error(err);
+                                alert("Terjadi kesalahan saat registrasi atlet");
+                              }
                             }}
-                            className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[11px] transition shadow-sm"
+                            className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[11px] transition shadow-sm shrink-0 flex items-center gap-1"
                           >
                             🏆 Daftarkan
                           </button>
@@ -1055,10 +1090,18 @@ export default function AdminPertandinganPage() {
                       </div>
                     </td>
 
-                    <td className="py-3 px-4 min-w-[180px]">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900 leading-normal">
-                        {reg.category.name}
-                      </span>
+                    <td className="py-3 px-4 min-w-[240px]">
+                      <select
+                        value={reg.categoryId}
+                        onChange={(e) => handleUpdateCategory(reg.id, e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-red-50/60 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-xs font-semibold text-red-700 dark:text-red-300 focus:ring-2 focus:ring-red-500 cursor-pointer shadow-xs truncate"
+                      >
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-normal">
+                            {c.name} (Rp {c.fee.toLocaleString("id-ID")})
+                          </option>
+                        ))}
+                      </select>
                     </td>
 
                     <td className="py-3 px-4 font-semibold text-zinc-900 dark:text-zinc-100 text-right whitespace-nowrap">

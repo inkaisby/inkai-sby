@@ -164,7 +164,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, status, actualWeight, notes } = body;
+    const { id, status, actualWeight, notes, categoryId } = body;
 
     if (!id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
@@ -174,6 +174,7 @@ export async function PATCH(request: Request) {
     if (status !== undefined) dataToUpdate.status = status;
     if (actualWeight !== undefined) dataToUpdate.actualWeight = actualWeight ? parseFloat(actualWeight) : null;
     if (notes !== undefined) dataToUpdate.notes = notes;
+    if (categoryId !== undefined) dataToUpdate.categoryId = categoryId;
 
     const updated = await prisma.tournamentRegistration.update({
       where: { id },
