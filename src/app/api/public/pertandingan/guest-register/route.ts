@@ -105,12 +105,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Kategori pertandingan tidak ditemukan." }, { status: 404 });
     }
 
-    // 2. User Account Creation (Email & Password check if provided)
+    // 2. User Account Creation (Email & Password check if provided, or auto-generated)
     let createdUserId: string | undefined = undefined;
-    if (email && password) {
-      const cleanEmail = email.toLowerCase().trim();
+    const guestNia = `TAMU-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    let finalEmail = email ? email.toLowerCase().trim() : `atlet.${guestNia.toLowerCase()}@inkai-sby.org`;
+    let finalPassword = password || `inkai${Math.floor(1000 + Math.random() * 9000)}`;
+
+    if (email) {
       const existingUser = await prisma.user.findUnique({
-        where: { email: cleanEmail },
+        where: { email: finalEmail },
       });
       if (existingUser) {
         return NextResponse.json(
@@ -118,26 +122,38 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-
-      if (password.length < 6) {
+      if (password && password.length < 6) {
         return NextResponse.json(
           { error: "Password minimal 6 karakter." },
           { status: 400 }
         );
       }
-
-      const passwordHash = await bcrypt.hash(password, 10);
-      const newUser = await prisma.user.create({
-        data: {
-          email: cleanEmail,
-          passwordHash,
-          fullName: fullName.trim(),
-          phoneNumber: phone || null,
-          isActive: true,
-        },
-      });
-      createdUserId = newUser.id;
+    } else {
+      // Ensure unique auto-generated email
+      let attempts = 0;
+      while (attempts < 5) {
+        const existingAutoUser = await prisma.user.findUnique({
+          where: { email: finalEmail },
+        });
+        if (!existingAutoUser) break;
+        finalEmail = `atlet.${guestNia.toLowerCase()}${attempts + 1}@inkai-sby.org`;
+        attempts++;
+      }
     }
+
+    const formattedFullName = fullName.toUpperCase().trim();
+
+    const passwordHash = await bcrypt.hash(finalPassword, 10);
+    const newUser = await prisma.user.create({
+      data: {
+        email: finalEmail,
+        passwordHash,
+        fullName: formattedFullName,
+        phoneNumber: phone || null,
+        isActive: true,
+      },
+    });
+    createdUserId = newUser.id;
 
     // 3. Find or create Dojo
     const targetDojoName = dojoName?.trim() || "Dojo External / Tamu";
@@ -163,10 +179,9 @@ export async function POST(request: Request) {
     }
 
     // 4. Create Guest Member Record with Login Account & Uploaded Document URLs
-    const guestNia = `TAMU-${Math.floor(100000 + Math.random() * 900000)}`;
     const guestMember = await prisma.member.create({
       data: {
-        fullName: fullName.trim(),
+        fullName: formattedFullName,
         gender: gender,
         birthDate: new Date(birthDate),
         dojoId: dojo.id,
@@ -200,10 +215,12 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: createdUserId
-        ? "Pendaftaran berhasil! Akun telah dibuat, Anda dapat login menggunakan email & password tersebut."
-        : "Pendaftaran sebagai tamu berhasil tercatat!",
+      message: "Pendaftaran sebagai tamu berhasil tercatat!",
       registration,
+      account: {
+        email: finalEmail,
+        password: finalPassword,
+      },
     });
   } catch (error: any) {
     console.error("POST /api/public/pertandingan/guest-register error:", error);

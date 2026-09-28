@@ -211,7 +211,8 @@ export default function PublicPertandinganPage() {
     athleteName: string;
     categoryName: string;
     dojoName: string;
-    fee: number;
+    email?: string;
+    password?: string;
   } | null>(null);
 
   const dojoOptionsList = useMemo(() => {
@@ -431,12 +432,15 @@ export default function PublicPertandinganPage() {
 
     setGuestSubmitting(true);
     try {
+      const uppercaseFullName = guestForm.fullName.toUpperCase().trim();
+
       const res = await fetch("/api/public/pertandingan/guest-register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId: selectedEventId,
           ...guestForm,
+          fullName: uppercaseFullName,
         }),
       });
       const data = await res.json();
@@ -445,16 +449,21 @@ export default function PublicPertandinganPage() {
       }
 
       const matchedCategory = (activeEvent?.tournamentCategories || []).find((c) => c.id === guestForm.categoryId);
-      const feeAmount = matchedCategory?.fee || 150000;
       const regId = data.registration?.id || `REG-${Date.now().toString().slice(-6).toUpperCase()}`;
 
       setPaymentSuccessData({
         registrationId: regId,
-        athleteName: guestForm.fullName,
+        athleteName: uppercaseFullName,
         categoryName: matchedCategory?.name || "Kelas Pertandingan Karate",
         dojoName: guestForm.dojoName || "Dojo Mandiri / Tamu",
-        fee: feeAmount,
+        email: data.account?.email || guestForm.email,
+        password: data.account?.password || guestForm.password,
       });
+
+      // Directly add newly registered guest to table state for immediate reflection
+      if (data.registration) {
+        setRegistrations((prev) => [data.registration, ...prev.filter((r) => r.id !== data.registration.id)]);
+      }
 
       setGuestForm({
         fullName: "",
@@ -473,7 +482,7 @@ export default function PublicPertandinganPage() {
         bpjsCardUrl: "",
       });
 
-      // Refresh daftar peserta publik
+      // Refresh daftar peserta publik dari server
       fetchPublicData();
       setShowGuestModal(false);
       setGuestSuccess(null);
@@ -1612,10 +1621,10 @@ export default function PublicPertandinganPage() {
                   <input
                     type="text"
                     required
-                    placeholder="Contoh: Ahmad Rizky"
+                    placeholder="CONTOH: AHMAD RIZKY"
                     value={guestForm.fullName}
-                    onChange={(e) => setGuestForm({ ...guestForm, fullName: e.target.value })}
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm"
+                    onChange={(e) => setGuestForm({ ...guestForm, fullName: e.target.value.toUpperCase() })}
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm uppercase"
                   />
                 </div>
 
@@ -1962,29 +1971,29 @@ export default function PublicPertandinganPage() {
           </div>
         </div>
       )}
-      {/* Modal Rincian Pembayaran & Bukti Pendaftaran Tamu */}
+      {/* Modal Informasi Akun & Bukti Pendaftaran Peserta Tamu */}
       {paymentSuccessData && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b pb-3 border-zinc-200 dark:border-zinc-800">
               <h3 className="font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-emerald-600" />
-                Pendaftaran Berhasil Disimpan!
+                Pendaftaran Berhasil & Terdaftar!
               </h3>
-              <button onClick={() => setPaymentSuccessData(null)} className="text-zinc-500 hover:text-zinc-800">
+              <button onClick={() => setPaymentSuccessData(null)} className="text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 p-3 rounded-xl text-xs text-emerald-900 dark:text-emerald-200 leading-relaxed">
-              Selamat! Data pendaftaran atlet Anda telah tercatat. Silakan selesaikan pembayaran untuk verifikasi resmi panitia.
+            <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 p-3.5 rounded-xl text-xs text-emerald-900 dark:text-emerald-200 leading-relaxed font-medium">
+              Selamat! Data pendaftaran atlet Anda telah tercatat dan langsung terdaftar pada tabel peserta kejuaraan.
             </div>
 
             {/* Rincian Pendaftaran */}
-            <div className="bg-zinc-50 dark:bg-zinc-800/50 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs space-y-1.5">
-              <div className="flex justify-between">
+            <div className="bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs space-y-2">
+              <div className="flex justify-between items-center">
                 <span className="text-zinc-500">Nomor Registrasi:</span>
-                <span className="font-mono font-bold text-zinc-900 dark:text-white">{paymentSuccessData.registrationId}</span>
+                <span className="font-mono font-bold text-zinc-900 dark:text-white bg-zinc-200 dark:bg-zinc-700 px-2 py-0.5 rounded text-[11px]">{paymentSuccessData.registrationId}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-500">Nama Atlet:</span>
@@ -1996,76 +2005,67 @@ export default function PublicPertandinganPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-500">Kelas Pertandingan:</span>
-                <span className="font-semibold text-red-700 dark:text-red-400">{paymentSuccessData.categoryName}</span>
-              </div>
-              <div className="border-t pt-1.5 flex justify-between items-center font-bold text-sm">
-                <span>Total Biaya Pendaftaran:</span>
-                <span className="text-emerald-600 dark:text-emerald-400">Rp {paymentSuccessData.fee.toLocaleString("id-ID")}</span>
+                <span className="font-semibold text-red-600 dark:text-red-400">{paymentSuccessData.categoryName}</span>
               </div>
             </div>
 
-            {/* Metode Pembayaran */}
-            <div className="space-y-3 pt-1">
-              <h4 className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
-                <CreditCard className="w-4 h-4 text-red-600" /> Pilih Metode Pembayaran
-              </h4>
+            {/* Informasi Akun Login Sistem */}
+            <div className="bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 p-4 rounded-xl space-y-2.5">
+              <div className="flex items-center gap-2 text-blue-900 dark:text-blue-200 font-bold text-xs">
+                <LogIn className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                Informasi Akun Login Sistem:
+              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                {/* QRIS */}
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700 space-y-1">
-                  <div className="font-bold text-zinc-900 dark:text-white flex items-center gap-1">
-                    <QrCode className="w-4 h-4 text-red-600" /> QRIS INKAI Surabaya
-                  </div>
-                  <p className="text-[11px] text-zinc-500">Scan via GoPay, OVO, Dana, ShopeePay, BCA, Mandiri</p>
-                  <div className="pt-2 text-center">
-                    <div className="inline-block bg-white p-2 rounded-lg border border-zinc-300">
-                      <QrCode className="w-16 h-16 text-zinc-800 mx-auto" />
-                      <span className="block text-[9px] font-mono text-zinc-500 mt-1">NMID: ID1029384756</span>
-                    </div>
-                  </div>
+              <div className="bg-white dark:bg-zinc-900 p-3 rounded-lg border border-blue-100 dark:border-blue-900/40 text-xs space-y-2 font-mono">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-500 font-sans text-[11px]">email:</span>
+                  <span className="font-bold text-zinc-900 dark:text-white select-all">{paymentSuccessData.email || "-"}</span>
                 </div>
+                <div className="flex items-center justify-between border-t border-zinc-100 dark:border-zinc-800 pt-1.5">
+                  <span className="text-zinc-500 font-sans text-[11px]">pass:</span>
+                  <span className="font-bold text-blue-600 dark:text-blue-400 select-all">{paymentSuccessData.password || "-"}</span>
+                </div>
+              </div>
 
-                {/* Transfer Bank */}
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700 space-y-1 flex flex-col justify-between">
-                  <div>
-                    <div className="font-bold text-zinc-900 dark:text-white">Transfer Bank Mandiri</div>
-                    <p className="text-[11px] text-zinc-500 mt-0.5">No. Rekening Resmi Cabang:</p>
-                    <div className="mt-2 p-2 bg-white dark:bg-zinc-900 rounded-lg border font-mono font-bold text-xs text-blue-600 dark:text-blue-400">
-                      141-00-1928374-1
-                    </div>
-                    <div className="text-[10px] text-zinc-500 mt-1">a.n. INKAI CABANG SURABAYA</div>
-                  </div>
-                  <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium pt-2">
-                    *Harap simpan bukti transfer untuk dikirim ke WhatsApp Admin.
-                  </div>
-                </div>
+              <div className="text-[11px] text-amber-700 dark:text-amber-400 font-medium flex items-center gap-1.5 pt-0.5">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>jika lupa akun hubungi admin</span>
               </div>
             </div>
 
-            {/* CTA WhatsApp Confirmation */}
+            {/* Tombol Aksi */}
             <div className="pt-2 space-y-2">
-              <a
-                href={`https://api.whatsapp.com/send?phone=${adminWaState.waNumber}&text=${encodeURIComponent(
-                  `*KONFIRMASI PEMBAYARAN KEJUARAAN*\n` +
-                  `----------------------------------\n` +
-                  `📌 *No. Registrasi:* ${paymentSuccessData.registrationId}\n` +
-                  `👤 *Nama Atlet:* ${paymentSuccessData.athleteName}\n` +
-                  `🏛️ *Dojo:* ${paymentSuccessData.dojoName}\n` +
-                  `🏅 *Kelas:* ${paymentSuccessData.categoryName}\n` +
-                  `💰 *Total Biaya:* Rp ${paymentSuccessData.fee.toLocaleString("id-ID")}\n\n` +
-                  `Saya telah melakukan pendaftaran & pembayaran pendaftaran kejuaraan. Mohon verifikasi data & berkas saya. Terima kasih.`
-                )}`}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow flex items-center justify-center gap-2 transition"
-              >
-                <Send className="w-4 h-4" /> Konfirmasi WhatsApp Admin ({adminWaState.phone})
-              </a>
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  href="/login"
+                  className="py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow flex items-center justify-center gap-1.5 transition text-center"
+                >
+                  <LogIn className="w-4 h-4" /> Login ke Sistem
+                </Link>
+
+                <a
+                  href={`https://api.whatsapp.com/send?phone=${adminWaState.waNumber}&text=${encodeURIComponent(
+                    `*INFORMASI PENDAFTARAN PESERTA TAMU*\n` +
+                    `----------------------------------\n` +
+                    `📌 *No. Registrasi:* ${paymentSuccessData.registrationId}\n` +
+                    `👤 *Nama Atlet:* ${paymentSuccessData.athleteName}\n` +
+                    `🏛️ *Dojo:* ${paymentSuccessData.dojoName}\n` +
+                    `🏅 *Kelas:* ${paymentSuccessData.categoryName}\n` +
+                    `📧 *Email:* ${paymentSuccessData.email || "-"}\n\n` +
+                    `Halo Panitia INKAI Surabaya, pendaftaran saya sebagai peserta tamu telah terdaftar.`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow flex items-center justify-center gap-1.5 transition text-center"
+                >
+                  <Send className="w-4 h-4" /> Hubungi Admin WA
+                </a>
+              </div>
 
               <button
                 type="button"
                 onClick={() => setPaymentSuccessData(null)}
-                className="w-full py-2 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl"
+                className="w-full py-2.5 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition"
               >
                 Tutup & Kembali ke Daftar Peserta
               </button>
