@@ -88,6 +88,12 @@ export default function AdminPertandinganKategoriPage() {
   const [selectedDivisionGroup, setSelectedDivisionGroup] = useState<string>("ALL");
   const [presetFee, setPresetFee] = useState<string>("150000");
 
+  // Batch Selection State
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [showBatchFeeModal, setShowBatchFeeModal] = useState(false);
+  const [batchFeeInput, setBatchFeeInput] = useState<string>("150000");
+  const [confirmBatchDeleteOpen, setConfirmBatchDeleteOpen] = useState(false);
+
   // Form New Category
   const [newCat, setNewCat] = useState({
     name: "",
@@ -137,8 +143,65 @@ export default function AdminPertandinganKategoriPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedEventId) fetchCategories();
+    if (selectedEventId) {
+      setSelectedCategoryIds([]);
+      fetchCategories();
+    }
   }, [selectedEventId]);
+
+  const handleBatchUpdateFee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedCategoryIds.length === 0) return;
+    setIsUpdating(true);
+    try {
+      const res = await fetch("/api/admin/pertandingan/categories", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedCategoryIds,
+          fee: parseFloat(batchFeeInput),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showSuccess(`Berhasil memperbarui biaya ${selectedCategoryIds.length} kelas kategori menjadi Rp ${parseInt(batchFeeInput).toLocaleString("id-ID")}`);
+        setShowBatchFeeModal(false);
+        setSelectedCategoryIds([]);
+        fetchCategories();
+      } else {
+        showError(data.error || "Gagal memperbarui biaya massal");
+      }
+    } catch (err: any) {
+      showError(err.message || "Gagal memperbarui biaya massal");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleBatchDeleteCategories = async () => {
+    if (selectedCategoryIds.length === 0) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch("/api/admin/pertandingan/categories", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedCategoryIds }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showSuccess(`Berhasil menghapus ${selectedCategoryIds.length} kelas kategori`);
+        setConfirmBatchDeleteOpen(false);
+        setSelectedCategoryIds([]);
+        fetchCategories();
+      } else {
+        showError(data.error || "Gagal menghapus kategori massal");
+      }
+    } catch (err: any) {
+      showError(err.message || "Gagal menghapus kategori massal");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleCreateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -547,6 +610,21 @@ export default function AdminPertandinganKategoriPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
+                  <th className="py-3 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={filteredCategories.length > 0 && selectedCategoryIds.length === filteredCategories.length}
+                      onChange={() => {
+                        if (selectedCategoryIds.length === filteredCategories.length) {
+                          setSelectedCategoryIds([]);
+                        } else {
+                          setSelectedCategoryIds(filteredCategories.map((c) => c.id));
+                        }
+                      }}
+                      title="Centang / Hapus Centang Semua"
+                      className="w-4 h-4 rounded border-zinc-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                    />
+                  </th>
                   <th className="py-3 px-4">Nama Kelas</th>
                   <th className="py-3 px-4">Jenis</th>
                   <th className="py-3 px-4">Kriteria Tgl Lahir / BB</th>
@@ -558,13 +636,13 @@ export default function AdminPertandinganKategoriPage() {
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-zinc-500">
+                    <td colSpan={7} className="py-8 text-center text-zinc-500">
                       Memuat kategori...
                     </td>
                   </tr>
                 ) : filteredCategories.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-zinc-500">
+                    <td colSpan={7} className="py-8 text-center text-zinc-500">
                       {categories.length === 0
                         ? "Belum ada kategori kelas pada event ini. Klik 'Templat Kategori Standard' untuk menambahkan 85+ kelas otomatis."
                         : "Tidak ada kategori yang cocok dengan pencarian."}
@@ -573,6 +651,18 @@ export default function AdminPertandinganKategoriPage() {
                 ) : (
                   filteredCategories.map((cat) => (
                     <tr key={cat.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition">
+                      <td className="py-3 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedCategoryIds.includes(cat.id)}
+                          onChange={() => {
+                            setSelectedCategoryIds((prev) =>
+                              prev.includes(cat.id) ? prev.filter((id) => id !== cat.id) : [...prev, cat.id]
+                            );
+                          }}
+                          className="w-4 h-4 rounded border-zinc-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                        />
+                      </td>
                       <td className="py-3 px-4 font-semibold text-zinc-900 dark:text-white">
                         {cat.name}
                         <div className="text-xs font-normal text-zinc-500">Gender: {cat.gender}</div>
@@ -962,7 +1052,7 @@ export default function AdminPertandinganKategoriPage() {
         </div>
       )}
 
-      {/* INKAI Custom Confirmation Modal */}
+      {/* INKAI Custom Confirmation Modal - Single Delete */}
       {deleteCatState && (
         <InkaiConfirmDialog
           open={deleteCatState.open}
@@ -977,6 +1067,109 @@ export default function AdminPertandinganKategoriPage() {
           loading={isDeleting}
           onConfirm={executeDeleteCategory}
         />
+      )}
+
+      {/* Modal Batch Edit Fee */}
+      {showBatchFeeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
+              <h3 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-blue-600" />
+                Ubah Biaya {selectedCategoryIds.length} Kategori Dicentang
+              </h3>
+              <button onClick={() => setShowBatchFeeModal(false)} className="text-zinc-400 hover:text-zinc-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleBatchUpdateFee} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Biaya Pendaftaran Baru (Rp) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={0}
+                  value={batchFeeInput}
+                  onChange={(e) => setBatchFeeInput(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-bold text-emerald-600 dark:text-emerald-400"
+                  placeholder="150000"
+                />
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  Seluruh {selectedCategoryIds.length} kategori yang dicentang akan diperbarui biaya pendaftarannya sekaligus.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setShowBatchFeeModal(false)}
+                  className="px-4 py-2 border border-zinc-300 text-xs font-semibold rounded-xl text-zinc-700 dark:text-zinc-300"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdating}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow flex items-center gap-1.5"
+                >
+                  {isUpdating ? "Menyimpan..." : "Simpan Biaya Massal"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Delete Confirmation Dialog */}
+      {confirmBatchDeleteOpen && (
+        <InkaiConfirmDialog
+          open={confirmBatchDeleteOpen}
+          onOpenChange={(open) => setConfirmBatchDeleteOpen(open)}
+          title={`Hapus ${selectedCategoryIds.length} Kategori Kelas`}
+          description={`Apakah Anda yakin ingin menghapus ${selectedCategoryIds.length} kelas kategori yang dicentang secara permanen?`}
+          confirmLabel={`Ya, Hapus ${selectedCategoryIds.length} Kategori`}
+          cancelLabel="Batal"
+          variant="danger"
+          loading={isDeleting}
+          onConfirm={handleBatchDeleteCategories}
+        />
+      )}
+
+      {/* Floating Batch Action Toolbar */}
+      {selectedCategoryIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-zinc-900 text-white dark:bg-zinc-800 border border-zinc-700 rounded-2xl px-5 py-3 shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
+          <div className="text-xs font-bold text-amber-400 flex items-center gap-1.5 whitespace-nowrap">
+            <CheckCircle2 className="w-4 h-4 text-amber-400" />
+            {selectedCategoryIds.length} Kategori Terpilih
+          </div>
+          <div className="h-4 w-px bg-zinc-700" />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setBatchFeeInput("150000");
+                setShowBatchFeeModal(true);
+              }}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5" /> Ubah Biaya Massal
+            </button>
+            <button
+              onClick={() => setConfirmBatchDeleteOpen(true)}
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Hapus Massal
+            </button>
+            <button
+              onClick={() => setSelectedCategoryIds([])}
+              className="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 rounded-xl text-xs font-semibold cursor-pointer"
+            >
+              Batal
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

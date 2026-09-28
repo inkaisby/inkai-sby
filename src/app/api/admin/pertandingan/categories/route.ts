@@ -82,10 +82,24 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, name, categoryType, gender, minAge, maxAge, minBirthDate, maxBirthDate, minWeight, maxWeight, fee, isFeeVisible } = body;
+    const { id, ids, name, categoryType, gender, minAge, maxAge, minBirthDate, maxBirthDate, minWeight, maxWeight, fee, isFeeVisible } = body;
+
+    // Batch update case
+    if (Array.isArray(ids) && ids.length > 0) {
+      const updateData: any = {};
+      if (fee !== undefined && fee !== "") updateData.fee = parseFloat(fee);
+      if (isFeeVisible !== undefined) updateData.isFeeVisible = Boolean(isFeeVisible);
+
+      const result = await prisma.tournamentCategory.updateMany({
+        where: { id: { in: ids } },
+        data: updateData,
+      });
+
+      return NextResponse.json({ success: true, count: result.count });
+    }
 
     if (!id) {
-      return NextResponse.json({ error: "id required" }, { status: 400 });
+      return NextResponse.json({ error: "id or ids required" }, { status: 400 });
     }
 
     const updateData: any = {};
@@ -120,20 +134,34 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    let idsToDelete: string[] = [];
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
+    const singleId = searchParams.get("id");
+    if (singleId) idsToDelete.push(singleId);
 
-    if (!id) {
-      return NextResponse.json({ error: "id required" }, { status: 400 });
+    try {
+      const body = await request.json();
+      if (Array.isArray(body.ids)) {
+        idsToDelete.push(...body.ids);
+      }
+    } catch (e) {
+      // Body empty or not JSON, continue with query param
     }
 
-    await prisma.tournamentCategory.delete({
-      where: { id },
+    idsToDelete = Array.from(new Set(idsToDelete));
+
+    if (idsToDelete.length === 0) {
+      return NextResponse.json({ error: "id or ids required" }, { status: 400 });
+    }
+
+    const result = await prisma.tournamentCategory.deleteMany({
+      where: { id: { in: idsToDelete } },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, count: result.count });
   } catch (error: any) {
     console.error("DELETE /api/admin/pertandingan/categories error:", error);
     return NextResponse.json({ error: error.message || "Failed to delete category" }, { status: 500 });
   }
 }
+
