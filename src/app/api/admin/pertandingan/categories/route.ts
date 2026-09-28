@@ -154,11 +154,16 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "id or ids required" }, { status: 400 });
     }
 
-    const result = await prisma.tournamentCategory.deleteMany({
-      where: { id: { in: idsToDelete } },
-    });
+    const [regResult, catResult] = await prisma.$transaction([
+      prisma.tournamentRegistration.deleteMany({
+        where: { categoryId: { in: idsToDelete } },
+      }),
+      prisma.tournamentCategory.deleteMany({
+        where: { id: { in: idsToDelete } },
+      }),
+    ]);
 
-    return NextResponse.json({ success: true, count: result.count });
+    return NextResponse.json({ success: true, count: catResult.count, registrationsDeleted: regResult.count });
   } catch (error: any) {
     console.error("DELETE /api/admin/pertandingan/categories error:", error);
     return NextResponse.json({ error: error.message || "Failed to delete category" }, { status: 500 });

@@ -376,7 +376,7 @@ model TournamentRegistration {
   event              Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
   dojo               Dojo               @relation(fields: [dojoId], references: [id])
   member             Member             @relation(fields: [memberId], references: [id])
-  category           TournamentCategory @relation(fields: [categoryId], references: [id])
+  category           TournamentCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@unique([eventId, memberId, categoryId])
   @@index([eventId, dojoId])
