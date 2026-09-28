@@ -1947,12 +1947,28 @@ export default function PublicPertandinganPage() {
                 const cleanUrl = previewDoc.url.split("?")[0].toLowerCase();
                 const isPdf = cleanUrl.endsWith(".pdf") || previewDoc.url.toLowerCase().includes(".pdf");
                 if (isPdf) {
+                  const embedUrl = previewDoc.url.startsWith("http")
+                    ? `https://docs.google.com/gview?url=${encodeURIComponent(previewDoc.url)}&embedded=true`
+                    : previewDoc.url;
                   return (
-                    <iframe
-                      src={previewDoc.url}
-                      className="w-full h-[550px] rounded-lg border-0"
-                      title={previewDoc.title}
-                    />
+                    <div className="w-full h-full flex flex-col space-y-1">
+                      <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 px-1">
+                        <span>💡 Dokumen PDF (Viewer Aman INKAI)</span>
+                        <a
+                          href={previewDoc.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1"
+                        >
+                          <ExternalLink className="w-3 h-3" /> Unduh / Tab Baru
+                        </a>
+                      </div>
+                      <iframe
+                        src={embedUrl}
+                        className="w-full h-[550px] rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white"
+                        title={previewDoc.title}
+                      />
+                    </div>
                   );
                 }
                 return (
