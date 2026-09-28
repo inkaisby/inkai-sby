@@ -268,13 +268,41 @@ export const getBranchDojosList = unstable_cache(
 
 export const getUpcomingEvents = unstable_cache(
   async (): Promise<PublicEventSummary[]> => {
+    const { data: dbEvents } = await withPrismaFallback(
+      "getUpcomingEvents",
+      async () => {
+        const cutoff = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
+        const rows = await prisma.event.findMany({
+          where: {
+            isDeleted: false,
+            endDate: { gte: cutoff },
+          },
+          orderBy: [{ endDate: "desc" }, { startDate: "desc" }],
+          take: 50,
+        });
+        return rows.map((e) => ({
+          id: e.id,
+          title: e.title,
+          description: e.description,
+          startDate: e.startDate.toISOString(),
+          endDate: e.endDate ? e.endDate.toISOString() : null,
+          location: e.location,
+        }));
+      },
+      [] as PublicEventSummary[],
+    );
+
+    if (dbEvents && dbEvents.length > 0) {
+      return dbEvents;
+    }
+
     try {
       const { res, data } = await inkaiFetch("/v1/events", {}, null);
       if (!res.ok) return [];
 
       const branch = await fetchBranchStructure();
       const branchId = branch?.id;
-      const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+      const cutoff = Date.now() - 180 * 24 * 60 * 60 * 1000;
 
       const events = (data.data as Array<Record<string, unknown>>) ?? [];
       return events
@@ -284,8 +312,8 @@ export const getUpcomingEvents = unstable_cache(
         })
         .sort(
           (a, b) =>
-            new Date(String(a.startDate)).getTime() -
-            new Date(String(b.startDate)).getTime(),
+            new Date(String(b.startDate)).getTime() -
+            new Date(String(a.startDate)).getTime(),
         )
         .slice(0, 50)
         .map(mapEventSummary);
@@ -295,7 +323,7 @@ export const getUpcomingEvents = unstable_cache(
     }
   },
   ["upcoming-events"],
-  { revalidate: 60, tags: ["events"] },
+  { revalidate: 30, tags: ["events"] },
 );
 
 const getDojoByIdCached = (id: string) =>
