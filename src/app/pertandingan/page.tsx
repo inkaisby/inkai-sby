@@ -141,10 +141,6 @@ export default function PublicPertandinganPage() {
     memberId?: string;
     docType?: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl" | "certificateUrl";
   }) => {
-    if (!isLoggedIn) {
-      showError("Silakan login ke akun Anda terlebih dahulu untuk melihat atau mengunggah dokumen.");
-      return;
-    }
     setPreviewDoc(doc);
   };
 
@@ -387,10 +383,6 @@ export default function PublicPertandinganPage() {
     file: File,
     docType: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl" | "certificateUrl"
   ) => {
-    if (!isLoggedIn) {
-      showError("Silakan login ke akun Anda terlebih dahulu untuk mengunggah dokumen.");
-      return;
-    }
     const targetReg = registrations.find((r) => r.id === regId);
     if (targetReg) {
       let isAlreadyUploaded = false;
@@ -1213,67 +1205,24 @@ export default function PublicPertandinganPage() {
                         </span>
                       </td>
 
-                      {/* Kelas Pertandingan (Inline Dropdown Select bila login, static badge bila publik) */}
+                      {/* Kelas Pertandingan (Readonly untuk semua pengguna) */}
                       <td className="py-3.5 px-4 min-w-[200px]">
-                        {isLoggedIn ? (
-                          <select
-                            value={reg.categoryId || reg.category?.id}
-                            onChange={(e) => handleUpdateCategory(reg.id, e.target.value)}
-                            className="w-full px-2.5 py-1.5 bg-red-50/70 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-xs font-bold text-red-700 dark:text-red-300 focus:ring-2 focus:ring-red-500 cursor-pointer shadow-xs truncate"
-                          >
-                            {(activeEvent?.tournamentCategories || []).map((c) => (
-                              <option key={c.id} value={c.id} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-normal">
-                                {c.name} {c.isFeeVisible !== false ? `(Rp ${c.fee.toLocaleString("id-ID")})` : ""}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="inline-block w-full px-2.5 py-1.5 bg-red-50/70 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-xs font-bold text-red-700 dark:text-red-300 truncate">
-                            {reg.category?.name || "-"}
-                          </span>
-                        )}
+                        <span className="inline-block w-full px-2.5 py-1.5 bg-red-50/70 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-xs font-bold text-red-700 dark:text-red-300 truncate">
+                          {reg.category?.name || "-"}
+                        </span>
                       </td>
 
-                      {/* Kolom BB (Berat Badan) */}
+                      {/* Kolom BB (Berat Badan - Readonly untuk semua pengguna) */}
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-2 py-1">
                           <Scale className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                          {isLoggedIn ? (
-                            <>
-                              <input
-                                key={`${reg.id}-${reg.actualWeight ?? "empty"}`}
-                                type="number"
-                                step="0.1"
-                                placeholder="kg"
-                                defaultValue={reg.actualWeight !== null && reg.actualWeight !== undefined ? reg.actualWeight : ""}
-                                onBlur={(e) => {
-                                  const val = e.target.value ? parseFloat(e.target.value) : null;
-                                  if (val !== reg.actualWeight) {
-                                    handleUpdateWeight(reg.id, val);
-                                  }
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    const val = (e.target as HTMLInputElement).value ? parseFloat((e.target as HTMLInputElement).value) : null;
-                                    if (val !== reg.actualWeight) {
-                                      handleUpdateWeight(reg.id, val);
-                                    }
-                                    (e.target as HTMLInputElement).blur();
-                                  }
-                                }}
-                                className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-700 rounded text-xs font-bold text-amber-900 dark:text-amber-200 text-center focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                              />
-                              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">kg</span>
-                            </>
-                          ) : (
-                            <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                              {reg.actualWeight !== null && reg.actualWeight !== undefined ? `${reg.actualWeight} kg` : "-"}
-                            </span>
-                          )}
+                          <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                            {reg.actualWeight !== null && reg.actualWeight !== undefined ? `${reg.actualWeight} kg` : "-"}
+                          </span>
                         </div>
                       </td>
 
-                      {/* Berkas Dokumen Status & Upload */}
+                      {/* Berkas Dokumen Status & Upload (Lihat untuk semua, Upload 1x bila belum ada) */}
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
                           {/* Foto */}
@@ -1289,14 +1238,13 @@ export default function PublicPertandinganPage() {
                                 })
                               }
                               className="px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
-                              title={isLoggedIn ? "Lihat Foto Profil" : "Login untuk melihat dokumen"}
+                              title="Lihat Foto Profil"
                             >
-                              {!isLoggedIn && <Lock className="w-3 h-3 text-emerald-600" />}
-                              <ImageIcon className="w-3 h-3" /> Foto
+                              <ImageIcon className="w-3 h-3" /> Foto ✓
                             </button>
-                          ) : isLoggedIn ? (
-                            <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium">
-                              <Upload className="w-3 h-3 text-zinc-400" /> Foto
+                          ) : (
+                            <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium border border-zinc-200 dark:border-zinc-700" title="Unggah berkas foto (1x upload)">
+                              <Upload className="w-3 h-3 text-emerald-500" /> + Foto (150KB)
                               <input
                                 type="file"
                                 accept="image/*"
@@ -1307,14 +1255,6 @@ export default function PublicPertandinganPage() {
                                 }}
                               />
                             </label>
-                          ) : (
-                            <button
-                              onClick={() => showError("Silakan login ke akun Anda terlebih dahulu untuk mengunggah berkas.")}
-                              className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 rounded text-[11px] font-medium border border-zinc-200 dark:border-zinc-700 flex items-center gap-1 cursor-pointer"
-                              title="Login untuk mengunggah"
-                            >
-                              <Lock className="w-3 h-3 text-zinc-400" /> Foto
-                            </button>
                           )}
 
                           {/* Akte Kelahiran */}
@@ -1330,13 +1270,12 @@ export default function PublicPertandinganPage() {
                                 })
                               }
                               className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
-                              title={isLoggedIn ? "Lihat Akte Kelahiran" : "Login untuk melihat dokumen"}
+                              title="Lihat Akte Kelahiran"
                             >
-                              {!isLoggedIn && <Lock className="w-3 h-3 text-blue-600" />}
                               <FileText className="w-3 h-3" /> Akte ✓
                             </button>
-                          ) : isLoggedIn ? (
-                            <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium border border-zinc-200 dark:border-zinc-700">
+                          ) : (
+                            <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium border border-zinc-200 dark:border-zinc-700" title="Unggah berkas akte (1x upload)">
                               <Upload className="w-3 h-3 text-blue-500" /> + Akte (150KB)
                               <input
                                 type="file"
@@ -1348,14 +1287,6 @@ export default function PublicPertandinganPage() {
                                 }}
                               />
                             </label>
-                          ) : (
-                            <button
-                              onClick={() => showError("Silakan login ke akun Anda terlebih dahulu untuk mengunggah berkas.")}
-                              className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 rounded text-[11px] font-medium border border-zinc-200 dark:border-zinc-700 flex items-center gap-1 cursor-pointer"
-                              title="Login untuk mengunggah"
-                            >
-                              <Lock className="w-3 h-3 text-blue-400" /> Akte
-                            </button>
                           )}
 
                           {/* BPJS */}
@@ -1371,13 +1302,12 @@ export default function PublicPertandinganPage() {
                                 })
                               }
                               className="px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
-                              title={isLoggedIn ? "Lihat BPJS" : "Login untuk melihat dokumen"}
+                              title="Lihat BPJS"
                             >
-                              {!isLoggedIn && <Lock className="w-3 h-3 text-amber-600" />}
                               <ShieldAlert className="w-3 h-3" /> BPJS ✓
                             </button>
-                          ) : isLoggedIn ? (
-                            <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium border border-zinc-200 dark:border-zinc-700">
+                          ) : (
+                            <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium border border-zinc-200 dark:border-zinc-700" title="Unggah berkas BPJS (1x upload)">
                               <Upload className="w-3 h-3 text-amber-500" /> + BPJS (150KB)
                               <input
                                 type="file"
@@ -1389,14 +1319,6 @@ export default function PublicPertandinganPage() {
                                 }}
                               />
                             </label>
-                          ) : (
-                            <button
-                              onClick={() => showError("Silakan login ke akun Anda terlebih dahulu untuk mengunggah berkas.")}
-                              className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 rounded text-[11px] font-medium border border-zinc-200 dark:border-zinc-700 flex items-center gap-1 cursor-pointer"
-                              title="Login untuk mengunggah"
-                            >
-                              <Lock className="w-3 h-3 text-amber-400" /> BPJS
-                            </button>
                           )}
 
                           {/* Piagam Kejuaraan */}
@@ -1412,13 +1334,12 @@ export default function PublicPertandinganPage() {
                                 })
                               }
                               className="px-2 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
-                              title={isLoggedIn ? "Lihat Piagam Kejuaraan" : "Login untuk melihat dokumen"}
+                              title="Lihat Piagam Kejuaraan"
                             >
-                              {!isLoggedIn && <Lock className="w-3 h-3 text-purple-600" />}
                               <Trophy className="w-3 h-3 text-purple-600 dark:text-purple-400" /> Piagam ✓
                             </button>
-                          ) : isLoggedIn ? (
-                            <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium border border-zinc-200 dark:border-zinc-700">
+                          ) : (
+                            <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium border border-zinc-200 dark:border-zinc-700" title="Unggah berkas piagam (1x upload)">
                               <Upload className="w-3 h-3 text-purple-500" /> + Piagam (150KB)
                               <input
                                 type="file"
@@ -1430,14 +1351,6 @@ export default function PublicPertandinganPage() {
                                 }}
                               />
                             </label>
-                          ) : (
-                            <button
-                              onClick={() => showError("Silakan login ke akun Anda terlebih dahulu untuk mengunggah berkas.")}
-                              className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 rounded text-[11px] font-medium border border-zinc-200 dark:border-zinc-700 flex items-center gap-1 cursor-pointer"
-                              title="Login untuk mengunggah"
-                            >
-                              <Lock className="w-3 h-3 text-purple-400" /> Piagam
-                            </button>
                           )}
                         </div>
                       </td>
@@ -1453,35 +1366,9 @@ export default function PublicPertandinganPage() {
                             {reg.status === "VERIFIED" ? "TERVERIFIKASI SAH" : reg.status === "PAID" ? "LUNAS" : "TERCATAT"}
                           </span>
 
-                          {/* Toggle TF vs Tunai (Hanya aktif bila login) */}
-                          {isLoggedIn ? (
-                            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                              <button
-                                onClick={() => handleUpdatePaymentMethod(reg.id, "TRANSFER")}
-                                className={`px-2 py-0.5 text-[10px] font-bold rounded transition ${
-                                  (reg.paymentMethod || "TRANSFER") === "TRANSFER"
-                                    ? "bg-blue-600 text-white shadow-xs"
-                                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
-                                }`}
-                              >
-                                🏦 TF
-                              </button>
-                              <button
-                                onClick={() => handleUpdatePaymentMethod(reg.id, "CASH")}
-                                className={`px-2 py-0.5 text-[10px] font-bold rounded transition ${
-                                  reg.paymentMethod === "CASH"
-                                    ? "bg-emerald-600 text-white shadow-xs"
-                                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
-                                }`}
-                              >
-                                💵 Tunai
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
-                              {(reg.paymentMethod || "TRANSFER") === "TRANSFER" ? "🏦 TF" : "💵 Tunai"}
-                            </span>
-                          )}
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
+                            {(reg.paymentMethod || "TRANSFER") === "TRANSFER" ? "🏦 TF" : "💵 Tunai"}
+                          </span>
 
                           {/* Bukti TF Upload & View */}
                           {(reg.paymentMethod || "TRANSFER") === "TRANSFER" && (
@@ -1498,13 +1385,12 @@ export default function PublicPertandinganPage() {
                                     })
                                   }
                                   className="px-2 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
-                                  title={isLoggedIn ? "Lihat Bukti Transfer" : "Login untuk melihat bukti TF"}
+                                  title="Lihat Bukti Transfer"
                                 >
-                                  {!isLoggedIn && <Lock className="w-3 h-3 text-emerald-600" />}
-                                  <Eye className="w-3 h-3 text-emerald-600" /> Lihat Bukti TF
+                                  <Eye className="w-3 h-3 text-emerald-600" /> Lihat Bukti TF ✓
                                 </button>
-                              ) : isLoggedIn ? (
-                                <label className="px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-[11px] font-bold hover:bg-blue-100 cursor-pointer flex items-center gap-1">
+                              ) : (
+                                <label className="px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-[11px] font-bold hover:bg-blue-100 cursor-pointer flex items-center gap-1" title="Unggah bukti transfer (1x upload)">
                                   <Upload className="w-3 h-3 text-blue-600" /> Upload Bukti TF (150KB)
                                   <input
                                     type="file"
@@ -1516,14 +1402,6 @@ export default function PublicPertandinganPage() {
                                     }}
                                   />
                                 </label>
-                              ) : (
-                                <button
-                                  onClick={() => showError("Silakan login ke akun Anda terlebih dahulu untuk mengunggah bukti transfer.")}
-                                  className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 rounded text-[11px] font-medium border border-zinc-200 dark:border-zinc-700 flex items-center gap-1 cursor-pointer"
-                                  title="Login untuk mengunggah"
-                                >
-                                  <Lock className="w-3 h-3 text-blue-400" /> Bukti TF
-                                </button>
                               )}
                             </div>
                           )}
