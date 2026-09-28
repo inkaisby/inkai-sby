@@ -860,31 +860,7 @@ export default function PublicPertandinganPage() {
                   )}
                 </div>
 
-                {/* Categories Overview */}
-                {activeEvent.tournamentCategories && activeEvent.tournamentCategories.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="font-bold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
-                      <Swords className="w-4 h-4 text-amber-500" />
-                      Kategori Kelas Tersedia ({activeEvent.tournamentCategories.length} Kategori)
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                      {activeEvent.tournamentCategories.map((cat) => (
-                        <div
-                          key={cat.id}
-                          className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-between text-xs"
-                        >
-                          <div>
-                            <div className="font-bold text-zinc-900 dark:text-white">{cat.name}</div>
-                            <div className="text-zinc-500 font-medium">{cat.categoryType} · {cat.gender === "MALE" ? "Putra" : cat.gender === "FEMALE" ? "Putri" : "Campuran"}</div>
-                          </div>
-                          <div className="font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800/50">
-                            {cat.isFeeVisible !== false ? `Rp ${cat.fee.toLocaleString("id-ID")}` : "Diatur Khusus"}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+
               </div>
             )}
           </div>
