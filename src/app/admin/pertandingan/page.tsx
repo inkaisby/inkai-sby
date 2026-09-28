@@ -210,6 +210,7 @@ export default function AdminPertandinganPage() {
 
   const [confirmResetRulesOpen, setConfirmResetRulesOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [uploadInfoModal, setUploadInfoModal] = useState<{ message: string } | null>(null);
 
   // Form states
   const [eventForm, setEventForm] = useState({
@@ -685,6 +686,7 @@ export default function AdminPertandinganPage() {
       fetchRegistrations();
     } catch (err: any) {
       showError(`Upload & kompres berkas gagal: ${err.message}`);
+      setUploadInfoModal({ message: err.message });
     }
   };
 
@@ -2460,6 +2462,70 @@ export default function AdminPertandinganPage() {
                   Tutup
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Informasi & Panduan Kompresi Otomatis */}
+      {uploadInfoModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-800/80 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b pb-3 border-zinc-200 dark:border-zinc-800">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 rounded-xl">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-zinc-900 dark:text-white">
+                    Panduan Unggah & Kompresi Berkas
+                  </h3>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                    Sistem Otomatis Mengompres Foto / Scan (≤ 150 KB)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setUploadInfoModal(null)}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-emerald-900 dark:text-emerald-200 flex items-start gap-2.5">
+                <span className="text-base leading-none">⚡</span>
+                <div>
+                  <strong className="block mb-0.5">Kompresi Otomatis oleh Sistem (Tanpa Ribet):</strong>
+                  Sistem web INKAI Surabaya <strong>secara otomatis mengecilkan & mengompres</strong> berkas Foto / Scan (JPG, PNG, WEBP) hingga <strong>≤ 150 KB</strong> saat diunggah. Pengguna <strong>tidak perlu mengompres berkas secara manual</strong>.
+                </div>
+              </div>
+
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                <span className="text-base leading-none">📄</span>
+                <div>
+                  <strong className="block mb-0.5">Khusus Berkas Berformat PDF (&gt; 150 KB):</strong>
+                  Karena berkas PDF berukuran di atas 150 KB tidak dapat dikompresi otomatis oleh sistem browser, silakan <strong>foto atau scan dokumen tersebut sebagai Gambar (JPG/PNG)</strong> menggunakan kamera HP agar sistem dapat langsung mengompresnya secara otomatis.
+                </div>
+              </div>
+
+              {uploadInfoModal.message && (
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700 text-[11px] space-y-1 font-sans">
+                  <div className="font-bold text-red-600 dark:text-red-400">Rincian Pesan Sistem:</div>
+                  <div className="text-zinc-600 dark:text-zinc-300">{uploadInfoModal.message}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setUploadInfoModal(null)}
+                className="w-full py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-bold text-xs rounded-xl shadow transition"
+              >
+                Saya Mengerti, Terima Kasih
+              </button>
             </div>
           </div>
         </div>

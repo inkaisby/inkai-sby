@@ -61,7 +61,7 @@ export async function compressUploadFile(
   if (file.type === "application/pdf") {
     if (file.size <= maxBytes) return file;
     throw new Error(
-      `PDF lebih dari ${Math.round(maxBytes / 1024)} KB. Unggah foto/scan dokumen sebagai JPG/PNG (otomatis dikompres).`,
+      `Berkas PDF ini berukuran ${Math.round(file.size / 1024)} KB (> 150 KB). Sistem mengompres otomatis dokumen Foto/Scan (JPG/PNG) hingga di bawah 150 KB. Karena format PDF tidak dapat dikompresi otomatis oleh sistem browser, silakan unggah foto/scan dokumen sebagai gambar (JPG/PNG).`,
     );
   }
 
