@@ -30,7 +30,37 @@ export type PublicOpenEventSummary = {
   href: string;
 };
 
-function isUktTitle(title: string) {
+export function isTournamentEventTitle(title: string): boolean {
+  if (!title) return false;
+  const t = title.toUpperCase();
+  return (
+    t.includes("KEJUR") ||
+    t.includes("PERTANDINGAN") ||
+    t.includes("KEJUARAAN") ||
+    t.includes("TOURNAMENT") ||
+    t.includes("CHAMPIONSHIP") ||
+    t.includes("CUP") ||
+    t.includes("IJP") ||
+    t.includes("SELEKSI")
+  );
+}
+
+export function getEventTargetHref(event: { id: string; title: string }): string {
+  if (!event || !event.title) return "/kegiatan";
+  const t = event.title.toUpperCase();
+  if (t.includes("UKT") || t.includes("UJIAN")) {
+    return `/undangan/ukt/${event.id}`;
+  }
+  if (t.includes("LATBER") || t.includes("LATIHAN BERSAMA")) {
+    return `/latber?period=${event.id}`;
+  }
+  if (isTournamentEventTitle(event.title)) {
+    return `/pertandingan?eventId=${event.id}`;
+  }
+  return `/kegiatan/${event.id}`;
+}
+
+export function isUktTitle(title: string) {
   return title.toUpperCase().includes("UKT");
 }
 
@@ -171,7 +201,7 @@ async function listOpenOrOngoingEventsForPublicUncached(
       registrationOpen,
       ongoing,
       isUkt,
-      href: isUkt ? `/undangan/ukt/${e.id}` : `/kegiatan/${e.id}`,
+      href: getEventTargetHref(e),
     });
   }
 
