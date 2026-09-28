@@ -60,8 +60,9 @@ export async function compressUploadFile(
 ): Promise<File> {
   if (file.type === "application/pdf") {
     if (file.size <= maxBytes) return file;
+    const kb = Math.round(file.size / 1024);
     throw new Error(
-      `Berkas PDF ini berukuran ${Math.round(file.size / 1024)} KB (> 150 KB). Sistem mengompres otomatis dokumen Foto/Scan (JPG/PNG) hingga di bawah 150 KB. Karena format PDF tidak dapat dikompresi otomatis oleh sistem browser, silakan unggah foto/scan dokumen sebagai gambar (JPG/PNG).`,
+      `Berkas PDF (${kb} KB) melebihi 150 KB. Silakan kompres terlebih dahulu atau gunakan foto/scan (JPG/PNG).`,
     );
   }
 
