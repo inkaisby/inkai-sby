@@ -1695,6 +1695,7 @@ export function deriveAgeCategoryLabel(
   const name = (categoryName || "").trim();
   const upper = name.toUpperCase();
 
+  // 1. Check keyword in category name first
   if (upper.includes("PRA USIA DINI") || upper.includes("PRA-USIA DINI")) return "Pra Usia Dini (6-7 Thn)";
   if (upper.includes("USIA DINI")) return "Usia Dini (8-9 Thn)";
   if (upper.includes("PRA PEMULA") || upper.includes("PRA-PEMULA")) return "Pra Pemula (10-11 Thn)";
@@ -1718,18 +1719,41 @@ export function deriveAgeCategoryLabel(
   }
   if (upper.includes("BOB") || upper.includes("BEST OF THE BEST")) return "Best of the Best";
 
-  if (minAge || maxAge) {
-    if (minAge && maxAge) return `${minAge}-${maxAge} Thn`;
-    if (minAge) return `${minAge}+ Thn`;
-    if (maxAge) return `s/d ${maxAge} Thn`;
-  }
+  // Helper to map numeric age to standard Karate division label
+  const getLabelFromAgeNumber = (age: number): string => {
+    if (age <= 7) return "Pra Usia Dini (6-7 Thn)";
+    if (age >= 8 && age <= 9) return "Usia Dini (8-9 Thn)";
+    if (age >= 10 && age <= 11) return "Pra Pemula (10-11 Thn)";
+    if (age >= 12 && age <= 13) return "Pemula (12-13 Thn)";
+    if (age >= 14 && age <= 15) return "Kadet (14-15 Thn)";
+    if (age >= 16 && age <= 17) return "Junior (16-17 Thn)";
+    if (age >= 18 && age <= 20) return "U-21 (18-20 Thn)";
+    if (age >= 21 && age <= 29) return "Senior (21+ Thn)";
+    if (age >= 30 && age <= 40) return "Veteran (30-40 Thn)";
+    if (age >= 41 && age <= 50) return "Veteran (40-50 Thn)";
+    if (age > 50) return "Veteran (+50 Thn)";
+    return `Usia ${age} Thn`;
+  };
 
+  // 2. Derive from birthDate if available
   if (birthDate) {
     const bYear = new Date(birthDate).getFullYear();
-    const age = new Date().getFullYear() - bYear;
-    if (age > 0 && age < 100) return `Usia ${age} Thn`;
+    const currentYear = new Date().getFullYear();
+    const age = currentYear - bYear;
+    if (age > 0 && age < 100) {
+      return getLabelFromAgeNumber(age);
+    }
+  }
+
+  // 3. Derive from minAge / maxAge if available
+  if (minAge || maxAge) {
+    const ageRef = minAge || maxAge || 0;
+    if (ageRef > 0) {
+      return getLabelFromAgeNumber(ageRef);
+    }
   }
 
   return "Umum / Bebas";
 }
+
 
