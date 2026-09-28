@@ -701,12 +701,37 @@ export default function MemberPertandinganPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-auto flex items-center justify-center min-h-[300px] bg-zinc-100 dark:bg-zinc-950 rounded-xl p-2">
-              {previewCertificateUrl.endsWith(".pdf") ? (
-                <iframe src={previewCertificateUrl} className="w-full h-[600px] rounded-lg" title="Piagam PDF" />
-              ) : (
-                <img src={previewCertificateUrl} alt="Piagam Kejuaraan" className="max-h-[70vh] object-contain rounded-lg shadow-md" />
-              )}
+            <div className="flex-1 overflow-auto flex items-center justify-center min-h-[300px] bg-zinc-100 dark:bg-zinc-950 rounded-xl p-2 relative">
+              {(() => {
+                const cleanUrl = previewCertificateUrl.split("?")[0].toLowerCase();
+                const isPdf = cleanUrl.endsWith(".pdf") || previewCertificateUrl.toLowerCase().includes(".pdf");
+                if (isPdf) {
+                  return (
+                    <iframe src={previewCertificateUrl} className="w-full h-[600px] rounded-lg border-0" title="Piagam PDF" />
+                  );
+                }
+                return (
+                  <img
+                    src={previewCertificateUrl}
+                    alt="Piagam Kejuaraan"
+                    className="max-h-[70vh] object-contain rounded-lg shadow-md"
+                    onError={(e) => {
+                      const imgEl = e.currentTarget;
+                      imgEl.style.display = "none";
+                      const parent = imgEl.parentElement;
+                      if (parent && !parent.querySelector(".fallback-preview")) {
+                        const div = document.createElement("div");
+                        div.className = "fallback-preview p-6 text-center space-y-3";
+                        div.innerHTML = `
+                          <div class="text-red-500 font-bold text-sm">Pratinjau Piagam Tidak Dapat Ditampilkan</div>
+                          <p class="text-xs text-zinc-500 max-w-md mx-auto">Gunakan tombol "Buka Tab Baru / Download" untuk mengunduh berkas piagam.</p>
+                        `;
+                        parent.appendChild(div);
+                      }
+                    }}
+                  />
+                );
+              })()}
             </div>
             <div className="flex justify-end gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
               <a

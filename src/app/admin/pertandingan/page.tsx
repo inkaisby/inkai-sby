@@ -1934,12 +1934,37 @@ export default function AdminPertandinganPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-auto flex items-center justify-center min-h-[300px] bg-zinc-100 dark:bg-zinc-950 rounded-xl p-2">
-              {previewDocModal.url.endsWith(".pdf") ? (
-                <iframe src={previewDocModal.url} className="w-full h-[600px] rounded-lg" title="Document PDF" />
-              ) : (
-                <img src={previewDocModal.url} alt="Pratinjau Berkas" className="max-h-[70vh] object-contain rounded-lg shadow-md" />
-              )}
+            <div className="flex-1 overflow-auto flex items-center justify-center min-h-[300px] bg-zinc-100 dark:bg-zinc-950 rounded-xl p-2 relative">
+              {(() => {
+                const cleanUrl = previewDocModal.url.split("?")[0].toLowerCase();
+                const isPdf = cleanUrl.endsWith(".pdf") || previewDocModal.url.toLowerCase().includes(".pdf");
+                if (isPdf) {
+                  return (
+                    <iframe src={previewDocModal.url} className="w-full h-[600px] rounded-lg border-0" title="Document PDF" />
+                  );
+                }
+                return (
+                  <img
+                    src={previewDocModal.url}
+                    alt="Pratinjau Berkas"
+                    className="max-h-[70vh] object-contain rounded-lg shadow-md"
+                    onError={(e) => {
+                      const imgEl = e.currentTarget;
+                      imgEl.style.display = "none";
+                      const parent = imgEl.parentElement;
+                      if (parent && !parent.querySelector(".fallback-preview")) {
+                        const div = document.createElement("div");
+                        div.className = "fallback-preview p-6 text-center space-y-3";
+                        div.innerHTML = `
+                          <div class="text-red-500 font-bold text-sm">Pratinjau Berkas Tidak Dapat Ditampilkan</div>
+                          <p class="text-xs text-zinc-500 max-w-md mx-auto">Format berkas atau tautan bermasalah. Anda dapat membuka di tab baru atau mengunggah ulang berkas baru.</p>
+                        `;
+                        parent.appendChild(div);
+                      }
+                    }}
+                  />
+                );
+              })()}
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
               <div>

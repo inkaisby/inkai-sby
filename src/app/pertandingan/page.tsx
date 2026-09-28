@@ -109,7 +109,13 @@ export default function PublicPertandinganPage() {
   const [selectedCategoryName, setSelectedCategoryName] = useState("");
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showFullOverview, setShowFullOverview] = useState(true);
-  const [previewDoc, setPreviewDoc] = useState<{ url: string; title: string } | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<{
+    url: string;
+    title: string;
+    regId?: string;
+    memberId?: string;
+    docType?: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl" | "certificateUrl";
+  } | null>(null);
 
   // Member suggestions search state
   const [memberSuggestions, setMemberSuggestions] = useState<any[]>([]);
@@ -1058,7 +1064,15 @@ export default function PublicPertandinganPage() {
                           {/* Foto */}
                           {reg.member.photoUrl ? (
                             <button
-                              onClick={() => setPreviewDoc({ url: reg.member.photoUrl!, title: `Foto Profil: ${reg.member.fullName}` })}
+                              onClick={() =>
+                                setPreviewDoc({
+                                  url: reg.member.photoUrl!,
+                                  title: `Foto Profil: ${reg.member.fullName}`,
+                                  regId: reg.id,
+                                  memberId: reg.member.id,
+                                  docType: "photoUrl",
+                                })
+                              }
                               className="px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
                               title="Lihat Foto Profil"
                             >
@@ -1082,7 +1096,15 @@ export default function PublicPertandinganPage() {
                           {/* Akte Kelahiran */}
                           {reg.member.birthCertificateUrl ? (
                             <button
-                              onClick={() => setPreviewDoc({ url: reg.member.birthCertificateUrl!, title: `Akte Kelahiran: ${reg.member.fullName}` })}
+                              onClick={() =>
+                                setPreviewDoc({
+                                  url: reg.member.birthCertificateUrl!,
+                                  title: `Akte Kelahiran: ${reg.member.fullName}`,
+                                  regId: reg.id,
+                                  memberId: reg.member.id,
+                                  docType: "birthCertificateUrl",
+                                })
+                              }
                               className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
                               title="Lihat Akte Kelahiran"
                             >
@@ -1106,7 +1128,15 @@ export default function PublicPertandinganPage() {
                           {/* BPJS */}
                           {reg.member.bpjsCardUrl ? (
                             <button
-                              onClick={() => setPreviewDoc({ url: reg.member.bpjsCardUrl!, title: `Kartu BPJS: ${reg.member.fullName}` })}
+                              onClick={() =>
+                                setPreviewDoc({
+                                  url: reg.member.bpjsCardUrl!,
+                                  title: `Kartu BPJS: ${reg.member.fullName}`,
+                                  regId: reg.id,
+                                  memberId: reg.member.id,
+                                  docType: "bpjsCardUrl",
+                                })
+                              }
                               className="px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
                               title="Lihat BPJS"
                             >
@@ -1130,7 +1160,15 @@ export default function PublicPertandinganPage() {
                           {/* Piagam Kejuaraan */}
                           {reg.certificateUrl ? (
                             <button
-                              onClick={() => setPreviewDoc({ url: reg.certificateUrl!, title: `Piagam Kejuaraan: ${reg.member.fullName}` })}
+                              onClick={() =>
+                                setPreviewDoc({
+                                  url: reg.certificateUrl!,
+                                  title: `Piagam Kejuaraan: ${reg.member.fullName}`,
+                                  regId: reg.id,
+                                  memberId: reg.member.id,
+                                  docType: "certificateUrl",
+                                })
+                              }
                               className="px-2 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
                               title="Lihat Piagam Kejuaraan"
                             >
@@ -1193,7 +1231,15 @@ export default function PublicPertandinganPage() {
                             <div className="flex items-center gap-1 pt-0.5">
                               {reg.proofUrl ? (
                                 <button
-                                  onClick={() => setPreviewDoc({ url: reg.proofUrl!, title: `Bukti Transfer (TF): ${reg.member.fullName}` })}
+                                  onClick={() =>
+                                    setPreviewDoc({
+                                      url: reg.proofUrl!,
+                                      title: `Bukti Transfer (TF): ${reg.member.fullName}`,
+                                      regId: reg.id,
+                                      memberId: reg.member.id,
+                                      docType: "proofUrl",
+                                    })
+                                  }
                                   className="px-2 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
                                   title="Lihat Bukti Transfer"
                                 >
@@ -1339,40 +1385,6 @@ export default function PublicPertandinganPage() {
         </div>
       )}
 
-      {/* Modal Lightbox Preview Dokumen */}
-      {previewDoc && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-3xl w-full p-4 space-y-3 shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between border-b pb-2 border-zinc-200 dark:border-zinc-800">
-              <h3 className="font-bold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
-                <Eye className="w-4 h-4 text-red-600" />
-                {previewDoc.title}
-              </h3>
-              <div className="flex items-center gap-2">
-                <a
-                  href={previewDoc.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-1 text-zinc-500 hover:text-zinc-800 dark:hover:text-white text-xs flex items-center gap-1"
-                >
-                  <ExternalLink className="w-4 h-4" /> Buka Tab Baru
-                </a>
-                <button onClick={() => setPreviewDoc(null)} className="p-1 text-zinc-500 hover:text-zinc-800 dark:hover:text-white">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-auto flex items-center justify-center p-2 bg-zinc-100 dark:bg-zinc-950 rounded-xl min-h-[300px]">
-              {previewDoc.url.endsWith(".pdf") ? (
-                <iframe src={previewDoc.url} className="w-full h-[500px] rounded-lg" title="PDF Document" />
-              ) : (
-                <img src={previewDoc.url} alt="Pratinjau Dokumen" className="max-h-[550px] object-contain rounded-lg shadow" />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Modal Pendaftaran Peserta Tamu / Eksternal */}
       {showGuestModal && (
@@ -1894,6 +1906,25 @@ export default function PublicPertandinganPage() {
                 {previewDoc.title}
               </h3>
               <div className="flex items-center gap-2">
+                {/* Tombol Upload Ulang / Ganti Berkas di Header Modal */}
+                {previewDoc.regId && previewDoc.docType && (
+                  <label className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer flex items-center gap-1.5 shadow transition">
+                    <Upload className="w-3.5 h-3.5" /> Upload Ulang / Ganti
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (f && previewDoc.regId && previewDoc.docType) {
+                          await handleRowDocUpload(previewDoc.regId, previewDoc.memberId, f, previewDoc.docType);
+                          setPreviewDoc(null);
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+
                 <a
                   href={previewDoc.url}
                   target="_blank"
@@ -1911,26 +1942,75 @@ export default function PublicPertandinganPage() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-auto rounded-xl bg-zinc-950/5 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center min-h-[350px]">
-              {previewDoc.url.toLowerCase().endsWith(".pdf") ? (
-                <iframe src={previewDoc.url} className="w-full h-[550px] rounded-lg" title={previewDoc.title} />
-              ) : (
-                <img
-                  src={previewDoc.url}
-                  alt={previewDoc.title}
-                  className="max-h-[600px] w-auto object-contain rounded-lg shadow-md"
-                />
-              )}
+            <div className="flex-1 overflow-auto rounded-xl bg-zinc-950/5 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center min-h-[350px] p-2 relative">
+              {(() => {
+                const cleanUrl = previewDoc.url.split("?")[0].toLowerCase();
+                const isPdf = cleanUrl.endsWith(".pdf") || previewDoc.url.toLowerCase().includes(".pdf");
+                if (isPdf) {
+                  return (
+                    <iframe
+                      src={previewDoc.url}
+                      className="w-full h-[550px] rounded-lg border-0"
+                      title={previewDoc.title}
+                    />
+                  );
+                }
+                return (
+                  <img
+                    src={previewDoc.url}
+                    alt={previewDoc.title}
+                    className="max-h-[600px] w-auto object-contain rounded-lg shadow-md"
+                    onError={(e) => {
+                      const imgEl = e.currentTarget;
+                      imgEl.style.display = "none";
+                      const parent = imgEl.parentElement;
+                      if (parent && !parent.querySelector(".fallback-preview")) {
+                        const div = document.createElement("div");
+                        div.className = "fallback-preview p-6 text-center space-y-3";
+                        div.innerHTML = `
+                          <div class="text-red-500 font-bold text-sm">Pratinjau Gambar Tidak Dapat Ditampilkan</div>
+                          <p class="text-xs text-zinc-500 max-w-md mx-auto">Berkas ini mungkin berformat PDF atau link gambar rusak. Anda dapat membukanya di tab baru atau mengunggah ulang berkas baru di bawah.</p>
+                        `;
+                        parent.appendChild(div);
+                      }
+                    }}
+                  />
+                );
+              })()}
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-zinc-200 dark:border-zinc-800">
-              <button
-                type="button"
-                onClick={() => setPreviewDoc(null)}
-                className="px-5 py-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 text-zinc-800 dark:text-zinc-200 font-bold text-xs rounded-xl"
-              >
-                Tutup Pratinjau
-              </button>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+              <span className="text-xs text-zinc-500">
+                {previewDoc.regId ? "Berkas salah atau buram? Klik tombol di kanan untuk mengunggah ulang." : "Buka di tab baru jika pratinjau terkendala."}
+              </span>
+
+              <div className="flex items-center gap-2">
+                {previewDoc.regId && previewDoc.docType && (
+                  <label className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow cursor-pointer flex items-center gap-1.5 transition">
+                    <Upload className="w-3.5 h-3.5" /> Upload Ulang / Ganti Berkas
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (f && previewDoc.regId && previewDoc.docType) {
+                          await handleRowDocUpload(previewDoc.regId, previewDoc.memberId, f, previewDoc.docType);
+                          setPreviewDoc(null);
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewDoc(null)}
+                  className="px-5 py-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 text-zinc-800 dark:text-zinc-200 font-bold text-xs rounded-xl"
+                >
+                  Tutup Pratinjau
+                </button>
+              </div>
             </div>
           </div>
         </div>
