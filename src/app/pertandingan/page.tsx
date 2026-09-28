@@ -72,6 +72,7 @@ interface RegistrationItem {
   status: string;
   paymentMethod?: string | null;
   proofUrl?: string | null;
+  certificateUrl?: string | null;
   createdAt: string;
   actualWeight?: number | null;
   categoryId: string;
@@ -321,13 +322,20 @@ export default function PublicPertandinganPage() {
     regId: string,
     memberId: string | undefined,
     file: File,
-    docType: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl"
+    docType: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl" | "certificateUrl"
   ) => {
     try {
       const compressed = await compressUploadFile(file, 150 * 1024);
       const formData = new FormData();
       formData.append("file", compressed);
-      formData.append("folder", docType === "proofUrl" ? "bukti-tf" : "dokumen-pertandingan");
+      formData.append(
+        "folder",
+        docType === "proofUrl"
+          ? "bukti-tf"
+          : docType === "certificateUrl"
+          ? "piagam-pertandingan"
+          : "dokumen-pertandingan"
+      );
 
       const resUpload = await fetch("/api/public/upload", {
         method: "POST",
@@ -352,6 +360,7 @@ export default function PublicPertandinganPage() {
         });
       }
 
+      showSuccess("Berkas berhasil diunggah");
       fetchPublicData();
     } catch (err: any) {
       alert(`Upload & kompres berkas gagal: ${err.message}`);
@@ -1117,6 +1126,30 @@ export default function PublicPertandinganPage() {
                               />
                             </label>
                           )}
+
+                          {/* Piagam Kejuaraan */}
+                          {reg.certificateUrl ? (
+                            <button
+                              onClick={() => setPreviewDoc({ url: reg.certificateUrl!, title: `Piagam Kejuaraan: ${reg.member.fullName}` })}
+                              className="px-2 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
+                              title="Lihat Piagam Kejuaraan"
+                            >
+                              <Trophy className="w-3 h-3 text-purple-600 dark:text-purple-400" /> Piagam ✓
+                            </button>
+                          ) : (
+                            <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium border border-zinc-200 dark:border-zinc-700">
+                              <Upload className="w-3 h-3 text-purple-500" /> + Piagam (150KB)
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleRowDocUpload(reg.id, reg.member.id, f, "certificateUrl");
+                                }}
+                              />
+                            </label>
+                          )}
                         </div>
                       </td>
 
@@ -1845,6 +1878,58 @@ export default function PublicPertandinganPage() {
                 className="w-full py-2 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl"
               >
                 Tutup & Kembali ke Roster
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Preview Dokumen */}
+      {previewDoc && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-4xl w-full p-6 space-y-4 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b pb-3 border-zinc-200 dark:border-zinc-800">
+              <h3 className="font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2">
+                <FileText className="w-5 h-5 text-red-600" />
+                {previewDoc.title}
+              </h3>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewDoc.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 rounded-lg text-xs font-semibold flex items-center gap-1"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" /> Buka Tab Baru
+                </a>
+                <button
+                  onClick={() => setPreviewDoc(null)}
+                  className="p-1 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto rounded-xl bg-zinc-950/5 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center min-h-[350px]">
+              {previewDoc.url.toLowerCase().endsWith(".pdf") ? (
+                <iframe src={previewDoc.url} className="w-full h-[550px] rounded-lg" title={previewDoc.title} />
+              ) : (
+                <img
+                  src={previewDoc.url}
+                  alt={previewDoc.title}
+                  className="max-h-[600px] w-auto object-contain rounded-lg shadow-md"
+                />
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-zinc-200 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setPreviewDoc(null)}
+                className="px-5 py-2 bg-zinc-200 dark:bg-zinc-800 hover:bg-zinc-300 text-zinc-800 dark:text-zinc-200 font-bold text-xs rounded-xl"
+              >
+                Tutup Pratinjau
               </button>
             </div>
           </div>
