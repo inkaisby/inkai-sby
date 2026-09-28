@@ -419,9 +419,9 @@ export default function AdminPertandinganKategoriPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Form Tambah Kategori Manual */}
-        <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
+        <div className="lg:col-span-4 xl:col-span-3 bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4 h-fit">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
               <Plus className="w-5 h-5 text-red-600" />
@@ -574,7 +574,7 @@ export default function AdminPertandinganKategoriPage() {
         </div>
 
         {/* Tabel Daftar Kategori */}
-        <div className="lg:col-span-2 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm space-y-0">
+        <div className="lg:col-span-8 xl:col-span-9 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm space-y-0">
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h2 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
               <Swords className="w-5 h-5 text-red-600" />
@@ -607,10 +607,10 @@ export default function AdminPertandinganKategoriPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[650px]">
               <thead>
-                <tr className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
-                  <th className="py-3 px-3 w-10 text-center">
+                <tr className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
+                  <th className="py-2.5 px-2.5 w-9 text-center">
                     <input
                       type="checkbox"
                       checked={filteredCategories.length > 0 && selectedCategoryIds.length === filteredCategories.length}
@@ -625,12 +625,12 @@ export default function AdminPertandinganKategoriPage() {
                       className="w-4 h-4 rounded border-zinc-300 text-red-600 focus:ring-red-500 cursor-pointer"
                     />
                   </th>
-                  <th className="py-3 px-4">Nama Kelas</th>
-                  <th className="py-3 px-4">Jenis</th>
-                  <th className="py-3 px-4">Kriteria Tgl Lahir / BB</th>
-                  <th className="py-3 px-4">Biaya Cabang</th>
-                  <th className="py-3 px-4 text-center">Atlet</th>
-                  <th className="py-3 px-4 text-right">Aksi</th>
+                  <th className="py-2.5 px-3 min-w-[140px]">Nama Kelas</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Jenis</th>
+                  <th className="py-2.5 px-3 min-w-[130px]">Kriteria Tgl Lahir / BB</th>
+                  <th className="py-2.5 px-3 whitespace-nowrap">Biaya Cabang</th>
+                  <th className="py-2.5 px-3 text-center whitespace-nowrap">Atlet</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
@@ -651,7 +651,7 @@ export default function AdminPertandinganKategoriPage() {
                 ) : (
                   filteredCategories.map((cat) => (
                     <tr key={cat.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition">
-                      <td className="py-3 px-3 text-center">
+                      <td className="py-2.5 px-2.5 text-center">
                         <input
                           type="checkbox"
                           checked={selectedCategoryIds.includes(cat.id)}
@@ -663,11 +663,11 @@ export default function AdminPertandinganKategoriPage() {
                           className="w-4 h-4 rounded border-zinc-300 text-red-600 focus:ring-red-500 cursor-pointer"
                         />
                       </td>
-                      <td className="py-3 px-4 font-semibold text-zinc-900 dark:text-white">
+                      <td className="py-2.5 px-3 font-semibold text-zinc-900 dark:text-white text-xs sm:text-sm">
                         {cat.name}
-                        <div className="text-xs font-normal text-zinc-500">Gender: {cat.gender}</div>
+                        <div className="text-[11px] font-normal text-zinc-500">Gender: {cat.gender}</div>
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-2.5 px-3 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                           cat.categoryType.startsWith("KATA")
                             ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/50 dark:text-yellow-300"
@@ -676,15 +676,15 @@ export default function AdminPertandinganKategoriPage() {
                           {cat.categoryType}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-xs text-zinc-600 dark:text-zinc-400">
+                      <td className="py-2.5 px-3 text-xs text-zinc-600 dark:text-zinc-400">
                         {cat.minBirthDate || cat.maxBirthDate ? (
-                          <div className="font-mono text-[11px] text-red-600 dark:text-red-400">
+                          <div className="font-mono text-[11px] text-red-600 dark:text-red-400 whitespace-nowrap">
                             🎂 {cat.minBirthDate ? new Date(cat.minBirthDate).toLocaleDateString("id-ID") : "*"} s/d {cat.maxBirthDate ? new Date(cat.maxBirthDate).toLocaleDateString("id-ID") : "*"}
                           </div>
                         ) : cat.minAge || cat.maxAge ? (
-                          <div>{cat.minAge || 0}-{cat.maxAge || "∞"} thn</div>
+                          <div className="whitespace-nowrap">{cat.minAge || 0}-{cat.maxAge || "∞"} thn</div>
                         ) : (
-                          <div>Semua Usia / Bebas</div>
+                          <div className="whitespace-nowrap">Semua Usia / Bebas</div>
                         )}
                         <div className="text-[11px] text-zinc-500">
                           {cat.minWeight || cat.maxWeight
@@ -692,8 +692,8 @@ export default function AdminPertandinganKategoriPage() {
                             : "Bebas BB"}
                         </div>
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-emerald-600 dark:text-emerald-400">
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <div className="font-bold text-xs sm:text-sm text-emerald-600 dark:text-emerald-400">
                           Rp {cat.fee.toLocaleString("id-ID")}
                         </div>
                         <div className="mt-0.5">
@@ -708,10 +708,10 @@ export default function AdminPertandinganKategoriPage() {
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-center font-mono font-bold text-zinc-700 dark:text-zinc-300">
+                      <td className="py-2.5 px-3 text-center font-mono font-bold text-xs sm:text-sm text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
                         {cat._count?.registrations || 0}
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => openEditCategory(cat)}
