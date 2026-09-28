@@ -14,18 +14,32 @@ export const SITE_CONTACT = {
   hours: "Senin–Sabtu, 08.00–17.00 WIB",
 };
 
-export const ADMIN_WA_CONTACTS = [
-  {
-    id: "admin-1",
-    label: "Admin 1 — Panitia Utama Kejuaraan",
-    phone: "085731241840",
-    waNumber: "6285731241840",
-  },
-  {
-    id: "admin-2",
-    label: "Admin 2 — Layanan Pendaftaran & Verifikasi",
-    phone: "082257203462",
-    waNumber: "6282257203462",
-  },
-];
+export const DEFAULT_ADMIN_WA = {
+  phone: "085731241840",
+  waNumber: "6285731241840",
+};
+
+export function getAdminWaPhone(): { phone: string; waNumber: string } {
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem("inkai_admin_wa_phone");
+    if (saved && saved.trim().length >= 8) {
+      const clean = saved.trim().replace(/[^0-9]/g, "");
+      const waNumber = clean.startsWith("0") ? "62" + clean.slice(1) : clean.startsWith("62") ? clean : "62" + clean;
+      const formattedPhone = clean.startsWith("62") ? "0" + clean.slice(2) : clean;
+      return { phone: formattedPhone, waNumber };
+    }
+  }
+  return DEFAULT_ADMIN_WA;
+}
+
+export function setAdminWaPhone(newPhone: string): { phone: string; waNumber: string } {
+  const clean = newPhone.trim().replace(/[^0-9]/g, "");
+  if (typeof window !== "undefined") {
+    localStorage.setItem("inkai_admin_wa_phone", clean);
+  }
+  const waNumber = clean.startsWith("0") ? "62" + clean.slice(1) : clean.startsWith("62") ? clean : "62" + clean;
+  const formattedPhone = clean.startsWith("62") ? "0" + clean.slice(2) : clean;
+  return { phone: formattedPhone, waNumber };
+}
+
 

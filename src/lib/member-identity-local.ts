@@ -32,18 +32,24 @@ export function buildMemberIdentityLocalData(input: MemberIdentityLocalInput) {
 
 export async function persistMemberIdentityLocal(
   memberId: string,
-  input: MemberIdentityLocalInput,
+  input: MemberIdentityLocalInput & { status?: string },
   opts?: { userId?: string | null; phoneNumber?: string | null },
 ): Promise<void> {
   await prisma.member.update({
     where: { id: memberId },
-    data: buildMemberIdentityLocalData(input),
+    data: {
+      ...buildMemberIdentityLocalData(input),
+      status: input.status || "Active",
+    },
   });
-  const phone = opts?.phoneNumber?.trim();
-  if (phone && opts?.userId) {
+  if (opts?.userId) {
+    const phone = opts?.phoneNumber?.trim();
     await prisma.user.update({
       where: { id: opts.userId },
-      data: { phoneNumber: phone },
+      data: {
+        isActive: true,
+        ...(phone ? { phoneNumber: phone } : {}),
+      },
     });
   }
 }

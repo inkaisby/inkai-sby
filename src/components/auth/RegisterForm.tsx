@@ -249,41 +249,16 @@ export default function RegisterForm({
 
     const successMsg =
       data.message ||
-      "Pendaftaran berhasil! Akun Anda menunggu verifikasi admin sebelum bisa login.";
+      "Pendaftaran berhasil! Akun Anda telah terverifikasi secara otomatis dan siap digunakan untuk login.";
     setSuccess(successMsg);
     showSuccess(successMsg);
 
-    function openVerificationWhatsApp() {
-      if (!openVerificationWa) return;
-      const selected = dojos.find((d) => d.id === dojoId);
-      const phoneDigits =
-        toWhatsAppDigits(selected?.phoneNumber) || SITE_CONTACT.whatsapp;
-      if (!phoneDigits) return;
-      const message = buildRegisterVerificationWaMessage({
-        fullName: memberFields.fullName.trim().toUpperCase(),
-        gender: memberFields.gender,
-        birthPlace: memberFields.birthPlace.trim().toUpperCase(),
-        birthDate: memberFields.birthDate,
-        address: memberFields.address.trim().toUpperCase(),
-        nia: memberFields.nia.trim()
-          ? memberFields.nia.trim().toUpperCase()
-          : undefined,
-        mshNumber: msh || undefined,
-        phoneNumber: memberFields.phoneNumber.trim().toUpperCase(),
-        email: email.trim(),
-      });
-      const waUrl = buildRegisterVerificationWaUrl(phoneDigits, message);
-      window.open(waUrl, "_blank", "noopener,noreferrer");
-    }
-
     if (onSuccess) {
       await onSuccess({ memberId: data.memberId, message: successMsg });
-      openVerificationWhatsApp();
       return;
     }
 
-    openVerificationWhatsApp();
-    setTimeout(() => router.push("/login"), 2500);
+    setTimeout(() => router.push("/login"), 2000);
   }
 
   return (

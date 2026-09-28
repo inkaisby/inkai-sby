@@ -20,7 +20,10 @@ import {
   normalizeMsh,
 } from "@/lib/member-profile-locks";
 import { prisma } from "@/lib/prisma";
-import { notifyAdminsAboutMemberMsh } from "@/lib/member-msh-notify";
+import {
+  notifyAdminsAboutMemberMsh,
+  notifyAdminsAboutNewMember,
+} from "@/lib/member-msh-notify";
 import {
   EMAIL_TAKEN_MESSAGE,
   findExistingUserByEmail,
@@ -219,7 +222,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: "Registrasi berhasil, menunggu verifikasi admin",
+      message: "Registrasi berhasil! Akun Anda telah terverifikasi secara otomatis dan siap digunakan untuk login.",
       ...(memberId ? { memberId } : {}),
     });
   } catch {
@@ -328,6 +331,12 @@ async function persistRegisterLocal(opts: {
         content: `${fullName} (${dojoLabel}): No. MSH ${opts.msh} (daftar mandiri).`,
       });
     }
+
+    void notifyAdminsAboutNewMember({
+      dojoId: opts.dojoId,
+      title: "Pendaftaran Anggota Baru",
+      content: `${fullName} (${dojoLabel}) telah mendaftar dan terverifikasi secara otomatis.`,
+    });
 
     return memberId;
   } catch (err) {
