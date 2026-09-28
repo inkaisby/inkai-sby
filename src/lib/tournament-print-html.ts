@@ -20,6 +20,7 @@ export interface TournamentPrintRegistrant {
     minAge?: number | null;
     maxAge?: number | null;
     fee: number;
+    isFeeVisible?: boolean;
   };
   status: string;
   notes?: string | null;
@@ -206,6 +207,8 @@ export function generateTournamentRosterHtml(
         r.category.maxAge,
         r.member.birthDate
       );
+      const showFee = r.category.isFeeVisible !== false;
+      const feeText = showFee ? `Rp ${(r.category.fee || 0).toLocaleString("id-ID")}` : "-";
       return `
         <tr>
           <td style="text-align:center;">${idx + 1}</td>
@@ -215,7 +218,7 @@ export function generateTournamentRosterHtml(
           <td>${r.member.currentRank || "-"}</td>
           <td style="text-align:center;"><strong>${ageCategory}</strong></td>
           <td>${r.category.name}</td>
-          <td style="text-align:center;">Rp ${(r.category.fee || 0).toLocaleString("id-ID")}</td>
+          <td style="text-align:center;">${feeText}</td>
           <td style="text-align:center;"><strong>${payMethod}</strong></td>
           <td style="text-align:center;">${weightText}</td>
           <td style="text-align:center;"><span class="badge ${r.status.toLowerCase()}">${r.status}</span></td>

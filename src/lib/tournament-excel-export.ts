@@ -4,7 +4,7 @@ export function exportTournamentRosterToExcel(
     id?: string;
     member: { fullName: string; nia?: string | null; currentRank?: string | null };
     dojo: { name: string };
-    category: { name: string; fee: number };
+    category: { name: string; fee: number; isFeeVisible?: boolean };
     status: string;
     paymentMethod?: string | null;
     actualWeight?: number | null;
@@ -24,13 +24,19 @@ export function exportTournamentRosterToExcel(
   });
 
   let totalFee = 0;
+  let hasAnyVisibleFee = false;
 
   const rowsHtml = registrations
     .map((r, idx) => {
       const isCash = r.notes?.includes("CASH") || r.paymentMethod === "CASH";
       const payMethod = isCash ? "TUNAI" : "TRANSFER / QRIS";
       const fee = r.category?.fee || 0;
-      totalFee += fee;
+      const showFee = r.category?.isFeeVisible !== false;
+      if (showFee) {
+        totalFee += fee;
+        hasAnyVisibleFee = true;
+      }
+      const feeCell = showFee ? `Rp ${fee.toLocaleString("id-ID")}` : "-";
 
       const weightText = r.actualWeight ? `${r.actualWeight} kg` : "Belum timbang";
       const bgClass = idx % 2 === 1 ? 'class="zebra"' : "";
@@ -42,7 +48,7 @@ export function exportTournamentRosterToExcel(
         <td class="text-left">${escapeXml(r.dojo?.name || "-")}</td>
         <td class="text-left">${escapeXml(r.member?.currentRank || "Putih")}</td>
         <td class="text-left">${escapeXml(r.category?.name || "-")}</td>
-        <td class="currency">Rp ${fee.toLocaleString("id-ID")}</td>
+        <td class="${showFee ? 'currency' : 'text-center'}">${feeCell}</td>
         <td class="text-center"><b>${escapeXml(r.status || "REGISTERED")}</b></td>
         <td class="text-center">${escapeXml(payMethod)}</td>
         <td class="text-center">${escapeXml(weightText)}</td>
@@ -52,7 +58,7 @@ export function exportTournamentRosterToExcel(
     })
     .join("\n");
 
-  const totalFeeFormatted = `Rp ${totalFee.toLocaleString("id-ID")}`;
+  const totalFeeFormatted = hasAnyVisibleFee ? `Rp ${totalFee.toLocaleString("id-ID")}` : "-";
 
   const html = `<html xmlns:o="urn:schemas-microsoft-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
 <head>

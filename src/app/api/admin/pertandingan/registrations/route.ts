@@ -61,6 +61,7 @@ export async function GET(request: Request) {
             minAge: true,
             maxAge: true,
             fee: true,
+            isFeeVisible: true,
           },
         },
 
