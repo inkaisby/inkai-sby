@@ -44,6 +44,7 @@ import { compressUploadFile } from "@/lib/compress-image";
 import { generateTournamentRosterHtml } from "@/lib/tournament-print-html";
 import { deriveAgeCategoryLabel } from "@/lib/tournament-category-presets";
 import { DEFAULT_ADMIN_WA, getAdminWaPhone } from "@/lib/site";
+import { exportTournamentRosterToExcel } from "@/lib/tournament-excel-export";
 
 interface CategoryDetail {
   id: string;
@@ -544,55 +545,9 @@ export default function PublicPertandinganPage() {
       showError("Tidak ada data pendaftaran untuk diekspor");
       return;
     }
-    const headers = [
-      "No",
-      "Nama Atlet",
-      "NIA",
-      "Dojo/Kontingen",
-      "Sabuk",
-      "Kelas Pertandingan",
-      "Biaya",
-      "Metode Bayar",
-      "Berat Badan (kg)",
-      "Status Pendaftaran",
-    ];
-    const csvRows = [headers.join(",")];
-
-    filteredRegistrations.forEach((r, idx) => {
-      const payMethod =
-        r.paymentMethod || (r.status === "LUNAS" ? "TRANSFER" : "TUNAI");
-      const weightText = r.actualWeight ? String(r.actualWeight) : "-";
-      const row = [
-        idx + 1,
-        `"${(r.member.fullName || "").replace(/"/g, '""')}"`,
-        `"${(r.member.nia || "").replace(/"/g, '""')}"`,
-        `"${(r.dojo.name || "").replace(/"/g, '""')}"`,
-        `"${(r.member.currentRank || "").replace(/"/g, '""')}"`,
-        `"${(r.category.name || "").replace(/"/g, '""')}"`,
-        r.category.fee || 0,
-        `"${payMethod}"`,
-        `"${weightText}"`,
-        `"${(r.status || "").replace(/"/g, '""')}"`,
-      ];
-      csvRows.push(row.join(","));
-    });
-
-    const csvContent =
-      "data:text/csv;charset=utf-8,\uFEFF" + csvRows.join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    const eventName = activeEvent?.title || "Kejuaraan_Karate";
-    link.setAttribute(
-      "download",
-      `Daftar_Peserta_${eventName.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date()
-        .toISOString()
-        .slice(0, 10)}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showSuccess("Berhasil mengekspor daftar peserta ke CSV / Excel");
+    const eventName = activeEvent?.title || "Kejuaraan Karate INKAI Surabaya";
+    exportTournamentRosterToExcel(eventName, filteredRegistrations);
+    showSuccess("Berhasil mengekspor daftar peserta dengan format Excel rapi (.xls)");
   };
 
   const handlePrintPdf = () => {

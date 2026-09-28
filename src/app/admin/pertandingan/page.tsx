@@ -54,6 +54,7 @@ import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 import { showError, showSuccess } from "@/lib/client-toast";
 import { deriveAgeCategoryLabel } from "@/lib/tournament-category-presets";
 import { DEFAULT_ADMIN_WA, getAdminWaPhone, setAdminWaPhone } from "@/lib/site";
+import { exportTournamentRosterToExcel } from "@/lib/tournament-excel-export";
 
 interface EventItem {
   id: string;
@@ -810,51 +811,14 @@ export default function AdminPertandinganPage() {
   });
 
   const exportToExcel = () => {
+    if (displayedRegistrations.length === 0) {
+      showError("Tidak ada data pendaftaran untuk diekspor");
+      return;
+    }
     const activeEvent = events.find((e) => e.id === selectedEventId);
     const eventName = activeEvent?.title || "Kejuaraan Karate INKAI Surabaya";
-
-    const rows = displayedRegistrations.map((r, idx) => {
-      const payMethod = r.notes?.includes("CASH") ? "TUNAI" : "TRANSFER / QRIS";
-      return [
-        idx + 1,
-        `"${(r.member.fullName || "").replace(/"/g, '""')}"`,
-        `"${r.member.nia || "-"}"`,
-        `"${(r.dojo?.name || "").replace(/"/g, '""')}"`,
-        `"${r.member.currentRank || "Putih"}"`,
-        `"${(r.category?.name || "").replace(/"/g, '""')}"`,
-        r.category?.fee || 0,
-        `"${r.status}"`,
-        `"${payMethod}"`,
-        r.actualWeight ? `${r.actualWeight} kg` : "Belum timbang",
-        `"${r.officialName || "-"}"`,
-        `"${r.officialPhone || "-"}"`,
-      ].join(",");
-    });
-
-    const headers = [
-      "No",
-      "Nama Atlet",
-      "NIA",
-      "Dojo / Kontingen",
-      "Sabuk",
-      "Kelas Pertandingan",
-      "Biaya (Rp)",
-      "Status Pendaftaran",
-      "Metode Pembayaran",
-      "Hasil Berat Badan",
-      "Nama Official",
-      "Kontak Official",
-    ].join(",");
-
-    const csvContent = "\uFEFF" + [headers, ...rows].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `Roster_${eventName.replace(/[^a-z0-9]/gi, "_")}_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    exportTournamentRosterToExcel(eventName, displayedRegistrations);
+    showSuccess("Berhasil mengekspor roster peserta dengan format Excel rapi (.xls)");
   };
 
   const printIdCards = () => {
