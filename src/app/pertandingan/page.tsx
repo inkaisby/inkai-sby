@@ -477,12 +477,12 @@ export default function PublicPertandinganPage() {
     }
   };
 
-  // WhatsApp Correction / Deletion Dispatcher to 082257203462
+  // WhatsApp Correction / Deletion Dispatcher to 085731241840
   const handleSendWaCorrection = (e: React.FormEvent) => {
     e.preventDefault();
     if (!correctionTarget) return;
 
-    const adminPhone = "6282257203462";
+    const adminPhone = "6285731241840";
     const typeLabel = correctionType === "HAPUS" ? "PEMBATALAN / HAPUS PENDAFTARAN" : "KOREKSI DATA PENDAFTARAN";
 
     const textMessage =
@@ -496,9 +496,9 @@ export default function PublicPertandinganPage() {
       `🏅 *Kategori Kelas:* ${correctionTarget.category.name}\n` +
       `📌 *Status Saat Ini:* ${correctionTarget.status}\n\n` +
       `📝 *Jenis Pengajuan:* ${typeLabel}\n` +
-      `💬 *Catatan / Rincian Perubahan:* ${correctionNotes.trim() || "Mohon diproses."}\n` +
+      `💬 *Catatan / Rincian Perubahan:* ${correctionNotes.trim() || "Mohon dipproses."}\n` +
       `-------------------------------------------\n` +
-      `_Mohon bantuannya Panitia INKAI Surabaya (082257203462) untuk memproses pengajuan ini. Terima kasih._`;
+      `_Mohon bantuannya Panitia INKAI Surabaya (085731241840) untuk memproses pengajuan ini. Terima kasih._`;
 
     const targetUrl = `https://api.whatsapp.com/send?phone=${adminPhone}&text=${encodeURIComponent(textMessage)}`;
     window.open(targetUrl, "_blank");
@@ -1433,7 +1433,7 @@ export default function PublicPertandinganPage() {
                         </div>
                       </td>
 
-                      {/* Kolom Aksi / Permohonan Koreksi / Hapus via WA (082257203462) */}
+                      {/* Kolom Aksi / Permohonan Koreksi / Hapus via WA (085731241840) */}
                       <td className="py-3.5 px-3 text-center">
                         <button
                           onClick={() => {
@@ -1442,7 +1442,7 @@ export default function PublicPertandinganPage() {
                             setCorrectionNotes("");
                           }}
                           className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs font-semibold inline-flex items-center gap-1 transition shadow-xs"
-                          title="Permohonan Koreksi / Pembatalan ke WA 082257203462"
+                          title="Permohonan Koreksi / Pembatalan ke WA 085731241840"
                         >
                           <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
                           Koreksi / WA
@@ -1511,7 +1511,7 @@ export default function PublicPertandinganPage() {
         </div>
       </div>
 
-      {/* Modal Permohonan Koreksi / Hapus ke WA Admin (082257203462) */}
+      {/* Modal Permohonan Koreksi / Hapus ke WA Admin (085731241840) */}
       {correctionTarget && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
@@ -1529,7 +1529,7 @@ export default function PublicPertandinganPage() {
               <div><strong>Nama Atlet:</strong> {correctionTarget.member.fullName}</div>
               <div><strong>Dojo / Kontingen:</strong> {correctionTarget.dojo.name}</div>
               <div><strong>Kategori:</strong> {correctionTarget.category.name}</div>
-              <div><strong>Tujuan WA Admin:</strong> <span className="font-mono text-emerald-600 font-bold">082257203462</span></div>
+              <div><strong>Tujuan WA Admin:</strong> <span className="font-mono text-emerald-600 font-bold">085731241840</span></div>
             </div>
 
             <form onSubmit={handleSendWaCorrection} className="space-y-4 text-xs md:text-sm">
@@ -1594,7 +1594,7 @@ export default function PublicPertandinganPage() {
                   type="submit"
                   className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow flex items-center gap-2"
                 >
-                  <Send className="w-3.5 h-3.5" /> Kirim ke WA (082257203462)
+                  <Send className="w-3.5 h-3.5" /> Kirim ke WA (085731241840)
                 </button>
               </div>
             </form>
@@ -2084,7 +2084,7 @@ export default function PublicPertandinganPage() {
             {/* CTA WhatsApp Confirmation */}
             <div className="pt-2 space-y-2">
               <a
-                href={`https://api.whatsapp.com/send?phone=6282257203462&text=${encodeURIComponent(
+                href={`https://api.whatsapp.com/send?phone=6285731241840&text=${encodeURIComponent(
                   `*KONFIRMASI PEMBAYARAN KEJUARAAN*\n` +
                   `----------------------------------\n` +
                   `📌 *No. Registrasi:* ${paymentSuccessData.registrationId}\n` +
@@ -2098,7 +2098,7 @@ export default function PublicPertandinganPage() {
                 rel="noreferrer"
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow flex items-center justify-center gap-2 transition"
               >
-                <Send className="w-4 h-4" /> Konfirmasi Pembayaran via WA (082257203462)
+                <Send className="w-4 h-4" /> Konfirmasi Pembayaran via WA (085731241840)
               </a>
 
               <button

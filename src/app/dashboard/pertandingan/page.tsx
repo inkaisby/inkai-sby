@@ -665,7 +665,7 @@ export default function MemberPertandinganPage() {
             {/* CTA WhatsApp Confirmation */}
             <div className="pt-2 space-y-2">
               <a
-                href={`https://api.whatsapp.com/send?phone=6282257203462&text=${encodeURIComponent(
+                href={`https://api.whatsapp.com/send?phone=6285731241840&text=${encodeURIComponent(
                   `*KONFIRMASI PEMBAYARAN ANGGOTA KEJUARAAN*\n` +
                   `----------------------------------\n` +
                   `🏆 *Event:* ${showPaymentInstructions.event.title}\n` +
@@ -678,7 +678,7 @@ export default function MemberPertandinganPage() {
                 rel="noreferrer"
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow flex items-center justify-center gap-2 transition"
               >
-                <Send className="w-4 h-4" /> Konfirmasi Pembayaran via WA (082257203462)
+                <Send className="w-4 h-4" /> Konfirmasi Pembayaran via WA (085731241840)
               </a>
 
               <button
