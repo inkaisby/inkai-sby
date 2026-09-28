@@ -55,6 +55,7 @@ import { showError, showSuccess } from "@/lib/client-toast";
 import { deriveAgeCategoryLabel } from "@/lib/tournament-category-presets";
 import { DEFAULT_ADMIN_WA, getAdminWaPhone, setAdminWaPhone } from "@/lib/site";
 import { exportTournamentRosterToExcel } from "@/lib/tournament-excel-export";
+import { isBlackBeltRank } from "@/lib/belt";
 
 interface EventItem {
   id: string;
@@ -80,6 +81,7 @@ interface CategoryItem {
   minAge?: number | null;
   maxAge?: number | null;
   fee: number;
+  isFeeVisible?: boolean;
 }
 
 
@@ -92,6 +94,7 @@ interface MemberItem {
   id: string;
   fullName: string;
   nia?: string;
+  mshNumber?: string | null;
   currentRank?: string;
   gender?: string;
   birthDate?: string;
@@ -1181,7 +1184,9 @@ export default function AdminPertandinganPage() {
             >
               <option value="">Semua Kategori Kelas</option>
               {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>
+                  {c.name}{c.isFeeVisible !== false ? ` (Rp ${c.fee.toLocaleString("id-ID")})` : ""}
+                </option>
               ))}
             </select>
 
@@ -1325,7 +1330,11 @@ export default function AdminPertandinganPage() {
                           </div>
                           <div className="min-w-0">
                             <div className="font-semibold text-zinc-900 dark:text-white truncate">{reg.member.fullName}</div>
-                            <div className="text-xs text-zinc-500 whitespace-nowrap">NIA: {reg.member.nia || "-"} • {reg.member.currentRank || "Putih"}</div>
+                            <div className="text-xs text-zinc-500 whitespace-nowrap">
+                              {isBlackBeltRank(reg.member.currentRank)
+                                ? `No. MSH: ${reg.member.mshNumber || "-"}`
+                                : `NIA: ${reg.member.nia || "-"}`} • {reg.member.currentRank || "Putih"}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -1467,7 +1476,7 @@ export default function AdminPertandinganPage() {
                       >
                         {categories.map((c) => (
                           <option key={c.id} value={c.id} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-normal">
-                            {c.name} (Rp {c.fee.toLocaleString("id-ID")})
+                            {c.name}{c.isFeeVisible !== false ? ` (Rp ${c.fee.toLocaleString("id-ID")})` : ""}
                           </option>
                         ))}
                       </select>
@@ -1527,7 +1536,13 @@ export default function AdminPertandinganPage() {
                     </td>
 
                     <td className="py-3 px-4 font-semibold text-zinc-900 dark:text-zinc-100 text-right whitespace-nowrap">
-                      Rp {reg.category.fee.toLocaleString("id-ID")}
+                      {reg.category.isFeeVisible !== false ? (
+                        `Rp ${reg.category.fee.toLocaleString("id-ID")}`
+                      ) : (
+                        <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/60">
+                          Disembunyikan
+                        </span>
+                      )}
                     </td>
 
                     {/* Status & Pilihan TF / Tunai + Upload Bukti TF & Lihat */}

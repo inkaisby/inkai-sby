@@ -214,31 +214,37 @@ export default function MemberPertandinganPage() {
   const selectedEvent = events.find((e) => e.id === selectedEventId);
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-3.5 sm:p-5 space-y-5 w-full mx-auto">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-red-900 via-red-800 to-red-950 text-white p-6 rounded-2xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Trophy className="w-8 h-8 text-yellow-400 animate-pulse" />
-            <h1 className="text-2xl font-bold tracking-tight">Pendaftaran Kejuaraan Karate Mandiri</h1>
+      <div className="bg-gradient-to-r from-red-950 via-red-900 to-red-950 text-white p-4 sm:p-5 rounded-2xl shadow-lg border border-red-900/50 space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 bg-yellow-500/20 text-yellow-400 rounded-xl border border-yellow-500/30 flex-shrink-0 mt-0.5">
+            <Trophy className="w-6 h-6 animate-pulse" />
           </div>
-          <p className="text-sm text-red-200">
-            Daftar kompetisi Kata & Kumite resmi INKAI Cabang Surabaya secara mandiri
-          </p>
+          <div>
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">Pendaftaran Kejuaraan Karate Mandiri</h1>
+            <p className="text-xs text-red-200 mt-0.5 leading-snug">
+              Daftar kompetisi Kata & Kumite resmi INKAI Cabang Surabaya secara mandiri
+            </p>
+          </div>
         </div>
 
         {member && (
-          <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/20 text-xs space-y-0.5">
-            <div className="font-semibold text-white">{member.fullName}</div>
-            <div className="text-red-200">Dojo: {member.dojo.name}</div>
-            <div className="text-yellow-300 font-medium">Sabuk: {member.currentRank}</div>
+          <div className="bg-white/10 backdrop-blur-md p-3 rounded-xl border border-white/20 text-xs flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="font-bold text-white text-xs">{member.fullName}</div>
+              <div className="text-red-200 text-[11px]">Dojo: {member.dojo.name}</div>
+            </div>
+            <span className="px-2.5 py-1 bg-yellow-500/20 text-yellow-300 rounded-lg border border-yellow-500/30 font-semibold text-[11px]">
+              Sabuk: {member.currentRank}
+            </span>
           </div>
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="flex flex-col gap-6">
         {/* Form Pendaftaran Mandiri */}
-        <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
+        <div className="bg-white dark:bg-zinc-900 p-4 sm:p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
           <h2 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
             <Swords className="w-5 h-5 text-red-600" />
             Formulir Pendaftaran Pertandingan
@@ -391,7 +397,7 @@ export default function MemberPertandinganPage() {
         </div>
 
         {/* Riwayat Pertandingan Saya */}
-        <div className="lg:col-span-2 bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
+        <div className="bg-white dark:bg-zinc-900 p-4 sm:p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
           <h2 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
             <Trophy className="w-5 h-5 text-yellow-500" />
             Riwayat Pertandingan Saya ({myRegistrations.length})

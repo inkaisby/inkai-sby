@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { showError, showSuccess } from "@/lib/client-toast";
 import {
   Trophy,
@@ -110,6 +111,9 @@ interface RegistrationItem {
 
 
 export default function PublicPertandinganPage() {
+  const { data: session, status: sessionStatus } = useSession();
+  const isLoggedIn = sessionStatus === "authenticated" && Boolean(session?.user);
+
   const [events, setEvents] = useState<EventItem[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [registrations, setRegistrations] = useState<RegistrationItem[]>([]);
@@ -129,6 +133,20 @@ export default function PublicPertandinganPage() {
     memberId?: string;
     docType?: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl" | "certificateUrl";
   } | null>(null);
+
+  const handleViewDoc = (doc: {
+    url: string;
+    title: string;
+    regId?: string;
+    memberId?: string;
+    docType?: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl" | "certificateUrl";
+  }) => {
+    if (!isLoggedIn) {
+      showError("Silakan login ke akun Anda terlebih dahulu untuk melihat atau mengunggah dokumen.");
+      return;
+    }
+    setPreviewDoc(doc);
+  };
 
   // Pagination & Print modal state
   const [currentPage, setCurrentPage] = useState(1);
@@ -216,22 +234,10 @@ export default function PublicPertandinganPage() {
   } | null>(null);
 
   const dojoOptionsList = useMemo(() => {
-    const defaults = [
-      "Dojo Airlangga",
-      "Dojo Gubeng",
-      "Dojo ITS",
-      "Dojo Unair",
-      "Dojo Smala",
-      "Dojo Smada",
-      "Dojo Tambaksari",
-      "Dojo Rungkut",
-      "Dojo Wonokromo",
-    ];
     const set = new Set<string>();
     systemDojos.forEach((d) => {
       if (d.name) set.add(d.name.trim());
     });
-    defaults.forEach((name) => set.add(name));
     return Array.from(set).sort((a, b) => a.localeCompare(b, "id"));
   }, [systemDojos]);
 
@@ -282,6 +288,10 @@ export default function PublicPertandinganPage() {
 
   const handleFileUpload = async (file: File, folder: string, fieldKey: string) => {
     setGuestError(null);
+    if (guestForm[fieldKey as keyof typeof guestForm]) {
+      setGuestError("Berkas ini sudah terisi. Kesempatan unggah berkas hanya 1x.");
+      return;
+    }
     setUploadingState((prev) => ({ ...prev, [fieldKey]: true }));
     try {
       const compressedFile = await compressUploadFile(file, 150 * 1024);
@@ -305,6 +315,10 @@ export default function PublicPertandinganPage() {
   };
 
   const handleUpdateCategory = async (regId: string, newCategoryId: string) => {
+    if (!isLoggedIn) {
+      showError("Silakan login ke akun Anda terlebih dahulu untuk mengubah kelas pertandingan.");
+      return;
+    }
     try {
       const res = await fetch("/api/public/pertandingan", {
         method: "PATCH",
@@ -315,7 +329,7 @@ export default function PublicPertandinganPage() {
         fetchPublicData();
       } else {
         const data = await res.json();
-        alert(data.error || "Gagal mengubah kelas pertandingan");
+        showError(data.error || "Gagal mengubah kelas pertandingan");
       }
     } catch (err) {
       console.error("Failed to update category", err);
@@ -323,6 +337,10 @@ export default function PublicPertandinganPage() {
   };
 
   const handleUpdateWeight = async (regId: string, actualWeight: number | null) => {
+    if (!isLoggedIn) {
+      showError("Silakan login ke akun Anda terlebih dahulu untuk mengubah berat badan.");
+      return;
+    }
     setRegistrations((prev) => prev.map((r) => (r.id === regId ? { ...r, actualWeight } : r)));
     try {
       const res = await fetch("/api/public/pertandingan", {
@@ -345,6 +363,10 @@ export default function PublicPertandinganPage() {
   };
 
   const handleUpdatePaymentMethod = async (regId: string, paymentMethod: "TRANSFER" | "CASH") => {
+    if (!isLoggedIn) {
+      showError("Silakan login ke akun Anda terlebih dahulu untuk memilih metode pembayaran.");
+      return;
+    }
     try {
       const res = await fetch("/api/public/pertandingan", {
         method: "PATCH",
@@ -365,6 +387,24 @@ export default function PublicPertandinganPage() {
     file: File,
     docType: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl" | "certificateUrl"
   ) => {
+    if (!isLoggedIn) {
+      showError("Silakan login ke akun Anda terlebih dahulu untuk mengunggah dokumen.");
+      return;
+    }
+    const targetReg = registrations.find((r) => r.id === regId);
+    if (targetReg) {
+      let isAlreadyUploaded = false;
+      if (docType === "photoUrl" && Boolean(targetReg.member?.photoUrl)) isAlreadyUploaded = true;
+      if (docType === "birthCertificateUrl" && Boolean(targetReg.member?.birthCertificateUrl)) isAlreadyUploaded = true;
+      if (docType === "bpjsCardUrl" && Boolean(targetReg.member?.bpjsCardUrl)) isAlreadyUploaded = true;
+      if (docType === "certificateUrl" && Boolean(targetReg.certificateUrl)) isAlreadyUploaded = true;
+      if (docType === "proofUrl" && Boolean(targetReg.proofUrl)) isAlreadyUploaded = true;
+
+      if (isAlreadyUploaded) {
+        showError("Dokumen sudah terisi (kesempatan upload 1x). Jika ada kesalahan berkas, silakan ajukan permohonan koreksi ke WA admin.");
+        return;
+      }
+    }
     try {
       const compressed = await compressUploadFile(file, 150 * 1024);
       const formData = new FormData();
@@ -1057,6 +1097,24 @@ export default function PublicPertandinganPage() {
           </div>
         )}
 
+        {/* Warning Banner for Unauthenticated Users */}
+        {!isLoggedIn && (
+          <div className="mb-4 p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-amber-800 dark:text-amber-300 shadow-xs">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+              <span>
+                <strong>Mode Pratinjau Publik:</strong> Silakan login ke akun Anda terlebih dahulu untuk melihat dokumen atlet, mengunggah berkas, atau mengubah data pendaftaran.
+              </span>
+            </div>
+            <Link
+              href="/login?callbackUrl=/pertandingan"
+              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold flex items-center gap-1.5 whitespace-nowrap shadow-xs transition"
+            >
+              <LogIn className="w-3.5 h-3.5" /> Login Akun
+            </Link>
+          </div>
+        )}
+
         {/* Tabel Daftar Peserta Atlet */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
@@ -1115,7 +1173,12 @@ export default function PublicPertandinganPage() {
                       <td className="py-3.5 px-3 text-center">
                         {reg.member.photoUrl ? (
                           <button
-                            onClick={() => setPreviewDoc({ url: reg.member.photoUrl!, title: `Foto Profil: ${reg.member.fullName}` })}
+                            onClick={() =>
+                              handleViewDoc({
+                                url: reg.member.photoUrl!,
+                                title: `Foto Profil: ${reg.member.fullName}`,
+                              })
+                            }
                             className="inline-block relative group"
                           >
                             <img
@@ -1150,61 +1213,74 @@ export default function PublicPertandinganPage() {
                         </span>
                       </td>
 
-                      {/* Kelas Pertandingan (Inline Dropdown Select) */}
+                      {/* Kelas Pertandingan (Inline Dropdown Select bila login, static badge bila publik) */}
                       <td className="py-3.5 px-4 min-w-[200px]">
-
-                        <select
-                          value={reg.categoryId || reg.category?.id}
-                          onChange={(e) => handleUpdateCategory(reg.id, e.target.value)}
-                          className="w-full px-2.5 py-1.5 bg-red-50/70 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-xs font-bold text-red-700 dark:text-red-300 focus:ring-2 focus:ring-red-500 cursor-pointer shadow-xs truncate"
-                        >
-                          {(activeEvent?.tournamentCategories || []).map((c) => (
-                            <option key={c.id} value={c.id} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-normal">
-                              {c.name} {c.isFeeVisible !== false ? `(Rp ${c.fee.toLocaleString("id-ID")})` : ""}
-                            </option>
-                          ))}
-                        </select>
+                        {isLoggedIn ? (
+                          <select
+                            value={reg.categoryId || reg.category?.id}
+                            onChange={(e) => handleUpdateCategory(reg.id, e.target.value)}
+                            className="w-full px-2.5 py-1.5 bg-red-50/70 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-xs font-bold text-red-700 dark:text-red-300 focus:ring-2 focus:ring-red-500 cursor-pointer shadow-xs truncate"
+                          >
+                            {(activeEvent?.tournamentCategories || []).map((c) => (
+                              <option key={c.id} value={c.id} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-normal">
+                                {c.name} {c.isFeeVisible !== false ? `(Rp ${c.fee.toLocaleString("id-ID")})` : ""}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="inline-block w-full px-2.5 py-1.5 bg-red-50/70 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-xs font-bold text-red-700 dark:text-red-300 truncate">
+                            {reg.category?.name || "-"}
+                          </span>
+                        )}
                       </td>
 
-                      {/* Kolom BB (Berat Badan) di sebelah kanan Kelas Pertandingan */}
+                      {/* Kolom BB (Berat Badan) */}
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-2 py-1">
                           <Scale className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                          <input
-                            key={`${reg.id}-${reg.actualWeight ?? "empty"}`}
-                            type="number"
-                            step="0.1"
-                            placeholder="kg"
-                            defaultValue={reg.actualWeight !== null && reg.actualWeight !== undefined ? reg.actualWeight : ""}
-                            onBlur={(e) => {
-                              const val = e.target.value ? parseFloat(e.target.value) : null;
-                              if (val !== reg.actualWeight) {
-                                handleUpdateWeight(reg.id, val);
-                              }
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                const val = (e.target as HTMLInputElement).value ? parseFloat((e.target as HTMLInputElement).value) : null;
-                                if (val !== reg.actualWeight) {
-                                  handleUpdateWeight(reg.id, val);
-                                }
-                                (e.target as HTMLInputElement).blur();
-                              }
-                            }}
-                            className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-700 rounded text-xs font-bold text-amber-900 dark:text-amber-200 text-center focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                          />
-                          <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">kg</span>
+                          {isLoggedIn ? (
+                            <>
+                              <input
+                                key={`${reg.id}-${reg.actualWeight ?? "empty"}`}
+                                type="number"
+                                step="0.1"
+                                placeholder="kg"
+                                defaultValue={reg.actualWeight !== null && reg.actualWeight !== undefined ? reg.actualWeight : ""}
+                                onBlur={(e) => {
+                                  const val = e.target.value ? parseFloat(e.target.value) : null;
+                                  if (val !== reg.actualWeight) {
+                                    handleUpdateWeight(reg.id, val);
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    const val = (e.target as HTMLInputElement).value ? parseFloat((e.target as HTMLInputElement).value) : null;
+                                    if (val !== reg.actualWeight) {
+                                      handleUpdateWeight(reg.id, val);
+                                    }
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-700 rounded text-xs font-bold text-amber-900 dark:text-amber-200 text-center focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                              />
+                              <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">kg</span>
+                            </>
+                          ) : (
+                            <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                              {reg.actualWeight !== null && reg.actualWeight !== undefined ? `${reg.actualWeight} kg` : "-"}
+                            </span>
+                          )}
                         </div>
                       </td>
 
-                      {/* Berkas Dokumen Status & Upload (Auto Compress 150KB) */}
+                      {/* Berkas Dokumen Status & Upload */}
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
                           {/* Foto */}
                           {reg.member.photoUrl ? (
                             <button
                               onClick={() =>
-                                setPreviewDoc({
+                                handleViewDoc({
                                   url: reg.member.photoUrl!,
                                   title: `Foto Profil: ${reg.member.fullName}`,
                                   regId: reg.id,
@@ -1213,11 +1289,12 @@ export default function PublicPertandinganPage() {
                                 })
                               }
                               className="px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
-                              title="Lihat Foto Profil"
+                              title={isLoggedIn ? "Lihat Foto Profil" : "Login untuk melihat dokumen"}
                             >
+                              {!isLoggedIn && <Lock className="w-3 h-3 text-emerald-600" />}
                               <ImageIcon className="w-3 h-3" /> Foto
                             </button>
-                          ) : (
+                          ) : isLoggedIn ? (
                             <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium">
                               <Upload className="w-3 h-3 text-zinc-400" /> Foto
                               <input
@@ -1230,13 +1307,21 @@ export default function PublicPertandinganPage() {
                                 }}
                               />
                             </label>
+                          ) : (
+                            <button
+                              onClick={() => showError("Silakan login ke akun Anda terlebih dahulu untuk mengunggah berkas.")}
+                              className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 rounded text-[11px] font-medium border border-zinc-200 dark:border-zinc-700 flex items-center gap-1 cursor-pointer"
+                              title="Login untuk mengunggah"
+                            >
+                              <Lock className="w-3 h-3 text-zinc-400" /> Foto
+                            </button>
                           )}
 
                           {/* Akte Kelahiran */}
                           {reg.member.birthCertificateUrl ? (
                             <button
                               onClick={() =>
-                                setPreviewDoc({
+                                handleViewDoc({
                                   url: reg.member.birthCertificateUrl!,
                                   title: `Akte Kelahiran: ${reg.member.fullName}`,
                                   regId: reg.id,
@@ -1245,11 +1330,12 @@ export default function PublicPertandinganPage() {
                                 })
                               }
                               className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
-                              title="Lihat Akte Kelahiran"
+                              title={isLoggedIn ? "Lihat Akte Kelahiran" : "Login untuk melihat dokumen"}
                             >
+                              {!isLoggedIn && <Lock className="w-3 h-3 text-blue-600" />}
                               <FileText className="w-3 h-3" /> Akte ✓
                             </button>
-                          ) : (
+                          ) : isLoggedIn ? (
                             <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium border border-zinc-200 dark:border-zinc-700">
                               <Upload className="w-3 h-3 text-blue-500" /> + Akte (150KB)
                               <input
@@ -1262,13 +1348,21 @@ export default function PublicPertandinganPage() {
                                 }}
                               />
                             </label>
+                          ) : (
+                            <button
+                              onClick={() => showError("Silakan login ke akun Anda terlebih dahulu untuk mengunggah berkas.")}
+                              className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 rounded text-[11px] font-medium border border-zinc-200 dark:border-zinc-700 flex items-center gap-1 cursor-pointer"
+                              title="Login untuk mengunggah"
+                            >
+                              <Lock className="w-3 h-3 text-blue-400" /> Akte
+                            </button>
                           )}
 
                           {/* BPJS */}
                           {reg.member.bpjsCardUrl ? (
                             <button
                               onClick={() =>
-                                setPreviewDoc({
+                                handleViewDoc({
                                   url: reg.member.bpjsCardUrl!,
                                   title: `Kartu BPJS: ${reg.member.fullName}`,
                                   regId: reg.id,
@@ -1277,11 +1371,12 @@ export default function PublicPertandinganPage() {
                                 })
                               }
                               className="px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
-                              title="Lihat BPJS"
+                              title={isLoggedIn ? "Lihat BPJS" : "Login untuk melihat dokumen"}
                             >
+                              {!isLoggedIn && <Lock className="w-3 h-3 text-amber-600" />}
                               <ShieldAlert className="w-3 h-3" /> BPJS ✓
                             </button>
-                          ) : (
+                          ) : isLoggedIn ? (
                             <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium border border-zinc-200 dark:border-zinc-700">
                               <Upload className="w-3 h-3 text-amber-500" /> + BPJS (150KB)
                               <input
@@ -1294,13 +1389,21 @@ export default function PublicPertandinganPage() {
                                 }}
                               />
                             </label>
+                          ) : (
+                            <button
+                              onClick={() => showError("Silakan login ke akun Anda terlebih dahulu untuk mengunggah berkas.")}
+                              className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 rounded text-[11px] font-medium border border-zinc-200 dark:border-zinc-700 flex items-center gap-1 cursor-pointer"
+                              title="Login untuk mengunggah"
+                            >
+                              <Lock className="w-3 h-3 text-amber-400" /> BPJS
+                            </button>
                           )}
 
                           {/* Piagam Kejuaraan */}
                           {reg.certificateUrl ? (
                             <button
                               onClick={() =>
-                                setPreviewDoc({
+                                handleViewDoc({
                                   url: reg.certificateUrl!,
                                   title: `Piagam Kejuaraan: ${reg.member.fullName}`,
                                   regId: reg.id,
@@ -1309,11 +1412,12 @@ export default function PublicPertandinganPage() {
                                 })
                               }
                               className="px-2 py-0.5 bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
-                              title="Lihat Piagam Kejuaraan"
+                              title={isLoggedIn ? "Lihat Piagam Kejuaraan" : "Login untuk melihat dokumen"}
                             >
+                              {!isLoggedIn && <Lock className="w-3 h-3 text-purple-600" />}
                               <Trophy className="w-3 h-3 text-purple-600 dark:text-purple-400" /> Piagam ✓
                             </button>
-                          ) : (
+                          ) : isLoggedIn ? (
                             <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium border border-zinc-200 dark:border-zinc-700">
                               <Upload className="w-3 h-3 text-purple-500" /> + Piagam (150KB)
                               <input
@@ -1326,6 +1430,14 @@ export default function PublicPertandinganPage() {
                                 }}
                               />
                             </label>
+                          ) : (
+                            <button
+                              onClick={() => showError("Silakan login ke akun Anda terlebih dahulu untuk mengunggah berkas.")}
+                              className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 rounded text-[11px] font-medium border border-zinc-200 dark:border-zinc-700 flex items-center gap-1 cursor-pointer"
+                              title="Login untuk mengunggah"
+                            >
+                              <Lock className="w-3 h-3 text-purple-400" /> Piagam
+                            </button>
                           )}
                         </div>
                       </td>
@@ -1341,37 +1453,43 @@ export default function PublicPertandinganPage() {
                             {reg.status === "VERIFIED" ? "TERVERIFIKASI SAH" : reg.status === "PAID" ? "LUNAS" : "TERCATAT"}
                           </span>
 
-                          {/* Toggle TF vs Tunai */}
-                          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                            <button
-                              onClick={() => handleUpdatePaymentMethod(reg.id, "TRANSFER")}
-                              className={`px-2 py-0.5 text-[10px] font-bold rounded transition ${
-                                (reg.paymentMethod || "TRANSFER") === "TRANSFER"
-                                  ? "bg-blue-600 text-white shadow-xs"
-                                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
-                              }`}
-                            >
-                              🏦 TF
-                            </button>
-                            <button
-                              onClick={() => handleUpdatePaymentMethod(reg.id, "CASH")}
-                              className={`px-2 py-0.5 text-[10px] font-bold rounded transition ${
-                                reg.paymentMethod === "CASH"
-                                  ? "bg-emerald-600 text-white shadow-xs"
-                                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
-                              }`}
-                            >
-                              💵 Tunai
-                            </button>
-                          </div>
+                          {/* Toggle TF vs Tunai (Hanya aktif bila login) */}
+                          {isLoggedIn ? (
+                            <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                              <button
+                                onClick={() => handleUpdatePaymentMethod(reg.id, "TRANSFER")}
+                                className={`px-2 py-0.5 text-[10px] font-bold rounded transition ${
+                                  (reg.paymentMethod || "TRANSFER") === "TRANSFER"
+                                    ? "bg-blue-600 text-white shadow-xs"
+                                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                                }`}
+                              >
+                                🏦 TF
+                              </button>
+                              <button
+                                onClick={() => handleUpdatePaymentMethod(reg.id, "CASH")}
+                                className={`px-2 py-0.5 text-[10px] font-bold rounded transition ${
+                                  reg.paymentMethod === "CASH"
+                                    ? "bg-emerald-600 text-white shadow-xs"
+                                    : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                                }`}
+                              >
+                                💵 Tunai
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
+                              {(reg.paymentMethod || "TRANSFER") === "TRANSFER" ? "🏦 TF" : "💵 Tunai"}
+                            </span>
+                          )}
 
-                          {/* Bukti TF Upload & View (Kompres 150KB) */}
+                          {/* Bukti TF Upload & View */}
                           {(reg.paymentMethod || "TRANSFER") === "TRANSFER" && (
                             <div className="flex items-center gap-1 pt-0.5">
                               {reg.proofUrl ? (
                                 <button
                                   onClick={() =>
-                                    setPreviewDoc({
+                                    handleViewDoc({
                                       url: reg.proofUrl!,
                                       title: `Bukti Transfer (TF): ${reg.member.fullName}`,
                                       regId: reg.id,
@@ -1380,11 +1498,12 @@ export default function PublicPertandinganPage() {
                                     })
                                   }
                                   className="px-2 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
-                                  title="Lihat Bukti Transfer"
+                                  title={isLoggedIn ? "Lihat Bukti Transfer" : "Login untuk melihat bukti TF"}
                                 >
+                                  {!isLoggedIn && <Lock className="w-3 h-3 text-emerald-600" />}
                                   <Eye className="w-3 h-3 text-emerald-600" /> Lihat Bukti TF
                                 </button>
-                              ) : (
+                              ) : isLoggedIn ? (
                                 <label className="px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-[11px] font-bold hover:bg-blue-100 cursor-pointer flex items-center gap-1">
                                   <Upload className="w-3 h-3 text-blue-600" /> Upload Bukti TF (150KB)
                                   <input
@@ -1397,6 +1516,14 @@ export default function PublicPertandinganPage() {
                                     }}
                                   />
                                 </label>
+                              ) : (
+                                <button
+                                  onClick={() => showError("Silakan login ke akun Anda terlebih dahulu untuk mengunggah bukti transfer.")}
+                                  className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 rounded text-[11px] font-medium border border-zinc-200 dark:border-zinc-700 flex items-center gap-1 cursor-pointer"
+                                  title="Login untuk mengunggah"
+                                >
+                                  <Lock className="w-3 h-3 text-blue-400" /> Bukti TF
+                                </button>
                               )}
                             </div>
                           )}
@@ -1682,50 +1809,68 @@ export default function PublicPertandinganPage() {
                 </div>
 
                 {/* Dojo Asal Dropdown / Custom Input */}
+                {/* Asal Kontingen / Dojo */}
                 <div>
                   <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
                     Dojo / Kontingen Asal *
                   </label>
-                  <select
-                    value={
-                      isCustomDojo
-                        ? "CUSTOM"
-                        : dojoOptionsList.includes(guestForm.dojoName)
-                        ? guestForm.dojoName
-                        : guestForm.dojoName
-                        ? "CUSTOM"
-                        : ""
-                    }
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === "CUSTOM") {
+
+                  {/* Toggle Mode Pilihan (Dojo Surabaya vs Kontingen Luar) */}
+                  <div className="grid grid-cols-2 gap-1.5 mb-2 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-xl border border-zinc-200 dark:border-zinc-700">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomDojo(false);
+                        if (guestForm.dojoName && !dojoOptionsList.includes(guestForm.dojoName)) {
+                          setGuestForm({ ...guestForm, dojoName: "" });
+                        }
+                      }}
+                      className={`py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
+                        !isCustomDojo
+                          ? "bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 shadow-xs border border-zinc-200 dark:border-zinc-700"
+                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
+                      }`}
+                    >
+                      🏛️ Dojo / Ranting Surabaya
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
                         setIsCustomDojo(true);
                         setGuestForm({ ...guestForm, dojoName: "" });
-                      } else {
-                        setIsCustomDojo(false);
-                        setGuestForm({ ...guestForm, dojoName: val });
-                      }
-                    }}
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm"
-                  >
-                    <option value="">-- Pilih Ranting / Dojo Kontingen --</option>
-                    {dojoOptionsList.map((dojoName: string) => (
-                      <option key={dojoName} value={dojoName}>
-                        🏛️ {dojoName}
-                      </option>
-                    ))}
-                    <option value="CUSTOM">➕ Lainnya / Kontingen Luar (Ketik Manual)</option>
-                  </select>
+                      }}
+                      className={`py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer ${
+                        isCustomDojo
+                          ? "bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 shadow-xs border border-zinc-200 dark:border-zinc-700"
+                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
+                      }`}
+                    >
+                      🌐 Kontingen Luar / Eksternal
+                    </button>
+                  </div>
 
-                  {(isCustomDojo ||
-                    (!dojoOptionsList.includes(guestForm.dojoName) && guestForm.dojoName !== "")) && (
+                  {!isCustomDojo ? (
+                    <select
+                      required
+                      value={guestForm.dojoName}
+                      onChange={(e) => setGuestForm({ ...guestForm, dojoName: e.target.value })}
+                      className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm"
+                    >
+                      <option value="">-- Pilih Dojo / Ranting INKAI Surabaya --</option>
+                      {dojoOptionsList.map((dojoName: string) => (
+                        <option key={dojoName} value={dojoName}>
+                          🏛️ {dojoName}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
                     <input
                       type="text"
                       required
-                      placeholder="Tuliskan nama Dojo / Kontingen luar..."
+                      placeholder="Tuliskan nama Kontingen / Dojo luar (mis. Pengprov Jatim / Dojo Garuda)..."
                       value={guestForm.dojoName}
                       onChange={(e) => setGuestForm({ ...guestForm, dojoName: e.target.value })}
-                      className="w-full mt-2 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm animate-fadeIn"
+                      className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm"
                     />
                   )}
                 </div>
@@ -2084,23 +2229,11 @@ export default function PublicPertandinganPage() {
                 {previewDoc.title}
               </h3>
               <div className="flex items-center gap-2">
-                {/* Tombol Upload Ulang / Ganti Berkas di Header Modal */}
+                {/* Badge Status Berkas Terisi (1x Upload) */}
                 {previewDoc.regId && previewDoc.docType && (
-                  <label className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer flex items-center gap-1.5 shadow transition">
-                    <Upload className="w-3.5 h-3.5" /> Upload Ulang / Ganti
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const f = e.target.files?.[0];
-                        if (f && previewDoc.regId && previewDoc.docType) {
-                          await handleRowDocUpload(previewDoc.regId, previewDoc.memberId, f, previewDoc.docType);
-                          setPreviewDoc(null);
-                        }
-                      }}
-                    />
-                  </label>
+                  <span className="px-3 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Berkas Terisi (1x Upload)
+                  </span>
                 )}
 
                 <a
@@ -2163,7 +2296,7 @@ export default function PublicPertandinganPage() {
                         div.className = "fallback-preview p-6 text-center space-y-3";
                         div.innerHTML = `
                           <div class="text-red-500 font-bold text-sm">Pratinjau Gambar Tidak Dapat Ditampilkan</div>
-                          <p class="text-xs text-zinc-500 max-w-md mx-auto">Berkas ini mungkin berformat PDF atau link gambar rusak. Anda dapat membukanya di tab baru atau mengunggah ulang berkas baru di bawah.</p>
+                          <p class="text-xs text-zinc-500 max-w-md mx-auto">Berkas ini mungkin berformat PDF atau link gambar rusak. Anda dapat membukanya di tab baru.</p>
                         `;
                         parent.appendChild(div);
                       }
@@ -2175,26 +2308,18 @@ export default function PublicPertandinganPage() {
 
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-zinc-200 dark:border-zinc-800">
               <span className="text-xs text-zinc-500">
-                {previewDoc.regId ? "Berkas salah atau buram? Klik tombol di kanan untuk mengunggah ulang." : "Buka di tab baru jika pratinjau terkendala."}
+                {previewDoc.regId ? "Berkas sudah terisi (kesempatan upload 1x). Hubungi admin WA jika ada kesalahan data." : "Buka di tab baru jika pratinjau terkendala."}
               </span>
 
               <div className="flex items-center gap-2">
                 {previewDoc.regId && previewDoc.docType && (
-                  <label className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow cursor-pointer flex items-center gap-1.5 transition">
-                    <Upload className="w-3.5 h-3.5" /> Upload Ulang / Ganti Berkas
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const f = e.target.files?.[0];
-                        if (f && previewDoc.regId && previewDoc.docType) {
-                          await handleRowDocUpload(previewDoc.regId, previewDoc.memberId, f, previewDoc.docType);
-                          setPreviewDoc(null);
-                        }
-                      }}
-                    />
-                  </label>
+                  <button
+                    type="button"
+                    onClick={() => showError("Dokumen sudah terisi (kesempatan upload 1x). Silakan hubungi admin WA untuk permohonan koreksi.")}
+                    className="px-3.5 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 rounded-xl text-xs font-semibold border border-zinc-200 dark:border-zinc-700 flex items-center gap-1.5 cursor-not-allowed opacity-80"
+                  >
+                    <Lock className="w-3.5 h-3.5 text-zinc-400" /> Terkunci (1x Upload)
+                  </button>
                 )}
 
                 <button

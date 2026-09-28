@@ -1,10 +1,12 @@
 import { deriveAgeCategoryLabel } from "./tournament-category-presets";
+import { isBlackBeltRank } from "./belt";
 
 export interface TournamentPrintRegistrant {
   id: string;
   member: {
     fullName: string;
     nia?: string | null;
+    mshNumber?: string | null;
     currentRank?: string | null;
     gender?: string | null;
     birthDate?: string | null;
@@ -39,6 +41,10 @@ export function generateTournamentIdCardsHtml(
       const typeLabel = r.category.categoryType.startsWith("KATA") ? "KATA" : "KUMITE";
       const photoSrc = r.member.photoUrl || "/images/default-avatar.png";
       const payMethod = r.notes?.includes("CASH") ? "TUNAI" : "TRANSFER";
+      const isBlack = isBlackBeltRank(r.member.currentRank);
+      const idLabel = isBlack
+        ? `No. MSH: ${r.member.mshNumber || "-"}`
+        : `NIA: ${r.member.nia || "-"}`;
       return `
         <div class="card">
           <div class="card-header">
@@ -52,7 +58,7 @@ export function generateTournamentIdCardsHtml(
             </div>
             <div class="info">
               <div class="name">${r.member.fullName}</div>
-              <div class="nia">NIA: ${r.member.nia || "-"}</div>
+              <div class="nia">${idLabel}</div>
               <div class="rank">Sabuk: ${r.member.currentRank || "Putih"}</div>
               <div class="dojo">Dojo: <strong>${r.dojo.name}</strong></div>
               <div class="category">Kelas: <strong>${r.category.name}</strong></div>
@@ -207,13 +213,15 @@ export function generateTournamentRosterHtml(
         r.category.maxAge,
         r.member.birthDate
       );
+      const isBlack = isBlackBeltRank(r.member.currentRank);
+      const niaOrMsh = isBlack ? (r.member.mshNumber || r.member.nia || "-") : (r.member.nia || "-");
       const showFee = r.category.isFeeVisible !== false;
       const feeText = showFee ? `Rp ${(r.category.fee || 0).toLocaleString("id-ID")}` : "-";
       return `
         <tr>
           <td style="text-align:center;">${idx + 1}</td>
           <td><strong>${r.member.fullName}</strong></td>
-          <td>${r.member.nia || "-"}</td>
+          <td>${niaOrMsh}</td>
           <td>${r.dojo.name}</td>
           <td>${r.member.currentRank || "-"}</td>
           <td style="text-align:center;"><strong>${ageCategory}</strong></td>

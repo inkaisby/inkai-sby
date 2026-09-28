@@ -41,6 +41,7 @@ export async function GET(request: Request) {
             id: true,
             fullName: true,
             nia: true,
+            mshNumber: true,
             currentRank: true,
             gender: true,
             birthDate: true,
