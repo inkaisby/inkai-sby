@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { showError, showSuccess } from "@/lib/client-toast";
 import {
   Trophy,
   Calendar,
@@ -46,6 +47,7 @@ interface CategoryDetail {
   minBirthDate?: string | null;
   maxBirthDate?: string | null;
   fee: number;
+  isFeeVisible?: boolean;
 }
 
 interface EventItem {
@@ -89,6 +91,7 @@ interface RegistrationItem {
     categoryType: string;
     gender: string;
     fee: number;
+    isFeeVisible?: boolean;
   };
 }
 
@@ -278,6 +281,24 @@ export default function PublicPertandinganPage() {
       }
     } catch (err) {
       console.error("Failed to update category", err);
+    }
+  };
+
+  const handleUpdateWeight = async (regId: string, actualWeight: number | null) => {
+    try {
+      const res = await fetch("/api/public/pertandingan", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: regId, actualWeight }),
+      });
+      if (res.ok) {
+        fetchPublicData();
+      } else {
+        const data = await res.json();
+        showError(data.error || "Gagal memperbarui berat badan");
+      }
+    } catch (err) {
+      console.error("Failed to update weight", err);
     }
   };
 
@@ -689,7 +710,7 @@ export default function PublicPertandinganPage() {
                             <div className="text-zinc-500 font-medium">{cat.categoryType} · {cat.gender === "MALE" ? "Putra" : cat.gender === "FEMALE" ? "Putri" : "Campuran"}</div>
                           </div>
                           <div className="font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800/50">
-                            Rp {cat.fee.toLocaleString("id-ID")}
+                            {cat.isFeeVisible !== false ? `Rp ${cat.fee.toLocaleString("id-ID")}` : "Diatur Khusus"}
                           </div>
                         </div>
                       ))}
@@ -986,7 +1007,7 @@ export default function PublicPertandinganPage() {
                         >
                           {(activeEvent?.tournamentCategories || []).map((c) => (
                             <option key={c.id} value={c.id} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-normal">
-                              {c.name} (Rp {c.fee.toLocaleString("id-ID")})
+                              {c.name} {c.isFeeVisible !== false ? `(Rp ${c.fee.toLocaleString("id-ID")})` : ""}
                             </option>
                           ))}
                         </select>
@@ -994,9 +1015,31 @@ export default function PublicPertandinganPage() {
 
                       {/* Kolom BB (Berat Badan) di sebelah kanan Kelas Pertandingan */}
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1 font-bold text-xs text-zinc-800 dark:text-zinc-200 bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                          <Scale className="w-3.5 h-3.5 text-amber-500" />
-                          {reg.actualWeight ? `${reg.actualWeight} kg` : "-"}
+                        <div className="inline-flex items-center gap-1.5 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-2 py-1">
+                          <Scale className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                          <input
+                            type="number"
+                            step="0.1"
+                            placeholder="kg"
+                            defaultValue={reg.actualWeight !== null && reg.actualWeight !== undefined ? reg.actualWeight : ""}
+                            onBlur={(e) => {
+                              const val = e.target.value ? parseFloat(e.target.value) : null;
+                              if (val !== reg.actualWeight) {
+                                handleUpdateWeight(reg.id, val);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                const val = (e.target as HTMLInputElement).value ? parseFloat((e.target as HTMLInputElement).value) : null;
+                                if (val !== reg.actualWeight) {
+                                  handleUpdateWeight(reg.id, val);
+                                }
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-700 rounded text-xs font-bold text-amber-900 dark:text-amber-200 text-center focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                          />
+                          <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">kg</span>
                         </div>
                       </td>
 
@@ -1614,7 +1657,7 @@ export default function PublicPertandinganPage() {
                   <option value="">-- Pilih Kategori Pertandingan --</option>
                   {availableCategories.map((cat) => (
                     <option key={cat.id} value={cat.id}>
-                      {cat.name} ({cat.gender === "MALE" ? "Putra" : cat.gender === "FEMALE" ? "Putri" : "Campuran"}) - Rp {cat.fee.toLocaleString("id-ID")}
+                      {cat.name} ({cat.gender === "MALE" ? "Putra" : cat.gender === "FEMALE" ? "Putri" : "Campuran"}) {cat.isFeeVisible !== false ? `- Rp ${cat.fee.toLocaleString("id-ID")}` : ""}
                     </option>
                   ))}
                 </select>

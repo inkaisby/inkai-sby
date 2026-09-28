@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { eventId, name, categoryType, gender, minAge, maxAge, minBirthDate, maxBirthDate, minWeight, maxWeight, fee } = body;
+    const { eventId, name, categoryType, gender, minAge, maxAge, minBirthDate, maxBirthDate, minWeight, maxWeight, fee, isFeeVisible } = body;
 
     if (!eventId || !name || !categoryType || !gender) {
       return NextResponse.json({ error: "eventId, nama kelas, jenis kategori, dan gender wajib diisi" }, { status: 400 });
@@ -62,7 +62,8 @@ export async function POST(request: Request) {
         maxBirthDate: maxBirthDate ? new Date(maxBirthDate) : null,
         minWeight: minWeight ? parseFloat(minWeight) : null,
         maxWeight: maxWeight ? parseFloat(maxWeight) : null,
-        fee: fee ? parseFloat(fee) : 0,
+        fee: fee !== undefined && fee !== "" ? parseFloat(fee) : 0,
+        isFeeVisible: isFeeVisible !== undefined ? Boolean(isFeeVisible) : true,
       },
     });
 
@@ -81,23 +82,24 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, name, categoryType, gender, minAge, maxAge, minBirthDate, maxBirthDate, minWeight, maxWeight, fee } = body;
+    const { id, name, categoryType, gender, minAge, maxAge, minBirthDate, maxBirthDate, minWeight, maxWeight, fee, isFeeVisible } = body;
 
     if (!id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
     }
 
     const updateData: any = {};
-    if (name) updateData.name = name;
-    if (categoryType) updateData.categoryType = categoryType;
-    if (gender) updateData.gender = gender;
+    if (name !== undefined) updateData.name = name;
+    if (categoryType !== undefined) updateData.categoryType = categoryType;
+    if (gender !== undefined) updateData.gender = gender;
     if (minAge !== undefined) updateData.minAge = minAge ? parseInt(minAge) : null;
     if (maxAge !== undefined) updateData.maxAge = maxAge ? parseInt(maxAge) : null;
     if (minBirthDate !== undefined) updateData.minBirthDate = minBirthDate ? new Date(minBirthDate) : null;
     if (maxBirthDate !== undefined) updateData.maxBirthDate = maxBirthDate ? new Date(maxBirthDate) : null;
     if (minWeight !== undefined) updateData.minWeight = minWeight ? parseFloat(minWeight) : null;
     if (maxWeight !== undefined) updateData.maxWeight = maxWeight ? parseFloat(maxWeight) : null;
-    if (fee !== undefined) updateData.fee = fee ? parseFloat(fee) : 0;
+    if (fee !== undefined && fee !== "") updateData.fee = parseFloat(fee);
+    if (isFeeVisible !== undefined) updateData.isFeeVisible = Boolean(isFeeVisible);
 
     const category = await prisma.tournamentCategory.update({
       where: { id },

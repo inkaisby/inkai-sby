@@ -62,6 +62,8 @@ export async function GET(request: Request) {
         actualWeight: true,
         paymentMethod: true,
         proofUrl: true,
+        certificateUrl: true,
+        medal: true,
         categoryId: true,
         dojoId: true,
         memberId: true,
@@ -126,7 +128,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { id, categoryId, paymentMethod, proofUrl, actualWeight, status, birthCertificateUrl, bpjsCardUrl, photoUrl } = body;
+    const { id, categoryId, paymentMethod, proofUrl, certificateUrl, medal, actualWeight, status, birthCertificateUrl, bpjsCardUrl, photoUrl } = body;
 
     if (!id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
@@ -145,6 +147,8 @@ export async function PATCH(request: Request) {
     if (categoryId !== undefined) dataToUpdate.categoryId = categoryId;
     if (paymentMethod !== undefined) dataToUpdate.paymentMethod = paymentMethod;
     if (proofUrl !== undefined) dataToUpdate.proofUrl = proofUrl;
+    if (certificateUrl !== undefined) dataToUpdate.certificateUrl = certificateUrl;
+    if (medal !== undefined) dataToUpdate.medal = medal;
     if (actualWeight !== undefined) dataToUpdate.actualWeight = actualWeight ? parseFloat(actualWeight) : null;
     if (status !== undefined) dataToUpdate.status = status;
 

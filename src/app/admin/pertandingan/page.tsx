@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import Link from "next/link";
 import {
   Trophy,
@@ -47,7 +47,7 @@ import {
   Upload,
   Image as ImageIcon,
 } from "lucide-react";
-import { generateTournamentIdCardsHtml, generateTournamentRosterHtml } from "@/lib/tournament-print-html";
+import { generateTournamentIdCardsHtml, generateTournamentRosterHtml, generateTournamentMedalTallyHtml } from "@/lib/tournament-print-html";
 import { compressUploadFile } from "@/lib/compress-image";
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 import { showError, showSuccess } from "@/lib/client-toast";
@@ -104,6 +104,8 @@ interface RegistrationItem {
   status: string;
   paymentMethod?: string | null;
   proofUrl?: string | null;
+  certificateUrl?: string | null;
+  medal?: string | null;
   actualWeight?: number | null;
   officialName?: string | null;
   officialPhone?: string | null;
@@ -182,7 +184,14 @@ export default function AdminPertandinganPage() {
   const [showRulesEditorModal, setShowRulesEditorModal] = useState(false);
   const [showBatchRegModal, setShowBatchRegModal] = useState(false);
   const [showWeightModal, setShowWeightModal] = useState<RegistrationItem | null>(null);
-  const [previewDocModal, setPreviewDocModal] = useState<{ title: string; url: string } | null>(null);
+  const [showMedalTallyModal, setShowMedalTallyModal] = useState(false);
+  const [previewDocModal, setPreviewDocModal] = useState<{
+    title: string;
+    url: string;
+    regId?: string;
+    memberId?: string;
+    docType?: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl" | "certificateUrl";
+  } | null>(null);
 
   // INKAI Custom Confirmation Modal States
   const [confirmDeleteReg, setConfirmDeleteReg] = useState<{
@@ -539,6 +548,26 @@ export default function AdminPertandinganPage() {
     }
   };
 
+  const handleUpdateInlineWeight = async (id: string, actualWeight: number | null) => {
+    try {
+      const res = await fetch("/api/admin/pertandingan/registrations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, actualWeight }),
+      });
+      if (res.ok) {
+        showSuccess("Berat badan berhasil diperbarui");
+        fetchRegistrations();
+      } else {
+        const data = await res.json();
+        showError(data.error || "Gagal memperbarui berat badan");
+      }
+    } catch (err) {
+      console.error(err);
+      showError("Terjadi kesalahan saat memperbarui berat badan");
+    }
+  };
+
   const handleUpdateWeight = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!showWeightModal) return;
@@ -618,13 +647,16 @@ export default function AdminPertandinganPage() {
     regId: string,
     memberId: string | undefined,
     file: File,
-    docType: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl"
+    docType: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl" | "certificateUrl"
   ) => {
     try {
       const compressed = await compressUploadFile(file, 150 * 1024);
       const formData = new FormData();
       formData.append("file", compressed);
-      formData.append("folder", docType === "proofUrl" ? "bukti-tf" : "dokumen-pertandingan");
+      formData.append(
+        "folder",
+        docType === "proofUrl" ? "bukti-tf" : docType === "certificateUrl" ? "piagam-pertandingan" : "dokumen-pertandingan"
+      );
 
       const resUpload = await fetch("/api/public/upload", {
         method: "POST",
@@ -655,6 +687,70 @@ export default function AdminPertandinganPage() {
       showError(`Upload & kompres berkas gagal: ${err.message}`);
     }
   };
+
+  const handleUpdateMedal = async (id: string, medal: string | null) => {
+    try {
+      const res = await fetch("/api/admin/pertandingan/registrations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, medal }),
+      });
+      if (res.ok) {
+        showSuccess("Prestasi medali atlet berhasil diperbarui");
+        fetchRegistrations();
+      } else {
+        showError("Gagal memperbarui data medali");
+      }
+    } catch (err: any) {
+      showError(err.message || "Gagal memperbarui medali");
+    }
+  };
+
+  const medalTally = useMemo(() => {
+    const map: Record<
+      string,
+      {
+        dojoName: string;
+        gold: number;
+        silver: number;
+        bronze: number;
+        total: number;
+        points: number;
+        winners: { athleteName: string; categoryName: string; medal: string }[];
+      }
+    > = {};
+
+    registrations.forEach((reg) => {
+      if (!reg.medal) return;
+      const dojoName = reg.dojo.name;
+      if (!map[dojoName]) {
+        map[dojoName] = { dojoName, gold: 0, silver: 0, bronze: 0, total: 0, points: 0, winners: [] };
+      }
+      if (reg.medal === "GOLD") {
+        map[dojoName].gold += 1;
+        map[dojoName].points += 5;
+      } else if (reg.medal === "SILVER") {
+        map[dojoName].silver += 1;
+        map[dojoName].points += 3;
+      } else if (reg.medal === "BRONZE") {
+        map[dojoName].bronze += 1;
+        map[dojoName].points += 1;
+      }
+      map[dojoName].total += 1;
+      map[dojoName].winners.push({
+        athleteName: reg.member.fullName,
+        categoryName: reg.category.name,
+        medal: reg.medal,
+      });
+    });
+
+    return Object.values(map).sort((a, b) => {
+      if (b.gold !== a.gold) return b.gold - a.gold;
+      if (b.silver !== a.silver) return b.silver - a.silver;
+      if (b.bronze !== a.bronze) return b.bronze - a.bronze;
+      return b.points - a.points;
+    });
+  }, [registrations]);
 
 
   const displayedRegistrations = registrations.filter((reg) => {
@@ -727,6 +823,18 @@ export default function AdminPertandinganPage() {
   const printRoster = () => {
     const activeEvent = events.find((e) => e.id === selectedEventId);
     const html = generateTournamentRosterHtml(activeEvent?.title || "Kejuaraan Karate", displayedRegistrations);
+    const printWin = window.open("", "_blank");
+    if (printWin) {
+      printWin.document.write(html);
+      printWin.document.close();
+      printWin.focus();
+      setTimeout(() => printWin.print(), 500);
+    }
+  };
+
+  const printMedalTally = () => {
+    const activeEvent = events.find((e) => e.id === selectedEventId);
+    const html = generateTournamentMedalTallyHtml(activeEvent?.title || "Kejuaraan Karate INKAI Surabaya", medalTally);
     const printWin = window.open("", "_blank");
     if (printWin) {
       printWin.document.write(html);
@@ -1086,6 +1194,14 @@ export default function AdminPertandinganPage() {
             </button>
 
             <button
+              onClick={() => setShowMedalTallyModal(true)}
+              className="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs md:text-sm rounded-lg flex items-center gap-1.5 transition shadow-xs whitespace-nowrap"
+            >
+              <Trophy className="w-4 h-4 text-yellow-100" />
+              Rekap Medali & Juara
+            </button>
+
+            <button
               onClick={printIdCards}
               disabled={registrations.length === 0}
               className="px-3 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 font-medium text-xs md:text-sm rounded-lg flex items-center gap-1.5 transition disabled:opacity-50 whitespace-nowrap"
@@ -1136,6 +1252,7 @@ export default function AdminPertandinganPage() {
                 <th className="py-3.5 px-4 min-w-[180px] whitespace-nowrap">Berkas Profil (Akte / BPJS)</th>
                 <th className="py-3.5 px-4 min-w-[200px]">Kelas Pertandingan</th>
                 <th className="py-3.5 px-4 min-w-[120px] text-center whitespace-nowrap">BB (Berat Badan)</th>
+                <th className="py-3.5 px-4 min-w-[140px] text-center whitespace-nowrap">Prestasi Medali</th>
                 <th className="py-3.5 px-4 min-w-[110px] whitespace-nowrap text-right">Biaya Cabang</th>
                 <th className="py-3.5 px-4 min-w-[210px] whitespace-nowrap text-center">Status & Pembayaran</th>
                 <th className="py-3.5 px-4 min-w-[140px] whitespace-nowrap text-right">Aksi</th>
@@ -1144,13 +1261,13 @@ export default function AdminPertandinganPage() {
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={10} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
                     Memuat data roster pertandingan...
                   </td>
                 </tr>
               ) : displayedRegistrations.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={10} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
                     Tidak ada pendaftaran atlet yang sesuai dengan filter terpilih.
                   </td>
                 </tr>
@@ -1186,13 +1303,27 @@ export default function AdminPertandinganPage() {
                     <td className="py-3 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {reg.member.birthCertificateUrl ? (
-                          <button
-                            onClick={() => setPreviewDocModal({ title: `Akte Kelahiran - ${reg.member.fullName}`, url: reg.member.birthCertificateUrl! })}
-                            className="px-2 py-1 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-1 hover:underline whitespace-nowrap"
-                          >
-                            <FileText className="w-3 h-3 text-emerald-600" />
-                            Akte OK
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setPreviewDocModal({ title: `Akte Kelahiran - ${reg.member.fullName}`, url: reg.member.birthCertificateUrl!, regId: reg.id, memberId: reg.member.id, docType: "birthCertificateUrl" })}
+                              className="px-2 py-1 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-1 hover:underline whitespace-nowrap"
+                            >
+                              <FileText className="w-3 h-3 text-emerald-600" />
+                              Akte OK
+                            </button>
+                            <label title="Ganti / Upload Ulang Akte" className="cursor-pointer px-1.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded text-[11px] text-blue-600 dark:text-blue-400 flex items-center gap-0.5">
+                              <Upload className="w-3 h-3" />
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleRowDocUpload(reg.id, reg.member.id, f, "birthCertificateUrl");
+                                }}
+                              />
+                            </label>
+                          </div>
                         ) : (
                           <label className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 rounded text-[11px] text-zinc-600 dark:text-zinc-300 flex items-center gap-1 cursor-pointer whitespace-nowrap border border-zinc-200 dark:border-zinc-700 font-medium">
                             <Upload className="w-3 h-3 text-blue-500" /> + Akte (150KB)
@@ -1209,13 +1340,27 @@ export default function AdminPertandinganPage() {
                         )}
 
                         {reg.member.bpjsCardUrl ? (
-                          <button
-                            onClick={() => setPreviewDocModal({ title: `Kartu BPJS - ${reg.member.fullName}`, url: reg.member.bpjsCardUrl! })}
-                            className="px-2 py-1 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded text-[11px] font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1 hover:underline whitespace-nowrap"
-                          >
-                            <ShieldCheck className="w-3 h-3 text-blue-600" />
-                            BPJS OK
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setPreviewDocModal({ title: `Kartu BPJS - ${reg.member.fullName}`, url: reg.member.bpjsCardUrl!, regId: reg.id, memberId: reg.member.id, docType: "bpjsCardUrl" })}
+                              className="px-2 py-1 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded text-[11px] font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1 hover:underline whitespace-nowrap"
+                            >
+                              <ShieldCheck className="w-3 h-3 text-blue-600" />
+                              BPJS OK
+                            </button>
+                            <label title="Ganti / Upload Ulang BPJS" className="cursor-pointer px-1.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-0.5">
+                              <Upload className="w-3 h-3" />
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleRowDocUpload(reg.id, reg.member.id, f, "bpjsCardUrl");
+                                }}
+                              />
+                            </label>
+                          </div>
                         ) : (
                           <label className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 rounded text-[11px] text-zinc-600 dark:text-zinc-300 flex items-center gap-1 cursor-pointer whitespace-nowrap border border-zinc-200 dark:border-zinc-700 font-medium">
                             <Upload className="w-3 h-3 text-amber-500" /> + BPJS (150KB)
@@ -1226,6 +1371,43 @@ export default function AdminPertandinganPage() {
                               onChange={(e) => {
                                 const f = e.target.files?.[0];
                                 if (f) handleRowDocUpload(reg.id, reg.member.id, f, "bpjsCardUrl");
+                              }}
+                            />
+                          </label>
+                        )}
+
+                        {reg.certificateUrl ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setPreviewDocModal({ title: `Piagam Kejuaraan - ${reg.member.fullName}`, url: reg.certificateUrl!, regId: reg.id, memberId: reg.member.id, docType: "certificateUrl" })}
+                              className="px-2 py-1 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 rounded text-[11px] font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1 hover:underline whitespace-nowrap"
+                            >
+                              <Trophy className="w-3 h-3 text-purple-600" />
+                              Piagam OK
+                            </button>
+                            <label title="Ganti / Upload Ulang Piagam" className="cursor-pointer px-1.5 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 rounded text-[11px] text-purple-600 dark:text-purple-400 flex items-center gap-0.5">
+                              <Upload className="w-3 h-3" />
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleRowDocUpload(reg.id, reg.member.id, f, "certificateUrl");
+                                }}
+                              />
+                            </label>
+                          </div>
+                        ) : (
+                          <label className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 rounded text-[11px] text-zinc-600 dark:text-zinc-300 flex items-center gap-1 cursor-pointer whitespace-nowrap border border-zinc-200 dark:border-zinc-700 font-medium">
+                            <Upload className="w-3 h-3 text-purple-500" /> + Piagam (150KB)
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              className="hidden"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) handleRowDocUpload(reg.id, reg.member.id, f, "certificateUrl");
                               }}
                             />
                           </label>
@@ -1250,10 +1432,54 @@ export default function AdminPertandinganPage() {
 
                     {/* Kolom BB (Berat Badan) di sebelah kanan Kelas Pertandingan */}
                     <td className="py-3 px-4 text-center whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1 font-bold text-xs text-zinc-800 dark:text-zinc-200 bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                        <Scale className="w-3.5 h-3.5 text-amber-500" />
-                        {reg.actualWeight ? `${reg.actualWeight} kg` : "-"}
+                      <div className="inline-flex items-center gap-1.5 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-2 py-1">
+                        <Scale className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="kg"
+                          defaultValue={reg.actualWeight !== null && reg.actualWeight !== undefined ? reg.actualWeight : ""}
+                          onBlur={(e) => {
+                            const val = e.target.value ? parseFloat(e.target.value) : null;
+                            if (val !== reg.actualWeight) {
+                              handleUpdateInlineWeight(reg.id, val);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const val = (e.target as HTMLInputElement).value ? parseFloat((e.target as HTMLInputElement).value) : null;
+                              if (val !== reg.actualWeight) {
+                                handleUpdateInlineWeight(reg.id, val);
+                              }
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-700 rounded text-xs font-bold text-amber-900 dark:text-amber-200 text-center focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        />
+                        <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">kg</span>
                       </div>
+                    </td>
+
+                    {/* Prestasi Medali Select Dropdown */}
+                    <td className="py-3 px-4 text-center whitespace-nowrap">
+                      <select
+                        value={reg.medal || ""}
+                        onChange={(e) => handleUpdateMedal(reg.id, e.target.value || null)}
+                        className={`px-2.5 py-1.5 border rounded-lg text-xs font-bold cursor-pointer transition shadow-xs ${
+                          reg.medal === "GOLD"
+                            ? "bg-yellow-100 text-yellow-900 border-yellow-400 dark:bg-yellow-950/60 dark:text-yellow-200"
+                            : reg.medal === "SILVER"
+                            ? "bg-slate-200 text-slate-900 border-slate-400 dark:bg-slate-800 dark:text-slate-100"
+                            : reg.medal === "BRONZE"
+                            ? "bg-amber-100 text-amber-900 border-amber-400 dark:bg-amber-950/60 dark:text-amber-200"
+                            : "bg-zinc-50 text-zinc-500 border-zinc-200 dark:bg-zinc-800/80 dark:text-zinc-400"
+                        }`}
+                      >
+                        <option value="">— (Tanpa Medali)</option>
+                        <option value="GOLD">🥇 Emas (Juara 1)</option>
+                        <option value="SILVER">🥈 Perak (Juara 2)</option>
+                        <option value="BRONZE">🥉 Perunggu (Juara 3)</option>
+                      </select>
                     </td>
 
                     <td className="py-3 px-4 font-semibold text-zinc-900 dark:text-zinc-100 text-right whitespace-nowrap">
@@ -1698,16 +1924,59 @@ export default function AdminPertandinganPage() {
 
       {/* Modal Preview Berkas / Dokumen */}
       {previewDocModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-2xl w-full p-4 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b pb-2">
-              <h3 className="font-bold text-sm text-zinc-900 dark:text-white">{previewDocModal.title}</h3>
-              <button onClick={() => setPreviewDocModal(null)} className="text-zinc-500 hover:text-zinc-800">
-                ✕
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-3xl w-full p-4 space-y-3 shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between border-b pb-2 border-zinc-200 dark:border-zinc-800">
+              <h3 className="font-bold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
+                <FileText className="w-4 h-4 text-emerald-600" /> {previewDocModal.title}
+              </h3>
+              <button onClick={() => setPreviewDocModal(null)} className="p-1 text-zinc-500 hover:text-zinc-800 dark:hover:text-white rounded-lg">
+                <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="max-h-[70vh] overflow-auto flex items-center justify-center bg-zinc-100 dark:bg-zinc-950 p-2 rounded-xl">
-              <img src={previewDocModal.url} alt="Pratinjau Berkas" className="max-w-full max-h-[60vh] object-contain rounded" />
+            <div className="flex-1 overflow-auto flex items-center justify-center min-h-[300px] bg-zinc-100 dark:bg-zinc-950 rounded-xl p-2">
+              {previewDocModal.url.endsWith(".pdf") ? (
+                <iframe src={previewDocModal.url} className="w-full h-[600px] rounded-lg" title="Document PDF" />
+              ) : (
+                <img src={previewDocModal.url} alt="Pratinjau Berkas" className="max-h-[70vh] object-contain rounded-lg shadow-md" />
+              )}
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+              <div>
+                {previewDocModal.regId && previewDocModal.docType && (
+                  <label className="cursor-pointer px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow">
+                    <Upload className="w-3.5 h-3.5" /> Ganti / Upload Ulang (≤150KB)
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f && previewDocModal.regId && previewDocModal.docType) {
+                          handleRowDocUpload(previewDocModal.regId, previewDocModal.memberId, f, previewDocModal.docType);
+                          setPreviewDocModal(null);
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewDocModal.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-xl text-xs font-bold transition"
+                >
+                  Buka Tab Baru
+                </a>
+                <button
+                  onClick={() => setPreviewDocModal(null)}
+                  className="px-4 py-1.5 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-xl text-xs font-bold"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2076,6 +2345,125 @@ export default function AdminPertandinganPage() {
           showSuccess("Templat ketentuan berhasil direset");
         }}
       />
+
+      {/* Modal Rekapitulasi Medali & Klasemen Juara Umum */}
+      {showMedalTallyModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-4xl w-full p-6 space-y-4 shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b pb-3 border-zinc-200 dark:border-zinc-800">
+              <div>
+                <h2 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                  <Trophy className="w-6 h-6 text-yellow-500 animate-bounce" />
+                  Rekapitulasi Medali & Klasemen Juara Umum
+                </h2>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  {activeEvent?.title || "Kejuaraan Karate INKAI Surabaya"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMedalTallyModal(false)}
+                className="text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Top 3 Winner Highlights */}
+            {medalTally.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="bg-gradient-to-br from-amber-500/10 to-yellow-500/20 border border-amber-300 dark:border-amber-700/60 p-3.5 rounded-xl text-center space-y-1">
+                  <div className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wide">🥇 Juara Umum I</div>
+                  <div className="text-base font-extrabold text-zinc-900 dark:text-white">{medalTally[0]?.dojoName || "-"}</div>
+                  <div className="text-xs text-amber-700 dark:text-amber-400 font-semibold">
+                    🥇 {medalTally[0]?.gold || 0} Emas | 🥈 {medalTally[0]?.silver || 0} Perak | 🥉 {medalTally[0]?.bronze || 0} Perunggu
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-slate-400/10 to-slate-500/20 border border-slate-300 dark:border-slate-700/60 p-3.5 rounded-xl text-center space-y-1">
+                  <div className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wide">🥈 Juara Umum II</div>
+                  <div className="text-base font-extrabold text-zinc-900 dark:text-white">{medalTally[1]?.dojoName || "-"}</div>
+                  <div className="text-xs text-slate-700 dark:text-slate-400 font-semibold">
+                    🥇 {medalTally[1]?.gold || 0} Emas | 🥈 {medalTally[1]?.silver || 0} Perak | 🥉 {medalTally[1]?.bronze || 0} Perunggu
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-orange-400/10 to-amber-600/20 border border-orange-300 dark:border-orange-700/60 p-3.5 rounded-xl text-center space-y-1">
+                  <div className="text-xs font-bold text-orange-800 dark:text-orange-300 uppercase tracking-wide">🥉 Juara Umum III</div>
+                  <div className="text-base font-extrabold text-zinc-900 dark:text-white">{medalTally[2]?.dojoName || "-"}</div>
+                  <div className="text-xs text-orange-700 dark:text-orange-400 font-semibold">
+                    🥇 {medalTally[2]?.gold || 0} Emas | 🥈 {medalTally[2]?.silver || 0} Perak | 🥉 {medalTally[2]?.bronze || 0} Perunggu
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Table Tally */}
+            <div className="flex-1 overflow-y-auto border border-zinc-200 dark:border-zinc-800 rounded-xl">
+              {medalTally.length === 0 ? (
+                <div className="py-12 text-center text-xs text-zinc-500">
+                  Belum ada medali yang diinputkan pada pendaftaran atlet. Pilih prestasi medali (🥇 Emas, 🥈 Perak, 🥉 Perunggu) pada tabel pendaftaran atlet.
+                </div>
+              ) : (
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700 font-semibold text-zinc-700 dark:text-zinc-300">
+                      <th className="py-2.5 px-3 text-center w-12">Peringkat</th>
+                      <th className="py-2.5 px-3">Dojo / Ranting Kontingen</th>
+                      <th className="py-2.5 px-3 text-center">🥇 Emas</th>
+                      <th className="py-2.5 px-3 text-center">🥈 Perak</th>
+                      <th className="py-2.5 px-3 text-center">🥉 Perunggu</th>
+                      <th className="py-2.5 px-3 text-center">Total Medali</th>
+                      <th className="py-2.5 px-3 text-center">Total Poin</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 font-medium">
+                    {medalTally.map((t: any, idx: number) => (
+                      <tr key={t.dojoName} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition">
+                        <td className="py-2.5 px-3 text-center font-bold">{idx + 1}</td>
+                        <td className="py-2.5 px-3 font-bold text-zinc-900 dark:text-white">
+                          {t.dojoName}
+                          {idx === 0 && <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 dark:bg-yellow-950/60 dark:text-yellow-300 rounded text-[10px] font-extrabold">Juara Umum 1</span>}
+                          {idx === 1 && <span className="ml-2 px-2 py-0.5 bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200 rounded text-[10px] font-extrabold">Juara Umum 2</span>}
+                          {idx === 2 && <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded text-[10px] font-extrabold">Juara Umum 3</span>}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-bold text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/30">{t.gold}</td>
+                        <td className="py-2.5 px-3 text-center font-bold text-slate-600 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-900/30">{t.silver}</td>
+                        <td className="py-2.5 px-3 text-center font-bold text-orange-600 dark:text-orange-400 bg-orange-50/50 dark:bg-orange-950/30">{t.bronze}</td>
+                        <td className="py-2.5 px-3 text-center font-extrabold text-zinc-900 dark:text-white">{t.total}</td>
+                        <td className="py-2.5 px-3 text-center font-extrabold text-blue-600 dark:text-blue-400">{t.points}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+              <span className="text-xs text-zinc-500">
+                Kalkulasi Poin Standar: Emas = 5 poin, Perak = 3 poin, Perunggu = 1 poin.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={printMedalTally}
+                  disabled={medalTally.length === 0}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow flex items-center gap-1.5 transition disabled:opacity-50"
+                >
+                  <Printer className="w-4 h-4" /> Cetak Rekap Medali & Juara (A4/PDF)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowMedalTallyModal(false)}
+                  className="px-4 py-2 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-bold rounded-xl"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

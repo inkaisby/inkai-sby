@@ -164,7 +164,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, status, actualWeight, notes, categoryId, paymentMethod, proofUrl, birthCertificateUrl, bpjsCardUrl, photoUrl } = body;
+    const { id, status, actualWeight, notes, categoryId, paymentMethod, proofUrl, certificateUrl, medal, birthCertificateUrl, bpjsCardUrl, photoUrl } = body;
 
     if (!id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
@@ -177,6 +177,8 @@ export async function PATCH(request: Request) {
     if (categoryId !== undefined) dataToUpdate.categoryId = categoryId;
     if (paymentMethod !== undefined) dataToUpdate.paymentMethod = paymentMethod;
     if (proofUrl !== undefined) dataToUpdate.proofUrl = proofUrl;
+    if (certificateUrl !== undefined) dataToUpdate.certificateUrl = certificateUrl;
+    if (medal !== undefined) dataToUpdate.medal = medal;
 
     const updated = await prisma.tournamentRegistration.update({
       where: { id },

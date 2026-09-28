@@ -315,3 +315,224 @@ export function generateTournamentRosterHtml(
     </html>
   `;
 }
+
+export interface TournamentMedalTallyItem {
+  dojoName: string;
+  gold: number;
+  silver: number;
+  bronze: number;
+  total: number;
+  points: number;
+  winners: {
+    athleteName: string;
+    categoryName: string;
+    medal: string;
+  }[];
+}
+
+export function generateTournamentMedalTallyHtml(
+  eventTitle: string,
+  tally: TournamentMedalTallyItem[],
+  paperSize: "A4" | "F4" = "A4"
+): string {
+  const totalGold = tally.reduce((s, t) => s + t.gold, 0);
+  const totalSilver = tally.reduce((s, t) => s + t.silver, 0);
+  const totalBronze = tally.reduce((s, t) => s + t.bronze, 0);
+  const totalMedals = totalGold + totalSilver + totalBronze;
+
+  const rows = tally
+    .map((t, idx) => {
+      const rankBadge =
+        idx === 0 ? "🥇 JUARA UMUM I" :
+        idx === 1 ? "🥈 JUARA UMUM II" :
+        idx === 2 ? "🥉 JUARA UMUM III" : `Peringkat #${idx + 1}`;
+
+      const winnerList = t.winners
+        .map((w) => {
+          const mLabel =
+            w.medal === "GOLD" ? "🥇 Emas" :
+            w.medal === "SILVER" ? "🥈 Perak" : "🥉 Perunggu";
+          return `<li><strong>${w.athleteName}</strong> (${w.categoryName}) - <span class="m-tag">${mLabel}</span></li>`;
+        })
+        .join("");
+
+      return `
+        <tr>
+          <td style="text-align:center; font-weight:bold;">${idx + 1}</td>
+          <td>
+            <div style="font-weight:bold; font-size:13px;">${t.dojoName}</div>
+            <div style="font-size:10px; color:#c53030; font-weight:bold; margin-top:2px;">${rankBadge}</div>
+          </td>
+          <td style="text-align:center; font-weight:bold; color:#d69e2e; background:#fefcbf;">${t.gold}</td>
+          <td style="text-align:center; font-weight:bold; color:#718096; background:#edf2f7;">${t.silver}</td>
+          <td style="text-align:center; font-weight:bold; color:#dd6b20; background:#feebc8;">${t.bronze}</td>
+          <td style="text-align:center; font-weight:bold;">${t.total}</td>
+          <td style="text-align:center; font-weight:bold; color:#2b6cb0;">${t.points}</td>
+        </tr>
+        ${
+          winnerList
+            ? `
+          <tr style="background-color: #fafafa;">
+            <td colspan="2" style="font-size:10px; color:#555; padding-left:25px;"><em>Rincian Pemenang Medali:</em></td>
+            <td colspan="5" style="padding:6px 12px;">
+              <ul style="margin:0; padding-left:15px; font-size:10px; line-height:1.5;">${winnerList}</ul>
+            </td>
+          </tr>
+        `
+            : ""
+        }
+      `;
+    })
+    .join("");
+
+  return `
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <title>Rekapitulasi Medali & Juara Umum - ${eventTitle}</title>
+      <style>
+        @page {
+          size: ${paperSize === "F4" ? "215mm 330mm" : "A4 portrait"};
+          margin: 12mm;
+        }
+        body {
+          font-family: Arial, sans-serif;
+          font-size: 11px;
+          margin: 0;
+          color: #222;
+        }
+        .header {
+          text-align: center;
+          margin-bottom: 15px;
+          border-bottom: 3px double #8b0000;
+          padding-bottom: 8px;
+        }
+        .header h2 {
+          margin: 0;
+          color: #8b0000;
+          font-size: 16px;
+          text-transform: uppercase;
+        }
+        .header h3 {
+          margin: 4px 0 0 0;
+          color: #2b6cb0;
+          font-size: 13px;
+        }
+        .summary-box {
+          display: flex;
+          justify-content: space-around;
+          background: #f7fafc;
+          border: 1px solid #e2e8f0;
+          padding: 10px;
+          border-radius: 6px;
+          margin-bottom: 15px;
+          font-weight: bold;
+          text-align: center;
+        }
+        .summary-item {
+          display: flex;
+          flex-direction: column;
+        }
+        .summary-item .num {
+          font-size: 16px;
+          color: #8b0000;
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        th, td {
+          border: 1px solid #cbd5e0;
+          padding: 7px 10px;
+        }
+        th {
+          background-color: #8b0000;
+          color: white;
+          text-transform: uppercase;
+          font-size: 10px;
+        }
+        .m-tag {
+          font-weight: bold;
+        }
+        .signatures {
+          margin-top: 30px;
+          display: flex;
+          justify-content: space-between;
+          text-align: center;
+          page-break-inside: avoid;
+        }
+        .sig-box {
+          width: 220px;
+        }
+        .sig-title {
+          font-weight: bold;
+          margin-bottom: 60px;
+        }
+        .sig-name {
+          font-weight: bold;
+          text-decoration: underline;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h2>INSTITUT KARATE-DO INDONESIA (INKAI) CABANG SURABAYA</h2>
+        <h3>LAPORAN REKAPITULASI MEDALI & KLASEMEN JUARA UMUM</h3>
+        <div style="font-size:11px; font-weight:bold; margin-top:3px; color:#4a5568;">${eventTitle.toUpperCase()}</div>
+      </div>
+
+      <div class="summary-box">
+        <div class="summary-item">
+          <span class="num">${tally.length}</span>
+          <span>DOJO / RANTING</span>
+        </div>
+        <div class="summary-item">
+          <span class="num" style="color:#d69e2e;">🥇 ${totalGold}</span>
+          <span>MEDALI EMAS</span>
+        </div>
+        <div class="summary-item">
+          <span class="num" style="color:#718096;">🥈 ${totalSilver}</span>
+          <span>MEDALI PERAK</span>
+        </div>
+        <div class="summary-item">
+          <span class="num" style="color:#dd6b20;">🥉 ${totalBronze}</span>
+          <span>MEDALI PERUNGGU</span>
+        </div>
+        <div class="summary-item">
+          <span class="num">${totalMedals}</span>
+          <span>TOTAL MEDALI</span>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 35px;">No</th>
+            <th>Nama Dojo / Ranting Kontingen</th>
+            <th style="width: 75px;">🥇 Emas</th>
+            <th style="width: 75px;">🥈 Perak</th>
+            <th style="width: 75px;">🥉 Perunggu</th>
+            <th style="width: 80px;">Total Medali</th>
+            <th style="width: 70px;">Total Poin</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+
+      <div class="signatures">
+        <div class="sig-box">
+          <div class="sig-title">Mengetahui,<br/>Ketua Panitia Kejuaraan</div>
+          <div class="sig-name">( ............................................ )</div>
+        </div>
+        <div class="sig-box">
+          <div class="sig-title">Surabaya, ${new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}<br/>Dewan Perwasitan Kejuaraan</div>
+          <div class="sig-name">( ............................................ )</div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}

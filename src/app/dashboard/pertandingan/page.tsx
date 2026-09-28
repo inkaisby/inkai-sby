@@ -17,7 +17,13 @@ import {
   QrCode,
   Send,
   X,
+  Scale,
+  Upload,
+  FileText,
+  Eye,
 } from "lucide-react";
+import { compressUploadFile } from "@/lib/compress-image";
+import { showError, showSuccess } from "@/lib/client-toast";
 
 interface Member {
   id: string;
@@ -35,6 +41,7 @@ interface TournamentCategory {
   categoryType: string;
   gender: string;
   fee: number;
+  isFeeVisible?: boolean;
 }
 
 interface EventItem {
@@ -53,10 +60,12 @@ interface Registration {
   eventId: string;
   categoryId: string;
   status: string;
+  actualWeight?: number | null;
+  certificateUrl?: string | null;
   notes?: string | null;
   createdAt: string;
   event: { title: string; startDate: string; location?: string };
-  category: { name: string; fee: number; categoryType: string };
+  category: { name: string; fee: number; isFeeVisible?: boolean; categoryType: string };
 }
 
 export default function MemberPertandinganPage() {
@@ -64,6 +73,46 @@ export default function MemberPertandinganPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [myRegistrations, setMyRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Upload & Preview State
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [previewCertificateUrl, setPreviewCertificateUrl] = useState<string | null>(null);
+
+  const handleUploadCertificate = async (regId: string, file: File) => {
+    setUploadingId(regId);
+    try {
+      const compressed = await compressUploadFile(file, 150 * 1024);
+      const formData = new FormData();
+      formData.append("file", compressed);
+      formData.append("folder", "piagam-pertandingan");
+
+      const resUpload = await fetch("/api/public/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const uploadData = await resUpload.json();
+      if (!resUpload.ok) throw new Error(uploadData.error || "Gagal mengunggah piagam");
+
+      const certificateUrl = uploadData.url;
+
+      const res = await fetch("/api/public/pertandingan", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: regId, certificateUrl }),
+      });
+
+      if (res.ok) {
+        showSuccess("Piagam kejuaraan berhasil diunggah (terkompres ≤ 150KB)");
+        fetchData();
+      } else {
+        showError("Gagal memperbarui data piagam");
+      }
+    } catch (err: any) {
+      showError(err.message || "Gagal mengunggah piagam");
+    } finally {
+      setUploadingId(null);
+    }
+  };
 
   // Registration Form State
   const [selectedEventId, setSelectedEventId] = useState("");
@@ -91,6 +140,21 @@ export default function MemberPertandinganPage() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateWeight = async (id: string, actualWeight: number | null) => {
+    try {
+      const res = await fetch("/api/public/pertandingan", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, actualWeight }),
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -236,7 +300,7 @@ export default function MemberPertandinganPage() {
                   <option value="">-- Pilih Kelas Kata / Kumite --</option>
                   {selectedEvent?.tournamentCategories?.map((cat) => (
                     <option key={cat.id} value={cat.id}>
-                      {cat.name} (Rp {cat.fee.toLocaleString("id-ID")})
+                      {cat.name} {cat.isFeeVisible !== false ? `(Rp ${cat.fee.toLocaleString("id-ID")})` : ""}
                     </option>
                   ))}
                 </select>
@@ -345,10 +409,90 @@ export default function MemberPertandinganPage() {
                     <div className="text-xs font-semibold text-red-600 dark:text-red-400">
                       Kelas: {reg.category.name}
                     </div>
-                    <div className="text-xs text-zinc-500 flex items-center gap-2">
+                    <div className="text-xs text-zinc-500 flex items-center gap-2 flex-wrap">
                       <span>Tanggal: {new Date(reg.event.startDate).toLocaleDateString("id-ID")}</span>
-                      <span>•</span>
-                      <span>Biaya: Rp {reg.category.fee.toLocaleString("id-ID")}</span>
+                      {reg.category.isFeeVisible !== false && (
+                        <>
+                          <span>•</span>
+                          <span>Biaya: Rp {reg.category.fee.toLocaleString("id-ID")}</span>
+                        </>
+                      )}
+                    </div>
+                    {/* Inline Berat Badan (BB) Input */}
+                    <div className="pt-1.5 flex items-center gap-2">
+                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-1">
+                        <Scale className="w-3.5 h-3.5 text-amber-500" /> BB (Berat Badan):
+                      </span>
+                      <div className="inline-flex items-center gap-1 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-2 py-0.5">
+                        <input
+                          type="number"
+                          step="0.1"
+                          placeholder="kg"
+                          defaultValue={reg.actualWeight !== null && reg.actualWeight !== undefined ? reg.actualWeight : ""}
+                          onBlur={(e) => {
+                            const val = e.target.value ? parseFloat(e.target.value) : null;
+                            if (val !== reg.actualWeight) {
+                              handleUpdateWeight(reg.id, val);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const val = (e.target as HTMLInputElement).value ? parseFloat((e.target as HTMLInputElement).value) : null;
+                              if (val !== reg.actualWeight) {
+                                handleUpdateWeight(reg.id, val);
+                              }
+                              (e.target as HTMLInputElement).blur();
+                            }
+                          }}
+                          className="w-16 px-1.5 py-0.5 bg-white dark:bg-zinc-900 border border-amber-300 dark:border-amber-700 rounded text-xs font-bold text-amber-900 dark:text-amber-200 text-center focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                        />
+                        <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">kg</span>
+                      </div>
+                    </div>
+
+                    {/* Berkas Dokumen: Upload Piagam */}
+                    <div className="pt-1.5 flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-1">
+                        <FileText className="w-3.5 h-3.5 text-blue-500" /> Piagam Kejuaraan:
+                      </span>
+                      {reg.certificateUrl ? (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewCertificateUrl(reg.certificateUrl!)}
+                            className="px-2 py-0.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 rounded text-[11px] font-bold flex items-center gap-1 transition"
+                          >
+                            <Eye className="w-3 h-3" /> Lihat Piagam
+                          </button>
+                          <label className="cursor-pointer px-2 py-0.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 rounded text-[11px] font-medium flex items-center gap-1 transition">
+                            <Upload className="w-3 h-3" /> Ganti
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              className="hidden"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) handleUploadCertificate(reg.id, f);
+                              }}
+                            />
+                          </label>
+                        </div>
+                      ) : (
+                        <label className="cursor-pointer px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow transition">
+                          <Upload className="w-3 h-3" />
+                          {uploadingId === reg.id ? "Mengompres & Upload..." : "Upload Piagam (≤150KB)"}
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            disabled={uploadingId === reg.id}
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) handleUploadCertificate(reg.id, f);
+                            }}
+                          />
+                        </label>
+                      )}
                     </div>
                   </div>
 
@@ -467,7 +611,9 @@ export default function MemberPertandinganPage() {
               </div>
               <div className="border-t pt-1.5 flex justify-between items-center font-bold text-sm">
                 <span>Total Biaya Pendaftaran:</span>
-                <span className="text-emerald-600 dark:text-emerald-400">Rp {showPaymentInstructions.category.fee.toLocaleString("id-ID")}</span>
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  {showPaymentInstructions.category.isFeeVisible !== false ? `Rp ${showPaymentInstructions.category.fee.toLocaleString("id-ID")}` : "Sesuai Ketentuan"}
+                </span>
               </div>
             </div>
 
@@ -532,6 +678,48 @@ export default function MemberPertandinganPage() {
                 type="button"
                 onClick={() => setShowPaymentInstructions(null)}
                 className="w-full py-2 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Preview Piagam */}
+      {previewCertificateUrl && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-3xl w-full p-4 space-y-3 shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between border-b pb-2 border-zinc-200 dark:border-zinc-800">
+              <h3 className="font-bold text-sm text-zinc-900 dark:text-white flex items-center gap-2">
+                <FileText className="w-4 h-4 text-emerald-600" /> Preview Piagam Kejuaraan
+              </h3>
+              <button
+                onClick={() => setPreviewCertificateUrl(null)}
+                className="p-1 text-zinc-500 hover:text-zinc-800 dark:hover:text-white rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto flex items-center justify-center min-h-[300px] bg-zinc-100 dark:bg-zinc-950 rounded-xl p-2">
+              {previewCertificateUrl.endsWith(".pdf") ? (
+                <iframe src={previewCertificateUrl} className="w-full h-[600px] rounded-lg" title="Piagam PDF" />
+              ) : (
+                <img src={previewCertificateUrl} alt="Piagam Kejuaraan" className="max-h-[70vh] object-contain rounded-lg shadow-md" />
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+              <a
+                href={previewCertificateUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1"
+              >
+                Buka Tab Baru / Download
+              </a>
+              <button
+                onClick={() => setPreviewCertificateUrl(null)}
+                className="px-4 py-2 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-xl text-xs font-bold"
               >
                 Tutup
               </button>

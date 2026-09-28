@@ -41,7 +41,7 @@ export async function GET(request: Request) {
       where: { memberId: member.id },
       include: {
         event: { select: { id: true, title: true, startDate: true, location: true } },
-        category: { select: { id: true, name: true, fee: true, categoryType: true } },
+        category: { select: { id: true, name: true, fee: true, isFeeVisible: true, categoryType: true } },
       },
       orderBy: { createdAt: "desc" },
     });

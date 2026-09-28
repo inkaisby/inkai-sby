@@ -345,6 +345,7 @@ model TournamentCategory {
   minWeight     Float?
   maxWeight     Float?
   fee           Float                    @default(0)
+  isFeeVisible  Boolean                  @default(true)
   createdAt     DateTime                 @default(now())
   updatedAt     DateTime                 @updatedAt
   event         Event                    @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -363,6 +364,8 @@ model TournamentRegistration {
   status             String             @default("REGISTERED") // REGISTERED | PAID | VERIFIED | REJECTED
   paymentMethod      String?            @default("TRANSFER") // TRANSFER | CASH
   proofUrl           String?
+  certificateUrl     String?
+  medal              String?            // GOLD | SILVER | BRONZE
   actualWeight       Float?
   officialName       String?
   officialPhone      String?
