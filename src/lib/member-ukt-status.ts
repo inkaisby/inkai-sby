@@ -116,11 +116,7 @@ export async function getMemberUktStatus(
 
   if (!match) {
     return {
-      period: {
-        title: buildUktEventTitle(activeSemester, year),
-        semester: activeSemester,
-        year,
-      },
+      period: null,
       registered: false,
       statusLabel:
         termPeriods.length > 0
@@ -159,16 +155,30 @@ export async function getMemberUktStatus(
 
 
 
-  // Belum daftar: jangan panggil eligibility berat di load kartu — gate di POST daftar
+  // Belum daftar: jika periode sudah lewat / ditutup / diarsipkan, tidak perlu ditampilkan di beranda
   if (!localReg) {
+    const isClosedOrPast =
+      periodMeta.archived ||
+      periodMeta.locked ||
+      (match.registrationCloseAt ? new Date(match.registrationCloseAt) < new Date() : false);
+
+    if (isClosedOrPast) {
+      return {
+        period: null,
+        registered: false,
+        statusLabel: "Periode Tutup",
+        displayStatus: "belum_daftar",
+        canSelfRegister: false,
+        blockers: ["PERIODE_TUTUP"],
+      };
+    }
+
     return {
       period: match,
       registered: false,
-      statusLabel: periodMeta.archived
-        ? "Periode diarsipkan"
-        : "Belum terdaftar",
+      statusLabel: "Belum terdaftar",
       displayStatus: "belum_daftar",
-      canSelfRegister: !periodMeta.archived && !periodMeta.locked,
+      canSelfRegister: true,
       blockers: [],
       ...examPayload,
     };
