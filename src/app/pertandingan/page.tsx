@@ -43,6 +43,7 @@ import {
 import { compressUploadFile } from "@/lib/compress-image";
 import { generateTournamentRosterHtml } from "@/lib/tournament-print-html";
 import { deriveAgeCategoryLabel } from "@/lib/tournament-category-presets";
+import { ADMIN_WA_CONTACTS } from "@/lib/site";
 
 interface CategoryDetail {
   id: string;
@@ -171,6 +172,7 @@ export default function PublicPertandinganPage() {
   const [correctionTarget, setCorrectionTarget] = useState<RegistrationItem | null>(null);
   const [correctionType, setCorrectionType] = useState<"KOREKSI" | "HAPUS">("KOREKSI");
   const [correctionNotes, setCorrectionNotes] = useState("");
+  const [selectedAdminId, setSelectedAdminId] = useState<string>("admin-1");
 
   // Guest Registration Modal state
   const [showGuestModal, setShowGuestModal] = useState(false);
@@ -477,12 +479,13 @@ export default function PublicPertandinganPage() {
     }
   };
 
-  // WhatsApp Correction / Deletion Dispatcher to 085731241840
+  // WhatsApp Correction / Deletion Dispatcher with Multi-Admin Support
   const handleSendWaCorrection = (e: React.FormEvent) => {
     e.preventDefault();
     if (!correctionTarget) return;
 
-    const adminPhone = "6285731241840";
+    const selectedAdmin = ADMIN_WA_CONTACTS.find((a) => a.id === selectedAdminId) || ADMIN_WA_CONTACTS[0];
+    const adminPhone = selectedAdmin.waNumber;
     const typeLabel = correctionType === "HAPUS" ? "PEMBATALAN / HAPUS PENDAFTARAN" : "KOREKSI DATA PENDAFTARAN";
 
     const textMessage =
@@ -496,9 +499,9 @@ export default function PublicPertandinganPage() {
       `🏅 *Kategori Kelas:* ${correctionTarget.category.name}\n` +
       `📌 *Status Saat Ini:* ${correctionTarget.status}\n\n` +
       `📝 *Jenis Pengajuan:* ${typeLabel}\n` +
-      `💬 *Catatan / Rincian Perubahan:* ${correctionNotes.trim() || "Mohon dipproses."}\n` +
+      `💬 *Catatan / Rincian Perubahan:* ${correctionNotes.trim() || "Mohon diproses."}\n` +
       `-------------------------------------------\n` +
-      `_Mohon bantuannya Panitia INKAI Surabaya (085731241840) untuk memproses pengajuan ini. Terima kasih._`;
+      `_Mohon bantuannya ${selectedAdmin.label} (${selectedAdmin.phone}) untuk memproses pengajuan ini. Terima kasih._`;
 
     const targetUrl = `https://api.whatsapp.com/send?phone=${adminPhone}&text=${encodeURIComponent(textMessage)}`;
     window.open(targetUrl, "_blank");
@@ -1511,7 +1514,7 @@ export default function PublicPertandinganPage() {
         </div>
       </div>
 
-      {/* Modal Permohonan Koreksi / Hapus ke WA Admin (085731241840) */}
+      {/* Modal Permohonan Koreksi / Hapus ke WA Admin (Pilihan Multi Admin) */}
       {correctionTarget && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
@@ -1529,10 +1532,40 @@ export default function PublicPertandinganPage() {
               <div><strong>Nama Atlet:</strong> {correctionTarget.member.fullName}</div>
               <div><strong>Dojo / Kontingen:</strong> {correctionTarget.dojo.name}</div>
               <div><strong>Kategori:</strong> {correctionTarget.category.name}</div>
-              <div><strong>Tujuan WA Admin:</strong> <span className="font-mono text-emerald-600 font-bold">085731241840</span></div>
             </div>
 
             <form onSubmit={handleSendWaCorrection} className="space-y-4 text-xs md:text-sm">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
+                  Pilih Admin Tujuan WhatsApp *
+                </label>
+                <div className="space-y-1.5">
+                  {ADMIN_WA_CONTACTS.map((adm) => (
+                    <label
+                      key={adm.id}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition ${
+                        selectedAdminId === adm.id
+                          ? "bg-emerald-50 border-emerald-500 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-700 font-semibold shadow-xs"
+                          : "bg-zinc-50 border-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700 hover:bg-zinc-100"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="adminWaTarget"
+                          value={adm.id}
+                          checked={selectedAdminId === adm.id}
+                          onChange={() => setSelectedAdminId(adm.id)}
+                          className="text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span>{adm.label}</span>
+                      </div>
+                      <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">{adm.phone}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
                   Pilih Jenis Pengajuan *
@@ -1594,7 +1627,7 @@ export default function PublicPertandinganPage() {
                   type="submit"
                   className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow flex items-center gap-2"
                 >
-                  <Send className="w-3.5 h-3.5" /> Kirim ke WA (085731241840)
+                  <Send className="w-3.5 h-3.5" /> Kirim via WhatsApp
                 </button>
               </div>
             </form>
@@ -2083,23 +2116,26 @@ export default function PublicPertandinganPage() {
 
             {/* CTA WhatsApp Confirmation */}
             <div className="pt-2 space-y-2">
-              <a
-                href={`https://api.whatsapp.com/send?phone=6285731241840&text=${encodeURIComponent(
-                  `*KONFIRMASI PEMBAYARAN KEJUARAAN*\n` +
-                  `----------------------------------\n` +
-                  `📌 *No. Registrasi:* ${paymentSuccessData.registrationId}\n` +
-                  `👤 *Nama Atlet:* ${paymentSuccessData.athleteName}\n` +
-                  `🏛️ *Dojo:* ${paymentSuccessData.dojoName}\n` +
-                  `🏅 *Kelas:* ${paymentSuccessData.categoryName}\n` +
-                  `💰 *Total Biaya:* Rp ${paymentSuccessData.fee.toLocaleString("id-ID")}\n\n` +
-                  `Saya telah melakukan pendaftaran & pembayaran pendaftaran kejuaraan. Mohon verifikasi data & berkas saya. Terima kasih.`
-                )}`}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow flex items-center justify-center gap-2 transition"
-              >
-                <Send className="w-4 h-4" /> Konfirmasi Pembayaran via WA (085731241840)
-              </a>
+              {ADMIN_WA_CONTACTS.map((adm) => (
+                <a
+                  key={adm.id}
+                  href={`https://api.whatsapp.com/send?phone=${adm.waNumber}&text=${encodeURIComponent(
+                    `*KONFIRMASI PEMBAYARAN KEJUARAAN*\n` +
+                    `----------------------------------\n` +
+                    `📌 *No. Registrasi:* ${paymentSuccessData.registrationId}\n` +
+                    `👤 *Nama Atlet:* ${paymentSuccessData.athleteName}\n` +
+                    `🏛️ *Dojo:* ${paymentSuccessData.dojoName}\n` +
+                    `🏅 *Kelas:* ${paymentSuccessData.categoryName}\n` +
+                    `💰 *Total Biaya:* Rp ${paymentSuccessData.fee.toLocaleString("id-ID")}\n\n` +
+                    `Saya telah melakukan pendaftaran & pembayaran pendaftaran kejuaraan. Mohon verifikasi data & berkas saya. Terima kasih.`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow flex items-center justify-center gap-2 transition"
+                >
+                  <Send className="w-4 h-4" /> Konfirmasi ke {adm.label} ({adm.phone})
+                </a>
+              ))}
 
               <button
                 type="button"

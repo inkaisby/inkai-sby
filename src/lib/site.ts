@@ -13,3 +13,19 @@ export const SITE_CONTACT = {
   mapsUrl: "https://maps.google.com/?q=INKAI+Surabaya",
   hours: "Senin–Sabtu, 08.00–17.00 WIB",
 };
+
+export const ADMIN_WA_CONTACTS = [
+  {
+    id: "admin-1",
+    label: "Admin 1 — Panitia Utama Kejuaraan",
+    phone: "085731241840",
+    waNumber: "6285731241840",
+  },
+  {
+    id: "admin-2",
+    label: "Admin 2 — Layanan Pendaftaran & Verifikasi",
+    phone: "082257203462",
+    waNumber: "6282257203462",
+  },
+];
+
