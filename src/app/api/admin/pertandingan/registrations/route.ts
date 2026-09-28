@@ -58,9 +58,12 @@ export async function GET(request: Request) {
             name: true,
             categoryType: true,
             gender: true,
+            minAge: true,
+            maxAge: true,
             fee: true,
           },
         },
+
       },
       orderBy: [
         { dojo: { name: "asc" } },

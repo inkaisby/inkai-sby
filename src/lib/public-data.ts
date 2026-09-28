@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
-import { inkaiFetch } from "@/lib/inkai-api/server";
+import { inkaiFetch, inkaiServiceToken } from "@/lib/inkai-api/server";
 import { prisma, withPrismaFallback } from "@/lib/prisma";
 import { SITE_BRANCH_NAME, SITE_PROVINCE_NAME } from "@/lib/site";
 
@@ -326,15 +326,58 @@ const getDojoByIdCached = (id: string) =>
 const getEventByIdCached = (id: string) =>
   unstable_cache(
     async (): Promise<PublicEventDetail | null> => {
+      const cleanId = id.trim();
       try {
-        const { res, data } = await inkaiFetch(`/v1/events/${id}`, {}, null);
-        if (!res.ok) return null;
-        const event = (data.data as Record<string, unknown>) ?? null;
-        return event ? mapEventDetail(event) : null;
+        const { res, data } = await inkaiFetch(`/v1/events/${cleanId}`, {}, null);
+        if (res.ok && data?.data) {
+          return mapEventDetail(data.data as Record<string, unknown>);
+        }
+
+        const serviceToken = inkaiServiceToken();
+        if (serviceToken) {
+          const serviceRes = await inkaiFetch(
+            `/v1/events/${cleanId}`,
+            {},
+            serviceToken,
+          );
+          if (serviceRes.res.ok && serviceRes.data?.data) {
+            return mapEventDetail(
+              serviceRes.data.data as Record<string, unknown>,
+            );
+          }
+        }
       } catch (error) {
-        console.error("[getEventDetail]", id, error);
-        return null;
+        console.error("[getEventDetail]", cleanId, error);
       }
+
+      const { data: dbEvent } = await withPrismaFallback(
+        `getEventDetail-${cleanId}`,
+        async () => {
+          return prisma.event.findFirst({
+            where: { id: cleanId, isDeleted: false },
+            include: { categories: true },
+          });
+        },
+        null,
+      );
+
+      if (dbEvent) {
+        return {
+          id: dbEvent.id,
+          title: dbEvent.title,
+          description: dbEvent.description,
+          startDate: dbEvent.startDate.toISOString(),
+          endDate: dbEvent.endDate ? dbEvent.endDate.toISOString() : null,
+          location: dbEvent.location,
+          categories: (dbEvent.categories || []).map((c) => ({
+            id: c.id,
+            name: c.name,
+            fee: c.fee,
+          })),
+        };
+      }
+
+      return null;
     },
     [`event-detail-${id}`],
     { revalidate: 60, tags: ["events", `event-${id}`] },

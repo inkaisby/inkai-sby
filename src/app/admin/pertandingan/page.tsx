@@ -52,6 +52,7 @@ import { generateTournamentIdCardsHtml, generateTournamentRosterHtml, generateTo
 import { compressUploadFile } from "@/lib/compress-image";
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 import { showError, showSuccess } from "@/lib/client-toast";
+import { deriveAgeCategoryLabel } from "@/lib/tournament-category-presets";
 
 interface EventItem {
   id: string;
@@ -74,8 +75,11 @@ interface CategoryItem {
   name: string;
   categoryType: string;
   gender: string;
+  minAge?: number | null;
+  maxAge?: number | null;
   fee: number;
 }
+
 
 interface DojoItem {
   id: string;
@@ -1272,6 +1276,7 @@ export default function AdminPertandinganPage() {
                 <th className="py-3.5 px-4 w-12 text-center whitespace-nowrap">No</th>
                 <th className="py-3.5 px-4 min-w-[200px]">Atlet / Foto</th>
                 <th className="py-3.5 px-4 min-w-[140px] whitespace-nowrap">Dojo / Kontingen</th>
+                <th className="py-3.5 px-4 min-w-[150px] text-center whitespace-nowrap">Kategori Usia</th>
                 <th className="py-3.5 px-4 min-w-[180px] whitespace-nowrap">Berkas Profil (Akte / BPJS)</th>
                 <th className="py-3.5 px-4 min-w-[200px]">Kelas Pertandingan</th>
                 <th className="py-3.5 px-4 min-w-[120px] text-center whitespace-nowrap">BB (Berat Badan)</th>
@@ -1284,43 +1289,58 @@ export default function AdminPertandinganPage() {
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={11} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
                     Memuat data roster pertandingan...
                   </td>
                 </tr>
               ) : displayedRegistrations.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={11} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
                     Tidak ada pendaftaran atlet yang sesuai dengan filter terpilih.
                   </td>
                 </tr>
               ) : (
-                displayedRegistrations.map((reg, idx) => (
-                  <tr key={reg.id} className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition">
-                    <td className="py-3 px-4 text-center font-mono text-xs text-zinc-500 whitespace-nowrap">{idx + 1}</td>
-                    
-                    {/* Atlet & Foto Profil */}
-                    <td className="py-3 px-4 min-w-[200px]">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-100 border border-zinc-300 dark:border-zinc-700 flex-shrink-0">
-                          {reg.member.photoUrl ? (
-                            <img src={reg.member.photoUrl} alt={reg.member.fullName} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center font-bold text-xs bg-red-800 text-white">
-                              {reg.member.fullName.substring(0, 2).toUpperCase()}
-                            </div>
-                          )}
+                displayedRegistrations.map((reg, idx) => {
+                  const ageCategoryLabel = deriveAgeCategoryLabel(
+                    reg.category?.name,
+                    reg.category?.minAge,
+                    reg.category?.maxAge,
+                    reg.member?.birthDate
+                  );
+                  return (
+                    <tr key={reg.id} className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition">
+                      <td className="py-3 px-4 text-center font-mono text-xs text-zinc-500 whitespace-nowrap">{idx + 1}</td>
+                      
+                      {/* Atlet & Foto Profil */}
+                      <td className="py-3 px-4 min-w-[200px]">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full overflow-hidden bg-zinc-100 border border-zinc-300 dark:border-zinc-700 flex-shrink-0">
+                            {reg.member.photoUrl ? (
+                              <img src={reg.member.photoUrl} alt={reg.member.fullName} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center font-bold text-xs bg-red-800 text-white">
+                                {reg.member.fullName.substring(0, 2).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-zinc-900 dark:text-white truncate">{reg.member.fullName}</div>
+                            <div className="text-xs text-zinc-500 whitespace-nowrap">NIA: {reg.member.nia || "-"} • {reg.member.currentRank || "Putih"}</div>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <div className="font-semibold text-zinc-900 dark:text-white truncate">{reg.member.fullName}</div>
-                          <div className="text-xs text-zinc-500 whitespace-nowrap">NIA: {reg.member.nia || "-"} • {reg.member.currentRank || "Putih"}</div>
-                        </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="py-3 px-4 font-medium text-zinc-800 dark:text-zinc-200 whitespace-nowrap">
-                      {reg.dojo.name}
-                    </td>
+                      <td className="py-3 px-4 font-medium text-zinc-800 dark:text-zinc-200 whitespace-nowrap">
+                        {reg.dojo.name}
+                      </td>
+
+                      {/* Kolom Kategori Usia */}
+                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60 whitespace-nowrap shadow-xs">
+                          {ageCategoryLabel}
+                        </span>
+                      </td>
+
 
                     {/* Berkas Profile Integration (Akte & BPJS) + Auto Compress 150KB Upload */}
                     <td className="py-3 px-4 whitespace-nowrap">
@@ -1616,9 +1636,13 @@ export default function AdminPertandinganPage() {
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                );
+              })
+            )}
+
             </tbody>
+
+
           </table>
         </div>
       </div>

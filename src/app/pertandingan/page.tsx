@@ -36,14 +36,21 @@ import {
   QrCode,
   CreditCard,
   Scale,
+  Printer,
+  Download,
+  ChevronLeft,
 } from "lucide-react";
 import { compressUploadFile } from "@/lib/compress-image";
+import { generateTournamentRosterHtml } from "@/lib/tournament-print-html";
+import { deriveAgeCategoryLabel } from "@/lib/tournament-category-presets";
 
 interface CategoryDetail {
   id: string;
   name: string;
   categoryType: string;
   gender: string;
+  minAge?: number | null;
+  maxAge?: number | null;
   minBirthDate?: string | null;
   maxBirthDate?: string | null;
   fee: number;
@@ -80,6 +87,7 @@ interface RegistrationItem {
     id?: string;
     fullName: string;
     nia?: string;
+    birthDate?: string | null;
     currentRank?: string;
     photoUrl?: string;
     birthCertificateUrl?: string;
@@ -91,10 +99,13 @@ interface RegistrationItem {
     name: string;
     categoryType: string;
     gender: string;
+    minAge?: number | null;
+    maxAge?: number | null;
     fee: number;
     isFeeVisible?: boolean;
   };
 }
+
 
 export default function PublicPertandinganPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -116,6 +127,18 @@ export default function PublicPertandinganPage() {
     memberId?: string;
     docType?: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl" | "certificateUrl";
   } | null>(null);
+
+  // Pagination & Print modal state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printPaperSize, setPrintPaperSize] = useState<"A4" | "F4">("A4");
+  const [printOrientation, setPrintOrientation] = useState<"landscape" | "portrait">("landscape");
+  const [printDojoFilter, setPrintDojoFilter] = useState("");
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedDojoName, selectedCategoryName, selectedEventId]);
 
   // Member suggestions search state
   const [memberSuggestions, setMemberSuggestions] = useState<any[]>([]);
@@ -443,7 +466,7 @@ export default function PublicPertandinganPage() {
         bpjsCardUrl: "",
       });
 
-      // Refresh public roster
+      // Refresh daftar peserta publik
       fetchPublicData();
       setShowGuestModal(false);
       setGuestSuccess(null);
@@ -485,14 +508,140 @@ export default function PublicPertandinganPage() {
   };
 
   // Unique dojos & categories for filtering
-  const uniqueDojos = Array.from(new Set(registrations.map((r) => r.dojo.name))).sort();
-  const uniqueCategories = Array.from(new Set(registrations.map((r) => r.category.name))).sort();
+  const uniqueDojos = useMemo(
+    () => Array.from(new Set(registrations.map((r) => r.dojo.name))).sort(),
+    [registrations]
+  );
+  const uniqueCategories = useMemo(
+    () => Array.from(new Set(registrations.map((r) => r.category.name))).sort(),
+    [registrations]
+  );
 
-  const filteredRegistrations = registrations.filter((r) => {
-    if (selectedDojoName && r.dojo.name !== selectedDojoName) return false;
-    if (selectedCategoryName && r.category.name !== selectedCategoryName) return false;
-    return true;
-  });
+  const filteredRegistrations = useMemo(() => {
+    return registrations.filter((r) => {
+      if (selectedDojoName && r.dojo.name !== selectedDojoName) return false;
+      if (selectedCategoryName && r.category.name !== selectedCategoryName) return false;
+      return true;
+    });
+  }, [registrations, selectedDojoName, selectedCategoryName]);
+
+  const totalPages = Math.ceil(filteredRegistrations.length / pageSize) || 1;
+
+  const paginatedRegistrations = useMemo(() => {
+    if (pageSize >= 999999) return filteredRegistrations;
+    const start = (currentPage - 1) * pageSize;
+    return filteredRegistrations.slice(start, start + pageSize);
+  }, [filteredRegistrations, currentPage, pageSize]);
+
+  const handleExportExcel = () => {
+    if (filteredRegistrations.length === 0) {
+      showError("Tidak ada data pendaftaran untuk diekspor");
+      return;
+    }
+    const headers = [
+      "No",
+      "Nama Atlet",
+      "NIA",
+      "Dojo/Kontingen",
+      "Sabuk",
+      "Kelas Pertandingan",
+      "Biaya",
+      "Metode Bayar",
+      "Berat Badan (kg)",
+      "Status Pendaftaran",
+    ];
+    const csvRows = [headers.join(",")];
+
+    filteredRegistrations.forEach((r, idx) => {
+      const payMethod =
+        r.paymentMethod || (r.status === "LUNAS" ? "TRANSFER" : "TUNAI");
+      const weightText = r.actualWeight ? String(r.actualWeight) : "-";
+      const row = [
+        idx + 1,
+        `"${(r.member.fullName || "").replace(/"/g, '""')}"`,
+        `"${(r.member.nia || "").replace(/"/g, '""')}"`,
+        `"${(r.dojo.name || "").replace(/"/g, '""')}"`,
+        `"${(r.member.currentRank || "").replace(/"/g, '""')}"`,
+        `"${(r.category.name || "").replace(/"/g, '""')}"`,
+        r.category.fee || 0,
+        `"${payMethod}"`,
+        `"${weightText}"`,
+        `"${(r.status || "").replace(/"/g, '""')}"`,
+      ];
+      csvRows.push(row.join(","));
+    });
+
+    const csvContent =
+      "data:text/csv;charset=utf-8,\uFEFF" + csvRows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    const eventName = activeEvent?.title || "Kejuaraan_Karate";
+    link.setAttribute(
+      "download",
+      `Daftar_Peserta_${eventName.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date()
+        .toISOString()
+        .slice(0, 10)}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showSuccess("Berhasil mengekspor daftar peserta ke CSV / Excel");
+  };
+
+  const handlePrintPdf = () => {
+    const listToPrint = printDojoFilter
+      ? filteredRegistrations.filter((r) => r.dojo.name === printDojoFilter)
+      : filteredRegistrations;
+
+    if (listToPrint.length === 0) {
+      showError("Tidak ada data peserta untuk dicetak");
+      return;
+    }
+
+    const printData = listToPrint.map((r) => ({
+      id: r.id,
+      member: {
+        fullName: r.member.fullName,
+        nia: r.member.nia,
+        currentRank: r.member.currentRank,
+        photoUrl: r.member.photoUrl,
+      },
+      dojo: { name: r.dojo.name },
+      category: {
+        name: r.category.name,
+        categoryType: r.category.categoryType || "KATA",
+        gender: r.category.gender || "MIXED",
+        fee: r.category.fee || 0,
+      },
+      status: r.status,
+      notes: r.paymentMethod,
+      actualWeight: r.actualWeight,
+    }));
+
+    const eventTitle = activeEvent?.title || "Kejuaraan Karate INKAI Surabaya";
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const htmlContent = generateTournamentRosterHtml(
+      eventTitle,
+      printData,
+      printPaperSize,
+      printOrientation,
+      origin
+    );
+
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.open();
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 500);
+    } else {
+      showError("Gagal membuka jendela cetak. Izinkan pop-up browser Anda.");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
@@ -500,14 +649,14 @@ export default function PublicPertandinganPage() {
       <div className="bg-gradient-to-r from-red-950 via-red-900 to-red-950 text-white border-b border-red-900/50">
         <div className="max-w-7xl mx-auto px-4 py-10 md:py-14 space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 text-xs font-semibold uppercase tracking-wider">
-            <Trophy className="w-3.5 h-3.5" /> Portal Resmi Kejuaraan INKAI Surabaya
+            <Trophy className="w-3.5 h-3.5" /> Portal Resmi INKAI Surabaya
           </div>
 
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">
-            Portal Informasi & Roster Pertandingan Karate
+            Portal Informasi Pertandingan Karate
           </h1>
           <p className="max-w-2xl text-sm md:text-base text-red-200">
-            Informasi Kejuaraan Resmi, Jadwal Match Kata & Kumite, Proposal Ketentuan Pertandingan, dan Roster Atlet Terdaftar Cabang Surabaya.
+            Informasi Kejuaraan Resmi, Jadwal Match Kata & Kumite, Proposal Ketentuan Pertandingan, dan  Atlet Terdaftar Cabang Surabaya.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -901,10 +1050,32 @@ export default function PublicPertandinganPage() {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+
+            {/* Tombol Cetak PDF & Ekspor Excel */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(true)}
+                className="px-3 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-1.5 whitespace-nowrap"
+                title="Cetak PDF Daftar Peserta A4/F4 dengan Logo INKAI"
+              >
+                <Printer className="w-4 h-4" />
+                Cetak PDF
+              </button>
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow flex items-center gap-1.5 whitespace-nowrap"
+                title="Ekspor Data Peserta Terfilter ke Excel / CSV"
+              >
+                <Download className="w-4 h-4" />
+                Ekspor Excel
+              </button>
+            </div>
           </div>
 
-          <div className="text-xs text-zinc-500">
-            Menampilkan <strong>{filteredRegistrations.length}</strong> pendaftaran
+          <div className="text-xs text-zinc-500 font-medium">
+            Menampilkan <strong>{filteredRegistrations.length}</strong> pendaftaran peserta
           </div>
         </div>
 
@@ -917,7 +1088,7 @@ export default function PublicPertandinganPage() {
               </div>
               <div>
                 <h4 className="font-bold text-sm text-zinc-900 dark:text-white">
-                  Nama &quot;{search}&quot; tidak ditemukan dalam roster pendaftar?
+                  Nama &quot;{search}&quot; tidak ditemukan dalam  pendaftar?
                 </h4>
                 <p className="text-xs text-zinc-600 dark:text-zinc-400">
                   Anda bisa mendaftarkan diri atau atlet sebagai **Peserta Tamu / Eksternal** secara langsung.
@@ -940,7 +1111,7 @@ export default function PublicPertandinganPage() {
           </div>
         )}
 
-        {/* Tabel Public Roster Atlet */}
+        {/* Tabel Daftar Peserta Atlet */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -951,6 +1122,7 @@ export default function PublicPertandinganPage() {
                   <th className="py-3.5 px-4">Nama Atlet</th>
                   <th className="py-3.5 px-4">Dojo / Kontingen</th>
                   <th className="py-3.5 px-4">Sabuk</th>
+                  <th className="py-3.5 px-3 text-center min-w-[150px]">Kategori Usia</th>
                   <th className="py-3.5 px-4 min-w-[200px]">Kelas Pertandingan</th>
                   <th className="py-3.5 px-3 text-center min-w-[110px]">BB (Berat Badan)</th>
                   <th className="py-3.5 px-3 text-center min-w-[200px]">Berkas Dokumen</th>
@@ -961,13 +1133,13 @@ export default function PublicPertandinganPage() {
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
                 {loading ? (
                   <tr>
-                    <td colSpan={10} className="py-12 text-center text-zinc-500">
-                      Memuat roster pendaftar kejuaraan...
+                    <td colSpan={11} className="py-12 text-center text-zinc-500">
+                      Memuat daftar pendaftar kejuaraan...
                     </td>
                   </tr>
                 ) : filteredRegistrations.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="py-12 text-center text-zinc-500 space-y-3">
+                    <td colSpan={11} className="py-12 text-center text-zinc-500 space-y-3">
                       <div>Belum ada pendaftaran atlet pada kriteria ini.</div>
                       <button
                         onClick={() => {
@@ -983,9 +1155,17 @@ export default function PublicPertandinganPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredRegistrations.map((reg, idx) => (
-                    <tr key={reg.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition">
-                      <td className="py-3.5 px-3 font-mono text-xs text-zinc-400">{idx + 1}</td>
+                  paginatedRegistrations.map((reg, idx) => {
+                    const itemIndex = (currentPage - 1) * pageSize + idx + 1;
+                    const ageGroupLabel = deriveAgeCategoryLabel(
+                      reg.category?.name,
+                      reg.category?.minAge,
+                      reg.category?.maxAge,
+                      reg.member?.birthDate
+                    );
+                    return (
+                      <tr key={reg.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition">
+                        <td className="py-3.5 px-3 font-mono text-xs text-zinc-400">{itemIndex}</td>
                       <td className="py-3.5 px-3 text-center">
                         {reg.member.photoUrl ? (
                           <button
@@ -1017,8 +1197,16 @@ export default function PublicPertandinganPage() {
                         {reg.member.currentRank || "Putih"}
                       </td>
 
+                      {/* Kolom Kategori Usia */}
+                      <td className="py-3.5 px-3 text-center min-w-[150px]">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60 whitespace-nowrap shadow-xs">
+                          {ageGroupLabel}
+                        </span>
+                      </td>
+
                       {/* Kelas Pertandingan (Inline Dropdown Select) */}
                       <td className="py-3.5 px-4 min-w-[200px]">
+
                         <select
                           value={reg.categoryId || reg.category?.id}
                           onChange={(e) => handleUpdateCategory(reg.id, e.target.value)}
@@ -1285,11 +1473,59 @@ export default function PublicPertandinganPage() {
                         </button>
                       </td>
                     </tr>
-                  ))
+                  );
+                })
                 )}
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          <div className="bg-zinc-50/80 dark:bg-zinc-800/60 border-t border-zinc-200 dark:border-zinc-800 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-600 dark:text-zinc-400">
+            <div className="flex flex-wrap items-center gap-2">
+              <span>Tampilkan:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-1 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-semibold"
+              >
+                <option value={10}>10 per halaman</option>
+                <option value={25}>25 per halaman</option>
+                <option value={50}>50 per halaman</option>
+                <option value={100}>100 per halaman</option>
+                <option value={999999}>Semua ({filteredRegistrations.length})</option>
+              </select>
+              <span className="text-zinc-500">
+                (Menampilkan {filteredRegistrations.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}–{Math.min(currentPage * pageSize, filteredRegistrations.length)} dari <strong>{filteredRegistrations.length}</strong> peserta)
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-800 transition flex items-center gap-1 font-semibold"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" /> Sebelumnya
+              </button>
+              <span className="px-2 font-semibold text-zinc-900 dark:text-white">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+                className="px-2.5 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-800 transition flex items-center gap-1 font-semibold"
+              >
+                Selanjutnya <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
           <div className="mt-3 flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400 px-1">
             <span className="flex items-center gap-1.5">
               <Lock className="w-3.5 h-3.5 text-amber-500" />
@@ -1894,7 +2130,7 @@ export default function PublicPertandinganPage() {
                 onClick={() => setPaymentSuccessData(null)}
                 className="w-full py-2 text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl"
               >
-                Tutup & Kembali ke Roster
+                Tutup & Kembali ke Daftar Peserta
               </button>
             </div>
           </div>
@@ -2032,6 +2268,135 @@ export default function PublicPertandinganPage() {
                   Tutup Pratinjau
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Dialog Cetak PDF (A4/F4, Portrait/Landscape, Logo INKAI) */}
+      {showPrintModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl relative">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
+              <h3 className="font-bold text-base text-zinc-900 dark:text-white flex items-center gap-2">
+                <Printer className="w-5 h-5 text-red-600 dark:text-red-400" />
+                Cetak Daftar Peserta Kejuaraan
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(false)}
+                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold mb-1.5 text-zinc-700 dark:text-zinc-300">
+                  📄 Ukuran Kertas Cetak
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPrintPaperSize("A4")}
+                    className={`p-3 rounded-xl border text-center font-bold transition ${
+                      printPaperSize === "A4"
+                        ? "border-red-600 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800 shadow-xs"
+                        : "border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                    }`}
+                  >
+                    A4 (Standard)
+                    <span className="block text-[10px] font-normal text-zinc-500">210 × 297 mm</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintPaperSize("F4")}
+                    className={`p-3 rounded-xl border text-center font-bold transition ${
+                      printPaperSize === "F4"
+                        ? "border-red-600 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800 shadow-xs"
+                        : "border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                    }`}
+                  >
+                    F4 (Folio/HVS)
+                    <span className="block text-[10px] font-normal text-zinc-500">215 × 330 mm</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1.5 text-zinc-700 dark:text-zinc-300">
+                  📐 Orientasi Halaman
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPrintOrientation("landscape")}
+                    className={`p-3 rounded-xl border text-center font-bold transition ${
+                      printOrientation === "landscape"
+                        ? "border-red-600 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800 shadow-xs"
+                        : "border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                    }`}
+                  >
+                    Landscape (Mendatar)
+                    <span className="block text-[10px] font-normal text-zinc-500">Direkomendasikan</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintOrientation("portrait")}
+                    className={`p-3 rounded-xl border text-center font-bold transition ${
+                      printOrientation === "portrait"
+                        ? "border-red-600 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800 shadow-xs"
+                        : "border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400"
+                    }`}
+                  >
+                    Portrait (Tegak)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1 text-zinc-700 dark:text-zinc-300">
+                  🏛️ Filter Dojo / Kontingen Khusus (Opsional)
+                </label>
+                <select
+                  value={printDojoFilter}
+                  onChange={(e) => setPrintDojoFilter(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs font-semibold"
+                >
+                  <option value="">Semua Filter Terpilih ({filteredRegistrations.length} peserta)</option>
+                  {uniqueDojos.map((d) => (
+                    <option key={d} value={d}>
+                      {d} ({registrations.filter((r) => r.dojo.name === d).length} peserta)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 rounded-xl text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>Dokumen cetak PDF menyertakan **Kop Resmi Logo INKAI Cabang Surabaya**, ringkasan statistik, dan kolom penandatanganan panitia perwasitan.</div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowPrintModal(false)}
+                className="w-1/2 py-2.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 text-zinc-700 dark:text-zinc-300 font-bold rounded-xl"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPrintModal(false);
+                  handlePrintPdf();
+                }}
+                className="w-1/2 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow flex items-center justify-center gap-2"
+              >
+                <Printer className="w-4 h-4" /> Buka Cetak PDF
+              </button>
             </div>
           </div>
         </div>

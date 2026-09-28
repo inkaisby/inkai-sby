@@ -1,3 +1,5 @@
+import { deriveAgeCategoryLabel } from "./tournament-category-presets";
+
 export interface TournamentPrintRegistrant {
   id: string;
   member: {
@@ -15,6 +17,8 @@ export interface TournamentPrintRegistrant {
     name: string;
     categoryType: string;
     gender: string;
+    minAge?: number | null;
+    maxAge?: number | null;
     fee: number;
   };
   status: string;
@@ -187,12 +191,21 @@ export function generateTournamentIdCardsHtml(
 export function generateTournamentRosterHtml(
   eventTitle: string,
   registrants: TournamentPrintRegistrant[],
-  paperSize: "A4" | "F4" = "A4"
+  paperSize: "A4" | "F4" = "A4",
+  orientation: "landscape" | "portrait" = "landscape",
+  origin: string = ""
 ): string {
+  const logoUrl = origin ? `${origin.replace(/\/$/, "")}/logo-inkai.png` : "/logo-inkai.png";
   const rows = registrants
     .map((r, idx) => {
       const payMethod = r.notes?.includes("CASH") ? "TUNAI" : "TRANSFER";
       const weightText = r.actualWeight ? `${r.actualWeight} kg` : "-";
+      const ageCategory = deriveAgeCategoryLabel(
+        r.category.name,
+        r.category.minAge,
+        r.category.maxAge,
+        r.member.birthDate
+      );
       return `
         <tr>
           <td style="text-align:center;">${idx + 1}</td>
@@ -200,6 +213,7 @@ export function generateTournamentRosterHtml(
           <td>${r.member.nia || "-"}</td>
           <td>${r.dojo.name}</td>
           <td>${r.member.currentRank || "-"}</td>
+          <td style="text-align:center;"><strong>${ageCategory}</strong></td>
           <td>${r.category.name}</td>
           <td style="text-align:center;">Rp ${(r.category.fee || 0).toLocaleString("id-ID")}</td>
           <td style="text-align:center;"><strong>${payMethod}</strong></td>
@@ -210,38 +224,60 @@ export function generateTournamentRosterHtml(
     })
     .join("");
 
+  const pageCssSize = paperSize === "F4" ? "215mm 330mm" : "A4";
+
   return `
     <!DOCTYPE html>
     <html lang="id">
     <head>
       <meta charset="UTF-8">
-      <title>Roster Pertandingan - ${eventTitle}</title>
+      <title>Daftar Peserta Pertandingan - ${eventTitle}</title>
       <style>
         @page {
-          size: ${paperSize === "F4" ? "215mm 330mm" : "A4 landscape"};
-          margin: 15mm;
+          size: ${pageCssSize} ${orientation};
+          margin: 12mm;
         }
         body {
           font-family: Arial, sans-serif;
-          font-size: 12px;
+          font-size: 11px;
           margin: 0;
-          color: #222;
+          color: #111;
+          background: #fff;
         }
-        .header {
-          text-align: center;
-          margin-bottom: 20px;
+        .kop {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 16px;
           border-bottom: 3px double #8b0000;
-          padding-bottom: 10px;
+          padding-bottom: 8px;
+          margin-bottom: 12px;
         }
-        .header h2 {
+        .kop img {
+          width: 55px;
+          height: auto;
+        }
+        .kop-text {
+          text-align: center;
+        }
+        .kop-text h2 {
           margin: 0;
+          font-size: 15px;
           color: #8b0000;
+          letter-spacing: 0.5px;
           text-transform: uppercase;
         }
-        .header h3 {
-          margin: 5px 0 0 0;
-          color: #444;
-          font-weight: normal;
+        .kop-text h3 {
+          margin: 3px 0 0 0;
+          font-size: 12px;
+          color: #333;
+          font-weight: bold;
+          text-transform: uppercase;
+        }
+        .kop-text p {
+          margin: 2px 0 0 0;
+          font-size: 10px;
+          color: #666;
         }
         table {
           width: 100%;
@@ -249,68 +285,111 @@ export function generateTournamentRosterHtml(
           margin-top: 10px;
         }
         th, td {
-          border: 1px solid #ccc;
-          padding: 8px;
-          font-size: 11px;
+          border: 1px solid #999;
+          padding: 6px 8px;
+          font-size: 10.5px;
         }
         th {
           background-color: #8b0000;
           color: white;
           text-transform: uppercase;
+          font-size: 10px;
+          letter-spacing: 0.3px;
         }
         tr:nth-child(even) {
-          background-color: #f9f9f9;
+          background-color: #fcfcfc;
         }
         .badge {
-          padding: 3px 6px;
+          padding: 2px 5px;
           border-radius: 3px;
-          font-size: 9px;
+          font-size: 8.5px;
           font-weight: bold;
+          text-transform: uppercase;
         }
-        .badge.registered { background: #e0f2fe; color: #0369a1; }
-        .badge.paid { background: #dcfce7; color: #15803d; }
+        .badge.registered, .badge.tercatat { background: #e0f2fe; color: #0369a1; }
+        .badge.paid, .badge.lunas { background: #dcfce7; color: #15803d; }
         .badge.verified { background: #dbeafe; color: #1e40af; }
         .summary-box {
-          margin-top: 15px;
+          margin-top: 10px;
+          margin-bottom: 10px;
           display: flex;
           justify-content: space-between;
           font-weight: bold;
-          background: #f1f5f9;
-          padding: 10px;
-          border-radius: 5px;
+          background: #f8fafc;
+          border: 1px solid #cbd5e1;
+          padding: 8px 12px;
+          border-radius: 4px;
+          font-size: 11px;
+        }
+        .signatures {
+          margin-top: 25px;
+          display: flex;
+          justify-content: space-between;
+          text-align: center;
+          page-break-inside: avoid;
+        }
+        .sig-box {
+          width: 220px;
+          font-size: 10.5px;
+        }
+        .sig-title {
+          font-weight: bold;
+          margin-bottom: 50px;
+        }
+        .sig-name {
+          font-weight: bold;
+          text-decoration: underline;
         }
       </style>
     </head>
     <body>
-      <div class="header">
-        <h2>INSTITUT KARATE-DO INDONESIA (INKAI) CABANG SURABAYA</h2>
-        <h3>DAFTAR ROSTER PESERTA PERTANDINGAN: ${eventTitle.toUpperCase()}</h3>
+      <div class="kop">
+        <img src="${logoUrl}" alt="Logo INKAI" onerror="this.style.display='none'" />
+        <div class="kop-text">
+          <h2>INSTITUT KARATE-DO INDONESIA (INKAI) CABANG SURABAYA</h2>
+          <h3>DAFTAR PESERTA PERTANDINGAN: ${eventTitle.toUpperCase()}</h3>
+          <p>Sekretariat: Surabaya, Jawa Timur | Official Website: inkai-sby.vercel.app</p>
+        </div>
       </div>
 
       <div class="summary-box">
-        <span>TOTAL PESERTA/KATEGORI: ${registrants.length}</span>
-        <span>TANGGAL CETAK: ${new Date().toLocaleDateString("id-ID")}</span>
+        <span>TOTAL PESERTA TERDAFTAR: ${registrants.length} Atlet</span>
+        <span>KERTAS: ${paperSize} (${orientation.toUpperCase()})</span>
+        <span>TANGGAL CETAK: ${new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</span>
       </div>
 
       <table>
         <thead>
           <tr>
-            <th style="width: 35px;">No</th>
+            <th style="width: 30px;">No</th>
             <th>Nama Atlet</th>
             <th>NIA</th>
-            <th>Dojo / Ranting</th>
+            <th>Dojo / Kontingen</th>
             <th>Sabuk</th>
-            <th>Kelas / Kategori Pertandingan</th>
-            <th>Biaya (Rp)</th>
-            <th>Metode Bayar</th>
-            <th>Berat Badan</th>
-            <th>Status</th>
+            <th>Kategori Usia</th>
+            <th>Kelas Pertandingan</th>
+            <th style="width: 90px;">Biaya</th>
+            <th style="width: 80px;">Metode</th>
+            <th style="width: 70px;">BB (kg)</th>
+            <th style="width: 90px;">Status</th>
           </tr>
         </thead>
         <tbody>
-          ${rows}
+          ${rows.length > 0 ? rows : '<tr><td colSpan="11" style="text-align:center; padding: 20px;">Belum ada peserta terdaftar.</td></tr>'}
         </tbody>
       </table>
+
+
+      <div class="signatures">
+        <div class="sig-box">
+          <div class="sig-title">Mengetahui,<br/>Panitia Kejuaraan INKAI Surabaya</div>
+          <div class="sig-name">( ............................................ )</div>
+        </div>
+        <div class="sig-box">
+          <div class="sig-title">Surabaya, ${new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}<br/>Ketua Pertandingan / Perwasitan</div>
+          <div class="sig-name">( ............................................ )</div>
+        </div>
+      </div>
     </body>
     </html>
   `;

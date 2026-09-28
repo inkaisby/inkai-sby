@@ -18,6 +18,11 @@ import {
   Eye,
   EyeOff,
   X,
+  Zap,
+  Sparkles,
+  Search,
+  Filter,
+  CheckCircle2,
 } from "lucide-react";
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 import { showError, showSuccess } from "@/lib/client-toast";
@@ -65,6 +70,10 @@ export default function AdminPertandinganKategoriPage() {
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterType, setFilterType] = useState<string>("ALL");
+
   // INKAI Custom Confirmation Modal State
   const [deleteCatState, setDeleteCatState] = useState<{ open: boolean; id: string; name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -72,6 +81,12 @@ export default function AdminPertandinganKategoriPage() {
   // Edit Category Modal State
   const [editCatState, setEditCatState] = useState<EditCategoryForm | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Preset Generator State
+  const [isGeneratingPreset, setIsGeneratingPreset] = useState(false);
+  const [presetModalOpen, setPresetModalOpen] = useState(false);
+  const [selectedDivisionGroup, setSelectedDivisionGroup] = useState<string>("ALL");
+  const [presetFee, setPresetFee] = useState<string>("150000");
 
   // Form New Category
   const [newCat, setNewCat] = useState({
@@ -162,6 +177,36 @@ export default function AdminPertandinganKategoriPage() {
     } catch (err) {
       console.error(err);
       showError("Terjadi kesalahan saat menambah kategori");
+    }
+  };
+
+  const handleGeneratePreset = async (group: string) => {
+    if (!selectedEventId) return;
+    setIsGeneratingPreset(true);
+    try {
+      const res = await fetch("/api/admin/pertandingan/categories/preset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: selectedEventId,
+          divisionGroup: group,
+          feeOverride: presetFee ? parseFloat(presetFee) : undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showSuccess(data.message || "Templat kategori berhasil ditambahkan");
+        setPresetModalOpen(false);
+        fetchCategories();
+      } else {
+        showError(data.error || "Gagal menerapkan templat kategori");
+      }
+    } catch (err) {
+      console.error(err);
+      showError("Terjadi kesalahan saat membuat templat kategori");
+    } finally {
+      setIsGeneratingPreset(false);
     }
   };
 
@@ -258,6 +303,16 @@ export default function AdminPertandinganKategoriPage() {
     }
   };
 
+  // Filter Categories
+  const filteredCategories = categories.filter((cat) => {
+    const matchesSearch = cat.name.toLowerCase().includes(searchQuery.toLowerCase());
+    if (!matchesSearch) return false;
+    if (filterType === "ALL") return true;
+    if (filterType === "KATA") return cat.categoryType.startsWith("KATA");
+    if (filterType === "KUMITE") return cat.categoryType.startsWith("KUMITE");
+    return true;
+  });
+
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
       {/* Top Bar */}
@@ -275,29 +330,47 @@ export default function AdminPertandinganKategoriPage() {
               Kelola Kelas Pertandingan & Biaya
             </h1>
             <p className="text-xs text-zinc-500">
-              Penetapan Kelas Kata/Kumite Berdasarkan Rentang Tanggal Lahir, Usia, Berat Badan, & Tarif Biaya Pertandingan
+              Penetapan Kelas Kata/Kumite, Rentang Usia/Tanggal Lahir, Kategori Open/Pelajar/Veteran/Disabilitas/BOB & Tarif Biaya
             </p>
           </div>
         </div>
 
-        <select
-          value={selectedEventId}
-          onChange={(e) => setSelectedEventId(e.target.value)}
-          className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-semibold"
-        >
-          {events.map((ev) => (
-            <option key={ev.id} value={ev.id}>{ev.title}</option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPresetModalOpen(true)}
+            className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-600 hover:to-red-700 text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1.5 cursor-pointer"
+          >
+            <Zap className="w-4 h-4" />
+            Templat Kategori Standard (85+ Kelas)
+          </button>
+
+          <select
+            value={selectedEventId}
+            onChange={(e) => setSelectedEventId(e.target.value)}
+            className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-semibold text-zinc-900 dark:text-white"
+          >
+            {events.map((ev) => (
+              <option key={ev.id} value={ev.id}>{ev.title}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Form Tambah Kategori */}
+        {/* Form Tambah Kategori Manual */}
         <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
-          <h2 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-            <Plus className="w-5 h-5 text-red-600" />
-            Tambah Kelas Baru
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+              <Plus className="w-5 h-5 text-red-600" />
+              Tambah Kelas Baru
+            </h2>
+            <button
+              onClick={() => setPresetModalOpen(true)}
+              className="text-[11px] text-red-600 dark:text-red-400 font-bold hover:underline flex items-center gap-1"
+            >
+              <Sparkles className="w-3.5 h-3.5" /> Batch Preset
+            </button>
+          </div>
 
           <form onSubmit={handleCreateCategory} className="space-y-3">
             <div>
@@ -305,7 +378,7 @@ export default function AdminPertandinganKategoriPage() {
               <input
                 type="text"
                 required
-                placeholder="mis. Kumite Putra -55kg Pemula"
+                placeholder="mis. Pra Usia Dini - Kata Perorangan Putra"
                 value={newCat.name}
                 onChange={(e) => setNewCat({ ...newCat, name: e.target.value })}
                 className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
@@ -396,7 +469,7 @@ export default function AdminPertandinganKategoriPage() {
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Biaya Pertandingan ditentukan Cabang (Rp) *</label>
+              <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Biaya Pertandingan (Rp) *</label>
               <input
                 type="number"
                 required
@@ -429,7 +502,7 @@ export default function AdminPertandinganKategoriPage() {
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold text-sm rounded-xl transition shadow-lg flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold text-sm rounded-xl transition shadow flex items-center justify-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               Simpan Kategori Kelas
@@ -438,12 +511,36 @@ export default function AdminPertandinganKategoriPage() {
         </div>
 
         {/* Tabel Daftar Kategori */}
-        <div className="lg:col-span-2 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-          <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+        <div className="lg:col-span-2 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm space-y-0">
+          <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h2 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
               <Swords className="w-5 h-5 text-red-600" />
-              Daftar Kategori Kelas Terdaftar ({categories.length})
+              Daftar Kategori Kelas ({filteredCategories.length} dari {categories.length})
             </h2>
+
+            {/* Controls Search & Filter */}
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-zinc-400" />
+                <input
+                  type="text"
+                  placeholder="Cari kelas (mis. Pemula)..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 pr-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs w-44 sm:w-56"
+                />
+              </div>
+
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="px-2.5 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-semibold"
+              >
+                <option value="ALL">Semua Jenis</option>
+                <option value="KATA">Kata</option>
+                <option value="KUMITE">Kumite</option>
+              </select>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -465,14 +562,16 @@ export default function AdminPertandinganKategoriPage() {
                       Memuat kategori...
                     </td>
                   </tr>
-                ) : categories.length === 0 ? (
+                ) : filteredCategories.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-zinc-500">
-                      Belum ada kategori kelas pada event ini.
+                      {categories.length === 0
+                        ? "Belum ada kategori kelas pada event ini. Klik 'Templat Kategori Standard' untuk menambahkan 85+ kelas otomatis."
+                        : "Tidak ada kategori yang cocok dengan pencarian."}
                     </td>
                   </tr>
                 ) : (
-                  categories.map((cat) => (
+                  filteredCategories.map((cat) => (
                     <tr key={cat.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition">
                       <td className="py-3 px-4 font-semibold text-zinc-900 dark:text-white">
                         {cat.name}
@@ -498,7 +597,9 @@ export default function AdminPertandinganKategoriPage() {
                           <div>Semua Usia / Bebas</div>
                         )}
                         <div className="text-[11px] text-zinc-500">
-                          {cat.maxWeight ? `Max ${cat.maxWeight} kg` : "Bebas BB"}
+                          {cat.minWeight || cat.maxWeight
+                            ? `${cat.minWeight ? `Min ${cat.minWeight}kg ` : ""}${cat.maxWeight ? `Max ${cat.maxWeight}kg` : ""}`
+                            : "Bebas BB"}
                         </div>
                       </td>
                       <td className="py-3 px-4">
@@ -524,14 +625,14 @@ export default function AdminPertandinganKategoriPage() {
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => openEditCategory(cat)}
-                            className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg transition"
+                            className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-lg transition cursor-pointer"
                             title="Edit Kategori Kelas Ini"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => triggerDeleteCategory(cat)}
-                            className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 rounded-lg transition"
+                            className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 rounded-lg transition cursor-pointer"
                             title="Hapus Kategori Kelas Ini"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -546,6 +647,157 @@ export default function AdminPertandinganKategoriPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal Templat Preset Kategori Standard INKAI / FORKI */}
+      {presetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 max-w-2xl w-full space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
+              <div>
+                <h3 className="text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-amber-500" />
+                  Tambah Templat Kategori Standard INKAI / FORKI
+                </h3>
+                <p className="text-xs text-zinc-500">
+                  Pilih divisi dan tarif biaya awal. Kategori yang sudah ada tidak akan diduplikat.
+                </p>
+              </div>
+              <button
+                onClick={() => setPresetModalOpen(false)}
+                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                  Default Biaya Pendaftaran per Kategori (Rp)
+                </label>
+                <input
+                  type="number"
+                  value={presetFee}
+                  onChange={(e) => setPresetFee(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-bold text-emerald-600 dark:text-emerald-400"
+                  placeholder="150000"
+                />
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  Biaya dapat disesuaikan kembali per-kategori setelah templat berhasil ditambahkan.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                  Pilih Paket Divisi Kategori yang Ingin Ditambahkan:
+                </label>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleGeneratePreset("ALL")}
+                    disabled={isGeneratingPreset}
+                    className="p-3.5 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white rounded-xl text-left font-bold text-xs transition shadow flex flex-col justify-between space-y-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5"><Sparkles className="w-4 h-4" /> SEMUA KATEGORI LENGKAP</span>
+                      <span className="bg-white/20 px-2 py-0.5 rounded text-[10px]">~85 Kelas</span>
+                    </span>
+                    <span className="font-normal text-[11px] opacity-90">
+                      Termasuk Open, Pelajar, Veteran, Disabilitas, & BOB.
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleGeneratePreset("OPEN")}
+                    disabled={isGeneratingPreset}
+                    className="p-3.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-red-50 dark:hover:bg-red-950/40 border border-zinc-300 dark:border-zinc-700 hover:border-red-400 text-zinc-900 dark:text-white rounded-xl text-left font-bold text-xs transition flex flex-col justify-between space-y-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="flex items-center justify-between">
+                      <span>1. KATEGORI TERBUKA / OPEN</span>
+                      <span className="bg-zinc-200 dark:bg-zinc-700 px-2 py-0.5 rounded text-[10px]">~45 Kelas</span>
+                    </span>
+                    <span className="font-normal text-[11px] text-zinc-500 dark:text-zinc-400">
+                      Pra Usia Dini, Usia Dini, Pra Pemula, Pemula, Kadet, Junior, U-21, Senior & Kumite Beregu
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleGeneratePreset("PELAJAR")}
+                    disabled={isGeneratingPreset}
+                    className="p-3.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 border border-zinc-300 dark:border-zinc-700 hover:border-blue-400 text-zinc-900 dark:text-white rounded-xl text-left font-bold text-xs transition flex flex-col justify-between space-y-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="flex items-center justify-between">
+                      <span>2. KATEGORI PELAJAR</span>
+                      <span className="bg-zinc-200 dark:bg-zinc-700 px-2 py-0.5 rounded text-[10px]">~24 Kelas</span>
+                    </span>
+                    <span className="font-normal text-[11px] text-zinc-500 dark:text-zinc-400">
+                      TK, SD 1-3, SD 4-6, SMP/MTs, SMA/SMK/MA, Mahasiswa/Umum
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleGeneratePreset("DISABILITAS")}
+                    disabled={isGeneratingPreset}
+                    className="p-3.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-zinc-300 dark:border-zinc-700 hover:border-emerald-400 text-zinc-900 dark:text-white rounded-xl text-left font-bold text-xs transition flex flex-col justify-between space-y-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="flex items-center justify-between">
+                      <span>3. EKSEBISI DISABILITAS</span>
+                      <span className="bg-zinc-200 dark:bg-zinc-700 px-2 py-0.5 rounded text-[10px]">6 Kelas</span>
+                    </span>
+                    <span className="font-normal text-[11px] text-zinc-500 dark:text-zinc-400">
+                      Kata Perorangan Rungu/Wicara, Daksa, & Grahita (Putra/Putri)
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleGeneratePreset("VETERAN")}
+                    disabled={isGeneratingPreset}
+                    className="p-3.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-purple-50 dark:hover:bg-purple-950/40 border border-zinc-300 dark:border-zinc-700 hover:border-purple-400 text-zinc-900 dark:text-white rounded-xl text-left font-bold text-xs transition flex flex-col justify-between space-y-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="flex items-center justify-between">
+                      <span>4. KATEGORI VETERAN</span>
+                      <span className="bg-zinc-200 dark:bg-zinc-700 px-2 py-0.5 rounded text-[10px]">10 Kelas</span>
+                    </span>
+                    <span className="font-normal text-[11px] text-zinc-500 dark:text-zinc-400">
+                      Kata/Kumite 30-40 th, 40-50 th, & +50 th
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleGeneratePreset("BOB")}
+                    disabled={isGeneratingPreset}
+                    className="p-3.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-yellow-50 dark:hover:bg-yellow-950/40 border border-zinc-300 dark:border-zinc-700 hover:border-yellow-400 text-zinc-900 dark:text-white rounded-xl text-left font-bold text-xs transition flex flex-col justify-between space-y-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="flex items-center justify-between">
+                      <span>5. BEST OF THE BEST (BOB)</span>
+                      <span className="bg-zinc-200 dark:bg-zinc-700 px-2 py-0.5 rounded text-[10px]">6 Kelas</span>
+                    </span>
+                    <span className="font-normal text-[11px] text-zinc-500 dark:text-zinc-400">
+                      Kata & Kumite BOB Kadet-Junior / U21-Senior
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-zinc-200 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setPresetModalOpen(false)}
+                className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold rounded-xl transition"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Edit Kategori Kelas */}
       {editCatState && (
@@ -572,7 +824,7 @@ export default function AdminPertandinganKategoriPage() {
                   required
                   value={editCatState.name}
                   onChange={(e) => setEditCatState({ ...editCatState, name: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
+                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm font-semibold"
                 />
               </div>
 
@@ -658,7 +910,7 @@ export default function AdminPertandinganKategoriPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Biaya Pertandingan ditentukan Cabang (Rp) *</label>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Biaya Pertandingan (Rp) *</label>
                 <input
                   type="number"
                   required
@@ -699,7 +951,7 @@ export default function AdminPertandinganKategoriPage() {
                 <button
                   type="submit"
                   disabled={isUpdating}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition shadow flex items-center gap-1.5 disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition shadow flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                   {isUpdating ? "Menyimpan..." : "Simpan Perubahan"}
