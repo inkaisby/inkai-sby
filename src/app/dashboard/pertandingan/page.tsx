@@ -145,6 +145,7 @@ export default function MemberPertandinganPage() {
   };
 
   const handleUpdateWeight = async (id: string, actualWeight: number | null) => {
+    setMyRegistrations((prev) => prev.map((r) => (r.id === id ? { ...r, actualWeight } : r)));
     try {
       const res = await fetch("/api/public/pertandingan", {
         method: "PATCH",
@@ -152,10 +153,14 @@ export default function MemberPertandinganPage() {
         body: JSON.stringify({ id, actualWeight }),
       });
       if (res.ok) {
+        showSuccess("Berat badan berhasil diperbarui");
+        fetchData();
+      } else {
         fetchData();
       }
     } catch (err) {
       console.error(err);
+      fetchData();
     }
   };
 
@@ -426,6 +431,7 @@ export default function MemberPertandinganPage() {
                       </span>
                       <div className="inline-flex items-center gap-1 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-2 py-0.5">
                         <input
+                          key={`${reg.id}-${reg.actualWeight ?? "empty"}`}
                           type="number"
                           step="0.1"
                           placeholder="kg"

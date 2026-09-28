@@ -172,7 +172,11 @@ export async function PATCH(request: Request) {
 
     const dataToUpdate: any = {};
     if (status !== undefined) dataToUpdate.status = status;
-    if (actualWeight !== undefined) dataToUpdate.actualWeight = actualWeight ? parseFloat(actualWeight) : null;
+    if (actualWeight !== undefined) {
+      dataToUpdate.actualWeight = (actualWeight !== null && actualWeight !== "" && actualWeight !== undefined && !isNaN(Number(actualWeight)))
+        ? parseFloat(actualWeight.toString())
+        : null;
+    }
     if (notes !== undefined) dataToUpdate.notes = notes;
     if (categoryId !== undefined) dataToUpdate.categoryId = categoryId;
     if (paymentMethod !== undefined) dataToUpdate.paymentMethod = paymentMethod;

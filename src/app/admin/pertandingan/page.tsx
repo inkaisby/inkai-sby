@@ -550,6 +550,13 @@ export default function AdminPertandinganPage() {
   };
 
   const handleUpdateInlineWeight = async (id: string, actualWeight: number | null) => {
+    // Optimistic state update so table & modal stay 100% in sync
+    setRegistrations((prev) => prev.map((r) => (r.id === id ? { ...r, actualWeight } : r)));
+    if (showWeightModal && showWeightModal.id === id) {
+      setShowWeightModal((prev) => (prev ? { ...prev, actualWeight } : null));
+      setActualWeightInput(actualWeight !== null ? actualWeight.toString() : "");
+    }
+
     try {
       const res = await fetch("/api/admin/pertandingan/registrations", {
         method: "PATCH",
@@ -557,15 +564,17 @@ export default function AdminPertandinganPage() {
         body: JSON.stringify({ id, actualWeight }),
       });
       if (res.ok) {
-        showSuccess("Berat badan berhasil diperbarui");
+        showSuccess("Berat badan berhasil diperbarui & disinkronkan");
         fetchRegistrations();
       } else {
         const data = await res.json();
         showError(data.error || "Gagal memperbarui berat badan");
+        fetchRegistrations();
       }
     } catch (err) {
       console.error(err);
       showError("Terjadi kesalahan saat memperbarui berat badan");
+      fetchRegistrations();
     }
   };
 
@@ -575,6 +584,16 @@ export default function AdminPertandinganPage() {
     try {
       const cleanNotes = (showWeightModal.notes || "").replace(/\[(CASH|TRANSFER)\]|METODE:\s*(CASH|TRANSFER)/gi, "").trim();
       const updatedNotes = cleanNotes ? `${cleanNotes} [${paymentMethodInput}]` : `[${paymentMethodInput}]`;
+      const parsedWeight = actualWeightInput ? parseFloat(actualWeightInput) : null;
+
+      // Optimistic state update
+      setRegistrations((prev) =>
+        prev.map((r) =>
+          r.id === showWeightModal.id
+            ? { ...r, actualWeight: parsedWeight, status: weightStatusInput as any, notes: updatedNotes }
+            : r
+        )
+      );
 
       const res = await fetch("/api/admin/pertandingan/registrations", {
         method: "PATCH",
@@ -587,12 +606,15 @@ export default function AdminPertandinganPage() {
         }),
       });
       if (res.ok) {
-        showSuccess("Verifikasi timbang badan berhasil disimpan");
+        showSuccess("Verifikasi timbang badan & berkas disimpam & disinkronkan");
         setShowWeightModal(null);
+        fetchRegistrations();
+      } else {
         fetchRegistrations();
       }
     } catch (err) {
       console.error(err);
+      fetchRegistrations();
     }
   };
 
@@ -1436,6 +1458,7 @@ export default function AdminPertandinganPage() {
                       <div className="inline-flex items-center gap-1.5 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-2 py-1">
                         <Scale className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                         <input
+                          key={`${reg.id}-${reg.actualWeight ?? "empty"}`}
                           type="number"
                           step="0.1"
                           placeholder="kg"

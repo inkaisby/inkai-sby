@@ -149,7 +149,11 @@ export async function PATCH(request: Request) {
     if (proofUrl !== undefined) dataToUpdate.proofUrl = proofUrl;
     if (certificateUrl !== undefined) dataToUpdate.certificateUrl = certificateUrl;
     if (medal !== undefined) dataToUpdate.medal = medal;
-    if (actualWeight !== undefined) dataToUpdate.actualWeight = actualWeight ? parseFloat(actualWeight) : null;
+    if (actualWeight !== undefined) {
+      dataToUpdate.actualWeight = (actualWeight !== null && actualWeight !== "" && actualWeight !== undefined && !isNaN(Number(actualWeight)))
+        ? parseFloat(actualWeight.toString())
+        : null;
+    }
     if (status !== undefined) dataToUpdate.status = status;
 
     const updated = await prisma.tournamentRegistration.update({

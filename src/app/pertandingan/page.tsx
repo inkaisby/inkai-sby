@@ -292,6 +292,7 @@ export default function PublicPertandinganPage() {
   };
 
   const handleUpdateWeight = async (regId: string, actualWeight: number | null) => {
+    setRegistrations((prev) => prev.map((r) => (r.id === regId ? { ...r, actualWeight } : r)));
     try {
       const res = await fetch("/api/public/pertandingan", {
         method: "PATCH",
@@ -299,13 +300,16 @@ export default function PublicPertandinganPage() {
         body: JSON.stringify({ id: regId, actualWeight }),
       });
       if (res.ok) {
+        showSuccess("Berat badan berhasil diperbarui");
         fetchPublicData();
       } else {
         const data = await res.json();
         showError(data.error || "Gagal memperbarui berat badan");
+        fetchPublicData();
       }
     } catch (err) {
       console.error("Failed to update weight", err);
+      fetchPublicData();
     }
   };
 
@@ -1033,6 +1037,7 @@ export default function PublicPertandinganPage() {
                         <div className="inline-flex items-center gap-1.5 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-2 py-1">
                           <Scale className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                           <input
+                            key={`${reg.id}-${reg.actualWeight ?? "empty"}`}
                             type="number"
                             step="0.1"
                             placeholder="kg"
