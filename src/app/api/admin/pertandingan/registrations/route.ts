@@ -164,7 +164,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, status, actualWeight, notes, categoryId } = body;
+    const { id, status, actualWeight, notes, categoryId, paymentMethod, proofUrl, birthCertificateUrl, bpjsCardUrl, photoUrl } = body;
 
     if (!id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
@@ -175,11 +175,30 @@ export async function PATCH(request: Request) {
     if (actualWeight !== undefined) dataToUpdate.actualWeight = actualWeight ? parseFloat(actualWeight) : null;
     if (notes !== undefined) dataToUpdate.notes = notes;
     if (categoryId !== undefined) dataToUpdate.categoryId = categoryId;
+    if (paymentMethod !== undefined) dataToUpdate.paymentMethod = paymentMethod;
+    if (proofUrl !== undefined) dataToUpdate.proofUrl = proofUrl;
 
     const updated = await prisma.tournamentRegistration.update({
       where: { id },
       data: dataToUpdate,
+      include: {
+        category: true,
+        dojo: true,
+        member: true,
+      },
     });
+
+    if (updated.memberId && (birthCertificateUrl !== undefined || bpjsCardUrl !== undefined || photoUrl !== undefined)) {
+      const memberData: any = {};
+      if (birthCertificateUrl !== undefined) memberData.birthCertificateUrl = birthCertificateUrl;
+      if (bpjsCardUrl !== undefined) memberData.bpjsCardUrl = bpjsCardUrl;
+      if (photoUrl !== undefined) memberData.photoUrl = photoUrl;
+
+      await prisma.member.update({
+        where: { id: updated.memberId },
+        data: memberData,
+      });
+    }
 
     return NextResponse.json({ success: true, registration: updated });
   } catch (error: any) {

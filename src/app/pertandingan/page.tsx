@@ -34,7 +34,9 @@ import {
   Send,
   QrCode,
   CreditCard,
+  Scale,
 } from "lucide-react";
+import { compressUploadFile } from "@/lib/compress-image";
 
 interface CategoryDetail {
   id: string;
@@ -66,9 +68,13 @@ interface EventItem {
 interface RegistrationItem {
   id: string;
   status: string;
+  paymentMethod?: string | null;
+  proofUrl?: string | null;
   createdAt: string;
   actualWeight?: number | null;
+  categoryId: string;
   member: {
+    id?: string;
     fullName: string;
     nia?: string;
     currentRank?: string;
@@ -78,6 +84,7 @@ interface RegistrationItem {
   };
   dojo: { name: string };
   category: {
+    id?: string;
     name: string;
     categoryType: string;
     gender: string;
@@ -236,8 +243,9 @@ export default function PublicPertandinganPage() {
     setGuestError(null);
     setUploadingState((prev) => ({ ...prev, [fieldKey]: true }));
     try {
+      const compressedFile = await compressUploadFile(file, 150 * 1024);
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", compressedFile);
       formData.append("folder", folder);
 
       const res = await fetch("/api/public/upload", {
@@ -252,6 +260,80 @@ export default function PublicPertandinganPage() {
       setGuestError(`Gagal upload ${folder}: ${err.message}`);
     } finally {
       setUploadingState((prev) => ({ ...prev, [fieldKey]: false }));
+    }
+  };
+
+  const handleUpdateCategory = async (regId: string, newCategoryId: string) => {
+    try {
+      const res = await fetch("/api/public/pertandingan", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: regId, categoryId: newCategoryId }),
+      });
+      if (res.ok) {
+        fetchPublicData();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Gagal mengubah kelas pertandingan");
+      }
+    } catch (err) {
+      console.error("Failed to update category", err);
+    }
+  };
+
+  const handleUpdatePaymentMethod = async (regId: string, paymentMethod: "TRANSFER" | "CASH") => {
+    try {
+      const res = await fetch("/api/public/pertandingan", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: regId, paymentMethod }),
+      });
+      if (res.ok) {
+        fetchPublicData();
+      }
+    } catch (err) {
+      console.error("Failed to update payment method", err);
+    }
+  };
+
+  const handleRowDocUpload = async (
+    regId: string,
+    memberId: string | undefined,
+    file: File,
+    docType: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl"
+  ) => {
+    try {
+      const compressed = await compressUploadFile(file, 150 * 1024);
+      const formData = new FormData();
+      formData.append("file", compressed);
+      formData.append("folder", docType === "proofUrl" ? "bukti-tf" : "dokumen-pertandingan");
+
+      const resUpload = await fetch("/api/public/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const uploadData = await resUpload.json();
+      if (!resUpload.ok) throw new Error(uploadData.error || "Gagal mengunggah berkas");
+
+      const fileUrl = uploadData.url;
+
+      if (docType === "proofUrl") {
+        await fetch("/api/public/pertandingan", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: regId, proofUrl: fileUrl, paymentMethod: "TRANSFER" }),
+        });
+      } else {
+        await fetch("/api/public/pertandingan", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: regId, [docType]: fileUrl }),
+        });
+      }
+
+      fetchPublicData();
+    } catch (err: any) {
+      alert(`Upload & kompres berkas gagal: ${err.message}`);
     }
   };
 
@@ -829,22 +911,23 @@ export default function PublicPertandinganPage() {
                   <th className="py-3.5 px-4">Nama Atlet</th>
                   <th className="py-3.5 px-4">Dojo / Kontingen</th>
                   <th className="py-3.5 px-4">Sabuk</th>
-                  <th className="py-3.5 px-4">Kelas Pertandingan</th>
-                  <th className="py-3.5 px-3 text-center">Berkas Dokumen</th>
-                  <th className="py-3.5 px-4 text-center">Status Pendaftaran</th>
+                  <th className="py-3.5 px-4 min-w-[200px]">Kelas Pertandingan</th>
+                  <th className="py-3.5 px-3 text-center min-w-[110px]">BB (Berat Badan)</th>
+                  <th className="py-3.5 px-3 text-center min-w-[200px]">Berkas Dokumen</th>
+                  <th className="py-3.5 px-4 text-center min-w-[220px]">Status Pendaftaran</th>
                   <th className="py-3.5 px-3 text-center">Aksi / Koreksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
                 {loading ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-zinc-500">
+                    <td colSpan={10} className="py-12 text-center text-zinc-500">
                       Memuat roster pendaftar kejuaraan...
                     </td>
                   </tr>
                 ) : filteredRegistrations.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-12 text-center text-zinc-500 space-y-3">
+                    <td colSpan={10} className="py-12 text-center text-zinc-500 space-y-3">
                       <div>Belum ada pendaftaran atlet pada kriteria ini.</div>
                       <button
                         onClick={() => {
@@ -893,71 +976,170 @@ export default function PublicPertandinganPage() {
                       <td className="py-3.5 px-4 text-xs font-medium text-zinc-600 dark:text-zinc-400">
                         {reg.member.currentRank || "Putih"}
                       </td>
-                      <td className="py-3.5 px-4">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900">
-                          {reg.category.name}
-                        </span>
+
+                      {/* Kelas Pertandingan (Inline Dropdown Select) */}
+                      <td className="py-3.5 px-4 min-w-[200px]">
+                        <select
+                          value={reg.categoryId || reg.category?.id}
+                          onChange={(e) => handleUpdateCategory(reg.id, e.target.value)}
+                          className="w-full px-2.5 py-1.5 bg-red-50/70 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-xs font-bold text-red-700 dark:text-red-300 focus:ring-2 focus:ring-red-500 cursor-pointer shadow-xs truncate"
+                        >
+                          {(activeEvent?.tournamentCategories || []).map((c) => (
+                            <option key={c.id} value={c.id} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-normal">
+                              {c.name} (Rp {c.fee.toLocaleString("id-ID")})
+                            </option>
+                          ))}
+                        </select>
                       </td>
 
-                      {/* Berkas Dokumen Status & Preview */}
-                      <td className="py-3.5 px-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {/* Foto status */}
+                      {/* Kolom BB (Berat Badan) di sebelah kanan Kelas Pertandingan */}
+                      <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1 font-bold text-xs text-zinc-800 dark:text-zinc-200 bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                          <Scale className="w-3.5 h-3.5 text-amber-500" />
+                          {reg.actualWeight ? `${reg.actualWeight} kg` : "-"}
+                        </div>
+                      </td>
+
+                      {/* Berkas Dokumen Status & Upload (Auto Compress 150KB) */}
+                      <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          {/* Foto */}
                           {reg.member.photoUrl ? (
                             <button
-                              onClick={() => setPreviewDoc({ url: reg.member.photoUrl!, title: `Foto: ${reg.member.fullName}` })}
+                              onClick={() => setPreviewDoc({ url: reg.member.photoUrl!, title: `Foto Profil: ${reg.member.fullName}` })}
                               className="px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
                               title="Lihat Foto Profil"
                             >
                               <ImageIcon className="w-3 h-3" /> Foto
                             </button>
                           ) : (
-                            <span className="px-1.5 py-0.5 bg-zinc-100 text-zinc-400 dark:bg-zinc-800 rounded text-[10px]">
-                              Foto -
-                            </span>
+                            <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium">
+                              <Upload className="w-3 h-3 text-zinc-400" /> Foto
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleRowDocUpload(reg.id, reg.member.id, f, "photoUrl");
+                                }}
+                              />
+                            </label>
                           )}
 
-                          {/* Akte status (Protected PII - Status Badge Only) */}
+                          {/* Akte Kelahiran */}
                           {reg.member.birthCertificateUrl ? (
-                            <span
-                              className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 rounded text-[11px] font-bold flex items-center gap-1 cursor-help"
-                              title="Dokumen Akte Kelahiran Terverifikasi Ada (Dilindungi UU PDP)"
+                            <button
+                              onClick={() => setPreviewDoc({ url: reg.member.birthCertificateUrl!, title: `Akte Kelahiran: ${reg.member.fullName}` })}
+                              className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
+                              title="Lihat Akte Kelahiran"
                             >
                               <FileText className="w-3 h-3" /> Akte ✓
-                            </span>
+                            </button>
                           ) : (
-                            <span className="px-1.5 py-0.5 bg-zinc-100 text-zinc-400 dark:bg-zinc-800 rounded text-[10px]">
-                              Akte -
-                            </span>
+                            <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium border border-zinc-200 dark:border-zinc-700">
+                              <Upload className="w-3 h-3 text-blue-500" /> + Akte (150KB)
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleRowDocUpload(reg.id, reg.member.id, f, "birthCertificateUrl");
+                                }}
+                              />
+                            </label>
                           )}
 
-                          {/* BPJS status (Protected PII - Status Badge Only) */}
+                          {/* BPJS */}
                           {reg.member.bpjsCardUrl ? (
-                            <span
-                              className="px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded text-[11px] font-bold flex items-center gap-1 cursor-help"
-                              title="Kartu BPJS Kesehatan Terverifikasi Ada (Dilindungi UU PDP)"
+                            <button
+                              onClick={() => setPreviewDoc({ url: reg.member.bpjsCardUrl!, title: `Kartu BPJS: ${reg.member.fullName}` })}
+                              className="px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
+                              title="Lihat BPJS"
                             >
                               <ShieldAlert className="w-3 h-3" /> BPJS ✓
-                            </span>
+                            </button>
                           ) : (
-                            <span className="px-1.5 py-0.5 bg-zinc-100 text-zinc-400 dark:bg-zinc-800 rounded text-[10px]">
-                              BPJS -
-                            </span>
+                            <label className="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 rounded text-[11px] cursor-pointer flex items-center gap-1 font-medium border border-zinc-200 dark:border-zinc-700">
+                              <Upload className="w-3 h-3 text-amber-500" /> + BPJS (150KB)
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleRowDocUpload(reg.id, reg.member.id, f, "bpjsCardUrl");
+                                }}
+                              />
+                            </label>
                           )}
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-center">
-                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${
-                          reg.status === "VERIFIED" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300" :
-                          reg.status === "PAID" ? "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300" :
-                          "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
-                        }`}>
-                          {reg.status === "VERIFIED" && <CheckCircle className="w-3.5 h-3.5" />}
-                          {reg.status === "PAID" && <CheckCircle className="w-3.5 h-3.5" />}
-                          {reg.status === "REGISTERED" && <Clock className="w-3.5 h-3.5" />}
-                          {reg.status === "VERIFIED" ? "TERVERIFIKASI SAH" : reg.status === "PAID" ? "LUNAS" : "TERCATAT"}
-                        </span>
+                      {/* Status Pendaftaran & Pilihan TF / Tunai + Upload Bukti TF & Lihat */}
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <div className="flex flex-col items-center gap-1.5">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                            reg.status === "VERIFIED" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300" :
+                            reg.status === "PAID" ? "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300" :
+                            "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"
+                          }`}>
+                            {reg.status === "VERIFIED" ? "TERVERIFIKASI SAH" : reg.status === "PAID" ? "LUNAS" : "TERCATAT"}
+                          </span>
+
+                          {/* Toggle TF vs Tunai */}
+                          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                            <button
+                              onClick={() => handleUpdatePaymentMethod(reg.id, "TRANSFER")}
+                              className={`px-2 py-0.5 text-[10px] font-bold rounded transition ${
+                                (reg.paymentMethod || "TRANSFER") === "TRANSFER"
+                                  ? "bg-blue-600 text-white shadow-xs"
+                                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                              }`}
+                            >
+                              🏦 TF
+                            </button>
+                            <button
+                              onClick={() => handleUpdatePaymentMethod(reg.id, "CASH")}
+                              className={`px-2 py-0.5 text-[10px] font-bold rounded transition ${
+                                reg.paymentMethod === "CASH"
+                                  ? "bg-emerald-600 text-white shadow-xs"
+                                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+                              }`}
+                            >
+                              💵 Tunai
+                            </button>
+                          </div>
+
+                          {/* Bukti TF Upload & View (Kompres 150KB) */}
+                          {(reg.paymentMethod || "TRANSFER") === "TRANSFER" && (
+                            <div className="flex items-center gap-1 pt-0.5">
+                              {reg.proofUrl ? (
+                                <button
+                                  onClick={() => setPreviewDoc({ url: reg.proofUrl!, title: `Bukti Transfer (TF): ${reg.member.fullName}` })}
+                                  className="px-2 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
+                                  title="Lihat Bukti Transfer"
+                                >
+                                  <Eye className="w-3 h-3 text-emerald-600" /> Lihat Bukti TF
+                                </button>
+                              ) : (
+                                <label className="px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-[11px] font-bold hover:bg-blue-100 cursor-pointer flex items-center gap-1">
+                                  <Upload className="w-3 h-3 text-blue-600" /> Upload Bukti TF (150KB)
+                                  <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const f = e.target.files?.[0];
+                                      if (f) handleRowDocUpload(reg.id, reg.member.id, f, "proofUrl");
+                                    }}
+                                  />
+                                </label>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
 
                       {/* Kolom Aksi / Permohonan Koreksi / Hapus via WA (082257203462) */}

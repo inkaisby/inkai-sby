@@ -44,8 +44,13 @@ import {
   RotateCcw,
   Code,
   X,
+  Upload,
+  Image as ImageIcon,
 } from "lucide-react";
 import { generateTournamentIdCardsHtml, generateTournamentRosterHtml } from "@/lib/tournament-print-html";
+import { compressUploadFile } from "@/lib/compress-image";
+import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
+import { showError, showSuccess } from "@/lib/client-toast";
 
 interface EventItem {
   id: string;
@@ -97,6 +102,8 @@ interface RegistrationItem {
   memberId: string;
   categoryId: string;
   status: string;
+  paymentMethod?: string | null;
+  proofUrl?: string | null;
   actualWeight?: number | null;
   officialName?: string | null;
   officialPhone?: string | null;
@@ -176,6 +183,24 @@ export default function AdminPertandinganPage() {
   const [showBatchRegModal, setShowBatchRegModal] = useState(false);
   const [showWeightModal, setShowWeightModal] = useState<RegistrationItem | null>(null);
   const [previewDocModal, setPreviewDocModal] = useState<{ title: string; url: string } | null>(null);
+
+  // INKAI Custom Confirmation Modal States
+  const [confirmDeleteReg, setConfirmDeleteReg] = useState<{
+    open: boolean;
+    id: string;
+    athleteName: string;
+    categoryName: string;
+    dojoName: string;
+  } | null>(null);
+
+  const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<{
+    open: boolean;
+    id: string;
+    title: string;
+  } | null>(null);
+
+  const [confirmResetRulesOpen, setConfirmResetRulesOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form states
   const [eventForm, setEventForm] = useState({
@@ -332,16 +357,17 @@ export default function AdminPertandinganPage() {
       });
       const data = await res.json();
       if (res.ok) {
+        showSuccess("Event kejuaraan berhasil dibuat");
         setShowNewEventModal(false);
         setEventForm({ title: "", description: "", startDate: "", endDate: "", eventTime: "", location: "" });
         await fetchEvents();
         if (data.event) setSelectedEventId(data.event.id);
       } else {
-        alert(data.error || "Gagal membuat event");
+        showError(data.error || "Gagal membuat event");
       }
     } catch (err) {
       console.error(err);
-      alert("Terjadi kesalahan");
+      showError("Terjadi kesalahan");
     }
   };
 
@@ -358,11 +384,12 @@ export default function AdminPertandinganPage() {
         }),
       });
       if (res.ok) {
+        showSuccess("Event kejuaraan berhasil diperbarui");
         setShowEditEventModal(null);
         fetchEvents();
       } else {
         const data = await res.json();
-        alert(data.error || "Gagal memperbarui event");
+        showError(data.error || "Gagal memperbarui event");
       }
     } catch (err) {
       console.error(err);
@@ -381,29 +408,46 @@ export default function AdminPertandinganPage() {
         }),
       });
       if (res.ok) {
-        alert("Ketentuan Pertandingan berhasil disimpan!");
+        showSuccess("Ketentuan Pertandingan berhasil disimpan!");
         setShowRulesEditorModal(false);
         fetchEvents();
       } else {
-        alert("Gagal menyimpan ketentuan pertandingan");
+        showError("Gagal menyimpan ketentuan pertandingan");
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  const handleDeleteEvent = async (id: string) => {
-    if (!confirm("Hapus event kejuaraan ini beserta kategorinya?")) return;
+  const triggerDeleteEvent = (eventItem: EventItem) => {
+    setConfirmDeleteEvent({
+      open: true,
+      id: eventItem.id,
+      title: eventItem.title,
+    });
+  };
+
+  const executeDeleteEvent = async () => {
+    if (!confirmDeleteEvent) return;
+    setIsDeleting(true);
     try {
-      const res = await fetch(`/api/admin/pertandingan/events?id=${id}`, {
+      const res = await fetch(`/api/admin/pertandingan/events?id=${confirmDeleteEvent.id}`, {
         method: "DELETE",
       });
       if (res.ok) {
+        showSuccess("Event kejuaraan berhasil dihapus");
         setSelectedEventId("");
         fetchEvents();
+        setConfirmDeleteEvent(null);
+      } else {
+        const data = await res.json();
+        showError(data.error || "Gagal menghapus event");
       }
     } catch (err) {
       console.error(err);
+      showError("Terjadi kesalahan saat menghapus event");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -414,7 +458,7 @@ export default function AdminPertandinganPage() {
     try {
       const validEntries = batchReg.entries.filter(e => e.memberId && e.categoryId);
       if (validEntries.length === 0) {
-        alert("Pilih minimal 1 atlet dan 1 kategori");
+        showError("Pilih minimal 1 atlet dan 1 kategori");
         return;
       }
 
@@ -425,7 +469,7 @@ export default function AdminPertandinganPage() {
       }
 
       if (!targetDojoId) {
-        alert("Dojo / Ranting atlet tidak ditemukan. Pastikan data anggota memiliki Dojo.");
+        showError("Dojo / Ranting atlet tidak ditemukan. Pastikan data anggota memiliki Dojo.");
         return;
       }
 
@@ -443,7 +487,7 @@ export default function AdminPertandinganPage() {
 
       const data = await res.json();
       if (res.ok) {
-        alert(`Berhasil meregistrasikan ${data.createdCount} atlet/kategori!`);
+        showSuccess(`Berhasil meregistrasikan ${data.createdCount} atlet/kategori!`);
         setShowBatchRegModal(false);
         setBatchReg({
           dojoId: "",
@@ -453,11 +497,11 @@ export default function AdminPertandinganPage() {
         });
         fetchRegistrations();
       } else {
-        alert(data.error || "Gagal pendaftaran");
+        showError(data.error || "Gagal pendaftaran");
       }
     } catch (err) {
       console.error(err);
-      alert("Terjadi kesalahan");
+      showError("Terjadi kesalahan");
     }
   };
 
@@ -484,10 +528,11 @@ export default function AdminPertandinganPage() {
         body: JSON.stringify({ id, categoryId }),
       });
       if (res.ok) {
+        showSuccess("Kelas pertandingan berhasil diubah");
         fetchRegistrations();
       } else {
         const data = await res.json();
-        alert(data.error || "Gagal mengubah kelas pertandingan");
+        showError(data.error || "Gagal mengubah kelas pertandingan");
       }
     } catch (err) {
       console.error(err);
@@ -512,6 +557,7 @@ export default function AdminPertandinganPage() {
         }),
       });
       if (res.ok) {
+        showSuccess("Verifikasi timbang badan berhasil disimpan");
         setShowWeightModal(null);
         fetchRegistrations();
       }
@@ -520,11 +566,45 @@ export default function AdminPertandinganPage() {
     }
   };
 
-  const handleDeleteRegistration = async (id: string) => {
-    if (!confirm("Hapus pendaftaran atlet ini dari kejuaraan?")) return;
+  const triggerDeleteRegistration = (reg: RegistrationItem) => {
+    setConfirmDeleteReg({
+      open: true,
+      id: reg.id,
+      athleteName: reg.member.fullName,
+      categoryName: reg.category.name,
+      dojoName: reg.dojo.name,
+    });
+  };
+
+  const executeDeleteRegistration = async () => {
+    if (!confirmDeleteReg) return;
+    setIsDeleting(true);
     try {
-      const res = await fetch(`/api/admin/pertandingan/registrations?id=${id}`, {
+      const res = await fetch(`/api/admin/pertandingan/registrations?id=${confirmDeleteReg.id}`, {
         method: "DELETE",
+      });
+      if (res.ok) {
+        showSuccess("Pendaftaran atlet berhasil dihapus");
+        fetchRegistrations();
+        setConfirmDeleteReg(null);
+      } else {
+        const data = await res.json();
+        showError(data.error || "Gagal menghapus pendaftaran");
+      }
+    } catch (err) {
+      console.error(err);
+      showError("Terjadi kesalahan saat menghapus pendaftaran");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleUpdatePaymentMethod = async (regId: string, paymentMethod: "TRANSFER" | "CASH") => {
+    try {
+      const res = await fetch("/api/admin/pertandingan/registrations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: regId, paymentMethod }),
       });
       if (res.ok) {
         fetchRegistrations();
@@ -533,6 +613,49 @@ export default function AdminPertandinganPage() {
       console.error(err);
     }
   };
+
+  const handleRowDocUpload = async (
+    regId: string,
+    memberId: string | undefined,
+    file: File,
+    docType: "birthCertificateUrl" | "bpjsCardUrl" | "photoUrl" | "proofUrl"
+  ) => {
+    try {
+      const compressed = await compressUploadFile(file, 150 * 1024);
+      const formData = new FormData();
+      formData.append("file", compressed);
+      formData.append("folder", docType === "proofUrl" ? "bukti-tf" : "dokumen-pertandingan");
+
+      const resUpload = await fetch("/api/public/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const uploadData = await resUpload.json();
+      if (!resUpload.ok) throw new Error(uploadData.error || "Gagal mengunggah berkas");
+
+      const fileUrl = uploadData.url;
+
+      if (docType === "proofUrl") {
+        await fetch("/api/admin/pertandingan/registrations", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: regId, proofUrl: fileUrl, paymentMethod: "TRANSFER" }),
+        });
+      } else {
+        await fetch("/api/admin/pertandingan/registrations", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: regId, [docType]: fileUrl }),
+        });
+      }
+
+      showSuccess("Berkas berhasil diunggah & dikompres (≤150KB)");
+      fetchRegistrations();
+    } catch (err: any) {
+      showError(`Upload & kompres berkas gagal: ${err.message}`);
+    }
+  };
+
 
   const displayedRegistrations = registrations.filter((reg) => {
     if (!selectedPaymentMethod) return true;
@@ -733,7 +856,7 @@ export default function AdminPertandinganPage() {
               </button>
 
               <button
-                onClick={() => handleDeleteEvent(activeEvent.id)}
+                onClick={() => triggerDeleteEvent(activeEvent)}
                 className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
                 title="Hapus Event Kejuaraan Ini"
               >
@@ -866,7 +989,7 @@ export default function AdminPertandinganPage() {
                           <button
                             onClick={async () => {
                               if (categories.length === 0) {
-                                alert("Belum ada kategori kelas pertandingan pada event ini. Buat/kelola kelas terlebih dahulu.");
+                                showError("Belum ada kategori kelas pertandingan pada event ini. Buat/kelola kelas terlebih dahulu.");
                                 return;
                               }
                               try {
@@ -881,14 +1004,15 @@ export default function AdminPertandinganPage() {
                                 });
                                 const data = await res.json();
                                 if (res.ok) {
+                                  showSuccess("Atlet berhasil didaftarkan");
                                   setShowSuggestDropdown(false);
                                   await fetchRegistrations();
                                 } else {
-                                  alert(data.error || "Gagal meregistrasikan atlet");
+                                  showError(data.error || "Gagal meregistrasikan atlet");
                                 }
                               } catch (err) {
                                 console.error(err);
-                                alert("Terjadi kesalahan saat registrasi atlet");
+                                showError("Terjadi kesalahan saat registrasi atlet");
                               }
                             }}
                             className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[11px] transition shadow-sm shrink-0 flex items-center gap-1"
@@ -1009,23 +1133,24 @@ export default function AdminPertandinganPage() {
                 <th className="py-3.5 px-4 w-12 text-center whitespace-nowrap">No</th>
                 <th className="py-3.5 px-4 min-w-[200px]">Atlet / Foto</th>
                 <th className="py-3.5 px-4 min-w-[140px] whitespace-nowrap">Dojo / Kontingen</th>
-                <th className="py-3.5 px-4 min-w-[160px] whitespace-nowrap">Berkas Profil (Akte / BPJS)</th>
-                <th className="py-3.5 px-4 min-w-[180px]">Kelas Pertandingan</th>
-                <th className="py-3.5 px-4 min-w-[120px] whitespace-nowrap text-right">Biaya Cabang</th>
-                <th className="py-3.5 px-4 min-w-[170px] whitespace-nowrap">Status & Berat Badan</th>
+                <th className="py-3.5 px-4 min-w-[180px] whitespace-nowrap">Berkas Profil (Akte / BPJS)</th>
+                <th className="py-3.5 px-4 min-w-[200px]">Kelas Pertandingan</th>
+                <th className="py-3.5 px-4 min-w-[120px] text-center whitespace-nowrap">BB (Berat Badan)</th>
+                <th className="py-3.5 px-4 min-w-[110px] whitespace-nowrap text-right">Biaya Cabang</th>
+                <th className="py-3.5 px-4 min-w-[210px] whitespace-nowrap text-center">Status & Pembayaran</th>
                 <th className="py-3.5 px-4 min-w-[140px] whitespace-nowrap text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={9} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
                     Memuat data roster pertandingan...
                   </td>
                 </tr>
               ) : displayedRegistrations.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={9} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
                     Tidak ada pendaftaran atlet yang sesuai dengan filter terpilih.
                   </td>
                 </tr>
@@ -1057,9 +1182,9 @@ export default function AdminPertandinganPage() {
                       {reg.dojo.name}
                     </td>
 
-                    {/* Berkas Profile Integration (Akte & BPJS) */}
+                    {/* Berkas Profile Integration (Akte & BPJS) + Auto Compress 150KB Upload */}
                     <td className="py-3 px-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         {reg.member.birthCertificateUrl ? (
                           <button
                             onClick={() => setPreviewDocModal({ title: `Akte Kelahiran - ${reg.member.fullName}`, url: reg.member.birthCertificateUrl! })}
@@ -1069,9 +1194,18 @@ export default function AdminPertandinganPage() {
                             Akte OK
                           </button>
                         ) : (
-                          <span className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded text-[11px] text-zinc-400 flex items-center gap-1 whitespace-nowrap">
-                            <AlertCircle className="w-3 h-3" /> Tanpa Akte
-                          </span>
+                          <label className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 rounded text-[11px] text-zinc-600 dark:text-zinc-300 flex items-center gap-1 cursor-pointer whitespace-nowrap border border-zinc-200 dark:border-zinc-700 font-medium">
+                            <Upload className="w-3 h-3 text-blue-500" /> + Akte (150KB)
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              className="hidden"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) handleRowDocUpload(reg.id, reg.member.id, f, "birthCertificateUrl");
+                              }}
+                            />
+                          </label>
                         )}
 
                         {reg.member.bpjsCardUrl ? (
@@ -1083,14 +1217,24 @@ export default function AdminPertandinganPage() {
                             BPJS OK
                           </button>
                         ) : (
-                          <span className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 rounded text-[11px] text-zinc-400 flex items-center gap-1 whitespace-nowrap">
-                            <AlertCircle className="w-3 h-3" /> Tanpa BPJS
-                          </span>
+                          <label className="px-2 py-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 rounded text-[11px] text-zinc-600 dark:text-zinc-300 flex items-center gap-1 cursor-pointer whitespace-nowrap border border-zinc-200 dark:border-zinc-700 font-medium">
+                            <Upload className="w-3 h-3 text-amber-500" /> + BPJS (150KB)
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              className="hidden"
+                              onChange={(e) => {
+                                const f = e.target.files?.[0];
+                                if (f) handleRowDocUpload(reg.id, reg.member.id, f, "bpjsCardUrl");
+                              }}
+                            />
+                          </label>
                         )}
                       </div>
                     </td>
 
-                    <td className="py-3 px-4 min-w-[240px]">
+                    {/* Kelas Pertandingan (Inline Select Dropdown) */}
+                    <td className="py-3 px-4 min-w-[200px]">
                       <select
                         value={reg.categoryId}
                         onChange={(e) => handleUpdateCategory(reg.id, e.target.value)}
@@ -1104,14 +1248,22 @@ export default function AdminPertandinganPage() {
                       </select>
                     </td>
 
+                    {/* Kolom BB (Berat Badan) di sebelah kanan Kelas Pertandingan */}
+                    <td className="py-3 px-4 text-center whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1 font-bold text-xs text-zinc-800 dark:text-zinc-200 bg-zinc-100 dark:bg-zinc-800 px-2.5 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                        <Scale className="w-3.5 h-3.5 text-amber-500" />
+                        {reg.actualWeight ? `${reg.actualWeight} kg` : "-"}
+                      </div>
+                    </td>
+
                     <td className="py-3 px-4 font-semibold text-zinc-900 dark:text-zinc-100 text-right whitespace-nowrap">
                       Rp {reg.category.fee.toLocaleString("id-ID")}
                     </td>
 
-                    {/* Status & Berat Badan & Metode Pembayaran */}
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Status & Pilihan TF / Tunai + Upload Bukti TF & Lihat */}
+                    <td className="py-3 px-4 whitespace-nowrap text-center">
+                      <div className="flex flex-col items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap justify-center">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
                             reg.status === "VERIFIED" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300" :
                             reg.status === "PAID" ? "bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300" :
@@ -1124,25 +1276,58 @@ export default function AdminPertandinganPage() {
                             {reg.status === "VERIFIED" ? "SAH" : reg.status === "PAID" ? "LUNAS" : reg.status === "REJECTED" ? "REJECT" : "TERCATAT"}
                           </span>
 
-                          {reg.notes?.includes("CASH") ? (
-                            <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded text-[10px] font-bold" title="Pembayaran Tunai / Cash">
-                              💵 TUNAI
-                            </span>
-                          ) : (
-                            <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-[10px] font-bold" title="Pembayaran Transfer Bank / QRIS">
-                              🏦 TRANSFER
-                            </span>
-                          )}
+                          {/* Toggle TF vs Tunai */}
+                          <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                            <button
+                              onClick={() => handleUpdatePaymentMethod(reg.id, "TRANSFER")}
+                              className={`px-2 py-0.5 text-[10px] font-bold rounded transition ${
+                                (reg.paymentMethod || (reg.notes?.includes("CASH") ? "CASH" : "TRANSFER")) === "TRANSFER"
+                                  ? "bg-blue-600 text-white shadow-xs"
+                                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900"
+                              }`}
+                            >
+                              🏦 TF
+                            </button>
+                            <button
+                              onClick={() => handleUpdatePaymentMethod(reg.id, "CASH")}
+                              className={`px-2 py-0.5 text-[10px] font-bold rounded transition ${
+                                (reg.paymentMethod || (reg.notes?.includes("CASH") ? "CASH" : "TRANSFER")) === "CASH"
+                                  ? "bg-emerald-600 text-white shadow-xs"
+                                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900"
+                              }`}
+                            >
+                              💵 Tunai
+                            </button>
+                          </div>
                         </div>
 
-                        <span className="text-xs text-zinc-500 flex items-center gap-1 mt-0.5">
-                          <Scale className="w-3.5 h-3.5 text-red-500" />
-                          {reg.actualWeight ? (
-                            <strong className="text-zinc-800 dark:text-zinc-200">{reg.actualWeight} kg</strong>
-                          ) : (
-                            <span className="italic text-zinc-400">Belum timbang</span>
-                          )}
-                        </span>
+                        {/* Bukti TF Upload & View (Kompres 150KB) */}
+                        {(reg.paymentMethod || (reg.notes?.includes("CASH") ? "CASH" : "TRANSFER")) === "TRANSFER" && (
+                          <div className="flex items-center gap-1 pt-0.5">
+                            {reg.proofUrl ? (
+                              <button
+                                onClick={() => setPreviewDocModal({ title: `Bukti Transfer (TF): ${reg.member.fullName}`, url: reg.proofUrl! })}
+                                className="px-2 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded text-[11px] font-bold hover:underline flex items-center gap-1"
+                                title="Lihat Bukti Transfer"
+                              >
+                                <Eye className="w-3 h-3 text-emerald-600" /> Lihat Bukti TF
+                              </button>
+                            ) : (
+                              <label className="px-2 py-0.5 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded text-[11px] font-bold hover:bg-blue-100 cursor-pointer flex items-center gap-1">
+                                <Upload className="w-3 h-3 text-blue-600" /> Upload Bukti TF (150KB)
+                                <input
+                                  type="file"
+                                  accept="image/*,application/pdf"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    if (f) handleRowDocUpload(reg.id, reg.member.id, f, "proofUrl");
+                                  }}
+                                />
+                              </label>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </td>
 
@@ -1172,7 +1357,7 @@ export default function AdminPertandinganPage() {
                         )}
 
                         <button
-                          onClick={() => handleDeleteRegistration(reg.id)}
+                          onClick={() => triggerDeleteRegistration(reg)}
                           title="Hapus"
                           className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-md text-red-600"
                         >
@@ -1210,14 +1395,7 @@ export default function AdminPertandinganPage() {
 
                 <button
                   type="button"
-                  onClick={() => {
-                    if (confirm("Reset ketentuan pertandingan ke templat standar INKAI?")) {
-                      setRulesInput(DEFAULT_TOURNAMENT_RULES_TEMPLATE);
-                      if (rulesEditorRef.current) {
-                        rulesEditorRef.current.innerHTML = DEFAULT_TOURNAMENT_RULES_TEMPLATE;
-                      }
-                    }
-                  }}
+                  onClick={() => setConfirmResetRulesOpen(true)}
                   className="text-xs text-red-600 dark:text-red-400 font-semibold hover:underline flex items-center gap-1"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -1833,6 +2011,71 @@ export default function AdminPertandinganPage() {
           </div>
         </div>
       )}
+
+      {confirmDeleteReg && (
+        <InkaiConfirmDialog
+          open={confirmDeleteReg.open}
+          onOpenChange={(open) => {
+            if (!open) setConfirmDeleteReg(null);
+          }}
+          title="Hapus Pendaftaran Atlet"
+          description="Hapus pendaftaran atlet ini dari kejuaraan? Data pendaftaran dan riwayat berkas atlet pada kejuaraan ini akan dihapus."
+          confirmLabel="Ya, Hapus Pendaftaran"
+          cancelLabel="Batal"
+          variant="danger"
+          loading={isDeleting}
+          onConfirm={executeDeleteRegistration}
+        >
+          <div className="mt-2 rounded-xl border border-red-200/80 dark:border-red-900/50 bg-red-50/60 dark:bg-red-950/40 p-3 text-xs space-y-1">
+            <div className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center justify-between">
+              <span>{confirmDeleteReg.athleteName}</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/60 text-red-700 dark:text-red-300 font-semibold">
+                Atlet
+              </span>
+            </div>
+            <div className="text-zinc-600 dark:text-zinc-400">
+              Kelas: <span className="font-semibold text-zinc-900 dark:text-zinc-200">{confirmDeleteReg.categoryName}</span>
+            </div>
+            <div className="text-zinc-600 dark:text-zinc-400">
+              Dojo / Ranting: <span className="font-semibold text-zinc-900 dark:text-zinc-200">{confirmDeleteReg.dojoName}</span>
+            </div>
+          </div>
+        </InkaiConfirmDialog>
+      )}
+
+      {confirmDeleteEvent && (
+        <InkaiConfirmDialog
+          open={confirmDeleteEvent.open}
+          onOpenChange={(open) => {
+            if (!open) setConfirmDeleteEvent(null);
+          }}
+          title="Hapus Event Kejuaraan"
+          description={`Apakah Anda yakin ingin menghapus event kejuaraan "${confirmDeleteEvent.title}" beserta seluruh kategori dan data pendaftarannya?`}
+          confirmLabel="Ya, Hapus Event"
+          cancelLabel="Batal"
+          variant="danger"
+          loading={isDeleting}
+          onConfirm={executeDeleteEvent}
+        />
+      )}
+
+      <InkaiConfirmDialog
+        open={confirmResetRulesOpen}
+        onOpenChange={setConfirmResetRulesOpen}
+        title="Reset Ketentuan Pertandingan"
+        description="Kembalikan ketentuan pertandingan ke templat standar INKAI? Seluruh penyesuaian teks yang dibuat sebelumnya akan digantikan dengan templat baku."
+        confirmLabel="Reset Templat Standard"
+        cancelLabel="Batal"
+        variant="danger"
+        onConfirm={() => {
+          setRulesInput(DEFAULT_TOURNAMENT_RULES_TEMPLATE);
+          if (rulesEditorRef.current) {
+            rulesEditorRef.current.innerHTML = DEFAULT_TOURNAMENT_RULES_TEMPLATE;
+          }
+          setConfirmResetRulesOpen(false);
+          showSuccess("Templat ketentuan berhasil direset");
+        }}
+      />
     </div>
   );
 }

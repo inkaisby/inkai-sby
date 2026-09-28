@@ -60,8 +60,14 @@ export async function GET(request: Request) {
         status: true,
         createdAt: true,
         actualWeight: true,
+        paymentMethod: true,
+        proofUrl: true,
+        categoryId: true,
+        dojoId: true,
+        memberId: true,
         member: {
           select: {
+            id: true,
             fullName: true,
             nia: true,
             currentRank: true,
@@ -71,10 +77,11 @@ export async function GET(request: Request) {
           },
         },
         dojo: {
-          select: { name: true },
+          select: { id: true, name: true },
         },
         category: {
           select: {
+            id: true,
             name: true,
             categoryType: true,
             gender: true,
@@ -115,3 +122,58 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message || "Failed to fetch public tournament data" }, { status: 500 });
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, categoryId, paymentMethod, proofUrl, actualWeight, status, birthCertificateUrl, bpjsCardUrl, photoUrl } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "id required" }, { status: 400 });
+    }
+
+    const reg = await prisma.tournamentRegistration.findUnique({
+      where: { id },
+      include: { member: true },
+    });
+
+    if (!reg) {
+      return NextResponse.json({ error: "Registration not found" }, { status: 404 });
+    }
+
+    const dataToUpdate: any = {};
+    if (categoryId !== undefined) dataToUpdate.categoryId = categoryId;
+    if (paymentMethod !== undefined) dataToUpdate.paymentMethod = paymentMethod;
+    if (proofUrl !== undefined) dataToUpdate.proofUrl = proofUrl;
+    if (actualWeight !== undefined) dataToUpdate.actualWeight = actualWeight ? parseFloat(actualWeight) : null;
+    if (status !== undefined) dataToUpdate.status = status;
+
+    const updated = await prisma.tournamentRegistration.update({
+      where: { id },
+      data: dataToUpdate,
+      include: {
+        category: true,
+        dojo: true,
+        member: true,
+      },
+    });
+
+    if (reg.memberId && (birthCertificateUrl !== undefined || bpjsCardUrl !== undefined || photoUrl !== undefined)) {
+      const memberData: any = {};
+      if (birthCertificateUrl !== undefined) memberData.birthCertificateUrl = birthCertificateUrl;
+      if (bpjsCardUrl !== undefined) memberData.bpjsCardUrl = bpjsCardUrl;
+      if (photoUrl !== undefined) memberData.photoUrl = photoUrl;
+
+      await prisma.member.update({
+        where: { id: reg.memberId },
+        data: memberData,
+      });
+    }
+
+    return NextResponse.json({ success: true, registration: updated });
+  } catch (error: any) {
+    console.error("PATCH /api/public/pertandingan error:", error);
+    return NextResponse.json({ error: error.message || "Failed to update registration" }, { status: 500 });
+  }
+}
+

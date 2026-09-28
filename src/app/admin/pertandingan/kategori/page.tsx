@@ -15,6 +15,8 @@ import {
   Shield,
   Calendar,
 } from "lucide-react";
+import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
+import { showError, showSuccess } from "@/lib/client-toast";
 
 interface EventItem {
   id: string;
@@ -42,6 +44,10 @@ export default function AdminPertandinganKategoriPage() {
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // INKAI Custom Confirmation Modal State
+  const [deleteCatState, setDeleteCatState] = useState<{ open: boolean; id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Form New Category
   const [newCat, setNewCat] = useState({
@@ -109,6 +115,7 @@ export default function AdminPertandinganKategoriPage() {
       });
 
       if (res.ok) {
+        showSuccess("Kategori kelas pertandingan berhasil ditambahkan");
         setNewCat({
           name: "",
           categoryType: "KATA_INDIVIDUAL",
@@ -124,24 +131,41 @@ export default function AdminPertandinganKategoriPage() {
         fetchCategories();
       } else {
         const data = await res.json();
-        alert(data.error || "Gagal menambah kategori");
+        showError(data.error || "Gagal menambah kategori");
       }
     } catch (err) {
       console.error(err);
+      showError("Terjadi kesalahan saat menambah kategori");
     }
   };
 
-  const handleDeleteCategory = async (id: string) => {
-    if (!confirm("Hapus kategori kelas ini?")) return;
+  const triggerDeleteCategory = (cat: CategoryItem) => {
+    setDeleteCatState({ open: true, id: cat.id, name: cat.name });
+  };
+
+  const executeDeleteCategory = async () => {
+    if (!deleteCatState) return;
+    setIsDeleting(true);
     try {
-      const res = await fetch(`/api/admin/pertandingan/categories?id=${id}`, {
+      const res = await fetch(`/api/admin/pertandingan/categories?id=${deleteCatState.id}`, {
         method: "DELETE",
       });
-      if (res.ok) fetchCategories();
+      if (res.ok) {
+        showSuccess("Kategori kelas pertandingan berhasil dihapus");
+        fetchCategories();
+        setDeleteCatState(null);
+      } else {
+        const data = await res.json();
+        showError(data.error || "Gagal menghapus kategori");
+      }
     } catch (err) {
       console.error(err);
+      showError("Terjadi kesalahan saat menghapus kategori");
+    } finally {
+      setIsDeleting(false);
     }
   };
+
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
@@ -374,9 +398,9 @@ export default function AdminPertandinganKategoriPage() {
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button
-                          onClick={() => handleDeleteCategory(cat.id)}
+                          onClick={() => triggerDeleteCategory(cat)}
                           className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 rounded-lg transition"
-                          title="Hapus"
+                          title="Hapus Kategori Kelas Ini"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -389,6 +413,23 @@ export default function AdminPertandinganKategoriPage() {
           </div>
         </div>
       </div>
+
+      {/* INKAI Custom Confirmation Modal */}
+      {deleteCatState && (
+        <InkaiConfirmDialog
+          open={deleteCatState.open}
+          onOpenChange={(open) => {
+            if (!open) setDeleteCatState(null);
+          }}
+          title="Hapus Kategori Kelas"
+          description={`Apakah Anda yakin ingin menghapus kategori kelas "${deleteCatState.name}" dari kejuaraan ini?`}
+          confirmLabel="Ya, Hapus Kategori"
+          cancelLabel="Batal"
+          variant="danger"
+          loading={isDeleting}
+          onConfirm={executeDeleteCategory}
+        />
+      )}
     </div>
   );
 }
