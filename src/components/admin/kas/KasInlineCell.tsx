@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { parseFlexibleIdDate } from "@/lib/parse-birth-date";
 import { rupiahInt } from "@/lib/kas";
 
+import { Loader2 } from "lucide-react";
+
 export type KasInlineKind = "text" | "date" | "money";
 
 export function KasInlineCell({
@@ -104,31 +106,38 @@ export function KasInlineCell({
   }
 
   return (
-    <td className={`p-1 ${align === "right" ? "text-right" : ""} ${className}`}>
-      <Input
-        ref={inputRef}
-        type={kind === "date" ? "date" : "text"}
-        list={listId}
-        value={draft}
-        disabled={saving}
-        className={`h-8 text-sm ${align === "right" ? "text-right" : ""}`}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => {
-          void commit();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
+    <td className={`p-1 relative ${align === "right" ? "text-right" : ""} ${className}`}>
+      <div className="relative flex items-center">
+        <Input
+          ref={inputRef}
+          type={kind === "date" ? "date" : "text"}
+          list={listId}
+          value={draft}
+          disabled={saving}
+          className={`h-8 text-sm ${align === "right" ? "text-right" : ""} ${saving ? "opacity-70 pr-7" : ""}`}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
             void commit();
-          }
-          if (e.key === "Escape") {
-            e.preventDefault();
-            e.stopPropagation();
-            setDraft(initialValue);
-            setEditing(false);
-          }
-        }}
-      />
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void commit();
+            }
+            if (e.key === "Escape") {
+              e.preventDefault();
+              e.stopPropagation();
+              setDraft(initialValue);
+              setEditing(false);
+            }
+          }}
+        />
+        {saving ? (
+          <div className="absolute right-2 flex items-center pointer-events-none">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          </div>
+        ) : null}
+      </div>
     </td>
   );
 }

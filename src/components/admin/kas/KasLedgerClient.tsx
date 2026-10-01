@@ -13,6 +13,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -39,6 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -140,6 +144,25 @@ export function KasLedgerClient({
   const [source, setSource] = useState(() => searchParams.get("source") || "all");
   const [recon, setRecon] = useState(() => searchParams.get("recon") || "all");
   const [direction, setDirection] = useState<"all" | "in" | "out">("all");
+  const [sortColumn, setSortColumn] = useState<
+    "no" | "txnDate" | "description" | "amountIn" | "amountOut" | "saldo" | "kegiatan" | null
+  >(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  function toggleSort(col: "no" | "txnDate" | "description" | "amountIn" | "amountOut" | "saldo" | "kegiatan") {
+    if (sortColumn === col) {
+      if (sortDirection === "asc") {
+        setSortDirection("desc");
+      } else {
+        setSortColumn(null);
+        setSortDirection("asc");
+      }
+    } else {
+      setSortColumn(col);
+      setSortDirection("asc");
+    }
+  }
+
   const [collapsedKegiatan, setCollapsedKegiatan] = useState<string[]>([]);
   const [massRowsOpen, setMassRowsOpen] = useState(true);
   const [data, setData] = useState<KasPayload | null>(null);
@@ -966,25 +989,78 @@ export function KasLedgerClient({
       amount?: number;
     },
   ): Promise<boolean> {
-    const res = await fetch(`/api/admin/kas/${row.id}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        "x-kas-scope-type": data?.scope.type ?? "",
-        "x-kas-scope-id": data?.scope.id ?? "",
-      },
-      body: JSON.stringify(patch),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      toast.error(
-        typeof json.error === "string" ? json.error : "Gagal mengubah",
-      );
+    try {
+      const res = await fetch(`/api/admin/kas/${row.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-kas-scope-type": data?.scope.type ?? "",
+          "x-kas-scope-id": data?.scope.id ?? "",
+        },
+        body: JSON.stringify(patch),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(
+          typeof json.error === "string" ? json.error : "Gagal mengubah",
+        );
+        return false;
+      }
+      toast.success("Tersimpan");
+      setData((prev) => {
+        if (!prev) return prev;
+        const updatedRows = prev.rows.map((r) => {
+          if (r.id !== row.id) return r;
+          const nextRow = { ...r };
+          if (patch.txnDate !== undefined) nextRow.txnDate = patch.txnDate;
+          if (patch.description !== undefined) nextRow.description = patch.description;
+          if (patch.kegiatan !== undefined) nextRow.kegiatan = patch.kegiatan;
+          if (patch.direction && patch.amount !== undefined) {
+            if (patch.direction === "in") {
+              nextRow.amountIn = patch.amount;
+              nextRow.amountOut = 0;
+            } else {
+              nextRow.amountOut = patch.amount;
+              nextRow.amountIn = 0;
+            }
+          }
+          return nextRow;
+        });
+
+        let saldo = prev.kpis.opening ?? 0;
+        let totalIn = 0;
+        let totalOut = 0;
+        const recalculatedRows = updatedRows.map((r, i) => {
+          totalIn += r.amountIn;
+          totalOut += r.amountOut;
+          saldo += r.amountIn - r.amountOut;
+          return { ...r, no: i + 1, saldo };
+        });
+
+        const kegSet = new Set(prev.kegiatanOptions ?? []);
+        if (patch.kegiatan?.trim()) {
+          kegSet.add(patch.kegiatan.trim());
+        }
+
+        return {
+          ...prev,
+          rows: recalculatedRows,
+          groups: groupKasTable(recalculatedRows),
+          kegiatanOptions: Array.from(kegSet).sort((a, b) => a.localeCompare(b, "id")),
+          kpis: {
+            ...prev.kpis,
+            totalIn,
+            totalOut,
+            net: totalIn - totalOut,
+            saldoAkhir: (prev.kpis.opening ?? 0) + totalIn - totalOut,
+          },
+        };
+      });
+      return true;
+    } catch {
+      toast.error("Gagal mengubah mutasi");
       return false;
     }
-    toast.success("Tersimpan");
-    await load();
-    return true;
   }
 
   async function handleMass() {
@@ -1508,11 +1584,17 @@ export function KasLedgerClient({
     setSource("all");
     setRecon("all");
     setDirection("all");
+    setSortColumn(null);
+    setSortDirection("asc");
     toast.info("Seluruh filter telah dibersihkan");
   }
 
   const extraFilterOn =
-    Boolean(kegiatan) || source !== "all" || recon !== "all" || direction !== "all";
+    Boolean(kegiatan) ||
+    source !== "all" ||
+    recon !== "all" ||
+    direction !== "all" ||
+    sortColumn !== null;
   const activeScopeLabel =
     data?.scopes?.find((scope) => scope.type === data.scope.type && scope.id === data.scope.id)
       ?.label ?? scopeLabel;
@@ -1557,11 +1639,33 @@ export function KasLedgerClient({
   }
 
   const filteredLaporanRows = useMemo(() => {
-    const base = data?.rows ?? [];
-    if (direction === "all") return base;
-    if (direction === "in") return base.filter((r) => r.amountIn > 0);
-    return base.filter((r) => r.amountOut > 0);
-  }, [data?.rows, direction]);
+    let base = data?.rows ?? [];
+    if (direction === "in") {
+      base = base.filter((r) => r.amountIn > 0);
+    } else if (direction === "out") {
+      base = base.filter((r) => r.amountOut > 0);
+    }
+
+    if (!sortColumn) return base;
+
+    return [...base].sort((a, b) => {
+      const valA = a[sortColumn];
+      const valB = b[sortColumn];
+
+      if (typeof valA === "string") {
+        const strA = (valA ?? "").toString();
+        const strB = (valB ?? "").toString();
+        const cmp = strA.localeCompare(strB, "id", { sensitivity: "base" });
+        return sortDirection === "asc" ? cmp : -cmp;
+      }
+
+      const numA = Number(valA ?? 0);
+      const numB = Number(valB ?? 0);
+      if (numA < numB) return sortDirection === "asc" ? -1 : 1;
+      if (numA > numB) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [data?.rows, direction, sortColumn, sortDirection]);
 
   const visibleSelectableLaporanIds = useMemo(() => {
     return filteredLaporanRows
@@ -1651,7 +1755,29 @@ export function KasLedgerClient({
     ]);
   }
 
-  const groups = visibleKasTableRows(data?.groups ?? [], collapsedKegiatan);
+  const rawGroups = useMemo(() => {
+    if (!sortColumn || !data?.rows) return data?.groups ?? [];
+    const sortedRows = [...data.rows].sort((a, b) => {
+      const valA = a[sortColumn];
+      const valB = b[sortColumn];
+
+      if (typeof valA === "string") {
+        const strA = (valA ?? "").toString();
+        const strB = (valB ?? "").toString();
+        const cmp = strA.localeCompare(strB, "id", { sensitivity: "base" });
+        return sortDirection === "asc" ? cmp : -cmp;
+      }
+
+      const numA = Number(valA ?? 0);
+      const numB = Number(valB ?? 0);
+      if (numA < numB) return sortDirection === "asc" ? -1 : 1;
+      if (numA > numB) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+    return groupKasTable(sortedRows);
+  }, [data?.rows, data?.groups, sortColumn, sortDirection]);
+
+  const groups = visibleKasTableRows(rawGroups, collapsedKegiatan);
   const canSelect = Boolean(data?.canWrite);
   const visibleSelectableIds = groups
     .filter(
@@ -2079,13 +2205,132 @@ export function KasLedgerClient({
                         />
                       </th>
                     ) : null}
-                    <th className="w-12 p-2 text-center">No</th>
-                    <th className="p-2">Tanggal</th>
-                    <th className="p-2">Keterangan</th>
-                    <th className="p-2 text-right">Masuk</th>
-                    <th className="p-2 text-right">Keluar</th>
-                    <th className="p-2 text-right">Saldo</th>
-                    <th className="p-2">Kegiatan</th>
+                    <th
+                      className="w-12 p-2 text-center select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      onClick={() => toggleSort("no")}
+                      title="Urutkan berdasarkan Nomor"
+                    >
+                      <div className="inline-flex items-center justify-center gap-1 w-full">
+                        <span>No</span>
+                        {sortColumn === "no" ? (
+                          sortDirection === "asc" ? (
+                            <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                          ) : (
+                            <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="p-2 select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      onClick={() => toggleSort("txnDate")}
+                      title="Urutkan berdasarkan Tanggal"
+                    >
+                      <div className="inline-flex items-center gap-1">
+                        <span>Tanggal</span>
+                        {sortColumn === "txnDate" ? (
+                          sortDirection === "asc" ? (
+                            <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                          ) : (
+                            <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="p-2 select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      onClick={() => toggleSort("description")}
+                      title="Urutkan berdasarkan Keterangan"
+                    >
+                      <div className="inline-flex items-center gap-1">
+                        <span>Keterangan</span>
+                        {sortColumn === "description" ? (
+                          sortDirection === "asc" ? (
+                            <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                          ) : (
+                            <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="p-2 text-right select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      onClick={() => toggleSort("amountIn")}
+                      title="Urutkan berdasarkan Nominal Masuk"
+                    >
+                      <div className="inline-flex items-center justify-end gap-1 w-full">
+                        <span>Masuk</span>
+                        {sortColumn === "amountIn" ? (
+                          sortDirection === "asc" ? (
+                            <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                          ) : (
+                            <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="p-2 text-right select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      onClick={() => toggleSort("amountOut")}
+                      title="Urutkan berdasarkan Nominal Keluar"
+                    >
+                      <div className="inline-flex items-center justify-end gap-1 w-full">
+                        <span>Keluar</span>
+                        {sortColumn === "amountOut" ? (
+                          sortDirection === "asc" ? (
+                            <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                          ) : (
+                            <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="p-2 text-right select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      onClick={() => toggleSort("saldo")}
+                      title="Urutkan berdasarkan Saldo"
+                    >
+                      <div className="inline-flex items-center justify-end gap-1 w-full">
+                        <span>Saldo</span>
+                        {sortColumn === "saldo" ? (
+                          sortDirection === "asc" ? (
+                            <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                          ) : (
+                            <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="p-2 select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      onClick={() => toggleSort("kegiatan")}
+                      title="Urutkan berdasarkan Kegiatan"
+                    >
+                      <div className="inline-flex items-center gap-1">
+                        <span>Kegiatan</span>
+                        {sortColumn === "kegiatan" ? (
+                          sortDirection === "asc" ? (
+                            <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                          ) : (
+                            <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                        )}
+                      </div>
+                    </th>
                     {data?.canWrite ? <th className="w-12 p-2 text-center">Aksi</th> : null}
                   </tr>
                 </thead>
@@ -2475,13 +2720,132 @@ export function KasLedgerClient({
                     />
                   </th>
                 ) : null}
-                <th className="p-3">No</th>
-                <th className="p-3">Tanggal</th>
-                <th className="p-3">Keterangan</th>
-                <th className="p-3 text-right">Masuk</th>
-                <th className="p-3 text-right">Keluar</th>
-                <th className="p-3 text-right">Saldo</th>
-                <th className="p-3">Kegiatan</th>
+                <th
+                  className="p-3 select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                  onClick={() => toggleSort("no")}
+                  title="Urutkan berdasarkan Nomor"
+                >
+                  <div className="inline-flex items-center gap-1">
+                    <span>No</span>
+                    {sortColumn === "no" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-3 select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                  onClick={() => toggleSort("txnDate")}
+                  title="Urutkan berdasarkan Tanggal"
+                >
+                  <div className="inline-flex items-center gap-1">
+                    <span>Tanggal</span>
+                    {sortColumn === "txnDate" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-3 select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                  onClick={() => toggleSort("description")}
+                  title="Urutkan berdasarkan Keterangan"
+                >
+                  <div className="inline-flex items-center gap-1">
+                    <span>Keterangan</span>
+                    {sortColumn === "description" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-3 text-right select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                  onClick={() => toggleSort("amountIn")}
+                  title="Urutkan berdasarkan Nominal Masuk"
+                >
+                  <div className="inline-flex items-center justify-end gap-1 w-full">
+                    <span>Masuk</span>
+                    {sortColumn === "amountIn" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-3 text-right select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                  onClick={() => toggleSort("amountOut")}
+                  title="Urutkan berdasarkan Nominal Keluar"
+                >
+                  <div className="inline-flex items-center justify-end gap-1 w-full">
+                    <span>Keluar</span>
+                    {sortColumn === "amountOut" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-3 text-right select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                  onClick={() => toggleSort("saldo")}
+                  title="Urutkan berdasarkan Saldo"
+                >
+                  <div className="inline-flex items-center justify-end gap-1 w-full">
+                    <span>Saldo</span>
+                    {sortColumn === "saldo" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-3 select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                  onClick={() => toggleSort("kegiatan")}
+                  title="Urutkan berdasarkan Kegiatan"
+                >
+                  <div className="inline-flex items-center gap-1">
+                    <span>Kegiatan</span>
+                    {sortColumn === "kegiatan" ? (
+                      sortDirection === "asc" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                    )}
+                  </div>
+                </th>
                 <th className="p-3 text-center">Aksi</th>
               </tr>
             </thead>
@@ -3989,9 +4353,9 @@ export function KasLedgerClient({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={printOptionModalOpen} onOpenChange={setPrintOptionModalOpen}>
+      <Dialog open={printOptionModalOpen} onOpenChange={(open) => setPrintOptionModalOpen(open)}>
         <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader>
+          <DialogHeader className="pr-8">
             <DialogTitle className="flex items-center gap-2 text-base font-semibold text-foreground">
               <Printer className="h-5 w-5 text-red-600 dark:text-red-400" />
               Pilih Format Cetak Dokumen Kas
@@ -4012,7 +4376,7 @@ export function KasLedgerClient({
                 <button
                   type="button"
                   className={cn(
-                    "flex items-start gap-3 rounded-lg border p-3 text-left transition-all focus:outline-none",
+                    "flex items-start gap-3 rounded-lg border p-3 text-left transition-all focus:outline-none cursor-pointer",
                     printDocType === "buku"
                       ? "border-red-600 bg-red-50/60 dark:bg-red-950/30 dark:border-red-500 shadow-sm"
                       : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-background",
@@ -4041,7 +4405,7 @@ export function KasLedgerClient({
                 <button
                   type="button"
                   className={cn(
-                    "flex items-start gap-3 rounded-lg border p-3 text-left transition-all focus:outline-none",
+                    "flex items-start gap-3 rounded-lg border p-3 text-left transition-all focus:outline-none cursor-pointer",
                     printDocType === "laporan"
                       ? "border-red-600 bg-red-50/60 dark:bg-red-950/30 dark:border-red-500 shadow-sm"
                       : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-background",
@@ -4078,7 +4442,7 @@ export function KasLedgerClient({
                 <button
                   type="button"
                   className={cn(
-                    "flex flex-col items-center justify-center rounded-md border py-2 px-3 text-xs font-medium transition-all",
+                    "flex flex-col items-center justify-center rounded-md border py-2 px-3 text-xs font-medium transition-all cursor-pointer",
                     printPaper === "A4"
                       ? "border-red-600 bg-red-600 text-white shadow-sm"
                       : "border-slate-200 dark:border-slate-800 bg-background hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200",
@@ -4094,7 +4458,7 @@ export function KasLedgerClient({
                 <button
                   type="button"
                   className={cn(
-                    "flex flex-col items-center justify-center rounded-md border py-2 px-3 text-xs font-medium transition-all",
+                    "flex flex-col items-center justify-center rounded-md border py-2 px-3 text-xs font-medium transition-all cursor-pointer",
                     printPaper === "F4"
                       ? "border-red-600 bg-red-600 text-white shadow-sm"
                       : "border-slate-200 dark:border-slate-800 bg-background hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200",
@@ -4118,7 +4482,7 @@ export function KasLedgerClient({
                 <button
                   type="button"
                   className={cn(
-                    "flex flex-col items-center justify-center rounded-md border py-2 px-3 text-xs font-medium transition-all",
+                    "flex flex-col items-center justify-center rounded-md border py-2 px-3 text-xs font-medium transition-all cursor-pointer",
                     printOrientation === "portrait"
                       ? "border-red-600 bg-red-600 text-white shadow-sm"
                       : "border-slate-200 dark:border-slate-800 bg-background hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200",
@@ -4134,7 +4498,7 @@ export function KasLedgerClient({
                 <button
                   type="button"
                   className={cn(
-                    "flex flex-col items-center justify-center rounded-md border py-2 px-3 text-xs font-medium transition-all",
+                    "flex flex-col items-center justify-center rounded-md border py-2 px-3 text-xs font-medium transition-all cursor-pointer",
                     printOrientation === "landscape"
                       ? "border-red-600 bg-red-600 text-white shadow-sm"
                       : "border-slate-200 dark:border-slate-800 bg-background hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200",
@@ -4162,7 +4526,7 @@ export function KasLedgerClient({
                   <button
                     type="button"
                     className={cn(
-                      "flex flex-col items-center justify-center rounded-md border py-2 px-3 text-xs font-medium transition-all",
+                      "flex flex-col items-center justify-center rounded-md border py-2 px-3 text-xs font-medium transition-all cursor-pointer",
                       !printOnlySelected
                         ? "border-red-600 bg-red-600 text-white shadow-sm"
                         : "border-slate-200 dark:border-slate-800 bg-background hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200",
@@ -4178,7 +4542,7 @@ export function KasLedgerClient({
                   <button
                     type="button"
                     className={cn(
-                      "flex flex-col items-center justify-center rounded-md border py-2 px-3 text-xs font-medium transition-all",
+                      "flex flex-col items-center justify-center rounded-md border py-2 px-3 text-xs font-medium transition-all cursor-pointer",
                       printOnlySelected
                         ? "border-red-600 bg-red-600 text-white shadow-sm"
                         : "border-slate-200 dark:border-slate-800 bg-background hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200",
@@ -4200,18 +4564,20 @@ export function KasLedgerClient({
               Format: {printDocType === "buku" ? "Buku Kas" : "Laporan"} ({printPaper}, {printOrientation})
             </span>
             <div className="flex gap-2">
+              <DialogClose asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPrintOptionModalOpen(false)}
+                >
+                  Batal
+                </Button>
+              </DialogClose>
               <Button
                 type="button"
-                variant="outline"
                 size="sm"
-                onClick={() => setPrintOptionModalOpen(false)}
-              >
-                Batal
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                className="bg-red-600 hover:bg-red-700 text-white font-medium"
+                className="bg-red-600 hover:bg-red-700 text-white font-medium cursor-pointer"
                 onClick={() => handleExecutePrint()}
               >
                 <Printer className="h-3.5 w-3.5 mr-1.5" />

@@ -105,6 +105,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Kategori pertandingan tidak ditemukan." }, { status: 404 });
     }
 
+    // 1b. Duplicate Check by Full Name & Dojo Name
+    const formattedFullName = fullName.toUpperCase().trim();
+    const targetDojoName = dojoName?.trim() || "Dojo External / Tamu";
+
+    const existingRegistrationInEvent = await prisma.tournamentRegistration.findFirst({
+      where: {
+        eventId,
+        member: {
+          fullName: { equals: formattedFullName, mode: "insensitive" },
+        },
+        dojo: {
+          name: { equals: targetDojoName, mode: "insensitive" },
+        },
+      },
+      include: {
+        member: true,
+        dojo: true,
+        category: true,
+      },
+    });
+
+    if (existingRegistrationInEvent) {
+      return NextResponse.json(
+        {
+          error: `⚠️ Pemberitahuan Duplikat: Nama atlet "${existingRegistrationInEvent.member.fullName}" dari ranting/dojo "${existingRegistrationInEvent.dojo.name}" SUDAH TERDAFTAR dalam event kejuaraan ini (Kelas: ${existingRegistrationInEvent.category.name}). Mohon periksa kembali agar tidak terjadi pendaftaran ganda (duplikat).`,
+        },
+        { status: 400 }
+      );
+    }
+
     // 2. User Account Creation (Email & Password check if provided, or auto-generated)
     let createdUserId: string | undefined = undefined;
     const guestNia = `TAMU-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -141,8 +171,6 @@ export async function POST(request: Request) {
       }
     }
 
-    const formattedFullName = fullName.toUpperCase().trim();
-
     const passwordHash = await bcrypt.hash(finalPassword, 10);
     const newUser = await prisma.user.create({
       data: {
@@ -156,7 +184,6 @@ export async function POST(request: Request) {
     createdUserId = newUser.id;
 
     // 3. Find or create Dojo
-    const targetDojoName = dojoName?.trim() || "Dojo External / Tamu";
     let dojo = await prisma.dojo.findFirst({
       where: {
         name: { equals: targetDojoName, mode: "insensitive" },

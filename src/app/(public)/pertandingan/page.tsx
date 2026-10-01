@@ -46,6 +46,7 @@ import { generateTournamentRosterHtml } from "@/lib/tournament-print-html";
 import { deriveAgeCategoryLabel } from "@/lib/tournament-category-presets";
 import { DEFAULT_ADMIN_WA, getAdminWaPhone } from "@/lib/site";
 import { exportTournamentRosterToExcel } from "@/lib/tournament-excel-export";
+import { useLoginModal } from "@/components/auth/LoginModal";
 
 interface CategoryDetail {
   id: string;
@@ -113,6 +114,7 @@ interface RegistrationItem {
 export default function PublicPertandinganPage() {
   const { data: session, status: sessionStatus } = useSession();
   const isLoggedIn = sessionStatus === "authenticated" && Boolean(session?.user);
+  const { openLogin } = useLoginModal();
 
   const [events, setEvents] = useState<EventItem[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
@@ -198,6 +200,7 @@ export default function PublicPertandinganPage() {
   const [systemDojos, setSystemDojos] = useState<{ id: string; name: string }[]>([]);
   const [isCustomDojo, setIsCustomDojo] = useState(false);
   const [guestForm, setGuestForm] = useState({
+    memberId: "",
     fullName: "",
     gender: "MALE",
     birthDate: "",
@@ -213,6 +216,10 @@ export default function PublicPertandinganPage() {
     birthCertificateUrl: "",
     bpjsCardUrl: "",
   });
+
+  const [guestMemberSuggestions, setGuestMemberSuggestions] = useState<any[]>([]);
+  const [isSearchingMember, setIsSearchingMember] = useState(false);
+  const [selectedMemberInfo, setSelectedMemberInfo] = useState<any | null>(null);
 
   const [uploadingState, setUploadingState] = useState<{ [key: string]: boolean }>({});
   const [guestSubmitting, setGuestSubmitting] = useState(false);
@@ -236,6 +243,81 @@ export default function PublicPertandinganPage() {
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, "id"));
   }, [systemDojos]);
+
+  // Real-time notification if an athlete with the same full name & dojo is already registered in the event
+  const duplicateCheckNotice = useMemo(() => {
+    if (!guestForm.fullName.trim() || !guestForm.dojoName.trim()) return null;
+    const nameClean = guestForm.fullName.trim().toUpperCase();
+    const dojoClean = guestForm.dojoName.trim().toUpperCase();
+
+    const matchedReg = registrations.find(
+      (r) =>
+        r.member.fullName.trim().toUpperCase() === nameClean &&
+        r.dojo.name.trim().toUpperCase() === dojoClean
+    );
+
+    if (matchedReg) {
+      return {
+        isDuplicate: true,
+        athleteName: matchedReg.member.fullName,
+        dojoName: matchedReg.dojo.name,
+        categoryName: matchedReg.category.name,
+        status: matchedReg.status,
+      };
+    }
+    return null;
+  }, [guestForm.fullName, guestForm.dojoName, registrations]);
+
+  // Debounced search for INKAI member suggestions when typing athlete name
+  useEffect(() => {
+    if (!guestForm.fullName || guestForm.fullName.trim().length < 2 || guestForm.memberId) {
+      setGuestMemberSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setIsSearchingMember(true);
+      try {
+        const queryParams = new URLSearchParams({
+          q: guestForm.fullName.trim(),
+          ...(selectedEventId ? { eventId: selectedEventId } : {}),
+        });
+        const res = await fetch(`/api/public/pertandingan/suggest?${queryParams}`);
+        const data = await res.json();
+        if (data.suggestions) {
+          setGuestMemberSuggestions(data.suggestions);
+        }
+      } catch (err) {
+        console.error("Failed to fetch member suggestions", err);
+      } finally {
+        setIsSearchingMember(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [guestForm.fullName, guestForm.memberId, selectedEventId]);
+
+  const handleSelectMemberSuggestion = (item: any) => {
+    setSelectedMemberInfo(item);
+    setGuestForm((prev) => ({
+      ...prev,
+      memberId: item.id,
+      fullName: item.fullName.toUpperCase(),
+      gender: item.gender || prev.gender,
+      birthDate: item.birthDate || prev.birthDate,
+      currentRank: item.currentRank || prev.currentRank,
+      dojoName: item.dojoName || prev.dojoName,
+      phone: item.phone || prev.phone,
+      photoUrl: item.photoUrl || prev.photoUrl,
+      birthCertificateUrl: item.birthCertificateUrl || prev.birthCertificateUrl,
+      bpjsCardUrl: item.bpjsCardUrl || prev.bpjsCardUrl,
+    }));
+    setGuestMemberSuggestions([]);
+    if (item.dojoName && !dojoOptionsList.includes(item.dojoName)) {
+      setIsCustomDojo(true);
+    } else {
+      setIsCustomDojo(false);
+    }
+  };
 
   const fetchPublicData = async () => {
     setLoading(true);
@@ -462,6 +544,13 @@ export default function PublicPertandinganPage() {
       return;
     }
 
+    if (duplicateCheckNotice?.isDuplicate) {
+      setGuestError(
+        `⚠️ PEMBERITAHUAN DUPLIKAT: Nama atlet "${duplicateCheckNotice.athleteName}" dari ranting/dojo "${duplicateCheckNotice.dojoName}" SUDAH TERDAFTAR di kelas (${duplicateCheckNotice.categoryName}) pada event kejuaraan ini. Mohon periksa kembali agar tidak mendaftar ganda.`
+      );
+      return;
+    }
+
     setGuestSubmitting(true);
     try {
       const uppercaseFullName = guestForm.fullName.toUpperCase().trim();
@@ -498,6 +587,7 @@ export default function PublicPertandinganPage() {
       }
 
       setGuestForm({
+        memberId: "",
         fullName: "",
         gender: "MALE",
         birthDate: "",
@@ -662,13 +752,24 @@ export default function PublicPertandinganPage() {
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
-            <Link
-              href="/login"
-              className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
-            >
-              <LogIn className="w-4 h-4" />
-              Daftar Atlet Mandiri / Kontingen
-            </Link>
+            {isLoggedIn ? (
+              <Link
+                href="/dashboard/pertandingan"
+                className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
+              >
+                <LogIn className="w-4 h-4" />
+                Kelola Pendaftaran Pertandingan Saya
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openLogin()}
+                className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
+              >
+                <LogIn className="w-4 h-4" />
+                Daftar Atlet Mandiri / Login
+              </button>
+            )}
 
             <button
               onClick={() => {
@@ -1619,18 +1720,69 @@ export default function PublicPertandinganPage() {
               {/* Data Utama Atlet */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Nama Lengkap */}
-                <div>
-                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    Nama Lengkap Atlet *
-                  </label>
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                      Nama Lengkap Atlet *
+                    </label>
+                    {guestForm.memberId && (
+                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                        ✓ Terhubung ke Data Anggota
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     required
                     placeholder="CONTOH: AHMAD RIZKY"
                     value={guestForm.fullName}
-                    onChange={(e) => setGuestForm({ ...guestForm, fullName: e.target.value.toUpperCase() })}
+                    onChange={(e) => {
+                      setGuestForm({ ...guestForm, fullName: e.target.value.toUpperCase(), memberId: "" });
+                      setSelectedMemberInfo(null);
+                    }}
                     className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm uppercase"
                   />
+
+                  {/* Auto-suggest INKAI Members dropdown */}
+                  {isSearchingMember && (
+                    <div className="absolute z-20 w-full mt-1 p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-lg text-xs text-zinc-500">
+                      Mencari data keanggotaan INKAI...
+                    </div>
+                  )}
+
+                  {guestMemberSuggestions.length > 0 && (
+                    <div className="absolute z-30 w-full mt-1 max-h-48 overflow-y-auto bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl shadow-xl p-1.5 space-y-1">
+                      <div className="text-[10px] font-bold text-zinc-500 px-2 py-1 uppercase tracking-wider">
+                        💡 Anggota INKAI Ditemukan (Pilih jika Anda terdaftar):
+                      </div>
+                      {guestMemberSuggestions.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => handleSelectMemberSuggestion(m)}
+                          className="w-full text-left p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition flex items-center justify-between gap-2 border border-transparent hover:border-red-200 dark:hover:border-red-800"
+                        >
+                          <div>
+                            <div className="font-bold text-xs text-zinc-900 dark:text-zinc-100 uppercase">
+                              {m.fullName}
+                            </div>
+                            <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                              Dojo: <strong className="text-zinc-700 dark:text-zinc-200">{m.dojoName}</strong> | Sabuk: {m.currentRank} {m.nia ? `| NIA: ${m.nia}` : ""}
+                            </div>
+                          </div>
+                          {m.isRegistered ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 border border-red-300 dark:border-red-800 shrink-0">
+                              Sudah Terdaftar
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 shrink-0">
+                              Pilih Anggota
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Jenis Kelamin */}
@@ -1750,6 +1902,23 @@ export default function PublicPertandinganPage() {
                       onChange={(e) => setGuestForm({ ...guestForm, dojoName: e.target.value })}
                       className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm"
                     />
+                  )}
+
+                  {duplicateCheckNotice && (
+                    <div className="mt-2.5 p-3 bg-amber-500/15 dark:bg-amber-950/40 border border-amber-400 dark:border-amber-700/60 rounded-xl text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5">
+                      <ShieldAlert className="w-4.5 h-4.5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <div className="font-bold text-amber-950 dark:text-amber-100 flex items-center gap-1.5">
+                          ⚠️ PEMBERITAHUAN DUPLIKAT TERDETEKSI
+                        </div>
+                        <p className="leading-relaxed text-[11px] sm:text-xs">
+                          Atlet <strong className="uppercase">{duplicateCheckNotice.athleteName}</strong> dari ranting/dojo <strong className="uppercase">{duplicateCheckNotice.dojoName}</strong> <span className="underline font-bold text-red-600 dark:text-red-400">SUDAH TERDAFTAR</span> pada event kejuaraan ini di kelas <strong className="text-red-600 dark:text-red-400">{duplicateCheckNotice.categoryName}</strong>.
+                        </p>
+                        <p className="text-[11px] font-medium text-amber-800 dark:text-amber-300">
+                          Mohon periksa kembali agar tidak terjadi pendaftaran ganda (duplikat) untuk atlet & ranting yang sama.
+                        </p>
+                      </div>
+                    </div>
                   )}
                 </div>
 

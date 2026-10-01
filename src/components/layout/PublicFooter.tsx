@@ -43,6 +43,12 @@ export default function PublicFooter() {
               <Link href="/visi-misi" prefetch className="transition-colors hover:text-white">
                 Visi & Misi
               </Link>
+              <Link href="/ukt" prefetch className="transition-colors hover:text-white">
+                UKT
+              </Link>
+              <Link href="/pertandingan" prefetch className="transition-colors hover:text-white">
+                Pertandingan
+              </Link>
               <Link href="/kegiatan" prefetch className="transition-colors hover:text-white">
                 Kegiatan
               </Link>

@@ -30,6 +30,7 @@ import { formatMemberName, formatRankLabel } from "@/lib/belt";
 import { buildDefaultUktAdminUrl } from "@/lib/ukt";
 import { canAccessAdminPath } from "@/lib/admin-page-access";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminAiInsightSection } from "@/components/admin/AdminAiInsightSection";
 
 export const dynamic = "force-dynamic";
 
@@ -214,6 +215,9 @@ async function AdminDashboardContent() {
           </>
         }
       />
+
+      {/* AI Insight & Analytics Generator Search Component */}
+      <AdminAiInsightSection />
 
       <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {quickActions.map((action) => (
