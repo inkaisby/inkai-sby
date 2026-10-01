@@ -32,9 +32,36 @@ export default async function DojoListPage() {
       />
 
       {dojos.length === 0 ? (
-        <Card>
-          <CardContent className="p-6 text-muted-foreground">
-            Belum ada data dojo/ranting.
+        <Card className="border-border/60 shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center p-8 text-center space-y-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-inkai-red/10 text-inkai-red ring-8 ring-inkai-red/5">
+              <MapPin className="h-7 w-7" />
+            </div>
+            <div className="max-w-md space-y-1.5">
+              <h3 className="text-base font-bold text-foreground sm:text-lg">
+                Daftar Dojo / Ranting INKAI Surabaya
+              </h3>
+              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                Data lokasi latihan & pengurus ranting sedang disinkronkan. Anda tetap dapat melakukan pendaftaran anggota baru atau menghubungi Pengurus Cabang untuk rekomendasi dojo terdekat.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+              <Link
+                href="/daftar"
+                prefetch
+                className="inline-flex items-center gap-1.5 rounded-xl bg-inkai-red px-4 py-2 text-xs font-semibold text-white shadow-md shadow-inkai-red/20 transition-all hover:bg-inkai-red/90"
+              >
+                🥋 Form Pendaftaran Anggota
+              </Link>
+              <a
+                href="https://wa.me/6285731241840?text=Halo%20Pengurus%20INKAI%20Surabaya,%20saya%20ingin%20tanya%20informasi%20lokasi%20dojo%20/%20ranting%20latihan"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-background px-4 py-2 text-xs font-semibold text-foreground shadow-sm transition-all hover:bg-muted"
+              >
+                💬 Hubungi Sekretariat WA
+              </a>
+            </div>
           </CardContent>
         </Card>
       ) : (

@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Copy,
   Download,
   FileSpreadsheet,
@@ -27,11 +28,13 @@ import {
   Maximize2,
   Minimize2,
   Pencil,
+  PieChart,
   Plus,
   Printer,
   RefreshCw,
   RotateCcw,
   Share2,
+  Sparkles,
   Trash2,
   Unlock,
   Upload,
@@ -1913,6 +1916,14 @@ export function KasLedgerClient({
                 setSwotData(swot);
                 setChartSelectedKegiatan(selectedList);
               }}
+            />
+          </div>
+
+          {/* Pos Alokasi Persentase Anggaran Kas (35% Pembinaan, 20% Duka, 15% Insidentil, 15% Investasi, 10% Perlengkapan) */}
+          <div className="pt-2">
+            <KasBudgetAllocationPanel
+              totalIn={data?.kpis.totalIn ?? 0}
+              rows={data?.rows ?? []}
             />
           </div>
         </div>
@@ -4692,6 +4703,387 @@ function KasFullscreenPeriodPrint({
       >
         <Printer className="h-4 w-4" />
       </Button>
+    </div>
+  );
+}
+
+function KasBudgetAllocationPanel({
+  totalIn,
+  rows,
+}: {
+  totalIn: number;
+  rows: KasLedgerRow[];
+}) {
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [activePreset, setActivePreset] = useState<"user" | "standard">("user");
+  const [viewTab, setViewTab] = useState<"cards" | "diagram">("diagram");
+
+  const buckets = useMemo(() => {
+    if (activePreset === "user") {
+      return [
+        { key: "pembinaan", label: "Pembinaan", pct: 35, hex: "#2563eb", color: "bg-blue-600", text: "text-blue-700 dark:text-blue-300", border: "border-blue-200 dark:border-blue-900/60" },
+        { key: "duka", label: "Duka & Sosial", pct: 20, hex: "#d97706", color: "bg-amber-600", text: "text-amber-700 dark:text-amber-300", border: "border-amber-200 dark:border-amber-900/60" },
+        { key: "insidentil", label: "Insidentil", pct: 15, hex: "#9333ea", color: "bg-purple-600", text: "text-purple-700 dark:text-purple-300", border: "border-purple-200 dark:border-purple-900/60" },
+        { key: "investasi", label: "Investasi", pct: 15, hex: "#10b981", color: "bg-emerald-600", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-200 dark:border-emerald-900/60" },
+        { key: "perlengkapan", label: "Perlengkapan", pct: 10, hex: "#f43f5e", color: "bg-rose-600", text: "text-rose-700 dark:text-rose-300", border: "border-rose-200 dark:border-rose-900/60" },
+      ];
+    }
+    return [
+      { key: "pembinaan", label: "Pembinaan & Kejuaraan", pct: 35, hex: "#2563eb", color: "bg-blue-600", text: "text-blue-700 dark:text-blue-300", border: "border-blue-200 dark:border-blue-900/60" },
+      { key: "perlengkapan", label: "Perlengkapan & Sarpras", pct: 15, hex: "#f43f5e", color: "bg-rose-600", text: "text-rose-700 dark:text-rose-300", border: "border-rose-200 dark:border-rose-900/60" },
+      { key: "investasi", label: "Investasi & Aset", pct: 15, hex: "#10b981", color: "bg-emerald-600", text: "text-emerald-700 dark:text-emerald-300", border: "border-emerald-200 dark:border-emerald-900/60" },
+      { key: "insidentil", label: "Insidentil & Emergency", pct: 15, hex: "#9333ea", color: "bg-purple-600", text: "text-purple-700 dark:text-purple-300", border: "border-purple-200 dark:border-purple-900/60" },
+      { key: "operasional", label: "Operasional & Sekretariat", pct: 10, hex: "#14b8a6", color: "bg-teal-600", text: "text-teal-700 dark:text-teal-300", border: "border-teal-200 dark:border-teal-900/60" },
+      { key: "duka", label: "Duka & Sosial", pct: 10, hex: "#d97706", color: "bg-amber-600", text: "text-amber-700 dark:text-amber-300", border: "border-amber-200 dark:border-amber-900/60" },
+    ];
+  }, [activePreset]);
+
+  const calculated = useMemo(() => {
+    const outMap: Record<string, number> = {};
+    for (const b of buckets) outMap[b.key] = 0;
+
+    for (const r of rows) {
+      if (r.amountOut <= 0) continue;
+      const k = (r.kegiatan + " " + r.description).toLowerCase();
+      if (k.includes("duka") || k.includes("sosial") || k.includes("santunan") || k.includes("belasungkawa")) {
+        outMap["duka"] = (outMap["duka"] ?? 0) + r.amountOut;
+      } else if (k.includes("investasi") || k.includes("tatami") || k.includes("matras") || k.includes("aset")) {
+        outMap["investasi"] = (outMap["investasi"] ?? 0) + r.amountOut;
+      } else if (k.includes("perlengkapan") || k.includes("sarpras") || k.includes("atk") || k.includes("target") || k.includes("body")) {
+        outMap["perlengkapan"] = (outMap["perlengkapan"] ?? 0) + r.amountOut;
+      } else if (k.includes("insidentil") || k.includes("darurat") || k.includes("mendadak")) {
+        outMap["insidentil"] = (outMap["insidentil"] ?? 0) + r.amountOut;
+      } else if (k.includes("operasional") || k.includes("admin") || k.includes("konsumsi") || k.includes("kwitansi")) {
+        if ("operasional" in outMap) {
+          outMap["operasional"] = (outMap["operasional"] ?? 0) + r.amountOut;
+        } else {
+          outMap["pembinaan"] = (outMap["pembinaan"] ?? 0) + r.amountOut;
+        }
+      } else {
+        outMap["pembinaan"] = (outMap["pembinaan"] ?? 0) + r.amountOut;
+      }
+    }
+
+    return buckets.map((b) => {
+      const budget = Math.round((totalIn * b.pct) / 100);
+      const spent = outMap[b.key] ?? 0;
+      const remaining = budget - spent;
+      const usagePct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+      const isOver = spent > budget && budget > 0;
+      return {
+        ...b,
+        budget,
+        spent,
+        remaining,
+        usagePct,
+        isOver,
+      };
+    });
+  }, [buckets, rows, totalIn]);
+
+  // Donut SVG path calculations
+  const donutSlices = useMemo(() => {
+    let currentAngle = -Math.PI / 2;
+    const totalPct = calculated.reduce((sum, item) => sum + item.pct, 0);
+
+    return calculated.map((item) => {
+      const angle = (item.pct / totalPct) * 2 * Math.PI;
+      const startAngle = currentAngle;
+      const endAngle = currentAngle + angle;
+      currentAngle = endAngle;
+
+      const r = 65;
+      const cx = 85;
+      const cy = 85;
+
+      const x1 = cx + r * Math.cos(startAngle);
+      const y1 = cy + r * Math.sin(startAngle);
+      const x2 = cx + r * Math.cos(endAngle);
+      const y2 = cy + r * Math.sin(endAngle);
+
+      const largeArcFlag = angle > Math.PI ? 1 : 0;
+      const pathData = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+
+      return {
+        ...item,
+        pathData,
+      };
+    });
+  }, [calculated]);
+
+  const maxBudget = useMemo(() => {
+    return Math.max(...calculated.map((c) => Math.max(c.budget, c.spent)), 1);
+  }, [calculated]);
+
+  return (
+    <div className="rounded-lg border bg-card p-3 shadow-sm space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-inkai-red/10 text-inkai-red">
+            <PieChart className="h-4 w-4" />
+          </div>
+          <div>
+            <h3 className="text-xs font-bold md:text-sm tracking-wide flex items-center gap-1.5">
+              <span>DIAGRAM & POS ALOKASI ANGGARAN KAS</span>
+              <span className="rounded bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 text-[10px] px-1.5 py-0.5 font-semibold">
+                Diagram SVG Visual
+              </span>
+            </h3>
+            <p className="text-[11px] text-muted-foreground">
+              Diagram visual proporsi & pelacak pagu anggaran dari Pemasukan ({formatRp(totalIn)})
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* View Mode Tab Switcher */}
+          <div className="flex items-center rounded-md border bg-muted p-0.5 text-xs">
+            <button
+              type="button"
+              className={cn(
+                "rounded px-2 py-0.5 font-medium transition-all text-[11px]",
+                viewTab === "diagram"
+                  ? "bg-background text-foreground shadow-sm font-bold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setViewTab("diagram")}
+            >
+              📊 Diagram SVG Visual
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "rounded px-2 py-0.5 font-medium transition-all text-[11px]",
+                viewTab === "cards"
+                  ? "bg-background text-foreground shadow-sm font-bold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setViewTab("cards")}
+            >
+              🎛️ Kartu Progress Pagu
+            </button>
+          </div>
+
+          <div className="flex items-center rounded-md border bg-muted p-0.5 text-xs">
+            <button
+              type="button"
+              className={cn(
+                "rounded px-2 py-0.5 font-medium transition-all text-[11px]",
+                activePreset === "user"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setActivePreset("user")}
+            >
+              🎯 Usulan (35/20/15/15/10)
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "rounded px-2 py-0.5 font-medium transition-all text-[11px]",
+                activePreset === "standard"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setActivePreset("standard")}
+            >
+              ⚖️ Olahraga (35/15/15/15/10/10)
+            </button>
+          </div>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs px-2"
+            onClick={() => setPanelOpen((v) => !v)}
+          >
+            {panelOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </Button>
+        </div>
+      </div>
+
+      {panelOpen ? (
+        viewTab === "diagram" ? (
+          <div className="grid gap-4 md:grid-cols-12 items-center">
+            {/* SVG Donut Diagram */}
+            <div className="md:col-span-5 flex flex-col items-center justify-center p-3 rounded-lg border bg-background">
+              <span className="text-xs font-bold text-foreground mb-1">
+                🍩 Diagram Donut Proporsi Alokasi Kas (100%)
+              </span>
+              <div className="relative flex items-center justify-center">
+                <svg width="170" height="170" viewBox="0 0 170 170" className="drop-shadow-sm">
+                  {donutSlices.map((slice) => (
+                    <path
+                      key={slice.key}
+                      d={slice.pathData}
+                      fill={slice.hex}
+                      className="transition-all duration-300 hover:opacity-85 cursor-pointer"
+                    >
+                      <title>{`${slice.label}: ${slice.pct}% (${formatRp(slice.budget)})`}</title>
+                    </path>
+                  ))}
+                  <circle cx="85" cy="85" r="42" fill="currentColor" className="text-background" />
+                  <text
+                    x="85"
+                    y="80"
+                    textAnchor="middle"
+                    className="fill-foreground text-[12px] font-bold"
+                  >
+                    100%
+                  </text>
+                  <text
+                    x="85"
+                    y="95"
+                    textAnchor="middle"
+                    className="fill-muted-foreground text-[9px]"
+                  >
+                    Alokasi Kas
+                  </text>
+                </svg>
+              </div>
+
+              {/* Diagram Legend */}
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5 text-[10px]">
+                {calculated.map((b) => (
+                  <div key={b.key} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border bg-muted/30">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: b.hex }} />
+                    <span className="font-medium text-foreground">{b.label}</span>
+                    <span className="font-bold text-muted-foreground">({b.pct}%)</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* SVG Comparison Bar Chart Diagram (Pagu vs Realisasi) */}
+            <div className="md:col-span-7 space-y-2 p-3 rounded-lg border bg-background">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-foreground">
+                  📊 Diagram Perbandingan Pagu Anggaran vs Terpakai
+                </span>
+                <div className="flex items-center gap-3 text-[10px]">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-sm bg-blue-500" /> Pagu Alokasi
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-sm bg-inkai-red" /> Realisasi Terpakai
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2.5 pt-1">
+                {calculated.map((b) => {
+                  const budgetWidth = Math.max(2, Math.round((b.budget / maxBudget) * 100));
+                  const spentWidth = Math.max(2, Math.round((b.spent / maxBudget) * 100));
+                  return (
+                    <div key={b.key} className="space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className={cn("font-bold", b.text)}>
+                          {b.label} ({b.pct}%)
+                        </span>
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <span>Pagu: <b>{formatRp(b.budget)}</b></span>
+                          <span className={b.isOver ? "text-inkai-red font-bold" : "text-emerald-600 dark:text-emerald-400 font-semibold"}>
+                            Sisa: {formatRp(b.remaining)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Side-by-side Dual Bars */}
+                      <div className="space-y-0.5">
+                        {/* Target Budget Bar */}
+                        <div className="h-2.5 w-full rounded bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center">
+                          <div
+                            className="h-full bg-blue-500/80 transition-all duration-500 rounded"
+                            style={{ width: `${budgetWidth}%` }}
+                            title={`Target Pagu: ${formatRp(b.budget)}`}
+                          />
+                        </div>
+                        {/* Spent Bar */}
+                        <div className="h-2.5 w-full rounded bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center">
+                          <div
+                            className={cn(
+                              "h-full transition-all duration-500 rounded",
+                              b.isOver ? "bg-red-600" : "bg-emerald-600 dark:bg-emerald-500",
+                            )}
+                            style={{ width: `${spentWidth}%` }}
+                            title={`Terpakai: ${formatRp(b.spent)}`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {calculated.map((b) => (
+              <div key={b.key} className={cn("rounded-md border p-2.5 space-y-1.5 bg-background", b.border)}>
+                <div className="flex items-center justify-between">
+                  <span className={cn("text-xs font-bold", b.text)}>
+                    {b.label} ({b.pct}%)
+                  </span>
+                  {b.isOver ? (
+                    <span className="rounded bg-red-100 text-red-700 text-[9px] font-bold px-1 py-0.2 animate-pulse">
+                      Over Budget!
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-semibold text-muted-foreground">
+                      {b.usagePct}% terpakai
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-0.5">
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-muted-foreground">Pagu Alokasi:</span>
+                    <span className="font-semibold">{formatRp(b.budget)}</span>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-muted-foreground">Terpakai:</span>
+                    <span className={cn("font-medium", b.spent > 0 && "text-inkai-red")}>
+                      {formatRp(b.spent)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[11px] border-t pt-0.5 font-bold">
+                    <span>Sisa Pagu:</span>
+                    <span className={b.remaining < 0 ? "text-inkai-red" : "text-emerald-600 dark:text-emerald-400"}>
+                      {formatRp(b.remaining)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                  <div
+                    className={cn("h-full transition-all duration-500", b.isOver ? "bg-red-600" : b.color)}
+                    style={{ width: `${Math.min(100, b.usagePct)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : null}
+
+      {panelOpen && (
+        <div className="rounded-md border border-amber-200 bg-amber-50/70 p-2.5 dark:border-amber-900/50 dark:bg-amber-950/30 text-xs space-y-1">
+          <div className="flex items-center justify-between font-bold text-amber-900 dark:text-amber-200">
+            <span className="flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+              <span>💡 Catatan & Rekomendasi Ahli Keuangan AI (Financial Expert Assessment)</span>
+            </span>
+            <span className="text-[10px] font-semibold bg-amber-200/80 dark:bg-amber-900 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded">
+              Rasio Usulan 35/20/15/15/10
+            </span>
+          </div>
+          <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+            Proporsi <strong>35% Pembinaan</strong> menjamin kontinuitas kejuaraan & gashuku atlet; <strong>20% Duka & Sosial</strong> menjaga soliditas pilar kekeluargaan karateka; <strong>15% Insidentil</strong> membentengi organisasi dari pengeluaran tak terduga; <strong>15% Investasi</strong> memastikan peremajaan tatami/aset; dan <strong>10% Perlengkapan</strong> menjamin ketersediaan sarpras rutin.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

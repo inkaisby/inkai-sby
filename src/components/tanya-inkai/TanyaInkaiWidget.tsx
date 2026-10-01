@@ -169,7 +169,7 @@ function TanyaInkaiWidgetInner({ pathname }: { pathname: string }) {
   if (!ready) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-[60]" aria-live="polite">
+    <div className="pointer-events-none fixed inset-0 z-40" aria-live="polite">
       {open ? (
         <div
           className={cn(

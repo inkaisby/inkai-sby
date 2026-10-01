@@ -237,6 +237,32 @@ export const getBranchStructure = unstable_cache(
 );
 
 async function fetchBranchDojosList(): Promise<PublicDojoListItem[]> {
+  const { data: dbDojos } = await withPrismaFallback(
+    "fetchBranchDojosList",
+    async () => {
+      const rows = await prisma.dojo.findMany({
+        where: { isDeleted: false },
+        orderBy: { name: "asc" },
+      });
+      return rows.map((d) => ({
+        id: d.id,
+        name: d.name,
+        headName: d.headName ?? null,
+        contactPerson: d.contactPerson ?? null,
+        address: d.address ?? null,
+        kecamatan: d.kecamatan ?? null,
+        phoneNumber: d.phoneNumber ?? null,
+        schedule: d.schedule ?? null,
+        tempatLatihan: d.tempatLatihan ?? null,
+      }));
+    },
+    [] as PublicDojoListItem[],
+  );
+
+  if (dbDojos && dbDojos.length > 0) {
+    return dbDojos;
+  }
+
   try {
     const branch = await fetchBranchStructure();
     if (!branch?.id) return [];
@@ -329,8 +355,43 @@ export const getUpcomingEvents = unstable_cache(
 const getDojoByIdCached = (id: string) =>
   unstable_cache(
     async (): Promise<PublicDojoDetail | null> => {
+      const cleanId = id.trim();
+      const { data: dbDojo } = await withPrismaFallback(
+        `getDojoDetail-${cleanId}`,
+        async () => {
+          const row = await prisma.dojo.findFirst({
+            where: { id: cleanId, isDeleted: false },
+            include: {
+              branch: true,
+              _count: { select: { members: true } },
+            },
+          });
+          return row;
+        },
+        null,
+      );
+
+      if (dbDojo) {
+        return {
+          id: dbDojo.id,
+          name: dbDojo.name,
+          headName: dbDojo.headName ?? null,
+          contactPerson: dbDojo.contactPerson ?? null,
+          address: dbDojo.address ?? null,
+          kecamatan: dbDojo.kecamatan ?? null,
+          phoneNumber: dbDojo.phoneNumber ?? null,
+          schedule: dbDojo.schedule ?? null,
+          tempatLatihan: dbDojo.tempatLatihan ?? null,
+          branch: {
+            id: dbDojo.branch?.id ?? dbDojo.branchId,
+            name: dbDojo.branch?.name ?? SITE_BRANCH_NAME,
+          },
+          _count: { members: dbDojo._count?.members ?? 0 },
+        };
+      }
+
       try {
-        const { res, data } = await inkaiFetch(`/v1/org/dojo/${id}`, {}, null);
+        const { res, data } = await inkaiFetch(`/v1/org/dojo/${cleanId}`, {}, null);
         if (!res.ok) return null;
         const dojo = (data.data as Record<string, unknown>) ?? null;
         if (!dojo) return null;
@@ -343,7 +404,7 @@ const getDojoByIdCached = (id: string) =>
         }
         return mapDojoDetail(dojo);
       } catch (error) {
-        console.error("[getDojoDetail]", id, error);
+        console.error("[getDojoDetail]", cleanId, error);
         return null;
       }
     },

@@ -340,13 +340,86 @@ export function buildKasPrintHtml(data: KasPrintData): string {
       </div>
 
       <!-- CHART 3: PERBANDINGAN PORSI & EFISIENSI BAR PER KEGIATAN -->
-      <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px;">
+      <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px;">
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px; margin-bottom: 6px; page-break-after: avoid;">
           <span style="font-weight: 700; font-size: 10px; color: #1e293b;">⚖️ EFISIENSI & NOMINAL MUTASI PER KEGIATAN</span>
           <span style="font-size: 9px; font-weight: 600; color: #64748b;">(Total ${kegiatanItems.length} Kegiatan Terdaftar)</span>
         </div>
         ${chartBars || '<div style="font-size: 9px; color: #64748b;">Tidak ada data kegiatan.</div>'}
       </div>
+
+      <!-- CHART 4: POS ALOKASI PERSENTASE ANGGARAN KAS (BUDGET BUCKETS) -->
+      ${(() => {
+        const userBucketsPrint = [
+          { key: "pembinaan", label: "Pembinaan", pct: 35 },
+          { key: "duka", label: "Duka & Sosial", pct: 20 },
+          { key: "insidentil", label: "Insidentil", pct: 15 },
+          { key: "investasi", label: "Investasi / Aset", pct: 15 },
+          { key: "perlengkapan", label: "Perlengkapan", pct: 10 },
+        ];
+
+        const outMapPrint: Record<string, number> = { pembinaan: 0, duka: 0, insidentil: 0, investasi: 0, perlengkapan: 0 };
+        for (const r of filteredRows) {
+          if (r.amountOut <= 0) continue;
+          const k = (r.kegiatan + " " + r.description).toLowerCase();
+          if (k.includes("duka") || k.includes("sosial") || k.includes("santunan") || k.includes("belasungkawa")) {
+            outMapPrint["duka"] += r.amountOut;
+          } else if (k.includes("investasi") || k.includes("tatami") || k.includes("matras") || k.includes("aset")) {
+            outMapPrint["investasi"] += r.amountOut;
+          } else if (k.includes("perlengkapan") || k.includes("sarpras") || k.includes("atk") || k.includes("target") || k.includes("body")) {
+            outMapPrint["perlengkapan"] += r.amountOut;
+          } else if (k.includes("insidentil") || k.includes("darurat") || k.includes("mendadak")) {
+            outMapPrint["insidentil"] += r.amountOut;
+          } else {
+            outMapPrint["pembinaan"] += r.amountOut;
+          }
+        }
+
+        const budgetCardsPrintHtml = userBucketsPrint
+          .map((b) => {
+            const budget = Math.round((totalIn * b.pct) / 100);
+            const spent = outMapPrint[b.key] ?? 0;
+            const remaining = budget - spent;
+            const usagePct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
+            const isOver = spent > budget && budget > 0;
+
+            return `
+            <div style="background: #ffffff; border: 1px solid ${isOver ? "#fca5a5" : "#cbd5e1"}; border-radius: 4px; padding: 5px 6px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                <span style="font-weight: 700; font-size: 8.5px; color: #0f172a;">${escapeHtml(b.label)} (${b.pct}%)</span>
+                ${
+                  isOver
+                    ? '<span style="background: #fee2e2; color: #dc2626; font-size: 7px; font-weight: 700; padding: 1px 3px; border-radius: 2px;">OVER</span>'
+                    : `<span style="font-size: 7.5px; font-weight: 600; color: #64748b;">${usagePct}%</span>`
+                }
+              </div>
+              <div style="font-size: 7.5px; color: #475569; margin-bottom: 2px;">
+                <div style="display: flex; justify-content: space-between;"><span>Pagu:</span> <strong>${formatRp(budget)}</strong></div>
+                <div style="display: flex; justify-content: space-between;"><span>Terpakai:</span> <strong style="color: ${spent > 0 ? "#b91c1c" : "#475569"};">${formatRp(spent)}</strong></div>
+              </div>
+              <div style="border-top: 1px solid #e2e8f0; padding-top: 2px; font-size: 7.5px; font-weight: 700; display: flex; justify-content: space-between;">
+                <span>Sisa:</span>
+                <span style="color: ${remaining < 0 ? "#b91c1c" : "#15803d"};">${formatRp(remaining)}</span>
+              </div>
+            </div>`;
+          })
+          .join("");
+
+        return `
+        <div style="background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px 8px; page-break-inside: avoid;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px; margin-bottom: 6px;">
+            <span style="font-weight: 700; font-size: 10px; color: #1e293b;">🎯 POS ALOKASI PERSENTASE ANGGARAN KAS (AUTO-BUDGETING)</span>
+            <span style="font-size: 8px; font-weight: 600; color: #64748b;">(Total Pemasukan: ${formatRp(totalIn)})</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;">
+            ${budgetCardsPrintHtml}
+          </div>
+          <div style="margin-top: 6px; padding: 4px 8px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 4px; font-size: 8px; color: #78350f; font-family: Arial, sans-serif;">
+            <strong style="color: #92400e;">💡 Rekomendasi Ahli Keuangan AI (Proporsi Usulan 35/20/15/15/10):</strong>
+            Rasio ideal menetapkan 35% Pembinaan Atlet/Kejuaraan, 20% Duka & Sosial, 15% Dana Insidentil, 15% Investasi/Aset Tatami, dan 10% Perlengkapan untuk menjaga stabilitas kas organisasi secara berkelanjutan.
+          </div>
+        </div>`;
+      })()}
     </div>`;
 
   }

@@ -65,28 +65,30 @@ function parsePeriodFromQuery(query: string) {
 
 function detectQueryDomain(query: string): "kas" | "anggota" | "pertandingan" | "ukt" | "organisasi" {
   const lower = query.toLowerCase();
-  if (
-    lower.includes("pendapatan") ||
-    lower.includes("pengeluaran") ||
-    lower.includes("kas") ||
-    lower.includes("keuangan") ||
-    lower.includes("biaya") ||
-    lower.includes("iuran") ||
-    lower.includes("saldo")
-  ) {
-    return "kas";
-  }
+
+  // 1. Demografi Atlet / Anggota / Karateka (handles 'atlet', 'atlit', 'karateka', 'peserta', 'anggota', 'sabuk', 'kyu', 'demografi', 'msh', 'member')
   if (
     lower.includes("atlet") ||
+    lower.includes("atlit") ||
+    lower.includes("karateka") ||
     lower.includes("anggota") ||
     lower.includes("sabuk") ||
     lower.includes("kyu") ||
     lower.includes("demografi") ||
     lower.includes("msh") ||
-    lower.includes("member")
+    lower.includes("member") ||
+    lower.includes("peserta") ||
+    lower.includes("populasi") ||
+    lower.includes("jenis kelamin") ||
+    lower.includes("pria") ||
+    lower.includes("wanita") ||
+    lower.includes("laki") ||
+    lower.includes("perempuan")
   ) {
     return "anggota";
   }
+
+  // 2. Pertandingan & Kejuaraan
   if (
     lower.includes("kejuaraan") ||
     lower.includes("tanding") ||
@@ -98,6 +100,8 @@ function detectQueryDomain(query: string): "kas" | "anggota" | "pertandingan" | 
   ) {
     return "pertandingan";
   }
+
+  // 3. UKT / Ujian Kenaikan Tingkat
   if (
     lower.includes("ukt") ||
     lower.includes("ujian") ||
@@ -106,6 +110,26 @@ function detectQueryDomain(query: string): "kas" | "anggota" | "pertandingan" | 
   ) {
     return "ukt";
   }
+
+  // 4. Keuangan / Kas
+  if (
+    lower.includes("pendapatan") ||
+    lower.includes("pengeluaran") ||
+    lower.includes("kas") ||
+    lower.includes("keuangan") ||
+    lower.includes("biaya") ||
+    lower.includes("iuran") ||
+    lower.includes("saldo") ||
+    lower.includes("pemasukan") ||
+    lower.includes("omset") ||
+    lower.includes("uang") ||
+    lower.includes("surplus") ||
+    lower.includes("defisit")
+  ) {
+    return "kas";
+  }
+
+  // 5. Dojo / Ranting / Organisasi
   if (
     lower.includes("dojo") ||
     lower.includes("ranting") ||
@@ -114,6 +138,16 @@ function detectQueryDomain(query: string): "kas" | "anggota" | "pertandingan" | 
     lower.includes("pengurus")
   ) {
     return "organisasi";
+  }
+
+  // Fallback untuk kueri perhitungan/jumlah umum ("berapa total...", "jumlah...", "banyak...") -> default anggota
+  if (
+    lower.includes("total") ||
+    lower.includes("jumlah") ||
+    lower.includes("berapa") ||
+    lower.includes("banyak")
+  ) {
+    return "anggota";
   }
 
   return "kas";
