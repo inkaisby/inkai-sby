@@ -2,7 +2,13 @@ export function exportTournamentRosterToExcel(
   eventName: string,
   registrations: Array<{
     id?: string;
-    member: { fullName: string; nia?: string | null; currentRank?: string | null };
+    member: {
+      fullName: string;
+      nia?: string | null;
+      currentRank?: string | null;
+      birthPlace?: string | null;
+      birthDate?: string | null;
+    };
     dojo: { name: string };
     category: { name: string; fee: number; isFeeVisible?: boolean };
     status: string;
@@ -41,10 +47,24 @@ export function exportTournamentRosterToExcel(
       const weightText = r.actualWeight ? `${r.actualWeight} kg` : "Belum timbang";
       const bgClass = idx % 2 === 1 ? 'class="zebra"' : "";
 
+      const place = (r.member?.birthPlace || "").trim();
+      let dStr = "";
+      if (r.member?.birthDate) {
+        const d = new Date(r.member.birthDate);
+        if (!Number.isNaN(d.getTime())) {
+          const pad = (n: number) => String(n).padStart(2, "0");
+          dStr = `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
+        } else {
+          dStr = String(r.member.birthDate).trim();
+        }
+      }
+      const ttlText = place && dStr ? `${place}, ${dStr}` : place || dStr || "-";
+
       return `<tr ${bgClass}>
         <td class="text-center text-fmt">${idx + 1}</td>
         <td class="text-left"><b>${escapeXml(r.member?.fullName || "-")}</b></td>
         <td class="text-center text-fmt">${escapeXml(r.member?.nia || "-")}</td>
+        <td class="text-left">${escapeXml(ttlText)}</td>
         <td class="text-left">${escapeXml(r.dojo?.name || "-")}</td>
         <td class="text-left">${escapeXml(r.member?.currentRank || "Putih")}</td>
         <td class="text-left">${escapeXml(r.category?.name || "-")}</td>
@@ -98,6 +118,7 @@ export function exportTournamentRosterToExcel(
     <col style="width: 45px;" />
     <col style="width: 260px;" />
     <col style="width: 110px;" />
+    <col style="width: 160px;" />
     <col style="width: 180px;" />
     <col style="width: 130px;" />
     <col style="width: 250px;" />
@@ -109,15 +130,16 @@ export function exportTournamentRosterToExcel(
     <col style="width: 130px;" />
     <thead>
       <tr>
-        <th colspan="12" class="header-banner">INKAI CABANG SURABAYA - DAFTAR PESERTA KEJUARAAN KARATE</th>
+        <th colspan="13" class="header-banner">INKAI CABANG SURABAYA - DAFTAR PESERTA KEJUARAAN KARATE</th>
       </tr>
       <tr>
-        <th colspan="12" class="subheader-banner">Event: ${escapeXml(cleanEventName)} | Tanggal Cetak/Ekspor: ${escapeXml(dateStr)}</th>
+        <th colspan="13" class="subheader-banner">Event: ${escapeXml(cleanEventName)} | Tanggal Cetak/Ekspor: ${escapeXml(dateStr)}</th>
       </tr>
       <tr>
         <th>No</th>
         <th>Nama Atlet</th>
         <th>NIA</th>
+        <th>TTL</th>
         <th>Dojo / Kontingen</th>
         <th>Sabuk</th>
         <th>Kelas Pertandingan</th>
@@ -134,7 +156,7 @@ export function exportTournamentRosterToExcel(
     </tbody>
     <tfoot>
       <tr class="summary-row">
-        <td colspan="6" class="text-right">TOTAL KESELURUHAN (${registrations.length} PESERTA):</td>
+        <td colspan="7" class="text-right">TOTAL KESELURUHAN (${registrations.length} PESERTA):</td>
         <td class="currency">${totalFeeFormatted}</td>
         <td colspan="5"></td>
       </tr>

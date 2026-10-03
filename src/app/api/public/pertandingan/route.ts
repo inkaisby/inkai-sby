@@ -76,6 +76,7 @@ export async function GET(request: Request) {
             currentRank: true,
             gender: true,
             birthDate: true,
+            birthPlace: true,
             photoUrl: true,
             birthCertificateUrl: true,
             bpjsCardUrl: true,

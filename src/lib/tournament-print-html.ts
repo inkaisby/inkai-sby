@@ -10,6 +10,7 @@ export interface TournamentPrintRegistrant {
     currentRank?: string | null;
     gender?: string | null;
     birthDate?: string | null;
+    birthPlace?: string | null;
     photoUrl?: string | null;
   };
   dojo: {
@@ -217,11 +218,25 @@ export function generateTournamentRosterHtml(
       const niaOrMsh = isBlack ? (r.member.mshNumber || r.member.nia || "-") : (r.member.nia || "-");
       const showFee = r.category.isFeeVisible !== false;
       const feeText = showFee ? `Rp ${(r.category.fee || 0).toLocaleString("id-ID")}` : "-";
+      const place = (r.member.birthPlace || "").trim();
+      let dateStr = "";
+      if (r.member.birthDate) {
+        const d = new Date(r.member.birthDate);
+        if (!Number.isNaN(d.getTime())) {
+          const pad = (n: number) => String(n).padStart(2, "0");
+          dateStr = `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
+        } else {
+          dateStr = String(r.member.birthDate).trim();
+        }
+      }
+      const ttlText = place && dateStr ? `${place}, ${dateStr}` : place || dateStr || "-";
+
       return `
         <tr>
           <td style="text-align:center;">${idx + 1}</td>
           <td><strong>${r.member.fullName}</strong></td>
           <td>${niaOrMsh}</td>
+          <td>${ttlText}</td>
           <td>${r.dojo.name}</td>
           <td>${r.member.currentRank || "-"}</td>
           <td style="text-align:center;"><strong>${ageCategory}</strong></td>
@@ -375,6 +390,7 @@ export function generateTournamentRosterHtml(
             <th style="width: 30px;">No</th>
             <th>Nama Atlet</th>
             <th>NIA</th>
+            <th>TTL</th>
             <th>Dojo / Kontingen</th>
             <th>Sabuk</th>
             <th>Kategori Usia</th>
@@ -386,7 +402,7 @@ export function generateTournamentRosterHtml(
           </tr>
         </thead>
         <tbody>
-          ${rows.length > 0 ? rows : '<tr><td colSpan="11" style="text-align:center; padding: 20px;">Belum ada peserta terdaftar.</td></tr>'}
+          ${rows.length > 0 ? rows : '<tr><td colSpan="12" style="text-align:center; padding: 20px;">Belum ada peserta terdaftar.</td></tr>'}
         </tbody>
       </table>
 

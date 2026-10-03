@@ -92,6 +92,7 @@ interface RegistrationItem {
     fullName: string;
     nia?: string;
     birthDate?: string | null;
+    birthPlace?: string | null;
     currentRank?: string;
     photoUrl?: string;
     birthCertificateUrl?: string;
@@ -108,6 +109,22 @@ interface RegistrationItem {
     fee: number;
     isFeeVisible?: boolean;
   };
+}
+
+function formatTTL(birthPlace?: string | null, birthDate?: string | null): string {
+  const place = (birthPlace || "").trim();
+  let dateStr = "";
+  if (birthDate) {
+    const d = new Date(birthDate);
+    if (!Number.isNaN(d.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      dateStr = `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
+    } else {
+      dateStr = String(birthDate).trim();
+    }
+  }
+  if (place && dateStr) return `${place}, ${dateStr}`;
+  return place || dateStr || "-";
 }
 
 
@@ -698,6 +715,8 @@ export default function PublicPertandinganPage() {
         nia: r.member.nia,
         currentRank: r.member.currentRank,
         photoUrl: r.member.photoUrl,
+        birthDate: r.member.birthDate,
+        birthPlace: r.member.birthPlace,
       },
       dojo: { name: r.dojo.name },
       category: {
@@ -1217,6 +1236,7 @@ export default function PublicPertandinganPage() {
                   <th className="py-3.5 px-3">No</th>
                   <th className="py-3.5 px-3 text-center">Foto Profil</th>
                   <th className="py-3.5 px-4">Nama Atlet</th>
+                  <th className="py-3.5 px-4 min-w-[170px] whitespace-nowrap">Tempat Tanggal Lahir</th>
                   <th className="py-3.5 px-4">Dojo / Kontingen</th>
                   <th className="py-3.5 px-4">Sabuk</th>
                   <th className="py-3.5 px-3 text-center min-w-[150px]">Kategori Usia</th>
@@ -1230,13 +1250,13 @@ export default function PublicPertandinganPage() {
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
                 {loading ? (
                   <tr>
-                    <td colSpan={11} className="py-12 text-center text-zinc-500">
+                    <td colSpan={12} className="py-12 text-center text-zinc-500">
                       Memuat daftar pendaftar kejuaraan...
                     </td>
                   </tr>
                 ) : filteredRegistrations.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="py-12 text-center text-zinc-500 space-y-3">
+                    <td colSpan={12} className="py-12 text-center text-zinc-500 space-y-3">
                       <div>Belum ada pendaftaran atlet pada kriteria ini.</div>
                       <button
                         onClick={() => {
@@ -1291,6 +1311,9 @@ export default function PublicPertandinganPage() {
                         {reg.member.nia && (
                           <div className="text-xs font-normal text-zinc-500">NIA: {reg.member.nia}</div>
                         )}
+                      </td>
+                      <td className="py-3.5 px-4 text-xs font-medium text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
+                        {formatTTL(reg.member.birthPlace, reg.member.birthDate)}
                       </td>
                       <td className="py-3.5 px-4 font-medium text-zinc-800 dark:text-zinc-200">
                         {reg.dojo.name}

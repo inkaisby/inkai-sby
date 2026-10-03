@@ -98,11 +98,28 @@ interface MemberItem {
   currentRank?: string;
   gender?: string;
   birthDate?: string;
+  birthPlace?: string | null;
   dojoId?: string;
   dojo?: { id: string; name: string };
   photoUrl?: string;
   birthCertificateUrl?: string;
   bpjsCardUrl?: string;
+}
+
+function formatTTL(birthPlace?: string | null, birthDate?: string | null): string {
+  const place = (birthPlace || "").trim();
+  let dateStr = "";
+  if (birthDate) {
+    const d = new Date(birthDate);
+    if (!Number.isNaN(d.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      dateStr = `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
+    } else {
+      dateStr = String(birthDate).trim();
+    }
+  }
+  if (place && dateStr) return `${place}, ${dateStr}`;
+  return place || dateStr || "-";
 }
 
 interface RegistrationItem {
@@ -1280,6 +1297,7 @@ export default function AdminPertandinganPage() {
               <tr className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
                 <th className="py-3.5 px-4 w-12 text-center whitespace-nowrap">No</th>
                 <th className="py-3.5 px-4 min-w-[200px]">Atlet / Foto</th>
+                <th className="py-3.5 px-4 min-w-[170px] whitespace-nowrap">Tempat Tanggal Lahir</th>
                 <th className="py-3.5 px-4 min-w-[140px] whitespace-nowrap">Dojo / Kontingen</th>
                 <th className="py-3.5 px-4 min-w-[150px] text-center whitespace-nowrap">Kategori Usia</th>
                 <th className="py-3.5 px-4 min-w-[180px] whitespace-nowrap">Berkas Profil (Akte / BPJS)</th>
@@ -1294,13 +1312,13 @@ export default function AdminPertandinganPage() {
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={12} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
                     Memuat data roster pertandingan...
                   </td>
                 </tr>
               ) : displayedRegistrations.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
+                  <td colSpan={12} className="py-8 text-center text-zinc-500 dark:text-zinc-400">
                     Tidak ada pendaftaran atlet yang sesuai dengan filter terpilih.
                   </td>
                 </tr>
@@ -1337,6 +1355,10 @@ export default function AdminPertandinganPage() {
                             </div>
                           </div>
                         </div>
+                      </td>
+
+                      <td className="py-3 px-4 text-xs font-medium text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
+                        {formatTTL(reg.member.birthPlace, reg.member.birthDate)}
                       </td>
 
                       <td className="py-3 px-4 font-medium text-zinc-800 dark:text-zinc-200 whitespace-nowrap">
