@@ -481,11 +481,14 @@ export const branchOrgProfileSchema = z.object({
   address: z.string().trim().max(300),
   phone: z.string().trim().max(30),
   whatsapp: z.string().trim().max(30),
+  contactAdminWa: z.string().trim().max(30).optional().or(z.literal("")),
+  paymentConfirmationWa: z.string().trim().max(30).optional().or(z.literal("")),
   email: z.string().trim().email().or(z.literal("")),
   hours: z.string().trim().max(120),
   bankName: z.string().trim().max(80),
   bankAccountNumber: z.string().trim().max(40),
   bankAccountName: z.string().trim().max(120),
+  bankQrisUrl: z.string().trim().max(500).optional().or(z.literal("")),
   paymentInstructions: z.string().trim().max(1000),
   mapsUrl: z.string().trim().max(300),
   bidangUjianName: z.string().trim().max(120),
@@ -669,6 +672,10 @@ export const operationalDefaultsSchema = z.object({
   monthlyDuesAmount: z.coerce.number().min(0).max(10_000_000),
   paymentInstructions: z.string().trim().max(1000),
   forcePasswordHint: z.boolean().optional(),
+  autoVerifyNewMember: z.boolean().optional(),
+  publicRegistrationOpen: z.boolean().optional(),
+  defaultGeofenceRadius: z.coerce.number().min(10).max(5000).optional(),
+  limitOneAbsencePerDay: z.boolean().optional(),
 });
 
 export const branchCreateSchema = z.object({

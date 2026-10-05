@@ -28,6 +28,7 @@ import {
   EMAIL_TAKEN_MESSAGE,
   findExistingUserByEmail,
 } from "@/lib/user-email";
+import { getOperationalDefaults } from "@/lib/org-settings";
 import { persistMemberIdentityLocal } from "@/lib/member-identity-local";
 
 export async function POST(request: Request) {
@@ -37,6 +38,17 @@ export async function POST(request: Request) {
     }
     if (!assertSameOriginLoose(request)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const defaults = await getOperationalDefaults();
+    if (!defaults.publicRegistrationOpen) {
+      return NextResponse.json(
+        {
+          error:
+            "Pendaftaran mandiri anggota baru sedang ditutup sementara oleh Pengurus Cabang.",
+        },
+        { status: 403 },
+      );
     }
 
     const ip = getClientIp(request);
@@ -203,6 +215,7 @@ export async function POST(request: Request) {
     }
 
     // Persist field lokal ke Prisma (MSH + sabuk); tunggu agar memberId tersedia untuk /latber.
+    const autoVerify = defaults.autoVerifyNewMember;
     const memberId = await persistRegisterLocal({
       msh,
       currentRank: rank,
@@ -217,12 +230,18 @@ export async function POST(request: Request) {
       name,
       dojoId,
       dojoName,
+      autoVerify,
       registerPayload: data.data,
     });
 
+    const successMsg = autoVerify
+      ? "Registrasi berhasil! Akun Anda telah terverifikasi secara otomatis dan siap digunakan untuk login."
+      : "Registrasi berhasil! Akun Anda telah tercatat dan sedang menunggu verifikasi/persetujuan Pengurus Ranting sebelum dapat login.";
+
     return NextResponse.json({
       success: true,
-      message: "Registrasi berhasil! Akun Anda telah terverifikasi secara otomatis dan siap digunakan untuk login.",
+      message: successMsg,
+      autoVerified: autoVerify,
       ...(memberId ? { memberId } : {}),
     });
   } catch {
@@ -244,6 +263,7 @@ async function persistRegisterLocal(opts: {
   name: string;
   dojoId: string;
   dojoName: string;
+  autoVerify?: boolean;
   registerPayload: unknown;
 }): Promise<string | null> {
   try {
@@ -306,6 +326,8 @@ async function persistRegisterLocal(opts: {
       select: { userId: true },
     });
 
+    const isAuto = opts.autoVerify !== false;
+
     await persistMemberIdentityLocal(
       memberId,
       {
@@ -321,6 +343,7 @@ async function persistRegisterLocal(opts: {
       {
         userId: memberWithUser?.userId,
         phoneNumber: opts.phoneNumber || null,
+        autoVerify: isAuto,
       },
     );
 
@@ -332,10 +355,14 @@ async function persistRegisterLocal(opts: {
       });
     }
 
+    const notifStatusText = isAuto
+      ? "telah mendaftar dan terverifikasi secara otomatis."
+      : "telah mendaftar dan menunggu verifikasi pengurus ranting.";
+
     void notifyAdminsAboutNewMember({
       dojoId: opts.dojoId,
       title: "Pendaftaran Anggota Baru",
-      content: `${fullName} (${dojoLabel}) telah mendaftar dan terverifikasi secara otomatis.`,
+      content: `${fullName} (${dojoLabel}) ${notifStatusText}`,
     });
 
     return memberId;

@@ -8,11 +8,14 @@ export type BranchOrgProfile = {
   address: string;
   phone: string;
   whatsapp: string;
+  contactAdminWa: string;
+  paymentConfirmationWa: string;
   email: string;
   hours: string;
   bankName: string;
   bankAccountNumber: string;
   bankAccountName: string;
+  bankQrisUrl: string;
   paymentInstructions: string;
   mapsUrl: string;
   /** Nama pejabat untuk dokumen UKT / nota */
@@ -26,6 +29,10 @@ export type OperationalDefaults = {
   monthlyDuesAmount: number;
   paymentInstructions: string;
   forcePasswordHint: boolean;
+  autoVerifyNewMember: boolean;
+  publicRegistrationOpen: boolean;
+  defaultGeofenceRadius: number;
+  limitOneAbsencePerDay: boolean;
   updatedAt?: string;
 };
 
@@ -33,11 +40,14 @@ export const DEFAULT_BRANCH_PROFILE: BranchOrgProfile = {
   address: SITE_CONTACT.address,
   phone: SITE_CONTACT.phone,
   whatsapp: SITE_CONTACT.whatsapp,
+  contactAdminWa: "085731241840",
+  paymentConfirmationWa: "082257203462",
   email: SITE_CONTACT.email,
   hours: SITE_CONTACT.hours,
   bankName: "Mandiri",
   bankAccountNumber: "1400024546344",
   bankAccountName: "HABIBUR RAHMAN",
+  bankQrisUrl: "",
   paymentInstructions: "",
   mapsUrl: SITE_CONTACT.mapsUrl,
   bidangUjianName: "SETIA BASUKI",
@@ -49,6 +59,10 @@ export const DEFAULT_OPERATIONAL: OperationalDefaults = {
   monthlyDuesAmount: 50_000,
   paymentInstructions: "",
   forcePasswordHint: true,
+  autoVerifyNewMember: true,
+  publicRegistrationOpen: true,
+  defaultGeofenceRadius: 150,
+  limitOneAbsencePerDay: true,
 };
 
 function asProfile(value: unknown): BranchOrgProfile {
@@ -58,11 +72,18 @@ function asProfile(value: unknown): BranchOrgProfile {
     address: String(v.address ?? DEFAULT_BRANCH_PROFILE.address),
     phone: String(v.phone ?? DEFAULT_BRANCH_PROFILE.phone),
     whatsapp: String(v.whatsapp ?? DEFAULT_BRANCH_PROFILE.whatsapp),
+    contactAdminWa: String(
+      v.contactAdminWa ?? DEFAULT_BRANCH_PROFILE.contactAdminWa,
+    ),
+    paymentConfirmationWa: String(
+      v.paymentConfirmationWa ?? DEFAULT_BRANCH_PROFILE.paymentConfirmationWa,
+    ),
     email: String(v.email ?? DEFAULT_BRANCH_PROFILE.email),
     hours: String(v.hours ?? DEFAULT_BRANCH_PROFILE.hours),
     bankName: String(v.bankName ?? ""),
     bankAccountNumber: String(v.bankAccountNumber ?? ""),
     bankAccountName: String(v.bankAccountName ?? ""),
+    bankQrisUrl: String(v.bankQrisUrl ?? ""),
     paymentInstructions: String(v.paymentInstructions ?? ""),
     mapsUrl: String(v.mapsUrl ?? DEFAULT_BRANCH_PROFILE.mapsUrl),
     bidangUjianName: String(
@@ -80,6 +101,7 @@ function asDefaults(value: unknown): OperationalDefaults {
   if (!value || typeof value !== "object") return { ...DEFAULT_OPERATIONAL };
   const v = value as Record<string, unknown>;
   const amount = Number(v.monthlyDuesAmount);
+  const radius = Number(v.defaultGeofenceRadius);
   return {
     monthlyDuesAmount:
       Number.isFinite(amount) && amount >= 0
@@ -89,6 +111,13 @@ function asDefaults(value: unknown): OperationalDefaults {
       v.paymentInstructions ?? DEFAULT_OPERATIONAL.paymentInstructions,
     ),
     forcePasswordHint: v.forcePasswordHint !== false,
+    autoVerifyNewMember: v.autoVerifyNewMember !== false,
+    publicRegistrationOpen: v.publicRegistrationOpen !== false,
+    defaultGeofenceRadius:
+      Number.isFinite(radius) && radius > 0
+        ? radius
+        : DEFAULT_OPERATIONAL.defaultGeofenceRadius,
+    limitOneAbsencePerDay: v.limitOneAbsencePerDay !== false,
     updatedAt: typeof v.updatedAt === "string" ? v.updatedAt : undefined,
   };
 }

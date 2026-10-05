@@ -49,6 +49,9 @@ export async function PATCH(request: Request) {
     }
     const profile = await setBranchOrgProfile({
       ...parsed.data,
+      contactAdminWa: parsed.data.contactAdminWa ?? "085731241840",
+      paymentConfirmationWa: parsed.data.paymentConfirmationWa ?? "082257203462",
+      bankQrisUrl: parsed.data.bankQrisUrl ?? "",
       ketuaCabangName: parsed.data.ketuaCabangName ?? "",
     });
     writeAuditLog({
@@ -79,6 +82,10 @@ export async function PATCH(request: Request) {
       monthlyDuesAmount: parsed.data.monthlyDuesAmount,
       paymentInstructions: parsed.data.paymentInstructions,
       forcePasswordHint: parsed.data.forcePasswordHint ?? true,
+      autoVerifyNewMember: parsed.data.autoVerifyNewMember ?? true,
+      publicRegistrationOpen: parsed.data.publicRegistrationOpen ?? true,
+      defaultGeofenceRadius: parsed.data.defaultGeofenceRadius ?? 150,
+      limitOneAbsencePerDay: parsed.data.limitOneAbsencePerDay ?? true,
     });
     writeAuditLog({
       userId: authResult.user.id,
@@ -86,6 +93,8 @@ export async function PATCH(request: Request) {
       action: "SETTINGS_ORG_DEFAULTS_UPDATE",
       details: JSON.stringify({
         monthlyDuesAmount: defaults.monthlyDuesAmount,
+        autoVerifyNewMember: defaults.autoVerifyNewMember,
+        publicRegistrationOpen: defaults.publicRegistrationOpen,
       }),
       ip: getClientIp(request),
       userAgent: request.headers.get("user-agent"),
