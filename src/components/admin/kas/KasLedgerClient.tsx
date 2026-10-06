@@ -59,6 +59,7 @@ import {
   formatKasDateId,
   formatRecapDojoTextForWa,
   getKasBaseKegiatan,
+  getKasBudgetKey,
   groupKasTable,
   kasGroupKegiatanNames,
   KAS_MAX_BATCH,
@@ -1923,6 +1924,7 @@ export function KasLedgerClient({
           <div className="pt-2">
             <KasBudgetAllocationPanel
               totalIn={data?.kpis.totalIn ?? 0}
+              saldoAkhir={data?.kpis.saldoAkhir ?? 0}
               rows={data?.rows ?? []}
             />
           </div>
@@ -2980,6 +2982,20 @@ export function KasLedgerClient({
                           </span>
                         ) : null}
                         {(() => {
+                          const bInfo = getKasBudgetKey(row.kegiatan);
+                          return (
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold shadow-2xs",
+                                bInfo.badgeClass
+                              )}
+                              title={`Pos Alokasi Anggaran: ${bInfo.label}`}
+                            >
+                              Pos: {bInfo.shortName} ({bInfo.pct}%)
+                            </span>
+                          );
+                        })()}
+                        {(() => {
                           const netKegiatan = row.totalIn - row.totalOut;
                           if (netKegiatan === 0) return null;
                           const isSurplus = netKegiatan >= 0;
@@ -3144,7 +3160,22 @@ export function KasLedgerClient({
                       {row.amountOut ? formatRp(row.amountOut) : "—"}
                     </td>
                     <td className="p-3 text-right">{formatRp(row.saldo)}</td>
-                    <td className="p-3">{row.kegiatan || "—"}</td>
+                    <td className="p-3">
+                      <div className="flex flex-col gap-1 items-start">
+                        <span className="font-medium text-foreground">{row.kegiatan || "—"}</span>
+                        {row.kegiatan ? (
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-xs border px-1.5 py-0.5 text-[10px] font-medium leading-none shadow-2xs",
+                              getKasBudgetKey(row.kegiatan, row.description).badgeClass
+                            )}
+                            title={`Pos Alokasi Anggaran: ${getKasBudgetKey(row.kegiatan, row.description).label}`}
+                          >
+                            {getKasBudgetKey(row.kegiatan, row.description).shortName} ({getKasBudgetKey(row.kegiatan, row.description).pct}%)
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
                     <td className="p-3 text-center">
                       <div className="flex justify-center gap-1">
                         <Button
@@ -4709,14 +4740,19 @@ function KasFullscreenPeriodPrint({
 
 function KasBudgetAllocationPanel({
   totalIn,
+  saldoAkhir = 0,
   rows,
 }: {
   totalIn: number;
+  saldoAkhir?: number;
   rows: KasLedgerRow[];
 }) {
   const [panelOpen, setPanelOpen] = useState(true);
   const [activePreset, setActivePreset] = useState<"user" | "standard">("user");
   const [viewTab, setViewTab] = useState<"cards" | "diagram">("diagram");
+  const [basis, setBasis] = useState<"saldo" | "totalIn">("saldo");
+
+  const baseAmount = basis === "saldo" ? saldoAkhir : totalIn;
 
   const buckets = useMemo(() => {
     if (activePreset === "user") {
@@ -4744,28 +4780,16 @@ function KasBudgetAllocationPanel({
 
     for (const r of rows) {
       if (r.amountOut <= 0) continue;
-      const k = (r.kegiatan + " " + r.description).toLowerCase();
-      if (k.includes("duka") || k.includes("sosial") || k.includes("santunan") || k.includes("belasungkawa")) {
-        outMap["duka"] = (outMap["duka"] ?? 0) + r.amountOut;
-      } else if (k.includes("investasi") || k.includes("tatami") || k.includes("matras") || k.includes("aset")) {
-        outMap["investasi"] = (outMap["investasi"] ?? 0) + r.amountOut;
-      } else if (k.includes("perlengkapan") || k.includes("sarpras") || k.includes("atk") || k.includes("target") || k.includes("body")) {
-        outMap["perlengkapan"] = (outMap["perlengkapan"] ?? 0) + r.amountOut;
-      } else if (k.includes("insidentil") || k.includes("darurat") || k.includes("mendadak")) {
-        outMap["insidentil"] = (outMap["insidentil"] ?? 0) + r.amountOut;
-      } else if (k.includes("operasional") || k.includes("admin") || k.includes("konsumsi") || k.includes("kwitansi")) {
-        if ("operasional" in outMap) {
-          outMap["operasional"] = (outMap["operasional"] ?? 0) + r.amountOut;
-        } else {
-          outMap["pembinaan"] = (outMap["pembinaan"] ?? 0) + r.amountOut;
-        }
+      const bKey = getKasBudgetKey(r.kegiatan, r.description).key;
+      if (bKey in outMap) {
+        outMap[bKey] = (outMap[bKey] ?? 0) + r.amountOut;
       } else {
         outMap["pembinaan"] = (outMap["pembinaan"] ?? 0) + r.amountOut;
       }
     }
 
     return buckets.map((b) => {
-      const budget = Math.round((totalIn * b.pct) / 100);
+      const budget = Math.round((baseAmount * b.pct) / 100);
       const spent = outMap[b.key] ?? 0;
       const remaining = budget - spent;
       const usagePct = budget > 0 ? Math.min(100, Math.round((spent / budget) * 100)) : 0;
@@ -4779,7 +4803,7 @@ function KasBudgetAllocationPanel({
         isOver,
       };
     });
-  }, [buckets, rows, totalIn]);
+  }, [buckets, rows, baseAmount]);
 
   // Donut SVG path calculations
   const donutSlices = useMemo(() => {
@@ -4830,12 +4854,39 @@ function KasBudgetAllocationPanel({
               </span>
             </h3>
             <p className="text-[11px] text-muted-foreground">
-              Diagram visual proporsi & pelacak pagu anggaran dari Pemasukan ({formatRp(totalIn)})
+              Diagram visual proporsi &amp; pelacak pagu anggaran dari {basis === "saldo" ? `Saldo Akhir (${formatRp(baseAmount)})` : `Total Pemasukan (${formatRp(totalIn)})`}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Basis Selector Toggle */}
+          <div className="flex items-center rounded-md border bg-muted p-0.5 text-xs">
+            <button
+              type="button"
+              className={cn(
+                "rounded px-2 py-0.5 font-medium transition-all text-[11px]",
+                basis === "saldo"
+                  ? "bg-background text-foreground shadow-sm font-bold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setBasis("saldo")}
+            >
+              💰 Basis Saldo Akhir
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "rounded px-2 py-0.5 font-medium transition-all text-[11px]",
+                basis === "totalIn"
+                  ? "bg-background text-foreground shadow-sm font-bold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setBasis("totalIn")}
+            >
+              📥 Basis Total Masuk
+            </button>
+          </div>
           {/* View Mode Tab Switcher */}
           <div className="flex items-center rounded-md border bg-muted p-0.5 text-xs">
             <button

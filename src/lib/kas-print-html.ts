@@ -1,6 +1,11 @@
 import { formatRp } from "@/lib/terbilang";
 import { openHtmlPrintWindow } from "@/lib/ukt-print-html";
-import { formatKasDateId, getKasBaseKegiatan, type KasLedgerRow } from "@/lib/kas";
+import {
+  formatKasDateId,
+  getKasBaseKegiatan,
+  getKasBudgetKey,
+  type KasLedgerRow,
+} from "@/lib/kas";
 import type { KasSwotAnalysisResult } from "@/components/admin/kas/KasChartSwotPanel";
 
 function escapeHtml(value: string): string {
@@ -66,7 +71,9 @@ export function buildKasPrintHtml(data: KasPrintData): string {
 
   const body = data.rows
     .map(
-      (r) => `
+      (r) => {
+        const bInfo = getKasBudgetKey(r.kegiatan, r.description);
+        return `
       <tr>
         <td class="c">${r.no}</td>
         <td>${escapeHtml(formatKasDateId(r.txnDate))}</td>
@@ -74,8 +81,12 @@ export function buildKasPrintHtml(data: KasPrintData): string {
         <td class="r">${r.amountIn ? escapeHtml(formatRp(r.amountIn)) : "—"}</td>
         <td class="r">${r.amountOut ? escapeHtml(formatRp(r.amountOut)) : "—"}</td>
         <td class="r">${escapeHtml(formatRp(r.saldo))}</td>
-        <td>${escapeHtml(r.kegiatan || "—")}</td>
-      </tr>`,
+        <td>
+          <div style="font-weight: 600;">${escapeHtml(r.kegiatan || "—")}</div>
+          ${r.kegiatan ? `<div style="font-size: 8.5px; color: #4b5563; margin-top: 1px;"><span style="display:inline-block; padding: 0.5px 3px; border-radius: 2px; background: #f3f4f6; border: 1px solid #cbd5e1; font-weight: 500;">Pos: ${escapeHtml(bInfo.shortName)} (${bInfo.pct}%)</span></div>` : ""}
+        </td>
+      </tr>`;
+      },
     )
     .join("");
 
@@ -361,15 +372,9 @@ export function buildKasPrintHtml(data: KasPrintData): string {
         const outMapPrint: Record<string, number> = { pembinaan: 0, duka: 0, insidentil: 0, investasi: 0, perlengkapan: 0 };
         for (const r of filteredRows) {
           if (r.amountOut <= 0) continue;
-          const k = (r.kegiatan + " " + r.description).toLowerCase();
-          if (k.includes("duka") || k.includes("sosial") || k.includes("santunan") || k.includes("belasungkawa")) {
-            outMapPrint["duka"] += r.amountOut;
-          } else if (k.includes("investasi") || k.includes("tatami") || k.includes("matras") || k.includes("aset")) {
-            outMapPrint["investasi"] += r.amountOut;
-          } else if (k.includes("perlengkapan") || k.includes("sarpras") || k.includes("atk") || k.includes("target") || k.includes("body")) {
-            outMapPrint["perlengkapan"] += r.amountOut;
-          } else if (k.includes("insidentil") || k.includes("darurat") || k.includes("mendadak")) {
-            outMapPrint["insidentil"] += r.amountOut;
+          const bKey = getKasBudgetKey(r.kegiatan, r.description).key;
+          if (bKey in outMapPrint) {
+            outMapPrint[bKey] += r.amountOut;
           } else {
             outMapPrint["pembinaan"] += r.amountOut;
           }

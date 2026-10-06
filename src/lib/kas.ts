@@ -745,5 +745,181 @@ export function formatRecapDojoTextForWa(
   return lines.join("\n");
 }
 
+export type KasBudgetKey =
+  | "pembinaan"
+  | "duka"
+  | "insidentil"
+  | "investasi"
+  | "perlengkapan";
+
+export type KasBudgetItem = {
+  key: KasBudgetKey;
+  label: string;
+  shortName: string;
+  pct: number;
+  badgeClass: string;
+};
+
+export function getKasBudgetMetaByKey(key: KasBudgetKey): KasBudgetItem {
+  switch (key) {
+    case "duka":
+      return {
+        key: "duka",
+        label: "Duka & Sosial (20%)",
+        shortName: "Duka & Sosial",
+        pct: 20,
+        badgeClass:
+          "bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-800",
+      };
+    case "investasi":
+      return {
+        key: "investasi",
+        label: "Investasi (15%)",
+        shortName: "Investasi",
+        pct: 15,
+        badgeClass:
+          "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+      };
+    case "perlengkapan":
+      return {
+        key: "perlengkapan",
+        label: "Perlengkapan (10%)",
+        shortName: "Perlengkapan",
+        pct: 10,
+        badgeClass:
+          "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+      };
+    case "insidentil":
+      return {
+        key: "insidentil",
+        label: "Insidentil (15%)",
+        shortName: "Insidentil",
+        pct: 15,
+        badgeClass:
+          "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+      };
+    case "pembinaan":
+    default:
+      return {
+        key: "pembinaan",
+        label: "Pembinaan (35%)",
+        shortName: "Pembinaan",
+        pct: 35,
+        badgeClass:
+          "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300 border-red-200 dark:border-red-800",
+      };
+  }
+}
+
+export function getKasBudgetKey(
+  kegiatan?: string | null,
+  description?: string | null,
+  customKeywordsMap?: Record<KasBudgetKey, string[]>,
+): KasBudgetItem {
+  const text = ((kegiatan || "") + " " + (description || "")).toLowerCase();
+
+  // 0. Explicit Tag Overrides: e.g. [duka], [pos: duka], [investasi], [perlengkapan], [insidentil], [pembinaan]
+  if (
+    text.includes("pos: duka") ||
+    text.includes("pos:duka") ||
+    text.includes("[duka]") ||
+    text.includes("[sosial]")
+  ) {
+    return getKasBudgetMetaByKey("duka");
+  }
+  if (
+    text.includes("pos: investasi") ||
+    text.includes("pos:investasi") ||
+    text.includes("[investasi]") ||
+    text.includes("[aset]")
+  ) {
+    return getKasBudgetMetaByKey("investasi");
+  }
+  if (
+    text.includes("pos: perlengkapan") ||
+    text.includes("pos:perlengkapan") ||
+    text.includes("[perlengkapan]") ||
+    text.includes("[sarpras]")
+  ) {
+    return getKasBudgetMetaByKey("perlengkapan");
+  }
+  if (
+    text.includes("pos: insidentil") ||
+    text.includes("pos:insidentil") ||
+    text.includes("[insidentil]") ||
+    text.includes("[darurat]")
+  ) {
+    return getKasBudgetMetaByKey("insidentil");
+  }
+  if (
+    text.includes("pos: pembinaan") ||
+    text.includes("pos:pembinaan") ||
+    text.includes("[pembinaan]")
+  ) {
+    return getKasBudgetMetaByKey("pembinaan");
+  }
+
+  // 1. Check custom keywords map if passed
+  if (customKeywordsMap) {
+    for (const [k, keywords] of Object.entries(customKeywordsMap) as [
+      KasBudgetKey,
+      string[],
+    ][]) {
+      if (
+        keywords.some(
+          (kw) => kw.trim() && text.includes(kw.trim().toLowerCase()),
+        )
+      ) {
+        return getKasBudgetMetaByKey(k);
+      }
+    }
+  }
+
+  // 2. Default Keyword Auto-Categorization
+  if (
+    text.includes("duka") ||
+    text.includes("sosial") ||
+    text.includes("santunan") ||
+    text.includes("belasungkawa") ||
+    text.includes("sumbangan")
+  ) {
+    return getKasBudgetMetaByKey("duka");
+  }
+
+  if (
+    text.includes("investasi") ||
+    text.includes("tatami") ||
+    text.includes("matras") ||
+    text.includes("aset") ||
+    text.includes("properti")
+  ) {
+    return getKasBudgetMetaByKey("investasi");
+  }
+
+  if (
+    text.includes("perlengkapan") ||
+    text.includes("sarpras") ||
+    text.includes("atk") ||
+    text.includes("target") ||
+    text.includes("body") ||
+    text.includes("spanduk") ||
+    text.includes("banner")
+  ) {
+    return getKasBudgetMetaByKey("perlengkapan");
+  }
+
+  if (
+    text.includes("insidentil") ||
+    text.includes("darurat") ||
+    text.includes("mendadak") ||
+    text.includes("taktis")
+  ) {
+    return getKasBudgetMetaByKey("insidentil");
+  }
+
+  return getKasBudgetMetaByKey("pembinaan");
+}
+
+
 
 
