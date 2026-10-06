@@ -69,6 +69,8 @@ export function DashboardShell({
           userPhotoUrl={userPhotoUrl}
           showAdmin={showAdmin}
           hasMemberPortal={hasMemberPortal}
+          roles={roles}
+          impersonating={impersonating}
         />
         {showAdmin ? (
           <AdminAccessGate roles={roles} adminDojoGrants={adminDojoGrants}>

@@ -134,7 +134,14 @@ export function canAdministerRantingAccounts(user: SessionUser) {
 }
 
 export function canManageRoles(user: SessionUser) {
-  return user.roles.includes("ADMINISTRATOR");
+  const role = getPrimaryAdminRole(user.roles);
+  return [
+    "ADMINISTRATOR",
+    "ADMIN_PUSAT",
+    "ADMIN_PROVINCE",
+    "ADMIN_BRANCH",
+    "ADMIN",
+  ].includes(role);
 }
 
 export function canManageKebijakan(user: SessionUser) {

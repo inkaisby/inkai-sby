@@ -127,6 +127,7 @@ export const ADMIN_LINKS: NavItem[] = [
   PERTANDINGAN_NAV_GROUP,
   { href: "/admin/kegiatan", label: "Event & Kegiatan" },
   { href: "/admin/absensi", label: "Absensi" },
+  { href: "/admin/laporan", label: "Laporan" },
   {
     label: "Konten",
     children: [
@@ -198,6 +199,7 @@ export function getAdminNavLinks(
     PERTANDINGAN_NAV_GROUP,
     { href: "/admin/kegiatan", label: "Event & Kegiatan" },
     { href: "/admin/absensi", label: "Absensi" },
+    { href: "/admin/laporan", label: "Laporan" },
     {
       label: "Konten",
       children: [

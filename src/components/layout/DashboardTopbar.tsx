@@ -23,6 +23,7 @@ const ADMIN_TITLES: Record<string, string> = {
   "/admin/verifikasi": "Verifikasi",
   "/admin/kegiatan": "Event & Kegiatan",
   "/admin/absensi": "Absensi",
+  "/admin/laporan": "Laporan Custom & Analytics",
   "/admin/carousel": "Carousel Beranda",
   "/admin/apresiasi": "Apresiasi",
   "/admin/artikel": "Artikel",
@@ -72,6 +73,8 @@ function resolveAdminBackHref(pathname: string): string | null {
   return `/${segments.join("/")}`;
 }
 
+import { QuickRoleSwitcher } from "@/components/admin/QuickRoleSwitcher";
+
 export function DashboardTopbar({
   title,
   links,
@@ -80,6 +83,8 @@ export function DashboardTopbar({
   userPhotoUrl = null,
   showAdmin = false,
   hasMemberPortal = false,
+  roles = [],
+  impersonating = false,
 }: {
   title: string;
   links: NavItem[];
@@ -88,6 +93,8 @@ export function DashboardTopbar({
   userPhotoUrl?: string | null;
   showAdmin?: boolean;
   hasMemberPortal?: boolean;
+  roles?: string[];
+  impersonating?: boolean;
 }) {
   const pathname = usePathname();
   const { startNavigation } = useNavigation();
@@ -121,8 +128,13 @@ export function DashboardTopbar({
         </h1>
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5 rounded-xl bg-muted/40 p-0.5 ring-1 ring-black/[0.03] dark:ring-white/5">
-        {showAdmin ? <OpenEventsTopbar /> : null}
+      <div className="flex shrink-0 items-center gap-1.5 rounded-xl bg-muted/40 p-0.5 ring-1 ring-black/[0.03] dark:ring-white/5">
+        {showAdmin ? (
+          <>
+            <QuickRoleSwitcher roles={roles} impersonating={impersonating} />
+            <OpenEventsTopbar />
+          </>
+        ) : null}
         <NotificationBell viewAllHref={notificationsHref} />
         <ThemeToggle />
         <UserMenu
