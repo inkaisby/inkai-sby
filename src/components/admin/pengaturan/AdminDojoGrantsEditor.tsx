@@ -220,7 +220,7 @@ export function AdminDojoGrantsEditor({
           <Label className="text-xs font-bold text-foreground uppercase tracking-wider">
             Matriks Hak Akses Sidebar & Izin CRUD Modul
           </Label>
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             <span>Centang Master:</span>
             <button
               type="button"
@@ -266,25 +266,25 @@ export function AdminDojoGrantsEditor({
               <tr className="bg-muted/50 border-b text-[11px] font-semibold text-muted-foreground uppercase">
                 <th className="p-2.5 pl-3">Menu Sidebar Modul</th>
                 <th className="p-2.5 text-center w-24">Sidebar</th>
-                <th className="p-2.5 text-center w-20 text-emerald-700 dark:text-emerald-400">
+                <th className="p-2.5 text-center w-28 text-emerald-700 dark:text-emerald-400">
                   <div className="flex items-center justify-center gap-1">
                     <Eye className="h-3 w-3" />
                     <span>Lihat (R)</span>
                   </div>
                 </th>
-                <th className="p-2.5 text-center w-20 text-blue-700 dark:text-blue-400">
+                <th className="p-2.5 text-center w-28 text-blue-700 dark:text-blue-400">
                   <div className="flex items-center justify-center gap-1">
                     <Plus className="h-3 w-3" />
                     <span>Tambah (C)</span>
                   </div>
                 </th>
-                <th className="p-2.5 text-center w-20 text-amber-700 dark:text-amber-400">
+                <th className="p-2.5 text-center w-28 text-amber-700 dark:text-amber-400">
                   <div className="flex items-center justify-center gap-1">
                     <Edit3 className="h-3 w-3" />
                     <span>Ubah (U)</span>
                   </div>
                 </th>
-                <th className="p-2.5 text-center w-20 text-rose-700 dark:text-rose-400">
+                <th className="p-2.5 text-center w-28 text-rose-700 dark:text-rose-400">
                   <div className="flex items-center justify-center gap-1">
                     <Trash2 className="h-3 w-3" />
                     <span>Hapus (D)</span>

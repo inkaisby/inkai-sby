@@ -817,7 +817,7 @@ export function WilayahAccountsPanel({
       ) : null}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Tambah akun — {wilayahName}</DialogTitle>
             <DialogDescription>
@@ -1156,7 +1156,7 @@ export function WilayahAccountsPanel({
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>
               {scope === "branch" ? "Jadikan admin cabang" : "Jadikan admin ranting"}
@@ -1251,7 +1251,7 @@ export function WilayahAccountsPanel({
           if (!o) setGrantsTarget(null);
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Hak akses &amp; izin CRUD menu sidebar</DialogTitle>
             <DialogDescription>
