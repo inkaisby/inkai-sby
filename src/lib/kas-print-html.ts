@@ -399,7 +399,7 @@ export function buildKasPrintHtml(data: KasPrintData): string {
                 }
               </div>
               <div style="font-size: 7.5px; color: #475569; margin-bottom: 2px;">
-                <div style="display: flex; justify-content: space-between;"><span>Pagu:</span> <strong>${formatRp(budget)}</strong></div>
+                <div style="display: flex; justify-content: space-between;"><span>Jatah Anggaran:</span> <strong>${formatRp(budget)}</strong></div>
                 <div style="display: flex; justify-content: space-between;"><span>Terpakai:</span> <strong style="color: ${spent > 0 ? "#b91c1c" : "#475569"};">${formatRp(spent)}</strong></div>
               </div>
               <div style="border-top: 1px solid #e2e8f0; padding-top: 2px; font-size: 7.5px; font-weight: 700; display: flex; justify-content: space-between;">

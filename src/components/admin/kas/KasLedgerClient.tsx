@@ -4854,7 +4854,7 @@ function KasBudgetAllocationPanel({
               </span>
             </h3>
             <p className="text-[11px] text-muted-foreground">
-              Diagram visual proporsi &amp; pelacak pagu anggaran dari {basis === "saldo" ? `Saldo Akhir (${formatRp(baseAmount)})` : `Total Pemasukan (${formatRp(totalIn)})`}
+              Diagram visual proporsi &amp; pelacak jatah anggaran dari {basis === "saldo" ? `Saldo Akhir (${formatRp(baseAmount)})` : `Total Pemasukan (${formatRp(totalIn)})`}
             </p>
           </div>
         </div>
@@ -4911,7 +4911,7 @@ function KasBudgetAllocationPanel({
               )}
               onClick={() => setViewTab("cards")}
             >
-              🎛️ Kartu Progress Pagu
+              🎛️ Kartu Progress Jatah Anggaran
             </button>
           </div>
 
@@ -5006,15 +5006,15 @@ function KasBudgetAllocationPanel({
               </div>
             </div>
 
-            {/* SVG Comparison Bar Chart Diagram (Pagu vs Realisasi) */}
+            {/* SVG Comparison Bar Chart Diagram (Jatah vs Realisasi) */}
             <div className="md:col-span-7 space-y-2 p-3 rounded-lg border bg-background">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-foreground">
-                  📊 Diagram Perbandingan Pagu Anggaran vs Terpakai
+                  📊 Diagram Perbandingan Jatah Anggaran vs Terpakai
                 </span>
                 <div className="flex items-center gap-3 text-[10px]">
                   <span className="inline-flex items-center gap-1">
-                    <span className="h-2 w-2 rounded-sm bg-blue-500" /> Pagu Alokasi
+                    <span className="h-2 w-2 rounded-sm bg-blue-500" /> Jatah Anggaran
                   </span>
                   <span className="inline-flex items-center gap-1">
                     <span className="h-2 w-2 rounded-sm bg-inkai-red" /> Realisasi Terpakai
@@ -5029,15 +5029,17 @@ function KasBudgetAllocationPanel({
                   return (
                     <div key={b.key} className="space-y-1">
                       <div className="flex items-center justify-between text-[11px]">
-                        <span className={cn("font-bold", b.text)}>
-                          {b.label} ({b.pct}%)
-                        </span>
-                        <div className="flex items-center gap-2 text-[10px]">
-                          <span>Pagu: <b>{formatRp(b.budget)}</b></span>
-                          <span className={b.isOver ? "text-inkai-red font-bold" : "text-emerald-600 dark:text-emerald-400 font-semibold"}>
-                            Sisa: {formatRp(b.remaining)}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={cn("font-bold", b.text)}>
+                            {b.label} ({b.pct}%):
+                          </span>
+                          <span className="font-semibold text-foreground">
+                            Jatah <b>{formatRp(b.budget)}</b>
                           </span>
                         </div>
+                        <span className={b.isOver ? "text-inkai-red font-bold text-[10px]" : "text-emerald-600 dark:text-emerald-400 font-semibold text-[10px]"}>
+                          Sisa: {formatRp(b.remaining)}
+                        </span>
                       </div>
 
                       {/* Side-by-side Dual Bars */}
@@ -5047,7 +5049,7 @@ function KasBudgetAllocationPanel({
                           <div
                             className="h-full bg-blue-500/80 transition-all duration-500 rounded"
                             style={{ width: `${budgetWidth}%` }}
-                            title={`Target Pagu: ${formatRp(b.budget)}`}
+                            title={`Target Jatah: ${formatRp(b.budget)}`}
                           />
                         </div>
                         {/* Spent Bar */}
@@ -5078,7 +5080,7 @@ function KasBudgetAllocationPanel({
                   </span>
                   {b.isOver ? (
                     <span className="rounded bg-red-100 text-red-700 text-[9px] font-bold px-1 py-0.2 animate-pulse">
-                      Over Budget!
+                      Melampaui Jatah!
                     </span>
                   ) : (
                     <span className="text-[10px] font-semibold text-muted-foreground">
@@ -5089,7 +5091,7 @@ function KasBudgetAllocationPanel({
 
                 <div className="space-y-0.5">
                   <div className="flex justify-between text-[11px]">
-                    <span className="text-muted-foreground">Pagu Alokasi:</span>
+                    <span className="text-muted-foreground">Jatah Anggaran:</span>
                     <span className="font-semibold">{formatRp(b.budget)}</span>
                   </div>
                   <div className="flex justify-between text-[11px]">
@@ -5099,7 +5101,7 @@ function KasBudgetAllocationPanel({
                     </span>
                   </div>
                   <div className="flex justify-between text-[11px] border-t pt-0.5 font-bold">
-                    <span>Sisa Pagu:</span>
+                    <span>Sisa Jatah:</span>
                     <span className={b.remaining < 0 ? "text-inkai-red" : "text-emerald-600 dark:text-emerald-400"}>
                       {formatRp(b.remaining)}
                     </span>
