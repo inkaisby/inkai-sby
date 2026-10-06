@@ -40,11 +40,13 @@ export type BranchRow = {
 };
 
 export function CabangSettingsManager({
+  userRole,
   provinces,
   branches,
   archived = [],
   adminsUnavailable = false,
 }: {
+  userRole?: string;
   provinces: { id: string; name: string }[];
   branches: BranchRow[];
   archived?: BranchRow[];
@@ -183,21 +185,23 @@ export function CabangSettingsManager({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          disabled={loading}
-          className="bg-inkai-red hover:bg-inkai-red/90"
-          onClick={() => {
-            setOpenForm(true);
-            setEditingId(null);
-            setName("");
-            setHeadName("");
-          }}
-        >
-          Tambah Cabang
-        </Button>
-      </div>
+      {userRole !== "ADMIN_BRANCH" ? (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            disabled={loading}
+            className="bg-inkai-red hover:bg-inkai-red/90"
+            onClick={() => {
+              setOpenForm(true);
+              setEditingId(null);
+              setName("");
+              setHeadName("");
+            }}
+          >
+            Tambah Cabang
+          </Button>
+        </div>
+      ) : null}
 
       <div className="rounded-lg border border-inkai-red/20 bg-inkai-red/5 px-3 py-2 text-xs text-muted-foreground">
         Panel <span className="font-medium text-foreground">Akun Admin</span> hanya untuk pengurus yang punya akses admin cabang.
@@ -350,13 +354,17 @@ export function CabangSettingsManager({
                             onSelect: () => startEdit(b),
                             disabled: loading,
                           },
-                          {
-                            label: "Arsip",
-                            onSelect: () => archiveBranch(b),
-                            disabled: loading,
-                            destructive: true,
-                            separatorBefore: true,
-                          },
+                          ...(userRole !== "ADMIN_BRANCH"
+                            ? [
+                                {
+                                  label: "Arsip",
+                                  onSelect: () => archiveBranch(b),
+                                  disabled: loading,
+                                  destructive: true,
+                                  separatorBefore: true,
+                                },
+                              ]
+                            : []),
                         ]}
                       />
                     </div>

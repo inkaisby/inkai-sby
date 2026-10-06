@@ -833,15 +833,24 @@ export const wilayahAccountCreateSchema = z
     password: z.string().min(8).max(72),
     passwordConfirm: z.string().min(8).max(72),
     setAsPrimary: z.boolean().optional(),
-    jabatan: z
-      .enum(["KETUA", "SEKRETARIS", "BENDAHARA", "PENGURUS"])
-      .optional()
-      .nullable(),
+    jabatan: z.string().trim().max(100).optional().nullable(),
+    bidang: z.string().trim().max(120).optional().nullable(),
     adminGrants: z
       .object({
         editProfile: z.boolean().optional(),
         crud: z.boolean().optional(),
-        sidebarPaths: z.array(z.string()).max(32).optional(),
+        sidebarPaths: z.array(z.string()).max(64).optional(),
+        crudPermissions: z
+          .record(
+            z.string(),
+            z.object({
+              read: z.boolean(),
+              create: z.boolean(),
+              update: z.boolean(),
+              delete: z.boolean(),
+            }),
+          )
+          .optional(),
       })
       .optional(),
   })
@@ -861,6 +870,7 @@ export const wilayahAccountPatchSchema = z
       "set_primary",
       "reset_password",
       "set_jabatan",
+      "set_bidang",
       "handover",
       "change_email",
       "set_managed_dojos",
@@ -877,10 +887,8 @@ export const wilayahAccountPatchSchema = z
       .toLowerCase()
       .email("Format email tidak valid")
       .optional(),
-    jabatan: z
-      .enum(["KETUA", "SEKRETARIS", "BENDAHARA", "PENGURUS"])
-      .optional()
-      .nullable(),
+    jabatan: z.string().trim().max(100).optional().nullable(),
+    bidang: z.string().trim().max(120).optional().nullable(),
     note: z.string().trim().max(500).optional().or(z.literal("")),
     deactivatePrevious: z.boolean().optional(),
     managedDojoIds: z.array(z.string().uuid()).max(50).optional(),
@@ -896,7 +904,18 @@ export const wilayahAccountPatchSchema = z
       .object({
         editProfile: z.boolean().optional(),
         crud: z.boolean().optional(),
-        sidebarPaths: z.array(z.string()).max(32).optional(),
+        sidebarPaths: z.array(z.string()).max(64).optional(),
+        crudPermissions: z
+          .record(
+            z.string(),
+            z.object({
+              read: z.boolean(),
+              create: z.boolean(),
+              update: z.boolean(),
+              delete: z.boolean(),
+            }),
+          )
+          .optional(),
       })
       .optional(),
   })

@@ -134,13 +134,22 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
       const dateLte = endDate ? new Date(endDate + "T23:59:59.999Z") : undefined;
       const queryStr = q?.trim().toLowerCase() || "";
 
+      // Scope enforcement for Kas
+      const scopeClause =
+        role === "ADMIN_DOJO" && user.managedDojoId
+          ? { scopeType: "dojo", scopeId: user.managedDojoId }
+          : role === "ADMIN_BRANCH" && user.managedBranchId
+            ? dojoId
+              ? { scopeType: "dojo", scopeId: dojoId }
+              : { scopeType: "branch", scopeId: user.managedBranchId }
+            : dojoId
+              ? { scopeType: "dojo", scopeId: dojoId }
+              : {};
+
       const entries = await prisma.kasEntry.findMany({
         where: {
           AND: [
-            role !== "ADMINISTRATOR" && role !== "ADMIN_PUSAT" && user.managedBranchId
-              ? { scopeType: "branch", scopeId: user.managedBranchId }
-              : {},
-            dojoId ? { scopeType: "dojo", scopeId: dojoId } : {},
+            scopeClause,
             dateGte || dateLte ? { txnDate: { gte: dateGte, lte: dateLte } } : {},
             queryStr
               ? {
@@ -250,7 +259,7 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
         { key: "registeredAt", label: "Tanggal Daftar", defaultSelected: true, category: "Sistem" },
       ],
     },
-    fetcher: async (params) => {
+    fetcher: async (params, user) => {
       const { dojoId, startDate, endDate, q } = params;
       const dateGte = startDate ? new Date(startDate + "T00:00:00.000Z") : undefined;
       const dateLte = endDate ? new Date(endDate + "T23:59:59.999Z") : undefined;
@@ -260,6 +269,7 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
         where: {
           AND: [
             { event: { title: { contains: "UKT", mode: "insensitive" } } },
+            { member: buildMemberFilter(user) },
             dojoId ? { member: { dojoId } } : {},
             dateGte || dateLte ? { createdAt: { gte: dateGte, lte: dateLte } } : {},
             queryStr ? { member: { fullName: { contains: queryStr, mode: "insensitive" } } } : {},
@@ -306,7 +316,7 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
         { key: "registeredAt", label: "Tanggal Daftar", defaultSelected: true, category: "Sistem" },
       ],
     },
-    fetcher: async (params) => {
+    fetcher: async (params, user) => {
       const { dojoId, startDate, endDate } = params;
       const dateGte = startDate ? new Date(startDate + "T00:00:00.000Z") : undefined;
       const dateLte = endDate ? new Date(endDate + "T23:59:59.999Z") : undefined;
@@ -315,6 +325,7 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
         where: {
           AND: [
             { event: { title: { contains: "Latber", mode: "insensitive" } } },
+            { member: buildMemberFilter(user) },
             dojoId ? { member: { dojoId } } : {},
             dateGte || dateLte ? { createdAt: { gte: dateGte, lte: dateLte } } : {},
           ],
@@ -359,7 +370,7 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
         { key: "verificationStatus", label: "Status Verifikasi", defaultSelected: true, category: "Status" },
       ],
     },
-    fetcher: async (params) => {
+    fetcher: async (params, user) => {
       const { dojoId, startDate, endDate, q } = params;
       const dateGte = startDate ? new Date(startDate + "T00:00:00.000Z") : undefined;
       const dateLte = endDate ? new Date(endDate + "T23:59:59.999Z") : undefined;
@@ -368,6 +379,7 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
       const regs = await prisma.tournamentRegistration.findMany({
         where: {
           AND: [
+            { member: buildMemberFilter(user) },
             dojoId ? { dojoId } : {},
             dateGte || dateLte ? { createdAt: { gte: dateGte, lte: dateLte } } : {},
             queryStr ? { member: { fullName: { contains: queryStr, mode: "insensitive" } } } : {},
@@ -421,7 +433,7 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
         { key: "geofenceStatus", label: "Metode Absen", defaultSelected: true, category: "Absen" },
       ],
     },
-    fetcher: async (params) => {
+    fetcher: async (params, user) => {
       const { dojoId, startDate, endDate, q } = params;
       const dateGte = startDate ? new Date(startDate + "T00:00:00.000Z") : undefined;
       const dateLte = endDate ? new Date(endDate + "T23:59:59.999Z") : undefined;
@@ -430,6 +442,7 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
       const attendances = await prisma.attendance.findMany({
         where: {
           AND: [
+            { member: buildMemberFilter(user) },
             dojoId ? { dojoId } : {},
             dateGte || dateLte ? { checkInAt: { gte: dateGte, lte: dateLte } } : {},
             queryStr ? { member: { fullName: { contains: queryStr, mode: "insensitive" } } } : {},
@@ -475,15 +488,24 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
         { key: "paperSize", label: "Ukuran Kertas", defaultSelected: false, category: "Spesifikasi" },
       ],
     },
-    fetcher: async (params) => {
+    fetcher: async (params, user) => {
       const { startDate, endDate, q } = params;
+      const role = getPrimaryAdminRole(user.roles);
       const dateGte = startDate ? new Date(startDate + "T00:00:00.000Z") : undefined;
       const dateLte = endDate ? new Date(endDate + "T23:59:59.999Z") : undefined;
       const queryStr = q?.trim().toLowerCase() || "";
 
+      const scopeClause =
+        role === "ADMIN_DOJO" && user.managedDojoId
+          ? { scopeType: "DOJO", scopeId: user.managedDojoId }
+          : role === "ADMIN_BRANCH" && user.managedBranchId
+            ? { scopeType: "BRANCH", scopeId: user.managedBranchId }
+            : {};
+
       const surats = await prisma.suratEntry.findMany({
         where: {
           AND: [
+            scopeClause,
             dateGte || dateLte ? { tanggalSurat: { gte: dateGte, lte: dateLte } } : {},
             queryStr
               ? {
@@ -533,7 +555,7 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
         { key: "hasProof", label: "Dokumen Bukti", defaultSelected: false, category: "Verifikasi" },
       ],
     },
-    fetcher: async (params) => {
+    fetcher: async (params, user) => {
       const { startDate, endDate, q } = params;
       const dateGte = startDate ? new Date(startDate + "T00:00:00.000Z") : undefined;
       const dateLte = endDate ? new Date(endDate + "T23:59:59.999Z") : undefined;
@@ -542,6 +564,7 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
       const verifications = await prisma.verification.findMany({
         where: {
           AND: [
+            { member: buildMemberFilter(user) },
             dateGte || dateLte ? { createdAt: { gte: dateGte, lte: dateLte } } : {},
             queryStr ? { member: { fullName: { contains: queryStr, mode: "insensitive" } } } : {},
           ],
@@ -583,7 +606,7 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
         { key: "createdAt", label: "Tanggal Pesan", defaultSelected: true, category: "Sistem" },
       ],
     },
-    fetcher: async (params) => {
+    fetcher: async (params, user) => {
       const { startDate, endDate, q } = params;
       const dateGte = startDate ? new Date(startDate + "T00:00:00.000Z") : undefined;
       const dateLte = endDate ? new Date(endDate + "T23:59:59.999Z") : undefined;
@@ -592,6 +615,7 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
       const orders = await prisma.storeOrder.findMany({
         where: {
           AND: [
+            { member: buildMemberFilter(user) },
             dateGte || dateLte ? { createdAt: { gte: dateGte, lte: dateLte } } : {},
             queryStr ? { member: { fullName: { contains: queryStr, mode: "insensitive" } } } : {},
           ],
@@ -633,15 +657,22 @@ export const DOMAIN_REGISTRY: Record<string, DomainHandler> = {
         { key: "location", label: "Lokasi CDN", defaultSelected: false, category: "Keamanan" },
       ],
     },
-    fetcher: async (params) => {
+    fetcher: async (params, user) => {
       const { startDate, endDate, q } = params;
+      const role = getPrimaryAdminRole(user.roles);
       const dateGte = startDate ? new Date(startDate + "T00:00:00.000Z") : undefined;
       const dateLte = endDate ? new Date(endDate + "T23:59:59.999Z") : undefined;
       const queryStr = q?.trim().toLowerCase() || "";
 
+      const auditClause =
+        role === "ADMIN_DOJO"
+          ? { OR: [{ userId: user.id }, { email: user.email }] }
+          : {};
+
       const logs = await prisma.auditLog.findMany({
         where: {
           AND: [
+            auditClause,
             dateGte || dateLte ? { createdAt: { gte: dateGte, lte: dateLte } } : {},
             queryStr
               ? {

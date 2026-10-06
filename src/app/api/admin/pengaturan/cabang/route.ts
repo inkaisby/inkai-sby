@@ -51,6 +51,13 @@ export async function POST(request: Request) {
   }
 
   const role = getPrimaryAdminRole(authResult.user.roles);
+  if (role === "ADMIN_BRANCH") {
+    return NextResponse.json(
+      { error: "Akun admin cabang tidak dapat membuat cabang baru" },
+      { status: 403 },
+    );
+  }
+
   if (
     role === "ADMIN_PROVINCE" &&
     authResult.user.managedProvinceId &&
@@ -256,6 +263,13 @@ export async function DELETE(request: Request) {
   }
 
   const role = getPrimaryAdminRole(authResult.user.roles);
+  if (role === "ADMIN_BRANCH") {
+    return NextResponse.json(
+      { error: "Akun admin cabang tidak dapat mengarsipkan atau menghapus cabang" },
+      { status: 403 },
+    );
+  }
+
   const provinceFilter =
     role === "ADMIN_PROVINCE" && authResult.user.managedProvinceId
       ? { provinceId: authResult.user.managedProvinceId }

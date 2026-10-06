@@ -15,6 +15,7 @@ import {
   parsePage,
   parsePageSize,
 } from "@/components/admin/pengaturan/SettingsTableToolbar";
+import { getPrimaryAdminRole } from "@/lib/rbac";
 import { CabangSettingsManager } from "./CabangSettingsManager";
 import { SettingsLoadWarning } from "@/components/admin/pengaturan/SettingsLoadWarning";
 import { loadPrimaryEmailsByWilayah } from "@/lib/wilayah-accounts";
@@ -261,6 +262,7 @@ async function PengaturanCabangContent({
       />
 
       <CabangSettingsManager
+        userRole={getPrimaryAdminRole(user.roles)}
         adminsUnavailable={adminLoadFailed}
         provinces={provinces.map((p) => ({
           id: String(p.id),

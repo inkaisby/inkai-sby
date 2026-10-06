@@ -15,7 +15,7 @@ export const WILAYAH_JABATAN = [
   { value: "PENGURUS", label: "Pengurus" },
 ] as const;
 
-export type WilayahJabatan = (typeof WILAYAH_JABATAN)[number]["value"];
+export type WilayahJabatan = (typeof WILAYAH_JABATAN)[number]["value"] | string;
 
 export type WilayahHandover = {
   at: string;
@@ -27,7 +27,8 @@ export type WilayahHandover = {
 };
 
 type WilayahMeta = {
-  jabatanByUserId: Record<string, WilayahJabatan>;
+  jabatanByUserId: Record<string, string>;
+  bidangByUserId?: Record<string, string>;
   handovers: WilayahHandover[];
   grantsByUserId?: Record<string, unknown>;
   updatedAt?: string;
@@ -47,7 +48,7 @@ export function jabatanLabel(value: string | null | undefined) {
 }
 
 function emptyMeta(): WilayahMeta {
-  return { jabatanByUserId: {}, handovers: [], grantsByUserId: {} };
+  return { jabatanByUserId: {}, bidangByUserId: {}, handovers: [], grantsByUserId: {} };
 }
 
 function asMeta(value: unknown): WilayahMeta {
@@ -57,17 +58,24 @@ function asMeta(value: unknown): WilayahMeta {
     v.jabatanByUserId && typeof v.jabatanByUserId === "object"
       ? (v.jabatanByUserId as Record<string, unknown>)
       : {};
-  const jabatanByUserId: Record<string, WilayahJabatan> = {};
+  const jabatanByUserId: Record<string, string> = {};
   for (const [uid, jab] of Object.entries(rawMap)) {
-    if (
-      jab === "KETUA" ||
-      jab === "SEKRETARIS" ||
-      jab === "BENDAHARA" ||
-      jab === "PENGURUS"
-    ) {
+    if (typeof jab === "string" && jab.trim() !== "") {
       jabatanByUserId[uid] = jab;
     }
   }
+
+  const rawBidang =
+    v.bidangByUserId && typeof v.bidangByUserId === "object"
+      ? (v.bidangByUserId as Record<string, unknown>)
+      : {};
+  const bidangByUserId: Record<string, string> = {};
+  for (const [uid, bdg] of Object.entries(rawBidang)) {
+    if (typeof bdg === "string" && bdg.trim() !== "") {
+      bidangByUserId[uid] = bdg;
+    }
+  }
+
   const handovers = Array.isArray(v.handovers)
     ? (v.handovers as WilayahHandover[]).filter(
         (h) => h && typeof h === "object" && typeof h.toUserId === "string",
@@ -83,6 +91,7 @@ function asMeta(value: unknown): WilayahMeta {
   }
   return {
     jabatanByUserId,
+    bidangByUserId,
     handovers,
     grantsByUserId,
     updatedAt: typeof v.updatedAt === "string" ? v.updatedAt : undefined,
@@ -125,13 +134,38 @@ export async function setAccountJabatan(opts: {
   scope: WilayahScope;
   wilayahId: string;
   userId: string;
-  jabatan: WilayahJabatan | null;
+  jabatan: string | null;
+  bidang?: string | null;
 }) {
   const meta = await getWilayahMeta(opts.scope, opts.wilayahId);
   if (opts.jabatan) {
     meta.jabatanByUserId[opts.userId] = opts.jabatan;
   } else {
     delete meta.jabatanByUserId[opts.userId];
+  }
+  if (opts.bidang !== undefined) {
+    if (!meta.bidangByUserId) meta.bidangByUserId = {};
+    if (opts.bidang) {
+      meta.bidangByUserId[opts.userId] = opts.bidang;
+    } else {
+      delete meta.bidangByUserId[opts.userId];
+    }
+  }
+  await saveWilayahMeta(opts.scope, opts.wilayahId, meta);
+}
+
+export async function setAccountBidang(opts: {
+  scope: WilayahScope;
+  wilayahId: string;
+  userId: string;
+  bidang: string | null;
+}) {
+  const meta = await getWilayahMeta(opts.scope, opts.wilayahId);
+  if (!meta.bidangByUserId) meta.bidangByUserId = {};
+  if (opts.bidang) {
+    meta.bidangByUserId[opts.userId] = opts.bidang;
+  } else {
+    delete meta.bidangByUserId[opts.userId];
   }
   await saveWilayahMeta(opts.scope, opts.wilayahId, meta);
 }
@@ -222,7 +256,6 @@ export async function listWilayahAccounts(opts: {
           roles: { some: { name: "ADMIN_BRANCH" } },
         }
       : {
-          // Primary home — ekstra digabung di bawah
           managedDojoId: opts.wilayahId,
           roles: { some: { name: "ADMIN_DOJO" } },
         };
@@ -324,6 +357,7 @@ export async function listWilayahAccounts(opts: {
         managedDojoCount: managedDojoIds.length,
         jabatan: meta.jabatanByUserId[u.id] ?? null,
         jabatanLabel: jabatanLabel(meta.jabatanByUserId[u.id] ?? null),
+        bidang: meta.bidangByUserId?.[u.id] ?? null,
         adminGrantsRaw: meta.grantsByUserId?.[u.id] ?? null,
       };
     }),
@@ -338,6 +372,7 @@ export async function listWilayahAccounts(opts: {
         phoneNumber: p.phoneNumber,
         jabatan: meta.jabatanByUserId[p.id] ?? null,
         jabatanLabel: jabatanLabel(meta.jabatanByUserId[p.id] ?? null),
+        bidang: meta.bidangByUserId?.[p.id] ?? null,
       };
     })(),
   };

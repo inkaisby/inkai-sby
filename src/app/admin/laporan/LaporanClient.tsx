@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   History,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,11 +46,20 @@ type DomainItemMeta = {
   columnsMeta?: ColumnMeta[];
 };
 
+type UserScopeMeta = {
+  role: string;
+  scopeLabel: string;
+  isDojoScoped: boolean;
+  managedDojoId: string | null;
+  managedBranchId: string | null;
+};
+
 type ReportResponse = {
   success: boolean;
   domain: string;
   totalCount: number;
   columnsMeta: ColumnMeta[];
+  userScope?: UserScopeMeta;
   availableDomains?: DomainItemMeta[];
   data: Record<string, unknown>[];
 };
@@ -101,6 +111,7 @@ export function LaporanClient() {
   const [search, setSearch] = useState<string>("");
   const [dojos, setDojos] = useState<{ id: string; name: string }[]>([]);
   const [domains, setDomains] = useState<DomainItemMeta[]>(DEFAULT_DOMAINS);
+  const [userScope, setUserScope] = useState<UserScopeMeta | null>(null);
 
   useEffect(() => {
     void fetch("/api/public/dojos")
@@ -145,6 +156,13 @@ export function LaporanClient() {
       const data: ReportResponse = await res.json();
       if (res.ok && data.success) {
         setReportData(data);
+
+        if (data.userScope) {
+          setUserScope(data.userScope);
+          if (data.userScope.isDojoScoped && data.userScope.managedDojoId) {
+            setDojoId(data.userScope.managedDojoId);
+          }
+        }
 
         // Auto-detect dynamic domain list if provided
         if (data.availableDomains && Array.isArray(data.availableDomains)) {
@@ -326,7 +344,7 @@ export function LaporanClient() {
           <div>
             <div class="title">INSTITUT KARATE-DO INDONESIA (INKAI)</div>
             <div style="font-size: 12px; font-weight: bold;">PENGURUS CABANG KOTA SURABAYA</div>
-            <div class="meta">Laporan Resmi: <strong>${domainLabel.toUpperCase()}</strong> | Periode: ${startDate || "Awal"} s/d ${endDate || "Sekarang"}</div>
+            <div class="meta">Laporan Resmi: <strong>${domainLabel.toUpperCase()}</strong> | Scope: <strong>${userScope?.scopeLabel || "Cabang"}</strong> | Periode: ${startDate || "Awal"} s/d ${endDate || "Sekarang"}</div>
           </div>
           <div style="text-align: right;" class="meta">
             <div>Total Record: <strong>${sortedData.length} Baris</strong></div>
@@ -343,7 +361,7 @@ export function LaporanClient() {
           <div>* Dokumen ini dibuat otomatis melalui Portal Resmi INKAI Surabaya</div>
           <div class="sig-box">
             <p>Surabaya, ${new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</p>
-            <p style="font-weight: bold;">Pengurus Cabang Surabaya</p>
+            <p style="font-weight: bold;">Pengurus INKAI Surabaya</p>
             <br/><br/><br/>
             <p style="text-decoration: underline; font-weight: bold;">( Sekretariat INKAI SBY )</p>
           </div>
@@ -367,6 +385,7 @@ export function LaporanClient() {
     const domainLabel = currentDomainItem?.label || domain;
     const text = `*REKAP LAPORAN INKAI SURABAYA*\n` +
       `📌 *Domain:* ${domainLabel}\n` +
+      `🏛️ *Scope Akses:* ${userScope?.scopeLabel || "Cabang"}\n` +
       `📅 *Periode:* ${startDate || "Awal"} s/d ${endDate || "Sekarang"}\n` +
       `📊 *Total Record:* ${reportData.totalCount} Baris Data\n` +
       `⚙️ *Kolom Ditampilkan:* ${activeColumns.map((c) => c.label).join(", ")}\n\n` +
@@ -381,19 +400,22 @@ export function LaporanClient() {
       {/* Executive Header Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl border border-inkai-red/20 bg-gradient-to-r from-inkai-red/10 via-background to-muted/30">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-inkai-red text-white shadow-md">
               <FileSpreadsheet className="size-5" />
             </span>
             <h1 className="text-base sm:text-lg font-bold tracking-tight">
               Laporan Custom & Generator Kolom
             </h1>
-            <Badge variant="outline" className="ml-1 border-inkai-red/30 text-inkai-red bg-inkai-red/5 text-[10px]">
-              Multi-Domain Auto-Discovery
-            </Badge>
+            {userScope && (
+              <Badge variant="secondary" className="gap-1 text-[10px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
+                <Building2 className="h-3 w-3" />
+                <span>Scope: {userScope.scopeLabel}</span>
+              </Badge>
+            )}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Pilih domain laporan, atur kolom Cathlab interaktif, filter ranting & rentang tanggal, serta ekspor ke Excel/PDF.
+            Pilih domain laporan, atur kolom Cathlab interaktif, filter rentang tanggal, serta ekspor ke Excel/PDF sesuai hak akses wilayah.
           </p>
         </div>
 
@@ -458,12 +480,19 @@ export function LaporanClient() {
       {/* Control & Filter Toolbar */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 p-3 rounded-2xl border bg-card/60 shadow-sm text-xs">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Dojo Context Switcher */}
-          <DojoContextSwitcher
-            dojos={dojos}
-            value={dojoId}
-            onChange={(id: string) => setDojoId(id)}
-          />
+          {/* Dojo Context Switcher (Disabled / Locked if user is Dojo Scoped) */}
+          {!userScope?.isDojoScoped ? (
+            <DojoContextSwitcher
+              dojos={dojos}
+              value={dojoId}
+              onChange={(id: string) => setDojoId(id)}
+            />
+          ) : (
+            <Badge variant="outline" className="h-8 px-3 rounded-xl gap-1 text-xs border-inkai-red/30 text-inkai-red bg-inkai-red/5">
+              <Building2 className="h-3.5 w-3.5" />
+              <span>{dojos.find(d => d.id === userScope.managedDojoId)?.name || "Ranting Terkunci"}</span>
+            </Badge>
+          )}
 
           {/* Date Presets */}
           <div className="flex items-center gap-1 bg-muted/40 p-1 rounded-xl">
@@ -643,7 +672,7 @@ export function LaporanClient() {
           </div>
         ) : sortedData.length === 0 ? (
           <div className="p-12 text-center text-xs text-muted-foreground">
-            Tidak ada data ditemukan untuk kriteria filter ini.
+            Tidak ada data ditemukan untuk kriteria filter & scope wilayah ini.
           </div>
         ) : (
           <div className="overflow-x-auto">

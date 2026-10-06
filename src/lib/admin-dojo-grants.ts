@@ -3,34 +3,45 @@ import { getWilayahMeta, persistWilayahMeta } from "@/lib/wilayah-accounts";
 import type { NavItem } from "@/lib/dashboard-nav";
 import { isNavGroup } from "@/lib/dashboard-nav";
 
+export type CrudPermission = {
+  read: boolean;
+  create: boolean;
+  update: boolean;
+  delete: boolean;
+};
+
 export type AdminDojoGrants = {
   editProfile: boolean;
   crud: boolean;
   sidebarPaths: string[];
+  crudPermissions?: Record<string, CrudPermission>;
 };
 
-/** Menu sidebar yang bisa di-centang per admin ranting. */
+/** Menu sidebar yang bisa di-centang per admin wilayah/ranting. */
 export const ADMIN_DOJO_SIDEBAR_OPTIONS = [
   { path: "/admin", label: "Beranda Admin" },
   { path: "/admin/anggota", label: "Kelola Anggota" },
+  { path: "/admin/sekretaris", label: "Sekretariat & Persuratan" },
   { path: "/admin/verifikasi", label: "Verifikasi" },
   { path: "/admin/iuran", label: "Iuran Anggota" },
-  { path: "/admin/kas", label: "Kas" },
+  { path: "/admin/kas", label: "Kas Keuangan" },
   { path: "/admin/kwitansi", label: "Kwitansi" },
   { path: "/admin/kwitansi/arsip", label: "Kwitansi — Arsip" },
   { path: "/admin/ukt", label: "UKT — Pendaftaran" },
   { path: "/admin/ukt/arsip", label: "UKT — Arsip" },
   { path: "/admin/latber", label: "Latihan Bersama — Pendaftaran" },
   { path: "/admin/latber/arsip", label: "Latihan Bersama — Arsip" },
-  { path: "/admin/pertandingan", label: "Pertandingan — Pendaftaran & Roster" },
+  { path: "/admin/pertandingan", label: "Pertandingan — Roster & Pendaftaran" },
   { path: "/admin/pertandingan/kategori", label: "Pertandingan — Kategori Kelas" },
   { path: "/admin/kegiatan", label: "Event & Kegiatan" },
-  { path: "/admin/absensi", label: "Absensi" },
+  { path: "/admin/absensi", label: "Absensi GPS & Scan QR" },
+  { path: "/admin/laporan", label: "Laporan Custom & Generator Kolom" },
   { path: "/admin/materi", label: "Materi Digital" },
-  { path: "/admin/artikel", label: "Artikel" },
-  { path: "/admin/store", label: "Store" },
-  { path: "/admin/pesan", label: "Pesan" },
+  { path: "/admin/artikel", label: "Artikel & Berita" },
+  { path: "/admin/store", label: "Produk Store" },
+  { path: "/admin/pesan", label: "Pesan Inbox" },
   { path: "/admin/notifikasi", label: "Notifikasi" },
+  { path: "/admin/audit", label: "Log Audit Sistem" },
   { path: "/admin/pengaturan", label: "Pengaturan" },
 ] as const;
 
@@ -42,34 +53,59 @@ export const DEFAULT_ADMIN_DOJO_GRANTS: AdminDojoGrants = {
   editProfile: true,
   crud: true,
   sidebarPaths: [...DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS],
+  crudPermissions: {},
 };
 
 export const ADMIN_DOJO_GRANT_PRESETS = [
   {
-    id: "ketua",
-    label: "Ketua",
+    id: "full",
+    label: "Full Access",
     grants: DEFAULT_ADMIN_DOJO_GRANTS,
   },
   {
-    id: "sekretaris",
-    label: "Sekretaris",
+    id: "readonly",
+    label: "Hanya Lihat (Read-Only)",
+    grants: {
+      editProfile: false,
+      crud: false,
+      sidebarPaths: [...DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS],
+      crudPermissions: Object.fromEntries(
+        DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS.map((p) => [
+          p,
+          { read: true, create: false, update: false, delete: false },
+        ]),
+      ),
+    } satisfies AdminDojoGrants,
+  },
+  {
+    id: "keorganisasian",
+    label: "Bidang Keorganisasian",
     grants: {
       editProfile: true,
-      crud: false,
+      crud: true,
       sidebarPaths: [
         "/admin",
         "/admin/anggota",
         "/admin/verifikasi",
         "/admin/absensi",
-        "/admin/pesan",
         "/admin/notifikasi",
         "/admin/pengaturan",
       ],
+      crudPermissions: Object.fromEntries(
+        [
+          "/admin",
+          "/admin/anggota",
+          "/admin/verifikasi",
+          "/admin/absensi",
+          "/admin/notifikasi",
+          "/admin/pengaturan",
+        ].map((p) => [p, { read: true, create: true, update: true, delete: false }]),
+      ),
     } satisfies AdminDojoGrants,
   },
   {
-    id: "bendahara",
-    label: "Bendahara",
+    id: "keuangan",
+    label: "Bidang Keuangan",
     grants: {
       editProfile: true,
       crud: false,
@@ -81,129 +117,81 @@ export const ADMIN_DOJO_GRANT_PRESETS = [
         "/admin/kwitansi/arsip",
         "/admin/ukt",
         "/admin/latber",
-        "/admin/latber/arsip",
+        "/admin/laporan",
         "/admin/notifikasi",
         "/admin/pengaturan",
       ],
+      crudPermissions: Object.fromEntries(
+        [
+          "/admin",
+          "/admin/iuran",
+          "/admin/kas",
+          "/admin/kwitansi",
+          "/admin/kwitansi/arsip",
+          "/admin/ukt",
+          "/admin/latber",
+          "/admin/laporan",
+          "/admin/notifikasi",
+          "/admin/pengaturan",
+        ].map((p) => [p, { read: true, create: true, update: true, delete: false }]),
+      ),
+    } satisfies AdminDojoGrants,
+  },
+  {
+    id: "sekretariat",
+    label: "Bidang Sekretariat",
+    grants: {
+      editProfile: true,
+      crud: false,
+      sidebarPaths: [
+        "/admin",
+        "/admin/sekretaris",
+        "/admin/materi",
+        "/admin/artikel",
+        "/admin/pesan",
+        "/admin/notifikasi",
+      ],
+      crudPermissions: Object.fromEntries(
+        [
+          "/admin",
+          "/admin/sekretaris",
+          "/admin/materi",
+          "/admin/artikel",
+          "/admin/pesan",
+          "/admin/notifikasi",
+        ].map((p) => [p, { read: true, create: true, update: true, delete: false }]),
+      ),
+    } satisfies AdminDojoGrants,
+  },
+  {
+    id: "pertandingan",
+    label: "Bidang Kejuaraan & UKT",
+    grants: {
+      editProfile: true,
+      crud: true,
+      sidebarPaths: [
+        "/admin",
+        "/admin/ukt",
+        "/admin/latber",
+        "/admin/pertandingan",
+        "/admin/pertandingan/kategori",
+        "/admin/kegiatan",
+        "/admin/laporan",
+      ],
+      crudPermissions: Object.fromEntries(
+        [
+          "/admin",
+          "/admin/ukt",
+          "/admin/latber",
+          "/admin/pertandingan",
+          "/admin/pertandingan/kategori",
+          "/admin/kegiatan",
+          "/admin/laporan",
+        ].map((p) => [p, { read: true, create: true, update: true, delete: true }]),
+      ),
     } satisfies AdminDojoGrants,
   },
 ] as const;
-
-const ABSENSI_PATH = "/admin/absensi";
-const KWITANSI_PATH = "/admin/kwitansi";
-const KWITANSI_ARSIP_PATH = "/admin/kwitansi/arsip";
-const KAS_PATH = "/admin/kas";
-const LATBER_PATHS = ["/admin/latber", "/admin/latber/arsip"] as const;
-
-/** Default lama sebelum Absensi masuk opsi sidebar (untuk soft-backfill). */
-const LEGACY_DEFAULT_WITHOUT_ABSENSI = DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS.filter(
-  (p) =>
-    p !== ABSENSI_PATH &&
-    p !== KWITANSI_PATH &&
-    p !== KWITANSI_ARSIP_PATH &&
-    p !== KAS_PATH,
-);
-
-/** Default lama sebelum Kwitansi masuk opsi sidebar (untuk soft-backfill). */
-const LEGACY_DEFAULT_WITHOUT_KWITANSI = DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS.filter(
-  (p) => p !== KWITANSI_PATH && p !== KWITANSI_ARSIP_PATH && p !== KAS_PATH,
-);
-
-const LEGACY_DEFAULT_WITHOUT_KAS = DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS.filter(
-  (p) => p !== KAS_PATH,
-);
-
-function samePathSet(a: string[], b: string[]) {
-  if (a.length !== b.length) return false;
-  const set = new Set(a);
-  return b.every((p) => set.has(p));
-}
-
-/** Grant full-default lama tanpa Absensi → tambah Absensi; uncentang sengaja tidak dipaksa. */
-function softBackfillAbsensi(paths: string[]): string[] {
-  if (paths.includes(ABSENSI_PATH)) return paths;
-  if (samePathSet(paths, LEGACY_DEFAULT_WITHOUT_ABSENSI)) {
-    return [...paths, ABSENSI_PATH];
-  }
-  return paths;
-}
-
-/** Akun lama dengan UKT tapi belum path Latihan Bersama → tambahkan otomatis. */
-function softBackfillLatber(paths: string[]): string[] {
-  const hasUkt = paths.includes("/admin/ukt") || paths.includes("/admin/ukt/arsip");
-  const hasLatber = LATBER_PATHS.every((p) => paths.includes(p));
-  if (!hasUkt || hasLatber) return paths;
-  const next = [...paths];
-  for (const p of LATBER_PATHS) {
-    if (!next.includes(p)) next.push(p);
-  }
-  return next;
-}
-
-/** Grant full-default lama tanpa Kwitansi → tambah Kwitansi + Arsip; uncentang sengaja tidak dipaksa. */
-function softBackfillKwitansi(paths: string[]): string[] {
-  let next = [...paths];
-  if (
-    !next.includes(KWITANSI_PATH) &&
-    (samePathSet(paths, LEGACY_DEFAULT_WITHOUT_KWITANSI) ||
-      samePathSet(paths, LEGACY_DEFAULT_WITHOUT_ABSENSI))
-  ) {
-    next.push(KWITANSI_PATH);
-  }
-  // Bendahara lama yang punya iuran tapi belum kwitansi
-  if (!next.includes(KWITANSI_PATH) && paths.includes("/admin/iuran")) {
-    const bendaharaCore = [
-      "/admin",
-      "/admin/iuran",
-      "/admin/ukt",
-      "/admin/latber",
-      "/admin/latber/arsip",
-      "/admin/notifikasi",
-      "/admin/pengaturan",
-    ];
-    if (samePathSet(paths, bendaharaCore)) {
-      next = [...next, KWITANSI_PATH];
-    }
-  }
-  // Sudah punya pembuatan → ikutkan arsip
-  if (next.includes(KWITANSI_PATH) && !next.includes(KWITANSI_ARSIP_PATH)) {
-    next.push(KWITANSI_ARSIP_PATH);
-  }
-  return next;
-}
-
-function softBackfillKas(paths: string[]): string[] {
-  if (paths.includes(KAS_PATH)) return paths;
-  if (samePathSet(paths, LEGACY_DEFAULT_WITHOUT_KAS)) {
-    return [...paths, KAS_PATH];
-  }
-  const bendaharaWithoutKas = [
-    "/admin",
-    "/admin/iuran",
-    "/admin/kwitansi",
-    "/admin/kwitansi/arsip",
-    "/admin/ukt",
-    "/admin/latber",
-    "/admin/latber/arsip",
-    "/admin/notifikasi",
-    "/admin/pengaturan",
-  ];
-  if (samePathSet(paths, bendaharaWithoutKas)) {
-    return [...paths, KAS_PATH];
-  }
-  return paths;
-}
-
-function softBackfillPertandingan(paths: string[]): string[] {
-  const PERTANDINGAN_PATHS = ["/admin/pertandingan", "/admin/pertandingan/kategori"];
-  const hasPertandingan = PERTANDINGAN_PATHS.every((p) => paths.includes(p));
-  if (hasPertandingan) return paths;
-  const next = [...paths];
-  for (const p of PERTANDINGAN_PATHS) {
-    if (!next.includes(p)) next.push(p);
-  }
-  return next;
-}
 
 function normalizeSidebarPaths(paths: unknown): string[] {
   if (!Array.isArray(paths)) return [...DEFAULT_ADMIN_DOJO_SIDEBAR_PATHS];
@@ -214,12 +202,27 @@ function normalizeSidebarPaths(paths: unknown): string[] {
       out.push(p);
     }
   }
-  const normalized = out.length ? out : ["/admin"];
-  return softBackfillPertandingan(
-    softBackfillKas(
-      softBackfillKwitansi(softBackfillLatber(softBackfillAbsensi(normalized))),
-    ),
-  );
+  return out.length ? out : ["/admin"];
+}
+
+function normalizeCrudPermissions(
+  rawPerms: unknown,
+): Record<string, CrudPermission> {
+  if (!rawPerms || typeof rawPerms !== "object") return {};
+  const map = rawPerms as Record<string, unknown>;
+  const out: Record<string, CrudPermission> = {};
+  for (const [path, val] of Object.entries(map)) {
+    if (val && typeof val === "object") {
+      const v = val as Record<string, unknown>;
+      out[path] = {
+        read: v.read !== false,
+        create: Boolean(v.create),
+        update: Boolean(v.update),
+        delete: Boolean(v.delete),
+      };
+    }
+  }
+  return out;
 }
 
 export function parseAdminDojoGrants(raw: unknown): AdminDojoGrants | null {
@@ -229,15 +232,19 @@ export function parseAdminDojoGrants(raw: unknown): AdminDojoGrants | null {
     editProfile: v.editProfile !== false,
     crud: v.crud !== false,
     sidebarPaths: normalizeSidebarPaths(v.sidebarPaths),
+    crudPermissions: normalizeCrudPermissions(v.crudPermissions),
   };
 }
 
-export function adminDojoGrantsFromInput(input?: Partial<AdminDojoGrants> | null): AdminDojoGrants {
+export function adminDojoGrantsFromInput(
+  input?: Partial<AdminDojoGrants> | Record<string, any> | null,
+): AdminDojoGrants {
   if (!input) return { ...DEFAULT_ADMIN_DOJO_GRANTS };
   return {
     editProfile: input.editProfile !== false,
     crud: input.crud !== false,
     sidebarPaths: normalizeSidebarPaths(input.sidebarPaths),
+    crudPermissions: normalizeCrudPermissions(input.crudPermissions),
   };
 }
 
@@ -247,7 +254,9 @@ export async function getAdminDojoGrants(
 ): Promise<AdminDojoGrants> {
   const meta = await getWilayahMeta("dojo", dojoId);
   const stored = meta.grantsByUserId?.[userId];
-  return stored ? adminDojoGrantsFromInput(parseAdminDojoGrants(stored) ?? undefined) : { ...DEFAULT_ADMIN_DOJO_GRANTS };
+  return stored
+    ? adminDojoGrantsFromInput(parseAdminDojoGrants(stored) ?? undefined)
+    : { ...DEFAULT_ADMIN_DOJO_GRANTS };
 }
 
 export async function setAdminDojoGrants(
@@ -263,18 +272,25 @@ export async function setAdminDojoGrants(
   await persistWilayahMeta("dojo", dojoId, meta);
 }
 
-/** Grants untuk sesi admin ranting (primary managed dojo). Null jika bukan ADMIN_DOJO. */
+/** Grants untuk sesi admin ranting/cabang. Null jika bukan admin. */
 export async function loadAdminDojoGrantsForUser(
   user: SessionUser,
 ): Promise<AdminDojoGrants | null> {
-  if (getPrimaryAdminRole(user.roles) !== "ADMIN_DOJO") return null;
-  const dojoId =
-    user.managedDojoId ??
-    (user.managedDojoIds && user.managedDojoIds.length > 0
-      ? user.managedDojoIds[0]
-      : null);
-  if (!dojoId) return { ...DEFAULT_ADMIN_DOJO_GRANTS };
-  return getAdminDojoGrants(dojoId, user.id);
+  const role = getPrimaryAdminRole(user.roles);
+  if (role === "ADMINISTRATOR" || role === "ADMIN_PUSAT") return null;
+
+  const wilayahId =
+    role === "ADMIN_BRANCH"
+      ? user.managedBranchId
+      : user.managedDojoId ?? user.managedDojoIds?.[0];
+
+  if (!wilayahId) return { ...DEFAULT_ADMIN_DOJO_GRANTS };
+  const scope = role === "ADMIN_BRANCH" ? "branch" : "dojo";
+  const meta = await getWilayahMeta(scope, wilayahId);
+  const stored = meta.grantsByUserId?.[user.id];
+  return stored
+    ? adminDojoGrantsFromInput(parseAdminDojoGrants(stored) ?? undefined)
+    : { ...DEFAULT_ADMIN_DOJO_GRANTS };
 }
 
 export function isAdminPathAllowedByGrants(
@@ -299,8 +315,7 @@ export function filterNavByAdminDojoGrants(
 ): NavItem[] {
   const allowed = new Set(grants.sidebarPaths);
   const keep = (href: string) =>
-    allowed.has(href) ||
-    [...allowed].some((p) => href.startsWith(`${p}/`));
+    allowed.has(href) || [...allowed].some((p) => href.startsWith(`${p}/`));
 
   return items
     .map((item) => {
@@ -314,14 +329,27 @@ export function filterNavByAdminDojoGrants(
     .filter(Boolean) as NavItem[];
 }
 
-export function grantsAllowEditProfile(grants: AdminDojoGrants | null | undefined) {
-  if (!grants) return true;
-  return grants.editProfile;
-}
-
-export function grantsAllowCrud(grants: AdminDojoGrants | null | undefined) {
-  if (!grants) return true;
-  return grants.crud;
+export function getModuleCrudPermission(
+  grants: AdminDojoGrants | null | undefined,
+  modulePath: string,
+): CrudPermission {
+  if (!grants) {
+    return { read: true, create: true, update: true, delete: true };
+  }
+  const isEnabled = grants.sidebarPaths.includes(modulePath);
+  if (!isEnabled) {
+    return { read: false, create: false, update: false, delete: false };
+  }
+  const explicit = grants.crudPermissions?.[modulePath];
+  if (explicit) {
+    return explicit;
+  }
+  return {
+    read: true,
+    create: grants.crud,
+    update: grants.crud,
+    delete: grants.crud,
+  };
 }
 
 export function summarizeAdminDojoGrants(
@@ -361,10 +389,10 @@ export function adminDojoGrantBlocksMemberAction(
 ): string | null {
   if (!grants) return null;
   if (EDIT_PROFILE_ACTIONS.has(action) && !grants.editProfile) {
-    return "Akun admin ranting Anda tidak diizinkan mengedit profil anggota";
+    return "Akun pengurus Anda tidak diizinkan mengedit profil anggota";
   }
   if (CRUD_ACTIONS.has(action) && !grants.crud) {
-    return "Akun admin ranting Anda tidak diizinkan CRUD anggota";
+    return "Akun pengurus Anda tidak diizinkan CRUD anggota";
   }
   return null;
 }

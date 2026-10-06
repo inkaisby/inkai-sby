@@ -110,7 +110,13 @@ export function canManageUsers(user: SessionUser) {
 
 export function canManageBranches(user: SessionUser) {
   const role = getPrimaryAdminRole(user.roles);
-  return ["ADMINISTRATOR", "ADMIN_PUSAT", "ADMIN_PROVINCE", "ADMIN"].includes(role);
+  return [
+    "ADMINISTRATOR",
+    "ADMIN_PUSAT",
+    "ADMIN_PROVINCE",
+    "ADMIN_BRANCH",
+    "ADMIN",
+  ].includes(role);
 }
 
 export function canManageRanting(user: SessionUser) {

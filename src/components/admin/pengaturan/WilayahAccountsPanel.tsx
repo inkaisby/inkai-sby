@@ -45,6 +45,15 @@ const JABATAN_OPTIONS = [
   { value: "PENGURUS", label: "Pengurus" },
 ] as const;
 
+const BIDANG_PRESETS = [
+  "Bidang Keorganisasian",
+  "Bidang Pembinaan & Prestasi",
+  "Bidang Keuangan",
+  "Bidang Sekretariat",
+  "Bidang Perwasitan",
+  "Bidang Sarpras",
+] as const;
+
 type AccountRow = {
   id: string;
   email: string;
@@ -58,6 +67,7 @@ type AccountRow = {
   managedDojoCount?: number;
   jabatan: string | null;
   jabatanLabel: string | null;
+  bidang?: string | null;
   adminGrants?: AdminDojoGrants | null;
   createdAt: string;
 };
@@ -71,6 +81,7 @@ type PrimaryContact = {
   phoneNumber: string | null;
   jabatan: string | null;
   jabatanLabel: string | null;
+  bidang?: string | null;
 } | null;
 
 type HandoverRow = {
@@ -104,6 +115,7 @@ export function WilayahAccountsPanel({
   const [promoteOpen, setPromoteOpen] = useState(false);
   const [promoteEmail, setPromoteEmail] = useState("");
   const [promoteJabatan, setPromoteJabatan] = useState("KETUA");
+  const [promoteBidang, setPromoteBidang] = useState("");
   const [promoteSetPrimary, setPromoteSetPrimary] = useState(false);
   const [promoteGrants, setPromoteGrants] = useState<AdminDojoGrants>({
     ...DEFAULT_ADMIN_DOJO_GRANTS,
@@ -134,6 +146,7 @@ export function WilayahAccountsPanel({
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [setAsPrimary, setSetAsPrimary] = useState(false);
   const [jabatan, setJabatan] = useState<string>("PENGURUS");
+  const [bidang, setBidang] = useState("");
   const [addGrants, setAddGrants] = useState<AdminDojoGrants>({
     ...DEFAULT_ADMIN_DOJO_GRANTS,
   });
@@ -181,6 +194,7 @@ export function WilayahAccountsPanel({
     setPasswordConfirm(pw);
     setSetAsPrimary(accounts.length === 0);
     setJabatan(accounts.length === 0 ? "KETUA" : "PENGURUS");
+    setBidang("");
     setAddGrants({ ...DEFAULT_ADMIN_DOJO_GRANTS });
   }
 
@@ -206,7 +220,8 @@ export function WilayahAccountsPanel({
         passwordConfirm,
         setAsPrimary,
         jabatan,
-        adminGrants: scope === "dojo" ? addGrants : undefined,
+        bidang: bidang.trim() || undefined,
+        adminGrants: addGrants,
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -236,6 +251,7 @@ export function WilayahAccountsPanel({
       | "set_primary"
       | "reset_password"
       | "set_jabatan"
+      | "set_bidang"
       | "handover"
       | "change_email"
       | "set_managed_dojos"
@@ -336,6 +352,7 @@ export function WilayahAccountsPanel({
         action: "promote_existing",
         linkEmail: promoteEmail.trim().toLowerCase(),
         jabatan: promoteJabatan || null,
+        bidang: promoteBidang.trim() || null,
         setAsPrimary: promoteSetPrimary,
         adminGrants: promoteGrants,
       }),
@@ -346,6 +363,7 @@ export function WilayahAccountsPanel({
       showSuccess(data.message || `Admin ${label} ditambahkan`);
       setPromoteOpen(false);
       setPromoteEmail("");
+      setPromoteBidang("");
       setPromoteGrants({ ...DEFAULT_ADMIN_DOJO_GRANTS });
       void load();
     } else {
@@ -426,6 +444,7 @@ export function WilayahAccountsPanel({
             {primaryContact.jabatanLabel
               ? ` · ${primaryContact.jabatanLabel}`
               : ""}
+            {primaryContact.bidang ? ` · ${primaryContact.bidang}` : ""}
             {" · "}
             <span className="font-mono text-xs">{primaryContact.email}</span>
             {primaryContact.phoneNumber
@@ -461,6 +480,7 @@ export function WilayahAccountsPanel({
                 setPromoteOpen(true);
                 setPromoteEmail("");
                 setPromoteJabatan(accounts.length === 0 ? "KETUA" : "PENGURUS");
+                setPromoteBidang("");
                 setPromoteSetPrimary(accounts.length === 0);
                 setPromoteGrants({ ...DEFAULT_ADMIN_DOJO_GRANTS });
               }}
@@ -524,6 +544,7 @@ export function WilayahAccountsPanel({
                   setPromoteOpen(true);
                   setPromoteEmail("");
                   setPromoteJabatan("KETUA");
+                  setPromoteBidang("");
                   setPromoteSetPrimary(true);
                   setPromoteGrants({ ...DEFAULT_ADMIN_DOJO_GRANTS });
                 }}
@@ -577,6 +598,14 @@ export function WilayahAccountsPanel({
                   {a.jabatanLabel ? (
                     <Badge variant="secondary">{a.jabatanLabel}</Badge>
                   ) : null}
+                  {a.bidang ? (
+                    <Badge
+                      variant="outline"
+                      className="border-sky-500/40 text-sky-700 dark:text-sky-300"
+                    >
+                      {a.bidang}
+                    </Badge>
+                  ) : null}
                   {(scope === "dojo" || scope === "branch") ? (
                     <Badge
                       variant={a.memberId ? "default" : "outline"}
@@ -586,7 +615,7 @@ export function WilayahAccountsPanel({
                       {accountType(a).label}
                     </Badge>
                   ) : null}
-                  {scope === "dojo" ? (
+                  {(scope === "dojo" || scope === "branch") ? (
                     <>
                       <Badge
                         variant={grantSummary(a).editProfile ? "secondary" : "outline"}
@@ -630,26 +659,49 @@ export function WilayahAccountsPanel({
                     ))}
                   </p>
                 ) : null}
-                <select
-                  className="h-7 max-w-[11rem] rounded border bg-background px-1.5 text-xs"
-                  value={a.jabatan || ""}
-                  disabled={busy}
-                  onChange={(e) =>
-                    void patch(a.id, "set_jabatan", {
-                      jabatan: e.target.value || null,
-                    })
-                  }
-                >
-                  <option value="">Tanpa jabatan</option>
-                  {JABATAN_OPTIONS.map((j) => (
-                    <option key={j.value} value={j.value}>
-                      {j.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <select
+                    className="h-7 max-w-[9rem] rounded border bg-background px-1.5 text-xs"
+                    value={a.jabatan || ""}
+                    disabled={busy}
+                    onChange={(e) =>
+                      void patch(a.id, "set_jabatan", {
+                        jabatan: e.target.value || null,
+                        bidang: a.bidang || null,
+                      })
+                    }
+                  >
+                    <option value="">Tanpa jabatan</option>
+                    {JABATAN_OPTIONS.map((j) => (
+                      <option key={j.value} value={j.value}>
+                        {j.label}
+                      </option>
+                    ))}
+                  </select>
+                  <Input
+                    className="h-7 w-44 text-xs"
+                    placeholder="Bidang (mis. Keorganisasian)"
+                    defaultValue={a.bidang || ""}
+                    key={`${a.id}-${a.bidang || "none"}`}
+                    disabled={busy}
+                    onBlur={(e) => {
+                      const val = e.target.value.trim() || null;
+                      if (val !== (a.bidang || null)) {
+                        void patch(a.id, "set_bidang", {
+                          bidang: val,
+                        });
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                  />
+                </div>
               </div>
               <div className="flex flex-wrap gap-1">
-                {scope === "dojo" ? (
+                {(scope === "dojo" || scope === "branch") ? (
                   <Button
                     type="button"
                     size="sm"
@@ -663,7 +715,7 @@ export function WilayahAccountsPanel({
                         ),
                       );
                     }}
-                    title="Hak akses admin"
+                    title="Hak akses & izin CRUD menu sidebar"
                   >
                     <Shield className="h-3.5 w-3.5" />
                   </Button>
@@ -765,7 +817,7 @@ export function WilayahAccountsPanel({
       ) : null}
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Tambah akun — {wilayahName}</DialogTitle>
             <DialogDescription>
@@ -796,19 +848,41 @@ export function WilayahAccountsPanel({
                 onChange={(e) => setPhoneNumber(e.target.value)}
               />
             </div>
-            <div className="space-y-1">
-              <Label>Jabatan</Label>
-              <select
-                className="h-8 w-full rounded-lg border px-2 text-sm"
-                value={jabatan}
-                onChange={(e) => setJabatan(e.target.value)}
-              >
-                {JABATAN_OPTIONS.map((j) => (
-                  <option key={j.value} value={j.value}>
-                    {j.label}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label>Jabatan</Label>
+                <select
+                  className="h-9 w-full rounded-lg border bg-background px-2 text-sm"
+                  value={jabatan}
+                  onChange={(e) => setJabatan(e.target.value)}
+                >
+                  {JABATAN_OPTIONS.map((j) => (
+                    <option key={j.value} value={j.value}>
+                      {j.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label>Bidang (opsional)</Label>
+                <Input
+                  placeholder="mis. Keorganisasian"
+                  value={bidang}
+                  onChange={(e) => setBidang(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {BIDANG_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  className="rounded border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => setBidang(preset)}
+                >
+                  + {preset}
+                </button>
+              ))}
             </div>
             <div className="space-y-1">
               <Label>Password</Label>
@@ -832,7 +906,7 @@ export function WilayahAccountsPanel({
               />
               Jadikan PIC utama (kontak resmi & notifikasi prioritas)
             </label>
-            {scope === "dojo" ? (
+            {(scope === "dojo" || scope === "branch") ? (
               <AdminDojoGrantsEditor
                 value={addGrants}
                 onChange={setAddGrants}
@@ -1104,19 +1178,41 @@ export function WilayahAccountsPanel({
                 autoComplete="off"
               />
             </div>
-            <div className="space-y-1">
-              <Label>Jabatan</Label>
-              <select
-                className="h-9 w-full rounded-lg border bg-background px-2 text-sm"
-                value={promoteJabatan}
-                onChange={(e) => setPromoteJabatan(e.target.value)}
-              >
-                {JABATAN_OPTIONS.map((j) => (
-                  <option key={j.value} value={j.value}>
-                    {j.label}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label>Jabatan</Label>
+                <select
+                  className="h-9 w-full rounded-lg border bg-background px-2 text-sm"
+                  value={promoteJabatan}
+                  onChange={(e) => setPromoteJabatan(e.target.value)}
+                >
+                  {JABATAN_OPTIONS.map((j) => (
+                    <option key={j.value} value={j.value}>
+                      {j.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label>Bidang (opsional)</Label>
+                <Input
+                  placeholder="mis. Keorganisasian"
+                  value={promoteBidang}
+                  onChange={(e) => setPromoteBidang(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {BIDANG_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  className="rounded border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  onClick={() => setPromoteBidang(preset)}
+                >
+                  + {preset}
+                </button>
+              ))}
             </div>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -1126,7 +1222,7 @@ export function WilayahAccountsPanel({
               />
               Jadikan PIC utama {label} ini
             </label>
-            {scope === "dojo" ? (
+            {(scope === "dojo" || scope === "branch") ? (
               <AdminDojoGrantsEditor
                 value={promoteGrants}
                 onChange={setPromoteGrants}
@@ -1157,7 +1253,7 @@ export function WilayahAccountsPanel({
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Hak akses admin ranting</DialogTitle>
+            <DialogTitle>Hak akses &amp; izin CRUD menu sidebar</DialogTitle>
             <DialogDescription>
               {grantsTarget?.fullName || grantsTarget?.email} —{" "}
               <span className="font-mono text-xs">{grantsTarget?.email}</span>
