@@ -12,6 +12,7 @@ export type KasSourceType =
   | "ukt"
   | "latber"
   | "event"
+  | "wasit_juri"
   | "kwitansi"
   | "void";
 

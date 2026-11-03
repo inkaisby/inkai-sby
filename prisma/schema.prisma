@@ -62,6 +62,7 @@ model Dojo {
   members                 Member[]
   admins                  User[]                   @relation("DojoAdmin")
   tournamentRegistrations TournamentRegistration[]
+  wasitJuriRegistrations  WasitJuriRegistration[]
 
   @@unique([name, branchId])
 }
@@ -199,6 +200,7 @@ model Member {
   billings              Billing[]
   eventRegistrations    EventRegistration[]
   tournamentRegistrations TournamentRegistration[]
+  wasitJuriRegistrations  WasitJuriRegistration[]
   dojo                  Dojo                @relation(fields: [dojoId], references: [id])
   parentUser            User?               @relation("ParentChildren", fields: [parentUserId], references: [id])
   user                  User?               @relation(fields: [userId], references: [id])
@@ -724,5 +726,68 @@ model NotulenRapat {
   updatedAt     DateTime  @updatedAt
 
   @@index([scopeType, scopeId, tanggalRapat])
+}
+
+/// Periode penataran, ujian lisensi, atau refreshing Wasit & Juri.
+model WasitJuriPeriod {
+  id            String                  @id @default(uuid())
+  title         String
+  levelScope    String                  @default("Cabang")
+  theoryDate    DateTime                @db.Date
+  practicalDate DateTime                @db.Date
+  closeDate     DateTime                @db.Date
+  location      String
+  quota         Int                     @default(50)
+  feeNew        Int                     @default(350000)
+  feeUpgrade    Int                     @default(300000)
+  feeRefreshing Int                     @default(200000)
+  isArchived    Boolean                 @default(false)
+  archivedAt    DateTime?               @db.Date
+  branchId      String?
+  createdById   String?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  registrations WasitJuriRegistration[]
+
+  @@index([isArchived, practicalDate])
+  @@index([branchId, isArchived])
+}
+
+/// Pendaftaran peserta sertifikasi Wasit & Juri (terhubung ke Member & Dojo).
+model WasitJuriRegistration {
+  id                 String          @id @default(uuid())
+  periodId           String
+  memberId           String
+  dojoId             String
+  registeredByUserId String?
+  danRankSnapshot    String          @default("DAN I")
+  mshNumberSnapshot  String?
+  submissionType     String          @default("BARU")
+  currentLicense     String?
+  targetGrade        String          @default("JURI_B")
+  discipline         String          @default("KATA_KUMITE")
+  feeAmount          Int             @default(350000)
+  paymentState       String          @default("BELUM_BAYAR")
+  paymentMethod      String?         @default("TRANSFER")
+  proofUrl           String?
+  danCertificateUrl  String?
+  licenseCertUrl     String?
+  status             String          @default("MENUNGGU_BERKAS")
+  scoreTeoriKata     Int?
+  scoreTeoriKumite   Int?
+  scorePraktik       Int?
+  grantedLicense     String?
+  licenseValidUntil  DateTime?       @db.Date
+  notes              String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  period             WasitJuriPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  member             Member          @relation(fields: [memberId], references: [id])
+  dojo               Dojo            @relation(fields: [dojoId], references: [id])
+
+  @@unique([periodId, memberId])
+  @@index([periodId, dojoId])
+  @@index([memberId])
+  @@index([periodId, status])
 }
 

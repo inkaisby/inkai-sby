@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === "development";
+const isProd = process.env.NODE_ENV === "production";
 
 const csp = [
   "default-src 'self'",
@@ -41,6 +42,13 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["exceljs"],
+  typescript: {
+    tsconfigPath: isProd ? "tsconfig.build.json" : "tsconfig.json",
+  },
+  experimental: {
+    turbopackFileSystemCacheForBuild: true,
+    optimizePackageImports: ["radix-ui"],
+  },
   images: {
     remotePatterns: [
       {

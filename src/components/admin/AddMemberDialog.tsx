@@ -23,11 +23,23 @@ import { showError, showSuccess } from "@/lib/client-toast";
 
 export type AddMemberDojoOption = { id: string; name: string };
 
+export type CreatedMemberSummary = {
+  id?: string;
+  fullName: string;
+  nia: string;
+  mshNumber: string;
+  currentRank: string;
+  birthDate: string;
+  dojoId: string;
+  dojoName: string;
+};
+
 const emptyForm = (
   dojoId = "",
-  currentRank = DEFAULT_MEMBER_RANK,
+  currentRank: string = DEFAULT_MEMBER_RANK,
+  fullName = "",
 ): MemberFormFields & { dojoId: string } => ({
-  fullName: "",
+  fullName,
   gender: "",
   birthPlace: "",
   birthDate: "",
@@ -46,29 +58,37 @@ export function AddMemberDialog({
   dojos = [],
   defaultDojoId = "",
   lockDojo = false,
+  initialFullName = "",
+  defaultRank = DEFAULT_MEMBER_RANK,
   apiPath = "/api/admin/members",
   onSuccess,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   dojos?: AddMemberDojoOption[];
   defaultDojoId?: string;
   lockDojo?: boolean;
+  initialFullName?: string;
+  defaultRank?: string;
   apiPath?: string;
   onSuccess?: () => void;
+  onCreated?: (member: CreatedMemberSummary) => void;
 }) {
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState(() => emptyForm(defaultDojoId));
+  const [form, setForm] = useState(() =>
+    emptyForm(defaultDojoId, defaultRank, initialFullName),
+  );
   const [suggestions, setSuggestions] = useState<MemberFormSuggestion[]>([]);
   const [duplicateBlocked, setDuplicateBlocked] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setForm(emptyForm(defaultDojoId));
+      setForm(emptyForm(defaultDojoId, defaultRank, initialFullName));
       setSuggestions([]);
       setDuplicateBlocked(false);
     }
-  }, [open, defaultDojoId]);
+  }, [open, defaultDojoId, defaultRank, initialFullName]);
 
   useEffect(() => {
     if (!open) return;
@@ -157,7 +177,11 @@ export function AddMemberDialog({
           dojoId: form.dojoId || defaultDojoId || undefined,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        id?: string;
+        member?: { id?: string };
+      };
       if (!res.ok) {
         const msg = data.error || "Gagal menambahkan anggota";
         showError(
@@ -167,8 +191,19 @@ export function AddMemberDialog({
         );
         return;
       }
+      const matchedDojo = dojos.find((d) => d.id === resolvedDojo);
       showSuccess("Anggota berhasil ditambahkan");
       onOpenChange(false);
+      onCreated?.({
+        id: data.member?.id ?? data.id,
+        fullName: form.fullName.trim().toUpperCase(),
+        nia: form.nia.trim().toUpperCase(),
+        mshNumber: form.mshNumber.replace(/\s+/g, "").trim().toUpperCase(),
+        currentRank: form.currentRank || DEFAULT_MEMBER_RANK,
+        birthDate: form.birthDate,
+        dojoId: resolvedDojo,
+        dojoName: matchedDojo?.name ?? "",
+      });
       onSuccess?.();
     } catch {
       showError("Gagal menambahkan anggota");

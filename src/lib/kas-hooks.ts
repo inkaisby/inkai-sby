@@ -3,8 +3,10 @@ import { isLatberEventTitle } from "@/lib/latber";
 import { ymdWib } from "@/lib/kas";
 import { formatLatberKasKegiatan, formatUktKasKegiatan } from "@/lib/kas-kegiatan";
 import {
+  KasPeriodLockedError,
   postKasEntry,
   resolveDojoBranchScope,
+  resolveKasScope,
   voidKasBySource,
 } from "@/lib/kas-store";
 
@@ -203,6 +205,72 @@ export async function voidKasFromBilling(billingId: string, userId?: string) {
   await voidKasBySource({ sourceType: "latber", sourceId: `${billingId}:ranting`, actorUserId: userId });
   await voidKasBySource({ sourceType: "event", sourceId: `${billingId}:cabang`, actorUserId: userId });
   await voidKasBySource({ sourceType: "event", sourceId: `${billingId}:ranting`, actorUserId: userId });
+}
+
+export async function postKasFromWasitJuriPaid(opts: {
+  user: SessionUser;
+  registrationId: string;
+  feeAmount: number;
+  submissionType: string;
+  paymentMethod?: string | null;
+  memberName: string;
+  memberNia?: string | null;
+  periodTitle: string;
+  dojoId: string;
+}): Promise<{ synced: boolean; warning?: string }> {
+  const fee = roundRp(opts.feeAmount);
+  if (fee <= 0) return { synced: false };
+
+  try {
+    const scopes = await resolveDojoBranchScope(opts.dojoId);
+    const targetScope = scopes.branch ?? (await resolveKasScope(opts.user));
+    const niaPart =
+      opts.memberNia && opts.memberNia !== "—" ? ` (${opts.memberNia})` : "";
+    const methodPart = opts.paymentMethod === "TUNAI" ? " [TUNAI]" : "";
+    const dojoPart = scopes.dojoName ? ` · Ranting ${scopes.dojoName}` : "";
+    const desc = `Wasit/Juri (${opts.submissionType}) — ${opts.memberName}${niaPart}${dojoPart}${methodPart}`;
+    const kegiatan = opts.periodTitle.trim() || "Sertifikasi Wasit Juri";
+
+    await postKasEntry({
+      scope: targetScope,
+      txnDate: ymdWib(),
+      description: desc,
+      kegiatan,
+      direction: "in",
+      amount: fee,
+      sourceType: "wasit_juri",
+      sourceId: `${opts.registrationId}:cabang`,
+      sourceHref: "/admin/sertifikasi-wasit-juri",
+      createdById: opts.user.id,
+    });
+    return { synced: true };
+  } catch (err) {
+    if (err instanceof KasPeriodLockedError) {
+      return { synced: false, warning: err.message };
+    }
+    console.error("[kas-hooks] postKasFromWasitJuriPaid failed:", err);
+    return { synced: false, warning: "Gagal mencatat otomatis ke Buku Kas." };
+  }
+}
+
+export async function voidKasFromWasitJuri(
+  registrationId: string,
+  userId?: string | null,
+): Promise<{ voided: boolean; warning?: string }> {
+  try {
+    await voidKasBySource({
+      sourceType: "wasit_juri",
+      sourceId: `${registrationId}:cabang`,
+      actorUserId: userId,
+    });
+    return { voided: true };
+  } catch (err) {
+    if (err instanceof KasPeriodLockedError) {
+      return { voided: false, warning: err.message };
+    }
+    console.error("[kas-hooks] voidKasFromWasitJuri failed:", err);
+    return { voided: false, warning: "Gagal membalik jurnal Buku Kas otomatis." };
+  }
 }
 
 export function classifyBillingForKas(billing: {

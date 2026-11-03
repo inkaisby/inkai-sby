@@ -33,6 +33,7 @@ export const ADMIN_DOJO_SIDEBAR_OPTIONS = [
   { path: "/admin/latber/arsip", label: "Latihan Bersama — Arsip" },
   { path: "/admin/pertandingan", label: "Pertandingan — Roster & Pendaftaran" },
   { path: "/admin/pertandingan/kategori", label: "Pertandingan — Kategori Kelas" },
+  { path: "/admin/sertifikasi-wasit-juri", label: "Sertifikasi Wasit Juri" },
   { path: "/admin/kegiatan", label: "Event & Kegiatan" },
   { path: "/admin/absensi", label: "Absensi GPS & Scan QR" },
   { path: "/admin/laporan", label: "Laporan Custom & Generator Kolom" },
@@ -175,6 +176,7 @@ export const ADMIN_DOJO_GRANT_PRESETS = [
         "/admin/latber",
         "/admin/pertandingan",
         "/admin/pertandingan/kategori",
+        "/admin/sertifikasi-wasit-juri",
         "/admin/kegiatan",
         "/admin/laporan",
       ],
@@ -185,6 +187,7 @@ export const ADMIN_DOJO_GRANT_PRESETS = [
           "/admin/latber",
           "/admin/pertandingan",
           "/admin/pertandingan/kategori",
+          "/admin/sertifikasi-wasit-juri",
           "/admin/kegiatan",
           "/admin/laporan",
         ].map((p) => [p, { read: true, create: true, update: true, delete: true }]),
@@ -228,11 +231,24 @@ function normalizeCrudPermissions(
 export function parseAdminDojoGrants(raw: unknown): AdminDojoGrants | null {
   if (!raw || typeof raw !== "object") return null;
   const v = raw as Record<string, unknown>;
+  const sidebarPaths = normalizeSidebarPaths(v.sidebarPaths);
+  const crudPermissions = normalizeCrudPermissions(v.crudPermissions);
+
+  // Soft-backfill menu baru bagi akun existing yang memiliki akses modul pertandingan
+  // kecuali sudah pernah diset eksplisit pada crudPermissions.
+  if (
+    sidebarPaths.includes("/admin/pertandingan") &&
+    !sidebarPaths.includes("/admin/sertifikasi-wasit-juri") &&
+    !("/admin/sertifikasi-wasit-juri" in crudPermissions)
+  ) {
+    sidebarPaths.push("/admin/sertifikasi-wasit-juri");
+  }
+
   return {
     editProfile: v.editProfile !== false,
     crud: v.crud !== false,
-    sidebarPaths: normalizeSidebarPaths(v.sidebarPaths),
-    crudPermissions: normalizeCrudPermissions(v.crudPermissions),
+    sidebarPaths,
+    crudPermissions,
   };
 }
 
