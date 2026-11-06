@@ -67,6 +67,8 @@ import {
   formatGenderLabel,
   formatWeightLimitLabel,
   getCategoryDivisionMeta,
+  isBirthDateInRange,
+  isAgeInRange,
 } from "@/lib/tournament-category-presets";
 import { DEFAULT_ADMIN_WA, getAdminWaPhone, setAdminWaPhone } from "@/lib/site";
 import { exportTournamentRosterToExcel } from "@/lib/tournament-excel-export";
@@ -280,6 +282,7 @@ export default function AdminPertandinganPage({
   const [selectedAthleteForReg, setSelectedAthleteForReg] = useState<any | null>(null);
   const [selectedRegCategoryId, setSelectedRegCategoryId] = useState<string>("");
   const [regCategoryGenderFilter, setRegCategoryGenderFilter] = useState<"ALL" | "MATCHING">("MATCHING");
+  const [regDivisionFilter, setRegDivisionFilter] = useState<"ALL" | "MATCHING">("ALL");
   const [regKindFilter, setRegKindFilter] = useState<"ALL" | "KATA" | "KUMITE">("ALL");
   const [regSearchQuery, setRegSearchQuery] = useState<string>("");
   const [isSubmittingReg, setIsSubmittingReg] = useState(false);
@@ -307,6 +310,8 @@ export default function AdminPertandinganPage({
       birthDateLabel: string;
       minAge?: number | null;
       maxAge?: number | null;
+      minBirthDate?: string | null;
+      maxBirthDate?: string | null;
       maleList: CategoryItem[];
       femaleList: CategoryItem[];
       mixedList: CategoryItem[];
@@ -338,8 +343,10 @@ export default function AdminPertandinganPage({
           divisionName: meta.divisionName,
           ageLabel: meta.ageLabel,
           birthDateLabel: meta.birthDateLabel,
-          minAge: cat.minAge,
-          maxAge: cat.maxAge,
+          minAge: meta.minAge ?? cat.minAge ?? null,
+          maxAge: meta.maxAge ?? cat.maxAge ?? null,
+          minBirthDate: meta.minBirthDate || cat.minBirthDate || null,
+          maxBirthDate: meta.maxBirthDate || cat.maxBirthDate || null,
           maleList: [],
           femaleList: [],
           mixedList: [],
@@ -351,17 +358,81 @@ export default function AdminPertandinganPage({
       else item.mixedList.push(cat);
     });
 
-    return Array.from(map.values());
-  }, [categories, regKindFilter, regSearchQuery]);
+    let list = Array.from(map.values());
 
+    // Otomatis urutkan divisi yang sinkron/cocok dengan tanggal lahir atau usia atlet ke paling atas
+    if (selectedAthleteForReg?.birthDate || athleteAge !== null) {
+      list.sort((a, b) => {
+        const aMatch =
+          isBirthDateInRange(selectedAthleteForReg?.birthDate, a.minBirthDate, a.maxBirthDate) ||
+          isAgeInRange(athleteAge, a.minAge, a.maxAge);
+        const bMatch =
+          isBirthDateInRange(selectedAthleteForReg?.birthDate, b.minBirthDate, b.maxBirthDate) ||
+          isAgeInRange(athleteAge, b.minAge, b.maxAge);
+        if (aMatch && !bMatch) return -1;
+        if (!aMatch && bMatch) return 1;
+        return 0;
+      });
+    }
+
+    return list;
+  }, [categories, regKindFilter, regSearchQuery, selectedAthleteForReg?.birthDate, athleteAge]);
+
+  // Divisi yang sinkron/cocok dengan data tanggal lahir & usia atlet
+  const matchedDivisionName = useMemo(() => {
+    if (!selectedAthleteForReg) return null;
+    for (const group of regDivisionGroups) {
+      const isDateMatch = isBirthDateInRange(
+        selectedAthleteForReg.birthDate,
+        group.minBirthDate,
+        group.maxBirthDate
+      );
+      const isAgeMatch = isAgeInRange(athleteAge, group.minAge, group.maxAge);
+      if (isDateMatch || isAgeMatch) {
+        return group.divisionName;
+      }
+    }
+    return null;
+  }, [selectedAthleteForReg, regDivisionGroups, athleteAge]);
+
+  // Buka modal daftarkan atlet dengan otomatis sinkron ke kategori yang sesuai tgl lahir & gender
   const openRegisterModal = (athlete: any) => {
     setSelectedAthleteForReg(athlete);
     setShowSuggestDropdown(false);
     setRegKindFilter("ALL");
     setRegSearchQuery("");
-    const matching = categories.filter((c) => c.gender === athlete.gender || c.gender === "MIXED");
-    if (matching.length > 0) {
-      setSelectedRegCategoryId(matching[0].id);
+    setRegDivisionFilter("ALL");
+
+    let calcAge: number | null = null;
+    if (athlete.birthDate) {
+      const b = new Date(athlete.birthDate);
+      if (!isNaN(b.getTime())) {
+        const now = new Date();
+        calcAge = now.getFullYear() - b.getFullYear();
+        const m = now.getMonth() - b.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < b.getDate())) {
+          calcAge--;
+        }
+      }
+    }
+
+    // 1. Cari kategori yang OTOMATIS SINKRON dengan gender DAN tanggal lahir / usia atlet
+    let bestCat = categories.find((c) => {
+      const gMatch = c.gender === athlete.gender || c.gender === "MIXED";
+      if (!gMatch) return false;
+      const meta = getCategoryDivisionMeta(c);
+      const dateMatch = isBirthDateInRange(athlete.birthDate, meta.minBirthDate, meta.maxBirthDate);
+      const ageMatch = isAgeInRange(calcAge, meta.minAge, meta.maxAge);
+      return dateMatch || ageMatch;
+    });
+
+    // 2. Fallback jika belum ada yang cocok usia, ambil yang cocok gender
+    if (!bestCat) {
+      bestCat = categories.find((c) => c.gender === athlete.gender || c.gender === "MIXED");
+    }
+
+    if (bestCat) {
+      setSelectedRegCategoryId(bestCat.id);
       setRegCategoryGenderFilter("MATCHING");
     } else if (categories.length > 0) {
       setSelectedRegCategoryId(categories[0].id);
@@ -3058,13 +3129,26 @@ export default function AdminPertandinganPage({
                     Sabuk: <strong className="text-red-600 dark:text-red-400">{selectedAthleteForReg.currentRank || "Putih"}</strong>
                   </span>
                   {selectedAthleteForReg.birthDate && (
-                    <span>
-                      Tgl Lahir:{" "}
-                      <strong className="text-zinc-800 dark:text-zinc-200">
-                        {new Date(selectedAthleteForReg.birthDate).toLocaleDateString("id-ID")}
-                      </strong>
-                      {athleteAge !== null && (
-                        <span className="ml-1 text-zinc-500 font-semibold">({athleteAge} Thn)</span>
+                    <span className="inline-flex flex-wrap items-center gap-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-lg px-2.5 py-1 text-amber-950 dark:text-amber-200">
+                      <span>
+                        Tgl Lahir:{" "}
+                        <strong className="text-zinc-900 dark:text-zinc-100 font-black">
+                          {new Date(selectedAthleteForReg.birthDate).toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                        </strong>
+                        {athleteAge !== null && (
+                          <span className="ml-1 text-amber-700 dark:text-amber-300 font-bold">
+                            ({athleteAge} Thn)
+                          </span>
+                        )}
+                      </span>
+                      {matchedDivisionName && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500 text-zinc-950 rounded-md text-[10px] font-black uppercase tracking-wide shadow-xs">
+                          <CheckCircle className="w-3 h-3 text-zinc-950" /> Sinkron: {matchedDivisionName}
+                        </span>
                       )}
                     </span>
                   )}
@@ -3097,6 +3181,20 @@ export default function AdminPertandinganPage({
                   >
                     Bagan Lengkap (Putra & Putri)
                   </button>
+                  {matchedDivisionName && (
+                    <button
+                      type="button"
+                      onClick={() => setRegDivisionFilter(regDivisionFilter === "MATCHING" ? "ALL" : "MATCHING")}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer transition flex items-center gap-1 ${
+                        regDivisionFilter === "MATCHING"
+                          ? "bg-amber-500 text-zinc-950 font-black shadow-xs ring-2 ring-amber-400/50"
+                          : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100"
+                      }`}
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-500" />
+                      {regDivisionFilter === "MATCHING" ? `Hanya Divisi: ${matchedDivisionName}` : `Semua Divisi`}
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1.5">
@@ -3183,13 +3281,21 @@ export default function AdminPertandinganPage({
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {regDivisionGroups.map((group) => {
-                    const isAgeMatch =
-                      athleteAge !== null &&
-                      group.minAge !== null &&
-                      group.minAge !== undefined &&
-                      athleteAge >= (group.minAge || 0) &&
-                      (!group.maxAge || athleteAge <= group.maxAge);
+                  {regDivisionGroups
+                    .filter((group) => {
+                      if (regDivisionFilter === "MATCHING" && matchedDivisionName) {
+                        return group.divisionName === matchedDivisionName;
+                      }
+                      return true;
+                    })
+                    .map((group) => {
+                    const isBirthDateMatch = isBirthDateInRange(
+                      selectedAthleteForReg.birthDate,
+                      group.minBirthDate,
+                      group.maxBirthDate
+                    );
+                    const isAgeMatch = isAgeInRange(athleteAge, group.minAge, group.maxAge);
+                    const isDateOrAgeMatch = isBirthDateMatch || isAgeMatch;
 
                     const isMatchingMode = regCategoryGenderFilter === "MATCHING";
                     const isAthleteMale = selectedAthleteForReg.gender === "MALE";
@@ -3200,7 +3306,7 @@ export default function AdminPertandinganPage({
                       <div
                         key={group.key}
                         className={`rounded-2xl overflow-hidden shadow-sm bg-white dark:bg-zinc-900 border transition ${
-                          isAgeMatch
+                          isDateOrAgeMatch
                             ? "border-amber-400 dark:border-amber-500/80 ring-2 ring-amber-400/30"
                             : "border-zinc-200 dark:border-zinc-800"
                         }`}
@@ -3210,16 +3316,27 @@ export default function AdminPertandinganPage({
                           <h4 className="font-black text-xs sm:text-sm tracking-wide uppercase">
                             {group.divisionName} ({group.ageLabel})
                           </h4>
-                          {isAgeMatch && (
-                            <span className="text-[10px] font-black bg-zinc-950 text-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
-                              <Sparkles className="w-3 h-3 text-amber-400" /> Usia Cocok
+                          {isDateOrAgeMatch && (
+                            <span className="text-[10px] font-black bg-zinc-950 text-amber-300 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs border border-amber-400/40">
+                              <Sparkles className="w-3 h-3 text-amber-400 animate-pulse" /> Sesuai Usia & Tgl Lahir
                             </span>
                           )}
                         </div>
 
-                        {/* Subheader Tanggal Lahir Kelahiran */}
-                        <div className="bg-zinc-950 text-zinc-300 text-center text-[10px] sm:text-[11px] font-medium py-1 px-2 border-b border-zinc-800">
-                          {group.birthDateLabel}
+                        {/* Subheader Tanggal Lahir Kelahiran (Otomatis Sinkron dengan Tgl Lahir Atlet) */}
+                        <div
+                          className={`text-center text-[10px] sm:text-[11px] font-semibold py-1.5 px-2 border-b flex items-center justify-center gap-1.5 transition ${
+                            isDateOrAgeMatch
+                              ? "bg-amber-950 text-amber-200 border-amber-600/60 shadow-inner"
+                              : "bg-zinc-950 text-zinc-300 border-zinc-800"
+                          }`}
+                        >
+                          <span>{group.birthDateLabel}</span>
+                          {isBirthDateMatch && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 bg-emerald-500 text-white rounded text-[9px] font-black uppercase tracking-wider shadow-xs">
+                              <CheckCircle className="w-2.5 h-2.5" /> Sinkron Tgl Lahir
+                            </span>
+                          )}
                         </div>
 
                         {/* Tampilan Mode 1: Sesuai Gender Atlet */}

@@ -1957,6 +1957,43 @@ export function detectDivisionPreset(cat: { name?: string | null; minAge?: numbe
   return "CUSTOM";
 }
 
+export function isBirthDateInRange(
+  birthDate: string | Date | null | undefined,
+  minBirth: string | Date | null | undefined,
+  maxBirth: string | Date | null | undefined
+): boolean {
+  if (!birthDate) return false;
+  const bTime = new Date(birthDate).getTime();
+  if (isNaN(bTime)) return false;
+
+  const t1 = minBirth ? new Date(minBirth).getTime() : null;
+  const t2 = maxBirth ? new Date(maxBirth).getTime() : null;
+
+  if (t1 !== null && t2 !== null && !isNaN(t1) && !isNaN(t2)) {
+    const low = Math.min(t1, t2);
+    const high = Math.max(t1, t2) + 86400000 - 1;
+    return bTime >= low && bTime <= high;
+  }
+  if (t1 !== null && !isNaN(t1)) {
+    return bTime >= t1;
+  }
+  if (t2 !== null && !isNaN(t2)) {
+    return bTime <= t2 + 86400000 - 1;
+  }
+  return false;
+}
+
+export function isAgeInRange(
+  age: number | null | undefined,
+  minAge: number | null | undefined,
+  maxAge: number | null | undefined
+): boolean {
+  if (age === null || age === undefined || isNaN(age)) return false;
+  if (minAge !== null && minAge !== undefined && !isNaN(minAge) && age < minAge) return false;
+  if (maxAge !== null && maxAge !== undefined && !isNaN(maxAge) && age > maxAge) return false;
+  return (minAge !== null && minAge !== undefined) || (maxAge !== null && maxAge !== undefined);
+}
+
 export function getCategoryDivisionMeta(cat: {
   name?: string | null;
   minAge?: number | null;
@@ -1967,6 +2004,11 @@ export function getCategoryDivisionMeta(cat: {
   divisionName: string;
   ageLabel: string;
   birthDateLabel: string;
+  presetId?: string;
+  minBirthDate?: string | null;
+  maxBirthDate?: string | null;
+  minAge?: number | null;
+  maxAge?: number | null;
 } {
   const nameUpper = (cat.name || "").toUpperCase();
   for (const p of DIVISION_PRESETS) {
@@ -1975,14 +2017,12 @@ export function getCategoryDivisionMeta(cat: {
       nameUpper.includes(p.name) ||
       (cat.minAge === p.minAge && (cat.maxAge === p.maxAge || (!p.maxAge && !cat.maxAge)))
     ) {
+      const effectiveMinBirth = cat.minBirthDate || p.defaultMinBirth || null;
+      const effectiveMaxBirth = cat.maxBirthDate || p.defaultMaxBirth || null;
       let bLabel = "";
-      if (cat.minBirthDate || cat.maxBirthDate) {
-        const d1 = cat.minBirthDate ? new Date(cat.minBirthDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "*";
-        const d2 = cat.maxBirthDate ? new Date(cat.maxBirthDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "*";
-        bLabel = `Kelahiran tanggal ${d1} s.d ${d2}`;
-      } else if (p.defaultMinBirth && p.defaultMaxBirth) {
-        const d1 = new Date(p.defaultMinBirth).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
-        const d2 = new Date(p.defaultMaxBirth).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+      if (effectiveMinBirth || effectiveMaxBirth) {
+        const d1 = effectiveMinBirth ? new Date(effectiveMinBirth).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "*";
+        const d2 = effectiveMaxBirth ? new Date(effectiveMaxBirth).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "*";
         bLabel = `Kelahiran tanggal ${d1} s.d ${d2}`;
       } else {
         bLabel = "Kriteria Usia Standar Kejuaraan";
@@ -1991,6 +2031,11 @@ export function getCategoryDivisionMeta(cat: {
         divisionName: p.name,
         ageLabel: p.ageLabel,
         birthDateLabel: bLabel,
+        presetId: p.id,
+        minBirthDate: effectiveMinBirth,
+        maxBirthDate: effectiveMaxBirth,
+        minAge: cat.minAge ?? p.minAge ?? null,
+        maxAge: cat.maxAge ?? p.maxAge ?? null,
       };
     }
   }
@@ -2005,6 +2050,11 @@ export function getCategoryDivisionMeta(cat: {
     divisionName: "KELAS LAINNYA",
     ageLabel: cat.minAge || cat.maxAge ? `${cat.minAge || 0} - ${cat.maxAge || "∞"} Tahun` : "Bebas Usia",
     birthDateLabel: bLabel,
+    presetId: "CUSTOM",
+    minBirthDate: cat.minBirthDate || null,
+    maxBirthDate: cat.maxBirthDate || null,
+    minAge: cat.minAge ?? null,
+    maxAge: cat.maxAge ?? null,
   };
 }
 
