@@ -2680,6 +2680,14 @@ export default function AdminPertandinganKategoriPage() {
                                         >
                                           <Pencil className="w-3.5 h-3.5" />
                                         </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => triggerDeleteCategory(maleCat)}
+                                          className="text-red-400 hover:text-red-300 cursor-pointer transition p-1 hover:bg-red-950/60 rounded"
+                                          title="Hapus Kelas Ini"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
                                       </div>
                                     </div>
                                   ) : (
@@ -2723,6 +2731,14 @@ export default function AdminPertandinganKategoriPage() {
                                           title="Edit Kelas Ini"
                                         >
                                           <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => triggerDeleteCategory(femaleCat)}
+                                          className="text-red-400 hover:text-red-300 cursor-pointer transition p-1 hover:bg-red-950/60 rounded"
+                                          title="Hapus Kelas Ini"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
                                         </button>
                                       </div>
                                     </div>
@@ -2772,6 +2788,14 @@ export default function AdminPertandinganKategoriPage() {
                                       title="Edit Kelas Campuran Ini"
                                     >
                                       <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => triggerDeleteCategory(m)}
+                                      className="text-red-300 hover:text-red-200 cursor-pointer p-0.5"
+                                      title="Hapus Kelas Campuran Ini"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   </div>
                                 </div>
