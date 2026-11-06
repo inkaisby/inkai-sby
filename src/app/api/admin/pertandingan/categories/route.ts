@@ -44,6 +44,33 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+
+    // Multi-items batch creation (misal Putra & Putri sekaligus)
+    if (Array.isArray(body.items) && body.items.length > 0) {
+      const createdList = [];
+      for (const item of body.items) {
+        if (!item.eventId || !item.name || !item.categoryType || !item.gender) continue;
+        const created = await prisma.tournamentCategory.create({
+          data: {
+            eventId: item.eventId,
+            name: item.name,
+            categoryType: item.categoryType,
+            gender: item.gender,
+            minAge: item.minAge ? parseInt(item.minAge) : null,
+            maxAge: item.maxAge ? parseInt(item.maxAge) : null,
+            minBirthDate: item.minBirthDate ? new Date(item.minBirthDate) : null,
+            maxBirthDate: item.maxBirthDate ? new Date(item.maxBirthDate) : null,
+            minWeight: item.minWeight ? parseFloat(item.minWeight) : null,
+            maxWeight: item.maxWeight ? parseFloat(item.maxWeight) : null,
+            fee: item.fee !== undefined && item.fee !== "" ? parseFloat(item.fee) : 0,
+            isFeeVisible: item.isFeeVisible !== undefined ? Boolean(item.isFeeVisible) : true,
+          },
+        });
+        createdList.push(created);
+      }
+      return NextResponse.json({ success: true, count: createdList.length, categories: createdList });
+    }
+
     const { eventId, name, categoryType, gender, minAge, maxAge, minBirthDate, maxBirthDate, minWeight, maxWeight, fee, isFeeVisible } = body;
 
     if (!eventId || !name || !categoryType || !gender) {
