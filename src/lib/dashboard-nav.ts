@@ -95,6 +95,7 @@ const PERTANDINGAN_NAV_GROUP: NavGroup = {
   children: [
     { href: "/admin/pertandingan", label: "Pendaftaran & Roster" },
     { href: "/admin/pertandingan/kategori", label: "Kategori Kelas" },
+    { href: "/admin/pertandingan/arsip", label: "Arsip Kejuaraan" },
   ],
 };
 

@@ -47,11 +47,21 @@ export async function GET(request: Request) {
     });
 
     const activeEvents = eventsWithMeta.filter((e) => !e.isArchived);
-    const defaultEvent = activeEvents.length > 0 ? activeEvents[0] : eventsWithMeta[0];
-    const activeEventId = eventId || (defaultEvent ? defaultEvent.id : null);
+    const selectedActiveEvent = eventId ? activeEvents.find((e) => e.id === eventId) : null;
+    const activeEventId = selectedActiveEvent ? selectedActiveEvent.id : (activeEvents[0]?.id || null);
 
     if (!activeEventId) {
-      return NextResponse.json({ events: eventsWithMeta, registrations: [], summary: {} });
+      return NextResponse.json({
+        events: [],
+        activeEventId: null,
+        registrations: [],
+        dojos: [],
+        summary: {
+          totalRegistrations: 0,
+          uniqueDojos: 0,
+          uniqueAthletes: 0,
+        },
+      });
     }
 
     const where: any = { eventId: activeEventId };
@@ -129,7 +139,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({
-      events: eventsWithMeta,
+      events: activeEvents,
       activeEventId,
       registrations,
       dojos,

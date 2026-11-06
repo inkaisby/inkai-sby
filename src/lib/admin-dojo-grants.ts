@@ -33,6 +33,7 @@ export const ADMIN_DOJO_SIDEBAR_OPTIONS = [
   { path: "/admin/latber/arsip", label: "Latihan Bersama — Arsip" },
   { path: "/admin/pertandingan", label: "Pertandingan — Roster & Pendaftaran" },
   { path: "/admin/pertandingan/kategori", label: "Pertandingan — Kategori Kelas" },
+  { path: "/admin/pertandingan/arsip", label: "Pertandingan — Arsip" },
   { path: "/admin/sertifikasi-wasit-juri", label: "Sertifikasi Wasit Juri" },
   { path: "/admin/kegiatan", label: "Event & Kegiatan" },
   { path: "/admin/absensi", label: "Absensi GPS & Scan QR" },
@@ -176,6 +177,7 @@ export const ADMIN_DOJO_GRANT_PRESETS = [
         "/admin/latber",
         "/admin/pertandingan",
         "/admin/pertandingan/kategori",
+        "/admin/pertandingan/arsip",
         "/admin/sertifikasi-wasit-juri",
         "/admin/kegiatan",
         "/admin/laporan",
@@ -187,6 +189,7 @@ export const ADMIN_DOJO_GRANT_PRESETS = [
           "/admin/latber",
           "/admin/pertandingan",
           "/admin/pertandingan/kategori",
+          "/admin/pertandingan/arsip",
           "/admin/sertifikasi-wasit-juri",
           "/admin/kegiatan",
           "/admin/laporan",
@@ -236,6 +239,14 @@ export function parseAdminDojoGrants(raw: unknown): AdminDojoGrants | null {
 
   // Soft-backfill menu baru bagi akun existing yang memiliki akses modul pertandingan
   // kecuali sudah pernah diset eksplisit pada crudPermissions.
+  if (
+    sidebarPaths.includes("/admin/pertandingan") &&
+    !sidebarPaths.includes("/admin/pertandingan/arsip") &&
+    !("/admin/pertandingan/arsip" in crudPermissions)
+  ) {
+    sidebarPaths.push("/admin/pertandingan/arsip");
+  }
+
   if (
     sidebarPaths.includes("/admin/pertandingan") &&
     !sidebarPaths.includes("/admin/sertifikasi-wasit-juri") &&

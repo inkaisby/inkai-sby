@@ -48,6 +48,7 @@ import {
   Image as ImageIcon,
   ExternalLink,
   Archive,
+  ChevronLeft,
 } from "lucide-react";
 import { generateTournamentIdCardsHtml, generateTournamentRosterHtml, generateTournamentMedalTallyHtml } from "@/lib/tournament-print-html";
 import { compressUploadFile } from "@/lib/compress-image";
@@ -164,7 +165,12 @@ const DEFAULT_TOURNAMENT_RULES_TEMPLATE = `
 <p>2. Pengajuan protes disertai dengan deposit biaya protes sebesar Rp 500.000,- (Lima Ratus Ribu Rupiah).</p>
 `;
 
-export default function AdminPertandinganPage() {
+export default function AdminPertandinganPage({
+  viewMode = "active",
+}: {
+  viewMode?: "active" | "archive";
+} = {}) {
+  const isArchiveMode = viewMode === "archive";
   const [events, setEvents] = useState<EventItem[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -249,7 +255,9 @@ export default function AdminPertandinganPage() {
     action: "archive" | "unarchive";
   } | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
-  const [eventTabFilter, setEventTabFilter] = useState<"ACTIVE" | "ARCHIVED" | "ALL">("ACTIVE");
+  const [eventTabFilter, setEventTabFilter] = useState<"ACTIVE" | "ARCHIVED" | "ALL">(
+    isArchiveMode ? "ARCHIVED" : "ACTIVE"
+  );
 
   const activeEvents = useMemo(() => events.filter((e) => !e.isArchived), [events]);
   const archivedEvents = useMemo(() => events.filter((e) => e.isArchived), [events]);
@@ -349,9 +357,13 @@ export default function AdminPertandinganPage() {
       if (data.events) {
         setEvents(data.events);
         setSelectedEventId((prev) => {
-          if (prev && data.events.some((e: EventItem) => e.id === prev)) return prev;
-          const firstActive = data.events.find((e: EventItem) => !e.isArchived);
-          return firstActive ? firstActive.id : (data.events[0]?.id || "");
+          const targetPool = isArchiveMode
+            ? data.events.filter((e: EventItem) => e.isArchived)
+            : data.events.filter((e: EventItem) => !e.isArchived);
+
+          if (prev && targetPool.some((e: EventItem) => e.id === prev)) return prev;
+          if (targetPool.length > 0) return targetPool[0].id;
+          return data.events[0]?.id || "";
         });
       }
     } catch (err) {
@@ -936,54 +948,103 @@ export default function AdminPertandinganPage() {
   return (
     <div className="p-3 sm:p-4 md:p-6 space-y-4 md:space-y-6 w-full max-w-[1600px] mx-auto">
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-red-900 via-red-800 to-red-950 text-white p-5 md:p-6 rounded-2xl shadow-xl">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Trophy className="w-7 h-7 md:w-8 md:h-8 text-yellow-400 animate-pulse" />
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight">Pendaftaran Events</h1>
+      {isArchiveMode ? (
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-amber-950 via-zinc-900 to-amber-950 text-white p-5 md:p-6 rounded-2xl shadow-xl border border-amber-900/40">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Archive className="w-7 h-7 md:w-8 md:h-8 text-amber-400" />
+              <h1 className="text-xl md:text-2xl font-bold tracking-tight">Arsip Kejuaraan & Pertandingan</h1>
+            </div>
+            <p className="text-xs md:text-sm text-amber-200/90">
+              Rekapitulasi riwayat event kejuaraan lampau yang telah diarsipkan. Data tersimpan rapi untuk kebutuhan riwayat, statistik, dan cetak laporan resmi.
+            </p>
           </div>
-          <p className="text-xs md:text-sm text-red-200">
-            CRUD Event Pertandingan, Editor Ketentuan, Berkas Profil (Foto/Akte/BPJS), Timbang Badan, & ID Card
-          </p>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/admin/pertandingan"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white/10 hover:bg-white/20 text-white font-semibold text-xs md:text-sm rounded-xl backdrop-blur transition border border-white/20"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Pendaftaran & Roster Aktif
+            </Link>
+
+            <button
+              onClick={() => setShowRulesEditorModal(true)}
+              disabled={!selectedEventId}
+              className="flex items-center gap-1.5 px-3 py-2 bg-white/10 hover:bg-white/20 text-white font-semibold text-xs md:text-sm rounded-xl backdrop-blur transition disabled:opacity-50"
+            >
+              <BookOpen className="w-4 h-4 text-yellow-300" />
+              Ketentuan
+            </button>
+
+            <Link
+              href="/admin/pertandingan/kategori"
+              className="flex items-center gap-1.5 px-3 py-2 bg-white/10 hover:bg-white/20 text-white font-medium text-xs md:text-sm rounded-xl backdrop-blur transition"
+            >
+              <Settings className="w-4 h-4" />
+              Kelola Kelas & Biaya
+            </Link>
+          </div>
         </div>
+      ) : (
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-red-900 via-red-800 to-red-950 text-white p-5 md:p-6 rounded-2xl shadow-xl">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Trophy className="w-7 h-7 md:w-8 md:h-8 text-yellow-400 animate-pulse" />
+              <h1 className="text-xl md:text-2xl font-bold tracking-tight">Pendaftaran & Roster Kejuaraan</h1>
+            </div>
+            <p className="text-xs md:text-sm text-red-200">
+              Manajemen event kejuaraan aktif, pendaftaran kontingen, berkas atlet (Foto/Akte/BPJS), timbang badan, & cetak ID Card
+            </p>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => {
-              setEventForm({
-                title: "UKT Semester II-2026",
-                description: "Pelaksanaan Kejuaraan & Ujian Kenaikan Tingkat Karate INKAI Cabang Kota Surabaya",
-                startDate: "2026-10-04",
-                endDate: "2026-10-04",
-                eventTime: "08.00 – 12.00 WIB",
-                location: "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya",
-              });
-              setShowNewEventModal(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-semibold text-xs md:text-sm rounded-xl transition shadow-lg"
-          >
-            <Plus className="w-4 h-4" />
-            + Kejuaraan Baru
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => {
+                setEventForm({
+                  title: "Kejuaraan Kota INKAI Surabaya 2026",
+                  description: "Pelaksanaan Kejuaraan Karate Terbuka INKAI Cabang Kota Surabaya",
+                  startDate: "2026-10-04",
+                  endDate: "2026-10-04",
+                  eventTime: "08.00 – 12.00 WIB",
+                  location: "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya",
+                });
+                setShowNewEventModal(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 bg-yellow-500 hover:bg-yellow-400 text-black font-semibold text-xs md:text-sm rounded-xl transition shadow-lg"
+            >
+              <Plus className="w-4 h-4" />
+              + Kejuaraan Baru
+            </button>
 
-          <button
-            onClick={() => setShowRulesEditorModal(true)}
-            disabled={!selectedEventId}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white/20 hover:bg-white/30 text-white font-semibold text-xs md:text-sm rounded-xl backdrop-blur transition disabled:opacity-50"
-          >
-            <BookOpen className="w-4 h-4 text-yellow-300" />
-            📜 Ketentuan Pertandingan
-          </button>
+            <Link
+              href="/admin/pertandingan/arsip"
+              className="flex items-center gap-1.5 px-3 py-2 bg-white/15 hover:bg-white/25 text-white font-semibold text-xs md:text-sm rounded-xl backdrop-blur transition border border-white/20"
+            >
+              <Archive className="w-4 h-4 text-amber-300" />
+              Arsip Kejuaraan ({archivedEvents.length})
+            </Link>
 
-          <Link
-            href="/admin/pertandingan/kategori"
-            className="flex items-center gap-1.5 px-3 py-2 bg-white/10 hover:bg-white/20 text-white font-medium text-xs md:text-sm rounded-xl backdrop-blur transition"
-          >
-            <Settings className="w-4 h-4" />
-            Kelola Kelas & Biaya
-          </Link>
+            <button
+              onClick={() => setShowRulesEditorModal(true)}
+              disabled={!selectedEventId}
+              className="flex items-center gap-1.5 px-3 py-2 bg-white/20 hover:bg-white/30 text-white font-semibold text-xs md:text-sm rounded-xl backdrop-blur transition disabled:opacity-50"
+            >
+              <BookOpen className="w-4 h-4 text-yellow-300" />
+              Ketentuan
+            </button>
+
+            <Link
+              href="/admin/pertandingan/kategori"
+              className="flex items-center gap-1.5 px-3 py-2 bg-white/10 hover:bg-white/20 text-white font-medium text-xs md:text-sm rounded-xl backdrop-blur transition"
+            >
+              <Settings className="w-4 h-4" />
+              Kelola Kelas & Biaya
+            </Link>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Selector & CRUD Event Pertandingan */}
       <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
@@ -1091,24 +1152,26 @@ export default function AdminPertandinganPage() {
           )}
 
           {activeEvent && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               {activeEvent.isArchived ? (
                 <button
                   type="button"
                   onClick={() => setConfirmArchiveEvent({ open: true, event: activeEvent, action: "unarchive" })}
-                  className="p-2 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition shadow-xs"
                   title="Buka Kembali Event Ini (Kembalikan ke Aktif)"
                 >
-                  <RotateCcw className="w-4 h-4 text-emerald-600" />
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Buka Kembali</span>
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => setConfirmArchiveEvent({ open: true, event: activeEvent, action: "archive" })}
-                  className="p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 rounded-lg text-xs font-semibold transition"
                   title="Arsipkan Kejuaraan Ini (Data Bersih saat Buat Event Baru)"
                 >
-                  <Archive className="w-4 h-4 text-amber-600" />
+                  <Archive className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Arsipkan</span>
                 </button>
               )}
 

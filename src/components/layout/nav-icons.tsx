@@ -77,6 +77,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   "Kategori Kelas": Layers,
   "Arsip UKT": Archive,
   "Arsip Latihan Bersama": Archive,
+  "Arsip Kejuaraan": Archive,
   "Materi Digital": BookOpen,
   Store: ShoppingBag,
   Pesan: MessageSquare,
