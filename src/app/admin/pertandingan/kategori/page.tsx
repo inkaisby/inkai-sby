@@ -1134,6 +1134,36 @@ export default function AdminPertandinganKategoriPage() {
     window.scrollTo({ top: 120, behavior: "smooth" });
   };
 
+  const handleQuickCreateInMatrix = (
+    group: { divisionName: string; key: string; ageLabel?: string },
+    gender: "MALE" | "FEMALE" | "MIXED"
+  ) => {
+    const preset =
+      DIVISION_PRESETS.find(
+        (p) => p.name.toUpperCase() === group.divisionName.toUpperCase() || p.id === group.key
+      ) || DIVISION_PRESETS[0];
+
+    const genName = buildGeneratedCategoryName(preset.id, "KATA_INDIVIDUAL", gender, "", "");
+
+    setDuplicateCatState({
+      name: genName,
+      categoryType: "KATA_INDIVIDUAL",
+      gender: gender,
+      minAge: preset.minAge !== null && preset.minAge !== undefined ? String(preset.minAge) : "",
+      maxAge: preset.maxAge !== null && preset.maxAge !== undefined ? String(preset.maxAge) : "",
+      minBirthDate: preset.defaultMinBirth || "",
+      maxBirthDate: preset.defaultMaxBirth || "",
+      minWeight: "",
+      maxWeight: "",
+      fee: "150000",
+      isFeeVisible: true,
+      divisionPresetId: preset.id,
+      categoryKind: "KATA",
+      weightPreset: "BEBAS",
+      isAutoName: true,
+    });
+  };
+
   const openRegisterModal = (athlete: SuggestionMember) => {
     setSelectedAthleteForReg(athlete);
     setShowAthleteDropdown(false);
@@ -2622,7 +2652,7 @@ export default function AdminPertandinganKategoriPage() {
                             return (
                               <div key={rIdx} className="grid grid-cols-2 divide-x divide-zinc-800 hover:bg-zinc-800/40 transition">
                                 {/* Sel Putra */}
-                                <div className="p-2 flex flex-col items-center justify-center min-h-[52px]">
+                                <div className="p-2 flex flex-col items-center justify-center min-h-[56px]">
                                   {maleCat ? (
                                     <div className="w-full space-y-1">
                                       <div className="text-[11px] sm:text-xs font-black tracking-wide text-zinc-100 uppercase">
@@ -2636,21 +2666,37 @@ export default function AdminPertandinganKategoriPage() {
                                         <span>{maleCat._count?.registrations || 0} Atlet</span>
                                         <button
                                           type="button"
-                                          onClick={() => openEditCategory(maleCat)}
-                                          className="text-blue-400 hover:text-blue-300 ml-1 cursor-pointer"
-                                          title="Edit Kelas"
+                                          onClick={() => openDuplicateCategory(maleCat)}
+                                          className="text-amber-400 hover:text-amber-300 ml-1 cursor-pointer transition p-1 hover:bg-amber-950/60 rounded"
+                                          title="Duplikat Kelas Ini Langsung di Matriks"
                                         >
-                                          <Pencil className="w-3 h-3" />
+                                          <Copy className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => openEditCategory(maleCat)}
+                                          className="text-blue-400 hover:text-blue-300 cursor-pointer transition p-1 hover:bg-blue-950/60 rounded"
+                                          title="Edit Kelas Ini"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
                                         </button>
                                       </div>
                                     </div>
                                   ) : (
-                                    <span className="text-zinc-600 text-[11px] italic">-</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuickCreateInMatrix(group, "MALE")}
+                                      className="w-full py-1.5 px-2 text-[11px] text-zinc-500 hover:text-amber-300 border border-dashed border-zinc-800 hover:border-amber-500/50 rounded-lg flex items-center justify-center gap-1 transition cursor-pointer hover:bg-zinc-850"
+                                      title="Tambah Kelas Putra di Divisi Ini"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                      <span>+ Tambah</span>
+                                    </button>
                                   )}
                                 </div>
 
                                 {/* Sel Putri */}
-                                <div className="p-2 flex flex-col items-center justify-center min-h-[52px]">
+                                <div className="p-2 flex flex-col items-center justify-center min-h-[56px]">
                                   {femaleCat ? (
                                     <div className="w-full space-y-1">
                                       <div className="text-[11px] sm:text-xs font-black tracking-wide text-zinc-100 uppercase">
@@ -2664,16 +2710,32 @@ export default function AdminPertandinganKategoriPage() {
                                         <span>{femaleCat._count?.registrations || 0} Atlet</span>
                                         <button
                                           type="button"
-                                          onClick={() => openEditCategory(femaleCat)}
-                                          className="text-blue-400 hover:text-blue-300 ml-1 cursor-pointer"
-                                          title="Edit Kelas"
+                                          onClick={() => openDuplicateCategory(femaleCat)}
+                                          className="text-amber-400 hover:text-amber-300 ml-1 cursor-pointer transition p-1 hover:bg-amber-950/60 rounded"
+                                          title="Duplikat Kelas Ini Langsung di Matriks"
                                         >
-                                          <Pencil className="w-3 h-3" />
+                                          <Copy className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => openEditCategory(femaleCat)}
+                                          className="text-blue-400 hover:text-blue-300 cursor-pointer transition p-1 hover:bg-blue-950/60 rounded"
+                                          title="Edit Kelas Ini"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
                                         </button>
                                       </div>
                                     </div>
                                   ) : (
-                                    <span className="text-zinc-600 text-[11px] italic">-</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleQuickCreateInMatrix(group, "FEMALE")}
+                                      className="w-full py-1.5 px-2 text-[11px] text-zinc-500 hover:text-pink-300 border border-dashed border-zinc-800 hover:border-pink-500/50 rounded-lg flex items-center justify-center gap-1 transition cursor-pointer hover:bg-zinc-850"
+                                      title="Tambah Kelas Putri di Divisi Ini"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                      <span>+ Tambah</span>
+                                    </button>
                                   )}
                                 </div>
                               </div>
@@ -2683,22 +2745,67 @@ export default function AdminPertandinganKategoriPage() {
 
                         {/* Baris Campuran jika ada */}
                         {group.mixedList.length > 0 && (
-                          <div className="p-2 bg-purple-950/40 border-t border-zinc-800 text-center text-xs">
-                            <span className="text-[10px] uppercase font-bold text-purple-300 tracking-wider">
+                          <div className="p-2.5 bg-purple-950/40 border-t border-zinc-800 text-center text-xs">
+                            <span className="text-[10px] uppercase font-bold text-purple-300 tracking-wider block mb-1">
                               Kelas Campuran:
                             </span>
-                            <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
+                            <div className="flex flex-wrap items-center justify-center gap-2">
                               {group.mixedList.map((m) => (
-                                <span
+                                <div
                                   key={m.id}
-                                  className="px-2 py-0.5 rounded bg-purple-900/60 text-purple-200 text-[11px] font-bold"
+                                  className="px-2.5 py-1 rounded-lg bg-purple-900/60 border border-purple-700/60 text-purple-200 text-xs font-bold flex items-center gap-2"
                                 >
-                                  {getEventNumberDisplay(m)} (Rp {m.fee.toLocaleString("id-ID")})
-                                </span>
+                                  <span>{getEventNumberDisplay(m)} (Rp {m.fee.toLocaleString("id-ID")})</span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => openDuplicateCategory(m)}
+                                      className="text-amber-300 hover:text-amber-200 cursor-pointer p-0.5"
+                                      title="Duplikat Kelas Campuran Ini"
+                                    >
+                                      <Copy className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditCategory(m)}
+                                      className="text-blue-300 hover:text-blue-200 cursor-pointer p-0.5"
+                                      title="Edit Kelas Campuran Ini"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
                               ))}
                             </div>
                           </div>
                         )}
+
+                        {/* Footer Aksi Cepat Divisi Langsung di Matriks */}
+                        <div className="p-2 bg-zinc-950/90 border-t border-zinc-800 flex items-center justify-between text-xs px-3">
+                          <span className="text-[10px] text-zinc-400 font-semibold">
+                            {group.maleList.length + group.femaleList.length + group.mixedList.length} Kelas Terdaftar
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleQuickCreateInMatrix(group, "MALE")}
+                              className="px-2 py-0.5 bg-blue-950/80 hover:bg-blue-900/80 text-blue-300 text-[10px] font-bold rounded-md border border-blue-800/80 flex items-center gap-1 transition cursor-pointer"
+                              title="Tambah Kelas Putra di Divisi Ini Langsung di Matriks"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>+ Putra</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleQuickCreateInMatrix(group, "FEMALE")}
+                              className="px-2 py-0.5 bg-pink-950/80 hover:bg-pink-900/80 text-pink-300 text-[10px] font-bold rounded-md border border-pink-800/80 flex items-center gap-1 transition cursor-pointer"
+                              title="Tambah Kelas Putri di Divisi Ini Langsung di Matriks"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>+ Putri</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
