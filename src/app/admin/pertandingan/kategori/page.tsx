@@ -1782,7 +1782,10 @@ export default function AdminPertandinganKategoriPage() {
                       })
                       .map((cat) => (
                         <option key={cat.id} value={cat.id}>
-                          {cat.name} ({cat.categoryType} · {cat.gender}) — Rp {cat.fee.toLocaleString("id-ID")}
+                          {cat.name} ({cat.categoryType} · {cat.gender})
+                          {cat.isFeeVisible !== false
+                            ? ` — Rp ${cat.fee.toLocaleString("id-ID")}`
+                            : " (Biaya Disembunyikan)"}
                         </option>
                       ))}
                   </select>
@@ -1798,9 +1801,15 @@ export default function AdminPertandinganKategoriPage() {
                     <div className="p-3 bg-red-50/50 dark:bg-red-950/30 rounded-xl border border-red-100 dark:border-red-900/40 text-xs space-y-1.5">
                       <div className="font-bold text-red-900 dark:text-red-200 flex items-center justify-between">
                         <span>{selCat.name}</span>
-                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                          Biaya: Rp {selCat.fee.toLocaleString("id-ID")}
-                        </span>
+                        {selCat.isFeeVisible !== false ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                            Biaya: Rp {selCat.fee.toLocaleString("id-ID")}
+                          </span>
+                        ) : (
+                          <span className="text-amber-600 dark:text-amber-400 text-xs font-semibold flex items-center gap-1">
+                            <EyeOff className="w-3.5 h-3.5" /> Biaya Disembunyikan (Rp {selCat.fee.toLocaleString("id-ID")})
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] text-zinc-600 dark:text-zinc-400">
                         {selCat.minBirthDate || selCat.maxBirthDate ? (
