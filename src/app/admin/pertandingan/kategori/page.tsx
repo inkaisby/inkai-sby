@@ -1389,7 +1389,7 @@ export default function AdminPertandinganKategoriPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-[1600px] w-full mx-auto">
       {/* Top Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -1442,7 +1442,7 @@ export default function AdminPertandinganKategoriPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Form Tambah Kategori Manual Cerdas (Sesuai Gambar) */}
-        <div className="lg:col-span-4 xl:col-span-4 bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4 h-fit">
+        <div className="lg:col-span-4 xl:col-span-3 bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4 h-fit">
           <div className="flex items-center justify-between pb-1 border-b border-zinc-100 dark:border-zinc-800">
             <div>
               <h2 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
@@ -2285,10 +2285,10 @@ export default function AdminPertandinganKategoriPage() {
           {/* Tampilan 1: Mode Tabel Rinci (Kolom Rapi & Enak Dibaca) */}
           {tableViewMode === "TABLE" ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[850px]">
+              <table className="w-full text-left border-collapse min-w-[980px]">
                 <thead>
                   <tr className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-[11px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
-                    <th className="py-2.5 px-2.5 w-9 text-center">
+                    <th className="py-3 px-3 w-10 text-center">
                       <input
                         type="checkbox"
                         checked={sortedCategories.length > 0 && selectedCategoryIds.length === sortedCategories.length}
@@ -2305,7 +2305,7 @@ export default function AdminPertandinganKategoriPage() {
                     </th>
                     <th
                       onClick={() => handleSort("name")}
-                      className="py-2.5 px-3 min-w-[180px] cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
+                      className="py-3 px-3.5 min-w-[200px] cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
                       title="Klik untuk mengurutkan Nama Kelas"
                     >
                       <div className="flex items-center gap-1.5">
@@ -2321,15 +2321,15 @@ export default function AdminPertandinganKategoriPage() {
                         )}
                       </div>
                     </th>
-                    <th className="py-2.5 px-3 whitespace-nowrap">
+                    <th className="py-3 px-3.5 min-w-[130px] whitespace-nowrap">
                       <span>Kelompok Usia</span>
                     </th>
-                    <th className="py-2.5 px-3 text-center whitespace-nowrap">
+                    <th className="py-3 px-3 min-w-[95px] text-center whitespace-nowrap">
                       <span>Gender</span>
                     </th>
                     <th
                       onClick={() => handleSort("categoryType")}
-                      className="py-2.5 px-3 whitespace-nowrap cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
+                      className="py-3 px-3.5 min-w-[145px] whitespace-nowrap cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
                       title="Klik untuk mengurutkan Jenis Kategori"
                     >
                       <div className="flex items-center gap-1.5">
@@ -2347,7 +2347,7 @@ export default function AdminPertandinganKategoriPage() {
                     </th>
                     <th
                       onClick={() => handleSort("birthDate")}
-                      className="py-2.5 px-3 min-w-[150px] cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
+                      className="py-3 px-3.5 min-w-[170px] cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
                       title="Klik untuk mengurutkan Kriteria Usia/Tgl Lahir"
                     >
                       <div className="flex items-center gap-1.5">
@@ -2363,12 +2363,12 @@ export default function AdminPertandinganKategoriPage() {
                         )}
                       </div>
                     </th>
-                    <th className="py-2.5 px-3 text-center whitespace-nowrap">
+                    <th className="py-3 px-3 min-w-[95px] text-center whitespace-nowrap">
                       <span>Batas BB</span>
                     </th>
                     <th
                       onClick={() => handleSort("fee")}
-                      className="py-2.5 px-3 whitespace-nowrap cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
+                      className="py-3 px-3.5 min-w-[135px] whitespace-nowrap cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
                       title="Klik untuk mengurutkan Biaya Cabang"
                     >
                       <div className="flex items-center gap-1.5">
@@ -2386,7 +2386,7 @@ export default function AdminPertandinganKategoriPage() {
                     </th>
                     <th
                       onClick={() => handleSort("registrations")}
-                      className="py-2.5 px-3 text-center whitespace-nowrap cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
+                      className="py-3 px-3 min-w-[80px] text-center whitespace-nowrap cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
                       title="Klik untuk mengurutkan Jumlah Atlet"
                     >
                       <div className="flex items-center justify-center gap-1.5">
@@ -2402,7 +2402,7 @@ export default function AdminPertandinganKategoriPage() {
                         )}
                       </div>
                     </th>
-                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Aksi</th>
+                    <th className="py-3 px-3.5 min-w-[120px] text-right whitespace-nowrap">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
@@ -2426,7 +2426,7 @@ export default function AdminPertandinganKategoriPage() {
                       const nomorDisplay = getEventNumberDisplay(cat);
                       return (
                         <tr key={cat.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition">
-                          <td className="py-2.5 px-2.5 text-center">
+                          <td className="py-3 px-3 text-center">
                             <input
                               type="checkbox"
                               checked={selectedCategoryIds.includes(cat.id)}
@@ -2438,19 +2438,19 @@ export default function AdminPertandinganKategoriPage() {
                               className="w-4 h-4 rounded border-zinc-300 text-red-600 focus:ring-red-500 cursor-pointer"
                             />
                           </td>
-                          <td className="py-2.5 px-3 font-semibold text-zinc-900 dark:text-white text-xs sm:text-sm">
+                          <td className="py-3 px-3.5 font-semibold text-zinc-900 dark:text-white text-xs sm:text-sm">
                             <div className="font-bold">{cat.name}</div>
                             <div className="text-[11px] font-semibold text-red-600 dark:text-red-400 mt-0.5">
                               {nomorDisplay}
                             </div>
                           </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap">
+                          <td className="py-3 px-3.5 whitespace-nowrap">
                             <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-900/40">
                               {divMeta.divisionName}
                             </span>
                             <div className="text-[10px] text-zinc-400 mt-0.5">{divMeta.ageLabel}</div>
                           </td>
-                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
                             <span
                               className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold tracking-wider ${
                                 cat.gender === "MALE"
@@ -2463,7 +2463,7 @@ export default function AdminPertandinganKategoriPage() {
                               {cat.gender === "MALE" ? "PUTRA" : cat.gender === "FEMALE" ? "PUTRI" : "CAMPURAN"}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap">
+                          <td className="py-3 px-3.5 whitespace-nowrap">
                             <span
                               className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                                 cat.categoryType.startsWith("KATA")
@@ -2480,7 +2480,7 @@ export default function AdminPertandinganKategoriPage() {
                                 : "Kumite Perorangan"}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 text-xs text-zinc-600 dark:text-zinc-400">
+                          <td className="py-3 px-3.5 text-xs text-zinc-600 dark:text-zinc-400">
                             {cat.minBirthDate || cat.maxBirthDate ? (
                               <div className="font-mono text-[11px] text-zinc-800 dark:text-zinc-200 whitespace-nowrap font-medium">
                                 🎂 {cat.minBirthDate ? new Date(cat.minBirthDate).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "*"} s.d{" "}
@@ -2492,7 +2492,7 @@ export default function AdminPertandinganKategoriPage() {
                               <div className="whitespace-nowrap text-zinc-400">Semua Usia / Bebas</div>
                             )}
                           </td>
-                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
                             {cat.maxWeight && !cat.minWeight ? (
                               <span className="inline-flex px-2 py-0.5 rounded-md text-[11px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200">
                                 -{cat.maxWeight} kg
@@ -2509,7 +2509,7 @@ export default function AdminPertandinganKategoriPage() {
                               <span className="text-[11px] text-zinc-400">Bebas BB</span>
                             )}
                           </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap">
+                          <td className="py-3 px-3.5 whitespace-nowrap">
                             <div className="font-bold text-xs sm:text-sm text-emerald-600 dark:text-emerald-400">
                               Rp {cat.fee.toLocaleString("id-ID")}
                             </div>
@@ -2525,10 +2525,10 @@ export default function AdminPertandinganKategoriPage() {
                               )}
                             </div>
                           </td>
-                          <td className="py-2.5 px-3 text-center font-mono font-bold text-xs sm:text-sm text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
+                          <td className="py-3 px-3 text-center font-mono font-bold text-xs sm:text-sm text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
                             {cat._count?.registrations || 0}
                           </td>
-                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <td className="py-3 px-3.5 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1">
                               <button
                                 type="button"
