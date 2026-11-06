@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 import { showError, showSuccess } from "@/lib/client-toast";
+import { formatCategoryOptionLabel } from "@/lib/tournament-category-presets";
 
 interface EventItem {
   id: string;
@@ -3136,10 +3137,7 @@ export default function AdminPertandinganKategoriPage() {
                       })
                       .map((cat) => (
                         <option key={cat.id} value={cat.id}>
-                          {cat.name} ({cat.categoryType} · {cat.gender})
-                          {cat.isFeeVisible !== false
-                            ? ` — Rp ${cat.fee.toLocaleString("id-ID")}`
-                            : " (Biaya Disembunyikan)"}
+                          {formatCategoryOptionLabel(cat)}
                         </option>
                       ))}
                   </select>

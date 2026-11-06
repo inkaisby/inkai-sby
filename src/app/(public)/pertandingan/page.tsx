@@ -46,7 +46,13 @@ import {
 } from "lucide-react";
 import { compressUploadFile } from "@/lib/compress-image";
 import { generateTournamentRosterHtml } from "@/lib/tournament-print-html";
-import { deriveAgeCategoryLabel } from "@/lib/tournament-category-presets";
+import {
+  deriveAgeCategoryLabel,
+  formatCategoryOptionLabel,
+  formatEventNumberDisplay,
+  formatGenderLabel,
+  formatWeightLimitLabel,
+} from "@/lib/tournament-category-presets";
 import { DEFAULT_ADMIN_WA, getAdminWaPhone } from "@/lib/site";
 import { exportTournamentRosterToExcel } from "@/lib/tournament-excel-export";
 import { useLoginModal } from "@/components/auth/LoginModal";
@@ -113,6 +119,10 @@ interface RegistrationItem {
     gender: string;
     minAge?: number | null;
     maxAge?: number | null;
+    minBirthDate?: string | null;
+    maxBirthDate?: string | null;
+    minWeight?: number | null;
+    maxWeight?: number | null;
     fee: number;
     isFeeVisible?: boolean;
   };
@@ -1471,10 +1481,28 @@ export default function PublicPertandinganPage() {
                       </td>
 
                       {/* Kelas Pertandingan (Readonly untuk semua pengguna) */}
-                      <td className="py-3.5 px-4 min-w-[200px]">
-                        <span className="inline-block w-full px-2.5 py-1.5 bg-red-50/70 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg text-xs font-bold text-red-700 dark:text-red-300 truncate">
+                      <td className="py-3.5 px-4 min-w-[220px]">
+                        <div className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-white">
                           {reg.category?.name || "-"}
-                        </span>
+                        </div>
+                        {reg.category && (
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                reg.category.gender === "MALE"
+                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                                  : reg.category.gender === "FEMALE"
+                                  ? "bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300"
+                                  : "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300"
+                              }`}
+                            >
+                              {formatGenderLabel(reg.category.gender)}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                              {formatEventNumberDisplay(reg.category.categoryType, reg.category.minWeight, reg.category.maxWeight)}
+                            </span>
+                          </div>
+                        )}
                       </td>
 
                       {/* Kolom BB (Berat Badan - Readonly untuk semua pengguna) */}
@@ -1485,6 +1513,11 @@ export default function PublicPertandinganPage() {
                             {reg.actualWeight !== null && reg.actualWeight !== undefined ? `${reg.actualWeight} kg` : "-"}
                           </span>
                         </div>
+                        {reg.category && (
+                          <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5 font-medium">
+                            Batas: {formatWeightLimitLabel(reg.category.minWeight, reg.category.maxWeight)}
+                          </div>
+                        )}
                       </td>
 
                       {/* Berkas Dokumen Status & Upload (Lihat untuk semua, Upload 1x bila belum ada) */}
@@ -2247,7 +2280,7 @@ export default function PublicPertandinganPage() {
                   <option value="">-- Pilih Kategori Pertandingan --</option>
                   {availableCategories.map((cat) => (
                     <option key={cat.id} value={cat.id}>
-                      {cat.name} ({cat.gender === "MALE" ? "Putra" : cat.gender === "FEMALE" ? "Putri" : "Campuran"}) {cat.isFeeVisible !== false ? `- Rp ${cat.fee.toLocaleString("id-ID")}` : ""}
+                      {formatCategoryOptionLabel(cat)}
                     </option>
                   ))}
                 </select>
@@ -2789,8 +2822,7 @@ export default function PublicPertandinganPage() {
                       })
                       .map((cat) => (
                         <option key={cat.id} value={cat.id}>
-                          {cat.name} ({cat.categoryType} · {cat.gender})
-                          {cat.isFeeVisible !== false ? ` — Rp ${cat.fee.toLocaleString("id-ID")}` : ""}
+                          {formatCategoryOptionLabel(cat)}
                         </option>
                       ))}
                   </select>

@@ -1756,4 +1756,78 @@ export function deriveAgeCategoryLabel(
   return "Umum / Bebas";
 }
 
+/**
+ * Format nomor pertandingan resmi dan bersih (misal: "Kata Perorangan", "Kumite -25 kg")
+ * bebas dari kode enum mentah (seperti KATA_INDIVIDUAL / KUMITE_INDIVIDUAL).
+ */
+export function formatEventNumberDisplay(
+  categoryType?: string | null,
+  minWeight?: number | null,
+  maxWeight?: number | null
+): string {
+  const type = (categoryType || "").toUpperCase();
+  const isTeam = type.endsWith("_TEAM");
+
+  if (type.startsWith("KATA")) {
+    return isTeam ? "Kata Beregu" : "Kata Perorangan";
+  }
+
+  // Kumite
+  const base = isTeam ? "Kumite Beregu" : "Kumite";
+  if (maxWeight && !minWeight) {
+    return `${base} -${maxWeight} kg`;
+  }
+  if (minWeight && !maxWeight) {
+    return `${base} +${Math.floor(minWeight)} kg`;
+  }
+  if (minWeight && maxWeight) {
+    return `${base} ${minWeight}-${maxWeight} kg`;
+  }
+  return isTeam ? "Kumite Beregu" : "Kumite Perorangan";
+}
+
+/**
+ * Label gender bahasa Indonesia yang ramah pembaca
+ */
+export function formatGenderLabel(gender?: string | null): string {
+  if (gender === "MALE") return "Putra";
+  if (gender === "FEMALE") return "Putri";
+  if (gender === "MIXED") return "Campuran";
+  return gender || "-";
+}
+
+/**
+ * Label batas berat badan bersih
+ */
+export function formatWeightLimitLabel(minWeight?: number | null, maxWeight?: number | null): string {
+  if (maxWeight && !minWeight) return `-${maxWeight} kg`;
+  if (minWeight && !maxWeight) return `+${Math.floor(minWeight)} kg`;
+  if (minWeight && maxWeight) return `${minWeight} - ${maxWeight} kg`;
+  return "Bebas BB";
+}
+
+/**
+ * Format label option select dropdown untuk pemilihan kelas pertandingan
+ * Bebas dari raw code teknis seperti (KATA_INDIVIDUAL · MALE).
+ */
+export function formatCategoryOptionLabel(cat: {
+  name: string;
+  categoryType?: string | null;
+  gender?: string | null;
+  minWeight?: number | null;
+  maxWeight?: number | null;
+  fee?: number | null;
+  isFeeVisible?: boolean | null;
+}): string {
+  const nomor = formatEventNumberDisplay(cat.categoryType, cat.minWeight, cat.maxWeight);
+  const gender = formatGenderLabel(cat.gender);
+  const feeStr =
+    cat.isFeeVisible !== false && cat.fee !== undefined && cat.fee !== null
+      ? ` — Rp ${cat.fee.toLocaleString("id-ID")}`
+      : "";
+
+  return `${cat.name} — ${nomor} (${gender})${feeStr}`;
+}
+
+
 
