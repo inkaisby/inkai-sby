@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { showError, showSuccess } from "@/lib/client-toast";
@@ -41,6 +41,8 @@ import {
   Download,
   ChevronLeft,
   Archive,
+  Loader2,
+  UserCheck,
 } from "lucide-react";
 import { compressUploadFile } from "@/lib/compress-image";
 import { generateTournamentRosterHtml } from "@/lib/tournament-print-html";
@@ -58,6 +60,8 @@ interface CategoryDetail {
   maxAge?: number | null;
   minBirthDate?: string | null;
   maxBirthDate?: string | null;
+  minWeight?: number | null;
+  maxWeight?: number | null;
   fee: number;
   isFeeVisible?: boolean;
 }
@@ -178,10 +182,15 @@ export default function PublicPertandinganPage() {
     setCurrentPage(1);
   }, [search, selectedDojoName, selectedCategoryName, selectedEventId]);
 
-  // Member suggestions search state
+  // Member suggestions search state & Quick Athlete Registration Modal (disamakan dengan /admin/pertandingan/kategori)
   const [memberSuggestions, setMemberSuggestions] = useState<any[]>([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [showSuggestDropdown, setShowSuggestDropdown] = useState(false);
+  const [selectedAthleteForReg, setSelectedAthleteForReg] = useState<any | null>(null);
+  const [selectedRegCategoryId, setSelectedRegCategoryId] = useState<string>("");
+  const [regCategoryGenderFilter, setRegCategoryGenderFilter] = useState<"ALL" | "MATCHING">("MATCHING");
+  const [isSubmittingReg, setIsSubmittingReg] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (search.trim().length < 2) {
@@ -204,6 +213,88 @@ export default function PublicPertandinganPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [search, selectedEventId]);
+
+  // Click outside to close suggestion dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setShowSuggestDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const openRegisterModal = (athlete: any) => {
+    if (!selectedEventId) {
+      showError("Pilih event kejuaraan terlebih dahulu.");
+      return;
+    }
+    if (activeEvent?.isArchived) {
+      showError("Kejuaraan ini telah diarsipkan dan tidak lagi menerima pendaftaran baru.");
+      return;
+    }
+    const categories = activeEvent?.tournamentCategories || [];
+    if (categories.length === 0) {
+      showError("Belum ada kategori kelas pertandingan pada kejuaraan ini.");
+      return;
+    }
+
+    setSelectedAthleteForReg(athlete);
+    setShowSuggestDropdown(false);
+
+    const matching = categories.filter((c) => c.gender === athlete.gender || c.gender === "MIXED");
+    if (matching.length > 0) {
+      setSelectedRegCategoryId(matching[0].id);
+      setRegCategoryGenderFilter("MATCHING");
+    } else {
+      setSelectedRegCategoryId(categories[0].id);
+      setRegCategoryGenderFilter("ALL");
+    }
+  };
+
+  const handleSubmitAthleteRegistration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEventId || !selectedAthleteForReg || !selectedRegCategoryId) {
+      showError("Pilih kelas pertandingan yang ingin diikuti atlet");
+      return;
+    }
+    if (activeEvent?.isArchived) {
+      showError("Kejuaraan ini telah diarsipkan dan tidak lagi menerima pendaftaran baru.");
+      return;
+    }
+
+    setIsSubmittingReg(true);
+    try {
+      const res = await fetch("/api/public/pertandingan/guest-register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: selectedEventId,
+          memberId: selectedAthleteForReg.id,
+          categoryId: selectedRegCategoryId,
+          agreedTerms: true,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const catName =
+          activeEvent?.tournamentCategories?.find((c) => c.id === selectedRegCategoryId)?.name ||
+          "kategori kelas";
+        showSuccess(`Atlet ${selectedAthleteForReg.fullName} berhasil didaftarkan ke ${catName}`);
+        setSelectedAthleteForReg(null);
+        setSelectedRegCategoryId("");
+        await fetchPublicData();
+      } else {
+        showError(data.error || "Gagal mendaftarkan atlet");
+      }
+    } catch (err: any) {
+      showError(err.message || "Terjadi kesalahan saat mendaftarkan atlet");
+    } finally {
+      setIsSubmittingReg(false);
+    }
+  };
 
   // Correction / Deletion WA Modal state
   const [correctionTarget, setCorrectionTarget] = useState<RegistrationItem | null>(null);
@@ -1073,106 +1164,104 @@ export default function PublicPertandinganPage() {
         <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             {/* Search */}
-            <div className="relative w-full md:w-80">
+            <div ref={searchContainerRef} className="relative w-full md:w-80">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
               <input
                 type="text"
-                placeholder="Cari nama atlet, NIA, keanggotaan..."
+                placeholder="Cari nama atlet, kelas, NIA..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onFocus={() => {
                   if (memberSuggestions.length > 0) setShowSuggestDropdown(true);
                 }}
-                className="w-full pl-9 pr-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm focus:ring-2 focus:ring-red-500"
+                className="w-full pl-9 pr-8 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm focus:ring-2 focus:ring-red-500"
               />
+              {suggestLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              ) : search ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setMemberSuggestions([]);
+                    setShowSuggestDropdown(false);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              ) : null}
 
               {/* Suggestions Dropdown */}
-              {showSuggestDropdown && (
-                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-80 overflow-y-auto">
-                  <div className="p-2.5 bg-zinc-100 dark:bg-zinc-800/80 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                    <span>💡 Keanggotaan INKAI (DB)</span>
+              {showSuggestDropdown && memberSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-80 overflow-y-auto animate-in fade-in duration-150">
+                  <div className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800/90 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                    <span className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-red-600" />
+                      Atlet Ditemukan ({memberSuggestions.length})
+                    </span>
                     <button
+                      type="button"
                       onClick={() => setShowSuggestDropdown(false)}
-                      className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                      className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 rounded cursor-pointer"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  {suggestLoading && (
-                    <div className="p-3 text-center text-xs text-zinc-500">Mencari keanggotaan INKAI...</div>
-                  )}
-
-                  {!suggestLoading && memberSuggestions.length === 0 && (
-                    <div className="p-3 text-center text-xs text-zinc-500">Tidak ada anggota yang cocok dengan kata kunci.</div>
-                  )}
-
-                  {!suggestLoading &&
-                    memberSuggestions.map((m) => (
+                  <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                    {memberSuggestions.map((m) => (
                       <div
                         key={m.id}
-                        className="p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800 border-b border-zinc-100 dark:border-zinc-800/60 last:border-b-0 flex items-center justify-between gap-2 text-xs"
+                        className="p-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/70 transition flex items-center justify-between gap-2.5 text-xs"
                       >
-                        <div>
-                          <div className="font-bold text-zinc-900 dark:text-white flex items-center gap-1.5">
-                            {m.fullName}
-                            {m.nia && <span className="text-[10px] text-zinc-400 font-mono">({m.nia})</span>}
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-zinc-900 dark:text-white flex items-center gap-1.5 truncate">
+                            <span>{m.fullName}</span>
+                            {m.gender && (
+                              <span
+                                className={`text-[10px] px-1.5 py-0.2 rounded font-medium ${
+                                  m.gender === "MALE"
+                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                                    : "bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300"
+                                }`}
+                              >
+                                {m.gender === "MALE" ? "Putra" : "Putri"}
+                              </span>
+                            )}
+                            {m.nia && (
+                              <span className="text-[10px] text-zinc-400 font-mono">({m.nia})</span>
+                            )}
                           </div>
-                          <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                            {m.dojoName} · <span className="text-red-600 dark:text-red-400">{m.currentRank}</span>
+                          <div className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5 truncate">
+                            {m.dojoName} ·{" "}
+                            <span className="font-medium text-red-600 dark:text-red-400">
+                              {m.currentRank}
+                            </span>
+                            {m.birthDate &&
+                              ` · 🎂 ${new Date(m.birthDate).toLocaleDateString("id-ID")}`}
                           </div>
                         </div>
 
-                        {m.isRegistered ? (
-                          <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded-md font-semibold text-[10px]">
-                            ✅ Terdaftar
-                          </span>
-                        ) : (
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {m.isRegistered && (
+                            <span className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 rounded text-[10px] font-semibold border border-emerald-200 dark:border-emerald-900/40">
+                              <UserCheck className="w-3 h-3 text-emerald-600" />
+                              Terdaftar
+                            </span>
+                          )}
                           <button
-                            onClick={async () => {
-                              if (!selectedEventId) {
-                                alert("Pilih event kejuaraan terlebih dahulu.");
-                                return;
-                              }
-                              if (activeEvent?.isArchived) {
-                                alert("Kejuaraan ini telah diarsipkan dan tidak lagi menerima pendaftaran baru.");
-                                return;
-                              }
-                              const firstCat = activeEvent?.tournamentCategories?.[0];
-                              if (!firstCat) {
-                                alert("Belum ada kategori kelas pertandingan pada event ini.");
-                                return;
-                              }
-                              try {
-                                const res = await fetch("/api/public/pertandingan/guest-register", {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({
-                                    eventId: selectedEventId,
-                                    memberId: m.id,
-                                    categoryId: firstCat.id,
-                                    agreedTerms: true,
-                                  }),
-                                });
-                                const data = await res.json();
-                                if (res.ok) {
-                                  setShowSuggestDropdown(false);
-                                  await fetchPublicData();
-                                } else {
-                                  alert(data.error || "Gagal melakukan pendaftaran.");
-                                }
-                              } catch (err) {
-                                console.error(err);
-                                alert("Terjadi kesalahan saat pendaftaran.");
-                              }
-                            }}
-                            className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[11px] transition shadow-sm shrink-0 flex items-center gap-1"
+                            type="button"
+                            onClick={() => openRegisterModal(m)}
+                            className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold text-xs transition shadow flex items-center gap-1 cursor-pointer"
                           >
-                            🏆 Daftarkan
+                            <UserPlus className="w-3.5 h-3.5" />
+                            Daftarkan
                           </button>
-                        )}
+                        </div>
                       </div>
                     ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -2584,6 +2673,201 @@ export default function PublicPertandinganPage() {
                 <Printer className="w-4 h-4" /> Buka Cetak PDF
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Daftarkan Atlet ke Kelas Pertandingan (Disamakan dengan /admin/pertandingan/kategori) */}
+      {selectedAthleteForReg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
+              <h3 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-red-600" />
+                Daftarkan Atlet ke Kelas Pertandingan
+              </h3>
+              <button
+                type="button"
+                onClick={() => setSelectedAthleteForReg(null)}
+                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-500 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Profil Singkat Atlet */}
+            <div className="p-3.5 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                  {selectedAthleteForReg.fullName}
+                  {selectedAthleteForReg.gender && (
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                        selectedAthleteForReg.gender === "MALE"
+                          ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                          : "bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300"
+                      }`}
+                    >
+                      {selectedAthleteForReg.gender === "MALE" ? "Putra" : "Putri"}
+                    </span>
+                  )}
+                </span>
+                {selectedAthleteForReg.nia && (
+                  <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
+                    NIA: {selectedAthleteForReg.nia}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-zinc-600 dark:text-zinc-400 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span>
+                  Dojo: <strong className="text-zinc-800 dark:text-zinc-200">{selectedAthleteForReg.dojoName}</strong>
+                </span>
+                <span>
+                  Tingkatan:{" "}
+                  <strong className="text-red-600 dark:text-red-400">{selectedAthleteForReg.currentRank}</strong>
+                </span>
+                {selectedAthleteForReg.birthDate && (
+                  <span>
+                    Tgl Lahir:{" "}
+                    <strong className="text-zinc-800 dark:text-zinc-200">
+                      {new Date(selectedAthleteForReg.birthDate).toLocaleDateString("id-ID")}
+                    </strong>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitAthleteRegistration} className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                    Pilih Kelas Pertandingan *
+                  </label>
+                  <div className="flex items-center gap-1 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setRegCategoryGenderFilter("MATCHING")}
+                      className={`px-2 py-0.5 rounded-md font-semibold cursor-pointer transition ${
+                        regCategoryGenderFilter === "MATCHING"
+                          ? "bg-red-600 text-white"
+                          : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      }`}
+                    >
+                      Sesuai Gender ({selectedAthleteForReg.gender === "MALE" ? "Putra/Campuran" : "Putri/Campuran"})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRegCategoryGenderFilter("ALL")}
+                      className={`px-2 py-0.5 rounded-md font-semibold cursor-pointer transition ${
+                        regCategoryGenderFilter === "ALL"
+                          ? "bg-red-600 text-white"
+                          : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      }`}
+                    >
+                      Semua ({(activeEvent?.tournamentCategories || []).length})
+                    </button>
+                  </div>
+                </div>
+
+                {(!activeEvent?.tournamentCategories || activeEvent.tournamentCategories.length === 0) ? (
+                  <div className="p-4 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-900/50 text-xs text-amber-800 dark:text-amber-300">
+                    Belum ada kelas pertandingan pada kejuaraan ini. Silakan hubungi panitia penyelenggara.
+                  </div>
+                ) : (
+                  <select
+                    required
+                    value={selectedRegCategoryId}
+                    onChange={(e) => setSelectedRegCategoryId(e.target.value)}
+                    className="w-full px-3 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs sm:text-sm font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-red-500"
+                  >
+                    <option value="" disabled>
+                      -- Pilih Kelas Pertandingan --
+                    </option>
+                    {(activeEvent?.tournamentCategories || [])
+                      .filter((c) => {
+                        if (regCategoryGenderFilter === "ALL") return true;
+                        return c.gender === selectedAthleteForReg.gender || c.gender === "MIXED";
+                      })
+                      .map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name} ({cat.categoryType} · {cat.gender}) — Rp {cat.fee.toLocaleString("id-ID")}
+                        </option>
+                      ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Rincian Kelas Terpilih */}
+              {selectedRegCategoryId &&
+                (() => {
+                  const selCat = (activeEvent?.tournamentCategories || []).find((c) => c.id === selectedRegCategoryId);
+                  if (!selCat) return null;
+                  return (
+                    <div className="p-3 bg-red-50/50 dark:bg-red-950/30 rounded-xl border border-red-100 dark:border-red-900/40 text-xs space-y-1.5">
+                      <div className="font-bold text-red-900 dark:text-red-200 flex items-center justify-between">
+                        <span>{selCat.name}</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                          Biaya: Rp {selCat.fee.toLocaleString("id-ID")}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-zinc-600 dark:text-zinc-400">
+                        {selCat.minBirthDate || selCat.maxBirthDate ? (
+                          <div>
+                            🎂 Rentang Tgl Lahir:{" "}
+                            {selCat.minBirthDate
+                              ? new Date(selCat.minBirthDate).toLocaleDateString("id-ID")
+                              : "*"}{" "}
+                            s/d{" "}
+                            {selCat.maxBirthDate
+                              ? new Date(selCat.maxBirthDate).toLocaleDateString("id-ID")
+                              : "*"}
+                          </div>
+                        ) : selCat.minAge || selCat.maxAge ? (
+                          <div>
+                            Usia: {selCat.minAge || 0} - {selCat.maxAge || "∞"} tahun
+                          </div>
+                        ) : (
+                          <div>Semua Usia / Bebas</div>
+                        )}
+                        <div>
+                          Berat Badan:{" "}
+                          {selCat.minWeight || selCat.maxWeight
+                            ? `${selCat.minWeight ? `Min ${selCat.minWeight}kg ` : ""}${
+                                selCat.maxWeight ? `Max ${selCat.maxWeight}kg` : ""
+                              }`
+                            : "Bebas"}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setSelectedAthleteForReg(null)}
+                  className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold rounded-xl transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingReg || !selectedRegCategoryId || !activeEvent?.tournamentCategories?.length}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition shadow flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {isSubmittingReg ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Mendaftarkan...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-3.5 h-3.5" />
+                      Daftarkan Atlet ke Kelas Ini
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

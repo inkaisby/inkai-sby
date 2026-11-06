@@ -53,16 +53,16 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Data anggota tidak ditemukan." }, { status: 404 });
       }
 
-      const existingReg = await prisma.tournamentRegistration.findFirst({
-        where: { eventId, memberId },
-      });
-      if (existingReg) {
-        return NextResponse.json({ error: "Anggota sudah terdaftar pada event kejuaraan ini." }, { status: 400 });
-      }
-
       const targetCatId = categoryId || eventObj.tournamentCategories[0]?.id;
       if (!targetCatId) {
         return NextResponse.json({ error: "Kategori kelas pertandingan belum tersedia." }, { status: 400 });
+      }
+
+      const existingReg = await prisma.tournamentRegistration.findFirst({
+        where: { eventId, memberId, categoryId: targetCatId },
+      });
+      if (existingReg) {
+        return NextResponse.json({ error: "Anggota sudah terdaftar pada kelas pertandingan ini." }, { status: 400 });
       }
 
       const registration = await prisma.tournamentRegistration.create({
