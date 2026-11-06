@@ -1824,10 +1824,246 @@ export function formatCategoryOptionLabel(cat: {
   const feeStr =
     cat.isFeeVisible !== false && cat.fee !== undefined && cat.fee !== null
       ? ` — Rp ${cat.fee.toLocaleString("id-ID")}`
-      : "";
+    : "";
 
   return `${cat.name} — ${nomor} (${gender})${feeStr}`;
 }
+
+export interface DivisionPresetDef {
+  id: string;
+  name: string;
+  ageLabel: string;
+  minAge: number | null;
+  maxAge: number | null;
+  defaultMinBirth: string;
+  defaultMaxBirth: string;
+  weights: string[];
+}
+
+export const DIVISION_PRESETS: DivisionPresetDef[] = [
+  {
+    id: "PRA_USIA_DINI",
+    name: "PRA USIA DINI",
+    ageLabel: "6 - 7 TAHUN",
+    minAge: 6,
+    maxAge: 7,
+    defaultMinBirth: "2019-04-10",
+    defaultMaxBirth: "2021-04-09",
+    weights: ["BEBAS", "-20", "-25", "+25"],
+  },
+  {
+    id: "USIA_DINI",
+    name: "USIA DINI",
+    ageLabel: "8 - 9 TAHUN",
+    minAge: 8,
+    maxAge: 9,
+    defaultMinBirth: "2017-04-10",
+    defaultMaxBirth: "2019-04-09",
+    weights: ["BEBAS", "-25", "-30", "+30", "-35", "+35"],
+  },
+  {
+    id: "PRA_PEMULA",
+    name: "PRA PEMULA",
+    ageLabel: "10 - 11 TAHUN",
+    minAge: 10,
+    maxAge: 11,
+    defaultMinBirth: "2015-04-10",
+    defaultMaxBirth: "2017-04-09",
+    weights: ["BEBAS", "-35", "-40", "+40", "-45", "+45"],
+  },
+  {
+    id: "PEMULA",
+    name: "PEMULA",
+    ageLabel: "12 - 13 TAHUN",
+    minAge: 12,
+    maxAge: 13,
+    defaultMinBirth: "2013-04-10",
+    defaultMaxBirth: "2015-04-09",
+    weights: ["BEBAS", "-35", "-40", "-45", "-50", "+50"],
+  },
+  {
+    id: "KADET",
+    name: "KADET",
+    ageLabel: "14 - 15 TAHUN",
+    minAge: 14,
+    maxAge: 15,
+    defaultMinBirth: "2011-04-10",
+    defaultMaxBirth: "2013-04-09",
+    weights: ["BEBAS", "-47", "-52", "-54", "-57", "-63", "-70", "+70"],
+  },
+  {
+    id: "JUNIOR",
+    name: "JUNIOR",
+    ageLabel: "16 - 17 TAHUN",
+    minAge: 16,
+    maxAge: 17,
+    defaultMinBirth: "2009-04-10",
+    defaultMaxBirth: "2011-04-09",
+    weights: ["BEBAS", "-48", "-53", "-55", "-59", "-61", "-68", "-76", "+76"],
+  },
+  {
+    id: "UNDER_21",
+    name: "UNDER-21 (U-21)",
+    ageLabel: "18 - 20 TAHUN",
+    minAge: 18,
+    maxAge: 20,
+    defaultMinBirth: "2006-04-10",
+    defaultMaxBirth: "2009-04-09",
+    weights: ["BEBAS", "-50", "-55", "-60", "-67", "-75", "-84", "+84"],
+  },
+  {
+    id: "SENIOR",
+    name: "SENIOR / UMUM",
+    ageLabel: "21+ TAHUN",
+    minAge: 21,
+    maxAge: null,
+    defaultMinBirth: "",
+    defaultMaxBirth: "2006-04-09",
+    weights: ["BEBAS", "-50", "-55", "-60", "-67", "-75", "-84", "+84"],
+  },
+  {
+    id: "VETERAN",
+    name: "VETERAN",
+    ageLabel: "35+ TAHUN",
+    minAge: 35,
+    maxAge: null,
+    defaultMinBirth: "",
+    defaultMaxBirth: "1991-04-09",
+    weights: ["BEBAS", "-65", "-75", "+75"],
+  },
+  {
+    id: "CUSTOM",
+    name: "KUSTOM / LAINNYA",
+    ageLabel: "BEBAS USIA",
+    minAge: null,
+    maxAge: null,
+    defaultMinBirth: "",
+    defaultMaxBirth: "",
+    weights: ["BEBAS", "-25", "-30", "-35", "-40", "-45", "-50", "+50"],
+  },
+];
+
+export function detectDivisionPreset(cat: { name?: string | null; minAge?: number | null; maxAge?: number | null }): string {
+  const nameUpper = (cat.name || "").toUpperCase();
+  for (const p of DIVISION_PRESETS) {
+    if (p.id === "CUSTOM") continue;
+    if (
+      nameUpper.includes(p.name) ||
+      (cat.minAge === p.minAge && (cat.maxAge === p.maxAge || (!p.maxAge && !cat.maxAge)))
+    ) {
+      return p.id;
+    }
+  }
+  return "CUSTOM";
+}
+
+export function getCategoryDivisionMeta(cat: {
+  name?: string | null;
+  minAge?: number | null;
+  maxAge?: number | null;
+  minBirthDate?: string | null;
+  maxBirthDate?: string | null;
+}): {
+  divisionName: string;
+  ageLabel: string;
+  birthDateLabel: string;
+} {
+  const nameUpper = (cat.name || "").toUpperCase();
+  for (const p of DIVISION_PRESETS) {
+    if (p.id === "CUSTOM") continue;
+    if (
+      nameUpper.includes(p.name) ||
+      (cat.minAge === p.minAge && (cat.maxAge === p.maxAge || (!p.maxAge && !cat.maxAge)))
+    ) {
+      let bLabel = "";
+      if (cat.minBirthDate || cat.maxBirthDate) {
+        const d1 = cat.minBirthDate ? new Date(cat.minBirthDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "*";
+        const d2 = cat.maxBirthDate ? new Date(cat.maxBirthDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "*";
+        bLabel = `Kelahiran tanggal ${d1} s.d ${d2}`;
+      } else if (p.defaultMinBirth && p.defaultMaxBirth) {
+        const d1 = new Date(p.defaultMinBirth).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+        const d2 = new Date(p.defaultMaxBirth).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+        bLabel = `Kelahiran tanggal ${d1} s.d ${d2}`;
+      } else {
+        bLabel = "Kriteria Usia Standar Kejuaraan";
+      }
+      return {
+        divisionName: p.name,
+        ageLabel: p.ageLabel,
+        birthDateLabel: bLabel,
+      };
+    }
+  }
+
+  let bLabel = "Kriteria Usia Standar Kejuaraan";
+  if (cat.minBirthDate || cat.maxBirthDate) {
+    const d1 = cat.minBirthDate ? new Date(cat.minBirthDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "*";
+    const d2 = cat.maxBirthDate ? new Date(cat.maxBirthDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "*";
+    bLabel = `Kelahiran tanggal ${d1} s.d ${d2}`;
+  }
+  return {
+    divisionName: "KELAS LAINNYA",
+    ageLabel: cat.minAge || cat.maxAge ? `${cat.minAge || 0} - ${cat.maxAge || "∞"} Tahun` : "Bebas Usia",
+    birthDateLabel: bLabel,
+  };
+}
+
+export function getEventNumberDisplay(cat: {
+  categoryType?: string | null;
+  minWeight?: number | null;
+  maxWeight?: number | null;
+}): string {
+  const type = (cat.categoryType || "").toUpperCase();
+  const isTeam = type.endsWith("_TEAM");
+  if (type.startsWith("KATA")) {
+    return isTeam ? "KATA BEREGU" : "KATA PERORANGAN";
+  }
+  const prefix = isTeam ? "KUMITE BEREGU" : "KUMITE";
+  if (cat.maxWeight && !cat.minWeight) {
+    return `${prefix} -${cat.maxWeight} KG`;
+  }
+  if (cat.minWeight && !cat.maxWeight) {
+    return `${prefix} +${Math.floor(cat.minWeight)} KG`;
+  }
+  if (cat.minWeight && cat.maxWeight) {
+    return `${prefix} ${cat.minWeight}-${cat.maxWeight} KG`;
+  }
+  return `${prefix} PERORANGAN`;
+}
+
+export function buildGeneratedCategoryName(
+  divisionPresetId: string,
+  categoryType: string,
+  gender: string,
+  minWeight?: number | null,
+  maxWeight?: number | null
+): string {
+  const preset = DIVISION_PRESETS.find((p) => p.id === divisionPresetId) || DIVISION_PRESETS[0];
+  const divName = preset.name;
+  const isKata = (categoryType || "").startsWith("KATA");
+  const isTeam = (categoryType || "").endsWith("_TEAM");
+
+  let numberPart = "";
+  if (isKata) {
+    numberPart = isTeam ? "KATA BEREGU" : "KATA PERORANGAN";
+  } else {
+    const kumitePrefix = isTeam ? "KUMITE BEREGU" : "KUMITE";
+    if (maxWeight && !minWeight) {
+      numberPart = `${kumitePrefix} -${maxWeight} KG`;
+    } else if (minWeight && !maxWeight) {
+      numberPart = `${kumitePrefix} +${Math.floor(minWeight)} KG`;
+    } else if (minWeight && maxWeight) {
+      numberPart = `${kumitePrefix} ${minWeight}-${maxWeight} KG`;
+    } else {
+      numberPart = `${kumitePrefix} PERORANGAN`;
+    }
+  }
+
+  const genderPart = gender === "FEMALE" ? "PUTRI" : gender === "MIXED" ? "CAMPURAN" : "PUTRA";
+
+  return `${divName} (${numberPart} - ${genderPart})`;
+}
+
 
 
 
