@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import Link from "next/link";
 import {
   Trophy,
@@ -29,6 +29,9 @@ import {
   Loader2,
   Check,
   UserCheck,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 import { showError, showSuccess } from "@/lib/client-toast";
@@ -97,6 +100,9 @@ interface SuggestionMember {
   isRegistered?: boolean;
 }
 
+type SortField = "name" | "categoryType" | "birthDate" | "fee" | "registrations";
+type SortDirection = "asc" | "desc";
+
 export default function AdminPertandinganKategoriPage() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
@@ -106,6 +112,11 @@ export default function AdminPertandinganKategoriPage() {
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("ALL");
+
+  // Table Sorting & Copy All State
+  const [sortField, setSortField] = useState<SortField>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [copiedAll, setCopiedAll] = useState(false);
 
   // INKAI Custom Confirmation Modal State
   const [deleteCatState, setDeleteCatState] = useState<{ open: boolean; id: string; name: string } | null>(null);
@@ -585,6 +596,15 @@ export default function AdminPertandinganKategoriPage() {
     }
   };
 
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
   // Filter Categories
   const filteredCategories = categories.filter((cat) => {
     const matchesSearch = cat.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -594,6 +614,97 @@ export default function AdminPertandinganKategoriPage() {
     if (filterType === "KUMITE") return cat.categoryType.startsWith("KUMITE");
     return true;
   });
+
+  // Sort Categories
+  const sortedCategories = useMemo(() => {
+    const list = [...filteredCategories];
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (sortField === "name") {
+        comparison = a.name.localeCompare(b.name, "id");
+      } else if (sortField === "categoryType") {
+        comparison = a.categoryType.localeCompare(b.categoryType, "id");
+      } else if (sortField === "birthDate") {
+        const aTime = a.minBirthDate
+          ? new Date(a.minBirthDate).getTime()
+          : (a.minAge !== null && a.minAge !== undefined ? a.minAge : 0) * 100000;
+        const bTime = b.minBirthDate
+          ? new Date(b.minBirthDate).getTime()
+          : (b.minAge !== null && b.minAge !== undefined ? b.minAge : 0) * 100000;
+        comparison = aTime - bTime;
+      } else if (sortField === "fee") {
+        comparison = (a.fee || 0) - (b.fee || 0);
+      } else if (sortField === "registrations") {
+        comparison = (a._count?.registrations || 0) - (b._count?.registrations || 0);
+      }
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+    return list;
+  }, [filteredCategories, sortField, sortDirection]);
+
+  const handleCopyAllCategories = async () => {
+    if (sortedCategories.length === 0) {
+      showError("Tidak ada data kategori kelas untuk disalin.");
+      return;
+    }
+
+    const header = [
+      "No",
+      "Nama Kelas",
+      "Gender",
+      "Jenis Kategori",
+      "Kriteria Usia / Tgl Lahir",
+      "Batas Berat Badan",
+      "Biaya (Rp)",
+      "Status Biaya",
+      "Jumlah Atlet",
+    ].join("\t");
+
+    const rows = sortedCategories.map((cat, idx) => {
+      let tglOrUsia = "Semua Usia / Bebas";
+      if (cat.minBirthDate || cat.maxBirthDate) {
+        const minD = cat.minBirthDate ? new Date(cat.minBirthDate).toLocaleDateString("id-ID") : "*";
+        const maxD = cat.maxBirthDate ? new Date(cat.maxBirthDate).toLocaleDateString("id-ID") : "*";
+        tglOrUsia = `${minD} s/d ${maxD}`;
+      } else if (cat.minAge || cat.maxAge) {
+        tglOrUsia = `${cat.minAge || 0}-${cat.maxAge || "∞"} thn`;
+      }
+
+      let bb = "Bebas BB";
+      if (cat.minWeight || cat.maxWeight) {
+        bb = `${cat.minWeight ? `Min ${cat.minWeight}kg ` : ""}${cat.maxWeight ? `Max ${cat.maxWeight}kg` : ""}`.trim();
+      }
+
+      const statusBiaya = cat.isFeeVisible !== false ? "Ditampilkan" : "Disembunyikan";
+      const totalAtlet = cat._count?.registrations || 0;
+
+      return [
+        idx + 1,
+        cat.name,
+        cat.gender,
+        cat.categoryType,
+        tglOrUsia,
+        bb,
+        cat.fee,
+        statusBiaya,
+        totalAtlet,
+      ].join("\t");
+    });
+
+    const fullTsv = [header, ...rows].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(fullTsv);
+      setCopiedAll(true);
+      showSuccess(
+        `Berhasil menyalin ${sortedCategories.length} data kategori kelas ke clipboard! Siap di-paste ke Excel / Spreadsheet.`
+      );
+      setTimeout(() => setCopiedAll(false), 2500);
+    } catch (err) {
+      console.error(err);
+      showError("Gagal menyalin data kategori ke clipboard");
+    }
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-6xl mx-auto">
@@ -806,10 +917,10 @@ export default function AdminPertandinganKategoriPage() {
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h2 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
               <Swords className="w-5 h-5 text-red-600" />
-              Daftar Kategori Kelas ({filteredCategories.length} dari {categories.length})
+              Daftar Kategori Kelas ({sortedCategories.length} dari {categories.length})
             </h2>
 
-            {/* Controls Search & Filter */}
+            {/* Controls Search & Filter & Copy All */}
             <div className="flex items-center gap-2">
               <div ref={searchContainerRef} className="relative">
                 <Search className="w-4 h-4 absolute left-2.5 top-2.5 text-zinc-400" />
@@ -922,6 +1033,27 @@ export default function AdminPertandinganKategoriPage() {
                 <option value="KATA">Kata</option>
                 <option value="KUMITE">Kumite</option>
               </select>
+
+              {/* Tombol Copy Semua Isi Tabel */}
+              <button
+                type="button"
+                onClick={handleCopyAllCategories}
+                disabled={sortedCategories.length === 0}
+                className="px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shrink-0"
+                title="Salin seluruh isi tabel kategori ke clipboard (format Excel / Spreadsheet)"
+              >
+                {copiedAll ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-emerald-600 font-bold">Tersalin!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Salin Tabel</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
@@ -932,23 +1064,108 @@ export default function AdminPertandinganKategoriPage() {
                   <th className="py-2.5 px-2.5 w-9 text-center">
                     <input
                       type="checkbox"
-                      checked={filteredCategories.length > 0 && selectedCategoryIds.length === filteredCategories.length}
+                      checked={sortedCategories.length > 0 && selectedCategoryIds.length === sortedCategories.length}
                       onChange={() => {
-                        if (selectedCategoryIds.length === filteredCategories.length) {
+                        if (selectedCategoryIds.length === sortedCategories.length) {
                           setSelectedCategoryIds([]);
                         } else {
-                          setSelectedCategoryIds(filteredCategories.map((c) => c.id));
+                          setSelectedCategoryIds(sortedCategories.map((c) => c.id));
                         }
                       }}
                       title="Centang / Hapus Centang Semua"
                       className="w-4 h-4 rounded border-zinc-300 text-red-600 focus:ring-red-500 cursor-pointer"
                     />
                   </th>
-                  <th className="py-2.5 px-3 min-w-[140px]">Nama Kelas</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Jenis</th>
-                  <th className="py-2.5 px-3 min-w-[130px]">Kriteria Tgl Lahir / BB</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Biaya Cabang</th>
-                  <th className="py-2.5 px-3 text-center whitespace-nowrap">Atlet</th>
+                  <th
+                    onClick={() => handleSort("name")}
+                    className="py-2.5 px-3 min-w-[140px] cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
+                    title="Klik untuk mengurutkan Nama Kelas"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Nama Kelas</span>
+                      {sortField === "name" ? (
+                        sortDirection === "asc" ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-zinc-400 opacity-60 group-hover:opacity-100 transition" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort("categoryType")}
+                    className="py-2.5 px-3 whitespace-nowrap cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
+                    title="Klik untuk mengurutkan Jenis Kategori"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Jenis</span>
+                      {sortField === "categoryType" ? (
+                        sortDirection === "asc" ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-zinc-400 opacity-60 group-hover:opacity-100 transition" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort("birthDate")}
+                    className="py-2.5 px-3 min-w-[130px] cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
+                    title="Klik untuk mengurutkan Kriteria Usia/Tgl Lahir"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Kriteria Tgl Lahir / BB</span>
+                      {sortField === "birthDate" ? (
+                        sortDirection === "asc" ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-zinc-400 opacity-60 group-hover:opacity-100 transition" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort("fee")}
+                    className="py-2.5 px-3 whitespace-nowrap cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
+                    title="Klik untuk mengurutkan Biaya Cabang"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Biaya Cabang</span>
+                      {sortField === "fee" ? (
+                        sortDirection === "asc" ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-zinc-400 opacity-60 group-hover:opacity-100 transition" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort("registrations")}
+                    className="py-2.5 px-3 text-center whitespace-nowrap cursor-pointer select-none group hover:bg-zinc-100/80 dark:hover:bg-zinc-800/80 transition"
+                    title="Klik untuk mengurutkan Jumlah Atlet"
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>Atlet</span>
+                      {sortField === "registrations" ? (
+                        sortDirection === "asc" ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-zinc-400 opacity-60 group-hover:opacity-100 transition" />
+                      )}
+                    </div>
+                  </th>
                   <th className="py-2.5 px-3 text-right whitespace-nowrap">Aksi</th>
                 </tr>
               </thead>
@@ -959,7 +1176,7 @@ export default function AdminPertandinganKategoriPage() {
                       Memuat kategori...
                     </td>
                   </tr>
-                ) : filteredCategories.length === 0 ? (
+                ) : sortedCategories.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-8 text-center text-zinc-500">
                       {categories.length === 0
@@ -968,7 +1185,7 @@ export default function AdminPertandinganKategoriPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredCategories.map((cat) => (
+                  sortedCategories.map((cat) => (
                     <tr key={cat.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition">
                       <td className="py-2.5 px-2.5 text-center">
                         <input
