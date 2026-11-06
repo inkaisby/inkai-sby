@@ -77,6 +77,11 @@ interface EditCategoryForm {
   maxWeight: string;
   fee: string;
   isFeeVisible: boolean;
+  divisionPresetId: string;
+  categoryKind: "KATA" | "KUMITE";
+  weightPreset: string;
+  isAutoName: boolean;
+  registrationsCount?: number;
 }
 
 interface DuplicateCategoryForm {
@@ -91,6 +96,10 @@ interface DuplicateCategoryForm {
   maxWeight: string;
   fee: string;
   isFeeVisible: boolean;
+  divisionPresetId: string;
+  categoryKind: "KATA" | "KUMITE";
+  weightPreset: string;
+  isAutoName: boolean;
 }
 
 interface SuggestionMember {
@@ -222,6 +231,20 @@ export const DIVISION_PRESETS: DivisionPresetDef[] = [
     weights: ["BEBAS", "-25", "-30", "-35", "-40", "-45", "-50", "+50"],
   },
 ];
+
+export function detectDivisionPreset(cat: { name?: string; minAge?: number | null; maxAge?: number | null }): string {
+  const nameUpper = (cat.name || "").toUpperCase();
+  for (const p of DIVISION_PRESETS) {
+    if (p.id === "CUSTOM") continue;
+    if (
+      nameUpper.includes(p.name) ||
+      (cat.minAge === p.minAge && (cat.maxAge === p.maxAge || (!p.maxAge && !cat.maxAge)))
+    ) {
+      return p.id;
+    }
+  }
+  return "CUSTOM";
+}
 
 export function getCategoryDivisionMeta(cat: CategoryItem): {
   divisionName: string;
@@ -643,6 +666,24 @@ export default function AdminPertandinganKategoriPage() {
     if (cat.maxBirthDate) {
       maxB = new Date(cat.maxBirthDate).toISOString().substring(0, 10);
     }
+
+    const divisionPresetId = detectDivisionPreset(cat);
+    const isKata = cat.categoryType.startsWith("KATA");
+    const categoryKind: "KATA" | "KUMITE" = isKata ? "KATA" : "KUMITE";
+
+    let weightPreset = "BEBAS";
+    if (!isKata) {
+      if (!cat.minWeight && cat.maxWeight) {
+        weightPreset = `-${cat.maxWeight}`;
+      } else if (cat.minWeight && !cat.maxWeight) {
+        weightPreset = `+${Math.floor(cat.minWeight)}`;
+      } else if (!cat.minWeight && !cat.maxWeight) {
+        weightPreset = "BEBAS";
+      } else {
+        weightPreset = "CUSTOM";
+      }
+    }
+
     setEditCatState({
       id: cat.id,
       name: cat.name,
@@ -654,14 +695,29 @@ export default function AdminPertandinganKategoriPage() {
       maxBirthDate: maxB,
       minWeight: cat.minWeight !== null && cat.minWeight !== undefined ? String(cat.minWeight) : "",
       maxWeight: cat.maxWeight !== null && cat.maxWeight !== undefined ? String(cat.maxWeight) : "",
-      fee: String(cat.fee),
+      fee: String(cat.fee ?? 0),
       isFeeVisible: cat.isFeeVisible !== false,
+      divisionPresetId,
+      categoryKind,
+      weightPreset,
+      isAutoName: false,
+      registrationsCount: cat._count?.registrations ?? 0,
     });
   };
 
   const handleUpdateCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editCatState) return;
+
+    const finalName = editCatState.isAutoName
+      ? buildGeneratedCategoryName(
+          editCatState.divisionPresetId,
+          editCatState.categoryType,
+          editCatState.gender,
+          editCatState.minWeight,
+          editCatState.maxWeight
+        )
+      : editCatState.name;
 
     setIsUpdating(true);
     try {
@@ -670,7 +726,7 @@ export default function AdminPertandinganKategoriPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: editCatState.id,
-          name: editCatState.name,
+          name: finalName,
           categoryType: editCatState.categoryType,
           gender: editCatState.gender,
           minAge: editCatState.minAge,
@@ -685,7 +741,7 @@ export default function AdminPertandinganKategoriPage() {
       });
 
       if (res.ok) {
-        showSuccess("Kategori kelas pertandingan berhasil diperbarui");
+        showSuccess("Kategori kelas pertandingan & biaya berhasil diperbarui");
         setEditCatState(null);
         fetchCategories();
       } else {
@@ -698,6 +754,82 @@ export default function AdminPertandinganKategoriPage() {
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  const handleEditSelectDivision = (presetId: string) => {
+    if (!editCatState) return;
+    const p = DIVISION_PRESETS.find((x) => x.id === presetId);
+    setEditCatState((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        divisionPresetId: presetId,
+        minAge: p && p.minAge !== null ? String(p.minAge) : prev.minAge,
+        maxAge: p && p.maxAge !== null ? String(p.maxAge) : prev.maxAge,
+        minBirthDate: p?.defaultMinBirth || prev.minBirthDate,
+        maxBirthDate: p?.defaultMaxBirth || prev.maxBirthDate,
+      };
+    });
+  };
+
+  const handleEditSelectCategoryKind = (kind: "KATA" | "KUMITE") => {
+    if (!editCatState) return;
+    const isTeam = editCatState.categoryType.endsWith("_TEAM");
+    const newType =
+      kind === "KATA"
+        ? isTeam
+          ? "KATA_TEAM"
+          : "KATA_INDIVIDUAL"
+        : isTeam
+        ? "KUMITE_TEAM"
+        : "KUMITE_INDIVIDUAL";
+    setEditCatState((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        categoryKind: kind,
+        categoryType: newType,
+        minWeight: kind === "KATA" ? "" : prev.minWeight,
+        maxWeight: kind === "KATA" ? "" : prev.maxWeight,
+        weightPreset: kind === "KATA" ? "BEBAS" : prev.weightPreset,
+      };
+    });
+  };
+
+  const handleEditSelectWeightPreset = (preset: string) => {
+    if (!editCatState) return;
+    let minW = "";
+    let maxW = "";
+    if (preset === "BEBAS") {
+      minW = "";
+      maxW = "";
+    } else if (preset.startsWith("-")) {
+      maxW = preset.replace("-", "");
+    } else if (preset.startsWith("+")) {
+      const val = preset.replace("+", "");
+      minW = String(parseFloat(val) + 0.1);
+    }
+    setEditCatState((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        weightPreset: preset,
+        minWeight: preset === "CUSTOM" ? prev.minWeight : minW,
+        maxWeight: preset === "CUSTOM" ? prev.maxWeight : maxW,
+      };
+    });
+  };
+
+  const handleEditAutoGenerateName = () => {
+    if (!editCatState) return;
+    const genName = buildGeneratedCategoryName(
+      editCatState.divisionPresetId,
+      editCatState.categoryType,
+      editCatState.gender,
+      editCatState.minWeight,
+      editCatState.maxWeight
+    );
+    setEditCatState((prev) => (prev ? { ...prev, name: genName, isAutoName: false } : null));
   };
 
   const triggerDeleteCategory = (cat: CategoryItem) => {
@@ -782,6 +914,24 @@ export default function AdminPertandinganKategoriPage() {
     if (cat.maxBirthDate) {
       maxB = new Date(cat.maxBirthDate).toISOString().substring(0, 10);
     }
+
+    const divisionPresetId = detectDivisionPreset(cat);
+    const isKata = cat.categoryType.startsWith("KATA");
+    const categoryKind: "KATA" | "KUMITE" = isKata ? "KATA" : "KUMITE";
+
+    let weightPreset = "BEBAS";
+    if (!isKata) {
+      if (!cat.minWeight && cat.maxWeight) {
+        weightPreset = `-${cat.maxWeight}`;
+      } else if (cat.minWeight && !cat.maxWeight) {
+        weightPreset = `+${Math.floor(cat.minWeight)}`;
+      } else if (!cat.minWeight && !cat.maxWeight) {
+        weightPreset = "BEBAS";
+      } else {
+        weightPreset = "CUSTOM";
+      }
+    }
+
     setDuplicateCatState({
       name: `${cat.name} (Salinan)`,
       categoryType: cat.categoryType,
@@ -792,8 +942,12 @@ export default function AdminPertandinganKategoriPage() {
       maxBirthDate: maxB,
       minWeight: cat.minWeight !== null && cat.minWeight !== undefined ? String(cat.minWeight) : "",
       maxWeight: cat.maxWeight !== null && cat.maxWeight !== undefined ? String(cat.maxWeight) : "",
-      fee: String(cat.fee),
+      fee: String(cat.fee ?? 0),
       isFeeVisible: cat.isFeeVisible !== false,
+      divisionPresetId,
+      categoryKind,
+      weightPreset,
+      isAutoName: false,
     });
   };
 
@@ -803,22 +957,74 @@ export default function AdminPertandinganKategoriPage() {
 
     setIsDuplicating(true);
     try {
-      const res = await fetch("/api/admin/pertandingan/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventId: selectedEventId,
-          ...duplicateCatState,
-        }),
-      });
+      if (duplicateCatState.gender === "BOTH") {
+        const nameMale = duplicateCatState.isAutoName
+          ? buildGeneratedCategoryName(
+              duplicateCatState.divisionPresetId,
+              duplicateCatState.categoryType,
+              "MALE",
+              duplicateCatState.minWeight,
+              duplicateCatState.maxWeight
+            )
+          : `${duplicateCatState.name} (Putra)`;
+        const nameFemale = duplicateCatState.isAutoName
+          ? buildGeneratedCategoryName(
+              duplicateCatState.divisionPresetId,
+              duplicateCatState.categoryType,
+              "FEMALE",
+              duplicateCatState.minWeight,
+              duplicateCatState.maxWeight
+            )
+          : `${duplicateCatState.name} (Putri)`;
 
-      if (res.ok) {
-        showSuccess("Kategori kelas pertandingan berhasil diduplikasi");
-        setDuplicateCatState(null);
-        fetchCategories();
-      } else {
+        const res = await fetch("/api/admin/pertandingan/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventId: selectedEventId,
+            items: [
+              { ...duplicateCatState, eventId: selectedEventId, gender: "MALE", name: nameMale },
+              { ...duplicateCatState, eventId: selectedEventId, gender: "FEMALE", name: nameFemale },
+            ],
+          }),
+        });
         const data = await res.json();
-        showError(data.error || "Gagal menduplikasi kategori");
+        if (res.ok && data.success) {
+          showSuccess("Berhasil menduplikasi 2 kelas (Putra & Putri) sekaligus!");
+          setDuplicateCatState(null);
+          fetchCategories();
+        } else {
+          showError(data.error || "Gagal menduplikasi kategori");
+        }
+      } else {
+        const finalName = duplicateCatState.isAutoName
+          ? buildGeneratedCategoryName(
+              duplicateCatState.divisionPresetId,
+              duplicateCatState.categoryType,
+              duplicateCatState.gender,
+              duplicateCatState.minWeight,
+              duplicateCatState.maxWeight
+            )
+          : duplicateCatState.name;
+
+        const res = await fetch("/api/admin/pertandingan/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            eventId: selectedEventId,
+            ...duplicateCatState,
+            name: finalName,
+          }),
+        });
+
+        if (res.ok) {
+          showSuccess("Kategori kelas pertandingan & biaya berhasil diduplikasi");
+          setDuplicateCatState(null);
+          fetchCategories();
+        } else {
+          const data = await res.json();
+          showError(data.error || "Gagal menduplikasi kategori");
+        }
       }
     } catch (err) {
       console.error(err);
@@ -828,11 +1034,87 @@ export default function AdminPertandinganKategoriPage() {
     }
   };
 
+  const handleDuplicateSelectDivision = (presetId: string) => {
+    if (!duplicateCatState) return;
+    const p = DIVISION_PRESETS.find((x) => x.id === presetId);
+    setDuplicateCatState((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        divisionPresetId: presetId,
+        minAge: p && p.minAge !== null ? String(p.minAge) : prev.minAge,
+        maxAge: p && p.maxAge !== null ? String(p.maxAge) : prev.maxAge,
+        minBirthDate: p?.defaultMinBirth || prev.minBirthDate,
+        maxBirthDate: p?.defaultMaxBirth || prev.maxBirthDate,
+      };
+    });
+  };
+
+  const handleDuplicateSelectCategoryKind = (kind: "KATA" | "KUMITE") => {
+    if (!duplicateCatState) return;
+    const isTeam = duplicateCatState.categoryType.endsWith("_TEAM");
+    const newType =
+      kind === "KATA"
+        ? isTeam
+          ? "KATA_TEAM"
+          : "KATA_INDIVIDUAL"
+        : isTeam
+        ? "KUMITE_TEAM"
+        : "KUMITE_INDIVIDUAL";
+    setDuplicateCatState((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        categoryKind: kind,
+        categoryType: newType,
+        minWeight: kind === "KATA" ? "" : prev.minWeight,
+        maxWeight: kind === "KATA" ? "" : prev.maxWeight,
+        weightPreset: kind === "KATA" ? "BEBAS" : prev.weightPreset,
+      };
+    });
+  };
+
+  const handleDuplicateSelectWeightPreset = (preset: string) => {
+    if (!duplicateCatState) return;
+    let minW = "";
+    let maxW = "";
+    if (preset === "BEBAS") {
+      minW = "";
+      maxW = "";
+    } else if (preset.startsWith("-")) {
+      maxW = preset.replace("-", "");
+    } else if (preset.startsWith("+")) {
+      const val = preset.replace("+", "");
+      minW = String(parseFloat(val) + 0.1);
+    }
+    setDuplicateCatState((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        weightPreset: preset,
+        minWeight: preset === "CUSTOM" ? prev.minWeight : minW,
+        maxWeight: preset === "CUSTOM" ? prev.maxWeight : maxW,
+      };
+    });
+  };
+
+  const handleDuplicateAutoGenerateName = () => {
+    if (!duplicateCatState) return;
+    const genName = buildGeneratedCategoryName(
+      duplicateCatState.divisionPresetId,
+      duplicateCatState.categoryType,
+      duplicateCatState.gender === "BOTH" ? "MALE" : duplicateCatState.gender,
+      duplicateCatState.minWeight,
+      duplicateCatState.maxWeight
+    );
+    setDuplicateCatState((prev) => (prev ? { ...prev, name: genName, isAutoName: false } : null));
+  };
+
   const handleCopyToNewForm = (form: DuplicateCategoryForm) => {
     setNewCat({
       name: form.name,
       categoryType: form.categoryType,
-      gender: form.gender,
+      gender: form.gender === "BOTH" ? "MALE" : form.gender,
       minAge: form.minAge,
       maxAge: form.maxAge,
       minBirthDate: form.minBirthDate,
@@ -842,6 +1124,11 @@ export default function AdminPertandinganKategoriPage() {
       fee: form.fee,
       isFeeVisible: form.isFeeVisible,
     });
+    setSelectedDivisionPreset(form.divisionPresetId || "PRA_USIA_DINI");
+    setCategoryKind(form.categoryKind || (form.categoryType.startsWith("KATA") ? "KATA" : "KUMITE"));
+    setKumiteWeightPreset(form.weightPreset || "BEBAS");
+    setGenderOption((form.gender as any) || "MALE");
+    setIsAutoName(false);
     setDuplicateCatState(null);
     showSuccess("Data disalin ke formulir Tambah Kelas Baru di sebelah kiri");
     window.scrollTo({ top: 120, behavior: "smooth" });
@@ -2575,67 +2862,324 @@ export default function AdminPertandinganKategoriPage() {
 
       {/* Modal Edit Kategori Kelas */}
       {editCatState && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 max-w-lg w-full space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 max-w-xl w-full space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
-              <h3 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-                <Pencil className="w-5 h-5 text-blue-600" />
-                Edit Kelas Pertandingan & Biaya
-              </h3>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                  <Pencil className="w-5 h-5 text-blue-600" />
+                  Edit Kelas Pertandingan & Biaya
+                </h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Sesuaikan kelompok usia, nomor pertandingan, kriteria kelayakan, dan tarif biaya.
+                </p>
+              </div>
               <button
+                type="button"
                 onClick={() => setEditCatState(null)}
-                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-500"
+                className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-500 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleUpdateCategory} className="space-y-3">
+            {/* Peringatan jika atlet sudah terdaftar di kelas ini */}
+            {Boolean(editCatState.registrationsCount && editCatState.registrationsCount > 0) && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5">
+                <Users className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">Perhatian: {editCatState.registrationsCount} atlet terdaftar di kelas ini.</span>
+                  <p className="text-[11px] text-amber-800/90 dark:text-amber-300/80 mt-0.5">
+                    Mengubah kriteria tanggal lahir, gender, atau berat badan dapat mempengaruhi validitas data atlet yang sudah terdaftar.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdateCategory} className="space-y-4">
+              {/* 1. Kelompok Usia / Divisi */}
               <div>
-                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Nama Kelas Pertandingan *</label>
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center justify-between">
+                  <span>1. Kelompok Usia / Divisi *</span>
+                  <span className="text-[10px] text-zinc-400 font-normal">Sesuai bagan kejuaraan</span>
+                </label>
+                <select
+                  value={editCatState.divisionPresetId}
+                  onChange={(e) => handleEditSelectDivision(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-blue-500"
+                >
+                  {DIVISION_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.ageLabel})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. Nomor Pertandingan: KATA vs KUMITE */}
+              <div>
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                  2. Nomor Pertandingan *
+                </label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleEditSelectCategoryKind("KATA")}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      editCatState.categoryKind === "KATA"
+                        ? "bg-amber-500 text-zinc-950 border-amber-600 shadow-md ring-2 ring-amber-400/40"
+                        : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                    }`}
+                  >
+                    <Swords className="w-4 h-4" />
+                    <span>KATA</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleEditSelectCategoryKind("KUMITE")}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      editCatState.categoryKind === "KUMITE"
+                        ? "bg-red-600 text-white border-red-700 shadow-md ring-2 ring-red-400/40"
+                        : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                    }`}
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span>KUMITE</span>
+                  </button>
+                </div>
+
+                {/* Sub-pilihan Kata / Kumite */}
+                <div className="mt-2 p-2.5 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700/80 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-400">
+                      Bentuk:
+                    </label>
+                    <div className="flex items-center gap-3 text-xs">
+                      <label className="flex items-center gap-1.5 cursor-pointer font-medium">
+                        <input
+                          type="radio"
+                          name="editCatKindMode"
+                          checked={
+                            editCatState.categoryType === "KATA_INDIVIDUAL" ||
+                            editCatState.categoryType === "KUMITE_INDIVIDUAL"
+                          }
+                          onChange={() =>
+                            setEditCatState((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    categoryType:
+                                      prev.categoryKind === "KATA"
+                                        ? "KATA_INDIVIDUAL"
+                                        : "KUMITE_INDIVIDUAL",
+                                  }
+                                : null
+                            )
+                          }
+                          className="text-blue-600"
+                        />
+                        <span>Perorangan</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer font-medium">
+                        <input
+                          type="radio"
+                          name="editCatKindMode"
+                          checked={
+                            editCatState.categoryType === "KATA_TEAM" ||
+                            editCatState.categoryType === "KUMITE_TEAM"
+                          }
+                          onChange={() =>
+                            setEditCatState((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    categoryType:
+                                      prev.categoryKind === "KATA" ? "KATA_TEAM" : "KUMITE_TEAM",
+                                  }
+                                : null
+                            )
+                          }
+                          className="text-blue-600"
+                        />
+                        <span>Beregu</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Khusus Kumite: Pilihan Cepat Batas Berat Badan */}
+                  {editCatState.categoryKind === "KUMITE" && (
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 block mb-1">
+                        Pilihan Batas Berat Badan (BB):
+                      </label>
+                      <div className="flex flex-wrap gap-1">
+                        {(
+                          DIVISION_PRESETS.find((x) => x.id === editCatState.divisionPresetId)?.weights || [
+                            "BEBAS",
+                            "-25",
+                            "-30",
+                            "+30",
+                          ]
+                        ).map((w) => {
+                          const isSelected = editCatState.weightPreset === w;
+                          return (
+                            <button
+                              key={w}
+                              type="button"
+                              onClick={() => handleEditSelectWeightPreset(w)}
+                              className={`px-2 py-1 rounded-md text-[10px] font-bold border transition cursor-pointer ${
+                                isSelected
+                                  ? "bg-red-600 text-white border-red-700 shadow-xs"
+                                  : "bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                              }`}
+                            >
+                              {w === "BEBAS" ? "Bebas BB" : `${w} kg`}
+                            </button>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditCatState((prev) => (prev ? { ...prev, weightPreset: "CUSTOM" } : null))
+                          }
+                          className={`px-2 py-1 rounded-md text-[10px] font-bold border transition cursor-pointer ${
+                            editCatState.weightPreset === "CUSTOM"
+                              ? "bg-red-600 text-white border-red-700 shadow-xs"
+                              : "bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                          }`}
+                        >
+                          Kustom BB
+                        </button>
+                      </div>
+
+                      {/* Input manual BB jika kustom */}
+                      {editCatState.weightPreset === "CUSTOM" && (
+                        <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+                          <div>
+                            <label className="text-[10px] text-zinc-500">Min BB (kg)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              placeholder="0"
+                              value={editCatState.minWeight}
+                              onChange={(e) =>
+                                setEditCatState({ ...editCatState, minWeight: e.target.value })
+                              }
+                              className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-zinc-500">Max BB (kg)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              placeholder="30"
+                              value={editCatState.maxWeight}
+                              onChange={(e) =>
+                                setEditCatState({ ...editCatState, maxWeight: e.target.value })
+                              }
+                              className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Pilihan Gender */}
+              <div>
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center justify-between">
+                  <span>3. Gender Peserta *</span>
+                  <span className="text-[10px] text-zinc-400 font-normal">Kualifikasi kelamin</span>
+                </label>
+                <div className="grid grid-cols-3 gap-1.5 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setEditCatState({ ...editCatState, gender: "MALE" })}
+                    className={`py-1.5 px-2.5 rounded-lg border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                      editCatState.gender === "MALE"
+                        ? "bg-blue-600 text-white border-blue-700 shadow-sm ring-1 ring-blue-400"
+                        : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300"
+                    }`}
+                  >
+                    <span>PUTRA</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditCatState({ ...editCatState, gender: "FEMALE" })}
+                    className={`py-1.5 px-2.5 rounded-lg border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                      editCatState.gender === "FEMALE"
+                        ? "bg-pink-600 text-white border-pink-700 shadow-sm ring-1 ring-pink-400"
+                        : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300"
+                    }`}
+                  >
+                    <span>PUTRI</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditCatState({ ...editCatState, gender: "MIXED" })}
+                    className={`py-1.5 px-2.5 rounded-lg border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                      editCatState.gender === "MIXED"
+                        ? "bg-purple-600 text-white border-purple-700 shadow-sm ring-1 ring-purple-400"
+                        : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300"
+                    }`}
+                  >
+                    <span>CAMPURAN</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. Nama Kelas Pertandingan */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                    4. Nama Kelas Pertandingan *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleEditAutoGenerateName}
+                    className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer font-semibold"
+                    title="Buat ulang nama sesuai kelompok usia, tipe, dan gender yang dipilih"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Buat Nama Standar
+                  </button>
+                </div>
                 <input
                   type="text"
                   required
                   value={editCatState.name}
                   onChange={(e) => setEditCatState({ ...editCatState, name: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm font-semibold"
+                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-bold text-zinc-900 dark:text-white"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Jenis Kategori *</label>
-                  <select
-                    value={editCatState.categoryType}
-                    onChange={(e) => setEditCatState({ ...editCatState, categoryType: e.target.value })}
-                    className="w-full mt-1 px-2.5 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-medium"
-                  >
-                    <option value="KATA_INDIVIDUAL">Kata Perorangan</option>
-                    <option value="KATA_TEAM">Kata Beregu</option>
-                    <option value="KUMITE_INDIVIDUAL">Kumite Perorangan</option>
-                    <option value="KUMITE_TEAM">Kumite Beregu</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Gender *</label>
-                  <select
-                    value={editCatState.gender}
-                    onChange={(e) => setEditCatState({ ...editCatState, gender: e.target.value })}
-                    className="w-full mt-1 px-2.5 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-medium"
-                  >
-                    <option value="MALE">Putra (Male)</option>
-                    <option value="FEMALE">Putri (Female)</option>
-                    <option value="MIXED">Campuran (Mixed)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Rentang Tanggal Lahir (Kriteria Kelayakan) */}
+              {/* 5. Rentang Tanggal Lahir (Kriteria Kelayakan) */}
               <div className="p-3 bg-red-50/50 dark:bg-red-950/30 rounded-xl border border-red-100 dark:border-red-900/40 space-y-2">
-                <span className="text-xs font-bold text-red-900 dark:text-red-200 flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-red-600" />
-                  Kriteria Rentang Tanggal Lahir
+                <span className="text-xs font-bold text-red-900 dark:text-red-200 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-red-600" />
+                    5. Kriteria Rentang Kelahiran
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p = DIVISION_PRESETS.find((x) => x.id === editCatState.divisionPresetId);
+                      if (p && p.defaultMinBirth) {
+                        setEditCatState({
+                          ...editCatState,
+                          minBirthDate: p.defaultMinBirth,
+                          maxBirthDate: p.defaultMaxBirth,
+                        });
+                      }
+                    }}
+                    className="text-[10px] text-red-700 dark:text-red-300 hover:underline cursor-pointer font-medium"
+                  >
+                    Reset Tgl Standar
+                  </button>
                 </span>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -2659,76 +3203,81 @@ export default function AdminPertandinganKategoriPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Batas Min BB (kg)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={editCatState.minWeight}
-                    onChange={(e) => setEditCatState({ ...editCatState, minWeight: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
-                  />
+              {/* 6. Biaya Pertandingan & Visibilitas Biaya */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                    6. Biaya Pertandingan (Rp) *
+                  </label>
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    Rp {parseInt(editCatState.fee || "0").toLocaleString("id-ID")}
+                  </span>
                 </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Batas Max BB (kg)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={editCatState.maxWeight}
-                    onChange={(e) => setEditCatState({ ...editCatState, maxWeight: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Biaya Pertandingan (Rp) *</label>
                 <input
                   type="number"
                   required
+                  min={0}
                   value={editCatState.fee}
                   onChange={(e) => setEditCatState({ ...editCatState, fee: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm font-bold text-emerald-600 dark:text-emerald-400"
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm font-bold text-emerald-600 dark:text-emerald-400"
                 />
-              </div>
 
-              {/* Checkbox Option Tampilkan Biaya */}
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <input
-                    type="checkbox"
-                    id="editIsFeeVisible"
-                    checked={editCatState.isFeeVisible}
-                    onChange={(e) => setEditCatState({ ...editCatState, isFeeVisible: e.target.checked })}
-                    className="w-4 h-4 text-emerald-600 rounded border-zinc-300 focus:ring-emerald-500 cursor-pointer"
-                  />
-                  <label htmlFor="editIsFeeVisible" className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 cursor-pointer flex items-center gap-1.5">
-                    {editCatState.isFeeVisible ? <Eye className="w-4 h-4 text-emerald-600" /> : <EyeOff className="w-4 h-4 text-amber-600" />}
-                    Tampilkan Biaya Pertandingan
-                  </label>
+                {/* Preset Cepat Biaya */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <span className="text-[10px] text-zinc-500 mr-1">Pilihan Cepat:</span>
+                  {[0, 100000, 150000, 200000, 250000, 300000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setEditCatState({ ...editCatState, fee: String(amt) })}
+                      className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition cursor-pointer ${
+                        editCatState.fee === String(amt)
+                          ? "bg-emerald-600 text-white border-emerald-700"
+                          : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200"
+                      }`}
+                    >
+                      {amt === 0 ? "Gratis (0)" : `Rp ${(amt / 1000).toLocaleString("id-ID")}rb`}
+                    </button>
+                  ))}
                 </div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${editCatState.isFeeVisible ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"}`}>
-                  {editCatState.isFeeVisible ? "Ditampilkan" : "Disembunyikan"}
-                </span>
+
+                {/* Checkbox Option Tampilkan Biaya */}
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      id="editIsFeeVisible"
+                      checked={editCatState.isFeeVisible}
+                      onChange={(e) => setEditCatState({ ...editCatState, isFeeVisible: e.target.checked })}
+                      className="w-4 h-4 text-emerald-600 rounded border-zinc-300 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <label htmlFor="editIsFeeVisible" className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 cursor-pointer flex items-center gap-1.5">
+                      {editCatState.isFeeVisible ? <Eye className="w-4 h-4 text-emerald-600" /> : <EyeOff className="w-4 h-4 text-amber-600" />}
+                      Tampilkan Biaya Pertandingan
+                    </label>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${editCatState.isFeeVisible ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300" : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"}`}>
+                    {editCatState.isFeeVisible ? "Ditampilkan" : "Disembunyikan"}
+                  </span>
+                </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2">
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
                 <button
                   type="button"
                   onClick={() => setEditCatState(null)}
-                  className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold rounded-xl transition"
+                  className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold rounded-xl transition cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isUpdating}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition shadow flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shadow flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                 >
                   <Pencil className="w-3.5 h-3.5" />
-                  {isUpdating ? "Menyimpan..." : "Simpan Perubahan"}
+                  {isUpdating ? "Menyimpan..." : "Simpan Perubahan Kelas & Biaya"}
                 </button>
               </div>
             </form>
@@ -2824,13 +3373,19 @@ export default function AdminPertandinganKategoriPage() {
 
       {/* Modal Duplikat Kategori Kelas */}
       {duplicateCatState && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 max-w-lg w-full space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 sm:p-6 max-w-xl w-full space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
-              <h3 className="text-base font-bold text-zinc-900 dark:text-white flex items-center gap-2">
-                <Copy className="w-5 h-5 text-amber-600" />
-                Duplikat Kelas Pertandingan & Biaya
-              </h3>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                  <Copy className="w-5 h-5 text-amber-600" />
+                  Duplikat Kelas Pertandingan & Biaya
+                </h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Buat kelas baru dengan menyalin atribut dan menyesuaikan nama, gender, atau tarif biaya.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setDuplicateCatState(null)}
@@ -2840,56 +3395,304 @@ export default function AdminPertandinganKategoriPage() {
               </button>
             </div>
 
-            <form onSubmit={handleExecuteDuplicate} className="space-y-3">
+            <form onSubmit={handleExecuteDuplicate} className="space-y-4">
+              {/* 1. Kelompok Usia / Divisi */}
               <div>
-                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                  Nama Kelas Pertandingan Baru *
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center justify-between">
+                  <span>1. Kelompok Usia / Divisi *</span>
+                  <span className="text-[10px] text-zinc-400 font-normal">Sesuai bagan kejuaraan</span>
                 </label>
+                <select
+                  value={duplicateCatState.divisionPresetId}
+                  onChange={(e) => handleDuplicateSelectDivision(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-amber-500"
+                >
+                  {DIVISION_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.ageLabel})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. Nomor Pertandingan: KATA vs KUMITE */}
+              <div>
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                  2. Nomor Pertandingan *
+                </label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleDuplicateSelectCategoryKind("KATA")}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      duplicateCatState.categoryKind === "KATA"
+                        ? "bg-amber-500 text-zinc-950 border-amber-600 shadow-md ring-2 ring-amber-400/40"
+                        : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                    }`}
+                  >
+                    <Swords className="w-4 h-4" />
+                    <span>KATA</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDuplicateSelectCategoryKind("KUMITE")}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      duplicateCatState.categoryKind === "KUMITE"
+                        ? "bg-red-600 text-white border-red-700 shadow-md ring-2 ring-red-400/40"
+                        : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                    }`}
+                  >
+                    <Shield className="w-4 h-4" />
+                    <span>KUMITE</span>
+                  </button>
+                </div>
+
+                {/* Sub-pilihan Kata / Kumite */}
+                <div className="mt-2 p-2.5 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700/80 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-400">
+                      Bentuk:
+                    </label>
+                    <div className="flex items-center gap-3 text-xs">
+                      <label className="flex items-center gap-1.5 cursor-pointer font-medium">
+                        <input
+                          type="radio"
+                          name="duplicateCatKindMode"
+                          checked={
+                            duplicateCatState.categoryType === "KATA_INDIVIDUAL" ||
+                            duplicateCatState.categoryType === "KUMITE_INDIVIDUAL"
+                          }
+                          onChange={() =>
+                            setDuplicateCatState((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    categoryType:
+                                      prev.categoryKind === "KATA"
+                                        ? "KATA_INDIVIDUAL"
+                                        : "KUMITE_INDIVIDUAL",
+                                  }
+                                : null
+                            )
+                          }
+                          className="text-amber-600"
+                        />
+                        <span>Perorangan</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer font-medium">
+                        <input
+                          type="radio"
+                          name="duplicateCatKindMode"
+                          checked={
+                            duplicateCatState.categoryType === "KATA_TEAM" ||
+                            duplicateCatState.categoryType === "KUMITE_TEAM"
+                          }
+                          onChange={() =>
+                            setDuplicateCatState((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    categoryType:
+                                      prev.categoryKind === "KATA" ? "KATA_TEAM" : "KUMITE_TEAM",
+                                  }
+                                : null
+                            )
+                          }
+                          className="text-amber-600"
+                        />
+                        <span>Beregu</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Khusus Kumite: Pilihan Cepat Batas Berat Badan */}
+                  {duplicateCatState.categoryKind === "KUMITE" && (
+                    <div>
+                      <label className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 block mb-1">
+                        Pilihan Batas Berat Badan (BB):
+                      </label>
+                      <div className="flex flex-wrap gap-1">
+                        {(
+                          DIVISION_PRESETS.find((x) => x.id === duplicateCatState.divisionPresetId)?.weights || [
+                            "BEBAS",
+                            "-25",
+                            "-30",
+                            "+30",
+                          ]
+                        ).map((w) => {
+                          const isSelected = duplicateCatState.weightPreset === w;
+                          return (
+                            <button
+                              key={w}
+                              type="button"
+                              onClick={() => handleDuplicateSelectWeightPreset(w)}
+                              className={`px-2 py-1 rounded-md text-[10px] font-bold border transition cursor-pointer ${
+                                isSelected
+                                  ? "bg-red-600 text-white border-red-700 shadow-xs"
+                                  : "bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                              }`}
+                            >
+                              {w === "BEBAS" ? "Bebas BB" : `${w} kg`}
+                            </button>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDuplicateCatState((prev) => (prev ? { ...prev, weightPreset: "CUSTOM" } : null))
+                          }
+                          className={`px-2 py-1 rounded-md text-[10px] font-bold border transition cursor-pointer ${
+                            duplicateCatState.weightPreset === "CUSTOM"
+                              ? "bg-red-600 text-white border-red-700 shadow-xs"
+                              : "bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100"
+                          }`}
+                        >
+                          Kustom BB
+                        </button>
+                      </div>
+
+                      {/* Input manual BB jika kustom */}
+                      {duplicateCatState.weightPreset === "CUSTOM" && (
+                        <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+                          <div>
+                            <label className="text-[10px] text-zinc-500">Min BB (kg)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              placeholder="0"
+                              value={duplicateCatState.minWeight}
+                              onChange={(e) =>
+                                setDuplicateCatState({ ...duplicateCatState, minWeight: e.target.value })
+                              }
+                              className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-zinc-500">Max BB (kg)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              placeholder="30"
+                              value={duplicateCatState.maxWeight}
+                              onChange={(e) =>
+                                setDuplicateCatState({ ...duplicateCatState, maxWeight: e.target.value })
+                              }
+                              className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Pilihan Gender (Dengan Opsi Tambahan Putra & Putri Sekaligus) */}
+              <div>
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center justify-between">
+                  <span>3. Gender Peserta *</span>
+                  <span className="text-[10px] text-zinc-400 font-normal">Kualifikasi kelamin</span>
+                </label>
+                <div className="grid grid-cols-2 gap-1.5 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setDuplicateCatState({ ...duplicateCatState, gender: "MALE" })}
+                    className={`py-1.5 px-2.5 rounded-lg border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                      duplicateCatState.gender === "MALE"
+                        ? "bg-blue-600 text-white border-blue-700 shadow-sm ring-1 ring-blue-400"
+                        : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300"
+                    }`}
+                  >
+                    <span>PUTRA</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDuplicateCatState({ ...duplicateCatState, gender: "FEMALE" })}
+                    className={`py-1.5 px-2.5 rounded-lg border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                      duplicateCatState.gender === "FEMALE"
+                        ? "bg-pink-600 text-white border-pink-700 shadow-sm ring-1 ring-pink-400"
+                        : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300"
+                    }`}
+                  >
+                    <span>PUTRI</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setDuplicateCatState({ ...duplicateCatState, gender: "MIXED" })}
+                    className={`py-1.5 px-2 rounded-lg border text-[11px] font-semibold transition cursor-pointer flex items-center justify-center gap-1 ${
+                      duplicateCatState.gender === "MIXED"
+                        ? "bg-purple-600 text-white border-purple-700 shadow-sm ring-1 ring-purple-400"
+                        : "bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300"
+                    }`}
+                  >
+                    <span>CAMPURAN</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDuplicateCatState({ ...duplicateCatState, gender: "BOTH" })}
+                    className={`py-1.5 px-2 rounded-lg border text-[11px] font-bold transition cursor-pointer flex items-center justify-center gap-1 ${
+                      duplicateCatState.gender === "BOTH"
+                        ? "bg-emerald-600 text-white border-emerald-700 shadow-sm ring-2 ring-emerald-400/40"
+                        : "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100"
+                    }`}
+                    title="Duplikat menjadi 2 kelas kembar (Putra & Putri) sekaligus dalam sekali simpan"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>PUTRA & PUTRI (2x)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. Nama Kelas Pertandingan Baru */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                    4. Nama Kelas Pertandingan Baru *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleDuplicateAutoGenerateName}
+                    className="text-[11px] text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer font-semibold"
+                    title="Buat ulang nama sesuai kelompok usia, tipe, dan gender yang dipilih"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Buat Nama Standar
+                  </button>
+                </div>
                 <input
                   type="text"
                   required
                   value={duplicateCatState.name}
                   onChange={(e) => setDuplicateCatState({ ...duplicateCatState, name: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm font-semibold"
+                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-bold text-zinc-900 dark:text-white"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Jenis Kategori *</label>
-                  <select
-                    value={duplicateCatState.categoryType}
-                    onChange={(e) =>
-                      setDuplicateCatState({ ...duplicateCatState, categoryType: e.target.value })
-                    }
-                    className="w-full mt-1 px-2.5 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-medium"
-                  >
-                    <option value="KATA_INDIVIDUAL">Kata Perorangan</option>
-                    <option value="KATA_TEAM">Kata Beregu</option>
-                    <option value="KUMITE_INDIVIDUAL">Kumite Perorangan</option>
-                    <option value="KUMITE_TEAM">Kumite Beregu</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Gender *</label>
-                  <select
-                    value={duplicateCatState.gender}
-                    onChange={(e) => setDuplicateCatState({ ...duplicateCatState, gender: e.target.value })}
-                    className="w-full mt-1 px-2.5 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-medium"
-                  >
-                    <option value="MALE">Putra (Male)</option>
-                    <option value="FEMALE">Putri (Female)</option>
-                    <option value="MIXED">Campuran (Mixed)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Rentang Tanggal Lahir */}
+              {/* 5. Rentang Tanggal Lahir (Kriteria Kelayakan) */}
               <div className="p-3 bg-red-50/50 dark:bg-red-950/30 rounded-xl border border-red-100 dark:border-red-900/40 space-y-2">
-                <span className="text-xs font-bold text-red-900 dark:text-red-200 flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-red-600" />
-                  Kriteria Rentang Tanggal Lahir
+                <span className="text-xs font-bold text-red-900 dark:text-red-200 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-red-600" />
+                    5. Kriteria Rentang Kelahiran
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p = DIVISION_PRESETS.find((x) => x.id === duplicateCatState.divisionPresetId);
+                      if (p && p.defaultMinBirth) {
+                        setDuplicateCatState({
+                          ...duplicateCatState,
+                          minBirthDate: p.defaultMinBirth,
+                          maxBirthDate: p.defaultMaxBirth,
+                        });
+                      }
+                    }}
+                    className="text-[10px] text-red-700 dark:text-red-300 hover:underline cursor-pointer font-medium"
+                  >
+                    Reset Tgl Standar
+                  </button>
                 </span>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -2917,89 +3720,88 @@ export default function AdminPertandinganKategoriPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Batas Min BB (kg)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={duplicateCatState.minWeight}
-                    onChange={(e) =>
-                      setDuplicateCatState({ ...duplicateCatState, minWeight: e.target.value })
-                    }
-                    className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
-                  />
+              {/* 6. Biaya Pertandingan & Visibilitas Biaya */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                    6. Biaya Pertandingan (Rp) *
+                  </label>
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                    Rp {parseInt(duplicateCatState.fee || "0").toLocaleString("id-ID")}
+                  </span>
                 </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Batas Max BB (kg)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={duplicateCatState.maxWeight}
-                    onChange={(e) =>
-                      setDuplicateCatState({ ...duplicateCatState, maxWeight: e.target.value })
-                    }
-                    className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                  Biaya Pertandingan (Rp) *
-                </label>
                 <input
                   type="number"
                   required
+                  min={0}
                   value={duplicateCatState.fee}
                   onChange={(e) => setDuplicateCatState({ ...duplicateCatState, fee: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm font-bold text-emerald-600 dark:text-emerald-400"
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm font-bold text-emerald-600 dark:text-emerald-400"
                 />
-              </div>
 
-              {/* Checkbox Option Tampilkan Biaya */}
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <input
-                    type="checkbox"
-                    id="duplicateIsFeeVisible"
-                    checked={duplicateCatState.isFeeVisible}
-                    onChange={(e) =>
-                      setDuplicateCatState({ ...duplicateCatState, isFeeVisible: e.target.checked })
-                    }
-                    className="w-4 h-4 text-emerald-600 rounded border-zinc-300 focus:ring-emerald-500 cursor-pointer"
-                  />
-                  <label
-                    htmlFor="duplicateIsFeeVisible"
-                    className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 cursor-pointer flex items-center gap-1.5"
-                  >
-                    {duplicateCatState.isFeeVisible ? (
-                      <Eye className="w-4 h-4 text-emerald-600" />
-                    ) : (
-                      <EyeOff className="w-4 h-4 text-amber-600" />
-                    )}
-                    Tampilkan Biaya Pertandingan
-                  </label>
+                {/* Preset Cepat Biaya */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <span className="text-[10px] text-zinc-500 mr-1">Pilihan Cepat:</span>
+                  {[0, 100000, 150000, 200000, 250000, 300000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setDuplicateCatState({ ...duplicateCatState, fee: String(amt) })}
+                      className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition cursor-pointer ${
+                        duplicateCatState.fee === String(amt)
+                          ? "bg-emerald-600 text-white border-emerald-700"
+                          : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200"
+                      }`}
+                    >
+                      {amt === 0 ? "Gratis (0)" : `Rp ${(amt / 1000).toLocaleString("id-ID")}rb`}
+                    </button>
+                  ))}
                 </div>
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                    duplicateCatState.isFeeVisible
-                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                      : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                  }`}
-                >
-                  {duplicateCatState.isFeeVisible ? "Ditampilkan" : "Disembunyikan"}
-                </span>
+
+                {/* Checkbox Option Tampilkan Biaya */}
+                <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl border border-zinc-200 dark:border-zinc-700 flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      id="duplicateIsFeeVisible"
+                      checked={duplicateCatState.isFeeVisible}
+                      onChange={(e) =>
+                        setDuplicateCatState({ ...duplicateCatState, isFeeVisible: e.target.checked })
+                      }
+                      className="w-4 h-4 text-emerald-600 rounded border-zinc-300 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <label
+                      htmlFor="duplicateIsFeeVisible"
+                      className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 cursor-pointer flex items-center gap-1.5"
+                    >
+                      {duplicateCatState.isFeeVisible ? (
+                        <Eye className="w-4 h-4 text-emerald-600" />
+                      ) : (
+                        <EyeOff className="w-4 h-4 text-amber-600" />
+                      )}
+                      Tampilkan Biaya Pertandingan
+                    </label>
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                      duplicateCatState.isFeeVisible
+                        ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                        : "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                    }`}
+                  >
+                    {duplicateCatState.isFeeVisible ? "Ditampilkan" : "Disembunyikan"}
+                  </span>
+                </div>
               </div>
 
-              <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+              {/* Action Buttons */}
+              <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-2 pt-3 border-t border-zinc-200 dark:border-zinc-800">
                 <button
                   type="button"
                   onClick={() => handleCopyToNewForm(duplicateCatState)}
-                  className="w-full sm:w-auto px-3 py-2 border border-dashed border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 text-xs font-medium rounded-xl transition cursor-pointer"
+                  className="w-full sm:w-auto px-3 py-2 border border-dashed border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 text-xs font-semibold rounded-xl transition cursor-pointer"
                 >
-                  Salin ke Form Manual
+                  Salin ke Form Tambah Kelas
                 </button>
                 <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
                   <button
@@ -3015,7 +3817,11 @@ export default function AdminPertandinganKategoriPage() {
                     className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition shadow flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                   >
                     <Copy className="w-3.5 h-3.5" />
-                    {isDuplicating ? "Menduplikasi..." : "Simpan Sebagai Kelas Baru"}
+                    {isDuplicating
+                      ? "Menduplikasi..."
+                      : duplicateCatState.gender === "BOTH"
+                      ? "Simpan 2 Kelas Sekaligus"
+                      : "Simpan Sebagai Kelas Baru"}
                   </button>
                 </div>
               </div>
