@@ -47,6 +47,7 @@ import {
   Upload,
   Image as ImageIcon,
   ExternalLink,
+  Archive,
 } from "lucide-react";
 import { generateTournamentIdCardsHtml, generateTournamentRosterHtml, generateTournamentMedalTallyHtml } from "@/lib/tournament-print-html";
 import { compressUploadFile } from "@/lib/compress-image";
@@ -67,6 +68,8 @@ interface EventItem {
   registrationCloseAt?: string | null;
   location?: string;
   rulesContent?: string | null;
+  isArchived?: boolean;
+  archivedAt?: string | null;
   _count?: {
     tournamentCategories: number;
     tournamentRegistrations: number;
@@ -240,6 +243,22 @@ export default function AdminPertandinganPage() {
     title: string;
   } | null>(null);
 
+  const [confirmArchiveEvent, setConfirmArchiveEvent] = useState<{
+    open: boolean;
+    event: EventItem;
+    action: "archive" | "unarchive";
+  } | null>(null);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [eventTabFilter, setEventTabFilter] = useState<"ACTIVE" | "ARCHIVED" | "ALL">("ACTIVE");
+
+  const activeEvents = useMemo(() => events.filter((e) => !e.isArchived), [events]);
+  const archivedEvents = useMemo(() => events.filter((e) => e.isArchived), [events]);
+  const displayedEvents = useMemo(() => {
+    if (eventTabFilter === "ACTIVE") return activeEvents;
+    if (eventTabFilter === "ARCHIVED") return archivedEvents;
+    return events;
+  }, [eventTabFilter, activeEvents, archivedEvents, events]);
+
   const [confirmResetRulesOpen, setConfirmResetRulesOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -329,12 +348,46 @@ export default function AdminPertandinganPage() {
       const data = await res.json();
       if (data.events) {
         setEvents(data.events);
-        if (data.events.length > 0 && !selectedEventId) {
-          setSelectedEventId(data.events[0].id);
-        }
+        setSelectedEventId((prev) => {
+          if (prev && data.events.some((e: EventItem) => e.id === prev)) return prev;
+          const firstActive = data.events.find((e: EventItem) => !e.isArchived);
+          return firstActive ? firstActive.id : (data.events[0]?.id || "");
+        });
       }
     } catch (err) {
       console.error("Failed to fetch events", err);
+    }
+  };
+
+  const handleToggleArchive = async () => {
+    if (!confirmArchiveEvent) return;
+    setIsArchiving(true);
+    try {
+      const isArchivingAction = confirmArchiveEvent.action === "archive";
+      const res = await fetch("/api/admin/pertandingan/events", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: confirmArchiveEvent.event.id,
+          isArchived: isArchivingAction,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showSuccess(
+          isArchivingAction
+            ? `Event "${confirmArchiveEvent.event.title}" berhasil diarsipkan.`
+            : `Event "${confirmArchiveEvent.event.title}" berhasil dibuka kembali.`
+        );
+        await fetchEvents();
+        setConfirmArchiveEvent(null);
+      } else {
+        showError(data.error || "Gagal memperbarui status arsip event");
+      }
+    } catch (err: any) {
+      showError(err.message || "Terjadi kesalahan saat memproses arsip");
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -417,6 +470,7 @@ export default function AdminPertandinganPage() {
         showSuccess("Event kejuaraan berhasil dibuat");
         setShowNewEventModal(false);
         setEventForm({ title: "", description: "", startDate: "", endDate: "", eventTime: "", location: "" });
+        setEventTabFilter("ACTIVE");
         await fetchEvents();
         if (data.event) setSelectedEventId(data.event.id);
       } else {
@@ -886,7 +940,7 @@ export default function AdminPertandinganPage() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Trophy className="w-7 h-7 md:w-8 md:h-8 text-yellow-400 animate-pulse" />
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight">Pendaftaran & Roster Kejuaraan</h1>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight">Pendaftaran Events</h1>
           </div>
           <p className="text-xs md:text-sm text-red-200">
             CRUD Event Pertandingan, Editor Ketentuan, Berkas Profil (Foto/Akte/BPJS), Timbang Badan, & ID Card
@@ -933,10 +987,59 @@ export default function AdminPertandinganPage() {
 
       {/* Selector & CRUD Event Pertandingan */}
       <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto flex-wrap">
           <div className="flex items-center gap-2">
             <Trophy className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
             <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Kejuaraan:</span>
+          </div>
+
+          {/* Segmented Filter Tab: Aktif / Arsip / Semua */}
+          <div className="inline-flex items-center p-0.5 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => {
+                setEventTabFilter("ACTIVE");
+                const firstActive = activeEvents[0];
+                if (firstActive && !activeEvents.some((e) => e.id === selectedEventId)) {
+                  setSelectedEventId(firstActive.id);
+                }
+              }}
+              className={`px-2.5 py-1 rounded-md transition ${
+                eventTabFilter === "ACTIVE"
+                  ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-xs font-bold"
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+              }`}
+            >
+              🟢 Aktif ({activeEvents.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEventTabFilter("ARCHIVED");
+                const firstArchived = archivedEvents[0];
+                if (firstArchived && !archivedEvents.some((e) => e.id === selectedEventId)) {
+                  setSelectedEventId(firstArchived.id);
+                }
+              }}
+              className={`px-2.5 py-1 rounded-md transition ${
+                eventTabFilter === "ARCHIVED"
+                  ? "bg-white dark:bg-zinc-900 text-amber-600 dark:text-amber-400 shadow-xs font-bold"
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+              }`}
+            >
+              📦 Arsip ({archivedEvents.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setEventTabFilter("ALL")}
+              className={`px-2.5 py-1 rounded-md transition ${
+                eventTabFilter === "ALL"
+                  ? "bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white shadow-xs font-bold"
+                  : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+              }`}
+            >
+              Semua ({events.length})
+            </button>
           </div>
           
           <select
@@ -944,41 +1047,73 @@ export default function AdminPertandinganPage() {
             onChange={(e) => setSelectedEventId(e.target.value)}
             className="w-full sm:w-80 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs md:text-sm font-medium focus:ring-2 focus:ring-red-500"
           >
-            {events.length === 0 && <option value="">Belum ada event kejuaraan</option>}
-            {events.map((ev) => (
+            {displayedEvents.length === 0 && (
+              <option value="">
+                Tidak ada event ({eventTabFilter === "ACTIVE" ? "Aktif" : eventTabFilter === "ARCHIVED" ? "Arsip" : "Data"})
+              </option>
+            )}
+            {displayedEvents.map((ev) => (
               <option key={ev.id} value={ev.id}>
-                {ev.title} ({new Date(ev.startDate).toLocaleDateString("id-ID")})
+                {ev.isArchived ? "📦 [ARSIP] " : ""}{ev.title} ({new Date(ev.startDate).toLocaleDateString("id-ID")})
               </option>
             ))}
           </select>
 
           {activeEvent && (
-            <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${
-                !activeEvent.registrationCloseAt ||
-                new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
-                  : "bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
-              }`}
-            >
+            activeEvent.isArchived ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-sm bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
+                <Archive className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                Diarsipkan
+              </span>
+            ) : (
               <span
-                className={`w-2 h-2 rounded-full ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${
                   !activeEvent.registrationCloseAt ||
                   new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
-                    ? "bg-emerald-500 animate-pulse"
-                    : "bg-red-500"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+                    : "bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
                 }`}
-              />
-              {!activeEvent.registrationCloseAt ||
-              new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
-                ? "Pendaftaran Terbuka"
-                : "Pendaftaran Ditutup"}
-            </span>
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    !activeEvent.registrationCloseAt ||
+                    new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
+                      ? "bg-emerald-500 animate-pulse"
+                      : "bg-red-500"
+                  }`}
+                />
+                {!activeEvent.registrationCloseAt ||
+                new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
+                  ? "Pendaftaran Terbuka"
+                  : "Pendaftaran Ditutup"}
+              </span>
+            )
           )}
 
           {activeEvent && (
             <div className="flex items-center gap-1">
+              {activeEvent.isArchived ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmArchiveEvent({ open: true, event: activeEvent, action: "unarchive" })}
+                  className="p-2 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition"
+                  title="Buka Kembali Event Ini (Kembalikan ke Aktif)"
+                >
+                  <RotateCcw className="w-4 h-4 text-emerald-600" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmArchiveEvent({ open: true, event: activeEvent, action: "archive" })}
+                  className="p-2 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition"
+                  title="Arsipkan Kejuaraan Ini (Data Bersih saat Buat Event Baru)"
+                >
+                  <Archive className="w-4 h-4 text-amber-600" />
+                </button>
+              )}
+
               <button
+                type="button"
                 onClick={() => {
                   setEventForm({
                     title: activeEvent.title,
@@ -997,6 +1132,7 @@ export default function AdminPertandinganPage() {
               </button>
 
               <button
+                type="button"
                 onClick={() => triggerDeleteEvent(activeEvent)}
                 className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition"
                 title="Hapus Event Kejuaraan Ini"
@@ -1034,6 +1170,31 @@ export default function AdminPertandinganPage() {
           </div>
         )}
       </div>
+
+      {/* Banner Notifikasi jika Event Sedang Diarsipkan */}
+      {activeEvent?.isArchived && (
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-200">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="p-2 bg-amber-100 dark:bg-amber-900/50 rounded-lg text-amber-700 dark:text-amber-300 shrink-0">
+              <Archive className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="font-semibold text-sm">Event Kejuaraan Ini Sedang Diarsipkan</div>
+              <div className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+                Data tersimpan bersih sebagai riwayat & rekapitulasi. Pendaftaran baru dari portal publik dan anggota dinonaktifkan.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setConfirmArchiveEvent({ open: true, event: activeEvent, action: "unarchive" })}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shrink-0 transition shadow-xs"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Buka Kembali Event
+          </button>
+        </div>
+      )}
 
       {/* KPI Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
@@ -1235,8 +1396,16 @@ export default function AdminPertandinganPage() {
           {/* Action Buttons Group */}
           <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-start lg:justify-end">
             <button
-              onClick={() => setShowBatchRegModal(true)}
-              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-medium text-xs md:text-sm rounded-lg flex items-center gap-1.5 transition shadow-xs whitespace-nowrap"
+              onClick={() => {
+                if (activeEvent?.isArchived) {
+                  showError("Event kejuaraan ini telah diarsipkan. Pendaftaran atlet dinonaktifkan.");
+                  return;
+                }
+                setShowBatchRegModal(true);
+              }}
+              disabled={activeEvent?.isArchived}
+              className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-medium text-xs md:text-sm rounded-lg flex items-center gap-1.5 transition shadow-xs whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              title={activeEvent?.isArchived ? "Event telah diarsipkan" : "Daftar Kontingen"}
             >
               <Plus className="w-4 h-4" />
               Daftar Kontingen
@@ -2455,6 +2624,34 @@ export default function AdminPertandinganPage() {
           variant="danger"
           loading={isDeleting}
           onConfirm={executeDeleteEvent}
+        />
+      )}
+
+      {confirmArchiveEvent && (
+        <InkaiConfirmDialog
+          open={confirmArchiveEvent.open}
+          onOpenChange={(open) => {
+            if (!open) setConfirmArchiveEvent(null);
+          }}
+          title={
+            confirmArchiveEvent.action === "archive"
+              ? "Arsipkan Event Kejuaraan"
+              : "Buka Kembali Event Kejuaraan"
+          }
+          description={
+            confirmArchiveEvent.action === "archive"
+              ? `Apakah Anda yakin ingin mengarsipkan event "${confirmArchiveEvent.event.title}"? Event akan dipindahkan ke arsip agar data bersih saat membuat event baru. Pendaftaran baru dari portal publik dan anggota akan ditutup.`
+              : `Buka kembali event kejuaraan "${confirmArchiveEvent.event.title}" ke status aktif? Pendaftaran atlet dan pengelolaan event dapat diakses kembali sesuai jadwal.`
+          }
+          confirmLabel={
+            confirmArchiveEvent.action === "archive"
+              ? "Ya, Arsipkan Event"
+              : "Ya, Buka Kembali"
+          }
+          cancelLabel="Batal"
+          variant={confirmArchiveEvent.action === "archive" ? "danger" : "default"}
+          loading={isArchiving}
+          onConfirm={handleToggleArchive}
         />
       )}
 

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getTournamentMetaMap } from "@/lib/tournament-meta";
 
 export type MemberPertandinganPayload = {
   event?: {
@@ -95,8 +96,10 @@ export async function getMemberPertandinganStatus(
     };
   }
 
-  // If member is not registered, find the first active open tournament event where registration is not expired
+  // If member is not registered, find the first active open tournament event where registration is not expired and not archived
+  const metaMap = await getTournamentMetaMap(tournamentEvents.map((e) => e.id));
   const activeEvent = tournamentEvents.find((e) => {
+    if (metaMap.get(e.id)?.isArchived) return false;
     const regClose = e.registrationCloseAt ? new Date(e.registrationCloseAt) : null;
     const end = e.endDate ? new Date(e.endDate) : null;
     if (regClose && regClose < now) return false;

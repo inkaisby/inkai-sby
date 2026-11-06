@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { getTournamentMeta, getTournamentMetaMap, setTournamentEventArchived } from "@/lib/tournament-meta";
 
 export async function GET(request: Request) {
   try {
@@ -38,7 +39,17 @@ export async function GET(request: Request) {
       return true;
     });
 
-    return NextResponse.json({ events: filteredEvents });
+    const metaMap = await getTournamentMetaMap(filteredEvents.map((e) => e.id));
+    const eventsWithMeta = filteredEvents.map((e) => {
+      const meta = metaMap.get(e.id) || { isArchived: false, archivedAt: null };
+      return {
+        ...e,
+        isArchived: meta.isArchived,
+        archivedAt: meta.archivedAt,
+      };
+    });
+
+    return NextResponse.json({ events: eventsWithMeta });
   } catch (error: any) {
     console.error("GET /api/admin/pertandingan/events error:", error);
     return NextResponse.json({ error: error.message || "Failed to fetch events" }, { status: 500 });
@@ -171,7 +182,10 @@ export async function POST(request: Request) {
       })),
     });
 
-    return NextResponse.json({ success: true, event: newEvent });
+    return NextResponse.json({
+      success: true,
+      event: { ...newEvent, isArchived: false, archivedAt: null },
+    });
   } catch (error: any) {
     console.error("POST /api/admin/pertandingan/events error:", error);
     return NextResponse.json({ error: error.message || "Failed to create event" }, { status: 500 });
@@ -186,10 +200,14 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, title, description, startDate, endDate, eventTime, registrationCloseAt, location, rulesContent } = body;
+    const { id, title, description, startDate, endDate, eventTime, registrationCloseAt, location, rulesContent, isArchived } = body;
 
     if (!id) {
       return NextResponse.json({ error: "id required" }, { status: 400 });
+    }
+
+    if (isArchived !== undefined) {
+      await setTournamentEventArchived(id, Boolean(isArchived));
     }
 
     const updateData: any = {};
@@ -204,12 +222,22 @@ export async function PATCH(request: Request) {
     if (location !== undefined) updateData.location = location;
     if (rulesContent !== undefined) updateData.rulesContent = rulesContent;
 
-    const updatedEvent = await prisma.event.update({
-      where: { id },
-      data: updateData,
-    });
+    let updatedEvent = null;
+    if (Object.keys(updateData).length > 0) {
+      updatedEvent = await prisma.event.update({
+        where: { id },
+        data: updateData,
+      });
+    } else {
+      updatedEvent = await prisma.event.findUnique({ where: { id } });
+    }
 
-    return NextResponse.json({ success: true, event: updatedEvent });
+    const meta = await getTournamentMeta(id);
+
+    return NextResponse.json({
+      success: true,
+      event: { ...updatedEvent, isArchived: meta.isArchived, archivedAt: meta.archivedAt },
+    });
   } catch (error: any) {
     console.error("PATCH /api/admin/pertandingan/events error:", error);
     return NextResponse.json({ error: error.message || "Failed to update event" }, { status: 500 });

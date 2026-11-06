@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getTournamentMeta, getTournamentMetaMap } from "@/lib/tournament-meta";
 
 export async function GET(request: Request) {
   try {
@@ -35,10 +36,22 @@ export async function GET(request: Request) {
       return true;
     });
 
-    const activeEventId = eventId || (events.length > 0 ? events[0].id : null);
+    const metaMap = await getTournamentMetaMap(events.map((e) => e.id));
+    const eventsWithMeta = events.map((e) => {
+      const meta = metaMap.get(e.id) || { isArchived: false, archivedAt: null };
+      return {
+        ...e,
+        isArchived: meta.isArchived,
+        archivedAt: meta.archivedAt,
+      };
+    });
+
+    const activeEvents = eventsWithMeta.filter((e) => !e.isArchived);
+    const defaultEvent = activeEvents.length > 0 ? activeEvents[0] : eventsWithMeta[0];
+    const activeEventId = eventId || (defaultEvent ? defaultEvent.id : null);
 
     if (!activeEventId) {
-      return NextResponse.json({ events: [], registrations: [], summary: {} });
+      return NextResponse.json({ events: eventsWithMeta, registrations: [], summary: {} });
     }
 
     const where: any = { eventId: activeEventId };
@@ -116,7 +129,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({
-      events,
+      events: eventsWithMeta,
       activeEventId,
       registrations,
       dojos,
@@ -148,6 +161,14 @@ export async function PATCH(request: Request) {
 
     if (!reg) {
       return NextResponse.json({ error: "Registration not found" }, { status: 404 });
+    }
+
+    const eventMeta = await getTournamentMeta(reg.eventId);
+    if (eventMeta.isArchived) {
+      return NextResponse.json(
+        { error: "Kejuaraan ini telah diarsipkan. Data tidak dapat diubah lagi (mode arsip read-only)." },
+        { status: 403 }
+      );
     }
 
     const dataToUpdate: any = {};

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { getTournamentMeta, getTournamentMetaMap } from "@/lib/tournament-meta";
 
 export async function GET(request: Request) {
   try {
@@ -25,7 +26,7 @@ export async function GET(request: Request) {
     }
 
     // Get active events with categories
-    const events = await prisma.event.findMany({
+    const rawEvents = await prisma.event.findMany({
       where: {
         isDeleted: false,
         endDate: { gte: new Date() },
@@ -35,6 +36,14 @@ export async function GET(request: Request) {
       },
       orderBy: { startDate: "asc" },
     });
+
+    const metaMap = await getTournamentMetaMap(rawEvents.map((e) => e.id));
+    const events = rawEvents
+      .filter((e) => !metaMap.get(e.id)?.isArchived)
+      .map((e) => ({
+        ...e,
+        isArchived: false,
+      }));
 
     // Get member's existing registrations
     const myRegistrations = await prisma.tournamentRegistration.findMany({
@@ -91,6 +100,11 @@ export async function POST(request: Request) {
 
     if (!event || event.isDeleted) {
       return NextResponse.json({ error: "Event kejuaraan tidak ditemukan" }, { status: 404 });
+    }
+
+    const eventMeta = await getTournamentMeta(eventId);
+    if (eventMeta.isArchived) {
+      return NextResponse.json({ error: "Kejuaraan ini telah diarsipkan dan tidak lagi menerima pendaftaran baru" }, { status: 400 });
     }
 
     if (event.registrationCloseAt && new Date() > new Date(event.registrationCloseAt)) {

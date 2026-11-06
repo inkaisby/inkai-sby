@@ -8,16 +8,16 @@ export interface PresentationScene {
   durationSeconds: number; // default duration in seconds
   narration: string; // Teks script voiceover / pembicara
   points: string[];
-  visualType: 
-    | "url-typing" 
-    | "auth-flow" 
-    | "rbac-hierarchy" 
-    | "member-portal" 
-    | "admin-members" 
-    | "ukt-latber" 
-    | "tournament-wasit" 
-    | "kas-sekretariat"
-    | "outro-contact";
+  visualType:
+  | "url-typing"
+  | "auth-flow"
+  | "rbac-hierarchy"
+  | "member-portal"
+  | "admin-members"
+  | "ukt-latber"
+  | "tournament-wasit"
+  | "kas-sekretariat"
+  | "outro-contact";
   mockupData?: Record<string, unknown>;
 }
 

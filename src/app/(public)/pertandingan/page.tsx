@@ -40,6 +40,7 @@ import {
   Printer,
   Download,
   ChevronLeft,
+  Archive,
 } from "lucide-react";
 import { compressUploadFile } from "@/lib/compress-image";
 import { generateTournamentRosterHtml } from "@/lib/tournament-print-html";
@@ -71,6 +72,8 @@ interface EventItem {
   registrationCloseAt?: string | null;
   location?: string;
   rulesContent?: string | null;
+  isArchived?: boolean;
+  archivedAt?: string | null;
   tournamentCategories?: CategoryDetail[];
   _count?: {
     tournamentCategories: number;
@@ -548,6 +551,10 @@ export default function PublicPertandinganPage() {
       setGuestError("Pilih event kejuaraan terlebih dahulu.");
       return;
     }
+    if (activeEvent?.isArchived) {
+      setGuestError("Kejuaraan ini telah diarsipkan dan tidak lagi menerima pendaftaran baru.");
+      return;
+    }
     if (!guestForm.fullName || !guestForm.birthDate || !guestForm.categoryId) {
       setGuestError("Mohon lengkapi Nama Lengkap, Tanggal Lahir, dan Pilih Kategori Pertandingan.");
       return;
@@ -771,36 +778,45 @@ export default function PublicPertandinganPage() {
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
-            {isLoggedIn ? (
-              <Link
-                href="/dashboard/pertandingan"
-                className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
-              >
-                <LogIn className="w-4 h-4" />
-                Kelola Pendaftaran Pertandingan Saya
-              </Link>
+            {activeEvent?.isArchived ? (
+              <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-500/20 text-amber-200 border border-amber-500/40 rounded-xl text-sm font-semibold backdrop-blur">
+                <Archive className="w-4 h-4 text-amber-300" />
+                <span>Pendaftaran Ditutup (Kejuaraan Telah Diarsipkan)</span>
+              </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => openLogin()}
-                className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
-              >
-                <LogIn className="w-4 h-4" />
-                Daftar Atlet Mandiri / Login
-              </button>
-            )}
+              <>
+                {isLoggedIn ? (
+                  <Link
+                    href="/dashboard/pertandingan"
+                    className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    Kelola Pendaftaran Pertandingan Saya
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => openLogin()}
+                    className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    Daftar Atlet Mandiri / Login
+                  </button>
+                )}
 
-            <button
-              onClick={() => {
-                setGuestError(null);
-                setGuestSuccess(null);
-                setShowGuestModal(true);
-              }}
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
-            >
-              <UserPlus className="w-4 h-4" />
-              Daftar Peserta Tamu / Eksternal
-            </button>
+                <button
+                  onClick={() => {
+                    setGuestError(null);
+                    setGuestSuccess(null);
+                    setShowGuestModal(true);
+                  }}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Daftar Peserta Tamu / Eksternal
+                </button>
+              </>
+            )}
 
             {activeEvent?.rulesContent && (
               <button
@@ -829,7 +845,7 @@ export default function PublicPertandinganPage() {
               {events.length === 0 && <option value="">Belum ada event kejuaraan</option>}
               {events.map((ev) => (
                 <option key={ev.id} value={ev.id}>
-                  {ev.title}
+                  {ev.isArchived ? "📦 [Arsip] " : ""}{ev.title}
                 </option>
               ))}
             </select>
@@ -837,27 +853,34 @@ export default function PublicPertandinganPage() {
 
           {activeEvent && (
             <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${
-                  !activeEvent.registrationCloseAt ||
-                  new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
-                    : "bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
-                }`}
-              >
+              {activeEvent.isArchived ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-sm bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
+                  <Archive className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  Arsip Kejuaraan
+                </span>
+              ) : (
                 <span
-                  className={`w-2 h-2 rounded-full ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${
                     !activeEvent.registrationCloseAt ||
                     new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
-                      ? "bg-emerald-500 animate-pulse"
-                      : "bg-red-500"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+                      : "bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
                   }`}
-                />
-                {!activeEvent.registrationCloseAt ||
-                new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
-                  ? "Pendaftaran Terbuka"
-                  : "Pendaftaran Ditutup"}
-              </span>
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      !activeEvent.registrationCloseAt ||
+                      new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
+                        ? "bg-emerald-500 animate-pulse"
+                        : "bg-red-500"
+                    }`}
+                  />
+                  {!activeEvent.registrationCloseAt ||
+                  new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
+                    ? "Pendaftaran Terbuka"
+                    : "Pendaftaran Ditutup"}
+                </span>
+              )}
 
               <span className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
                 <Calendar className="w-4 h-4 text-red-500" />
@@ -874,6 +897,28 @@ export default function PublicPertandinganPage() {
             </div>
           )}
         </div>
+
+        {/* Banner Arsip Kejuaraan Publik */}
+        {activeEvent?.isArchived && (
+          <div className="bg-amber-50/90 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                <Archive className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-amber-900 dark:text-amber-200">
+                  Arsip Riwayat Kejuaraan
+                </h3>
+                <p className="text-xs sm:text-sm text-amber-800/80 dark:text-amber-300/80 mt-0.5">
+                  Event kejuaraan ini telah diarsipkan dan pendaftaran resmi telah ditutup. Roster atlet, bagan kelas, dan statistik di bawah ini disajikan sebagai arsip riwayat resmi INKAI Kota Surabaya.
+                </p>
+              </div>
+            </div>
+            <span className="shrink-0 px-3 py-1 bg-amber-200/80 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 font-bold text-xs rounded-full border border-amber-300 dark:border-amber-700">
+              Mode Riwayat Arsip
+            </span>
+          </div>
+        )}
 
         {/* Card Sekilas Keterangan & Ketentuan Pertandingan */}
         {activeEvent && (
@@ -1084,6 +1129,10 @@ export default function PublicPertandinganPage() {
                             onClick={async () => {
                               if (!selectedEventId) {
                                 alert("Pilih event kejuaraan terlebih dahulu.");
+                                return;
+                              }
+                              if (activeEvent?.isArchived) {
+                                alert("Kejuaraan ini telah diarsipkan dan tidak lagi menerima pendaftaran baru.");
                                 return;
                               }
                               const firstCat = activeEvent?.tournamentCategories?.[0];

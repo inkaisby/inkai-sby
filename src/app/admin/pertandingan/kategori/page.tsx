@@ -23,6 +23,7 @@ import {
   Search,
   Filter,
   CheckCircle2,
+  Archive,
 } from "lucide-react";
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 import { showError, showSuccess } from "@/lib/client-toast";
@@ -30,6 +31,7 @@ import { showError, showSuccess } from "@/lib/client-toast";
 interface EventItem {
   id: string;
   title: string;
+  isArchived?: boolean;
 }
 
 interface CategoryItem {
@@ -413,9 +415,18 @@ export default function AdminPertandinganKategoriPage() {
             className="px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-semibold text-zinc-900 dark:text-white"
           >
             {events.map((ev) => (
-              <option key={ev.id} value={ev.id}>{ev.title}</option>
+              <option key={ev.id} value={ev.id}>
+                {ev.isArchived ? "📦 [ARSIP] " : ""}{ev.title}
+              </option>
             ))}
           </select>
+
+          {events.find((e) => e.id === selectedEventId)?.isArchived && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-sm bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
+              <Archive className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              Diarsipkan
+            </span>
+          )}
         </div>
       </div>
 

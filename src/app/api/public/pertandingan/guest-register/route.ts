@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { getTournamentMeta } from "@/lib/tournament-meta";
 
 export async function POST(request: Request) {
   try {
@@ -23,6 +24,16 @@ export async function POST(request: Request) {
       birthCertificateUrl,
       bpjsCardUrl,
     } = body;
+
+    if (eventId) {
+      const eventMeta = await getTournamentMeta(eventId);
+      if (eventMeta.isArchived) {
+        return NextResponse.json(
+          { error: "⚠️ Kejuaraan ini telah diarsipkan dan tidak lagi menerima pendaftaran baru." },
+          { status: 400 }
+        );
+      }
+    }
 
     // Handle registration for existing INKAI member (via search suggestion)
     if (memberId && eventId) {
