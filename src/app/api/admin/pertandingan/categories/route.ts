@@ -36,6 +36,21 @@ export async function GET(request: Request) {
   }
 }
 
+function parseWeightValue(val: any): number | null {
+  if (val === null || val === undefined || val === "") return null;
+  const str = String(val).trim().replace(/\s+/g, "").replace(",", ".");
+  if (str.startsWith("+")) {
+    const n = parseFloat(str.substring(1));
+    return isNaN(n) ? null : n + 0.1;
+  }
+  if (str.startsWith("-")) {
+    const n = parseFloat(str.substring(1));
+    return isNaN(n) ? null : n;
+  }
+  const num = parseFloat(str);
+  return isNaN(num) ? null : num;
+}
+
 export async function POST(request: Request) {
   try {
     const session = await auth();
@@ -60,8 +75,8 @@ export async function POST(request: Request) {
             maxAge: item.maxAge ? parseInt(item.maxAge) : null,
             minBirthDate: item.minBirthDate ? new Date(item.minBirthDate) : null,
             maxBirthDate: item.maxBirthDate ? new Date(item.maxBirthDate) : null,
-            minWeight: item.minWeight ? parseFloat(item.minWeight) : null,
-            maxWeight: item.maxWeight ? parseFloat(item.maxWeight) : null,
+            minWeight: parseWeightValue(item.minWeight),
+            maxWeight: parseWeightValue(item.maxWeight),
             fee: item.fee !== undefined && item.fee !== "" ? parseFloat(item.fee) : 0,
             isFeeVisible: item.isFeeVisible !== undefined ? Boolean(item.isFeeVisible) : true,
           },
@@ -87,8 +102,8 @@ export async function POST(request: Request) {
         maxAge: maxAge ? parseInt(maxAge) : null,
         minBirthDate: minBirthDate ? new Date(minBirthDate) : null,
         maxBirthDate: maxBirthDate ? new Date(maxBirthDate) : null,
-        minWeight: minWeight ? parseFloat(minWeight) : null,
-        maxWeight: maxWeight ? parseFloat(maxWeight) : null,
+        minWeight: parseWeightValue(minWeight),
+        maxWeight: parseWeightValue(maxWeight),
         fee: fee !== undefined && fee !== "" ? parseFloat(fee) : 0,
         isFeeVisible: isFeeVisible !== undefined ? Boolean(isFeeVisible) : true,
       },
@@ -137,8 +152,8 @@ export async function PATCH(request: Request) {
     if (maxAge !== undefined) updateData.maxAge = maxAge ? parseInt(maxAge) : null;
     if (minBirthDate !== undefined) updateData.minBirthDate = minBirthDate ? new Date(minBirthDate) : null;
     if (maxBirthDate !== undefined) updateData.maxBirthDate = maxBirthDate ? new Date(maxBirthDate) : null;
-    if (minWeight !== undefined) updateData.minWeight = minWeight ? parseFloat(minWeight) : null;
-    if (maxWeight !== undefined) updateData.maxWeight = maxWeight ? parseFloat(maxWeight) : null;
+    if (minWeight !== undefined) updateData.minWeight = parseWeightValue(minWeight);
+    if (maxWeight !== undefined) updateData.maxWeight = parseWeightValue(maxWeight);
     if (fee !== undefined && fee !== "") updateData.fee = parseFloat(fee);
     if (isFeeVisible !== undefined) updateData.isFeeVisible = Boolean(isFeeVisible);
 

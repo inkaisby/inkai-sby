@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 import { showError, showSuccess } from "@/lib/client-toast";
-import { formatCategoryOptionLabel } from "@/lib/tournament-category-presets";
+import { formatCategoryOptionLabel, formatWeightLimitLabel } from "@/lib/tournament-category-presets";
 
 interface EventItem {
   id: string;
@@ -323,12 +323,17 @@ export function buildGeneratedCategoryName(
     nomor = isTeam ? "Kata Beregu" : "Kata Perorangan";
   } else {
     const base = isTeam ? "Kumite Beregu" : "Kumite";
-    if (maxWeight && !minWeight) {
-      nomor = `${base} -${maxWeight} kg`;
-    } else if (minWeight && !maxWeight) {
-      nomor = `${base} +${Math.floor(parseFloat(minWeight))} kg`;
-    } else if (minWeight && maxWeight) {
-      nomor = `${base} ${minWeight}-${maxWeight} kg`;
+    const cleanMin = minWeight ? parseFloat(String(minWeight).replace("+", "").replace(/\s+/g, "").replace(",", ".")) : null;
+    const cleanMax = maxWeight ? parseFloat(String(maxWeight).replace("-", "").replace(/\s+/g, "").replace(",", ".")) : null;
+    const validMin = cleanMin !== null && !isNaN(cleanMin) ? cleanMin : null;
+    const validMax = cleanMax !== null && !isNaN(cleanMax) ? cleanMax : null;
+
+    if (validMax && !validMin) {
+      nomor = `${base} -${validMax} kg`;
+    } else if (validMin && !validMax) {
+      nomor = `${base} +${Math.floor(validMin)} kg`;
+    } else if (validMin && validMax) {
+      nomor = `${base} ${validMin}-${validMax} kg`;
     } else {
       nomor = isTeam ? "Kumite Beregu" : "Kumite Perorangan";
     }
@@ -344,6 +349,49 @@ export function buildGeneratedCategoryName(
     return `${nomor} ${genderStr}`.trim();
   }
   return `${divObj.name} - ${nomor} ${genderStr}`.trim();
+}
+
+export function parseWeightStringInput(val: string): { min: string; max: string; label: string } {
+  const trimmed = val.trim();
+  if (!trimmed) return { min: "", max: "", label: "Bebas BB" };
+
+  // Misal: "+40", "+ 40", "+40kg"
+  if (trimmed.startsWith("+")) {
+    const cleanNum = trimmed.replace("+", "").replace(/kg/i, "").replace(/\s+/g, "").replace(",", ".");
+    const n = parseFloat(cleanNum);
+    if (!isNaN(n)) {
+      return { min: String(n + 0.1), max: "", label: `+${n} kg (Di atas ${n} kg)` };
+    }
+  }
+
+  // Misal: "-40", "- 40", "-40kg"
+  if (trimmed.startsWith("-")) {
+    const cleanNum = trimmed.replace("-", "").replace(/kg/i, "").replace(/\s+/g, "").replace(",", ".");
+    const n = parseFloat(cleanNum);
+    if (!isNaN(n)) {
+      return { min: "", max: String(n), label: `-${n} kg (Maksimal ${n} kg)` };
+    }
+  }
+
+  // Misal: "35-40" atau "35 - 40"
+  if (trimmed.includes("-") || trimmed.includes("s.d") || trimmed.includes("to")) {
+    const parts = trimmed.split(/-|s\.d|to/i);
+    if (parts.length >= 2) {
+      const minN = parseFloat(parts[0].replace(/kg/i, "").replace(/\s+/g, "").replace(",", "."));
+      const maxN = parseFloat(parts[1].replace(/kg/i, "").replace(/\s+/g, "").replace(",", "."));
+      if (!isNaN(minN) && !isNaN(maxN)) {
+        return { min: String(minN), max: String(maxN), label: `${minN} - ${maxN} kg` };
+      }
+    }
+  }
+
+  // Angka biasa: misal "40"
+  const plainN = parseFloat(trimmed.replace(/kg/i, "").replace(/\s+/g, "").replace(",", "."));
+  if (!isNaN(plainN)) {
+    return { min: "", max: String(plainN), label: `-${plainN} kg (Maksimal ${plainN} kg)` };
+  }
+
+  return { min: "", max: "", label: "" };
 }
 
 export default function AdminPertandinganKategoriPage() {
@@ -1641,32 +1689,102 @@ export default function AdminPertandinganKategoriPage() {
 
                     {/* Input manual BB jika kustom */}
                     {kumiteWeightPreset === "CUSTOM" && (
-                      <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+                      <div className="space-y-2 mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+                        {/* Input Cepat Format Bebas: Bisa Mengisi + misal + 40, -40, atau 35-40 */}
                         <div>
-                          <label className="text-[10px] text-zinc-500">Min BB (kg)</label>
+                          <label className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 block mb-0.5">
+                            Format Cepat BB (Bisa ketik misal <span className="text-amber-500 font-mono">+40</span>, <span className="text-amber-500 font-mono">+ 40</span>, <span className="text-amber-500 font-mono">-40</span>, atau <span className="text-amber-500 font-mono">35-40</span>):
+                          </label>
                           <input
-                            type="number"
-                            step="0.1"
-                            placeholder="0"
-                            value={newCat.minWeight}
-                            onChange={(e) =>
-                              setNewCat({ ...newCat, minWeight: e.target.value })
-                            }
-                            className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
+                            type="text"
+                            placeholder="Ketik langsung, misal: +40, + 40, -40, atau 35-40"
+                            onChange={(e) => {
+                              const parsed = parseWeightStringInput(e.target.value);
+                              if (parsed.min || parsed.max) {
+                                setNewCat((prev) => ({ ...prev, minWeight: parsed.min, maxWeight: parsed.max }));
+                              }
+                            }}
+                            className="w-full px-2.5 py-1.5 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700/70 rounded-lg text-xs font-bold text-zinc-900 dark:text-zinc-100 placeholder:font-normal focus:ring-1 focus:ring-amber-500"
                           />
+                          {/* Tombol Chip Cepat Plus (+) & Minus (-) */}
+                          <div className="flex flex-wrap items-center gap-1 mt-1 text-[10px]">
+                            <span className="text-zinc-400 text-[10px]">Pilihan Cepat:</span>
+                            {["+20", "+25", "+30", "+35", "+40", "+45", "+50", "+55", "-20", "-25", "-30", "-35", "-40", "-45", "-50"].map((chip) => (
+                              <button
+                                key={chip}
+                                type="button"
+                                onClick={() => {
+                                  const parsed = parseWeightStringInput(chip);
+                                  setNewCat((prev) => ({ ...prev, minWeight: parsed.min, maxWeight: parsed.max }));
+                                }}
+                                className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-zinc-700 dark:text-zinc-300 font-bold border border-zinc-200 dark:border-zinc-700 cursor-pointer transition"
+                              >
+                                {chip}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                        <div>
-                          <label className="text-[10px] text-zinc-500">Max BB (kg)</label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            placeholder="30"
-                            value={newCat.maxWeight}
-                            onChange={(e) =>
-                              setNewCat({ ...newCat, maxWeight: e.target.value })
-                            }
-                            className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
-                          />
+
+                        {/* Input Rinci Min BB & Max BB */}
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <div>
+                            <label className="text-[10px] text-zinc-500 font-semibold flex items-center justify-between">
+                              <span>Min BB (kg)</span>
+                              <span className="text-[9px] text-zinc-400">Bisa isi +40</span>
+                            </label>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="0 (atau +40)"
+                              value={newCat.minWeight}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val.includes("+")) {
+                                  const parsed = parseWeightStringInput(val);
+                                  setNewCat((prev) => ({ ...prev, minWeight: parsed.min, maxWeight: "" }));
+                                } else {
+                                  setNewCat({ ...newCat, minWeight: val });
+                                }
+                              }}
+                              className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-zinc-500 font-semibold flex items-center justify-between">
+                              <span>Max BB (kg)</span>
+                              <span className="text-[9px] text-zinc-400">Bisa isi -40</span>
+                            </label>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="30 (atau -40)"
+                              value={newCat.maxWeight}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val.includes("+")) {
+                                  const parsed = parseWeightStringInput(val);
+                                  setNewCat((prev) => ({ ...prev, minWeight: parsed.min, maxWeight: "" }));
+                                } else if (val.includes("-")) {
+                                  const parsed = parseWeightStringInput(val);
+                                  setNewCat((prev) => ({ ...prev, minWeight: "", maxWeight: parsed.max }));
+                                } else {
+                                  setNewCat({ ...newCat, maxWeight: val });
+                                }
+                              }}
+                              className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Keterangan Pratinjau Terdeteksi */}
+                        <div className="bg-zinc-100 dark:bg-zinc-800/80 p-1.5 rounded-md text-[11px] text-zinc-700 dark:text-zinc-300 flex items-center justify-between">
+                          <span className="font-semibold text-zinc-500">Hasil Format BB:</span>
+                          <span className="font-bold text-amber-600 dark:text-amber-400">
+                            {formatWeightLimitLabel(
+                              newCat.minWeight ? parseFloat(newCat.minWeight.replace("+", "")) : null,
+                              newCat.maxWeight ? parseFloat(newCat.maxWeight.replace("-", "")) : null
+                            )}
+                          </span>
                         </div>
                       </div>
                     )}
@@ -3186,32 +3304,112 @@ export default function AdminPertandinganKategoriPage() {
 
                       {/* Input manual BB jika kustom */}
                       {editCatState.weightPreset === "CUSTOM" && (
-                        <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+                        <div className="space-y-2 mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+                          {/* Input Cepat Format Bebas: Bisa Mengisi + misal + 40, -40, atau 35-40 */}
                           <div>
-                            <label className="text-[10px] text-zinc-500">Min BB (kg)</label>
+                            <label className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 block mb-0.5">
+                              Format Cepat BB (Bisa ketik misal <span className="text-amber-500 font-mono">+40</span>, <span className="text-amber-500 font-mono">+ 40</span>, <span className="text-amber-500 font-mono">-40</span>, atau <span className="text-amber-500 font-mono">35-40</span>):
+                            </label>
                             <input
-                              type="number"
-                              step="0.1"
-                              placeholder="0"
-                              value={editCatState.minWeight}
-                              onChange={(e) =>
-                                setEditCatState({ ...editCatState, minWeight: e.target.value })
-                              }
-                              className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
+                              type="text"
+                              placeholder="Ketik langsung, misal: +40, + 40, -40, atau 35-40"
+                              onChange={(e) => {
+                                const parsed = parseWeightStringInput(e.target.value);
+                                if (parsed.min || parsed.max) {
+                                  setEditCatState((prev) =>
+                                    prev ? { ...prev, minWeight: parsed.min, maxWeight: parsed.max } : null
+                                  );
+                                }
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700/70 rounded-lg text-xs font-bold text-zinc-900 dark:text-zinc-100 placeholder:font-normal focus:ring-1 focus:ring-amber-500"
                             />
+                            {/* Tombol Chip Cepat Plus (+) & Minus (-) */}
+                            <div className="flex flex-wrap items-center gap-1 mt-1 text-[10px]">
+                              <span className="text-zinc-400 text-[10px]">Pilihan Cepat:</span>
+                              {["+20", "+25", "+30", "+35", "+40", "+45", "+50", "+55", "-20", "-25", "-30", "-35", "-40", "-45", "-50"].map((chip) => (
+                                <button
+                                  key={chip}
+                                  type="button"
+                                  onClick={() => {
+                                    const parsed = parseWeightStringInput(chip);
+                                    setEditCatState((prev) =>
+                                      prev ? { ...prev, minWeight: parsed.min, maxWeight: parsed.max } : null
+                                    );
+                                  }}
+                                  className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-zinc-700 dark:text-zinc-300 font-bold border border-zinc-200 dark:border-zinc-700 cursor-pointer transition"
+                                >
+                                  {chip}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                          <div>
-                            <label className="text-[10px] text-zinc-500">Max BB (kg)</label>
-                            <input
-                              type="number"
-                              step="0.1"
-                              placeholder="30"
-                              value={editCatState.maxWeight}
-                              onChange={(e) =>
-                                setEditCatState({ ...editCatState, maxWeight: e.target.value })
-                              }
-                              className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
-                            />
+
+                          {/* Input Rinci Min BB & Max BB */}
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div>
+                              <label className="text-[10px] text-zinc-500 font-semibold flex items-center justify-between">
+                                <span>Min BB (kg)</span>
+                                <span className="text-[9px] text-zinc-400">Bisa isi +40</span>
+                              </label>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="0 (atau +40)"
+                                value={editCatState.minWeight}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val.includes("+")) {
+                                    const parsed = parseWeightStringInput(val);
+                                    setEditCatState((prev) =>
+                                      prev ? { ...prev, minWeight: parsed.min, maxWeight: "" } : null
+                                    );
+                                  } else {
+                                    setEditCatState({ ...editCatState, minWeight: val });
+                                  }
+                                }}
+                                className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-zinc-500 font-semibold flex items-center justify-between">
+                                <span>Max BB (kg)</span>
+                                <span className="text-[9px] text-zinc-400">Bisa isi -40</span>
+                              </label>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="30 (atau -40)"
+                                value={editCatState.maxWeight}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val.includes("+")) {
+                                    const parsed = parseWeightStringInput(val);
+                                    setEditCatState((prev) =>
+                                      prev ? { ...prev, minWeight: parsed.min, maxWeight: "" } : null
+                                    );
+                                  } else if (val.includes("-")) {
+                                    const parsed = parseWeightStringInput(val);
+                                    setEditCatState((prev) =>
+                                      prev ? { ...prev, minWeight: "", maxWeight: parsed.max } : null
+                                    );
+                                  } else {
+                                    setEditCatState({ ...editCatState, maxWeight: val });
+                                  }
+                                }}
+                                className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Keterangan Pratinjau Terdeteksi */}
+                          <div className="bg-zinc-100 dark:bg-zinc-800/80 p-1.5 rounded-md text-[11px] text-zinc-700 dark:text-zinc-300 flex items-center justify-between">
+                            <span className="font-semibold text-zinc-500">Hasil Format BB:</span>
+                            <span className="font-bold text-amber-600 dark:text-amber-400">
+                              {formatWeightLimitLabel(
+                                editCatState.minWeight ? parseFloat(editCatState.minWeight.replace("+", "")) : null,
+                                editCatState.maxWeight ? parseFloat(editCatState.maxWeight.replace("-", "")) : null
+                              )}
+                            </span>
                           </div>
                         </div>
                       )}
@@ -3684,32 +3882,112 @@ export default function AdminPertandinganKategoriPage() {
 
                       {/* Input manual BB jika kustom */}
                       {duplicateCatState.weightPreset === "CUSTOM" && (
-                        <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+                        <div className="space-y-2 mt-2 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+                          {/* Input Cepat Format Bebas: Bisa Mengisi + misal + 40, -40, atau 35-40 */}
                           <div>
-                            <label className="text-[10px] text-zinc-500">Min BB (kg)</label>
+                            <label className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 block mb-0.5">
+                              Format Cepat BB (Bisa ketik misal <span className="text-amber-500 font-mono">+40</span>, <span className="text-amber-500 font-mono">+ 40</span>, <span className="text-amber-500 font-mono">-40</span>, atau <span className="text-amber-500 font-mono">35-40</span>):
+                            </label>
                             <input
-                              type="number"
-                              step="0.1"
-                              placeholder="0"
-                              value={duplicateCatState.minWeight}
-                              onChange={(e) =>
-                                setDuplicateCatState({ ...duplicateCatState, minWeight: e.target.value })
-                              }
-                              className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
+                              type="text"
+                              placeholder="Ketik langsung, misal: +40, + 40, -40, atau 35-40"
+                              onChange={(e) => {
+                                const parsed = parseWeightStringInput(e.target.value);
+                                if (parsed.min || parsed.max) {
+                                  setDuplicateCatState((prev) =>
+                                    prev ? { ...prev, minWeight: parsed.min, maxWeight: parsed.max } : null
+                                  );
+                                }
+                              }}
+                              className="w-full px-2.5 py-1.5 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-300 dark:border-amber-700/70 rounded-lg text-xs font-bold text-zinc-900 dark:text-zinc-100 placeholder:font-normal focus:ring-1 focus:ring-amber-500"
                             />
+                            {/* Tombol Chip Cepat Plus (+) & Minus (-) */}
+                            <div className="flex flex-wrap items-center gap-1 mt-1 text-[10px]">
+                              <span className="text-zinc-400 text-[10px]">Pilihan Cepat:</span>
+                              {["+20", "+25", "+30", "+35", "+40", "+45", "+50", "+55", "-20", "-25", "-30", "-35", "-40", "-45", "-50"].map((chip) => (
+                                <button
+                                  key={chip}
+                                  type="button"
+                                  onClick={() => {
+                                    const parsed = parseWeightStringInput(chip);
+                                    setDuplicateCatState((prev) =>
+                                      prev ? { ...prev, minWeight: parsed.min, maxWeight: parsed.max } : null
+                                    );
+                                  }}
+                                  className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-zinc-700 dark:text-zinc-300 font-bold border border-zinc-200 dark:border-zinc-700 cursor-pointer transition"
+                                >
+                                  {chip}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                          <div>
-                            <label className="text-[10px] text-zinc-500">Max BB (kg)</label>
-                            <input
-                              type="number"
-                              step="0.1"
-                              placeholder="30"
-                              value={duplicateCatState.maxWeight}
-                              onChange={(e) =>
-                                setDuplicateCatState({ ...duplicateCatState, maxWeight: e.target.value })
-                              }
-                              className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
-                            />
+
+                          {/* Input Rinci Min BB & Max BB */}
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <div>
+                              <label className="text-[10px] text-zinc-500 font-semibold flex items-center justify-between">
+                                <span>Min BB (kg)</span>
+                                <span className="text-[9px] text-zinc-400">Bisa isi +40</span>
+                              </label>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="0 (atau +40)"
+                                value={duplicateCatState.minWeight}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val.includes("+")) {
+                                    const parsed = parseWeightStringInput(val);
+                                    setDuplicateCatState((prev) =>
+                                      prev ? { ...prev, minWeight: parsed.min, maxWeight: "" } : null
+                                    );
+                                  } else {
+                                    setDuplicateCatState({ ...duplicateCatState, minWeight: val });
+                                  }
+                                }}
+                                className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-zinc-500 font-semibold flex items-center justify-between">
+                                <span>Max BB (kg)</span>
+                                <span className="text-[9px] text-zinc-400">Bisa isi -40</span>
+                              </label>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="30 (atau -40)"
+                                value={duplicateCatState.maxWeight}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val.includes("+")) {
+                                    const parsed = parseWeightStringInput(val);
+                                    setDuplicateCatState((prev) =>
+                                      prev ? { ...prev, minWeight: parsed.min, maxWeight: "" } : null
+                                    );
+                                  } else if (val.includes("-")) {
+                                    const parsed = parseWeightStringInput(val);
+                                    setDuplicateCatState((prev) =>
+                                      prev ? { ...prev, minWeight: "", maxWeight: parsed.max } : null
+                                    );
+                                  } else {
+                                    setDuplicateCatState({ ...duplicateCatState, maxWeight: val });
+                                  }
+                                }}
+                                className="w-full mt-0.5 px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Keterangan Pratinjau Terdeteksi */}
+                          <div className="bg-zinc-100 dark:bg-zinc-800/80 p-1.5 rounded-md text-[11px] text-zinc-700 dark:text-zinc-300 flex items-center justify-between">
+                            <span className="font-semibold text-zinc-500">Hasil Format BB:</span>
+                            <span className="font-bold text-amber-600 dark:text-amber-400">
+                              {formatWeightLimitLabel(
+                                duplicateCatState.minWeight ? parseFloat(duplicateCatState.minWeight.replace("+", "")) : null,
+                                duplicateCatState.maxWeight ? parseFloat(duplicateCatState.maxWeight.replace("-", "")) : null
+                              )}
+                            </span>
                           </div>
                         </div>
                       )}

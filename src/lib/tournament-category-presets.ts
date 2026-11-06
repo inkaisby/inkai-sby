@@ -2060,8 +2060,8 @@ export function getCategoryDivisionMeta(cat: {
 
 export function getEventNumberDisplay(cat: {
   categoryType?: string | null;
-  minWeight?: number | null;
-  maxWeight?: number | null;
+  minWeight?: number | string | null;
+  maxWeight?: number | string | null;
 }): string {
   const type = (cat.categoryType || "").toUpperCase();
   const isTeam = type.endsWith("_TEAM");
@@ -2069,14 +2069,27 @@ export function getEventNumberDisplay(cat: {
     return isTeam ? "KATA BEREGU" : "KATA PERORANGAN";
   }
   const prefix = isTeam ? "KUMITE BEREGU" : "KUMITE";
-  if (cat.maxWeight && !cat.minWeight) {
-    return `${prefix} -${cat.maxWeight} KG`;
+
+  const minW =
+    cat.minWeight !== null && cat.minWeight !== undefined && cat.minWeight !== ""
+      ? parseFloat(String(cat.minWeight).replace("+", "").replace(/\s+/g, "").replace(",", "."))
+      : null;
+  const maxW =
+    cat.maxWeight !== null && cat.maxWeight !== undefined && cat.maxWeight !== ""
+      ? parseFloat(String(cat.maxWeight).replace("-", "").replace(/\s+/g, "").replace(",", "."))
+      : null;
+
+  const validMin = minW !== null && !isNaN(minW) ? minW : null;
+  const validMax = maxW !== null && !isNaN(maxW) ? maxW : null;
+
+  if (validMax && !validMin) {
+    return `${prefix} -${validMax} KG`;
   }
-  if (cat.minWeight && !cat.maxWeight) {
-    return `${prefix} +${Math.floor(cat.minWeight)} KG`;
+  if (validMin && !validMax) {
+    return `${prefix} +${Math.floor(validMin)} KG`;
   }
-  if (cat.minWeight && cat.maxWeight) {
-    return `${prefix} ${cat.minWeight}-${cat.maxWeight} KG`;
+  if (validMin && validMax) {
+    return `${prefix} ${validMin}-${validMax} KG`;
   }
   return `${prefix} PERORANGAN`;
 }
@@ -2085,25 +2098,37 @@ export function buildGeneratedCategoryName(
   divisionPresetId: string,
   categoryType: string,
   gender: string,
-  minWeight?: number | null,
-  maxWeight?: number | null
+  minWeight?: number | string | null,
+  maxWeight?: number | string | null
 ): string {
   const preset = DIVISION_PRESETS.find((p) => p.id === divisionPresetId) || DIVISION_PRESETS[0];
   const divName = preset.name;
   const isKata = (categoryType || "").startsWith("KATA");
   const isTeam = (categoryType || "").endsWith("_TEAM");
 
+  const minW =
+    minWeight !== null && minWeight !== undefined && minWeight !== ""
+      ? parseFloat(String(minWeight).replace("+", "").replace(/\s+/g, "").replace(",", "."))
+      : null;
+  const maxW =
+    maxWeight !== null && maxWeight !== undefined && maxWeight !== ""
+      ? parseFloat(String(maxWeight).replace("-", "").replace(/\s+/g, "").replace(",", "."))
+      : null;
+
+  const validMin = minW !== null && !isNaN(minW) ? minW : null;
+  const validMax = maxW !== null && !isNaN(maxW) ? maxW : null;
+
   let numberPart = "";
   if (isKata) {
     numberPart = isTeam ? "KATA BEREGU" : "KATA PERORANGAN";
   } else {
     const kumitePrefix = isTeam ? "KUMITE BEREGU" : "KUMITE";
-    if (maxWeight && !minWeight) {
-      numberPart = `${kumitePrefix} -${maxWeight} KG`;
-    } else if (minWeight && !maxWeight) {
-      numberPart = `${kumitePrefix} +${Math.floor(minWeight)} KG`;
-    } else if (minWeight && maxWeight) {
-      numberPart = `${kumitePrefix} ${minWeight}-${maxWeight} KG`;
+    if (validMax && !validMin) {
+      numberPart = `${kumitePrefix} -${validMax} KG`;
+    } else if (validMin && !validMax) {
+      numberPart = `${kumitePrefix} +${Math.floor(validMin)} KG`;
+    } else if (validMin && validMax) {
+      numberPart = `${kumitePrefix} ${validMin}-${validMax} KG`;
     } else {
       numberPart = `${kumitePrefix} PERORANGAN`;
     }
