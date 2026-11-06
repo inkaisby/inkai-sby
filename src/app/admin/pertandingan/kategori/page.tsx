@@ -32,6 +32,8 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  RotateCcw,
+  SlidersHorizontal,
 } from "lucide-react";
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
 import { showError, showSuccess } from "@/lib/client-toast";
@@ -117,6 +119,14 @@ export default function AdminPertandinganKategoriPage() {
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [copiedAll, setCopiedAll] = useState(false);
+
+  // Multi-select Filter State
+  const [showFilterPopover, setShowFilterPopover] = useState(false);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [selectedGenders, setSelectedGenders] = useState<string[]>([]);
+  const [athleteFilterStatus, setAthleteFilterStatus] = useState<"ALL" | "WITH_ATHLETE" | "NO_ATHLETE">("ALL");
+  const [feeFilterStatus, setFeeFilterStatus] = useState<"ALL" | "VISIBLE" | "HIDDEN">("ALL");
+  const filterPopoverRef = useRef<HTMLDivElement>(null);
 
   // INKAI Custom Confirmation Modal State
   const [deleteCatState, setDeleteCatState] = useState<{ open: boolean; id: string; name: string } | null>(null);
@@ -456,11 +466,14 @@ export default function AdminPertandinganKategoriPage() {
     return () => clearTimeout(timer);
   }, [searchQuery, selectedEventId]);
 
-  // Handle click outside to close athlete search dropdown
+  // Handle click outside to close athlete search dropdown & filter popover
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
         setShowAthleteDropdown(false);
+      }
+      if (filterPopoverRef.current && !filterPopoverRef.current.contains(event.target as Node)) {
+        setShowFilterPopover(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -605,13 +618,54 @@ export default function AdminPertandinganKategoriPage() {
     }
   };
 
-  // Filter Categories
+  // Multi-select Filter Helpers
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedTypes.length > 0) count += 1;
+    if (selectedGenders.length > 0) count += 1;
+    if (athleteFilterStatus !== "ALL") count += 1;
+    if (feeFilterStatus !== "ALL") count += 1;
+    return count;
+  }, [selectedTypes, selectedGenders, athleteFilterStatus, feeFilterStatus]);
+
+  const handleResetFilters = () => {
+    setSelectedTypes([]);
+    setSelectedGenders([]);
+    setAthleteFilterStatus("ALL");
+    setFeeFilterStatus("ALL");
+    setFilterType("ALL");
+    setSearchQuery("");
+  };
+
+  // Filter Categories with Multi-Select options
   const filteredCategories = categories.filter((cat) => {
+    // 1. Text Search Query
     const matchesSearch = cat.name.toLowerCase().includes(searchQuery.toLowerCase());
     if (!matchesSearch) return false;
-    if (filterType === "ALL") return true;
-    if (filterType === "KATA") return cat.categoryType.startsWith("KATA");
-    if (filterType === "KUMITE") return cat.categoryType.startsWith("KUMITE");
+
+    // 2. Quick Filter Type (ALL / KATA / KUMITE)
+    if (filterType === "KATA" && !cat.categoryType.startsWith("KATA")) return false;
+    if (filterType === "KUMITE" && !cat.categoryType.startsWith("KUMITE")) return false;
+
+    // 3. Multi-Select Types
+    if (selectedTypes.length > 0 && !selectedTypes.includes(cat.categoryType)) {
+      return false;
+    }
+
+    // 4. Multi-Select Genders
+    if (selectedGenders.length > 0 && !selectedGenders.includes(cat.gender)) {
+      return false;
+    }
+
+    // 5. Athlete Status
+    const regCount = cat._count?.registrations || 0;
+    if (athleteFilterStatus === "WITH_ATHLETE" && regCount === 0) return false;
+    if (athleteFilterStatus === "NO_ATHLETE" && regCount > 0) return false;
+
+    // 6. Fee Visibility Status
+    if (feeFilterStatus === "VISIBLE" && cat.isFeeVisible === false) return false;
+    if (feeFilterStatus === "HIDDEN" && cat.isFeeVisible !== false) return false;
+
     return true;
   });
 
@@ -642,9 +696,17 @@ export default function AdminPertandinganKategoriPage() {
     return list;
   }, [filteredCategories, sortField, sortDirection]);
 
-  const handleCopyAllCategories = async () => {
-    if (sortedCategories.length === 0) {
-      showError("Tidak ada data kategori kelas untuk disalin.");
+  const handleCopyCategories = async (onlySelected: boolean = false) => {
+    const targetList = onlySelected
+      ? sortedCategories.filter((c) => selectedCategoryIds.includes(c.id))
+      : sortedCategories;
+
+    if (targetList.length === 0) {
+      showError(
+        onlySelected
+          ? "Tidak ada baris terpilih untuk disalin. Silakan centang baris terlebih dahulu."
+          : "Tidak ada data kategori kelas untuk disalin."
+      );
       return;
     }
 
@@ -660,7 +722,7 @@ export default function AdminPertandinganKategoriPage() {
       "Jumlah Atlet",
     ].join("\t");
 
-    const rows = sortedCategories.map((cat, idx) => {
+    const rows = targetList.map((cat, idx) => {
       let tglOrUsia = "Semua Usia / Bebas";
       if (cat.minBirthDate || cat.maxBirthDate) {
         const minD = cat.minBirthDate ? new Date(cat.minBirthDate).toLocaleDateString("id-ID") : "*";
@@ -697,7 +759,9 @@ export default function AdminPertandinganKategoriPage() {
       await navigator.clipboard.writeText(fullTsv);
       setCopiedAll(true);
       showSuccess(
-        `Berhasil menyalin ${sortedCategories.length} data kategori kelas ke clipboard! Siap di-paste ke Excel / Spreadsheet.`
+        `Berhasil menyalin ${targetList.length} data kategori kelas ke clipboard! ${
+          onlySelected ? "(Baris Terpilih)" : "(Sesuai Filter & Urutan)"
+        } Siap di-paste ke Excel / Spreadsheet.`
       );
       setTimeout(() => setCopiedAll(false), 2500);
     } catch (err) {
@@ -1034,28 +1098,286 @@ export default function AdminPertandinganKategoriPage() {
                 <option value="KUMITE">Kumite</option>
               </select>
 
-              {/* Tombol Copy Semua Isi Tabel */}
-              <button
-                type="button"
-                onClick={handleCopyAllCategories}
-                disabled={sortedCategories.length === 0}
-                className="px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shrink-0"
-                title="Salin seluruh isi tabel kategori ke clipboard (format Excel / Spreadsheet)"
-              >
-                {copiedAll ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span className="text-emerald-600 font-bold">Tersalin!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Salin Tabel</span>
-                  </>
+              {/* Filter Popover Dropdown (Multi-Select) */}
+              <div className="relative" ref={filterPopoverRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowFilterPopover(!showFilterPopover)}
+                  className={`px-2.5 py-1.5 border rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shrink-0 ${
+                    activeFilterCount > 0
+                      ? "bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800 text-red-600 dark:text-red-400"
+                      : "bg-zinc-50 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                  }`}
+                  title="Filter Berdasarkan Beberapa Kriteria"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Filter</span>
+                  {activeFilterCount > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-red-600 text-white text-[10px] flex items-center justify-center font-bold">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+
+                {showFilterPopover && (
+                  <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl z-30 p-3.5 space-y-3.5 text-xs">
+                    <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
+                      <div className="font-bold text-zinc-900 dark:text-white flex items-center gap-1.5">
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-red-600" />
+                        <span>Filter Kategori Kelas</span>
+                      </div>
+                      {activeFilterCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleResetFilters}
+                          className="text-[11px] text-red-600 hover:text-red-700 font-semibold flex items-center gap-1 cursor-pointer"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          Reset
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Filter Jenis Kategori (Multi Checkbox) */}
+                    <div>
+                      <div className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">
+                        Jenis Kategori
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[
+                          { id: "KATA_INDIVIDUAL", label: "Kata Perorangan" },
+                          { id: "KATA_TEAM", label: "Kata Beregu" },
+                          { id: "KUMITE_INDIVIDUAL", label: "Kumite Perorangan" },
+                          { id: "KUMITE_TEAM", label: "Kumite Beregu" },
+                        ].map((item) => {
+                          const isChecked = selectedTypes.includes(item.id);
+                          return (
+                            <label
+                              key={item.id}
+                              className={`flex items-center gap-2 p-1.5 rounded-lg border cursor-pointer text-[11px] transition select-none ${
+                                isChecked
+                                  ? "bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-900/60 text-red-700 dark:text-red-300 font-medium"
+                                  : "border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedTypes([...selectedTypes, item.id]);
+                                  } else {
+                                    setSelectedTypes(selectedTypes.filter((t) => t !== item.id));
+                                  }
+                                }}
+                                className="w-3.5 h-3.5 rounded border-zinc-300 text-red-600 focus:ring-red-500"
+                              />
+                              <span className="truncate">{item.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Filter Gender (Multi Checkbox) */}
+                    <div>
+                      <div className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">
+                        Gender
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { id: "MALE", label: "Putra" },
+                          { id: "FEMALE", label: "Putri" },
+                          { id: "MIXED", label: "Campuran" },
+                        ].map((item) => {
+                          const isChecked = selectedGenders.includes(item.id);
+                          return (
+                            <label
+                              key={item.id}
+                              className={`flex items-center gap-1.5 p-1.5 rounded-lg border cursor-pointer text-[11px] transition select-none ${
+                                isChecked
+                                  ? "bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-900/60 text-red-700 dark:text-red-300 font-medium"
+                                  : "border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedGenders([...selectedGenders, item.id]);
+                                  } else {
+                                    setSelectedGenders(selectedGenders.filter((g) => g !== item.id));
+                                  }
+                                }}
+                                className="w-3.5 h-3.5 rounded border-zinc-300 text-red-600 focus:ring-red-500"
+                              />
+                              <span className="truncate">{item.label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Filter Status Atlet */}
+                    <div>
+                      <div className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">
+                        Status Pendaftaran Atlet
+                      </div>
+                      <div className="grid grid-cols-3 gap-1 bg-zinc-100 dark:bg-zinc-800/60 p-1 rounded-lg">
+                        {[
+                          { id: "ALL", label: "Semua" },
+                          { id: "WITH_ATHLETE", label: "Ada Atlet" },
+                          { id: "NO_ATHLETE", label: "Kosong" },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setAthleteFilterStatus(opt.id as any)}
+                            className={`py-1 text-[11px] rounded-md font-medium transition cursor-pointer ${
+                              athleteFilterStatus === opt.id
+                                ? "bg-white dark:bg-zinc-900 text-red-600 shadow-sm font-semibold"
+                                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Filter Status Biaya */}
+                    <div>
+                      <div className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 mb-1.5">
+                        Tampilan Biaya
+                      </div>
+                      <div className="grid grid-cols-3 gap-1 bg-zinc-100 dark:bg-zinc-800/60 p-1 rounded-lg">
+                        {[
+                          { id: "ALL", label: "Semua" },
+                          { id: "VISIBLE", label: "Tampil" },
+                          { id: "HIDDEN", label: "Sembunyi" },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setFeeFilterStatus(opt.id as any)}
+                            className={`py-1 text-[11px] rounded-md font-medium transition cursor-pointer ${
+                              feeFilterStatus === opt.id
+                                ? "bg-white dark:bg-zinc-900 text-red-600 shadow-sm font-semibold"
+                                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                      <span className="text-[11px] text-zinc-500">
+                        {filteredCategories.length} kelas cocok
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowFilterPopover(false)}
+                        className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs rounded-lg transition cursor-pointer"
+                      >
+                        Tutup
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </button>
+              </div>
+
+              {/* Tombol Copy Salin Isi Tabel (Semua / Terpilih) */}
+              <div className="flex items-center gap-1 shrink-0">
+                {selectedCategoryIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopyCategories(true)}
+                    className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-600 dark:text-red-300 border border-red-200 dark:border-red-800/60 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                    title="Salin baris yang dicentang ke clipboard"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Salin Terpilih</span> ({selectedCategoryIds.length})
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleCopyCategories(false)}
+                  disabled={sortedCategories.length === 0}
+                  className="px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                  title="Salin seluruh isi tabel kategori ke clipboard (format Excel / Spreadsheet)"
+                >
+                  {copiedAll ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-emerald-600 font-bold">Tersalin!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Salin Semua</span> ({sortedCategories.length})
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* Active Filter Chips */}
+          {(activeFilterCount > 0 || searchQuery) && (
+            <div className="px-4 py-2 bg-zinc-50/70 dark:bg-zinc-800/40 border-b border-zinc-200 dark:border-zinc-800 flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span className="text-zinc-400 font-medium">Filter Aktif:</span>
+              {searchQuery && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-200/80 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300">
+                  Cari: &quot;{searchQuery}&quot;
+                  <button type="button" onClick={() => setSearchQuery("")} className="hover:text-red-500 cursor-pointer">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {selectedTypes.length > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-medium">
+                  Jenis: {selectedTypes.length} dipilih
+                  <button type="button" onClick={() => setSelectedTypes([])} className="hover:text-red-900 cursor-pointer">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {selectedGenders.length > 0 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-medium">
+                  Gender: {selectedGenders.map((g) => (g === "MALE" ? "Putra" : g === "FEMALE" ? "Putri" : "Campuran")).join(", ")}
+                  <button type="button" onClick={() => setSelectedGenders([])} className="hover:text-red-900 cursor-pointer">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {athleteFilterStatus !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-medium">
+                  Atlet: {athleteFilterStatus === "WITH_ATHLETE" ? "Ada Atlet" : "Kosong"}
+                  <button type="button" onClick={() => setAthleteFilterStatus("ALL")} className="hover:text-red-900 cursor-pointer">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {feeFilterStatus !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 font-medium">
+                  Biaya: {feeFilterStatus === "VISIBLE" ? "Ditampilkan" : "Disembunyikan"}
+                  <button type="button" onClick={() => setFeeFilterStatus("ALL")} className="hover:text-red-900 cursor-pointer">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-red-600 hover:text-red-700 font-semibold underline text-[11px] ml-1 cursor-pointer"
+              >
+                Reset Semua
+              </button>
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[650px]">
