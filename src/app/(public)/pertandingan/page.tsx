@@ -1320,34 +1320,44 @@ export default function PublicPertandinganPage() {
         {/* Filter Controls */}
         <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            {/* Search */}
-            <div ref={searchContainerRef} className="relative w-full md:w-80">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <input
-                type="text"
-                placeholder="Cari nama atlet, kelas, NIA..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onFocus={() => {
-                  if (memberSuggestions.length > 0) setShowSuggestDropdown(true);
-                }}
-                className="w-full pl-9 pr-8 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm focus:ring-2 focus:ring-red-500"
-              />
-              {suggestLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              ) : search ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearch("");
-                    setMemberSuggestions([]);
-                    setShowSuggestDropdown(false);
+            {/* Search - Highlight Prominent */}
+            <div ref={searchContainerRef} className="relative w-full md:w-96 group">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1">
+                  <UserPlus className="w-3 h-3 text-red-600" /> Cari & Daftarkan Atlet INKAI
+                </span>
+                <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
+                  (Ketik Nama / NIA)
+                </span>
+              </div>
+              <div className="relative rounded-xl shadow-xs ring-2 ring-red-500/30 dark:ring-red-500/40 focus-within:ring-2 focus-within:ring-red-600 focus-within:shadow-md transition">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-red-600 dark:text-red-400 font-bold" />
+                <input
+                  type="text"
+                  placeholder="Ketik nama atau NIA untuk daftarkan atlet..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onFocus={() => {
+                    if (memberSuggestions.length > 0) setShowSuggestDropdown(true);
                   }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              ) : null}
+                  className="w-full pl-9 pr-8 py-2 bg-white dark:bg-zinc-850 border-2 border-red-500/60 dark:border-red-500/70 rounded-xl text-xs md:text-sm font-semibold text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 placeholder:font-normal focus:outline-hidden focus:border-red-600"
+                />
+                {suggestLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-red-500" />
+                ) : search ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setMemberSuggestions([]);
+                      setShowSuggestDropdown(false);
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                ) : null}
+              </div>
 
               {/* Suggestions Dropdown */}
               {showSuggestDropdown && memberSuggestions.length > 0 && (
@@ -2858,10 +2868,10 @@ export default function PublicPertandinganPage() {
       )}
       {/* Modal Daftarkan Atlet ke Kelas Pertandingan (Format Bagan Matriks Tinggal Klik) */}
       {selectedAthleteForReg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-1.5 sm:p-4 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-4xl w-full shadow-2xl max-h-[96vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Header Modal */}
-            <div className="px-3.5 py-2.5 sm:px-5 sm:py-3.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-white dark:bg-zinc-900">
+        <div className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-black/85 p-2 sm:p-4 backdrop-blur-md animate-in fade-in duration-200 overflow-hidden">
+          <div className="bg-white dark:bg-zinc-900 border-2 border-zinc-300 dark:border-zinc-700 rounded-2xl max-w-4xl w-full shadow-2xl h-[calc(100dvh-2.5rem)] max-h-[calc(100dvh-2.5rem)] sm:h-auto sm:max-h-[88vh] flex flex-col overflow-hidden my-auto">
+            {/* Header Modal (Batas Atas Tegas) */}
+            <div className="px-3.5 py-2.5 sm:px-5 sm:py-3.5 border-b-2 border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-white dark:bg-zinc-900 shadow-xs z-10">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="p-1 sm:p-1.5 bg-red-100 dark:bg-red-950/60 text-red-600 rounded-lg shrink-0">
                   <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -3052,7 +3062,7 @@ export default function PublicPertandinganPage() {
             </div>
 
             {/* Badan Bagan Kelas Pertandingan (Tinggal Klik) */}
-            <div className="flex-1 overflow-y-auto p-2.5 sm:p-4 space-y-2.5 sm:space-y-4 bg-zinc-100/60 dark:bg-zinc-950">
+            <div className="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-4 space-y-2.5 sm:space-y-4 bg-zinc-100/60 dark:bg-zinc-950">
               {regDivisionGroups.length === 0 ? (
                 <div className="py-8 text-center text-zinc-500 text-xs sm:text-sm bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 space-y-2">
                   <Swords className="w-7 h-7 text-zinc-400 mx-auto" />
@@ -3424,8 +3434,8 @@ export default function PublicPertandinganPage() {
               )}
             </div>
 
-            {/* Bottom Bar: Pratinjau Terpilih & Tombol Konfirmasi (Super Compact di Layar HP) */}
-            <form onSubmit={handleSubmitAthleteRegistration} className="p-2 sm:p-3.5 border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shrink-0 space-y-1.5 sm:space-y-2.5">
+            {/* Bottom Bar: Pratinjau Terpilih & Tombol Konfirmasi (Batas Bawah Tegas) */}
+            <form onSubmit={handleSubmitAthleteRegistration} className="p-2 sm:p-3.5 border-t-2 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shrink-0 space-y-1.5 sm:space-y-2.5 shadow-lg z-10">
               {/* Rincian Kelas Terpilih */}
               {selectedRegCategoryId ? (
                 (() => {
