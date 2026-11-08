@@ -150,6 +150,8 @@ export function AnggotaBrowser({
   initialEventRegistration?: Record<string, MemberEventRegistrationFlags> | null;
 }) {
   const [filters, setFilters] = useState<FilterState>(initialFilters);
+  const filtersRef = useRef<FilterState>(initialFilters);
+  filtersRef.current = filters;
   const [members, setMembers] = useState(initialMembers);
   const [total, setTotal] = useState(initialTotal);
   const [statusCounts, setStatusCounts] = useState(initialStatusCounts);
@@ -168,9 +170,15 @@ export function AnggotaBrowser({
   const prevDojoIdRef = useRef(initialFilters.dojoId);
 
   const syncUrl = useCallback((next: FilterState) => {
+    if (typeof window === "undefined") return;
     const href = buildHref(filtersToParams(next));
     const path = `${window.location.pathname}${href === "?" ? "" : href}`;
-    window.history.replaceState(null, "", path);
+    const current = `${window.location.pathname}${window.location.search}`;
+    if (current !== path) {
+      queueMicrotask(() => {
+        window.history.replaceState(null, "", path);
+      });
+    }
   }, []);
 
   const load = useCallback(async (next: FilterState, forceCounts = false) => {
@@ -245,46 +253,46 @@ export function AnggotaBrowser({
 
   const applyFilters = useCallback(
     (patch: Partial<FilterState>, opts?: { resetPage?: boolean; forceCounts?: boolean }) => {
-      setFilters((prev) => {
-        const resetPage = opts?.resetPage !== false && patch.page == null;
-        const next: FilterState = {
-          ...prev,
-          ...patch,
-          page: resetPage ? 1 : (patch.page ?? prev.page),
-        };
-        syncUrl(next);
-        void load(next, opts?.forceCounts);
-        return next;
-      });
+      const resetPage = opts?.resetPage !== false && patch.page == null;
+      const prev = filtersRef.current;
+      const next: FilterState = {
+        ...prev,
+        ...patch,
+        page: resetPage ? 1 : (patch.page ?? prev.page),
+      };
+      filtersRef.current = next;
+      setFilters(next);
+      syncUrl(next);
+      void load(next, opts?.forceCounts);
     },
     [load, syncUrl],
   );
 
   const handleSort = useCallback(
     (key: string) => {
-      const next = toggleSortKey(filters.sort, filters.sortDir, key);
+      const next = toggleSortKey(filtersRef.current.sort, filtersRef.current.sortDir, key);
       applyFilters({
         sort: next.key as MemberSortKey,
         sortDir: next.dir,
         page: 1,
       });
     },
-    [applyFilters, filters.sort, filters.sortDir],
+    [applyFilters],
   );
 
   // Popstate (back/forward)
   useEffect(() => {
     function onPopState() {
       const next = {
-        ...filters,
-        ...parseHrefToFilters(window.location.search, filters.pageSize),
+        ...filtersRef.current,
+        ...parseHrefToFilters(window.location.search, filtersRef.current.pageSize),
       } as FilterState;
+      filtersRef.current = next;
       setFilters(next);
       void load(next);
     }
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only bind once for history
   }, [load]);
 
   const kpiBase = {

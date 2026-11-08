@@ -86,6 +86,8 @@ export function IuranBrowser({
   initialTab?: string;
 }) {
   const [filters, setFilters] = useState(initialFilters);
+  const filtersRef = useRef(initialFilters);
+  filtersRef.current = filters;
   const [rows, setRows] = useState(initialRows);
   const [total, setTotal] = useState(initialTotal);
   const [kpis, setKpis] = useState(initialKpis);
@@ -102,9 +104,15 @@ export function IuranBrowser({
   const reqIdRef = useRef(0);
 
   const syncUrl = useCallback((next: FilterState) => {
+    if (typeof window === "undefined") return;
     const href = buildHref(filtersToParams(next));
     const path = `${window.location.pathname}${href}`;
-    window.history.replaceState(null, "", path);
+    const current = `${window.location.pathname}${window.location.search}`;
+    if (current !== path) {
+      queueMicrotask(() => {
+        window.history.replaceState(null, "", path);
+      });
+    }
   }, []);
 
   const load = useCallback(async (next: FilterState) => {
@@ -156,16 +164,16 @@ export function IuranBrowser({
 
   const applyFilters = useCallback(
     (patch: Partial<FilterState>, opts?: { resetPage?: boolean }) => {
-      setFilters((prev) => {
-        const next: FilterState = {
-          ...prev,
-          ...patch,
-          page: opts?.resetPage !== false && patch.page == null ? 1 : (patch.page ?? prev.page),
-        };
-        syncUrl(next);
-        void load(next);
-        return next;
-      });
+      const prev = filtersRef.current;
+      const next: FilterState = {
+        ...prev,
+        ...patch,
+        page: opts?.resetPage !== false && patch.page == null ? 1 : (patch.page ?? prev.page),
+      };
+      filtersRef.current = next;
+      setFilters(next);
+      syncUrl(next);
+      void load(next);
     },
     [load, syncUrl],
   );

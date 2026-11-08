@@ -451,7 +451,10 @@ export function KasLedgerClient({
   useEffect(() => {
     if (typeof window !== "undefined") {
       const url = qs ? `?${qs}` : window.location.pathname;
-      window.history.replaceState(null, "", url);
+      const current = `${window.location.pathname}${window.location.search}`;
+      if (current !== url) {
+        window.history.replaceState(null, "", url);
+      }
     }
   }, [qs]);
 
