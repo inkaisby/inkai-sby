@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { canEditPengurus, getPrimaryAdminRole } from "@/lib/rbac";
 import { uploadAdminFile, UploadValidationError } from "@/lib/upload";
-import { extractGoogleDriveFileId, getGoogleDriveDownloadUrls } from "@/lib/google-drive";
+import {
+  extractGoogleDriveFileId,
+  getGoogleDriveDownloadUrls,
+  sniffDocumentMimeType,
+} from "@/lib/google-drive";
 import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 
 export const maxDuration = 30;
@@ -53,7 +57,7 @@ export async function POST(request: Request) {
 
     const candidateUrls = getGoogleDriveDownloadUrls(fileId);
     let downloadedBuffer: ArrayBuffer | null = null;
-    let detectedType = "application/octet-stream";
+    let detectedMeta: { mime: string; ext: string } | null = null;
     let fetchError: string | null = null;
 
     for (const url of candidateUrls) {
@@ -67,52 +71,55 @@ export async function POST(request: Request) {
 
         if (!res.ok) continue;
 
-        const contentType = res.headers.get("content-type") || "";
-        // Jika Google Drive mengembalikan HTML (misal halaman peringatan virus scan atau form login)
-        if (contentType.includes("text/html")) {
-          const htmlText = await res.text();
-          // Coba cari token konfirmasi unduhan Google Drive jika file besar
-          const confirmMatch = htmlText.match(/confirm=([0-9a-zA-Z_-]+)/);
+        const buf = await res.arrayBuffer();
+        if (!buf || buf.byteLength === 0) continue;
+
+        // Sniff MIME type langsung dari magic bytes header file
+        const sniffed = sniffDocumentMimeType(buf);
+        if (sniffed) {
+          downloadedBuffer = buf;
+          detectedMeta = sniffed;
+          break;
+        }
+
+        // Jika bukan gambar/PDF langsung, cek apakah respons adalah HTML konfirmasi Google Drive
+        const textSample = new TextDecoder("utf-8").decode(buf.slice(0, 5000));
+        if (textSample.includes("<html") || textSample.includes("<!DOCTYPE")) {
+          // Cari token konfirmasi unduhan Google Drive (untuk file besar / virus warning)
+          const confirmMatch = textSample.match(/confirm=([0-9a-zA-Z_-]+)/);
           if (confirmMatch?.[1]) {
             const confirmUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=${confirmMatch[1]}`;
             const retryRes = await fetch(confirmUrl);
-            if (retryRes.ok && !retryRes.headers.get("content-type")?.includes("text/html")) {
-              downloadedBuffer = await retryRes.arrayBuffer();
-              detectedType = retryRes.headers.get("content-type") || detectedType;
-              break;
+            if (retryRes.ok) {
+              const retryBuf = await retryRes.arrayBuffer();
+              const retrySniffed = sniffDocumentMimeType(retryBuf);
+              if (retrySniffed) {
+                downloadedBuffer = retryBuf;
+                detectedMeta = retrySniffed;
+                break;
+              }
             }
           }
-          continue;
         }
-
-        downloadedBuffer = await res.arrayBuffer();
-        detectedType = contentType || detectedType;
-        break;
       } catch (err) {
         fetchError = err instanceof Error ? err.message : "Fetch gagal";
       }
     }
 
-    if (!downloadedBuffer || downloadedBuffer.byteLength === 0) {
+    if (!downloadedBuffer || !detectedMeta) {
       return NextResponse.json(
         {
           error:
-            "Gagal mengunduh file dari Google Drive. Pastikan opsi berbagi file disetel ke 'Siapa saja yang memiliki link' (Viewer/Publik). " +
+            "Format berkas dari Google Drive tidak dikenali sebagai gambar (JPG/PNG/WebP) atau PDF. " +
+            "Pastikan opsi berbagi Google Drive disetel ke 'Siapa saja yang memiliki link' (Viewer), berkas bukan dokumen teks kosong/folder, dan format file adalah gambar atau PDF. " +
             (fetchError ? `(${fetchError})` : ""),
         },
         { status: 400 },
       );
     }
 
-    // Tentukan ekstensi file
-    let ext = "bin";
-    if (detectedType.includes("jpeg") || detectedType.includes("jpg")) ext = "jpg";
-    else if (detectedType.includes("png")) ext = "png";
-    else if (detectedType.includes("webp")) ext = "webp";
-    else if (detectedType.includes("pdf")) ext = "pdf";
-
-    const fileName = `gdrive-${fileId.slice(0, 10)}-${Date.now()}.${ext}`;
-    const file = new File([downloadedBuffer], fileName, { type: detectedType });
+    const fileName = `gdrive-${fileId.slice(0, 10)}-${Date.now()}.${detectedMeta.ext}`;
+    const file = new File([downloadedBuffer], fileName, { type: detectedMeta.mime });
 
     const uploadResult = await uploadAdminFile(file, folder);
 
@@ -121,7 +128,7 @@ export async function POST(request: Request) {
       url: uploadResult.url,
       pathname: uploadResult.pathname,
       size: downloadedBuffer.byteLength,
-      mimeType: detectedType,
+      mimeType: detectedMeta.mime,
     });
   } catch (err) {
     if (err instanceof UploadValidationError) {
@@ -139,4 +146,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
