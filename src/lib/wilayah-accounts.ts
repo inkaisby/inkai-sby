@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
-import { unstable_cache, revalidateTag } from "next/cache";
 import { notifyUser } from "@/lib/notifications";
 import {
   findUserIdsManagingDojo,
@@ -99,6 +98,22 @@ function asMeta(value: unknown): WilayahMeta {
   };
 }
 
+type WilayahMetaCacheEntry = {
+  value: WilayahMeta;
+  expiresAt: number;
+};
+
+const wilayahMetaMemoryCache = new Map<string, WilayahMetaCacheEntry>();
+const WILAYAH_META_CACHE_TTL_MS = 60_000;
+
+export function invalidateWilayahMetaCache(scope?: WilayahScope, wilayahId?: string) {
+  if (scope && wilayahId) {
+    wilayahMetaMemoryCache.delete(`${scope}:${wilayahId}`);
+  } else {
+    wilayahMetaMemoryCache.clear();
+  }
+}
+
 async function fetchWilayahMetaUncached(
   scope: WilayahScope,
   wilayahId: string,
@@ -109,17 +124,21 @@ async function fetchWilayahMetaUncached(
   return asMeta(row?.value);
 }
 
-const getCachedWilayahMeta = unstable_cache(
-  fetchWilayahMetaUncached,
-  ["wilayah-meta"],
-  { revalidate: 60, tags: ["wilayah-meta"] },
-);
-
 export async function getWilayahMeta(
   scope: WilayahScope,
   wilayahId: string,
 ): Promise<WilayahMeta> {
-  return getCachedWilayahMeta(scope, wilayahId);
+  const key = `${scope}:${wilayahId}`;
+  const cached = wilayahMetaMemoryCache.get(key);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.value;
+  }
+  const value = await fetchWilayahMetaUncached(scope, wilayahId);
+  wilayahMetaMemoryCache.set(key, {
+    value,
+    expiresAt: Date.now() + WILAYAH_META_CACHE_TTL_MS,
+  });
+  return value;
 }
 
 async function saveWilayahMeta(
@@ -133,11 +152,7 @@ async function saveWilayahMeta(
     create: { key: metaSettingKey(scope, wilayahId), value },
     update: { value },
   });
-  try {
-    revalidateTag("wilayah-meta", "max");
-  } catch {
-    // Abaikan jika dipanggil di luar konteks Next.js request lifecycle
-  }
+  invalidateWilayahMetaCache(scope, wilayahId);
 }
 
 /** Persist meta wilayah (dipakai modul hak akses admin ranting). */

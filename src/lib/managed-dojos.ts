@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { unstable_cache, revalidateTag } from "next/cache";
 import { getPrimaryAdminRole, type SessionUser } from "@/lib/rbac";
 
 export const MANAGED_DOJOS_KEY_PREFIX = "user.managedDojos.";
@@ -46,6 +45,22 @@ export function mergeManagedDojoIds(
   return [...new Set(ids.filter(Boolean))];
 }
 
+type ManagedDojosCacheEntry = {
+  value: ManagedDojosValue;
+  expiresAt: number;
+};
+
+const managedDojosMemoryCache = new Map<string, ManagedDojosCacheEntry>();
+const MANAGED_DOJOS_CACHE_TTL_MS = 60_000;
+
+export function invalidateManagedDojosCache(userId?: string) {
+  if (userId) {
+    managedDojosMemoryCache.delete(userId);
+  } else {
+    managedDojosMemoryCache.clear();
+  }
+}
+
 async function fetchManagedDojosSettingUncached(
   userId: string,
 ): Promise<ManagedDojosValue> {
@@ -56,16 +71,19 @@ async function fetchManagedDojosSettingUncached(
   return asManagedDojosValue(row?.value);
 }
 
-const getCachedManagedDojosSetting = unstable_cache(
-  fetchManagedDojosSettingUncached,
-  ["managed-dojos-setting"],
-  { revalidate: 60, tags: ["managed-dojos"] },
-);
-
 export async function getManagedDojosSetting(
   userId: string,
 ): Promise<ManagedDojosValue> {
-  return getCachedManagedDojosSetting(userId);
+  const cached = managedDojosMemoryCache.get(userId);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.value;
+  }
+  const value = await fetchManagedDojosSettingUncached(userId);
+  managedDojosMemoryCache.set(userId, {
+    value,
+    expiresAt: Date.now() + MANAGED_DOJOS_CACHE_TTL_MS,
+  });
+  return value;
 }
 
 export async function loadManagedDojoIds(
@@ -129,11 +147,7 @@ export async function setManagedDojoIds(opts: {
     }),
   ]);
 
-  try {
-    revalidateTag("managed-dojos", "max");
-  } catch {
-    // Abaikan jika di luar request lifecycle
-  }
+  invalidateManagedDojosCache(opts.userId);
 
   return { dojoIds: unique, primaryDojoId: opts.primaryDojoId };
 }
