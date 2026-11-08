@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { unstable_cache, revalidateTag } from "next/cache";
 import { notifyUser } from "@/lib/notifications";
 import {
   findUserIdsManagingDojo,
@@ -98,7 +99,7 @@ function asMeta(value: unknown): WilayahMeta {
   };
 }
 
-export async function getWilayahMeta(
+async function fetchWilayahMetaUncached(
   scope: WilayahScope,
   wilayahId: string,
 ): Promise<WilayahMeta> {
@@ -106,6 +107,19 @@ export async function getWilayahMeta(
     where: { key: metaSettingKey(scope, wilayahId) },
   });
   return asMeta(row?.value);
+}
+
+const getCachedWilayahMeta = unstable_cache(
+  fetchWilayahMetaUncached,
+  ["wilayah-meta"],
+  { revalidate: 60, tags: ["wilayah-meta"] },
+);
+
+export async function getWilayahMeta(
+  scope: WilayahScope,
+  wilayahId: string,
+): Promise<WilayahMeta> {
+  return getCachedWilayahMeta(scope, wilayahId);
 }
 
 async function saveWilayahMeta(
@@ -119,6 +133,11 @@ async function saveWilayahMeta(
     create: { key: metaSettingKey(scope, wilayahId), value },
     update: { value },
   });
+  try {
+    revalidateTag("wilayah-meta", "max");
+  } catch {
+    // Abaikan jika dipanggil di luar konteks Next.js request lifecycle
+  }
 }
 
 /** Persist meta wilayah (dipakai modul hak akses admin ranting). */

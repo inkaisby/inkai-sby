@@ -13,14 +13,14 @@ function withServerlessPoolLimit(url: string | undefined) {
     const host = parsed.hostname.toLowerCase();
     const isSupabasePooler = host.includes("pooler.supabase.com");
 
-    // Session pooler (:5432) cepat habis di Vercel — pakai Transaction (:6543).
-    // Local `next dev` is one long-lived process: keep :5432 so Prisma matches CLI.
+    // Session pooler (:5432) memiliki batas kaku pool_size: 15 (EMAXCONNSESSION)
+    // yang cepat habis saat query paralel di dev maupun Vercel.
+    // Selalu rewrite ke Transaction (:6543) jika menggunakan Supabase Pooler.
     const rewriteSessionToTransaction =
-      process.env.NODE_ENV !== "development" ||
-      process.env.PRISMA_USE_TRANSACTION_POOLER === "1";
+      isSupabasePooler &&
+      process.env.PRISMA_USE_TRANSACTION_POOLER !== "0";
     if (
       rewriteSessionToTransaction &&
-      isSupabasePooler &&
       (!parsed.port || parsed.port === "5432")
     ) {
       parsed.port = "6543";

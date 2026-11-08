@@ -1233,7 +1233,8 @@ export function MembersTable({
               )}
               <TableHead className="w-24 sm:w-auto">Aksi</TableHead>
             </TableRow>
-          </TableHeader>          <TableBody>
+          </TableHeader>
+          <TableBody>
             {members.length === 0 ? (
               <TableRow>
                 <TableCell

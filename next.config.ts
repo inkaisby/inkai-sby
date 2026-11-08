@@ -45,9 +45,24 @@ const nextConfig: NextConfig = {
   typescript: {
     tsconfigPath: isProd ? "tsconfig.build.json" : "tsconfig.json",
   },
+  onDemandEntries: {
+    maxInactiveAge: 120 * 1000,
+    pagesBufferLength: 8,
+  },
   experimental: {
     turbopackFileSystemCacheForBuild: true,
-    optimizePackageImports: ["radix-ui"],
+    turbopackFileSystemCacheForDev: true,
+    optimizePackageImports: [
+      "radix-ui",
+      "lucide-react",
+      "date-fns",
+      "embla-carousel-react",
+      "sonner",
+    ],
+    staleTimes: {
+      dynamic: 30,
+      static: 180,
+    },
   },
   images: {
     remotePatterns: [

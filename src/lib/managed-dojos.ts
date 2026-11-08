@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { unstable_cache, revalidateTag } from "next/cache";
 import { getPrimaryAdminRole, type SessionUser } from "@/lib/rbac";
 
 export const MANAGED_DOJOS_KEY_PREFIX = "user.managedDojos.";
@@ -45,7 +46,7 @@ export function mergeManagedDojoIds(
   return [...new Set(ids.filter(Boolean))];
 }
 
-export async function getManagedDojosSetting(
+async function fetchManagedDojosSettingUncached(
   userId: string,
 ): Promise<ManagedDojosValue> {
   const row = await prisma.appSetting.findUnique({
@@ -53,6 +54,18 @@ export async function getManagedDojosSetting(
     select: { value: true },
   });
   return asManagedDojosValue(row?.value);
+}
+
+const getCachedManagedDojosSetting = unstable_cache(
+  fetchManagedDojosSettingUncached,
+  ["managed-dojos-setting"],
+  { revalidate: 60, tags: ["managed-dojos"] },
+);
+
+export async function getManagedDojosSetting(
+  userId: string,
+): Promise<ManagedDojosValue> {
+  return getCachedManagedDojosSetting(userId);
 }
 
 export async function loadManagedDojoIds(
@@ -115,6 +128,12 @@ export async function setManagedDojoIds(opts: {
       data: { managedDojoId: opts.primaryDojoId },
     }),
   ]);
+
+  try {
+    revalidateTag("managed-dojos", "max");
+  } catch {
+    // Abaikan jika di luar request lifecycle
+  }
 
   return { dojoIds: unique, primaryDojoId: opts.primaryDojoId };
 }

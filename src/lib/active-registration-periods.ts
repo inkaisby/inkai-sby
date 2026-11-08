@@ -1,5 +1,6 @@
 import { inkaiFetch } from "@/lib/inkai-api/server";
 import { fetchUktEventsCached } from "@/lib/inkai-api/admin-data";
+import { unstable_cache } from "next/cache";
 import {
   findActiveLatberPeriod,
   isLatberEventTitle,
@@ -201,8 +202,8 @@ function applyLatberMeta(
   });
 }
 
-/** Periode Latber aktif (non-arsip, pendaftaran masih relevan) — ringan untuk quick-reg. */
-export async function resolveActiveLatberRegistrationPeriod(
+/** Periode Latber aktif (non-arsip, pendaftaran masih relevan) — uncached. */
+async function resolveActiveLatberRegistrationPeriodUncached(
   token: string,
 ): Promise<ActiveRegistrationPeriod> {
   const [eventsRes, metaRows] = await Promise.all([
@@ -273,8 +274,8 @@ export async function resolveActiveLatberRegistrationPeriod(
   return { id: active.id, title: active.title };
 }
 
-/** Periode UKT aktif — ringan untuk quick-reg. */
-export async function resolveActiveUktRegistrationPeriod(
+/** Periode UKT aktif — uncached. */
+async function resolveActiveUktRegistrationPeriodUncached(
   token: string,
 ): Promise<ActiveRegistrationPeriod> {
   const [eventsData, metaRows] = await Promise.all([
@@ -345,8 +346,8 @@ export async function resolveActiveUktRegistrationPeriod(
   return { id: active.id, title: active.title };
 }
 
-/** Periode Pertandingan / Kejuaraan aktif — ringan untuk quick-reg. */
-export async function resolveActivePertandinganRegistrationPeriod(
+/** Periode Pertandingan / Kejuaraan aktif — uncached. */
+async function resolveActivePertandinganRegistrationPeriodUncached(
   _token?: string,
 ): Promise<ActiveRegistrationPeriod> {
   const { data } = await withPrismaFallback(
@@ -374,8 +375,8 @@ export async function resolveActivePertandinganRegistrationPeriod(
   return { id: active.id, title: active.title };
 }
 
-/** Periode Sertifikasi Wasit Juri aktif — ringan untuk toolbar & quick-reg. */
-export async function resolveActiveWasitJuriPeriod(): Promise<ActiveRegistrationPeriod> {
+/** Periode Sertifikasi Wasit Juri aktif — uncached. */
+async function resolveActiveWasitJuriPeriodUncached(): Promise<ActiveRegistrationPeriod> {
   const { data } = await withPrismaFallback(
     "active-wasit-juri-period-prisma",
     () =>
@@ -392,5 +393,55 @@ export async function resolveActiveWasitJuriPeriod(): Promise<ActiveRegistration
 
   if (!data) return null;
   return { id: data.id, title: data.title };
+}
+
+/* -------------------------------------------------------------------------- */
+/* CACHED API: Mencegah hit berulang ke API/DB Supabase saat navigasi admin  */
+/* -------------------------------------------------------------------------- */
+
+const getCachedActiveLatberPeriod = unstable_cache(
+  (token: string) => resolveActiveLatberRegistrationPeriodUncached(token),
+  ["active-latber-period"],
+  { revalidate: 60, tags: ["active-periods", "events"] },
+);
+
+export async function resolveActiveLatberRegistrationPeriod(
+  token: string,
+): Promise<ActiveRegistrationPeriod> {
+  return getCachedActiveLatberPeriod(token);
+}
+
+const getCachedActiveUktPeriod = unstable_cache(
+  (token: string) => resolveActiveUktRegistrationPeriodUncached(token),
+  ["active-ukt-period"],
+  { revalidate: 60, tags: ["active-periods", "events"] },
+);
+
+export async function resolveActiveUktRegistrationPeriod(
+  token: string,
+): Promise<ActiveRegistrationPeriod> {
+  return getCachedActiveUktPeriod(token);
+}
+
+const getCachedActivePertandinganPeriod = unstable_cache(
+  () => resolveActivePertandinganRegistrationPeriodUncached(),
+  ["active-pertandingan-period"],
+  { revalidate: 60, tags: ["active-periods", "events"] },
+);
+
+export async function resolveActivePertandinganRegistrationPeriod(
+  _token?: string,
+): Promise<ActiveRegistrationPeriod> {
+  return getCachedActivePertandinganPeriod();
+}
+
+const getCachedActiveWasitJuriPeriod = unstable_cache(
+  () => resolveActiveWasitJuriPeriodUncached(),
+  ["active-wasit-juri-period"],
+  { revalidate: 60, tags: ["active-periods", "wasit-juri"] },
+);
+
+export async function resolveActiveWasitJuriPeriod(): Promise<ActiveRegistrationPeriod> {
+  return getCachedActiveWasitJuriPeriod();
 }
 
