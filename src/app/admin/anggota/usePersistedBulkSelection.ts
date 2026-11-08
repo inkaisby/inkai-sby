@@ -137,3 +137,5 @@ export function usePersistedBulkSelection() {
     ready,
   };
 }
+
+export type BulkSelectionReturn = ReturnType<typeof usePersistedBulkSelection>;

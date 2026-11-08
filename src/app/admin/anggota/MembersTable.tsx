@@ -72,7 +72,7 @@ import {
 } from "@/lib/wilayah-rbac";
 import { MemberActions } from "./MemberActions";
 import { BulkDeactivateBar } from "./BulkDeactivateBar";
-import { usePersistedBulkSelection } from "./usePersistedBulkSelection";
+import { usePersistedBulkSelection, type BulkSelectionReturn } from "./usePersistedBulkSelection";
 import { SortableTableHead } from "@/components/ui/SortableTableHead";
 import type { ActiveRegistrationPeriod } from "@/lib/active-registration-periods";
 import type { MemberEventRegistrationFlags } from "@/lib/ukt-suggest";
@@ -384,6 +384,7 @@ export function MembersTable({
   activePertandingan = null,
   eventRegistration = {},
   onEventRegistered,
+  bulkSelection,
 }: {
   members: AdminMemberRow[];
   userRoles?: string[];
@@ -402,6 +403,7 @@ export function MembersTable({
   activePertandingan?: ActiveRegistrationPeriod;
   eventRegistration?: Record<string, MemberEventRegistrationFlags>;
   onEventRegistered?: (memberId: string, kind: EventRegistrationKind) => void;
+  bulkSelection?: BulkSelectionReturn;
 }) {
   const router = useRouter();
   const [members, setMembers] = useState(membersProp);
@@ -438,13 +440,14 @@ export function MembersTable({
   const [emailDraft, setEmailDraft] = useState("");
   const [phoneDraft, setPhoneDraft] = useState("");
   const [contactSaving, setContactSaving] = useState(false);
+  const fallbackBulk = usePersistedBulkSelection();
   const {
     selectedIds,
     pendingSelectedIds,
     toggleSelect,
     toggleSelectPage,
     clearSelection,
-  } = usePersistedBulkSelection();
+  } = bulkSelection || fallbackBulk;
   const [dupCandidates, setDupCandidates] = useState<MergeCandidate[]>([]);
   const [mergeTarget, setMergeTarget] = useState<MergeCandidate | null>(null);
   const [mergeOpen, setMergeOpen] = useState(false);

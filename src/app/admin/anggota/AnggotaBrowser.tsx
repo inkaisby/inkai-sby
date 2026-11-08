@@ -17,13 +17,12 @@ import { AnggotaAddButton } from "./AnggotaAddButton";
 import { AnggotaFiltersForm } from "./AnggotaFiltersForm";
 import type { ActiveRegistrationPeriod } from "@/lib/active-registration-periods";
 import type { MemberEventRegistrationFlags } from "@/lib/ukt-suggest";
-import {
-  AnggotaKpiCards,
-  type AnggotaKpiIconName,
-  type AnggotaKpiItem,
-} from "./AnggotaKpiCards";
+import { AnggotaKpiCards } from "./AnggotaKpiCards";
 import { MembersTable } from "./MembersTable";
 import { NormalizeMembersButton } from "./NormalizeMembersButton";
+import { AnggotaEventsToolbar } from "./AnggotaEventsToolbar";
+import { AnggotaEventModal, type EventType } from "./AnggotaEventModal";
+import { usePersistedBulkSelection } from "./usePersistedBulkSelection";
 import type { MemberSortKey, SortDir } from "@/lib/table-sort";
 import { parseMemberSortKey, parseSortDir, toggleSortKey } from "@/lib/table-sort";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -119,6 +118,7 @@ export function AnggotaBrowser({
   activeUkt = null,
   activeLatber = null,
   activePertandingan = null,
+  activeWasitJuri = null,
   canQuickReg = false,
   initialEventRegistration = null,
 }: {
@@ -141,6 +141,7 @@ export function AnggotaBrowser({
   activeUkt?: ActiveRegistrationPeriod;
   activeLatber?: ActiveRegistrationPeriod;
   activePertandingan?: ActiveRegistrationPeriod;
+  activeWasitJuri?: ActiveRegistrationPeriod;
   canQuickReg?: boolean;
   initialEventRegistration?: Record<string, MemberEventRegistrationFlags> | null;
 }) {
@@ -151,6 +152,8 @@ export function AnggotaBrowser({
   const [eventRegistration, setEventRegistration] = useState<
     Record<string, MemberEventRegistrationFlags>
   >(initialEventRegistration ?? {});
+  const bulkSelection = usePersistedBulkSelection();
+  const [activeModalEvent, setActiveModalEvent] = useState<EventType | null>(null);
   const [loading, setLoading] = useState(false);
   const [barcodeExportMembers, setBarcodeExportMembers] = useState<
     PrintableMemberItem[] | null
@@ -234,7 +237,7 @@ export function AnggotaBrowser({
     } finally {
       if (reqId === reqIdRef.current) setLoading(false);
     }
-  }, [activeLatber?.id, activeUkt?.id]);
+  }, [activeLatber, activeUkt]);
 
   const applyFilters = useCallback(
     (patch: Partial<FilterState>, opts?: { resetPage?: boolean; forceCounts?: boolean }) => {
@@ -514,6 +517,15 @@ export function AnggotaBrowser({
         applyFilters(patch);
       }}
     >
+      <AnggotaEventsToolbar
+        activeUkt={activeUkt}
+        activeLatber={activeLatber}
+        activePertandingan={activePertandingan}
+        activeWasitJuri={activeWasitJuri}
+        selectedCount={bulkSelection.selectedIds.size}
+        onSelectEvent={(type) => setActiveModalEvent(type)}
+      />
+
       <div className="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
         <AnggotaAddButton
           dojos={dojos}
@@ -607,6 +619,7 @@ export function AnggotaBrowser({
           members={members}
           userRoles={userRoles}
           dojos={dojos}
+          bulkSelection={bulkSelection}
           onMembersChanged={() => applyFilters({}, { resetPage: false })}
           page={safePage}
           pageSize={filters.pageSize}
@@ -659,6 +672,31 @@ export function AnggotaBrowser({
         }}
         members={barcodeExportMembers || []}
         title="Cetak Barcode Anggota (Massal)"
+      />
+
+      <AnggotaEventModal
+        open={Boolean(activeModalEvent)}
+        onOpenChange={(open) => {
+          if (!open) setActiveModalEvent(null);
+        }}
+        eventType={activeModalEvent}
+        activeUkt={activeUkt}
+        activeLatber={activeLatber}
+        activePertandingan={activePertandingan}
+        activeWasitJuri={activeWasitJuri}
+        selectedIds={[...bulkSelection.selectedIds]}
+        members={members}
+        canRegister={canQuickReg}
+        onSuccessRegistration={(memberId, kind) => {
+          setEventRegistration((prev) => ({
+            ...prev,
+            [memberId]: {
+              ...prev[memberId],
+              ...(kind === "ukt" ? { ukt: true } : { latber: true }),
+            },
+          }));
+        }}
+        onClearSelection={() => bulkSelection.clearSelection()}
       />
     </AnggotaKpiCards>
     </>

@@ -374,3 +374,23 @@ export async function resolveActivePertandinganRegistrationPeriod(
   return { id: active.id, title: active.title };
 }
 
+/** Periode Sertifikasi Wasit Juri aktif — ringan untuk toolbar & quick-reg. */
+export async function resolveActiveWasitJuriPeriod(): Promise<ActiveRegistrationPeriod> {
+  const { data } = await withPrismaFallback(
+    "active-wasit-juri-period-prisma",
+    () =>
+      prisma.wasitJuriPeriod.findFirst({
+        where: { isArchived: false },
+        orderBy: [{ practicalDate: "desc" }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          title: true,
+        },
+      }),
+    null,
+  );
+
+  if (!data) return null;
+  return { id: data.id, title: data.title };
+}
+
