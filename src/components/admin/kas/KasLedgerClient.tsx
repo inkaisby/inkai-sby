@@ -133,8 +133,16 @@ export function KasLedgerClient({
     return "";
   }, [searchParams]);
 
-  const [swotData, setSwotData] = useState<KasSwotAnalysisResult | undefined>(undefined);
-  const [chartSelectedKegiatan, setChartSelectedKegiatan] = useState<string[]>([]);
+  const swotDataRef = useRef<KasSwotAnalysisResult | undefined>(undefined);
+  const chartSelectedKegiatanRef = useRef<string[]>([]);
+
+  const handleSwotCalculated = useCallback(
+    (swot: KasSwotAnalysisResult, selectedList: string[]) => {
+      swotDataRef.current = swot;
+      chartSelectedKegiatanRef.current = selectedList;
+    },
+    [],
+  );
 
   const [fromYmd, setFromYmd] = useState(() => {
     const f = searchParams.get("from");
@@ -1634,8 +1642,8 @@ export function KasLedgerClient({
       printedAt: `${ymdWib()} WIB`,
       saldoAkhir: printSaldo,
       rows: printRows,
-      swotAnalysis: swotData,
-      selectedKegiatanList: chartSelectedKegiatan,
+      swotAnalysis: swotDataRef.current,
+      selectedKegiatanList: chartSelectedKegiatanRef.current,
       docType,
       paper,
       orientation,
@@ -1913,10 +1921,7 @@ export function KasLedgerClient({
               kpis={data?.kpis ?? { totalIn: 0, totalOut: 0, saldoAkhir: 0, opening: 0, unmatched: 0 }}
               periodCaption={periodCaption}
               scopeLabel={activeScopeLabel}
-              onSwotCalculated={(swot, selectedList) => {
-                setSwotData(swot);
-                setChartSelectedKegiatan(selectedList);
-              }}
+              onSwotCalculated={handleSwotCalculated}
             />
           </div>
 

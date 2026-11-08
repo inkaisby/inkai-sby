@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   BarChart3,
   PieChart as PieChartIcon,
@@ -352,12 +352,15 @@ export function KasChartSwotPanel({
     return computeKasSwotAnalysis(rows, kpis, selectedKegiatan);
   }, [rows, kpis, selectedKegiatan]);
 
+  const onSwotCalculatedRef = useRef(onSwotCalculated);
+  useEffect(() => {
+    onSwotCalculatedRef.current = onSwotCalculated;
+  });
+
   // Pass SWOT to parent whenever updated
   useEffect(() => {
-    if (onSwotCalculated) {
-      onSwotCalculated(swotResult, selectedKegiatan);
-    }
-  }, [swotResult, selectedKegiatan, onSwotCalculated]);
+    onSwotCalculatedRef.current?.(swotResult, selectedKegiatan);
+  }, [swotResult, selectedKegiatan]);
 
   // --- CHART DATA PREPARATION ---
 
