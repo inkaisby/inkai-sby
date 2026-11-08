@@ -17,7 +17,11 @@ import { AnggotaAddButton } from "./AnggotaAddButton";
 import { AnggotaFiltersForm } from "./AnggotaFiltersForm";
 import type { ActiveRegistrationPeriod } from "@/lib/active-registration-periods";
 import type { MemberEventRegistrationFlags } from "@/lib/ukt-suggest";
-import { AnggotaKpiCards } from "./AnggotaKpiCards";
+import {
+  AnggotaKpiCards,
+  type AnggotaKpiIconName,
+  type AnggotaKpiItem,
+} from "./AnggotaKpiCards";
 import { MembersTable } from "./MembersTable";
 import { NormalizeMembersButton } from "./NormalizeMembersButton";
 import { AnggotaEventsToolbar } from "./AnggotaEventsToolbar";
