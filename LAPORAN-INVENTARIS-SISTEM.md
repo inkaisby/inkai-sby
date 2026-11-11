@@ -42,13 +42,13 @@ Data operasional utama diambil dari **Inkai API** (`inkai-ecosystem`). Database 
     ├── Auth (NextAuth + token Inkai)
     ├── UI Publik / Dashboard / Admin
     │
-    ├──► Inkai API (anggota, billing, event, UKT, org) — **wajib**; sibling `inkai-backend` :5001 saat dev lokal
+    ├──► Inkai API (anggota, billing, event, UKT, org) — **wajib**; sibling `inkai-backend` :5001 saat dev lokal (dilengkapi header `X-Tenant: surabaya` untuk multi-tenant bersama Majestigers)
     ├──► PostgreSQL / Prisma (pengaturan, verifikasi, audit lokal)
     ├──► Vercel Blob (upload dokumen/gambar, opsional)
     └──► Resend (email reset password, opsional)
 ```
 
-**Dev lokal (Fase 1):** Postgres Docker di repo ini (`docker-compose.yml`, host **5433**), `npm run db:local:bootstrap`, schema via `prisma db push`, seed dummy `scripts/seed-local.ts`. Backend **tidak** di repo ini — jalankan sibling `inkai-backend` dengan `DATABASE_URL` sama. Guard `scripts/assert-local-database.ts` mencegah push/seed ke Supabase.
+**Dev lokal (Fase 1):** Postgres Docker di repo ini (`docker-compose.yml`, host **5433**), `npm run db:local:bootstrap`, schema via `prisma db push`, seed dummy `scripts/seed-local.ts`. Backend **tidak** di repo ini — jalankan sibling `inkai-backend` dengan `DATABASE_URL` sama. Backend kini mendukung dual-database (Surabaya & Majestigers) via routing `X-Tenant` / Origin dan fallback login otomatis. Guard `scripts/assert-local-database.ts` mencegah push/seed ke Supabase.
 
 **Environment utama:** `INKAI_API_URL`, `DATABASE_URL`, `AUTH_SECRET` / `NEXTAUTH_SECRET`, `BLOB_READ_WRITE_TOKEN`, `RESEND_API_KEY`, `IMPERSONATION_ENABLED` (opsional; default on kecuali `"false"`), `MIXROUTE_API_KEY` + `AI_BASE_URL` (Tanya INKAI / MixRoute; opsional `TANYA_INKAI_MODEL`; tanpa key → FAQ lokal).
 

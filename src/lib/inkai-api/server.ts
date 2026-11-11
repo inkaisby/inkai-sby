@@ -98,6 +98,9 @@ async function inkaiFetchOnce(
   timeoutMs: number,
 ): Promise<InkaiFetchResult> {
   const headers = new Headers(init.headers);
+  if (!headers.has("X-Tenant")) {
+    headers.set("X-Tenant", "surabaya");
+  }
   if (!headers.has("Content-Type") && init.body) {
     headers.set("Content-Type", "application/json");
   }
