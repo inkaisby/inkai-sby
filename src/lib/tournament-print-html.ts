@@ -1,4 +1,4 @@
-import { deriveAgeCategoryLabel } from "./tournament-category-presets";
+import { deriveAgeCategoryLabel, formatFullCategoryName } from "./tournament-category-presets";
 import { isBlackBeltRank } from "./belt";
 
 export interface TournamentPrintRegistrant {
@@ -22,6 +22,10 @@ export interface TournamentPrintRegistrant {
     gender: string;
     minAge?: number | null;
     maxAge?: number | null;
+    minBirthDate?: string | Date | null;
+    maxBirthDate?: string | Date | null;
+    minWeight?: number | string | null;
+    maxWeight?: number | string | null;
     fee: number;
     isFeeVisible?: boolean;
   };
@@ -46,6 +50,7 @@ export function generateTournamentIdCardsHtml(
       const idLabel = isBlack
         ? `No. MSH: ${r.member.mshNumber || "-"}`
         : `NIA: ${r.member.nia || "-"}`;
+      const fullCategory = formatFullCategoryName(r.category);
       return `
         <div class="card">
           <div class="card-header">
@@ -62,7 +67,7 @@ export function generateTournamentIdCardsHtml(
               <div class="nia">${idLabel}</div>
               <div class="rank">Sabuk: ${r.member.currentRank || "Putih"}</div>
               <div class="dojo">Dojo: <strong>${r.dojo.name}</strong></div>
-              <div class="category">Kelas: <strong>${r.category.name}</strong></div>
+              <div class="category">Kelas: <strong>${fullCategory}</strong></div>
             </div>
           </div>
           <div class="card-footer">
@@ -218,6 +223,7 @@ export function generateTournamentRosterHtml(
       const niaOrMsh = isBlack ? (r.member.mshNumber || r.member.nia || "-") : (r.member.nia || "-");
       const showFee = r.category.isFeeVisible !== false;
       const feeText = showFee ? `Rp ${(r.category.fee || 0).toLocaleString("id-ID")}` : "-";
+      const fullCategory = formatFullCategoryName(r.category);
       const place = (r.member.birthPlace || "").trim();
       let dateStr = "";
       if (r.member.birthDate) {
@@ -240,7 +246,7 @@ export function generateTournamentRosterHtml(
           <td>${r.dojo.name}</td>
           <td>${r.member.currentRank || "-"}</td>
           <td style="text-align:center;"><strong>${ageCategory}</strong></td>
-          <td>${r.category.name}</td>
+          <td>${fullCategory}</td>
           <td style="text-align:center;">${feeText}</td>
           <td style="text-align:center;"><strong>${payMethod}</strong></td>
           <td style="text-align:center;">${weightText}</td>

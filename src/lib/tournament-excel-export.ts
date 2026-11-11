@@ -1,3 +1,5 @@
+import { formatFullCategoryName } from "./tournament-category-presets";
+
 export function exportTournamentRosterToExcel(
   eventName: string,
   registrations: Array<{
@@ -10,7 +12,19 @@ export function exportTournamentRosterToExcel(
       birthDate?: string | null;
     };
     dojo: { name: string };
-    category: { name: string; fee: number; isFeeVisible?: boolean };
+    category: {
+      name: string;
+      categoryType?: string | null;
+      gender?: string | null;
+      minAge?: number | null;
+      maxAge?: number | null;
+      minBirthDate?: string | Date | null;
+      maxBirthDate?: string | Date | null;
+      minWeight?: number | string | null;
+      maxWeight?: number | string | null;
+      fee: number;
+      isFeeVisible?: boolean;
+    };
     status: string;
     paymentMethod?: string | null;
     actualWeight?: number | null;
@@ -60,6 +74,8 @@ export function exportTournamentRosterToExcel(
       }
       const ttlText = place && dStr ? `${place}, ${dStr}` : place || dStr || "-";
 
+      const catLabel = formatFullCategoryName(r.category);
+
       return `<tr ${bgClass}>
         <td class="text-center text-fmt">${idx + 1}</td>
         <td class="text-left"><b>${escapeXml(r.member?.fullName || "-")}</b></td>
@@ -67,7 +83,7 @@ export function exportTournamentRosterToExcel(
         <td class="text-left">${escapeXml(ttlText)}</td>
         <td class="text-left">${escapeXml(r.dojo?.name || "-")}</td>
         <td class="text-left">${escapeXml(r.member?.currentRank || "Putih")}</td>
-        <td class="text-left">${escapeXml(r.category?.name || "-")}</td>
+        <td class="text-left">${escapeXml(catLabel || r.category?.name || "-")}</td>
         <td class="${showFee ? 'currency' : 'text-center'}">${feeCell}</td>
         <td class="text-center"><b>${escapeXml(r.status || "REGISTERED")}</b></td>
         <td class="text-center">${escapeXml(payMethod)}</td>

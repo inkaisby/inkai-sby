@@ -1005,7 +1005,30 @@ export default function PublicPertandinganPage() {
       return;
     }
     const eventName = activeEvent?.title || "Kejuaraan Karate INKAI Surabaya";
-    exportTournamentRosterToExcel(eventName, filteredRegistrations);
+    const exportData = filteredRegistrations.map((r) => {
+      const eventCat = activeEvent?.tournamentCategories?.find(
+        (c) => c.id === r.categoryId || c.id === r.category?.id
+      );
+      const resolvedCategory = {
+        ...eventCat,
+        ...r.category,
+        minWeight: r.category?.minWeight ?? eventCat?.minWeight,
+        maxWeight: r.category?.maxWeight ?? eventCat?.maxWeight,
+        minBirthDate: r.category?.minBirthDate ?? eventCat?.minBirthDate,
+        maxBirthDate: r.category?.maxBirthDate ?? eventCat?.maxBirthDate,
+      };
+
+      return {
+        ...r,
+        category: {
+          ...r.category,
+          name: formatFullCategoryName(resolvedCategory),
+          fee: resolvedCategory.fee || 0,
+          isFeeVisible: resolvedCategory.isFeeVisible,
+        },
+      };
+    });
+    exportTournamentRosterToExcel(eventName, exportData);
     showSuccess("Berhasil mengekspor daftar peserta dengan format Excel rapi (.xls)");
   };
 
@@ -1019,27 +1042,48 @@ export default function PublicPertandinganPage() {
       return;
     }
 
-    const printData = listToPrint.map((r) => ({
-      id: r.id,
-      member: {
-        fullName: r.member.fullName,
-        nia: r.member.nia,
-        currentRank: r.member.currentRank,
-        photoUrl: r.member.photoUrl,
-        birthDate: r.member.birthDate,
-        birthPlace: r.member.birthPlace,
-      },
-      dojo: { name: r.dojo.name },
-      category: {
-        name: r.category.name,
-        categoryType: r.category.categoryType || "KATA",
-        gender: r.category.gender || "MIXED",
-        fee: r.category.fee || 0,
-      },
-      status: r.status,
-      notes: r.paymentMethod,
-      actualWeight: r.actualWeight,
-    }));
+    const printData = listToPrint.map((r) => {
+      const eventCat = activeEvent?.tournamentCategories?.find(
+        (c) => c.id === r.categoryId || c.id === r.category?.id
+      );
+      const resolvedCategory = {
+        ...eventCat,
+        ...r.category,
+        minWeight: r.category?.minWeight ?? eventCat?.minWeight,
+        maxWeight: r.category?.maxWeight ?? eventCat?.maxWeight,
+        minBirthDate: r.category?.minBirthDate ?? eventCat?.minBirthDate,
+        maxBirthDate: r.category?.maxBirthDate ?? eventCat?.maxBirthDate,
+      };
+
+      return {
+        id: r.id,
+        member: {
+          fullName: r.member.fullName,
+          nia: r.member.nia,
+          currentRank: r.member.currentRank,
+          photoUrl: r.member.photoUrl,
+          birthDate: r.member.birthDate,
+          birthPlace: r.member.birthPlace,
+        },
+        dojo: { name: r.dojo.name },
+        category: {
+          name: r.category.name,
+          categoryType: resolvedCategory.categoryType || "KATA",
+          gender: resolvedCategory.gender || "MIXED",
+          minAge: resolvedCategory.minAge,
+          maxAge: resolvedCategory.maxAge,
+          minBirthDate: resolvedCategory.minBirthDate ? String(resolvedCategory.minBirthDate) : null,
+          maxBirthDate: resolvedCategory.maxBirthDate ? String(resolvedCategory.maxBirthDate) : null,
+          minWeight: resolvedCategory.minWeight,
+          maxWeight: resolvedCategory.maxWeight,
+          fee: resolvedCategory.fee || 0,
+          isFeeVisible: resolvedCategory.isFeeVisible,
+        },
+        status: r.status,
+        notes: r.paymentMethod,
+        actualWeight: r.actualWeight,
+      };
+    });
 
     const eventTitle = activeEvent?.title || "Kejuaraan Karate INKAI Surabaya";
     const origin = typeof window !== "undefined" ? window.location.origin : "";
