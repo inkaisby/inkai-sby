@@ -216,9 +216,25 @@ export async function PATCH(request: Request) {
     if (certificateUrl !== undefined) dataToUpdate.certificateUrl = certificateUrl;
     if (medal !== undefined) dataToUpdate.medal = medal;
     if (actualWeight !== undefined) {
-      dataToUpdate.actualWeight = (actualWeight !== null && actualWeight !== "" && actualWeight !== undefined && !isNaN(Number(actualWeight)))
-        ? parseFloat(actualWeight.toString())
-        : null;
+      const parsedWeight =
+        actualWeight !== null && actualWeight !== "" && actualWeight !== undefined && !isNaN(Number(actualWeight))
+          ? parseFloat(actualWeight.toString())
+          : null;
+
+      if (parsedWeight !== null && parsedWeight !== reg.actualWeight) {
+        if (reg.notes?.includes("[WEIGHT_EDITED]")) {
+          return NextResponse.json(
+            { error: "Berat badan sudah pernah diedit 1x. Kesempatan edit mandiri telah digunakan. Silakan hubungi admin WA untuk permohonan koreksi." },
+            { status: 400 }
+          );
+        }
+
+        dataToUpdate.actualWeight = parsedWeight;
+        const currentNotes = dataToUpdate.notes || reg.notes || "";
+        dataToUpdate.notes = currentNotes.includes("[WEIGHT_EDITED]")
+          ? currentNotes
+          : `${currentNotes} [WEIGHT_EDITED]`.trim();
+      }
     }
     if (status !== undefined) dataToUpdate.status = status;
 

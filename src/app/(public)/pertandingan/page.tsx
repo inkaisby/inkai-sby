@@ -204,6 +204,11 @@ export default function PublicPertandinganPage() {
   const [isSavingCategory, setIsSavingCategory] = useState(false);
   const [editCatFilterGender, setEditCatFilterGender] = useState<"MATCHING" | "ALL">("MATCHING");
 
+  // Edit Weight 1x Modal state
+  const [editWeightTarget, setEditWeightTarget] = useState<RegistrationItem | null>(null);
+  const [inputWeightValue, setInputWeightValue] = useState<string>("");
+  const [isSavingWeight, setIsSavingWeight] = useState(false);
+
   useEffect(() => {
     setCurrentPage(1);
   }, [search, selectedDojoName, selectedCategoryName, selectedEventId]);
@@ -735,6 +740,62 @@ export default function PublicPertandinganPage() {
       }
     } catch (err) {
       console.error("Failed to update category", err);
+    }
+  };
+
+  const openEditWeightModal = (reg: RegistrationItem) => {
+    if (activeEvent?.isArchived) {
+      showError("Kejuaraan ini telah diarsipkan. Data tidak dapat diubah lagi.");
+      return;
+    }
+    if (reg.notes?.includes("[WEIGHT_EDITED]")) {
+      showError("Berat badan atlet ini sudah pernah diubah 1x (kesempatan edit mandiri telah digunakan). Silakan hubungi admin WA untuk koreksi.");
+      return;
+    }
+    setEditWeightTarget(reg);
+    setInputWeightValue(reg.actualWeight !== null && reg.actualWeight !== undefined ? String(reg.actualWeight) : "");
+  };
+
+  const handleSaveEditWeight = async () => {
+    if (!editWeightTarget) return;
+    const cleanVal = inputWeightValue.trim().replace(",", ".");
+    const parsed = cleanVal ? parseFloat(cleanVal) : null;
+
+    if (parsed === null || isNaN(parsed) || parsed <= 0) {
+      showError("Masukkan angka berat badan yang valid (misal: 50.5)");
+      return;
+    }
+    if (parsed === editWeightTarget.actualWeight) {
+      showError("Berat badan yang diinput sama dengan data saat ini.");
+      return;
+    }
+    if (editWeightTarget.notes?.includes("[WEIGHT_EDITED]")) {
+      showError("Berat badan atlet ini sudah pernah diubah 1x. Hubungi admin WA untuk koreksi lanjutan.");
+      return;
+    }
+
+    setIsSavingWeight(true);
+    try {
+      const res = await fetch("/api/public/pertandingan", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editWeightTarget.id,
+          actualWeight: parsed,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showSuccess(`Berat badan atlet ${editWeightTarget.member.fullName} berhasil diperbarui menjadi ${parsed} kg (kesempatan edit 1x digunakan).`);
+        setEditWeightTarget(null);
+        await fetchPublicData();
+      } else {
+        showError(data.error || "Gagal memperbarui berat badan");
+      }
+    } catch (err: any) {
+      showError(err.message || "Terjadi kesalahan saat menyimpan berat badan");
+    } finally {
+      setIsSavingWeight(false);
     }
   };
 
@@ -1656,7 +1717,14 @@ export default function PublicPertandinganPage() {
                       </span>
                     </div>
                   </th>
-                  <th className="py-3.5 px-3 text-center min-w-[110px]">BB (Berat Badan)</th>
+                  <th className="py-3.5 px-3 text-center min-w-[140px]">
+                    <div className="flex flex-col items-center justify-center gap-0.5">
+                      <span>BB (Berat Badan)</span>
+                      <span className="text-[10px] font-bold normal-case px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 tracking-normal shadow-2xs">
+                        Bisa Edit 1x
+                      </span>
+                    </div>
+                  </th>
                   <th className="py-3.5 px-3 text-center min-w-[200px]">Berkas Dokumen</th>
                   <th className="py-3.5 px-4 text-center min-w-[220px]">Status Pendaftaran</th>
                   <th className="py-3.5 px-3 text-center">Aksi / Koreksi</th>
@@ -1816,7 +1884,7 @@ export default function PublicPertandinganPage() {
                           </div>
                         </td>
 
-                        {/* Kolom BB (Berat Badan - Readonly untuk semua pengguna) */}
+                        {/* Kolom BB (Berat Badan - Bisa diedit 1x) */}
                         <td className="py-3.5 px-3 text-center whitespace-nowrap">
                           <div className="inline-flex items-center gap-1.5 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-2 py-1">
                             <Scale className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
@@ -1829,6 +1897,31 @@ export default function PublicPertandinganPage() {
                               Batas: {formatWeightLimitLabel(resolvedCategory.minWeight, resolvedCategory.maxWeight)}
                             </div>
                           )}
+                          <div className="mt-1 flex justify-center">
+                            {reg.notes?.includes("[WEIGHT_EDITED]") ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  showError(
+                                    "Berat badan atlet ini sudah pernah diubah 1x (kesempatan edit mandiri telah digunakan). Silakan hubungi admin WA jika ada kesalahan data."
+                                  )
+                                }
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 cursor-not-allowed"
+                                title="Berat badan terkunci (sudah pernah diedit 1x)"
+                              >
+                                <Lock className="w-3 h-3 text-zinc-400" /> Terkunci (1x Edit)
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => openEditWeightModal(reg)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition shadow-xs cursor-pointer"
+                                title="Ubah / isi berat badan atlet ini (kesempatan 1x)"
+                              >
+                                <Edit3 className="w-3 h-3 text-amber-600 dark:text-amber-400" /> {reg.actualWeight ? "Ubah BB (1x)" : "+ Isi BB (1x)"}
+                              </button>
+                            )}
+                          </div>
                         </td>
 
                       {/* Berkas Dokumen Status & Upload (Lihat untuk semua, Upload 1x bila belum ada) */}
@@ -2243,6 +2336,157 @@ export default function PublicPertandinganPage() {
                 ) : (
                   <>
                     <CheckCircle className="w-3.5 h-3.5" /> Simpan Perubahan (1x)
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ubah Berat Badan 1x */}
+      {editWeightTarget && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 flex items-center justify-center">
+                  <Scale className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-zinc-900 dark:text-white">
+                    Ubah Berat Badan Atlet
+                  </h3>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                    Kesempatan Edit Mandiri 1x
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditWeightTarget(null)}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Profil Atlet & Kelas */}
+            <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl space-y-1.5 text-xs border border-zinc-200 dark:border-zinc-700/60">
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Nama Atlet:</span>
+                <span className="font-bold text-zinc-900 dark:text-white">
+                  {editWeightTarget.member.fullName}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Dojo / Kontingen:</span>
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                  {editWeightTarget.dojo.name}
+                </span>
+              </div>
+              <div className="flex justify-between items-start">
+                <span className="text-zinc-500">Kelas:</span>
+                <span className="font-semibold text-zinc-900 dark:text-white text-right max-w-[240px]">
+                  {formatFullCategoryName(editWeightTarget.category)}
+                </span>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-zinc-200 dark:border-zinc-700/40">
+                <span className="text-zinc-500">Batas BB Kelas:</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400">
+                  {formatWeightLimitLabel(editWeightTarget.category?.minWeight, editWeightTarget.category?.maxWeight)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">BB Saat Ini:</span>
+                <span className="font-bold text-zinc-800 dark:text-zinc-200">
+                  {editWeightTarget.actualWeight !== null && editWeightTarget.actualWeight !== undefined
+                    ? `${editWeightTarget.actualWeight} kg`
+                    : "Belum diisi / belum timbang"}
+                </span>
+              </div>
+            </div>
+
+            {/* Input BB Baru */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                Berat Badan Aktual (kg):
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.1"
+                  min="10"
+                  max="150"
+                  value={inputWeightValue}
+                  onChange={(e) => setInputWeightValue(e.target.value)}
+                  placeholder="Contoh: 52.5"
+                  className="w-full pl-3 pr-10 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-bold text-zinc-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                  autoFocus
+                />
+                <span className="absolute right-3 top-2.5 text-xs font-bold text-zinc-400">
+                  kg
+                </span>
+              </div>
+              {(() => {
+                const parsed = parseFloat(inputWeightValue.replace(",", "."));
+                if (isNaN(parsed) || parsed <= 0) return null;
+                const minW = editWeightTarget.category?.minWeight;
+                const maxW = editWeightTarget.category?.maxWeight;
+                let isOver = false;
+                let isUnder = false;
+                if (maxW && parsed > maxW) isOver = true;
+                if (minW && parsed < minW) isUnder = true;
+
+                if (isOver || isUnder) {
+                  return (
+                    <p className="text-[11px] text-red-600 dark:text-red-400 font-semibold flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      Perhatian: Berat badan ({parsed} kg) berada di luar batas kelas ({formatWeightLimitLabel(minW, maxW)}). Atlet berpotensi diskualifikasi saat timbang badan!
+                    </p>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+
+            {/* Peringatan Kunci 1x */}
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
+              <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold">Ketentuan Edit 1x Mandiri:</p>
+                <p className="text-[11px] leading-relaxed">
+                  Pengubahan berat badan ini hanya berlaku <strong>1 kali</strong> secara mandiri. Setelah disimpan, data BB atlet akan <strong>terkunci permanen</strong>. Perubahan lanjutan hanya dapat diajukan melalui WA Panitia / Admin.
+                </p>
+              </div>
+            </div>
+
+            {/* Tombol Aksi */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setEditWeightTarget(null)}
+                className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-semibold transition"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={
+                  isSavingWeight ||
+                  !inputWeightValue.trim() ||
+                  parseFloat(inputWeightValue.replace(",", ".")) === editWeightTarget.actualWeight
+                }
+                onClick={handleSaveEditWeight}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow"
+              >
+                {isSavingWeight ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Menyimpan...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-3.5 h-3.5" /> Simpan BB (1x)
                   </>
                 )}
               </button>
