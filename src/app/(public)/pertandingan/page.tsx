@@ -53,6 +53,7 @@ import {
   deriveAgeCategoryLabel,
   formatCategoryOptionLabel,
   formatEventNumberDisplay,
+  formatFullCategoryName,
   formatGenderLabel,
   formatWeightLimitLabel,
   getCategoryDivisionMeta,
@@ -106,11 +107,13 @@ interface RegistrationItem {
   certificateUrl?: string | null;
   createdAt: string;
   actualWeight?: number | null;
+  notes?: string | null;
   categoryId: string;
   member: {
     id?: string;
     fullName: string;
     nia?: string;
+    gender?: string | null;
     birthDate?: string | null;
     birthPlace?: string | null;
     currentRank?: string;
@@ -194,6 +197,12 @@ export default function PublicPertandinganPage() {
   const [printPaperSize, setPrintPaperSize] = useState<"A4" | "F4">("A4");
   const [printOrientation, setPrintOrientation] = useState<"landscape" | "portrait">("landscape");
   const [printDojoFilter, setPrintDojoFilter] = useState("");
+
+  // Edit Category 1x Modal state
+  const [editCategoryTarget, setEditCategoryTarget] = useState<RegistrationItem | null>(null);
+  const [selectedNewCategoryId, setSelectedNewCategoryId] = useState<string>("");
+  const [isSavingCategory, setIsSavingCategory] = useState(false);
+  const [editCatFilterGender, setEditCatFilterGender] = useState<"MATCHING" | "ALL">("MATCHING");
 
   useEffect(() => {
     setCurrentPage(1);
@@ -660,11 +669,57 @@ export default function PublicPertandinganPage() {
     }
   };
 
-  const handleUpdateCategory = async (regId: string, newCategoryId: string) => {
-    if (!isLoggedIn) {
-      showError("Silakan login ke akun Anda terlebih dahulu untuk mengubah kelas pertandingan.");
+  const openEditCategoryModal = (reg: RegistrationItem) => {
+    if (activeEvent?.isArchived) {
+      showError("Kejuaraan ini telah diarsipkan. Data tidak dapat diubah lagi.");
       return;
     }
+    if (reg.notes?.includes("[CAT_EDITED]")) {
+      showError("Kelas pertandingan atlet ini sudah pernah diubah 1x (kesempatan edit mandiri telah digunakan). Silakan hubungi admin WA untuk koreksi.");
+      return;
+    }
+    setEditCategoryTarget(reg);
+    setSelectedNewCategoryId(reg.categoryId);
+    setEditCatFilterGender("MATCHING");
+  };
+
+  const handleSaveEditCategory = async () => {
+    if (!editCategoryTarget || !selectedNewCategoryId) return;
+    if (selectedNewCategoryId === editCategoryTarget.categoryId) {
+      showError("Pilih kelas pertandingan yang berbeda dari kelas saat ini.");
+      return;
+    }
+    if (editCategoryTarget.notes?.includes("[CAT_EDITED]")) {
+      showError("Kelas pertandingan atlet ini sudah pernah diubah 1x. Hubungi admin WA untuk koreksi lanjutan.");
+      return;
+    }
+
+    setIsSavingCategory(true);
+    try {
+      const res = await fetch("/api/public/pertandingan", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editCategoryTarget.id,
+          categoryId: selectedNewCategoryId,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showSuccess(`Kelas pertandingan atlet ${editCategoryTarget.member.fullName} berhasil diperbarui (kesempatan edit 1x digunakan).`);
+        setEditCategoryTarget(null);
+        await fetchPublicData();
+      } else {
+        showError(data.error || "Gagal mengubah kelas pertandingan");
+      }
+    } catch (err: any) {
+      showError(err.message || "Terjadi kesalahan saat menyimpan perubahan kelas");
+    } finally {
+      setIsSavingCategory(false);
+    }
+  };
+
+  const handleUpdateCategory = async (regId: string, newCategoryId: string) => {
     try {
       const res = await fetch("/api/public/pertandingan", {
         method: "PATCH",
@@ -672,6 +727,7 @@ export default function PublicPertandinganPage() {
         body: JSON.stringify({ id: regId, categoryId: newCategoryId }),
       });
       if (res.ok) {
+        showSuccess("Kelas pertandingan berhasil diperbarui (kesempatan edit 1x digunakan).");
         fetchPublicData();
       } else {
         const data = await res.json();
@@ -1541,14 +1597,21 @@ export default function PublicPertandinganPage() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
-                  <th className="py-3.5 px-3">No</th>
-                  <th className="py-3.5 px-3 text-center">Foto Profil</th>
-                  <th className="py-3.5 px-4">Nama Atlet</th>
+                  <th className="sticky left-0 z-20 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-2 w-12 min-w-[3rem] max-w-[3rem] text-center border-b border-zinc-200 dark:border-zinc-800">No</th>
+                  <th className="sticky left-12 z-20 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-2 w-16 min-w-[4rem] max-w-[4rem] text-center border-b border-zinc-200 dark:border-zinc-800">Foto Profil</th>
+                  <th className="sticky left-28 z-20 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-4 min-w-[12rem] whitespace-nowrap shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)] border-r border-b border-zinc-200 dark:border-zinc-800">Nama Atlet</th>
                   <th className="py-3.5 px-4 min-w-[170px] whitespace-nowrap">Tempat Tanggal Lahir</th>
                   <th className="py-3.5 px-4">Dojo / Kontingen</th>
                   <th className="py-3.5 px-4">Sabuk</th>
                   <th className="py-3.5 px-3 text-center min-w-[150px]">Kategori Usia</th>
-                  <th className="py-3.5 px-4 min-w-[200px]">Kelas Pertandingan</th>
+                  <th className="py-3.5 px-4 min-w-[240px]">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span>Kelas Pertandingan</span>
+                      <span className="text-[10px] font-bold normal-case px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 tracking-normal shadow-2xs">
+                        Bisa Edit 1x
+                      </span>
+                    </div>
+                  </th>
                   <th className="py-3.5 px-3 text-center min-w-[110px]">BB (Berat Badan)</th>
                   <th className="py-3.5 px-3 text-center min-w-[200px]">Berkas Dokumen</th>
                   <th className="py-3.5 px-4 text-center min-w-[220px]">Status Pendaftaran</th>
@@ -1582,100 +1645,147 @@ export default function PublicPertandinganPage() {
                 ) : (
                   paginatedRegistrations.map((reg, idx) => {
                     const itemIndex = (currentPage - 1) * pageSize + idx + 1;
+                    const eventCat = activeEvent?.tournamentCategories?.find(
+                      (c) => c.id === reg.categoryId || c.id === reg.category?.id
+                    );
+                    const resolvedCategory = {
+                      ...eventCat,
+                      ...reg.category,
+                      minWeight: reg.category?.minWeight ?? eventCat?.minWeight,
+                      maxWeight: reg.category?.maxWeight ?? eventCat?.maxWeight,
+                      minBirthDate: reg.category?.minBirthDate ?? eventCat?.minBirthDate,
+                      maxBirthDate: reg.category?.maxBirthDate ?? eventCat?.maxBirthDate,
+                    };
                     const ageGroupLabel = deriveAgeCategoryLabel(
-                      reg.category?.name,
-                      reg.category?.minAge,
-                      reg.category?.maxAge,
+                      resolvedCategory.name,
+                      resolvedCategory.minAge,
+                      resolvedCategory.maxAge,
                       reg.member?.birthDate
                     );
+                    const fullCategoryLabel = formatFullCategoryName(resolvedCategory);
                     return (
-                      <tr key={reg.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition">
-                        <td className="py-3.5 px-3 font-mono text-xs text-zinc-400">{itemIndex}</td>
-                      <td className="py-3.5 px-3 text-center">
-                        {reg.member.photoUrl ? (
-                          <button
-                            onClick={() =>
-                              handleViewDoc({
-                                url: reg.member.photoUrl!,
-                                title: `Foto Profil: ${reg.member.fullName}`,
-                              })
-                            }
-                            className="inline-block relative group"
-                          >
-                            <img
-                              src={reg.member.photoUrl}
-                              alt={reg.member.fullName}
-                              className="w-10 h-10 rounded-full object-cover border-2 border-red-500/50 group-hover:scale-105 transition shadow-sm"
-                            />
-                          </button>
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-400 flex items-center justify-center mx-auto border border-zinc-300 dark:border-zinc-700">
-                            <UserIcon className="w-5 h-5" />
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 font-semibold text-zinc-900 dark:text-white">
-                        {reg.member.fullName}
-                        {reg.member.nia && (
-                          <div className="text-xs font-normal text-zinc-500">NIA: {reg.member.nia}</div>
-                        )}
-                      </td>
-                      <td className="py-3.5 px-4 text-xs font-medium text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
-                        {formatTTL(reg.member.birthPlace, reg.member.birthDate)}
-                      </td>
-                      <td className="py-3.5 px-4 font-medium text-zinc-800 dark:text-zinc-200">
-                        {reg.dojo.name}
-                      </td>
-                      <td className="py-3.5 px-4 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                        {reg.member.currentRank || "Putih"}
-                      </td>
-
-                      {/* Kolom Kategori Usia */}
-                      <td className="py-3.5 px-3 text-center min-w-[150px]">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60 whitespace-nowrap shadow-xs">
-                          {ageGroupLabel}
-                        </span>
-                      </td>
-
-                      {/* Kelas Pertandingan (Readonly untuk semua pengguna) */}
-                      <td className="py-3.5 px-4 min-w-[220px]">
-                        <div className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-white">
-                          {reg.category?.name || "-"}
-                        </div>
-                        {reg.category && (
-                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            <span
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                reg.category.gender === "MALE"
-                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
-                                  : reg.category.gender === "FEMALE"
-                                  ? "bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300"
-                                  : "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300"
-                              }`}
+                      <tr key={reg.id} className="group hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition">
+                        <td className="sticky left-0 z-10 bg-white dark:bg-zinc-900 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800/90 py-3.5 px-2 w-12 min-w-[3rem] max-w-[3rem] text-center font-mono text-xs text-zinc-400">
+                          {itemIndex}
+                        </td>
+                        <td className="sticky left-12 z-10 bg-white dark:bg-zinc-900 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800/90 py-3.5 px-2 w-16 min-w-[4rem] max-w-[4rem] text-center">
+                          {reg.member.photoUrl ? (
+                            <button
+                              onClick={() =>
+                                handleViewDoc({
+                                  url: reg.member.photoUrl!,
+                                  title: `Foto Profil: ${reg.member.fullName}`,
+                                })
+                              }
+                              className="inline-block relative group/photo"
                             >
-                              {formatGenderLabel(reg.category.gender)}
-                            </span>
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
-                              {formatEventNumberDisplay(reg.category.categoryType, reg.category.minWeight, reg.category.maxWeight)}
-                            </span>
+                              <img
+                                src={reg.member.photoUrl}
+                                alt={reg.member.fullName}
+                                className="w-10 h-10 rounded-full object-cover border-2 border-red-500/50 group-hover/photo:scale-105 transition shadow-sm mx-auto"
+                              />
+                            </button>
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-400 flex items-center justify-center mx-auto border border-zinc-300 dark:border-zinc-700">
+                              <UserIcon className="w-5 h-5" />
+                            </div>
+                          )}
+                        </td>
+                        <td className="sticky left-28 z-10 bg-white dark:bg-zinc-900 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800/90 py-3.5 px-4 min-w-[12rem] shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)] border-r border-zinc-200 dark:border-zinc-800">
+                          <div className="font-semibold text-zinc-900 dark:text-white whitespace-nowrap sm:whitespace-normal">
+                            {reg.member.fullName}
                           </div>
-                        )}
-                      </td>
+                          {reg.member.nia && (
+                            <div className="text-xs font-normal text-zinc-500 whitespace-nowrap">NIA: {reg.member.nia}</div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-xs font-medium text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
+                          {formatTTL(reg.member.birthPlace, reg.member.birthDate)}
+                        </td>
+                        <td className="py-3.5 px-4 font-medium text-zinc-800 dark:text-zinc-200">
+                          {reg.dojo.name}
+                        </td>
+                        <td className="py-3.5 px-4 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                          {reg.member.currentRank || "Putih"}
+                        </td>
 
-                      {/* Kolom BB (Berat Badan - Readonly untuk semua pengguna) */}
-                      <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                        <div className="inline-flex items-center gap-1.5 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-2 py-1">
-                          <Scale className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                          <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                            {reg.actualWeight !== null && reg.actualWeight !== undefined ? `${reg.actualWeight} kg` : "-"}
+                        {/* Kolom Kategori Usia */}
+                        <td className="py-3.5 px-3 text-center min-w-[150px]">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60 whitespace-nowrap shadow-xs">
+                            {ageGroupLabel}
                           </span>
-                        </div>
-                        {reg.category && (
-                          <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5 font-medium">
-                            Batas: {formatWeightLimitLabel(reg.category.minWeight, reg.category.maxWeight)}
+                        </td>
+
+                        {/* Kelas Pertandingan (Bisa diedit 1x) */}
+                        <td className="py-3.5 px-4 min-w-[240px]">
+                          <div className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-white leading-snug">
+                            {fullCategoryLabel}
                           </div>
-                        )}
-                      </td>
+                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                            {resolvedCategory && (
+                              <>
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    resolvedCategory.gender === "MALE"
+                                      ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
+                                      : resolvedCategory.gender === "FEMALE"
+                                      ? "bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300"
+                                      : "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300"
+                                  }`}
+                                >
+                                  {formatGenderLabel(resolvedCategory.gender)}
+                                </span>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                                  {getEventNumberDisplay({
+                                    categoryType: resolvedCategory.categoryType,
+                                    minWeight: resolvedCategory.minWeight,
+                                    maxWeight: resolvedCategory.maxWeight,
+                                  })}
+                                </span>
+                              </>
+                            )}
+
+                            {/* Tombol Ubah Kelas (1x) vs Badge Terkunci */}
+                            {reg.notes?.includes("[CAT_EDITED]") ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  showError(
+                                    "Kelas pertandingan atlet ini sudah pernah diubah 1x (kesempatan edit mandiri telah digunakan). Silakan hubungi admin WA jika ada kesalahan data."
+                                  )
+                                }
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 cursor-not-allowed"
+                                title="Kelas pertandingan terkunci (sudah pernah diedit 1x)"
+                              >
+                                <Lock className="w-3 h-3 text-zinc-400" /> Terkunci (1x Edit)
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => openEditCategoryModal(reg)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50 transition shadow-xs cursor-pointer"
+                                title="Ubah kelas pertandingan atlet ini (kesempatan 1x)"
+                              >
+                                <Edit3 className="w-3 h-3 text-amber-600 dark:text-amber-400" /> Ubah Kelas (1x)
+                              </button>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Kolom BB (Berat Badan - Readonly untuk semua pengguna) */}
+                        <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1.5 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-2 py-1">
+                            <Scale className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                            <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                              {reg.actualWeight !== null && reg.actualWeight !== undefined ? `${reg.actualWeight} kg` : "-"}
+                            </span>
+                          </div>
+                          {resolvedCategory && (
+                            <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5 font-medium">
+                              Batas: {formatWeightLimitLabel(resolvedCategory.minWeight, resolvedCategory.maxWeight)}
+                            </div>
+                          )}
+                        </td>
 
                       {/* Berkas Dokumen Status & Upload (Lihat untuk semua, Upload 1x bila belum ada) */}
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
@@ -1942,6 +2052,160 @@ export default function PublicPertandinganPage() {
         </>
         )}
       </div>
+
+      {/* Modal Ubah Kelas Pertandingan 1x */}
+      {editCategoryTarget && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 flex items-center justify-center">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-zinc-900 dark:text-white">
+                    Ubah Kelas Pertandingan
+                  </h3>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                    Kesempatan Edit Mandiri 1x
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditCategoryTarget(null)}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Profil Atlet */}
+            <div className="p-3 bg-zinc-50 dark:bg-zinc-800/60 rounded-xl space-y-1 text-xs border border-zinc-200 dark:border-zinc-700/60">
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Nama Atlet:</span>
+                <span className="font-bold text-zinc-900 dark:text-white">
+                  {editCategoryTarget.member.fullName}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Dojo / Kontingen:</span>
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                  {editCategoryTarget.dojo.name}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-zinc-500">Gender / Usia:</span>
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                  {formatGenderLabel(editCategoryTarget.member.gender || (editCategoryTarget.category as any)?.gender)} · {deriveAgeCategoryLabel(
+                    editCategoryTarget.category?.name,
+                    editCategoryTarget.category?.minAge,
+                    editCategoryTarget.category?.maxAge,
+                    editCategoryTarget.member.birthDate
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between items-start pt-1.5 border-t border-zinc-200 dark:border-zinc-700/40">
+                <span className="text-zinc-500">Kelas Saat Ini:</span>
+                <span className="font-bold text-red-600 dark:text-red-400 text-right max-w-[280px]">
+                  {formatFullCategoryName(editCategoryTarget.category)}
+                </span>
+              </div>
+            </div>
+
+            {/* Filter Gender Options */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                  Pilih Kelas Pertandingan Baru:
+                </label>
+                <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-0.5 rounded-lg text-[11px] font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setEditCatFilterGender("MATCHING")}
+                    className={`px-2 py-0.5 rounded-md transition ${
+                      editCatFilterGender === "MATCHING"
+                        ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs font-bold"
+                        : "text-zinc-500 hover:text-zinc-700"
+                    }`}
+                  >
+                    Sesuai Gender
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditCatFilterGender("ALL")}
+                    className={`px-2 py-0.5 rounded-md transition ${
+                      editCatFilterGender === "ALL"
+                        ? "bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-xs font-bold"
+                        : "text-zinc-500 hover:text-zinc-700"
+                    }`}
+                  >
+                    Semua Kelas
+                  </button>
+                </div>
+              </div>
+
+              <select
+                value={selectedNewCategoryId}
+                onChange={(e) => setSelectedNewCategoryId(e.target.value)}
+                className="w-full px-3 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-xs font-semibold text-zinc-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+              >
+                {(() => {
+                  const allCats = activeEvent?.tournamentCategories || [];
+                  const athleteGender = editCategoryTarget.member.gender || (editCategoryTarget.category as any)?.gender;
+                  const filteredCats = editCatFilterGender === "MATCHING" && athleteGender
+                    ? allCats.filter((c) => c.gender === athleteGender || c.gender === "MIXED")
+                    : allCats;
+
+                  return (filteredCats.length > 0 ? filteredCats : allCats).map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {formatFullCategoryName(cat)} ({formatGenderLabel(cat.gender)})
+                    </option>
+                  ));
+                })()}
+              </select>
+            </div>
+
+            {/* Peringatan Kunci 1x */}
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 rounded-xl flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
+              <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold">Ketentuan Edit 1x Mandiri:</p>
+                <p className="text-[11px] leading-relaxed">
+                  Pengubahan kelas ini hanya berlaku <strong>1 kali</strong> secara mandiri. Setelah disimpan, kelas atlet akan <strong>terkunci permanen</strong>. Perubahan lanjutan setelah ini hanya dapat diajukan melalui WA Panitia / Admin.
+                </p>
+              </div>
+            </div>
+
+            {/* Tombol Aksi */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setEditCategoryTarget(null)}
+                className="px-4 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-xl text-xs font-semibold transition"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isSavingCategory || selectedNewCategoryId === editCategoryTarget.categoryId}
+                onClick={handleSaveEditCategory}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow"
+              >
+                {isSavingCategory ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Menyimpan...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-3.5 h-3.5" /> Simpan Perubahan (1x)
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Permohonan Koreksi / Hapus ke WA Admin */}
       {correctionTarget && (

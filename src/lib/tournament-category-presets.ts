@@ -2139,6 +2139,88 @@ export function buildGeneratedCategoryName(
   return `${divName} (${numberPart} - ${genderPart})`;
 }
 
+/**
+ * Format nama kelas pertandingan secara lengkap, tegas, dan jelas:
+ * Format: [DIVISI] - [NAMA KELAS] [NOMOR / KELAS BERAT]
+ * Contoh hasil: "SENIOR / UMUM - Kumite Perorangan Putri KUMITE -50 KG"
+ * Cerdas mencegah duplikasi jika nama asli sudah mengandung divisi, kata/kumite, atau kelas berat.
+ */
+export function formatFullCategoryName(cat?: {
+  name?: string | null;
+  categoryType?: string | null;
+  gender?: string | null;
+  minAge?: number | null;
+  maxAge?: number | null;
+  minBirthDate?: string | Date | null;
+  maxBirthDate?: string | Date | null;
+  minWeight?: number | string | null;
+  maxWeight?: number | string | null;
+} | null): string {
+  if (!cat || !cat.name) return "-";
 
+  const rawName = cat.name.trim();
+  const rawUpper = rawName.toUpperCase();
 
+  // 1. Dapatkan metadata divisi / kelompok usia
+  const divMeta = getCategoryDivisionMeta({
+    name: cat.name,
+    minAge: cat.minAge,
+    maxAge: cat.maxAge,
+    minBirthDate: cat.minBirthDate ? String(cat.minBirthDate) : null,
+    maxBirthDate: cat.maxBirthDate ? String(cat.maxBirthDate) : null,
+  });
+  const divName = divMeta.divisionName !== "KELAS LAINNYA" ? divMeta.divisionName : "";
+
+  // 2. Format nomor / kelas berat pertandingan
+  const eventNumber = getEventNumberDisplay({
+    categoryType: cat.categoryType,
+    minWeight: cat.minWeight,
+    maxWeight: cat.maxWeight,
+  });
+
+  // Susun prefix divisi jika belum termuat di nama asli
+  let prefix = "";
+  if (divName) {
+    const normDiv = divName.toUpperCase().replace(/\s+/g, " ");
+    const normRaw = rawUpper.replace(/\s+/g, " ");
+    if (!normRaw.includes(normDiv)) {
+      prefix = `${divName} - `;
+    }
+  }
+
+  // Susun suffix nomor pertandingan jika belum termuat di nama asli
+  let suffix = "";
+  if (eventNumber) {
+    const normEvent = eventNumber.toUpperCase().replace(/\s+/g, " ");
+    const normRaw = rawUpper.replace(/[-_]/g, " ").replace(/\s+/g, " ");
+    const cleanNum = normEvent.replace(/[-_]/g, " ");
+
+    let alreadyHasEventOrWeight = normRaw.includes(cleanNum) || rawUpper.includes(normEvent);
+
+    // Untuk KATA jika nama sudah memiliki kata "KATA"
+    if ((cat.categoryType || "").toUpperCase().startsWith("KATA") && rawUpper.includes("KATA")) {
+      alreadyHasEventOrWeight = true;
+    }
+
+    // Untuk Kumite dengan berat, jika angka berat sudah termuat di nama asli
+    if (!alreadyHasEventOrWeight && (cat.minWeight || cat.maxWeight)) {
+      const weightNum = cat.maxWeight ?? cat.minWeight;
+      if (
+        weightNum &&
+        (rawUpper.includes(`${weightNum}KG`) ||
+          rawUpper.includes(`${weightNum} KG`) ||
+          rawUpper.includes(`-${weightNum}`) ||
+          rawUpper.includes(`+${weightNum}`))
+      ) {
+        alreadyHasEventOrWeight = true;
+      }
+    }
+
+    if (!alreadyHasEventOrWeight) {
+      suffix = ` ${eventNumber}`;
+    }
+  }
+
+  return `${prefix}${rawName}${suffix}`.trim();
+}
 

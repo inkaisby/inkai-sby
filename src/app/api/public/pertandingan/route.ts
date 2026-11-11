@@ -90,6 +90,7 @@ export async function GET(request: Request) {
         categoryId: true,
         dojoId: true,
         memberId: true,
+        notes: true,
         member: {
           select: {
             id: true,
@@ -116,6 +117,10 @@ export async function GET(request: Request) {
             gender: true,
             minAge: true,
             maxAge: true,
+            minWeight: true,
+            maxWeight: true,
+            minBirthDate: true,
+            maxBirthDate: true,
             fee: true,
             isFeeVisible: true,
           },
@@ -182,7 +187,30 @@ export async function PATCH(request: Request) {
     }
 
     const dataToUpdate: any = {};
-    if (categoryId !== undefined) dataToUpdate.categoryId = categoryId;
+    if (categoryId !== undefined && categoryId !== reg.categoryId) {
+      if (reg.notes?.includes("[CAT_EDITED]")) {
+        return NextResponse.json(
+          { error: "Kelas pertandingan sudah pernah diedit 1x. Kesempatan edit mandiri telah digunakan. Silakan hubungi admin WA untuk permohonan koreksi." },
+          { status: 400 }
+        );
+      }
+
+      const targetCat = await prisma.tournamentCategory.findUnique({
+        where: { id: categoryId },
+      });
+      if (!targetCat || targetCat.eventId !== reg.eventId) {
+        return NextResponse.json(
+          { error: "Kategori kelas pertandingan tidak valid untuk kejuaraan ini." },
+          { status: 400 }
+        );
+      }
+
+      dataToUpdate.categoryId = categoryId;
+      const currentNotes = reg.notes || "";
+      dataToUpdate.notes = currentNotes.includes("[CAT_EDITED]")
+        ? currentNotes
+        : `${currentNotes} [CAT_EDITED]`.trim();
+    }
     if (paymentMethod !== undefined) dataToUpdate.paymentMethod = paymentMethod;
     if (proofUrl !== undefined) dataToUpdate.proofUrl = proofUrl;
     if (certificateUrl !== undefined) dataToUpdate.certificateUrl = certificateUrl;
