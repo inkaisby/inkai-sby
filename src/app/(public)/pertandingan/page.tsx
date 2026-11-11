@@ -1698,18 +1698,26 @@ export default function PublicPertandinganPage() {
 
         {/* Tabel Daftar Peserta Atlet */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          {/* Mobile Swipe Hint */}
+          <div className="sm:hidden px-3.5 py-2 bg-zinc-50 dark:bg-zinc-800/70 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between text-[11px] text-zinc-600 dark:text-zinc-400">
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="inline-block animate-pulse">👉</span> Geser tabel ke kanan untuk melihat Kelas, BB, Berkas &amp; Status
+            </span>
+            <span className="font-bold text-zinc-400 dark:text-zinc-500">⇄ Geser</span>
+          </div>
+
+          <div className="overflow-x-auto w-full overscroll-x-contain touch-pan-x [scrollbar-width:thin]">
+            <table className="min-w-[1360px] w-full text-left border-separate border-spacing-0">
               <thead>
-                <tr className="bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-800 text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
-                  <th className="sticky left-0 z-20 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-2 w-12 min-w-[3rem] max-w-[3rem] text-center border-b border-zinc-200 dark:border-zinc-800">No</th>
-                  <th className="sticky left-12 z-20 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-2 w-16 min-w-[4rem] max-w-[4rem] text-center border-b border-zinc-200 dark:border-zinc-800">Foto Profil</th>
-                  <th className="sticky left-28 z-20 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-4 min-w-[12rem] whitespace-nowrap shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)] border-r border-b border-zinc-200 dark:border-zinc-800">Nama Atlet</th>
-                  <th className="py-3.5 px-4 min-w-[170px] whitespace-nowrap">Tempat Tanggal Lahir</th>
-                  <th className="py-3.5 px-4">Dojo / Kontingen</th>
-                  <th className="py-3.5 px-4">Sabuk</th>
-                  <th className="py-3.5 px-3 text-center min-w-[150px]">Kategori Usia</th>
-                  <th className="py-3.5 px-4 min-w-[240px]">
+                <tr className="bg-zinc-50 dark:bg-zinc-800/60 text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
+                  <th className="sticky left-0 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-2 w-10 min-w-[2.5rem] max-w-[2.5rem] sm:w-12 sm:min-w-[3rem] sm:max-w-[3rem] text-center border-b border-zinc-200 dark:border-zinc-800">No</th>
+                  <th className="sticky left-10 sm:left-12 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-1.5 sm:px-2 w-12 min-w-[3rem] max-w-[3rem] sm:w-16 sm:min-w-[4rem] sm:max-w-[4rem] text-center border-b border-zinc-200 dark:border-zinc-800">Foto Profil</th>
+                  <th className="sticky left-[88px] sm:left-28 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-3 sm:px-4 w-36 min-w-[9rem] max-w-[10.5rem] sm:w-auto sm:min-w-[12rem] sm:max-w-none shadow-[4px_0_8px_-4px_rgba(0,0,0,0.14)] border-r border-b border-zinc-200 dark:border-zinc-800">Nama Atlet</th>
+                  <th className="py-3.5 px-4 min-w-[170px] whitespace-nowrap border-b border-zinc-200 dark:border-zinc-800">Tempat Tanggal Lahir</th>
+                  <th className="py-3.5 px-4 border-b border-zinc-200 dark:border-zinc-800">Dojo / Kontingen</th>
+                  <th className="py-3.5 px-4 border-b border-zinc-200 dark:border-zinc-800">Sabuk</th>
+                  <th className="py-3.5 px-3 text-center min-w-[150px] border-b border-zinc-200 dark:border-zinc-800">Kategori Usia</th>
+                  <th className="py-3.5 px-4 min-w-[240px] border-b border-zinc-200 dark:border-zinc-800">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span>Kelas Pertandingan</span>
                       <span className="text-[10px] font-bold normal-case px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 tracking-normal shadow-2xs">
@@ -1717,7 +1725,7 @@ export default function PublicPertandinganPage() {
                       </span>
                     </div>
                   </th>
-                  <th className="py-3.5 px-3 text-center min-w-[140px]">
+                  <th className="py-3.5 px-3 text-center min-w-[140px] border-b border-zinc-200 dark:border-zinc-800">
                     <div className="flex flex-col items-center justify-center gap-0.5">
                       <span>BB (Berat Badan)</span>
                       <span className="text-[10px] font-bold normal-case px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 tracking-normal shadow-2xs">
@@ -1725,21 +1733,21 @@ export default function PublicPertandinganPage() {
                       </span>
                     </div>
                   </th>
-                  <th className="py-3.5 px-3 text-center min-w-[200px]">Berkas Dokumen</th>
-                  <th className="py-3.5 px-4 text-center min-w-[220px]">Status Pendaftaran</th>
-                  <th className="py-3.5 px-3 text-center">Aksi / Koreksi</th>
+                  <th className="py-3.5 px-3 text-center min-w-[200px] border-b border-zinc-200 dark:border-zinc-800">Berkas Dokumen</th>
+                  <th className="py-3.5 px-4 text-center min-w-[220px] border-b border-zinc-200 dark:border-zinc-800">Status Pendaftaran</th>
+                  <th className="py-3.5 px-3 text-center border-b border-zinc-200 dark:border-zinc-800">Aksi / Koreksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
+              <tbody className="text-sm">
                 {loading ? (
                   <tr>
-                    <td colSpan={12} className="py-12 text-center text-zinc-500">
+                    <td colSpan={12} className="py-12 text-center text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
                       Memuat daftar pendaftar kejuaraan...
                     </td>
                   </tr>
                 ) : filteredRegistrations.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="py-12 text-center text-zinc-500 space-y-3">
+                    <td colSpan={12} className="py-12 text-center text-zinc-500 space-y-3 border-b border-zinc-200 dark:border-zinc-800">
                       <div>Belum ada pendaftaran atlet pada kriteria ini.</div>
                       <button
                         onClick={() => {
@@ -1777,10 +1785,10 @@ export default function PublicPertandinganPage() {
                     const fullCategoryLabel = formatFullCategoryName(resolvedCategory);
                     return (
                       <tr key={reg.id} className="group hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition">
-                        <td className="sticky left-0 z-10 bg-white dark:bg-zinc-900 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800/90 py-3.5 px-2 w-12 min-w-[3rem] max-w-[3rem] text-center font-mono text-xs text-zinc-400">
+                        <td className="sticky left-0 z-20 bg-white dark:bg-zinc-900 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800/90 py-3.5 px-2 w-10 min-w-[2.5rem] max-w-[2.5rem] sm:w-12 sm:min-w-[3rem] sm:max-w-[3rem] text-center font-mono text-xs text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">
                           {itemIndex}
                         </td>
-                        <td className="sticky left-12 z-10 bg-white dark:bg-zinc-900 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800/90 py-3.5 px-2 w-16 min-w-[4rem] max-w-[4rem] text-center">
+                        <td className="sticky left-10 sm:left-12 z-20 bg-white dark:bg-zinc-900 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800/90 py-3.5 px-1.5 sm:px-2 w-12 min-w-[3rem] max-w-[3rem] sm:w-16 sm:min-w-[4rem] sm:max-w-[4rem] text-center border-b border-zinc-200 dark:border-zinc-800">
                           {reg.member.photoUrl ? (
                             <button
                               onClick={() =>
@@ -1794,42 +1802,42 @@ export default function PublicPertandinganPage() {
                               <img
                                 src={reg.member.photoUrl}
                                 alt={reg.member.fullName}
-                                className="w-10 h-10 rounded-full object-cover border-2 border-red-500/50 group-hover/photo:scale-105 transition shadow-sm mx-auto"
+                                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border-2 border-red-500/50 group-hover/photo:scale-105 transition shadow-sm mx-auto"
                               />
                             </button>
                           ) : (
-                            <div className="w-10 h-10 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-400 flex items-center justify-center mx-auto border border-zinc-300 dark:border-zinc-700">
-                              <UserIcon className="w-5 h-5" />
+                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-400 flex items-center justify-center mx-auto border border-zinc-300 dark:border-zinc-700">
+                              <UserIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                             </div>
                           )}
                         </td>
-                        <td className="sticky left-28 z-10 bg-white dark:bg-zinc-900 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800/90 py-3.5 px-4 min-w-[12rem] shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)] border-r border-zinc-200 dark:border-zinc-800">
-                          <div className="font-semibold text-zinc-900 dark:text-white whitespace-nowrap sm:whitespace-normal">
+                        <td className="sticky left-[88px] sm:left-28 z-20 bg-white dark:bg-zinc-900 group-hover:bg-zinc-50 dark:group-hover:bg-zinc-800/90 py-3.5 px-3 sm:px-4 w-36 min-w-[9rem] max-w-[10.5rem] sm:w-auto sm:min-w-[12rem] sm:max-w-none shadow-[4px_0_8px_-4px_rgba(0,0,0,0.12)] border-r border-b border-zinc-200 dark:border-zinc-800">
+                          <div className="font-semibold text-xs sm:text-sm text-zinc-900 dark:text-white line-clamp-2 sm:line-clamp-none break-words leading-tight">
                             {reg.member.fullName}
                           </div>
                           {reg.member.nia && (
-                            <div className="text-xs font-normal text-zinc-500 whitespace-nowrap">NIA: {reg.member.nia}</div>
+                            <div className="text-[10px] sm:text-xs font-normal text-zinc-500 whitespace-nowrap mt-0.5">NIA: {reg.member.nia}</div>
                           )}
                         </td>
-                        <td className="py-3.5 px-4 text-xs font-medium text-zinc-700 dark:text-zinc-300 whitespace-nowrap">
+                        <td className="py-3.5 px-4 text-xs font-medium text-zinc-700 dark:text-zinc-300 whitespace-nowrap border-b border-zinc-200 dark:border-zinc-800">
                           {formatTTL(reg.member.birthPlace, reg.member.birthDate)}
                         </td>
-                        <td className="py-3.5 px-4 font-medium text-zinc-800 dark:text-zinc-200">
+                        <td className="py-3.5 px-4 font-medium text-zinc-800 dark:text-zinc-200 border-b border-zinc-200 dark:border-zinc-800">
                           {reg.dojo.name}
                         </td>
-                        <td className="py-3.5 px-4 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        <td className="py-3.5 px-4 text-xs font-medium text-zinc-600 dark:text-zinc-400 border-b border-zinc-200 dark:border-zinc-800">
                           {reg.member.currentRank || "Putih"}
                         </td>
 
                         {/* Kolom Kategori Usia */}
-                        <td className="py-3.5 px-3 text-center min-w-[150px]">
+                        <td className="py-3.5 px-3 text-center min-w-[150px] border-b border-zinc-200 dark:border-zinc-800">
                           <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60 whitespace-nowrap shadow-xs">
                             {ageGroupLabel}
                           </span>
                         </td>
 
                         {/* Kelas Pertandingan (Bisa diedit 1x) */}
-                        <td className="py-3.5 px-4 min-w-[240px]">
+                        <td className="py-3.5 px-4 min-w-[240px] border-b border-zinc-200 dark:border-zinc-800">
                           <div className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-white leading-snug">
                             {fullCategoryLabel}
                           </div>
@@ -1885,7 +1893,7 @@ export default function PublicPertandinganPage() {
                         </td>
 
                         {/* Kolom BB (Berat Badan - Bisa diedit 1x) */}
-                        <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                        <td className="py-3.5 px-3 text-center whitespace-nowrap border-b border-zinc-200 dark:border-zinc-800">
                           <div className="inline-flex items-center gap-1.5 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-lg px-2 py-1">
                             <Scale className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                             <span className="text-xs font-bold text-amber-900 dark:text-amber-200">
@@ -1925,7 +1933,7 @@ export default function PublicPertandinganPage() {
                         </td>
 
                       {/* Berkas Dokumen Status & Upload (Lihat untuk semua, Upload 1x bila belum ada) */}
-                      <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                      <td className="py-3.5 px-3 text-center whitespace-nowrap border-b border-zinc-200 dark:border-zinc-800">
                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
                           {/* Foto */}
                           {reg.member.photoUrl ? (
@@ -2058,7 +2066,7 @@ export default function PublicPertandinganPage() {
                       </td>
 
                       {/* Status Pendaftaran & Pilihan TF / Tunai + Upload Bukti TF & Lihat */}
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap border-b border-zinc-200 dark:border-zinc-800">
                         <div className="flex flex-col items-center gap-1.5">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
                             reg.status === "VERIFIED" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300" :
@@ -2111,7 +2119,7 @@ export default function PublicPertandinganPage() {
                       </td>
 
                       {/* Kolom Aksi / Permohonan Koreksi / Hapus via WA (085731241840) */}
-                      <td className="py-3.5 px-3 text-center">
+                      <td className="py-3.5 px-3 text-center border-b border-zinc-200 dark:border-zinc-800">
                         <button
                           onClick={() => {
                             setCorrectionTarget(reg);
