@@ -55,7 +55,11 @@ import {
   LayoutGrid,
   Sparkles,
   Swords,
+  Radio,
 } from "lucide-react";
+import { TournamentBracketManager } from "@/components/admin/pertandingan/TournamentBracketManager";
+import { LiveScoreboardController } from "@/components/admin/pertandingan/LiveScoreboardController";
+import { TournamentMatch } from "@/lib/tournament-bracket-types";
 import { generateTournamentIdCardsHtml, generateTournamentRosterHtml, generateTournamentMedalTallyHtml } from "@/lib/tournament-print-html";
 import { compressUploadFile } from "@/lib/compress-image";
 import { InkaiConfirmDialog } from "@/components/ui/InkaiConfirmDialog";
@@ -198,6 +202,35 @@ export default function AdminPertandinganPage({
   const [registrations, setRegistrations] = useState<RegistrationItem[]>([]);
   const [summary, setSummary] = useState<any>({});
   const [loading, setLoading] = useState(true);
+
+  // Active module tab: Pendaftar / Bagan / Scoreboard
+  const [activeModuleTab, setActiveModuleTab] = useState<"pendaftar" | "bagan" | "scoreboard">("pendaftar");
+  const [activeScoreboardMatch, setActiveScoreboardMatch] = useState<{
+    match: TournamentMatch;
+    poolName: string;
+    category: string;
+    tatami: number;
+  } | null>(null);
+
+  // Sync tab with URL hash or query
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const hash = window.location.hash.toLowerCase();
+      if (hash === "#championship" || hash === "#bagan") {
+        setActiveModuleTab("bagan");
+      } else if (hash === "#scoring" || hash === "#scoreboard") {
+        setActiveModuleTab("scoreboard");
+      }
+      const handleHash = () => {
+        const h = window.location.hash.toLowerCase();
+        if (h === "#championship" || h === "#bagan") setActiveModuleTab("bagan");
+        else if (h === "#scoring" || h === "#scoreboard") setActiveModuleTab("scoreboard");
+        else if (h === "#overview" || h === "#pendaftar") setActiveModuleTab("pendaftar");
+      };
+      window.addEventListener("hashchange", handleHash);
+      return () => window.removeEventListener("hashchange", handleHash);
+    }
+  }, []);
 
   // Editable Admin WhatsApp State
   const [adminWaState, setAdminWaState] = useState<{ phone: string; waNumber: string }>(DEFAULT_ADMIN_WA);
@@ -1269,6 +1302,95 @@ export default function AdminPertandinganPage({
         </div>
       )}
 
+      {/* 3 Main Admin Modules Navigation (Sama seperti K-Majestigers) */}
+      {!isArchiveMode && (
+        <div className="flex flex-wrap items-center gap-2 p-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-2xl border border-zinc-200 dark:border-zinc-700/80 shadow-xs">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveModuleTab("pendaftar");
+              if (typeof window !== "undefined") window.location.hash = "overview";
+            }}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${
+              activeModuleTab === "pendaftar"
+                ? "bg-white dark:bg-zinc-900 text-zinc-950 dark:text-white shadow-sm ring-1 ring-zinc-300 dark:ring-zinc-700"
+                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-white/50"
+            }`}
+          >
+            <Users className="w-4 h-4 text-red-600 dark:text-red-400" />
+            <span>Data & Pendaftar</span>
+            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300">
+              {displayedRegistrations.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveModuleTab("bagan");
+              if (typeof window !== "undefined") window.location.hash = "championship";
+            }}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${
+              activeModuleTab === "bagan"
+                ? "bg-amber-500 text-zinc-950 shadow-sm font-black"
+                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-white/50"
+            }`}
+          >
+            <Trophy className="w-4 h-4 text-zinc-950" />
+            <span>Bagan Turnamen & Multi-Pool</span>
+            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-400/80 text-black">
+              WKF
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveModuleTab("scoreboard");
+              if (typeof window !== "undefined") window.location.hash = "scoring";
+            }}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold transition-all ${
+              activeModuleTab === "scoreboard"
+                ? "bg-rose-600 text-white shadow-sm font-black"
+                : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-white/50"
+            }`}
+          >
+            <Radio className="w-4 h-4 text-white animate-pulse" />
+            <span>Live Scoreboard &amp; Screen Controller</span>
+            <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-700 text-white">
+              Tatami
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* TAMPILAN MODUL: BAGAN TURNAMEN & MULTI-POOL GENERATOR */}
+      {activeModuleTab === "bagan" && !isArchiveMode && (
+        <TournamentBracketManager
+          categories={categories}
+          registrations={registrations}
+          tournamentTitle={activeEvent?.title || "KEJUARAAN KOTA INKAI SURABAYA 2026"}
+          onSendToScoreboard={(match, poolName, category, tatami) => {
+            setActiveScoreboardMatch({ match, poolName, category, tatami });
+            setActiveModuleTab("scoreboard");
+            if (typeof window !== "undefined") window.location.hash = "scoring";
+          }}
+        />
+      )}
+
+      {/* TAMPILAN MODUL: LIVE SCOREBOARD & SCREEN CONTROLLER */}
+      {activeModuleTab === "scoreboard" && !isArchiveMode && (
+        <LiveScoreboardController
+          initialTatami={activeScoreboardMatch?.tatami || 1}
+          initialMatch={activeScoreboardMatch?.match || null}
+          initialCategory={activeScoreboardMatch?.category || categories[0]?.name || "Kumite Senior Putra -67kg"}
+          initialPoolName={activeScoreboardMatch?.poolName || "Pool A"}
+        />
+      )}
+
+      {/* TAMPILAN MODUL: DATA & PENDAFTAR KEJUARAAN */}
+      {(activeModuleTab === "pendaftar" || isArchiveMode) && (
+        <>
       {/* Selector & CRUD Event Pertandingan */}
       <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto flex-wrap">
@@ -2153,6 +2275,8 @@ export default function AdminPertandinganPage({
           </table>
         </div>
       </div>
+      </>
+      )}
 
       {/* Modal Ketentuan Pertandingan */}
       {showRulesEditorModal && (
