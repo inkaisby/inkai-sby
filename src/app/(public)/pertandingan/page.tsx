@@ -1701,23 +1701,23 @@ export default function PublicPertandinganPage() {
           {/* Mobile Swipe Hint */}
           <div className="sm:hidden px-3.5 py-2 bg-zinc-50 dark:bg-zinc-800/70 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between text-[11px] text-zinc-600 dark:text-zinc-400">
             <span className="flex items-center gap-1.5 font-medium">
-              <span className="inline-block animate-pulse">👉</span> Geser tabel ke kanan untuk melihat Kelas, BB, Berkas &amp; Status
+              <span className="inline-block animate-pulse">👉</span> Geser tabel horizontal &amp; vertikal
             </span>
-            <span className="font-bold text-zinc-400 dark:text-zinc-500">⇄ Geser</span>
+            <span className="font-bold text-zinc-400 dark:text-zinc-500">⇄ ⇅ Geser</span>
           </div>
 
-          <div className="overflow-x-auto w-full overscroll-x-contain touch-pan-x [scrollbar-width:thin]">
+          <div className="overflow-x-auto overflow-y-auto max-h-[70vh] sm:max-h-[75vh] w-full [scrollbar-width:thin] touch-auto">
             <table className="min-w-[1360px] w-full text-left border-separate border-spacing-0">
               <thead>
-                <tr className="bg-zinc-50 dark:bg-zinc-800/60 text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
-                  <th className="sticky left-0 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-2 w-10 min-w-[2.5rem] max-w-[2.5rem] sm:w-12 sm:min-w-[3rem] sm:max-w-[3rem] text-center border-b border-zinc-200 dark:border-zinc-800">No</th>
-                  <th className="sticky left-10 sm:left-12 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-1.5 sm:px-2 w-12 min-w-[3rem] max-w-[3rem] sm:w-16 sm:min-w-[4rem] sm:max-w-[4rem] text-center border-b border-zinc-200 dark:border-zinc-800">Foto Profil</th>
-                  <th className="sticky left-[88px] sm:left-28 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-3 sm:px-4 w-36 min-w-[9rem] max-w-[10.5rem] sm:w-auto sm:min-w-[12rem] sm:max-w-none shadow-[4px_0_8px_-4px_rgba(0,0,0,0.14)] border-r border-b border-zinc-200 dark:border-zinc-800">Nama Atlet</th>
-                  <th className="py-3.5 px-4 min-w-[170px] whitespace-nowrap border-b border-zinc-200 dark:border-zinc-800">Tempat Tanggal Lahir</th>
-                  <th className="py-3.5 px-4 border-b border-zinc-200 dark:border-zinc-800">Dojo / Kontingen</th>
-                  <th className="py-3.5 px-4 border-b border-zinc-200 dark:border-zinc-800">Sabuk</th>
-                  <th className="py-3.5 px-3 text-center min-w-[150px] border-b border-zinc-200 dark:border-zinc-800">Kategori Usia</th>
-                  <th className="py-3.5 px-4 min-w-[240px] border-b border-zinc-200 dark:border-zinc-800">
+                <tr className="bg-zinc-100 dark:bg-zinc-800 text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
+                  <th className="sticky top-0 left-0 z-40 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-2 w-10 min-w-[2.5rem] max-w-[2.5rem] sm:w-12 sm:min-w-[3rem] sm:max-w-[3rem] text-center border-b border-zinc-200 dark:border-zinc-800">No</th>
+                  <th className="sticky top-0 left-10 sm:left-12 z-40 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-1.5 sm:px-2 w-12 min-w-[3rem] max-w-[3rem] sm:w-16 sm:min-w-[4rem] sm:max-w-[4rem] text-center border-b border-zinc-200 dark:border-zinc-800">Foto Profil</th>
+                  <th className="sticky top-0 left-[88px] sm:left-28 z-40 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-3 sm:px-4 w-36 min-w-[9rem] max-w-[10.5rem] sm:w-auto sm:min-w-[12rem] sm:max-w-none shadow-[4px_0_8px_-4px_rgba(0,0,0,0.14)] border-r border-b border-zinc-200 dark:border-zinc-800">Nama Atlet</th>
+                  <th className="sticky top-0 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-4 min-w-[170px] whitespace-nowrap border-b border-zinc-200 dark:border-zinc-800">Tempat Tanggal Lahir</th>
+                  <th className="sticky top-0 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-4 border-b border-zinc-200 dark:border-zinc-800">Dojo / Kontingen</th>
+                  <th className="sticky top-0 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-4 border-b border-zinc-200 dark:border-zinc-800">Sabuk</th>
+                  <th className="sticky top-0 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-3 text-center min-w-[150px] border-b border-zinc-200 dark:border-zinc-800">Kategori Usia</th>
+                  <th className="sticky top-0 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-4 min-w-[240px] border-b border-zinc-200 dark:border-zinc-800">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span>Kelas Pertandingan</span>
                       <span className="text-[10px] font-bold normal-case px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 tracking-normal shadow-2xs">
@@ -1725,7 +1725,7 @@ export default function PublicPertandinganPage() {
                       </span>
                     </div>
                   </th>
-                  <th className="py-3.5 px-3 text-center min-w-[140px] border-b border-zinc-200 dark:border-zinc-800">
+                  <th className="sticky top-0 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-3 text-center min-w-[140px] border-b border-zinc-200 dark:border-zinc-800">
                     <div className="flex flex-col items-center justify-center gap-0.5">
                       <span>BB (Berat Badan)</span>
                       <span className="text-[10px] font-bold normal-case px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 tracking-normal shadow-2xs">
@@ -1733,9 +1733,9 @@ export default function PublicPertandinganPage() {
                       </span>
                     </div>
                   </th>
-                  <th className="py-3.5 px-3 text-center min-w-[200px] border-b border-zinc-200 dark:border-zinc-800">Berkas Dokumen</th>
-                  <th className="py-3.5 px-4 text-center min-w-[220px] border-b border-zinc-200 dark:border-zinc-800">Status Pendaftaran</th>
-                  <th className="py-3.5 px-3 text-center border-b border-zinc-200 dark:border-zinc-800">Aksi / Koreksi</th>
+                  <th className="sticky top-0 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-3 text-center min-w-[200px] border-b border-zinc-200 dark:border-zinc-800">Berkas Dokumen</th>
+                  <th className="sticky top-0 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-4 text-center min-w-[220px] border-b border-zinc-200 dark:border-zinc-800">Status Pendaftaran</th>
+                  <th className="sticky top-0 z-30 bg-zinc-100 dark:bg-zinc-800 py-3.5 px-3 text-center border-b border-zinc-200 dark:border-zinc-800">Aksi / Koreksi</th>
                 </tr>
               </thead>
               <tbody className="text-sm">
