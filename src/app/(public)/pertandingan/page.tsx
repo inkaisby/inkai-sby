@@ -391,6 +391,7 @@ export default function PublicPertandinganPage() {
     memberId: "",
     fullName: "",
     gender: "MALE",
+    birthPlace: "",
     birthDate: "",
     dojoName: "",
     currentRank: "Putih (Kyu 10)",
@@ -491,6 +492,7 @@ export default function PublicPertandinganPage() {
       memberId: item.id,
       fullName: item.fullName.toUpperCase(),
       gender: item.gender || prev.gender,
+      birthPlace: item.birthPlace || prev.birthPlace,
       birthDate: item.birthDate || prev.birthDate,
       currentRank: item.currentRank || prev.currentRank,
       dojoName: item.dojoName || prev.dojoName,
@@ -979,6 +981,7 @@ export default function PublicPertandinganPage() {
         memberId: "",
         fullName: "",
         gender: "MALE",
+        birthPlace: "",
         birthDate: "",
         dojoName: "",
         currentRank: "Putih (Kyu 10)",
@@ -2716,23 +2719,40 @@ export default function PublicPertandinganPage() {
                   </select>
                 </div>
 
-                {/* Tanggal Lahir (Format Indonesia DD/MM/YYYY) */}
-                <div>
-                  <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    Tanggal Lahir Atlet * (Format Indonesia DD/MM/YYYY)
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={guestForm.birthDate}
-                    onChange={(e) => setGuestForm({ ...guestForm, birthDate: e.target.value, categoryId: "" })}
-                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm"
-                  />
-                  {guestForm.birthDate && (
-                    <div className="text-[11px] text-zinc-500 mt-1 font-mono">
-                      Format Indonesia: {new Date(guestForm.birthDate).toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" })} ({new Date(guestForm.birthDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })})
-                    </div>
-                  )}
+                {/* Tempat & Tanggal Lahir */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Tempat Lahir */}
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                      Tempat Lahir
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: Surabaya"
+                      value={guestForm.birthPlace}
+                      onChange={(e) => setGuestForm({ ...guestForm, birthPlace: e.target.value })}
+                      className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm"
+                    />
+                  </div>
+
+                  {/* Tanggal Lahir (Format Indonesia DD/MM/YYYY) */}
+                  <div>
+                    <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                      Tanggal Lahir Atlet *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={guestForm.birthDate}
+                      onChange={(e) => setGuestForm({ ...guestForm, birthDate: e.target.value, categoryId: "" })}
+                      className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm"
+                    />
+                    {guestForm.birthDate && (
+                      <div className="text-[11px] text-zinc-500 mt-1 font-mono">
+                        Format Indonesia: {new Date(guestForm.birthDate).toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" })} ({new Date(guestForm.birthDate).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })})
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Sabuk / Rank */}

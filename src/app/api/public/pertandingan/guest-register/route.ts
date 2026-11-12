@@ -11,6 +11,7 @@ export async function POST(request: Request) {
       memberId,
       fullName,
       gender,
+      birthPlace,
       birthDate,
       dojoName,
       currentRank,
@@ -221,6 +222,7 @@ export async function POST(request: Request) {
       data: {
         fullName: formattedFullName,
         gender: gender,
+        birthPlace: birthPlace?.trim() || null,
         birthDate: new Date(birthDate),
         dojoId: dojo.id,
         currentRank: currentRank || "Putih (Kyu 10)",
