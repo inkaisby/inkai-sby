@@ -2812,7 +2812,7 @@ export default function AdminPertandinganKategoriPage() {
                                     <button
                                       type="button"
                                       onClick={() => handleQuickCreateInMatrix(group, "MALE")}
-                                      className="w-full py-1.5 px-2 text-[11px] text-zinc-500 hover:text-amber-300 border border-dashed border-zinc-800 hover:border-amber-500/50 rounded-lg flex items-center justify-center gap-1 transition cursor-pointer hover:bg-zinc-850"
+                                      className="w-full py-1.5 px-2 text-[11px] text-zinc-500 hover:text-amber-300 border border-dashed border-zinc-800 hover:border-amber-500/50 rounded-lg flex items-center justify-center gap-1 transition cursor-pointer hover:bg-zinc-800"
                                       title="Tambah Kelas Putra di Divisi Ini"
                                     >
                                       <Plus className="w-3 h-3" />
@@ -2864,7 +2864,7 @@ export default function AdminPertandinganKategoriPage() {
                                     <button
                                       type="button"
                                       onClick={() => handleQuickCreateInMatrix(group, "FEMALE")}
-                                      className="w-full py-1.5 px-2 text-[11px] text-zinc-500 hover:text-pink-300 border border-dashed border-zinc-800 hover:border-pink-500/50 rounded-lg flex items-center justify-center gap-1 transition cursor-pointer hover:bg-zinc-850"
+                                      className="w-full py-1.5 px-2 text-[11px] text-zinc-500 hover:text-pink-300 border border-dashed border-zinc-800 hover:border-pink-500/50 rounded-lg flex items-center justify-center gap-1 transition cursor-pointer hover:bg-zinc-800"
                                       title="Tambah Kelas Putri di Divisi Ini"
                                     >
                                       <Plus className="w-3 h-3" />

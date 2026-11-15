@@ -46,6 +46,7 @@ import {
   EyeOff,
   LayoutGrid,
   Sparkles,
+  CalendarClock,
 } from "lucide-react";
 import { compressUploadFile } from "@/lib/compress-image";
 import { generateTournamentRosterHtml } from "@/lib/tournament-print-html";
@@ -171,7 +172,6 @@ export default function PublicPertandinganPage() {
   const [selectedDojoName, setSelectedDojoName] = useState("");
   const [selectedCategoryName, setSelectedCategoryName] = useState("");
   const [showRulesModal, setShowRulesModal] = useState(false);
-  const [showFullOverview, setShowFullOverview] = useState(true);
   const [previewDoc, setPreviewDoc] = useState<{
     url: string;
     title: string;
@@ -292,7 +292,6 @@ export default function PublicPertandinganPage() {
     setShowSuggestDropdown(false);
     setRegKindFilter("ALL");
     setRegSearchQuery("");
-    setRegDivisionFilter("ALL");
 
     let calcAge: number | null = null;
     if (athlete.birthDate) {
@@ -306,6 +305,19 @@ export default function PublicPertandinganPage() {
         }
       }
     }
+
+    // Cek apakah ada divisi yang sinkron dengan usia / tanggal lahir atlet
+    const hasSyncDivision = categories.some((c) => {
+      const meta = getCategoryDivisionMeta(c);
+      return (
+        isBirthDateInRange(athlete.birthDate, meta.minBirthDate, meta.maxBirthDate) ||
+        isAgeInRange(calcAge, meta.minAge, meta.maxAge)
+      );
+    });
+
+    // Otomatis aktifkan filter "MATCHING" jika ada divisi yang sinkron agar hanya menampilkan divisi yang cocok!
+    setRegDivisionFilter(hasSyncDivision ? "MATCHING" : "ALL");
+    setRegCategoryGenderFilter("MATCHING");
 
     // Cari kategori yang OTOMATIS SINKRON dengan gender DAN tanggal lahir / usia atlet
     let bestCat = categories.find((c) => {
@@ -323,10 +335,8 @@ export default function PublicPertandinganPage() {
 
     if (bestCat) {
       setSelectedRegCategoryId(bestCat.id);
-      setRegCategoryGenderFilter("MATCHING");
-    } else {
+    } else if (categories.length > 0) {
       setSelectedRegCategoryId(categories[0].id);
-      setRegCategoryGenderFilter("ALL");
     }
   };
 
@@ -540,6 +550,65 @@ export default function PublicPertandinganPage() {
   }, [selectedEventId, search]);
 
   const activeEvent = events.find((e) => e.id === selectedEventId);
+
+  // Helper batas pendaftaran & status penutupan event (sinkron dengan endDate admin jika registrationCloseAt kosong)
+  const getEventDeadline = (event?: EventItem | null) => {
+    if (!event) return null;
+    if (event.registrationCloseAt) {
+      const d = new Date(event.registrationCloseAt);
+      const isClosed = !isNaN(d.getTime()) && Date.now() > d.getTime();
+      return {
+        date: d,
+        isClosed,
+        dateFormatted: !isNaN(d.getTime())
+          ? d.toLocaleDateString("id-ID", {
+              weekday: "long",
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })
+          : "",
+        shortDateFormatted: !isNaN(d.getTime())
+          ? d.toLocaleDateString("id-ID", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "",
+        timeFormatted: !isNaN(d.getTime())
+          ? "Pukul " +
+            d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }).replace(".", ":") +
+            " WIB"
+          : "",
+      };
+    }
+    if (event.endDate) {
+      const raw = typeof event.endDate === "string" ? event.endDate.split("T")[0] : "";
+      const d = raw ? new Date(`${raw}T23:59:59`) : new Date(event.endDate);
+      const isClosed = !isNaN(d.getTime()) && Date.now() > d.getTime();
+      return {
+        date: d,
+        isClosed,
+        dateFormatted: !isNaN(d.getTime())
+          ? d.toLocaleDateString("id-ID", {
+              weekday: "long",
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })
+          : "",
+        shortDateFormatted: !isNaN(d.getTime())
+          ? d.toLocaleDateString("id-ID", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "",
+        timeFormatted: "Pukul 23:59 WIB",
+      };
+    }
+    return null;
+  };
 
   // Kelompokkan Kategori untuk Tampilan Bagan Matriks Interaktif
   const regDivisionGroups = useMemo(() => {
@@ -1276,177 +1345,114 @@ export default function PublicPertandinganPage() {
           </div>
         ) : (
           <>
-            {/* Selector Event Kejuaraan */}
-            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3 w-full md:w-auto">
-                <Trophy className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
-                <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Pilih Event:</span>
-                <select
-                  value={selectedEventId}
-                  onChange={(e) => setSelectedEventId(e.target.value)}
-                  className="w-full md:w-80 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-sm font-bold"
-                >
-                  {events.map((ev) => (
-                    <option key={ev.id} value={ev.id}>
-                      {ev.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {activeEvent && (
-                <div className="flex flex-wrap items-center gap-2 md:gap-3 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${
-                      !activeEvent.registrationCloseAt ||
-                      new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
-                        : "bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
-                    }`}
-                  >
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        !activeEvent.registrationCloseAt ||
-                        new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
-                          ? "bg-emerald-500 animate-pulse"
-                          : "bg-red-500"
-                      }`}
-                    />
-                    {!activeEvent.registrationCloseAt ||
-                    new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
-                      ? "Pendaftaran Terbuka"
-                      : "Pendaftaran Ditutup"}
-                  </span>
-
-                  <span className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                    <Calendar className="w-4 h-4 text-red-500" />
-                    {new Date(activeEvent.startDate).toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
-                  </span>
-                  <span className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                    <Clock className="w-4 h-4 text-amber-500" />
-                    {activeEvent.eventTime || "08.00 – 12.00 WIB"}
-                  </span>
-                  <span className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                    <MapPin className="w-4 h-4 text-emerald-500" />
-                    {activeEvent.location || "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya"}
-                  </span>
-                </div>
-              )}
-            </div>
-
-
-        {/* Card Sekilas Keterangan & Ketentuan Pertandingan */}
-        {activeEvent && (
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-red-200 dark:border-red-900/40 shadow-sm overflow-hidden transition">
-            <div className="bg-gradient-to-r from-red-900 via-red-800 to-red-950 p-4 md:p-5 text-white flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-yellow-500/20 text-yellow-300 rounded-xl border border-yellow-500/30">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="font-bold text-base md:text-lg flex items-center gap-2">
-                    📌 Sekilas Keterangan & Ketentuan Pertandingan
-                  </h2>
-                  <p className="text-xs text-red-200">
-                    Informasi jadwal, tempat pelaksanaan, proposal ketentuan, dan syarat pendaftaran event.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowFullOverview(!showFullOverview)}
-                className="self-start md:self-auto px-3.5 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-semibold border border-white/20 transition flex items-center gap-1.5"
-              >
-                {showFullOverview ? "Sembunyikan Sekilas Details" : "Tampilkan Sekilas Details"}
-              </button>
-            </div>
-
-            {showFullOverview && (
-              <div className="p-4 md:p-6 space-y-6">
-                {/* Grid Info Pelaksanaan */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-red-50/50 dark:bg-red-950/20 p-4 rounded-xl border border-red-100 dark:border-red-900/30 flex items-start gap-3">
-                    <Calendar className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <div className="text-xs text-zinc-500 font-medium">Hari & Tanggal</div>
-                      <div className="text-sm font-bold text-zinc-900 dark:text-white">
-                        {new Date(activeEvent.startDate).toLocaleDateString("id-ID", {
-                          weekday: "long",
-                          day: "2-digit",
-                          month: "long",
-                          year: "numeric",
-                        })}
-                      </div>
-                    </div>
+            {/* Selector Event Kejuaraan & Info Ringkas */}
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 shadow-xs p-4 sm:p-5 space-y-3.5">
+              {/* Row 1: Pilihan Event & Status Pendaftaran */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="p-2 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 shrink-0">
+                    <Trophy className="w-5 h-5" />
                   </div>
-
-                  <div className="bg-amber-50/50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-100 dark:border-amber-900/30 flex items-start gap-3">
-                    <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <div className="text-xs text-zinc-500 font-medium">Waktu / Pukul</div>
-                      <div className="text-sm font-bold text-zinc-900 dark:text-white">
-                        {activeEvent.eventTime || "08.00 – 12.00 WIB"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-emerald-50/50 dark:bg-emerald-950/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/30 flex items-start gap-3">
-                    <MapPin className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <div className="text-xs text-zinc-500 font-medium">Tempat Pelaksanaan</div>
-                      <div className="text-sm font-bold text-zinc-900 dark:text-white">
-                        {activeEvent.location || "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya"}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Deskripsi & Ketentuan Editor */}
-                {activeEvent.description && (
-                  <div className="bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700">
-                    <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Keterangan Singkat</div>
-                    <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed">{activeEvent.description}</p>
-                  </div>
-                )}
-
-                {/* Content Ketentuan Pertandingan */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2">
-                    <h3 className="font-bold text-sm md:text-base flex items-center gap-2 text-zinc-900 dark:text-white">
-                      <BookOpen className="w-4 h-4 text-red-600 dark:text-red-400" />
-                      Ketentuan & Syarat Pertandingan
-                    </h3>
-                    <button
-                      onClick={() => setShowRulesModal(true)}
-                      className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline flex items-center gap-1"
+                  <div className="flex items-center gap-2 flex-1 sm:flex-initial">
+                    <label htmlFor="event-select" className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
+                      Pilih Event:
+                    </label>
+                    <select
+                      id="event-select"
+                      value={selectedEventId}
+                      onChange={(e) => setSelectedEventId(e.target.value)}
+                      className="w-full sm:w-80 px-3 py-1.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl text-sm font-bold text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-red-500/20 cursor-pointer"
                     >
-                      Buka Modal Ketentuan Lengkap <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
+                      {events.map((ev) => (
+                        <option key={ev.id} value={ev.id} className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">
+                          {ev.title}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-
-                  {activeEvent.rulesContent ? (
-                    <div
-                      className="prose dark:prose-invert max-w-none text-sm bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 max-h-60 overflow-y-auto leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: activeEvent.rulesContent }}
-                    />
-                  ) : (
-                    <div className="bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-xl border border-zinc-200 dark:border-zinc-700 text-xs md:text-sm text-zinc-700 dark:text-zinc-300 space-y-2">
-                      <p className="font-semibold text-red-600 dark:text-red-400">Ringkasan Ketentuan Resmi:</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li>Peserta adalah Karateka anggota resmi INKAI Cabang Surabaya & Dojo Terdaftar.</li>
-                        <li>Wajib menyertakan fotokopi / berkas Akte Kelahiran & Kartu BPJS Kesehatan / Surat Sehat.</li>
-                        <li>Menggunakan Karate-Gi standar INKAI dan perlengkapan sabuk / protector sesuai ketentuan jenis kelas (Kata / Kumite).</li>
-                        <li>Penimbangan badan atlet dilakukan sebelum jalannya pertandingan sesuai kelas berat yang didaftarkan.</li>
-                      </ul>
-                    </div>
-                  )}
                 </div>
 
-
+                {activeEvent && (() => {
+                  const deadline = getEventDeadline(activeEvent);
+                  const isClosed = deadline?.isClosed ?? false;
+                  return (
+                    <div className="self-start sm:self-center shrink-0">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-xs ${
+                          !isClosed
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+                            : "bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
+                        }`}
+                      >
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            !isClosed ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+                          }`}
+                        />
+                        {!isClosed ? "Pendaftaran Terbuka" : "Pendaftaran Ditutup"}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
-            )}
-          </div>
-        )}
+
+              {/* Row 2: Informasi Pelaksanaan & Batas Waktu yang Mengalir Bersih (Tanpa Kotak Kaku) */}
+              {activeEvent && (() => {
+                const deadline = getEventDeadline(activeEvent);
+                return (
+                  <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-zinc-600 dark:text-zinc-300">
+                    {/* Hari & Tanggal Pelaksanaan */}
+                    <div className="inline-flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-red-500 shrink-0" />
+                      <span>
+                        <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
+                          {new Date(activeEvent.startDate).toLocaleDateString("id-ID", {
+                            weekday: "long",
+                            day: "2-digit",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                        </strong>
+                      </span>
+                    </div>
+
+                    <span className="hidden sm:inline text-zinc-300 dark:text-zinc-700">•</span>
+
+                    {/* Waktu Pelaksanaan */}
+                    <div className="inline-flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span>{activeEvent.eventTime || "08.00 – 12.00 WIB"}</span>
+                    </div>
+
+                    {deadline && (
+                      <>
+                        <span className="hidden sm:inline text-zinc-300 dark:text-zinc-700">•</span>
+                        {/* Batas Pendaftaran */}
+                        <div className="inline-flex items-center gap-1.5 text-purple-700 dark:text-purple-300">
+                          <CalendarClock className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                          <span>
+                            Batas Daftar:{" "}
+                            <span className="font-semibold underline decoration-purple-300 dark:decoration-purple-700 underline-offset-2">
+                              {deadline.shortDateFormatted} ({deadline.timeFormatted})
+                            </span>
+                          </span>
+                        </div>
+                      </>
+                    )}
+
+                    <span className="hidden sm:inline text-zinc-300 dark:text-zinc-700">•</span>
+
+                    {/* Tempat Pelaksanaan */}
+                    <div className="inline-flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400">
+                      <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span className="truncate max-w-sm lg:max-w-md" title={activeEvent.location}>
+                        {activeEvent.location || "Gedung Olahraga Kodam V/Brawijaya Jl. Kesatriyan No.38 A, Gn. Sari, Kec. Dukuhpakis, Surabaya"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
 
         {/* Summary Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1488,7 +1494,7 @@ export default function PublicPertandinganPage() {
             <div ref={searchContainerRef} className="relative w-full md:w-96 group">
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1">
-                  <UserPlus className="w-3 h-3 text-red-600" /> Cari & Daftarkan Atlet INKAI
+                  <UserPlus className="w-3 h-3 text-red-600 dark:text-red-400" /> Cari & Daftarkan Atlet INKAI
                 </span>
                 <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
                   (Ketik Nama / NIA)
@@ -1504,7 +1510,7 @@ export default function PublicPertandinganPage() {
                   onFocus={() => {
                     if (memberSuggestions.length > 0) setShowSuggestDropdown(true);
                   }}
-                  className="w-full pl-9 pr-8 py-2 bg-white dark:bg-zinc-850 border-2 border-red-500/60 dark:border-red-500/70 rounded-xl text-xs md:text-sm font-semibold text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 placeholder:font-normal focus:outline-hidden focus:border-red-600"
+                  className="w-full pl-9 pr-8 py-2 bg-white dark:bg-zinc-800 border-2 border-red-500/60 dark:border-red-500/70 rounded-xl text-xs md:text-sm font-semibold text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 placeholder:font-normal focus:outline-hidden focus:border-red-600"
                 />
                 {suggestLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-red-500" />
@@ -3475,7 +3481,7 @@ export default function PublicPertandinganPage() {
             </div>
 
             {/* Profil Singkat Atlet & Bar Penapisan Cepat */}
-            <div className="px-3 py-2 sm:px-5 sm:py-3 bg-zinc-50 dark:bg-zinc-850 border-b border-zinc-200 dark:border-zinc-800 space-y-1.5 sm:space-y-2 shrink-0">
+            <div className="px-3 py-2 sm:px-5 sm:py-3 bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-800 space-y-1.5 sm:space-y-2 shrink-0">
               {/* Info Atlet & Dojo */}
               <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -3513,10 +3519,10 @@ export default function PublicPertandinganPage() {
 
               {/* Baris Tanggal Lahir & Sinkronisasi Divisi Otomatis */}
               {selectedAthleteForReg.birthDate && (
-                <div className="flex items-center justify-between gap-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-lg px-2 py-1 text-[10px] sm:text-[11px] text-amber-950 dark:text-amber-200">
-                  <span className="truncate">
-                    Lahir:{" "}
-                    <strong className="text-zinc-900 dark:text-zinc-100 font-bold">
+                <div className="flex items-center justify-between gap-1.5 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-700/60 rounded-lg px-2 sm:px-2.5 py-1 text-[10px] sm:text-[11px]">
+                  <span className="truncate flex items-center gap-1">
+                    <span className="text-amber-800 dark:text-amber-300 font-semibold">Lahir:</span>
+                    <strong className="font-bold text-zinc-900 dark:text-white">
                       {new Date(selectedAthleteForReg.birthDate).toLocaleDateString("id-ID", {
                         day: "numeric",
                         month: "short",
@@ -3524,14 +3530,15 @@ export default function PublicPertandinganPage() {
                       })}
                     </strong>
                     {athleteAge !== null && (
-                      <span className="ml-1 text-amber-700 dark:text-amber-300 font-bold">
+                      <span className="ml-0.5 text-amber-700 dark:text-amber-300 font-bold">
                         ({athleteAge} Thn)
                       </span>
                     )}
                   </span>
                   {matchedDivisionName && (
-                    <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-500 text-zinc-950 rounded text-[9px] font-black uppercase tracking-wide shadow-xs">
-                      <CheckCircle className="w-2.5 h-2.5 text-zinc-950" /> Sinkron: {matchedDivisionName}
+                    <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-500 dark:bg-amber-400 text-zinc-950 rounded text-[9px] font-black uppercase tracking-wide shadow-xs">
+                      <CheckCircle className="w-2.5 h-2.5 text-zinc-950" />
+                      <span>Sinkron: {matchedDivisionName}</span>
                     </span>
                   )}
                 </div>
@@ -3539,43 +3546,45 @@ export default function PublicPertandinganPage() {
 
               {/* Toolbar Penapisan Bagan: Rapi & Hemat Ruang di Mobile */}
               <div className="space-y-1.5 pt-1 border-t border-zinc-200/60 dark:border-zinc-800">
-                {/* Baris 1 Toolbar: Pilihan Tampilan Bagan & Filter Divisi */}
+                {/* Baris 1 Toolbar: Status Deteksi Gender Otomatis & Filter Divisi */}
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setRegCategoryGenderFilter("MATCHING")}
-                    className={`shrink-0 px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold cursor-pointer transition ${
-                      regCategoryGenderFilter === "MATCHING"
-                        ? "bg-red-600 text-white shadow-xs"
-                        : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100"
+                  {/* Badge Deteksi Jenis Kelamin Otomatis */}
+                  <span
+                    className={`shrink-0 px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold flex items-center gap-1 ${
+                      selectedAthleteForReg.gender === "MALE"
+                        ? "bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 border border-blue-200 dark:border-blue-900/50"
+                        : "bg-pink-100 text-pink-800 dark:bg-pink-950/70 dark:text-pink-300 border border-pink-200 dark:border-pink-900/50"
                     }`}
                   >
-                    Sesuai Gender ({selectedAthleteForReg.gender === "MALE" ? "Putra" : "Putri"})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRegCategoryGenderFilter("ALL")}
-                    className={`shrink-0 px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold cursor-pointer transition ${
-                      regCategoryGenderFilter === "ALL"
-                        ? "bg-amber-500 text-zinc-950 shadow-xs font-black"
-                        : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100"
-                    }`}
-                  >
-                    Bagan Lengkap
-                  </button>
+                    <span>Nomor {selectedAthleteForReg.gender === "MALE" ? "Putra" : "Putri"} (Otomatis)</span>
+                  </span>
+
                   {matchedDivisionName && (
-                    <button
-                      type="button"
-                      onClick={() => setRegDivisionFilter(regDivisionFilter === "MATCHING" ? "ALL" : "MATCHING")}
-                      className={`shrink-0 px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold cursor-pointer transition flex items-center gap-1 ${
-                        regDivisionFilter === "MATCHING"
-                          ? "bg-amber-500 text-zinc-950 font-black shadow-xs ring-2 ring-amber-400/50"
-                          : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100"
-                      }`}
-                    >
-                      <Sparkles className="w-2.5 h-2.5 text-amber-500" />
-                      {regDivisionFilter === "MATCHING" ? `Hanya Sinkron` : `Semua Divisi`}
-                    </button>
+                    <div className="shrink-0 flex items-center bg-white dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-[10px] sm:text-xs font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setRegDivisionFilter("MATCHING")}
+                        className={`px-2 py-0.5 rounded-md transition cursor-pointer flex items-center gap-1 ${
+                          regDivisionFilter === "MATCHING"
+                            ? "bg-amber-500 text-zinc-950 font-bold shadow-xs"
+                            : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                        }`}
+                      >
+                        <Sparkles className="w-2.5 h-2.5" />
+                        Hanya {matchedDivisionName}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRegDivisionFilter("ALL")}
+                        className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                          regDivisionFilter === "ALL"
+                            ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-bold"
+                            : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                        }`}
+                      >
+                        Semua Divisi
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -3588,7 +3597,7 @@ export default function PublicPertandinganPage() {
                       className={`px-1.5 sm:px-2 py-0.5 rounded-md transition cursor-pointer ${
                         regKindFilter === "ALL"
                           ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900"
+                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
                       }`}
                     >
                       Semua
@@ -3599,7 +3608,7 @@ export default function PublicPertandinganPage() {
                       className={`px-1.5 sm:px-2 py-0.5 rounded-md transition cursor-pointer ${
                         regKindFilter === "KATA"
                           ? "bg-amber-500 text-zinc-950 font-bold"
-                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900"
+                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
                       }`}
                     >
                       KATA
@@ -3610,7 +3619,7 @@ export default function PublicPertandinganPage() {
                       className={`px-1.5 sm:px-2 py-0.5 rounded-md transition cursor-pointer ${
                         regKindFilter === "KUMITE"
                           ? "bg-red-600 text-white font-bold"
-                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900"
+                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
                       }`}
                     >
                       KUMITE
@@ -3625,7 +3634,7 @@ export default function PublicPertandinganPage() {
                       placeholder="Cari kelas/nomor..."
                       value={regSearchQuery}
                       onChange={(e) => setRegSearchQuery(e.target.value)}
-                      className="w-full pl-6 sm:pl-7 pr-6 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[10px] sm:text-xs focus:ring-1 focus:ring-red-500"
+                      className="w-full pl-6 sm:pl-7 pr-6 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[10px] sm:text-xs text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-hidden focus:ring-1 focus:ring-red-500"
                     />
                     {regSearchQuery && (
                       <button
@@ -3643,47 +3652,61 @@ export default function PublicPertandinganPage() {
 
             {/* Badan Bagan Kelas Pertandingan (Tinggal Klik) */}
             <div className="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-4 space-y-2.5 sm:space-y-4 bg-zinc-100/60 dark:bg-zinc-950">
-              {regDivisionGroups.length === 0 ? (
-                <div className="py-8 text-center text-zinc-500 text-xs sm:text-sm bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 space-y-2">
-                  <Swords className="w-7 h-7 text-zinc-400 mx-auto" />
-                  <p className="font-semibold text-zinc-700 dark:text-zinc-300">
-                    Tidak ada kelas pertandingan yang sesuai dengan filter atau pencarian.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRegKindFilter("ALL");
-                      setRegSearchQuery("");
-                      setRegCategoryGenderFilter("ALL");
-                    }}
-                    className="text-red-600 dark:text-red-400 font-bold hover:underline text-xs cursor-pointer"
-                  >
-                    Reset Filter Pencarian
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                  {regDivisionGroups
-                    .filter((group) => {
-                      if (regDivisionFilter === "MATCHING" && matchedDivisionName) {
-                        return group.divisionName === matchedDivisionName;
-                      }
-                      return true;
-                    })
-                    .map((group) => {
+              {(() => {
+                const isAthleteMale = selectedAthleteForReg.gender === "MALE";
+                const filteredGroups = regDivisionGroups.filter((group) => {
+                  if (regDivisionFilter === "MATCHING" && matchedDivisionName) {
                     const isBirthDateMatch = isBirthDateInRange(
                       selectedAthleteForReg.birthDate,
                       group.minBirthDate,
                       group.maxBirthDate
                     );
                     const isAgeMatch = isAgeInRange(athleteAge, group.minAge, group.maxAge);
-                    const isDateOrAgeMatch = isBirthDateMatch || isAgeMatch;
+                    return group.divisionName === matchedDivisionName || isBirthDateMatch || isAgeMatch;
+                  }
+                  return true;
+                });
 
-                    // Daftar yang relevan berdasarkan mode
-                    const isMatchingMode = regCategoryGenderFilter === "MATCHING";
-                    const isAthleteMale = selectedAthleteForReg.gender === "MALE";
-                    const singleList = isAthleteMale ? group.maleList : group.femaleList;
-                    const maxRows = Math.max(group.maleList.length, group.femaleList.length, 1);
+                if (filteredGroups.length === 0) {
+                  return (
+                    <div className="py-8 text-center text-zinc-500 text-xs sm:text-sm bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 space-y-2">
+                      <Swords className="w-7 h-7 text-zinc-400 mx-auto" />
+                      <p className="font-semibold text-zinc-700 dark:text-zinc-300">
+                        Tidak ada kelas pertandingan yang sesuai dengan filter atau pencarian.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRegDivisionFilter("ALL");
+                          setRegKindFilter("ALL");
+                          setRegSearchQuery("");
+                        }}
+                        className="text-red-600 dark:text-red-400 font-bold hover:underline text-xs cursor-pointer"
+                      >
+                        Tampilkan Semua Divisi
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3 sm:space-y-4">
+                    <div
+                      className={`grid grid-cols-1 ${
+                        filteredGroups.length > 1 ? "md:grid-cols-2" : "max-w-2xl mx-auto"
+                      } gap-3 sm:gap-4`}
+                    >
+                      {filteredGroups.map((group) => {
+                        const isBirthDateMatch = isBirthDateInRange(
+                          selectedAthleteForReg.birthDate,
+                          group.minBirthDate,
+                          group.maxBirthDate
+                        );
+                        const isAgeMatch = isAgeInRange(athleteAge, group.minAge, group.maxAge);
+                        const isDateOrAgeMatch = isBirthDateMatch || isAgeMatch;
+
+                        // Otomatis deteksi jenis kelamin: tampilkan HANYA nomor sesuai gender atlet + campuran
+                        const singleList = isAthleteMale ? group.maleList : group.femaleList;
 
                     return (
                       <div
@@ -3722,9 +3745,8 @@ export default function PublicPertandinganPage() {
                           )}
                         </div>
 
-                        {/* Tampilan Mode 1: Sesuai Gender Atlet */}
-                        {isMatchingMode ? (
-                          <div className="p-2 sm:p-3 space-y-1.5 sm:space-y-2">
+                        {/* Tampilan Nomor Pertandingan Sesuai Gender Atlet */}
+                        <div className="p-2 sm:p-3 space-y-1.5 sm:space-y-2">
                             <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold text-zinc-600 dark:text-zinc-400 pb-1 border-b border-zinc-100 dark:border-zinc-800">
                               <span>Nomor Pertandingan ({isAthleteMale ? "Putra" : "Putri"})</span>
                               <span className="text-[9px] sm:text-[10px] text-zinc-400">Klik untuk memilih</span>
@@ -3747,7 +3769,7 @@ export default function PublicPertandinganPage() {
                                       className={`w-full text-left p-2 sm:p-2.5 rounded-xl border transition flex items-center justify-between gap-2 cursor-pointer ${
                                         isSelected
                                           ? "bg-red-600 text-white border-red-700 shadow-md ring-2 ring-red-400/60"
-                                          : "bg-zinc-50 dark:bg-zinc-800/80 hover:bg-amber-50 dark:hover:bg-zinc-750 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"
+                                          : "bg-zinc-50 dark:bg-zinc-800/80 hover:bg-amber-50 dark:hover:bg-zinc-700 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"
                                       }`}
                                     >
                                       <div className="min-w-0 flex-1">
@@ -3770,10 +3792,11 @@ export default function PublicPertandinganPage() {
                                             <span
                                               className={
                                                 isSelected
-                                                  ? "text-red-200"
-                                                  : "text-amber-600 dark:text-amber-400 font-medium"
+                                                  ? "text-red-200 flex items-center gap-1"
+                                                  : "text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1"
                                               }
                                             >
+                                              <EyeOff className="w-3 h-3 shrink-0" />
                                               Biaya Disembunyikan
                                             </span>
                                           )}
@@ -3838,7 +3861,16 @@ export default function PublicPertandinganPage() {
                                               Rp {cat.fee.toLocaleString("id-ID")}
                                             </span>
                                           ) : (
-                                            <span className="text-amber-600 text-[10px]">Biaya Disembunyikan</span>
+                                            <span
+                                              className={
+                                                isSelected
+                                                  ? "text-purple-200 text-[10px] flex items-center gap-1"
+                                                  : "text-amber-600 dark:text-amber-400 text-[10px] font-medium flex items-center gap-1"
+                                              }
+                                            >
+                                              <EyeOff className="w-3 h-3 shrink-0" />
+                                              Biaya Disembunyikan
+                                            </span>
                                           )}
                                         </div>
                                       </div>
@@ -3848,7 +3880,7 @@ export default function PublicPertandinganPage() {
                                             ✓ TERPILIH
                                           </span>
                                         ) : (
-                                          <span className="px-1.5 sm:px-2 py-0.5 bg-white dark:bg-zinc-700 text-zinc-600 text-[9px] sm:text-[10px] font-semibold rounded-md">
+                                          <span className="px-1.5 sm:px-2 py-0.5 bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 text-[9px] sm:text-[10px] font-semibold rounded-md">
                                             PILIH
                                           </span>
                                         )}
@@ -3859,160 +3891,27 @@ export default function PublicPertandinganPage() {
                               </div>
                             )}
                           </div>
-                        ) : (
-                          /* Tampilan Mode 2: Bagan Lengkap Dua Kolom (PUTRA & PUTRI Berdampingan Sesuai Dokumen) */
-                          <div>
-                            {/* Header Kolom Dua Bagian: PUTRA & PUTRI */}
-                            <div className="grid grid-cols-2 bg-zinc-900 text-zinc-100 border-b border-zinc-800 text-[10px] sm:text-xs font-black text-center">
-                              <div
-                                className={`py-1 sm:py-1.5 border-r border-zinc-800 tracking-wider flex items-center justify-center gap-1 ${
-                                  isAthleteMale ? "bg-amber-500/25 text-amber-300" : "text-zinc-300"
-                                }`}
-                              >
-                                <span>PUTRA</span>
-                                {isAthleteMale && <span className="text-[8px] sm:text-[9px] font-normal text-amber-400">★ Atlet</span>}
-                              </div>
-                              <div
-                                className={`py-1 sm:py-1.5 tracking-wider flex items-center justify-center gap-1 ${
-                                  !isAthleteMale ? "bg-amber-500/25 text-amber-300" : "text-zinc-300"
-                                }`}
-                              >
-                                <span>PUTRI</span>
-                                {!isAthleteMale && <span className="text-[8px] sm:text-[9px] font-normal text-amber-400">★ Atlet</span>}
-                              </div>
-                            </div>
+                        </div>
+                      );
+                    })}
+                  </div>
 
-                            {/* Daftar Sel Baris Per Baris */}
-                            <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                              {Array.from({ length: maxRows }).map((_, rIdx) => {
-                                const maleCat = group.maleList[rIdx];
-                                const femaleCat = group.femaleList[rIdx];
-
-                                return (
-                                  <div key={rIdx} className="grid grid-cols-2 divide-x divide-zinc-200 dark:divide-zinc-800">
-                                    {/* Sel Kolom Putra */}
-                                    <div className="p-1 sm:p-1.5 flex items-center justify-center">
-                                      {maleCat ? (
-                                        (() => {
-                                          const isSelected = selectedRegCategoryId === maleCat.id;
-                                          const nomorStr = getEventNumberDisplay(maleCat);
-                                          return (
-                                            <button
-                                              type="button"
-                                              onClick={() => setSelectedRegCategoryId(maleCat.id)}
-                                              className={`w-full p-1.5 sm:p-2 rounded-xl border text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
-                                                isSelected
-                                                  ? "bg-red-600 text-white border-red-700 shadow-md ring-2 ring-red-400/60"
-                                                  : "bg-zinc-50 dark:bg-zinc-800/70 hover:bg-amber-50 dark:hover:bg-zinc-750 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"
-                                              }`}
-                                            >
-                                              <div className="flex items-center gap-1 font-black text-[10px] sm:text-[11px] uppercase tracking-tight">
-                                                {isSelected && <CheckCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white shrink-0" />}
-                                                <span className="truncate">{nomorStr}</span>
-                                              </div>
-                                              <div className="text-[9px] sm:text-[10px]">
-                                                {maleCat.isFeeVisible !== false ? (
-                                                  <span
-                                                    className={
-                                                      isSelected
-                                                        ? "text-red-100 font-semibold"
-                                                        : "text-emerald-600 dark:text-emerald-400 font-bold"
-                                                    }
-                                                  >
-                                                    Rp {maleCat.fee.toLocaleString("id-ID")}
-                                                  </span>
-                                                ) : (
-                                                  <span className="text-amber-600 text-[8px] sm:text-[9px]">Biaya Sembunyi</span>
-                                                )}
-                                              </div>
-                                            </button>
-                                          );
-                                        })()
-                                      ) : (
-                                        <span className="text-zinc-400 text-xs italic">-</span>
-                                      )}
-                                    </div>
-
-                                    {/* Sel Kolom Putri */}
-                                    <div className="p-1 sm:p-1.5 flex items-center justify-center">
-                                      {femaleCat ? (
-                                        (() => {
-                                          const isSelected = selectedRegCategoryId === femaleCat.id;
-                                          const nomorStr = getEventNumberDisplay(femaleCat);
-                                          return (
-                                            <button
-                                              type="button"
-                                              onClick={() => setSelectedRegCategoryId(femaleCat.id)}
-                                              className={`w-full p-1.5 sm:p-2 rounded-xl border text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
-                                                isSelected
-                                                  ? "bg-red-600 text-white border-red-700 shadow-md ring-2 ring-red-400/60"
-                                                  : "bg-zinc-50 dark:bg-zinc-800/70 hover:bg-amber-50 dark:hover:bg-zinc-750 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"
-                                              }`}
-                                            >
-                                              <div className="flex items-center gap-1 font-black text-[10px] sm:text-[11px] uppercase tracking-tight">
-                                                {isSelected && <CheckCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white shrink-0" />}
-                                                <span className="truncate">{nomorStr}</span>
-                                              </div>
-                                              <div className="text-[9px] sm:text-[10px]">
-                                                {femaleCat.isFeeVisible !== false ? (
-                                                  <span
-                                                    className={
-                                                      isSelected
-                                                        ? "text-red-100 font-semibold"
-                                                        : "text-emerald-600 dark:text-emerald-400 font-bold"
-                                                    }
-                                                  >
-                                                    Rp {femaleCat.fee.toLocaleString("id-ID")}
-                                                  </span>
-                                                ) : (
-                                                  <span className="text-amber-600 text-[8px] sm:text-[9px]">Biaya Sembunyi</span>
-                                                )}
-                                              </div>
-                                            </button>
-                                          );
-                                        })()
-                                      ) : (
-                                        <span className="text-zinc-400 text-xs italic">-</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-
-                              {/* Baris Campuran jika ada */}
-                              {group.mixedList.map((cat) => {
-                                const isSelected = selectedRegCategoryId === cat.id;
-                                const nomorStr = getEventNumberDisplay(cat);
-                                return (
-                                  <div key={cat.id} className="p-1 sm:p-1.5 bg-purple-50/40 dark:bg-purple-950/20">
-                                    <button
-                                      type="button"
-                                      onClick={() => setSelectedRegCategoryId(cat.id)}
-                                      className={`w-full p-1.5 sm:p-2 rounded-xl border text-center transition flex items-center justify-center gap-2 cursor-pointer ${
-                                        isSelected
-                                          ? "bg-purple-600 text-white border-purple-700 shadow-md"
-                                          : "bg-white dark:bg-zinc-800 border-purple-200 dark:border-purple-900/60 text-zinc-900 dark:text-zinc-100"
-                                      }`}
-                                    >
-                                      <span className="font-bold text-xs uppercase">{nomorStr} (Campuran)</span>
-                                      {cat.isFeeVisible !== false && (
-                                        <span className={isSelected ? "text-purple-100 text-xs" : "text-emerald-600 text-xs font-bold"}>
-                                          Rp {cat.fee.toLocaleString("id-ID")}
-                                        </span>
-                                      )}
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {/* Pintasan Buka Semua Divisi jika sedang filter MATCHING */}
+                  {regDivisionFilter === "MATCHING" && matchedDivisionName && regDivisionGroups.length > 1 && (
+                    <div className="text-center pt-1 pb-2">
+                      <button
+                        type="button"
+                        onClick={() => setRegDivisionFilter("ALL")}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:underline cursor-pointer"
+                      >
+                        <span>Ingin mendaftar di kelompok usia lain? Klik untuk tampilkan semua divisi ({regDivisionGroups.length})</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
+          </div>
 
             {/* Bottom Bar: Pratinjau Terpilih & Tombol Konfirmasi (Batas Bawah Tegas) */}
             <form onSubmit={handleSubmitAthleteRegistration} className="p-2 sm:p-3.5 border-t-2 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shrink-0 space-y-1.5 sm:space-y-2.5 shadow-lg z-10">
@@ -4038,10 +3937,10 @@ export default function PublicPertandinganPage() {
                           <span
                             className={`shrink-0 px-1 py-0.2 rounded text-[9px] font-bold ${
                               selCat.gender === "MALE"
-                                ? "bg-blue-100 text-blue-700"
+                                ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
                                 : selCat.gender === "FEMALE"
-                                ? "bg-pink-100 text-pink-700"
-                                : "bg-purple-100 text-purple-700"
+                                ? "bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300"
+                                : "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300"
                             }`}
                           >
                             {selCat.gender === "MALE" ? "PUTRA" : selCat.gender === "FEMALE" ? "PUTRI" : "CAMPURAN"}
@@ -4055,7 +3954,7 @@ export default function PublicPertandinganPage() {
                             </span>
                           ) : (
                             <span className="text-amber-600 dark:text-amber-400 text-[10px] sm:text-xs font-semibold flex items-center gap-1">
-                              <EyeOff className="w-3 h-3" /> Rp {selCat.fee.toLocaleString("id-ID")}
+                              <EyeOff className="w-3.5 h-3.5 shrink-0" /> Biaya Disembunyikan
                             </span>
                           )}
                         </div>

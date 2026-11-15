@@ -434,7 +434,6 @@ export default function AdminPertandinganPage({
     setShowSuggestDropdown(false);
     setRegKindFilter("ALL");
     setRegSearchQuery("");
-    setRegDivisionFilter("ALL");
 
     let calcAge: number | null = null;
     if (athlete.birthDate) {
@@ -448,6 +447,19 @@ export default function AdminPertandinganPage({
         }
       }
     }
+
+    // Cek apakah ada divisi yang sinkron dengan usia / tanggal lahir atlet
+    const hasSyncDivision = categories.some((c) => {
+      const meta = getCategoryDivisionMeta(c);
+      return (
+        isBirthDateInRange(athlete.birthDate, meta.minBirthDate, meta.maxBirthDate) ||
+        isAgeInRange(calcAge, meta.minAge, meta.maxAge)
+      );
+    });
+
+    // Otomatis aktifkan filter "MATCHING" jika ada divisi yang sinkron agar hanya menampilkan divisi yang cocok!
+    setRegDivisionFilter(hasSyncDivision ? "MATCHING" : "ALL");
+    setRegCategoryGenderFilter("MATCHING");
 
     // 1. Cari kategori yang OTOMATIS SINKRON dengan gender DAN tanggal lahir / usia atlet
     let bestCat = categories.find((c) => {
@@ -466,10 +478,8 @@ export default function AdminPertandinganPage({
 
     if (bestCat) {
       setSelectedRegCategoryId(bestCat.id);
-      setRegCategoryGenderFilter("MATCHING");
     } else if (categories.length > 0) {
       setSelectedRegCategoryId(categories[0].id);
-      setRegCategoryGenderFilter("ALL");
     } else {
       setSelectedRegCategoryId("");
     }
@@ -1201,6 +1211,29 @@ export default function AdminPertandinganPage({
 
   const activeEvent = events.find(e => e.id === selectedEventId);
 
+  // Helper batas pendaftaran & status penutupan event (sinkron dengan endDate admin jika registrationCloseAt kosong)
+  const getEventDeadline = (event?: EventItem | null) => {
+    if (!event) return null;
+    if (event.registrationCloseAt) {
+      const d = new Date(event.registrationCloseAt);
+      const isClosed = !isNaN(d.getTime()) && Date.now() > d.getTime();
+      return {
+        date: d,
+        isClosed,
+      };
+    }
+    if (event.endDate) {
+      const raw = typeof event.endDate === "string" ? event.endDate.split("T")[0] : "";
+      const d = raw ? new Date(`${raw}T23:59:59`) : new Date(event.endDate);
+      const isClosed = !isNaN(d.getTime()) && Date.now() > d.getTime();
+      return {
+        date: d,
+        isClosed,
+      };
+    }
+    return null;
+  };
+
   return (
     <div className="p-3 sm:p-4 md:p-6 space-y-4 md:space-y-6 w-full max-w-[1600px] mx-auto">
       {/* Top Header */}
@@ -1471,29 +1504,26 @@ export default function AdminPertandinganPage({
                 <Archive className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                 Diarsipkan
               </span>
-            ) : (
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${
-                  !activeEvent.registrationCloseAt ||
-                  new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
-                    : "bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
-                }`}
-              >
+            ) : (() => {
+              const deadline = getEventDeadline(activeEvent);
+              const isClosed = deadline?.isClosed ?? false;
+              return (
                 <span
-                  className={`w-2 h-2 rounded-full ${
-                    !activeEvent.registrationCloseAt ||
-                    new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
-                      ? "bg-emerald-500 animate-pulse"
-                      : "bg-red-500"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${
+                    !isClosed
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+                      : "bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
                   }`}
-                />
-                {!activeEvent.registrationCloseAt ||
-                new Date().getTime() <= new Date(activeEvent.registrationCloseAt).getTime()
-                  ? "Pendaftaran Terbuka"
-                  : "Pendaftaran Ditutup"}
-              </span>
-            )
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      !isClosed ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+                    }`}
+                  />
+                  {!isClosed ? "Pendaftaran Terbuka" : "Pendaftaran Ditutup"}
+                </span>
+              );
+            })()
           )}
 
           {activeEvent && (
@@ -1658,7 +1688,7 @@ export default function AdminPertandinganPage({
             <div className="relative w-full sm:w-72 lg:w-96 group">
               <div className="flex items-center gap-1.5 mb-1">
                 <span className="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1">
-                  <UserPlus className="w-3 h-3 text-red-600" /> Cari & Daftarkan Anggota
+                  <UserPlus className="w-3 h-3 text-red-600 dark:text-red-400" /> Cari & Daftarkan Anggota
                 </span>
                 <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
                   (Ketik Nama / NIA)
@@ -1674,7 +1704,7 @@ export default function AdminPertandinganPage({
                   onFocus={() => {
                     if (memberSuggestions.length > 0) setShowSuggestDropdown(true);
                   }}
-                  className="w-full pl-9 pr-8 py-2 bg-white dark:bg-zinc-850 border-2 border-red-500/60 dark:border-red-500/70 rounded-xl text-xs md:text-sm font-semibold text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 placeholder:font-normal focus:outline-hidden focus:border-red-600"
+                  className="w-full pl-9 pr-8 py-2 bg-white dark:bg-zinc-800 border-2 border-red-500/60 dark:border-red-500/70 rounded-xl text-xs md:text-sm font-semibold text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 placeholder:font-normal focus:outline-hidden focus:border-red-600"
                 />
                 {search && (
                   <button
@@ -2535,7 +2565,7 @@ export default function AdminPertandinganPage({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Tanggal Mulai *</label>
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Tanggal Pelaksanaan *</label>
                   <input
                     type="date"
                     required
@@ -2545,7 +2575,7 @@ export default function AdminPertandinganPage({
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Tanggal Selesai *</label>
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Batas pendaftan *</label>
                   <input
                     type="date"
                     required
@@ -3245,7 +3275,7 @@ export default function AdminPertandinganPage({
             </div>
 
             {/* Profil Singkat Atlet & Bar Penapisan Cepat */}
-            <div className="px-3 py-2 sm:px-5 sm:py-3 bg-zinc-50 dark:bg-zinc-850 border-b border-zinc-200 dark:border-zinc-800 space-y-1.5 sm:space-y-2 shrink-0">
+            <div className="px-3 py-2 sm:px-5 sm:py-3 bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-800 space-y-1.5 sm:space-y-2 shrink-0">
               {/* Info Atlet & Dojo */}
               <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -3283,10 +3313,10 @@ export default function AdminPertandinganPage({
 
               {/* Baris Tanggal Lahir & Sinkronisasi Divisi Otomatis */}
               {selectedAthleteForReg.birthDate && (
-                <div className="flex items-center justify-between gap-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-lg px-2 py-1 text-[10px] sm:text-[11px] text-amber-950 dark:text-amber-200">
-                  <span className="truncate">
-                    Lahir:{" "}
-                    <strong className="text-zinc-900 dark:text-zinc-100 font-bold">
+                <div className="flex items-center justify-between gap-1.5 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-700/60 rounded-lg px-2 sm:px-2.5 py-1 text-[10px] sm:text-[11px]">
+                  <span className="truncate flex items-center gap-1">
+                    <span className="text-amber-800 dark:text-amber-300 font-semibold">Lahir:</span>
+                    <strong className="font-bold text-zinc-900 dark:text-white">
                       {new Date(selectedAthleteForReg.birthDate).toLocaleDateString("id-ID", {
                         day: "numeric",
                         month: "short",
@@ -3294,14 +3324,15 @@ export default function AdminPertandinganPage({
                       })}
                     </strong>
                     {athleteAge !== null && (
-                      <span className="ml-1 text-amber-700 dark:text-amber-300 font-bold">
+                      <span className="ml-0.5 text-amber-700 dark:text-amber-300 font-bold">
                         ({athleteAge} Thn)
                       </span>
                     )}
                   </span>
                   {matchedDivisionName && (
-                    <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-500 text-zinc-950 rounded text-[9px] font-black uppercase tracking-wide shadow-xs">
-                      <CheckCircle className="w-2.5 h-2.5 text-zinc-950" /> Sinkron: {matchedDivisionName}
+                    <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-500 dark:bg-amber-400 text-zinc-950 rounded text-[9px] font-black uppercase tracking-wide shadow-xs">
+                      <CheckCircle className="w-2.5 h-2.5 text-zinc-950" />
+                      <span>Sinkron: {matchedDivisionName}</span>
                     </span>
                   )}
                 </div>
@@ -3309,43 +3340,45 @@ export default function AdminPertandinganPage({
 
               {/* Toolbar Penapisan Bagan: Rapi & Hemat Ruang di Mobile */}
               <div className="space-y-1.5 pt-1 border-t border-zinc-200/60 dark:border-zinc-800">
-                {/* Baris 1 Toolbar: Pilihan Tampilan Bagan & Filter Divisi */}
+                {/* Baris 1 Toolbar: Status Deteksi Gender Otomatis & Filter Divisi */}
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setRegCategoryGenderFilter("MATCHING")}
-                    className={`shrink-0 px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold cursor-pointer transition ${
-                      regCategoryGenderFilter === "MATCHING"
-                        ? "bg-red-600 text-white shadow-xs"
-                        : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100"
+                  {/* Badge Deteksi Jenis Kelamin Otomatis */}
+                  <span
+                    className={`shrink-0 px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold flex items-center gap-1 ${
+                      selectedAthleteForReg.gender === "MALE"
+                        ? "bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 border border-blue-200 dark:border-blue-900/50"
+                        : "bg-pink-100 text-pink-800 dark:bg-pink-950/70 dark:text-pink-300 border border-pink-200 dark:border-pink-900/50"
                     }`}
                   >
-                    Sesuai Gender ({selectedAthleteForReg.gender === "MALE" ? "Putra" : "Putri"})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRegCategoryGenderFilter("ALL")}
-                    className={`shrink-0 px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold cursor-pointer transition ${
-                      regCategoryGenderFilter === "ALL"
-                        ? "bg-amber-500 text-zinc-950 shadow-xs font-black"
-                        : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100"
-                    }`}
-                  >
-                    Bagan Lengkap
-                  </button>
+                    <span>Nomor {selectedAthleteForReg.gender === "MALE" ? "Putra" : "Putri"} (Otomatis)</span>
+                  </span>
+
                   {matchedDivisionName && (
-                    <button
-                      type="button"
-                      onClick={() => setRegDivisionFilter(regDivisionFilter === "MATCHING" ? "ALL" : "MATCHING")}
-                      className={`shrink-0 px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold cursor-pointer transition flex items-center gap-1 ${
-                        regDivisionFilter === "MATCHING"
-                          ? "bg-amber-500 text-zinc-950 font-black shadow-xs ring-2 ring-amber-400/50"
-                          : "bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100"
-                      }`}
-                    >
-                      <Sparkles className="w-2.5 h-2.5 text-amber-500" />
-                      {regDivisionFilter === "MATCHING" ? `Hanya Sinkron` : `Semua Divisi`}
-                    </button>
+                    <div className="shrink-0 flex items-center bg-white dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-[10px] sm:text-xs font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setRegDivisionFilter("MATCHING")}
+                        className={`px-2 py-0.5 rounded-md transition cursor-pointer flex items-center gap-1 ${
+                          regDivisionFilter === "MATCHING"
+                            ? "bg-amber-500 text-zinc-950 font-bold shadow-xs"
+                            : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                        }`}
+                      >
+                        <Sparkles className="w-2.5 h-2.5" />
+                        Hanya {matchedDivisionName}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRegDivisionFilter("ALL")}
+                        className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                          regDivisionFilter === "ALL"
+                            ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-bold"
+                            : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                        }`}
+                      >
+                        Semua Divisi
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -3358,7 +3391,7 @@ export default function AdminPertandinganPage({
                       className={`px-1.5 sm:px-2 py-0.5 rounded-md transition cursor-pointer ${
                         regKindFilter === "ALL"
                           ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900"
+                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
                       }`}
                     >
                       Semua
@@ -3369,7 +3402,7 @@ export default function AdminPertandinganPage({
                       className={`px-1.5 sm:px-2 py-0.5 rounded-md transition cursor-pointer ${
                         regKindFilter === "KATA"
                           ? "bg-amber-500 text-zinc-950 font-bold"
-                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900"
+                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
                       }`}
                     >
                       KATA
@@ -3380,7 +3413,7 @@ export default function AdminPertandinganPage({
                       className={`px-1.5 sm:px-2 py-0.5 rounded-md transition cursor-pointer ${
                         regKindFilter === "KUMITE"
                           ? "bg-red-600 text-white font-bold"
-                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900"
+                          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
                       }`}
                     >
                       KUMITE
@@ -3395,7 +3428,7 @@ export default function AdminPertandinganPage({
                       placeholder="Cari kelas/nomor..."
                       value={regSearchQuery}
                       onChange={(e) => setRegSearchQuery(e.target.value)}
-                      className="w-full pl-6 sm:pl-7 pr-6 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[10px] sm:text-xs focus:ring-1 focus:ring-red-500"
+                      className="w-full pl-6 sm:pl-7 pr-6 py-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-[10px] sm:text-xs text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-hidden focus:ring-1 focus:ring-red-500"
                     />
                     {regSearchQuery && (
                       <button
@@ -3413,87 +3446,101 @@ export default function AdminPertandinganPage({
 
             {/* Badan Bagan Kelas Pertandingan (Tinggal Klik) */}
             <div className="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-4 space-y-2.5 sm:space-y-4 bg-zinc-100/60 dark:bg-zinc-950">
-              {regDivisionGroups.length === 0 ? (
-                <div className="py-8 text-center text-zinc-500 text-xs sm:text-sm bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 space-y-2">
-                  <Swords className="w-7 h-7 text-zinc-400 mx-auto" />
-                  <p className="font-semibold text-zinc-700 dark:text-zinc-300">
-                    Tidak ada kelas pertandingan yang sesuai dengan filter atau pencarian.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRegKindFilter("ALL");
-                      setRegSearchQuery("");
-                      setRegCategoryGenderFilter("ALL");
-                    }}
-                    className="text-red-600 dark:text-red-400 font-bold hover:underline text-xs cursor-pointer"
-                  >
-                    Reset Filter Pencarian
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                  {regDivisionGroups
-                    .filter((group) => {
-                      if (regDivisionFilter === "MATCHING" && matchedDivisionName) {
-                        return group.divisionName === matchedDivisionName;
-                      }
-                      return true;
-                    })
-                    .map((group) => {
+              {(() => {
+                const isAthleteMale = selectedAthleteForReg.gender === "MALE";
+                const filteredGroups = regDivisionGroups.filter((group) => {
+                  if (regDivisionFilter === "MATCHING" && matchedDivisionName) {
                     const isBirthDateMatch = isBirthDateInRange(
                       selectedAthleteForReg.birthDate,
                       group.minBirthDate,
                       group.maxBirthDate
                     );
                     const isAgeMatch = isAgeInRange(athleteAge, group.minAge, group.maxAge);
-                    const isDateOrAgeMatch = isBirthDateMatch || isAgeMatch;
+                    return group.divisionName === matchedDivisionName || isBirthDateMatch || isAgeMatch;
+                  }
+                  return true;
+                });
 
-                    const isMatchingMode = regCategoryGenderFilter === "MATCHING";
-                    const isAthleteMale = selectedAthleteForReg.gender === "MALE";
-                    const singleList = isAthleteMale ? group.maleList : group.femaleList;
-                    const maxRows = Math.max(group.maleList.length, group.femaleList.length, 1);
-
-                    return (
-                      <div
-                        key={group.key}
-                        className={`rounded-2xl overflow-hidden shadow-sm bg-white dark:bg-zinc-900 border transition ${
-                          isDateOrAgeMatch
-                            ? "border-amber-400 dark:border-amber-500/80 ring-2 ring-amber-400/30"
-                            : "border-zinc-200 dark:border-zinc-800"
-                        }`}
+                if (filteredGroups.length === 0) {
+                  return (
+                    <div className="py-8 text-center text-zinc-500 text-xs sm:text-sm bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 space-y-2">
+                      <Swords className="w-7 h-7 text-zinc-400 mx-auto" />
+                      <p className="font-semibold text-zinc-700 dark:text-zinc-300">
+                        Tidak ada kelas pertandingan yang sesuai dengan filter atau pencarian.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRegDivisionFilter("ALL");
+                          setRegKindFilter("ALL");
+                          setRegSearchQuery("");
+                        }}
+                        className="text-red-600 dark:text-red-400 font-bold hover:underline text-xs cursor-pointer"
                       >
-                        {/* Header Divisi Emas / Kuning Emas */}
-                        <div className="bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-zinc-950 py-1.5 px-2.5 sm:py-2 sm:px-3 shadow-xs flex items-center justify-between">
-                          <h4 className="font-black text-xs sm:text-sm tracking-wide uppercase">
-                            {group.divisionName} ({group.ageLabel})
-                          </h4>
-                          {isDateOrAgeMatch && (
-                            <span className="text-[9px] sm:text-[10px] font-black bg-zinc-950 text-amber-300 px-1.5 sm:px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs border border-amber-400/40">
-                              <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 animate-pulse" /> Sesuai
-                            </span>
-                          )}
-                        </div>
+                        Tampilkan Semua Divisi
+                      </button>
+                    </div>
+                  );
+                }
 
-                        {/* Subheader Tanggal Lahir Kelahiran (Otomatis Sinkron dengan Tgl Lahir Atlet) */}
-                        <div
-                          className={`text-center text-[9px] sm:text-[11px] font-semibold py-1 px-2 border-b flex items-center justify-center gap-1.5 transition ${
-                            isDateOrAgeMatch
-                              ? "bg-amber-950 text-amber-200 border-amber-600/60 shadow-inner"
-                              : "bg-zinc-950 text-zinc-300 border-zinc-800"
-                          }`}
-                        >
-                          <span className="truncate">{group.birthDateLabel}</span>
-                          {isBirthDateMatch && (
-                            <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.2 bg-emerald-500 text-white rounded text-[8px] sm:text-[9px] font-black uppercase tracking-wider shadow-xs">
-                              <CheckCircle className="w-2.5 h-2.5" /> Sinkron
-                            </span>
-                          )}
-                        </div>
+                return (
+                  <div className="space-y-3 sm:space-y-4">
+                    <div
+                      className={`grid grid-cols-1 ${
+                        filteredGroups.length > 1 ? "md:grid-cols-2" : "max-w-2xl mx-auto"
+                      } gap-3 sm:gap-4`}
+                    >
+                      {filteredGroups.map((group) => {
+                        const isBirthDateMatch = isBirthDateInRange(
+                          selectedAthleteForReg.birthDate,
+                          group.minBirthDate,
+                          group.maxBirthDate
+                        );
+                        const isAgeMatch = isAgeInRange(athleteAge, group.minAge, group.maxAge);
+                        const isDateOrAgeMatch = isBirthDateMatch || isAgeMatch;
 
-                        {/* Tampilan Mode 1: Sesuai Gender Atlet */}
-                        {isMatchingMode ? (
-                          <div className="p-2 sm:p-3 space-y-1.5 sm:space-y-2">
+                        // Otomatis deteksi jenis kelamin: tampilkan HANYA nomor sesuai gender atlet + campuran
+                        const singleList = isAthleteMale ? group.maleList : group.femaleList;
+
+                        return (
+                          <div
+                            key={group.key}
+                            className={`rounded-2xl overflow-hidden shadow-sm bg-white dark:bg-zinc-900 border transition ${
+                              isDateOrAgeMatch
+                                ? "border-amber-400 dark:border-amber-500/80 ring-2 ring-amber-400/30"
+                                : "border-zinc-200 dark:border-zinc-800"
+                            }`}
+                          >
+                            {/* Header Divisi Emas / Kuning Emas */}
+                            <div className="bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-zinc-950 py-1.5 px-2.5 sm:py-2 sm:px-3 shadow-xs flex items-center justify-between">
+                              <h4 className="font-black text-xs sm:text-sm tracking-wide uppercase">
+                                {group.divisionName} ({group.ageLabel})
+                              </h4>
+                              {isDateOrAgeMatch && (
+                                <span className="text-[9px] sm:text-[10px] font-black bg-zinc-950 text-amber-300 px-1.5 sm:px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs border border-amber-400/40">
+                                  <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-400 animate-pulse" /> Sesuai
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Subheader Tanggal Lahir Kelahiran (Otomatis Sinkron dengan Tgl Lahir Atlet) */}
+                            <div
+                              className={`text-center text-[9px] sm:text-[11px] font-semibold py-1 px-2 border-b flex items-center justify-center gap-1.5 transition ${
+                                isDateOrAgeMatch
+                                  ? "bg-amber-950 text-amber-200 border-amber-600/60 shadow-inner"
+                                  : "bg-zinc-950 text-zinc-300 border-zinc-800"
+                              }`}
+                            >
+                              <span className="truncate">{group.birthDateLabel}</span>
+                              {isBirthDateMatch && (
+                                <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.2 bg-emerald-500 text-white rounded text-[8px] sm:text-[9px] font-black uppercase tracking-wider shadow-xs">
+                                  <CheckCircle className="w-2.5 h-2.5" /> Sinkron
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Tampilan Nomor Pertandingan Sesuai Gender Atlet */}
+                            <div className="p-2 sm:p-3 space-y-1.5 sm:space-y-2">
                             <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-bold text-zinc-600 dark:text-zinc-400 pb-1 border-b border-zinc-100 dark:border-zinc-800">
                               <span>Nomor Pertandingan ({isAthleteMale ? "Putra" : "Putri"})</span>
                               <span className="text-[9px] sm:text-[10px] text-zinc-400">Klik untuk memilih</span>
@@ -3516,7 +3563,7 @@ export default function AdminPertandinganPage({
                                       className={`w-full text-left p-2 sm:p-2.5 rounded-xl border transition flex items-center justify-between gap-2 cursor-pointer ${
                                         isSelected
                                           ? "bg-red-600 text-white border-red-700 shadow-md ring-2 ring-red-400/60"
-                                          : "bg-zinc-50 dark:bg-zinc-800/80 hover:bg-amber-50 dark:hover:bg-zinc-750 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"
+                                          : "bg-zinc-50 dark:bg-zinc-800/80 hover:bg-amber-50 dark:hover:bg-zinc-700 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"
                                       }`}
                                     >
                                       <div className="min-w-0 flex-1">
@@ -3539,10 +3586,11 @@ export default function AdminPertandinganPage({
                                             <span
                                               className={
                                                 isSelected
-                                                  ? "text-red-200"
-                                                  : "text-amber-600 dark:text-amber-400 font-medium"
+                                                  ? "text-red-200 flex items-center gap-1"
+                                                  : "text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1"
                                               }
                                             >
+                                              <EyeOff className="w-3 h-3 shrink-0" />
                                               Biaya Disembunyikan
                                             </span>
                                           )}
@@ -3607,7 +3655,16 @@ export default function AdminPertandinganPage({
                                               Rp {cat.fee.toLocaleString("id-ID")}
                                             </span>
                                           ) : (
-                                            <span className="text-amber-600 text-[10px]">Biaya Disembunyikan</span>
+                                            <span
+                                              className={
+                                                isSelected
+                                                  ? "text-purple-200 text-[10px] flex items-center gap-1"
+                                                  : "text-amber-600 dark:text-amber-400 text-[10px] font-medium flex items-center gap-1"
+                                              }
+                                            >
+                                              <EyeOff className="w-3 h-3 shrink-0" />
+                                              Biaya Disembunyikan
+                                            </span>
                                           )}
                                         </div>
                                       </div>
@@ -3617,7 +3674,7 @@ export default function AdminPertandinganPage({
                                             ✓ TERPILIH
                                           </span>
                                         ) : (
-                                          <span className="px-1.5 sm:px-2 py-0.5 bg-white dark:bg-zinc-700 text-zinc-600 text-[9px] sm:text-[10px] font-semibold rounded-md">
+                                          <span className="px-1.5 sm:px-2 py-0.5 bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 text-[9px] sm:text-[10px] font-semibold rounded-md">
                                             PILIH
                                           </span>
                                         )}
@@ -3628,160 +3685,27 @@ export default function AdminPertandinganPage({
                               </div>
                             )}
                           </div>
-                        ) : (
-                          /* Tampilan Mode 2: Bagan Lengkap Dua Kolom (PUTRA & PUTRI Berdampingan) */
-                          <div>
-                            {/* Header Kolom Dua Bagian: PUTRA & PUTRI */}
-                            <div className="grid grid-cols-2 bg-zinc-900 text-zinc-100 border-b border-zinc-800 text-[10px] sm:text-xs font-black text-center">
-                              <div
-                                className={`py-1 sm:py-1.5 border-r border-zinc-800 tracking-wider flex items-center justify-center gap-1 ${
-                                  isAthleteMale ? "bg-amber-500/25 text-amber-300" : "text-zinc-300"
-                                }`}
-                              >
-                                <span>PUTRA</span>
-                                {isAthleteMale && <span className="text-[8px] sm:text-[9px] font-normal text-amber-400">★ Atlet</span>}
-                              </div>
-                              <div
-                                className={`py-1 sm:py-1.5 tracking-wider flex items-center justify-center gap-1 ${
-                                  !isAthleteMale ? "bg-amber-500/25 text-amber-300" : "text-zinc-300"
-                                }`}
-                              >
-                                <span>PUTRI</span>
-                                {!isAthleteMale && <span className="text-[8px] sm:text-[9px] font-normal text-amber-400">★ Atlet</span>}
-                              </div>
-                            </div>
+                        </div>
+                      );
+                    })}
+                  </div>
 
-                            {/* Daftar Sel Baris Per Baris */}
-                            <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                              {Array.from({ length: maxRows }).map((_, rIdx) => {
-                                const maleCat = group.maleList[rIdx];
-                                const femaleCat = group.femaleList[rIdx];
-
-                                return (
-                                  <div key={rIdx} className="grid grid-cols-2 divide-x divide-zinc-200 dark:divide-zinc-800">
-                                    {/* Sel Kolom Putra */}
-                                    <div className="p-1 sm:p-1.5 flex items-center justify-center">
-                                      {maleCat ? (
-                                        (() => {
-                                          const isSelected = selectedRegCategoryId === maleCat.id;
-                                          const nomorStr = formatEventNumberDisplay(maleCat.categoryType, maleCat.minWeight, maleCat.maxWeight);
-                                          return (
-                                            <button
-                                              type="button"
-                                              onClick={() => setSelectedRegCategoryId(maleCat.id)}
-                                              className={`w-full p-1.5 sm:p-2 rounded-xl border text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
-                                                isSelected
-                                                  ? "bg-red-600 text-white border-red-700 shadow-md ring-2 ring-red-400/60"
-                                                  : "bg-zinc-50 dark:bg-zinc-800/70 hover:bg-amber-50 dark:hover:bg-zinc-750 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"
-                                              }`}
-                                            >
-                                              <div className="flex items-center gap-1 font-black text-[10px] sm:text-[11px] uppercase tracking-tight">
-                                                {isSelected && <CheckCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white shrink-0" />}
-                                                <span className="truncate">{nomorStr}</span>
-                                              </div>
-                                              <div className="text-[9px] sm:text-[10px]">
-                                                {maleCat.isFeeVisible !== false ? (
-                                                  <span
-                                                    className={
-                                                      isSelected
-                                                        ? "text-red-100 font-semibold"
-                                                        : "text-emerald-600 dark:text-emerald-400 font-bold"
-                                                    }
-                                                  >
-                                                    Rp {maleCat.fee.toLocaleString("id-ID")}
-                                                  </span>
-                                                ) : (
-                                                  <span className="text-amber-600 text-[8px] sm:text-[9px]">Biaya Sembunyi</span>
-                                                )}
-                                              </div>
-                                            </button>
-                                          );
-                                        })()
-                                      ) : (
-                                        <span className="text-zinc-400 text-xs italic">-</span>
-                                      )}
-                                    </div>
-
-                                    {/* Sel Kolom Putri */}
-                                    <div className="p-1 sm:p-1.5 flex items-center justify-center">
-                                      {femaleCat ? (
-                                        (() => {
-                                          const isSelected = selectedRegCategoryId === femaleCat.id;
-                                          const nomorStr = formatEventNumberDisplay(femaleCat.categoryType, femaleCat.minWeight, femaleCat.maxWeight);
-                                          return (
-                                            <button
-                                              type="button"
-                                              onClick={() => setSelectedRegCategoryId(femaleCat.id)}
-                                              className={`w-full p-1.5 sm:p-2 rounded-xl border text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
-                                                isSelected
-                                                  ? "bg-red-600 text-white border-red-700 shadow-md ring-2 ring-red-400/60"
-                                                  : "bg-zinc-50 dark:bg-zinc-800/70 hover:bg-amber-50 dark:hover:bg-zinc-750 border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100"
-                                              }`}
-                                            >
-                                              <div className="flex items-center gap-1 font-black text-[10px] sm:text-[11px] uppercase tracking-tight">
-                                                {isSelected && <CheckCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white shrink-0" />}
-                                                <span className="truncate">{nomorStr}</span>
-                                              </div>
-                                              <div className="text-[9px] sm:text-[10px]">
-                                                {femaleCat.isFeeVisible !== false ? (
-                                                  <span
-                                                    className={
-                                                      isSelected
-                                                        ? "text-red-100 font-semibold"
-                                                        : "text-emerald-600 dark:text-emerald-400 font-bold"
-                                                    }
-                                                  >
-                                                    Rp {femaleCat.fee.toLocaleString("id-ID")}
-                                                  </span>
-                                                ) : (
-                                                  <span className="text-amber-600 text-[8px] sm:text-[9px]">Biaya Sembunyi</span>
-                                                )}
-                                              </div>
-                                            </button>
-                                          );
-                                        })()
-                                      ) : (
-                                        <span className="text-zinc-400 text-xs italic">-</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-
-                              {/* Baris Campuran jika ada */}
-                              {group.mixedList.map((cat) => {
-                                const isSelected = selectedRegCategoryId === cat.id;
-                                const nomorStr = formatEventNumberDisplay(cat.categoryType, cat.minWeight, cat.maxWeight);
-                                return (
-                                  <div key={cat.id} className="p-1 sm:p-1.5 bg-purple-50/40 dark:bg-purple-950/20">
-                                    <button
-                                      type="button"
-                                      onClick={() => setSelectedRegCategoryId(cat.id)}
-                                      className={`w-full p-1.5 sm:p-2 rounded-xl border text-center transition flex items-center justify-center gap-2 cursor-pointer ${
-                                        isSelected
-                                          ? "bg-purple-600 text-white border-purple-700 shadow-md"
-                                          : "bg-white dark:bg-zinc-800 border-purple-200 dark:border-purple-900/60 text-zinc-900 dark:text-zinc-100"
-                                      }`}
-                                    >
-                                      <span className="font-bold text-xs uppercase">{nomorStr} (Campuran)</span>
-                                      {cat.isFeeVisible !== false && (
-                                        <span className={isSelected ? "text-purple-100 text-xs" : "text-emerald-600 text-xs font-bold"}>
-                                          Rp {cat.fee.toLocaleString("id-ID")}
-                                        </span>
-                                      )}
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {/* Pintasan Buka Semua Divisi jika sedang filter MATCHING */}
+                  {regDivisionFilter === "MATCHING" && matchedDivisionName && regDivisionGroups.length > 1 && (
+                    <div className="text-center pt-1 pb-2">
+                      <button
+                        type="button"
+                        onClick={() => setRegDivisionFilter("ALL")}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 hover:underline cursor-pointer"
+                      >
+                        <span>Ingin mendaftar di kelompok usia lain? Klik untuk tampilkan semua divisi ({regDivisionGroups.length})</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
+          </div>
 
             {/* Bottom Bar: Pratinjau Terpilih & Tombol Konfirmasi (Batas Bawah Tegas) */}
             <form onSubmit={handleSubmitAthleteRegistration} className="p-2 sm:p-3.5 border-t-2 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shrink-0 space-y-1.5 sm:space-y-2.5 shadow-lg z-10">
@@ -3824,7 +3748,7 @@ export default function AdminPertandinganPage({
                             </span>
                           ) : (
                             <span className="text-amber-600 dark:text-amber-400 text-[10px] sm:text-xs font-semibold flex items-center gap-1">
-                              <EyeOff className="w-3 h-3" /> Rp {selCat.fee.toLocaleString("id-ID")}
+                              <EyeOff className="w-3.5 h-3.5 shrink-0" /> Biaya Disembunyikan
                             </span>
                           )}
                         </div>
