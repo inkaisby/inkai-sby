@@ -48,9 +48,11 @@ export async function POST(request: Request) {
         const d = new Date(eventObjCheck.registrationCloseAt);
         isClosed = !isNaN(d.getTime()) && Date.now() > d.getTime();
       } else if (eventObjCheck.endDate) {
-        const raw = typeof eventObjCheck.endDate === "string" ? eventObjCheck.endDate.split("T")[0] : "";
-        const d = raw ? new Date(`${raw}T23:59:59`) : new Date(eventObjCheck.endDate);
-        isClosed = !isNaN(d.getTime()) && Date.now() > d.getTime();
+        const d = new Date(eventObjCheck.endDate);
+        if (!isNaN(d.getTime())) {
+          d.setHours(23, 59, 59, 999);
+          isClosed = Date.now() > d.getTime();
+        }
       }
 
       if (isClosed) {
