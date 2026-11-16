@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { formatRankLabel } from "@/lib/belt";
+import { normalizeAthleteGender } from "@/lib/tournament-category-presets";
 
 export const dynamic = "force-dynamic";
 
@@ -78,12 +79,12 @@ export async function GET(request: Request) {
         dojoId: m.dojo?.id || null,
         dojoName: m.dojo?.name || "Dojo Mandiri",
         currentRank: formatRankLabel(m.currentRank) || m.currentRank || "Putih",
-        gender: m.gender || "MALE",
+        gender: normalizeAthleteGender(m.gender, m.fullName),
         birthDate: m.birthDate ? m.birthDate.toISOString().split("T")[0] : "",
         isRegistered: registeredMemberIds.has(m.id),
       })),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("GET /api/admin/pertandingan/suggest error:", error);
     return NextResponse.json({ suggestions: [] });
   }

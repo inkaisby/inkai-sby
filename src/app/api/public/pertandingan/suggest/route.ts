@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { formatRankLabel } from "@/lib/belt";
+import { normalizeAthleteGender } from "@/lib/tournament-category-presets";
 import { rateLimitAsync, rateLimitResponse } from "@/lib/security/rate-limit";
 import { getClientIp } from "@/lib/security/request";
 
@@ -88,7 +89,7 @@ export async function GET(request: Request) {
         dojoId: m.dojo?.id || null,
         dojoName: m.dojo?.name || "Dojo Mandiri / Tamu",
         currentRank: formatRankLabel(m.currentRank) || m.currentRank || "Putih (Kyu 10)",
-        gender: m.gender || "MALE",
+        gender: normalizeAthleteGender(m.gender, m.fullName),
         birthDate: m.birthDate ? m.birthDate.toISOString().split("T")[0] : "",
         birthPlace: m.birthPlace || "",
         phone: m.user?.phoneNumber || "",
@@ -98,7 +99,7 @@ export async function GET(request: Request) {
         isRegistered: registeredMemberIds.has(m.id),
       })),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("GET /api/public/pertandingan/suggest error:", error);
     return NextResponse.json({ suggestions: [] });
   }

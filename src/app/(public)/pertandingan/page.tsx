@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { showError, showSuccess } from "@/lib/client-toast";
@@ -61,6 +61,8 @@ import {
   getEventNumberDisplay,
   isBirthDateInRange,
   isAgeInRange,
+  isMaleAthlete,
+  normalizeAthleteGender,
 } from "@/lib/tournament-category-presets";
 import { DEFAULT_ADMIN_WA, getAdminWaPhone } from "@/lib/site";
 import { exportTournamentRosterToExcel } from "@/lib/tournament-excel-export";
@@ -167,6 +169,70 @@ export default function PublicPertandinganPage() {
   const [summary, setSummary] = useState<any>({});
   const [loading, setLoading] = useState(true);
 
+  const activeEvent = useMemo(() => events.find((e) => e.id === selectedEventId), [events, selectedEventId]);
+
+  // Helper batas pendaftaran & status penutupan event (sinkron dengan endDate admin jika registrationCloseAt kosong)
+  const getEventDeadline = useCallback((event?: EventItem | null) => {
+    if (!event) return null;
+    if (event.registrationCloseAt) {
+      const d = new Date(event.registrationCloseAt);
+      const isClosed = !isNaN(d.getTime()) && Date.now() > d.getTime();
+      return {
+        date: d,
+        isClosed,
+        dateFormatted: !isNaN(d.getTime())
+          ? d.toLocaleDateString("id-ID", {
+              weekday: "long",
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })
+          : "",
+        shortDateFormatted: !isNaN(d.getTime())
+          ? d.toLocaleDateString("id-ID", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "",
+        timeFormatted: !isNaN(d.getTime())
+          ? "Pukul " +
+            d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }).replace(".", ":") +
+            " WIB"
+          : "",
+      };
+    }
+    if (event.endDate) {
+      const raw = typeof event.endDate === "string" ? event.endDate.split("T")[0] : "";
+      const d = raw ? new Date(`${raw}T23:59:59`) : new Date(event.endDate);
+      const isClosed = !isNaN(d.getTime()) && Date.now() > d.getTime();
+      return {
+        date: d,
+        isClosed,
+        dateFormatted: !isNaN(d.getTime())
+          ? d.toLocaleDateString("id-ID", {
+              weekday: "long",
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })
+          : "",
+        shortDateFormatted: !isNaN(d.getTime())
+          ? d.toLocaleDateString("id-ID", {
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            })
+          : "",
+        timeFormatted: "Pukul 23:59 WIB",
+      };
+    }
+    return null;
+  }, []);
+
+  const activeDeadline = useMemo(() => getEventDeadline(activeEvent), [activeEvent, getEventDeadline]);
+  const isRegistrationClosed = activeDeadline?.isClosed ?? false;
+
   // Filters & Modals
   const [search, setSearch] = useState("");
   const [selectedDojoName, setSelectedDojoName] = useState("");
@@ -241,7 +307,7 @@ export default function PublicPertandinganPage() {
   }, [selectedAthleteForReg?.birthDate]);
 
   useEffect(() => {
-    if (search.trim().length < 2) {
+    if (isRegistrationClosed || search.trim().length < 2) {
       setMemberSuggestions([]);
       setShowSuggestDropdown(false);
       return;
@@ -260,7 +326,7 @@ export default function PublicPertandinganPage() {
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [search, selectedEventId]);
+  }, [search, selectedEventId, isRegistrationClosed]);
 
   // Click outside to close suggestion dropdown
   useEffect(() => {
@@ -282,13 +348,20 @@ export default function PublicPertandinganPage() {
       showError("Kejuaraan ini telah diarsipkan dan tidak lagi menerima pendaftaran baru.");
       return;
     }
+    if (isRegistrationClosed) {
+      showError("Pendaftaran kejuaraan ini telah resmi ditutup.");
+      return;
+    }
     const categories = activeEvent?.tournamentCategories || [];
     if (categories.length === 0) {
       showError("Belum ada kategori kelas pertandingan pada kejuaraan ini.");
       return;
     }
 
-    setSelectedAthleteForReg(athlete);
+    const normalizedGender = normalizeAthleteGender(athlete.gender, athlete.fullName);
+    const normalizedAthlete = { ...athlete, gender: normalizedGender };
+
+    setSelectedAthleteForReg(normalizedAthlete);
     setShowSuggestDropdown(false);
     setRegKindFilter("ALL");
     setRegSearchQuery("");
@@ -321,7 +394,7 @@ export default function PublicPertandinganPage() {
 
     // Cari kategori yang OTOMATIS SINKRON dengan gender DAN tanggal lahir / usia atlet
     let bestCat = categories.find((c) => {
-      const gMatch = c.gender === athlete.gender || c.gender === "MIXED";
+      const gMatch = c.gender === normalizedGender || c.gender === "MIXED";
       if (!gMatch) return false;
       const meta = getCategoryDivisionMeta(c);
       const dateMatch = isBirthDateInRange(athlete.birthDate, meta.minBirthDate, meta.maxBirthDate);
@@ -330,7 +403,7 @@ export default function PublicPertandinganPage() {
     });
 
     if (!bestCat) {
-      bestCat = categories.find((c) => c.gender === athlete.gender || c.gender === "MIXED");
+      bestCat = categories.find((c) => c.gender === normalizedGender || c.gender === "MIXED");
     }
 
     if (bestCat) {
@@ -348,6 +421,10 @@ export default function PublicPertandinganPage() {
     }
     if (activeEvent?.isArchived) {
       showError("Kejuaraan ini telah diarsipkan dan tidak lagi menerima pendaftaran baru.");
+      return;
+    }
+    if (isRegistrationClosed) {
+      showError("Pendaftaran kejuaraan ini telah resmi ditutup.");
       return;
     }
 
@@ -548,67 +625,6 @@ export default function PublicPertandinganPage() {
   useEffect(() => {
     fetchPublicData();
   }, [selectedEventId, search]);
-
-  const activeEvent = events.find((e) => e.id === selectedEventId);
-
-  // Helper batas pendaftaran & status penutupan event (sinkron dengan endDate admin jika registrationCloseAt kosong)
-  const getEventDeadline = (event?: EventItem | null) => {
-    if (!event) return null;
-    if (event.registrationCloseAt) {
-      const d = new Date(event.registrationCloseAt);
-      const isClosed = !isNaN(d.getTime()) && Date.now() > d.getTime();
-      return {
-        date: d,
-        isClosed,
-        dateFormatted: !isNaN(d.getTime())
-          ? d.toLocaleDateString("id-ID", {
-              weekday: "long",
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            })
-          : "",
-        shortDateFormatted: !isNaN(d.getTime())
-          ? d.toLocaleDateString("id-ID", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : "",
-        timeFormatted: !isNaN(d.getTime())
-          ? "Pukul " +
-            d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }).replace(".", ":") +
-            " WIB"
-          : "",
-      };
-    }
-    if (event.endDate) {
-      const raw = typeof event.endDate === "string" ? event.endDate.split("T")[0] : "";
-      const d = raw ? new Date(`${raw}T23:59:59`) : new Date(event.endDate);
-      const isClosed = !isNaN(d.getTime()) && Date.now() > d.getTime();
-      return {
-        date: d,
-        isClosed,
-        dateFormatted: !isNaN(d.getTime())
-          ? d.toLocaleDateString("id-ID", {
-              weekday: "long",
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            })
-          : "",
-        shortDateFormatted: !isNaN(d.getTime())
-          ? d.toLocaleDateString("id-ID", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : "",
-        timeFormatted: "Pukul 23:59 WIB",
-      };
-    }
-    return null;
-  };
 
   // Kelompokkan Kategori untuk Tampilan Bagan Matriks Interaktif
   const regDivisionGroups = useMemo(() => {
@@ -991,6 +1007,10 @@ export default function PublicPertandinganPage() {
       setGuestError("Kejuaraan ini telah diarsipkan dan tidak lagi menerima pendaftaran baru.");
       return;
     }
+    if (isRegistrationClosed) {
+      setGuestError("Pendaftaran kejuaraan ini telah resmi ditutup.");
+      return;
+    }
     if (!guestForm.fullName || !guestForm.birthDate || !guestForm.categoryId) {
       setGuestError("Mohon lengkapi Nama Lengkap, Tanggal Lahir, dan Pilih Kategori Pertandingan.");
       return;
@@ -1118,11 +1138,18 @@ export default function PublicPertandinganPage() {
 
   const filteredRegistrations = useMemo(() => {
     return registrations.filter((r) => {
-      if (selectedDojoName && r.dojo.name !== selectedDojoName) return false;
-      if (selectedCategoryName && r.category.name !== selectedCategoryName) return false;
+      if (selectedDojoName && r.dojo?.name !== selectedDojoName) return false;
+      if (selectedCategoryName && r.category?.name !== selectedCategoryName) return false;
+      if (search && search.trim()) {
+        const q = search.toLowerCase().trim();
+        const nameMatch = r.member?.fullName?.toLowerCase().includes(q);
+        const niaMatch = r.member?.nia?.toLowerCase().includes(q);
+        const dojoMatch = r.dojo?.name?.toLowerCase().includes(q);
+        if (!nameMatch && !niaMatch && !dojoMatch) return false;
+      }
       return true;
     });
-  }, [registrations, selectedDojoName, selectedCategoryName]);
+  }, [registrations, selectedDojoName, selectedCategoryName, search]);
 
   const totalPages = Math.ceil(filteredRegistrations.length / pageSize) || 1;
 
@@ -1281,21 +1308,23 @@ export default function PublicPertandinganPage() {
                     className="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
                   >
                     <LogIn className="w-4 h-4" />
-                    Daftar Atlet Mandiri / Login
+                    {!isRegistrationClosed ? "Daftar Atlet Mandiri / Login" : "Masuk / Login Akun"}
                   </button>
                 )}
 
-                <button
-                  onClick={() => {
-                    setGuestError(null);
-                    setGuestSuccess(null);
-                    setShowGuestModal(true);
-                  }}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Daftar Peserta Tamu / Eksternal
-                </button>
+                {!isRegistrationClosed && (
+                  <button
+                    onClick={() => {
+                      setGuestError(null);
+                      setGuestSuccess(null);
+                      setShowGuestModal(true);
+                    }}
+                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl transition shadow-lg flex items-center gap-2"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Daftar Peserta Tamu / Eksternal
+                  </button>
+                )}
               </>
             )}
 
@@ -1372,33 +1401,29 @@ export default function PublicPertandinganPage() {
                   </div>
                 </div>
 
-                {activeEvent && (() => {
-                  const deadline = getEventDeadline(activeEvent);
-                  const isClosed = deadline?.isClosed ?? false;
-                  return (
-                    <div className="self-start sm:self-center shrink-0">
+                {activeEvent && (
+                  <div className="self-start sm:self-center shrink-0">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-xs ${
+                        !isRegistrationClosed
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+                          : "bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
+                      }`}
+                    >
                       <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-xs ${
-                          !isClosed
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
-                            : "bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
+                        className={`w-2 h-2 rounded-full ${
+                          !isRegistrationClosed ? "bg-emerald-500 animate-pulse" : "bg-red-500"
                         }`}
-                      >
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            !isClosed ? "bg-emerald-500 animate-pulse" : "bg-red-500"
-                          }`}
-                        />
-                        {!isClosed ? "Pendaftaran Terbuka" : "Pendaftaran Ditutup"}
-                      </span>
-                    </div>
-                  );
-                })()}
+                      />
+                      {!isRegistrationClosed ? "Pendaftaran Terbuka" : "Pendaftaran Ditutup"}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Row 2: Informasi Pelaksanaan & Batas Waktu yang Mengalir Bersih (Tanpa Kotak Kaku) */}
               {activeEvent && (() => {
-                const deadline = getEventDeadline(activeEvent);
+                const deadline = activeDeadline;
                 return (
                   <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800/80 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-zinc-600 dark:text-zinc-300">
                     {/* Hari & Tanggal Pelaksanaan */}
@@ -1490,27 +1515,61 @@ export default function PublicPertandinganPage() {
         {/* Filter Controls */}
         <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            {/* Search - Highlight Prominent */}
+            {/* Search - Highlight Prominent saat pendaftaran dibuka, Netral saat ditutup */}
             <div ref={searchContainerRef} className="relative w-full md:w-96 group">
               <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1">
-                  <UserPlus className="w-3 h-3 text-red-600 dark:text-red-400" /> Cari & Daftarkan Atlet INKAI
+                <span
+                  className={`text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                    !isRegistrationClosed
+                      ? "text-red-600 dark:text-red-400"
+                      : "text-zinc-600 dark:text-zinc-400"
+                  }`}
+                >
+                  {!isRegistrationClosed ? (
+                    <>
+                      <UserPlus className="w-3 h-3 text-red-600 dark:text-red-400" /> Cari & Daftarkan Atlet INKAI
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-3 h-3 text-zinc-500 dark:text-zinc-400" /> Cari Nama Atlet di Tabel
+                    </>
+                  )}
                 </span>
                 <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-medium">
-                  (Ketik Nama / NIA)
+                  {!isRegistrationClosed ? "(Ketik Nama / NIA)" : "(Nama / NIA / Dojo)"}
                 </span>
               </div>
-              <div className="relative rounded-xl shadow-xs ring-2 ring-red-500/30 dark:ring-red-500/40 focus-within:ring-2 focus-within:ring-red-600 focus-within:shadow-md transition">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-red-600 dark:text-red-400 font-bold" />
+              <div
+                className={`relative rounded-xl shadow-xs transition ${
+                  !isRegistrationClosed
+                    ? "ring-2 ring-red-500/30 dark:ring-red-500/40 focus-within:ring-2 focus-within:ring-red-600 focus-within:shadow-md"
+                    : "ring-1 ring-zinc-300 dark:ring-zinc-700 focus-within:ring-2 focus-within:ring-zinc-500 dark:focus-within:ring-zinc-400 focus-within:shadow-xs"
+                }`}
+              >
+                <Search
+                  className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 ${
+                    !isRegistrationClosed
+                      ? "text-red-600 dark:text-red-400 font-bold"
+                      : "text-zinc-400 dark:text-zinc-500"
+                  }`}
+                />
                 <input
                   type="text"
-                  placeholder="Ketik nama atau NIA untuk daftarkan atlet..."
+                  placeholder={
+                    !isRegistrationClosed
+                      ? "Ketik nama atau NIA untuk daftarkan atlet..."
+                      : "Cari nama atlet yang sudah ada di tabel..."
+                  }
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   onFocus={() => {
-                    if (memberSuggestions.length > 0) setShowSuggestDropdown(true);
+                    if (!isRegistrationClosed && memberSuggestions.length > 0) setShowSuggestDropdown(true);
                   }}
-                  className="w-full pl-9 pr-8 py-2 bg-white dark:bg-zinc-800 border-2 border-red-500/60 dark:border-red-500/70 rounded-xl text-xs md:text-sm font-semibold text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 placeholder:font-normal focus:outline-hidden focus:border-red-600"
+                  className={`w-full pl-9 pr-8 py-2 bg-white dark:bg-zinc-800 rounded-xl text-xs md:text-sm font-semibold text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 placeholder:font-normal focus:outline-hidden ${
+                    !isRegistrationClosed
+                      ? "border-2 border-red-500/60 dark:border-red-500/70 focus:border-red-600"
+                      : "border border-zinc-300 dark:border-zinc-700 focus:border-zinc-500 dark:focus:border-zinc-400"
+                  }`}
                 />
                 {suggestLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-red-500" />
@@ -1530,7 +1589,7 @@ export default function PublicPertandinganPage() {
               </div>
 
               {/* Suggestions Dropdown */}
-              {showSuggestDropdown && memberSuggestions.length > 0 && (
+              {!isRegistrationClosed && showSuggestDropdown && memberSuggestions.length > 0 && (
                 <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-2xl z-50 overflow-hidden max-h-80 overflow-y-auto animate-in fade-in duration-150">
                   <div className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800/90 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between text-xs font-bold text-zinc-700 dark:text-zinc-300">
                     <span className="flex items-center gap-1.5">
@@ -1655,8 +1714,8 @@ export default function PublicPertandinganPage() {
           </div>
         </div>
 
-        {/* Guest Registration Banner when search has no results */}
-        {search && filteredRegistrations.length === 0 && !loading && (
+        {/* Guest Registration Banner when search has no results (Hanya saat pendaftaran masih dibuka) */}
+        {!isRegistrationClosed && search && filteredRegistrations.length === 0 && !loading && (
           <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl">
@@ -1757,18 +1816,33 @@ export default function PublicPertandinganPage() {
                 ) : filteredRegistrations.length === 0 ? (
                   <tr>
                     <td colSpan={12} className="py-12 text-center text-zinc-500 space-y-3 border-b border-zinc-200 dark:border-zinc-800">
-                      <div>Belum ada pendaftaran atlet pada kriteria ini.</div>
-                      <button
-                        onClick={() => {
-                          setGuestError(null);
-                          setGuestSuccess(null);
-                          setShowGuestModal(true);
-                        }}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition shadow"
-                      >
-                        <UserPlus className="w-4 h-4" />
-                        Daftar Peserta Tamu / Eksternal
-                      </button>
+                      <div>
+                        {search ? (
+                          <>
+                            Tidak ditemukan atlet dengan nama/kriteria &quot;<strong>{search}</strong>&quot; di tabel peserta kejuaraan ini.
+                          </>
+                        ) : (
+                          "Belum ada pendaftaran atlet pada kriteria ini."
+                        )}
+                      </div>
+                      {!isRegistrationClosed ? (
+                        <button
+                          onClick={() => {
+                            setGuestError(null);
+                            setGuestSuccess(null);
+                            setShowGuestModal(true);
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition shadow"
+                        >
+                          <UserPlus className="w-4 h-4" />
+                          Daftar Peserta Tamu / Eksternal
+                        </button>
+                      ) : (
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-900/50">
+                          <span className="w-2 h-2 rounded-full bg-red-500" />
+                          Pendaftaran telah ditutup — hanya pencarian peserta terdaftar yang aktif
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ) : (
@@ -3488,17 +3562,15 @@ export default function PublicPertandinganPage() {
                   <span className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-white">
                     {selectedAthleteForReg.fullName}
                   </span>
-                  {selectedAthleteForReg.gender && (
-                    <span
-                      className={`text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        selectedAthleteForReg.gender === "MALE"
-                          ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-900/40"
-                          : "bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300 border border-pink-200 dark:border-pink-900/40"
-                      }`}
-                    >
-                      {selectedAthleteForReg.gender === "MALE" ? "PUTRA" : "PUTRI"}
-                    </span>
-                  )}
+                  <span
+                    className={`text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isMaleAthlete(selectedAthleteForReg.gender, selectedAthleteForReg.fullName)
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-900/40"
+                        : "bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300 border border-pink-200 dark:border-pink-900/40"
+                    }`}
+                  >
+                    {isMaleAthlete(selectedAthleteForReg.gender, selectedAthleteForReg.fullName) ? "PUTRA" : "PUTRI"}
+                  </span>
                   {selectedAthleteForReg.nia && (
                     <span className="text-[10px] sm:text-xs font-mono text-zinc-500 dark:text-zinc-400">
                       NIA: {selectedAthleteForReg.nia}
@@ -3551,12 +3623,12 @@ export default function PublicPertandinganPage() {
                   {/* Badge Deteksi Jenis Kelamin Otomatis */}
                   <span
                     className={`shrink-0 px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold flex items-center gap-1 ${
-                      selectedAthleteForReg.gender === "MALE"
+                      isMaleAthlete(selectedAthleteForReg.gender, selectedAthleteForReg.fullName)
                         ? "bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 border border-blue-200 dark:border-blue-900/50"
                         : "bg-pink-100 text-pink-800 dark:bg-pink-950/70 dark:text-pink-300 border border-pink-200 dark:border-pink-900/50"
                     }`}
                   >
-                    <span>Nomor {selectedAthleteForReg.gender === "MALE" ? "Putra" : "Putri"} (Otomatis)</span>
+                    <span>Nomor {isMaleAthlete(selectedAthleteForReg.gender, selectedAthleteForReg.fullName) ? "Putra" : "Putri"} (Otomatis)</span>
                   </span>
 
                   {matchedDivisionName && (
@@ -3653,7 +3725,7 @@ export default function PublicPertandinganPage() {
             {/* Badan Bagan Kelas Pertandingan (Tinggal Klik) */}
             <div className="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-4 space-y-2.5 sm:space-y-4 bg-zinc-100/60 dark:bg-zinc-950">
               {(() => {
-                const isAthleteMale = selectedAthleteForReg.gender === "MALE";
+                const isAthleteMale = isMaleAthlete(selectedAthleteForReg.gender, selectedAthleteForReg.fullName);
                 const filteredGroups = regDivisionGroups.filter((group) => {
                   if (regDivisionFilter === "MATCHING" && matchedDivisionName) {
                     const isBirthDateMatch = isBirthDateInRange(

@@ -73,6 +73,8 @@ import {
   getCategoryDivisionMeta,
   isBirthDateInRange,
   isAgeInRange,
+  isMaleAthlete,
+  normalizeAthleteGender,
 } from "@/lib/tournament-category-presets";
 import { DEFAULT_ADMIN_WA, getAdminWaPhone, setAdminWaPhone } from "@/lib/site";
 import { exportTournamentRosterToExcel } from "@/lib/tournament-excel-export";
@@ -243,6 +245,24 @@ export default function AdminPertandinganPage({
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("");
+  const [eventRegisteredDojos, setEventRegisteredDojos] = useState<(DojoItem & { count?: number })[]>([]);
+
+  // List dojo yang aktif/terdaftar di tabel event ini
+  const activeTableDojos = useMemo(() => {
+    if (eventRegisteredDojos.length > 0) return eventRegisteredDojos;
+    const map = new Map<string, DojoItem & { count?: number }>();
+    registrations.forEach((r) => {
+      if (r.dojo?.id) {
+        const existing = map.get(r.dojo.id);
+        if (!existing) {
+          map.set(r.dojo.id, { ...r.dojo, count: 1 });
+        } else {
+          existing.count = (existing.count || 0) + 1;
+        }
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "id-ID"));
+  }, [eventRegisteredDojos, registrations]);
 
   // Member suggestions search state
   const [memberSuggestions, setMemberSuggestions] = useState<any[]>([]);
@@ -430,7 +450,10 @@ export default function AdminPertandinganPage({
 
   // Buka modal daftarkan atlet dengan otomatis sinkron ke kategori yang sesuai tgl lahir & gender
   const openRegisterModal = (athlete: any) => {
-    setSelectedAthleteForReg(athlete);
+    const normalizedGender = normalizeAthleteGender(athlete.gender, athlete.fullName);
+    const normalizedAthlete = { ...athlete, gender: normalizedGender };
+
+    setSelectedAthleteForReg(normalizedAthlete);
     setShowSuggestDropdown(false);
     setRegKindFilter("ALL");
     setRegSearchQuery("");
@@ -463,7 +486,7 @@ export default function AdminPertandinganPage({
 
     // 1. Cari kategori yang OTOMATIS SINKRON dengan gender DAN tanggal lahir / usia atlet
     let bestCat = categories.find((c) => {
-      const gMatch = c.gender === athlete.gender || c.gender === "MIXED";
+      const gMatch = c.gender === normalizedGender || c.gender === "MIXED";
       if (!gMatch) return false;
       const meta = getCategoryDivisionMeta(c);
       const dateMatch = isBirthDateInRange(athlete.birthDate, meta.minBirthDate, meta.maxBirthDate);
@@ -473,7 +496,7 @@ export default function AdminPertandinganPage({
 
     // 2. Fallback jika belum ada yang cocok usia, ambil yang cocok gender
     if (!bestCat) {
-      bestCat = categories.find((c) => c.gender === athlete.gender || c.gender === "MIXED");
+      bestCat = categories.find((c) => c.gender === normalizedGender || c.gender === "MIXED");
     }
 
     if (bestCat) {
@@ -712,6 +735,7 @@ export default function AdminPertandinganPage({
       const res = await fetch(`/api/admin/pertandingan/registrations?${queryParams}`);
       const data = await res.json();
       if (data.registrations) setRegistrations(data.registrations);
+      if (data.registeredDojos) setEventRegisteredDojos(data.registeredDojos);
       if (data.summary) setSummary(data.summary);
     } catch (err) {
       console.error("Failed to fetch registrations", err);
@@ -724,6 +748,11 @@ export default function AdminPertandinganPage({
     fetchEvents();
     fetchDojosAndMembers();
   }, []);
+
+  useEffect(() => {
+    setSelectedDojoId("");
+    setEventRegisteredDojos([]);
+  }, [selectedEventId]);
 
   useEffect(() => {
     if (selectedEventId) {
@@ -1777,15 +1806,19 @@ export default function AdminPertandinganPage({
               )}
             </div>
 
-            {/* Filter Dojo */}
+            {/* Filter Dojo (Aktifkan dojo yang terdaftar di tabel event ini) */}
             <select
               value={selectedDojoId}
               onChange={(e) => setSelectedDojoId(e.target.value)}
-              className="w-full sm:w-auto px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs md:text-sm"
+              className="w-full sm:w-auto px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-xs md:text-sm font-medium"
             >
-              <option value="">Semua Dojo / Kontingen</option>
-              {dojos.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
+              <option value="">
+                Semua Dojo / Kontingen {activeTableDojos.length > 0 ? `(${activeTableDojos.length})` : ""}
+              </option>
+              {activeTableDojos.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name} {d.count ? `(${d.count} atlet)` : ""}
+                </option>
               ))}
             </select>
 
@@ -1966,7 +1999,16 @@ export default function AdminPertandinganPage({
                       </td>
 
                       <td className="py-3 px-4 font-medium text-zinc-800 dark:text-zinc-200 whitespace-nowrap">
-                        {reg.dojo.name}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDojoId(selectedDojoId === reg.dojoId ? "" : reg.dojoId)}
+                          className={`hover:text-red-600 dark:hover:text-red-400 hover:underline cursor-pointer text-left transition ${
+                            selectedDojoId === reg.dojoId ? "text-red-600 dark:text-red-400 font-bold" : ""
+                          }`}
+                          title={`Klik untuk filter dojo: ${reg.dojo.name}`}
+                        >
+                          {reg.dojo.name}
+                        </button>
                       </td>
 
                       {/* Kolom Kategori Usia */}
@@ -3282,17 +3324,15 @@ export default function AdminPertandinganPage({
                   <span className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-white">
                     {selectedAthleteForReg.fullName}
                   </span>
-                  {selectedAthleteForReg.gender && (
-                    <span
-                      className={`text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                        selectedAthleteForReg.gender === "MALE"
-                          ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-900/40"
-                          : "bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300 border border-pink-200 dark:border-pink-900/40"
-                      }`}
-                    >
-                      {selectedAthleteForReg.gender === "MALE" ? "PUTRA" : "PUTRI"}
-                    </span>
-                  )}
+                  <span
+                    className={`text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isMaleAthlete(selectedAthleteForReg.gender, selectedAthleteForReg.fullName)
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-900/40"
+                        : "bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300 border border-pink-200 dark:border-pink-900/40"
+                    }`}
+                  >
+                    {isMaleAthlete(selectedAthleteForReg.gender, selectedAthleteForReg.fullName) ? "PUTRA" : "PUTRI"}
+                  </span>
                   {selectedAthleteForReg.nia && (
                     <span className="text-[10px] sm:text-xs font-mono text-zinc-500 dark:text-zinc-400">
                       NIA: {selectedAthleteForReg.nia}
@@ -3345,12 +3385,12 @@ export default function AdminPertandinganPage({
                   {/* Badge Deteksi Jenis Kelamin Otomatis */}
                   <span
                     className={`shrink-0 px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold flex items-center gap-1 ${
-                      selectedAthleteForReg.gender === "MALE"
+                      isMaleAthlete(selectedAthleteForReg.gender, selectedAthleteForReg.fullName)
                         ? "bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300 border border-blue-200 dark:border-blue-900/50"
                         : "bg-pink-100 text-pink-800 dark:bg-pink-950/70 dark:text-pink-300 border border-pink-200 dark:border-pink-900/50"
                     }`}
                   >
-                    <span>Nomor {selectedAthleteForReg.gender === "MALE" ? "Putra" : "Putri"} (Otomatis)</span>
+                    <span>Nomor {isMaleAthlete(selectedAthleteForReg.gender, selectedAthleteForReg.fullName) ? "Putra" : "Putri"} (Otomatis)</span>
                   </span>
 
                   {matchedDivisionName && (
@@ -3447,7 +3487,7 @@ export default function AdminPertandinganPage({
             {/* Badan Bagan Kelas Pertandingan (Tinggal Klik) */}
             <div className="flex-1 min-h-0 overflow-y-auto p-2.5 sm:p-4 space-y-2.5 sm:space-y-4 bg-zinc-100/60 dark:bg-zinc-950">
               {(() => {
-                const isAthleteMale = selectedAthleteForReg.gender === "MALE";
+                const isAthleteMale = isMaleAthlete(selectedAthleteForReg.gender, selectedAthleteForReg.fullName);
                 const filteredGroups = regDivisionGroups.filter((group) => {
                   if (regDivisionFilter === "MATCHING" && matchedDivisionName) {
                     const isBirthDateMatch = isBirthDateInRange(

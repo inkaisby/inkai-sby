@@ -34,6 +34,31 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+
+      const eventObjCheck = await prisma.event.findUnique({
+        where: { id: eventId },
+        select: { registrationCloseAt: true, endDate: true, isDeleted: true },
+      });
+      if (!eventObjCheck || eventObjCheck.isDeleted) {
+        return NextResponse.json({ error: "Event kejuaraan tidak ditemukan." }, { status: 404 });
+      }
+
+      let isClosed = false;
+      if (eventObjCheck.registrationCloseAt) {
+        const d = new Date(eventObjCheck.registrationCloseAt);
+        isClosed = !isNaN(d.getTime()) && Date.now() > d.getTime();
+      } else if (eventObjCheck.endDate) {
+        const raw = typeof eventObjCheck.endDate === "string" ? eventObjCheck.endDate.split("T")[0] : "";
+        const d = raw ? new Date(`${raw}T23:59:59`) : new Date(eventObjCheck.endDate);
+        isClosed = !isNaN(d.getTime()) && Date.now() > d.getTime();
+      }
+
+      if (isClosed) {
+        return NextResponse.json(
+          { error: "⚠️ Pendaftaran kejuaraan ini telah resmi ditutup." },
+          { status: 400 }
+        );
+      }
     }
 
     // Handle registration for existing INKAI member (via search suggestion)

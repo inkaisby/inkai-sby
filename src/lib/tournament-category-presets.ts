@@ -1790,10 +1790,66 @@ export function formatEventNumberDisplay(
  * Label gender bahasa Indonesia yang ramah pembaca
  */
 export function formatGenderLabel(gender?: string | null): string {
-  if (gender === "MALE") return "Putra";
-  if (gender === "FEMALE") return "Putri";
-  if (gender === "MIXED") return "Campuran";
-  return gender || "-";
+  if (!gender) return "-";
+  const g = gender.trim().toUpperCase();
+  if (g === "MALE" || g === "L" || g === "PUTRA" || g === "LAKI-LAKI" || g === "PRIA" || g === "M") return "Putra";
+  if (g === "FEMALE" || g === "P" || g === "PUTRI" || g === "PEREMPUAN" || g === "WANITA" || g === "F") return "Putri";
+  if (g === "MIXED" || g === "CAMPURAN") return "Campuran";
+  return gender;
+}
+
+/**
+ * Menentukan apakah seorang atlet adalah Laki-laki / Putra (true) atau Perempuan / Putri (false).
+ * Mendukung format DB keanggotaan ("L", "P", "LAKI-LAKI", "PEREMPUAN", "MALE", "FEMALE"),
+ * serta fallback pengenalan nama cerdas (nama khas Indonesia/Arab/dsb).
+ */
+export function isMaleAthlete(gender?: string | null, fullName?: string | null): boolean {
+  if (gender) {
+    const g = gender.trim().toUpperCase();
+    if (g === "MALE" || g === "L" || g === "LAKI-LAKI" || g === "LAKI" || g === "PUTRA" || g === "PRIA" || g === "M") {
+      return true;
+    }
+    if (g === "FEMALE" || g === "P" || g === "PEREMPUAN" || g === "PUTRI" || g === "WANITA" || g === "F") {
+      return false;
+    }
+  }
+
+  // Fallback pengenalan otomatis dari nama atlet jika gender di keanggotaan kosong/tidak standar
+  if (fullName) {
+    const upper = fullName.toUpperCase().trim();
+    const words = upper.split(/[\s,.-]+/);
+
+    // Kata kunci sangat spesifik untuk perempuan
+    const femaleKeywords = [
+      "PUTRI", "SITI", "AISYAH", "AYU", "FATIMAH", "ZAHRA", "ANISA", "ANNISA",
+      "NADIA", "NAURA", "CANTIKA", "BELLA", "DEVINA", "SALMA", "TIARA", "KAYLA",
+      "ALMIRA", "NAYLA", "AQILA", "AZZAHRA", "CLARA", "VANIA", "AULIA", "SAFIRA",
+      "DIVA", "KARTIKA", "NURUL", "RATNA", "DEWI", "FADHILAH", "SYIFA", "KHAIRUNNISA"
+    ];
+
+    // Kata kunci sangat spesifik untuk laki-laki
+    const maleKeywords = [
+      "AHMAD", "ACHMAD", "MUHAMMAD", "MOCHAMMAD", "MOHAMMAD", "MOH", "PUTRA",
+      "JAZIM", "ASSHIDDIQ", "ALIEF", "FADIL", "RIZKY", "RIZQI", "BAGUS", "ADITYA",
+      "DIMAS", "FAJAR", "ILHAM", "RAIHAN", "IBRAHIM", "DANISH", "FARHAN", "ARYA",
+      "BINTANG", "KENZO", "RADITYA", "GIBRAN", "AZKA", "FACHRI", "HIDAYAT", "AGUS",
+      "EKO", "BAYU", "YUSUF", "SATRIA", "KEVIN", "RAFA", "BIMA", "ALDO", "REZA",
+      "ANDIKA", "BAGAS", "DANI", "MAULANA", "HAFIDZ", "ARIF", "RIDHO", "IQBAL"
+    ];
+
+    if (words.some((w) => maleKeywords.includes(w))) return true;
+    if (words.some((w) => femaleKeywords.includes(w))) return false;
+  }
+
+  // Default: Putra
+  return true;
+}
+
+/**
+ * Normalisasi gender atlet ke format kanonik turnamen ("MALE" | "FEMALE").
+ */
+export function normalizeAthleteGender(gender?: string | null, fullName?: string | null): "MALE" | "FEMALE" {
+  return isMaleAthlete(gender, fullName) ? "MALE" : "FEMALE";
 }
 
 /**

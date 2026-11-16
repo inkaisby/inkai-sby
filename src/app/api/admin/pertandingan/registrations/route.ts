@@ -86,8 +86,45 @@ export async function GET(request: Request) {
     const uniqueDojos = new Set(registrations.map(r => r.dojoId)).size;
     const uniqueAthletes = new Set(registrations.map(r => r.memberId)).size;
 
+    // Distinct dojos registered in this event
+    const eventDojosRaw = await prisma.tournamentRegistration.findMany({
+      where: { eventId },
+      select: {
+        dojo: {
+          select: { id: true, name: true },
+        },
+      },
+      distinct: ["dojoId"],
+    });
+
+    const eventRegsCount = await prisma.tournamentRegistration.groupBy({
+      by: ["dojoId"],
+      where: { eventId },
+      _count: {
+        _all: true,
+      },
+    });
+
+    const countMap = new Map<string, number>();
+    for (const c of eventRegsCount) {
+      if (c.dojoId) {
+        countMap.set(c.dojoId, c._count._all);
+      }
+    }
+
+    const registeredDojos = eventDojosRaw
+      .map((r) => r.dojo)
+      .filter((d): d is { id: string; name: string } => Boolean(d))
+      .map((d) => ({
+        id: d.id,
+        name: d.name,
+        count: countMap.get(d.id) || 0,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "id-ID"));
+
     return NextResponse.json({
       registrations,
+      registeredDojos,
       summary: {
         totalCount,
         paidCount,
