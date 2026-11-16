@@ -12,23 +12,36 @@ function withServerlessPoolLimit(url: string | undefined) {
     const parsed = new URL(url);
     const host = parsed.hostname.toLowerCase();
     const isSupabasePooler = host.includes("pooler.supabase.com");
+    const isDev = process.env.NODE_ENV === "development";
 
-    // Session pooler (:5432) memiliki batas kaku pool_size: 15 (EMAXCONNSESSION)
-    // yang cepat habis saat query paralel di dev maupun Vercel.
-    // Selalu rewrite ke Transaction (:6543) jika menggunakan Supabase Pooler.
+    // Di Vercel/Production: Session pooler (:5432) memiliki batas kaku pool_size: 15 (EMAXCONNSESSION)
+    // yang cepat habis saat query paralel di serverless lambdas.
+    // Selalu rewrite ke Transaction (:6543) di production jika menggunakan Supabase Pooler.
+    // Di dev lokal: `next dev` adalah satu proses Node.js jangka panjang, dan port :6543
+    // sering kali unreachable / terblokir firewall lokal / timeout, sedangkan :5432 berjalan lancar.
     const rewriteSessionToTransaction =
+      !isDev &&
       isSupabasePooler &&
       process.env.PRISMA_USE_TRANSACTION_POOLER !== "0";
+
     if (
       rewriteSessionToTransaction &&
       (!parsed.port || parsed.port === "5432")
     ) {
       parsed.port = "6543";
+    } else if (
+      isDev &&
+      isSupabasePooler &&
+      parsed.port === "6543" &&
+      process.env.PRISMA_USE_TRANSACTION_POOLER !== "1"
+    ) {
+      parsed.port = "5432";
+      parsed.searchParams.delete("pgbouncer");
     }
 
     // Transaction pooler needs pgbouncer=true for Prisma prepared statements.
     if (
-      (parsed.port === "6543" || isSupabasePooler) &&
+      parsed.port === "6543" &&
       !parsed.searchParams.has("pgbouncer")
     ) {
       parsed.searchParams.set("pgbouncer", "true");

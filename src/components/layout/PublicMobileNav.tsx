@@ -36,16 +36,21 @@ export default function PublicMobileNav() {
       </SheetTrigger>
       <SheetContent
         side="right"
-        className="w-[min(18rem,88vw)] border-border/60 bg-background/95 backdrop-blur-xl"
+        className="flex h-dvh max-h-dvh w-[min(18rem,88vw)] flex-col gap-0 border-l border-border/60 bg-background/95 p-0 backdrop-blur-xl shadow-2xl"
       >
-        <SheetTitle className="flex items-center gap-2 text-base font-semibold tracking-tight">
-          <span
-            className="h-5 w-1 rounded-full bg-gradient-to-b from-inkai-red to-inkai-yellow/80"
-            aria-hidden
-          />
-          Menu
-        </SheetTitle>
-        <nav className="mt-6 flex flex-col gap-1">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/40 px-4">
+          <SheetTitle className="flex items-center gap-2 text-base font-semibold tracking-tight text-foreground">
+            <span
+              className="h-5 w-1 rounded-full bg-gradient-to-b from-inkai-red to-inkai-yellow/80"
+              aria-hidden
+            />
+            Menu
+          </SheetTitle>
+        </div>
+        <nav
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 flex flex-col gap-1 scrollbar-ultrathin touch-pan-y"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
           {publicNavLinks.map((link) => {
             const active = isPublicNavActive(
               pathname,
@@ -70,6 +75,7 @@ export default function PublicMobileNav() {
           })}
           <hr className="my-3 border-border/60" />
           <PublicHeaderAuthMobile onLoginClick={() => setOpen(false)} />
+          <div className="h-10 shrink-0" aria-hidden />
         </nav>
       </SheetContent>
     </Sheet>
