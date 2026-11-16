@@ -5,6 +5,11 @@ import {
   formatUktKasKegiatan,
   parseUktKasTerm,
 } from "@/lib/kas-kegiatan";
+import {
+  getKasBudgetKey,
+  setKasPosTag,
+  stripKasPosTag,
+} from "@/lib/kas";
 
 describe("parseUktKasTerm", () => {
   it("membaca II-2026 dari judul pendaftaran", () => {
@@ -51,5 +56,35 @@ describe("formatLatberKasKegiatan", () => {
     expect(formatLatberKasKegiatan("Latihan Bersama Agustus")).toBe(
       "Latber Latihan Bersama Agustus",
     );
+  });
+});
+
+describe("sumber kas pos tags & budget categorization", () => {
+  it("tags description with [pos: <key>] cleanly", () => {
+    const tagged = setKasPosTag("Pembelian seragam karate", "perlengkapan");
+    expect(tagged).toBe("Pembelian seragam karate [pos: perlengkapan]");
+    expect(stripKasPosTag(tagged)).toBe("Pembelian seragam karate");
+  });
+
+  it("replaces existing tag when changing sumber kas", () => {
+    const initial = "Beli matras [pos: investasi]";
+    const updated = setKasPosTag(initial, "duka");
+    expect(updated).toBe("Beli matras [pos: duka]");
+    expect(stripKasPosTag(updated)).toBe("Beli matras");
+  });
+
+  it("getKasBudgetKey resolves explicit [pos: ...] overrides regardless of keywords", () => {
+    // Description contains "matras" (investasi keyword) but explicit tag says "pembinaan"
+    const budget = getKasBudgetKey("Operasional", "Beli matras dojo [pos: pembinaan]");
+    expect(budget.key).toBe("pembinaan");
+    expect(budget.pct).toBe(35);
+  });
+
+  it("getKasBudgetKey resolves all 5 preset keys", () => {
+    expect(getKasBudgetKey("", "[pos: pembinaan]").key).toBe("pembinaan");
+    expect(getKasBudgetKey("", "[pos: duka]").key).toBe("duka");
+    expect(getKasBudgetKey("", "[pos: insidentil]").key).toBe("insidentil");
+    expect(getKasBudgetKey("", "[pos: investasi]").key).toBe("investasi");
+    expect(getKasBudgetKey("", "[pos: perlengkapan]").key).toBe("perlengkapan");
   });
 });

@@ -63,12 +63,16 @@ import {
   groupKasTable,
   kasGroupKegiatanNames,
   KAS_MAX_BATCH,
+  KAS_SUMBER_OPTIONS,
   mergeMassPasteRows,
   parseKasImportTsv,
   parseKasMassPaste,
+  setKasPosTag,
+  stripKasPosTag,
   visibleKasTableRows,
   ymdWib,
   type DojoKasSummary,
+  type KasBudgetKey,
   type KasLedgerRow,
   type KasTableRow,
 } from "@/lib/kas";
@@ -157,11 +161,11 @@ export function KasLedgerClient({
   const [recon, setRecon] = useState(() => searchParams.get("recon") || "all");
   const [direction, setDirection] = useState<"all" | "in" | "out">("all");
   const [sortColumn, setSortColumn] = useState<
-    "no" | "txnDate" | "description" | "amountIn" | "amountOut" | "saldo" | "kegiatan" | null
+    "no" | "txnDate" | "description" | "amountIn" | "amountOut" | "saldo" | "kegiatan" | "sumberKas" | null
   >(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  function toggleSort(col: "no" | "txnDate" | "description" | "amountIn" | "amountOut" | "saldo" | "kegiatan") {
+  function toggleSort(col: "no" | "txnDate" | "description" | "amountIn" | "amountOut" | "saldo" | "kegiatan" | "sumberKas") {
     if (sortColumn === col) {
       if (sortDirection === "asc") {
         setSortDirection("desc");
@@ -174,6 +178,8 @@ export function KasLedgerClient({
       setSortDirection("asc");
     }
   }
+
+  const [savingSumberId, setSavingSumberId] = useState<string | null>(null);
 
   const [collapsedKegiatan, setCollapsedKegiatan] = useState<string[]>([]);
   const [massRowsOpen, setMassRowsOpen] = useState(true);
@@ -1078,6 +1084,18 @@ export function KasLedgerClient({
     }
   }
 
+  async function handleSumberKasChange(row: KasLedgerRow, nextKey: KasBudgetKey) {
+    if (!canInlineEdit(row)) return;
+    const currentKey = getKasBudgetKey(row.kegiatan, row.description).key;
+    if (currentKey === nextKey && row.description.includes(`[pos: ${nextKey}]`)) {
+      return;
+    }
+    setSavingSumberId(row.id);
+    const updatedDesc = setKasPosTag(row.description, nextKey);
+    await handleInlinePatch(row, { description: updatedDesc });
+    setSavingSumberId(null);
+  }
+
   async function handleMass() {
     const rows = massRows.filter((r) => r.description.trim() && Number(r.amount) > 0);
     if (!rows.length) {
@@ -1664,6 +1682,13 @@ export function KasLedgerClient({
     if (!sortColumn) return base;
 
     return [...base].sort((a, b) => {
+      if (sortColumn === "sumberKas") {
+        const valA = getKasBudgetKey(a.kegiatan, a.description).label;
+        const valB = getKasBudgetKey(b.kegiatan, b.description).label;
+        const cmp = valA.localeCompare(valB, "id", { sensitivity: "base" });
+        return sortDirection === "asc" ? cmp : -cmp;
+      }
+
       const valA = a[sortColumn];
       const valB = b[sortColumn];
 
@@ -1773,6 +1798,12 @@ export function KasLedgerClient({
   const rawGroups = useMemo(() => {
     if (!sortColumn || !data?.rows) return data?.groups ?? [];
     const sortedRows = [...data.rows].sort((a, b) => {
+      if (sortColumn === "sumberKas") {
+        const valA = getKasBudgetKey(a.kegiatan, a.description).label;
+        const valB = getKasBudgetKey(b.kegiatan, b.description).label;
+        const cmp = valA.localeCompare(valB, "id", { sensitivity: "base" });
+        return sortDirection === "asc" ? cmp : -cmp;
+      }
       const valA = a[sortColumn];
       const valB = b[sortColumn];
 
@@ -2209,14 +2240,14 @@ export function KasLedgerClient({
               ))}
             </datalist>
             <div className={cn(tableFullscreen ? "min-h-0 flex-1 overflow-auto" : "overflow-x-auto border-t")}>
-              <table className="w-full min-w-[880px] border-collapse text-sm">
+              <table className="w-full min-w-[980px] lg:min-w-full border-collapse text-xs sm:text-sm">
                 <thead>
                   <tr className="sticky top-0 z-10 border-b bg-muted/95 text-left text-muted-foreground backdrop-blur">
                     {data?.canWrite ? (
-                      <th className="w-8 p-2 text-center" title="Geser baris untuk mengubah urutan (Drag & Drop)"></th>
+                      <th className="w-8 p-2 text-center shrink-0" title="Geser baris untuk mengubah urutan (Drag & Drop)"></th>
                     ) : null}
                     {data?.canWrite ? (
-                      <th className="w-10 p-2 text-center">
+                      <th className="w-10 p-2 text-center shrink-0">
                         <input
                           type="checkbox"
                           checked={allLaporanSelected}
@@ -2227,11 +2258,11 @@ export function KasLedgerClient({
                       </th>
                     ) : null}
                     <th
-                      className="w-12 p-2 text-center select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      className="w-12 p-2 text-center select-none cursor-pointer hover:bg-muted/80 transition-colors shrink-0"
                       onClick={() => toggleSort("no")}
                       title="Urutkan berdasarkan Nomor"
                     >
-                      <div className="inline-flex items-center justify-center gap-1 w-full">
+                      <div className="inline-flex items-center justify-center gap-1 w-full whitespace-nowrap">
                         <span>No</span>
                         {sortColumn === "no" ? (
                           sortDirection === "asc" ? (
@@ -2245,11 +2276,11 @@ export function KasLedgerClient({
                       </div>
                     </th>
                     <th
-                      className="p-2 select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      className="w-24 sm:w-28 p-2 select-none cursor-pointer hover:bg-muted/80 transition-colors shrink-0"
                       onClick={() => toggleSort("txnDate")}
                       title="Urutkan berdasarkan Tanggal"
                     >
-                      <div className="inline-flex items-center gap-1">
+                      <div className="inline-flex items-center gap-1 whitespace-nowrap">
                         <span>Tanggal</span>
                         {sortColumn === "txnDate" ? (
                           sortDirection === "asc" ? (
@@ -2263,11 +2294,11 @@ export function KasLedgerClient({
                       </div>
                     </th>
                     <th
-                      className="p-2 select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      className="min-w-[180px] p-2 select-none cursor-pointer hover:bg-muted/80 transition-colors"
                       onClick={() => toggleSort("description")}
                       title="Urutkan berdasarkan Keterangan"
                     >
-                      <div className="inline-flex items-center gap-1">
+                      <div className="inline-flex items-center gap-1 whitespace-nowrap">
                         <span>Keterangan</span>
                         {sortColumn === "description" ? (
                           sortDirection === "asc" ? (
@@ -2281,11 +2312,11 @@ export function KasLedgerClient({
                       </div>
                     </th>
                     <th
-                      className="p-2 text-right select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      className="w-24 sm:w-28 p-2 text-right select-none cursor-pointer hover:bg-muted/80 transition-colors shrink-0"
                       onClick={() => toggleSort("amountIn")}
                       title="Urutkan berdasarkan Nominal Masuk"
                     >
-                      <div className="inline-flex items-center justify-end gap-1 w-full">
+                      <div className="inline-flex items-center justify-end gap-1 w-full whitespace-nowrap">
                         <span>Masuk</span>
                         {sortColumn === "amountIn" ? (
                           sortDirection === "asc" ? (
@@ -2299,11 +2330,11 @@ export function KasLedgerClient({
                       </div>
                     </th>
                     <th
-                      className="p-2 text-right select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      className="w-24 sm:w-28 p-2 text-right select-none cursor-pointer hover:bg-muted/80 transition-colors shrink-0"
                       onClick={() => toggleSort("amountOut")}
                       title="Urutkan berdasarkan Nominal Keluar"
                     >
-                      <div className="inline-flex items-center justify-end gap-1 w-full">
+                      <div className="inline-flex items-center justify-end gap-1 w-full whitespace-nowrap">
                         <span>Keluar</span>
                         {sortColumn === "amountOut" ? (
                           sortDirection === "asc" ? (
@@ -2317,11 +2348,11 @@ export function KasLedgerClient({
                       </div>
                     </th>
                     <th
-                      className="p-2 text-right select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      className="w-28 sm:w-32 p-2 text-right select-none cursor-pointer hover:bg-muted/80 transition-colors shrink-0"
                       onClick={() => toggleSort("saldo")}
                       title="Urutkan berdasarkan Saldo"
                     >
-                      <div className="inline-flex items-center justify-end gap-1 w-full">
+                      <div className="inline-flex items-center justify-end gap-1 w-full whitespace-nowrap">
                         <span>Saldo</span>
                         {sortColumn === "saldo" ? (
                           sortDirection === "asc" ? (
@@ -2335,11 +2366,11 @@ export function KasLedgerClient({
                       </div>
                     </th>
                     <th
-                      className="p-2 select-none cursor-pointer hover:bg-muted/80 transition-colors"
+                      className="w-28 sm:w-36 p-2 select-none cursor-pointer hover:bg-muted/80 transition-colors shrink-0"
                       onClick={() => toggleSort("kegiatan")}
                       title="Urutkan berdasarkan Kegiatan"
                     >
-                      <div className="inline-flex items-center gap-1">
+                      <div className="inline-flex items-center gap-1 whitespace-nowrap">
                         <span>Kegiatan</span>
                         {sortColumn === "kegiatan" ? (
                           sortDirection === "asc" ? (
@@ -2352,19 +2383,37 @@ export function KasLedgerClient({
                         )}
                       </div>
                     </th>
-                    {data?.canWrite ? <th className="w-12 p-2 text-center">Aksi</th> : null}
+                    <th
+                      className="w-32 sm:w-40 p-2 select-none cursor-pointer hover:bg-muted/80 transition-colors shrink-0"
+                      onClick={() => toggleSort("sumberKas")}
+                      title="Urutkan berdasarkan Sumber Kas"
+                    >
+                      <div className="inline-flex items-center gap-1 whitespace-nowrap">
+                        <span>Sumber Kas</span>
+                        {sortColumn === "sumberKas" ? (
+                          sortDirection === "asc" ? (
+                            <ArrowUp className="h-3.5 w-3.5 text-primary shrink-0" />
+                          ) : (
+                            <ArrowDown className="h-3.5 w-3.5 text-primary shrink-0" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100 shrink-0 transition-opacity" />
+                        )}
+                      </div>
+                    </th>
+                    {data?.canWrite ? <th className="w-12 p-2 text-center shrink-0">Aksi</th> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={data?.canWrite ? 10 : 8} className="p-6 text-center text-muted-foreground">
+                      <td colSpan={data?.canWrite ? 11 : 8} className="p-6 text-center text-muted-foreground">
                         Memuat…
                       </td>
                     </tr>
                   ) : filteredLaporanRows.length === 0 ? (
                     <tr>
-                      <td colSpan={data?.canWrite ? 10 : 8} className="p-6 text-center text-muted-foreground">
+                      <td colSpan={data?.canWrite ? 11 : 8} className="p-6 text-center text-muted-foreground">
                         <div className="space-y-1.5">
                           <p className="font-medium text-foreground">
                             {isFiltered
@@ -2436,14 +2485,14 @@ export function KasLedgerClient({
                           }}
                         >
                           {data?.canWrite ? (
-                            <td className="w-8 p-2 text-center text-muted-foreground cursor-grab active:cursor-grabbing hover:text-foreground">
+                            <td className="w-8 p-2 text-center text-muted-foreground cursor-grab active:cursor-grabbing hover:text-foreground shrink-0">
                               <span title="Geser baris (Drag & Drop)">
                                 <GripVertical className="h-4 w-4 inline-block text-slate-400 hover:text-slate-600 dark:hover:text-slate-200" />
                               </span>
                             </td>
                           ) : null}
                           {data?.canWrite ? (
-                            <td className="p-2 text-center">
+                            <td className="w-10 p-2 text-center shrink-0">
                               {isDeletable ? (
                                 <input
                                   type="checkbox"
@@ -2454,13 +2503,13 @@ export function KasLedgerClient({
                               ) : null}
                             </td>
                           ) : null}
-                          <td className="p-2 text-center tabular-nums">{row.no}</td>
+                          <td className="w-12 p-2 text-center tabular-nums whitespace-nowrap shrink-0">{row.no}</td>
                           <KasInlineCell
                             editable={editable}
                             kind="date"
                             display={formatKasDateId(row.txnDate)}
                             initialValue={row.txnDate}
-                            className="whitespace-nowrap"
+                            className="whitespace-nowrap shrink-0"
                             onCommit={(next) =>
                               handleInlinePatch(row, { txnDate: next })
                             }
@@ -2468,9 +2517,10 @@ export function KasLedgerClient({
                           <KasInlineCell
                             editable={editable}
                             kind="text"
+                            className="min-w-[180px] break-words"
                             display={
                               <div>
-                                <div>{row.description}</div>
+                                <div className="break-words font-medium">{stripKasPosTag(row.description)}</div>
                                 <div className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px]">
                                   {row.sourceHref ? (
                                     <Link
@@ -2495,15 +2545,18 @@ export function KasLedgerClient({
                                 </div>
                               </div>
                             }
-                            initialValue={row.description}
-                            onCommit={(next) =>
-                              handleInlinePatch(row, { description: next })
-                            }
+                            initialValue={stripKasPosTag(row.description)}
+                            onCommit={(next) => {
+                              const currentKey = getKasBudgetKey(row.kegiatan, row.description).key;
+                              const withTag = setKasPosTag(next, currentKey);
+                              return handleInlinePatch(row, { description: withTag });
+                            }}
                           />
                           <KasInlineCell
                             editable={editable}
                             kind="money"
                             align="right"
+                            className="whitespace-nowrap tabular-nums text-emerald-700 dark:text-emerald-400 font-medium shrink-0"
                             display={row.amountIn ? formatRp(row.amountIn) : "—"}
                             initialValue={row.amountIn ? String(row.amountIn) : ""}
                             onCommit={async (next) => {
@@ -2522,6 +2575,7 @@ export function KasLedgerClient({
                             editable={editable}
                             kind="money"
                             align="right"
+                            className="whitespace-nowrap tabular-nums text-rose-700 dark:text-rose-400 font-medium shrink-0"
                             display={row.amountOut ? formatRp(row.amountOut) : "—"}
                             initialValue={row.amountOut ? String(row.amountOut) : ""}
                             onCommit={async (next) => {
@@ -2536,21 +2590,75 @@ export function KasLedgerClient({
                               });
                             }}
                           />
-                          <td className="p-2 text-right tabular-nums">
+                          <td className="p-2 text-right tabular-nums whitespace-nowrap font-semibold shrink-0">
                             {formatRp(row.saldo)}
                           </td>
                           <KasInlineCell
                             editable={editable}
                             kind="text"
                             listId="kas-kegiatan-inline"
+                            className="whitespace-nowrap max-w-[160px] truncate shrink-0"
                             display={row.kegiatan || "—"}
                             initialValue={row.kegiatan}
                             onCommit={(next) =>
                               handleInlinePatch(row, { kegiatan: next })
                             }
                           />
+                          <td className="p-2 whitespace-nowrap shrink-0">
+                            {(() => {
+                              const currentBudgetKey = getKasBudgetKey(row.kegiatan, row.description).key;
+                              const currentOption =
+                                KAS_SUMBER_OPTIONS.find((opt) => opt.key === currentBudgetKey) ??
+                                KAS_SUMBER_OPTIONS[0];
+                              const isSavingThis = savingSumberId === row.id;
+
+                              if (editable) {
+                                return (
+                                  <div className="relative inline-flex items-center" onClick={(e) => e.stopPropagation()}>
+                                    <select
+                                      aria-label={`Pilih Sumber Kas untuk baris ${row.no}`}
+                                      value={currentBudgetKey}
+                                      disabled={isSavingThis}
+                                      onChange={(e) => {
+                                        const nextKey = e.target.value as KasBudgetKey;
+                                        void handleSumberKasChange(row, nextKey);
+                                      }}
+                                      className={cn(
+                                        "cursor-pointer rounded-md border px-2 py-1 text-xs font-semibold shadow-2xs outline-none transition-all focus:ring-2 focus:ring-primary/40 appearance-none pr-6",
+                                        currentOption.badgeClass,
+                                        isSavingThis && "opacity-60 cursor-wait",
+                                      )}
+                                    >
+                                      {KAS_SUMBER_OPTIONS.map((opt) => (
+                                        <option
+                                          key={opt.key}
+                                          value={opt.key}
+                                          className="bg-background text-foreground font-medium py-1"
+                                        >
+                                          {opt.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <ChevronDown className="pointer-events-none absolute right-1.5 h-3.5 w-3.5 opacity-60" />
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold shadow-2xs",
+                                    currentOption.badgeClass,
+                                  )}
+                                  title={`Sumber Kas: ${currentOption.label}`}
+                                >
+                                  {currentOption.label}
+                                </span>
+                              );
+                            })()}
+                          </td>
                           {data?.canWrite ? (
-                            <td className="p-1 text-center">
+                            <td className="w-12 p-1 text-center shrink-0">
                               {isDeletable ? (
                                 <Button
                                   type="button"

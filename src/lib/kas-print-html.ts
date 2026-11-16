@@ -4,6 +4,7 @@ import {
   formatKasDateId,
   getKasBaseKegiatan,
   getKasBudgetKey,
+  stripKasPosTag,
   type KasLedgerRow,
 } from "@/lib/kas";
 import type { KasSwotAnalysisResult } from "@/components/admin/kas/KasChartSwotPanel";
@@ -77,7 +78,7 @@ export function buildKasPrintHtml(data: KasPrintData): string {
       <tr>
         <td class="c">${r.no}</td>
         <td>${escapeHtml(formatKasDateId(r.txnDate))}</td>
-        <td>${escapeHtml(r.description)}</td>
+        <td>${escapeHtml(stripKasPosTag(r.description))}</td>
         <td class="r">${r.amountIn ? escapeHtml(formatRp(r.amountIn)) : "—"}</td>
         <td class="r">${r.amountOut ? escapeHtml(formatRp(r.amountOut)) : "—"}</td>
         <td class="r">${escapeHtml(formatRp(r.saldo))}</td>

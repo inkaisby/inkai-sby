@@ -761,6 +761,69 @@ export type KasBudgetItem = {
   badgeClass: string;
 };
 
+export const KAS_SUMBER_OPTIONS: Array<{
+  key: KasBudgetKey;
+  label: string;
+  shortName: string;
+  pct: number;
+  badgeClass: string;
+}> = [
+  {
+    key: "pembinaan",
+    label: "Pembinaan (35%)",
+    shortName: "Pembinaan",
+    pct: 35,
+    badgeClass:
+      "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800",
+  },
+  {
+    key: "duka",
+    label: "Duka & Sosial (20%)",
+    shortName: "Duka & Sosial",
+    pct: 20,
+    badgeClass:
+      "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800",
+  },
+  {
+    key: "insidentil",
+    label: "Insidentil (15%)",
+    shortName: "Insidentil",
+    pct: 15,
+    badgeClass:
+      "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800",
+  },
+  {
+    key: "investasi",
+    label: "Investasi (15%)",
+    shortName: "Investasi",
+    pct: 15,
+    badgeClass:
+      "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800",
+  },
+  {
+    key: "perlengkapan",
+    label: "Perlengkapan (10%)",
+    shortName: "Perlengkapan",
+    pct: 10,
+    badgeClass:
+      "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800",
+  },
+];
+
+export function stripKasPosTag(text: string | null | undefined): string {
+  if (!text) return "";
+  return text
+    .replace(/\[pos:\s*[^\]]+\]/gi, "")
+    .replace(/\[(pembinaan|duka|insidentil|investasi|perlengkapan|sosial|aset|sarpras|darurat)\]/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+export function setKasPosTag(text: string | null | undefined, key: KasBudgetKey): string {
+  const clean = stripKasPosTag(text);
+  return clean ? `${clean} [pos: ${key}]` : `[pos: ${key}]`;
+}
+
 export function getKasBudgetMetaByKey(key: KasBudgetKey): KasBudgetItem {
   switch (key) {
     case "duka":
@@ -819,7 +882,12 @@ export function getKasBudgetKey(
 ): KasBudgetItem {
   const text = ((kegiatan || "") + " " + (description || "")).toLowerCase();
 
-  // 0. Explicit Tag Overrides: e.g. [duka], [pos: duka], [investasi], [perlengkapan], [insidentil], [pembinaan]
+  // 0. Explicit Tag Overrides: e.g. [pos: pembinaan], [pos: duka], [investasi], [perlengkapan], [insidentil]
+  const explicitMatch = text.match(/\[pos:\s*(pembinaan|duka|insidentil|investasi|perlengkapan)\]/i);
+  if (explicitMatch && explicitMatch[1]) {
+    return getKasBudgetMetaByKey(explicitMatch[1].toLowerCase() as KasBudgetKey);
+  }
+
   if (
     text.includes("pos: duka") ||
     text.includes("pos:duka") ||
