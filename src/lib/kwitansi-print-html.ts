@@ -325,7 +325,45 @@ export function buildDaftarPenerimaPrintHtml(
 </html>`;
 }
 
-export function buildNotaPengeluaranPrintHtml(
+export function formatTanggalId(isoDate: string): string {
+  if (!isoDate) return "";
+  const d = new Date(isoDate.includes("T") ? isoDate : `${isoDate}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return isoDate;
+  return d.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function notaPengeluaranStyles(): string {
+  return `
+  @page { size: A4 portrait; margin: 12mm; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 12px; margin: 0; padding: 0; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .head img { width: 64px; height: 64px; object-fit: contain; }
+  .head h1 { margin: 0; font-size: 22px; color: #b91c1c; letter-spacing: 0.04em; text-align: right; }
+  .meta { display: flex; justify-content: space-between; margin-bottom: 10px; gap: 16px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #b91c1c; color: #fff; padding: 7px 6px; border: 1px solid #7f1d1d; }
+  td { border: 1px solid #7f1d1d; padding: 6px; min-height: 22px; }
+  .summary-wrap { display: flex; justify-content: space-between; margin-top: 10px; gap: 16px; }
+  .note { flex: 1; font-size: 12px; color: #333; }
+  .summary { width: 240px; }
+  .summary table { width: 100%; }
+  .summary td { border: 1px solid #7f1d1d; padding: 5px 6px; }
+  .summary td.label { background: #b91c1c; color: #fff; font-weight: 600; width: 55%; }
+  .signs { display: flex; justify-content: space-between; margin-top: 28px; }
+  .sign { width: 40%; text-align: center; }
+  .sign-space { min-height: 64px; display: flex; align-items: flex-end; justify-content: center; }
+  .sign-line { border-top: 1px solid #333; margin-top: 4px; padding-top: 4px; }
+  .footer { margin-top: 20px; background: #b91c1c; color: #fff; padding: 8px 12px; display: flex; justify-content: space-between; font-size: 11px; }
+  .page { position: relative; page-break-after: always; break-after: page; }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+  ${draftCss()}`;
+}
+
+export function notaPengeluaranSheetInner(
   data: NotaPengeluaranPrintData,
 ): string {
   const logoUrl = `${data.origin}/logo-inkai.png`;
@@ -355,37 +393,7 @@ export function buildNotaPengeluaranPrintHtml(
     : "Sekretariat INKAI Kota Surabaya";
   const phone = data.contactPhone?.trim() || "";
 
-  return `<!DOCTYPE html>
-<html lang="id">
-<head>
-<meta charset="utf-8"/>
-<title>Nota Pengeluaran ${escapeHtml(data.noNota)}</title>
-<style>
-  @page { size: A4 portrait; margin: 12mm; }
-  body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 12px; }
-  .head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-  .head img { width: 64px; height: 64px; object-fit: contain; }
-  .head h1 { margin: 0; font-size: 22px; color: #b91c1c; letter-spacing: 0.04em; text-align: right; }
-  .meta { display: flex; justify-content: space-between; margin-bottom: 10px; gap: 16px; }
-  table { width: 100%; border-collapse: collapse; }
-  th { background: #b91c1c; color: #fff; padding: 7px 6px; border: 1px solid #7f1d1d; }
-  td { border: 1px solid #7f1d1d; padding: 6px; min-height: 22px; }
-  .summary-wrap { display: flex; justify-content: space-between; margin-top: 10px; gap: 16px; }
-  .note { flex: 1; font-size: 12px; color: #333; }
-  .summary { width: 240px; }
-  .summary table { width: 100%; }
-  .summary td { border: 1px solid #7f1d1d; padding: 5px 6px; }
-  .summary td.label { background: #b91c1c; color: #fff; font-weight: 600; width: 55%; }
-  .signs { display: flex; justify-content: space-between; margin-top: 28px; }
-  .sign { width: 40%; text-align: center; }
-  .sign-space { min-height: 64px; display: flex; align-items: flex-end; justify-content: center; }
-  .sign-line { border-top: 1px solid #333; margin-top: 4px; padding-top: 4px; }
-  .footer { margin-top: 20px; background: #b91c1c; color: #fff; padding: 8px 12px; display: flex; justify-content: space-between; font-size: 11px; }
-  .page { position: relative; }
-  ${draftCss()}
-</style>
-</head>
-<body>
+  return `
   <div class="page draft-wrap">
     ${draftMark(data.draft)}
   <div class="head">
@@ -435,9 +443,59 @@ export function buildNotaPengeluaranPrintHtml(
     <span>${phone ? escapeHtml(phone) : ""}</span>
     <span>${escapeHtml(sekretariat)}</span>
   </div>
-  </div>
+  </div>`;
+}
+
+export function buildNotaPengeluaranPrintHtml(
+  data: NotaPengeluaranPrintData,
+): string {
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<title>Nota Pengeluaran ${escapeHtml(data.noNota)}</title>
+<style>${notaPengeluaranStyles()}</style>
+</head>
+<body>
+  ${notaPengeluaranSheetInner(data)}
 </body>
 </html>`;
+}
+
+export function buildNotaPengeluaranBatchPrintHtml(
+  items: NotaPengeluaranPrintData[],
+): string {
+  if (items.length === 0) {
+    return buildNotaPengeluaranPrintHtml({
+      noNota: "",
+      tanggal: "",
+      items: [],
+      subTotal: 0,
+      pajakPersen: 0,
+      pajakAmount: 0,
+      grandTotal: 0,
+      origin: "",
+    });
+  }
+  if (items.length === 1) return buildNotaPengeluaranPrintHtml(items[0]!);
+  const sheets = items.map((d) => notaPengeluaranSheetInner(d)).join("\n");
+  const title = items.map((d) => d.noNota).filter(Boolean).join(", ");
+  return `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<title>Nota Pengeluaran ${escapeHtml(title)}</title>
+<style>${notaPengeluaranStyles()}</style>
+</head>
+<body>
+  ${sheets}
+</body>
+</html>`;
+}
+
+export function printNotaPengeluaranBatch(items: NotaPengeluaranPrintData[]) {
+  const withDraft = items.map((d) => ({ ...d, draft: Boolean(d.draft) }));
+  openHtmlPrintWindow(buildNotaPengeluaranBatchPrintHtml(withDraft));
 }
 
 export function printKwitansi(data: KwitansiPrintData) {

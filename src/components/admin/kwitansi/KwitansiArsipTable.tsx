@@ -122,14 +122,14 @@ export function KwitansiArsipTable() {
   const [deleteTarget, setDeleteTarget] = useState<KwitansiArsipItem | null>(null);
   const [syncTarget, setSyncTarget] = useState<KwitansiArsipItem | null>(null);
 
-  // Load from localStorage on mount & clean up duplicates by document number (no)
+  // Load from database & localStorage on mount
   useEffect(() => {
+    let localList: KwitansiArsipItem[] = [];
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as KwitansiArsipItem[];
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Deduplicate by item.no (keep first/newest occurrence)
           const seen = new Set<string>();
           const deduplicated: KwitansiArsipItem[] = [];
           for (const item of parsed) {
@@ -138,24 +138,79 @@ export function KwitansiArsipTable() {
               deduplicated.push(item);
             }
           }
+          localList = deduplicated;
           setItems(deduplicated);
-          if (deduplicated.length !== parsed.length) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(deduplicated));
-          }
         }
       }
     } catch {
       // Ignore parse error
     }
+
+    let cancelled = false;
+    async function loadServerArsip() {
+      try {
+        const res = await fetch("/api/admin/kwitansi/arsip");
+        if (!res.ok || cancelled) return;
+        const json = await res.json();
+        if (Array.isArray(json.items)) {
+          const serverItems = json.items as KwitansiArsipItem[];
+
+          // Jika server masih kosong tapi ada data lokal, otomatis migrasikan ke server terpusat
+          if (serverItems.length === 0 && localList.length > 0) {
+            void fetch("/api/admin/kwitansi/arsip", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ items: localList }),
+            });
+            return;
+          }
+
+          // Gabungkan: data server sebagai kanonis, simpan item lokal yang belum ada di server
+          const serverNos = new Set(serverItems.map((i) => i.no));
+          const localOnly = localList.filter((i) => i.no && !serverNos.has(i.no));
+
+          if (localOnly.length > 0) {
+            void fetch("/api/admin/kwitansi/arsip", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ items: localOnly }),
+            });
+          }
+
+          const combined = [...serverItems, ...localOnly];
+          setItems(combined);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(combined));
+        }
+      } catch {
+        // Abaikan error jaringan, tetap gunakan cache lokal
+      }
+    }
+
+    void loadServerArsip();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Save to localStorage when items change
-  const updateItems = (newItems: KwitansiArsipItem[]) => {
+  // Save to database & localStorage when items change
+  const updateItems = (
+    newItems: KwitansiArsipItem[],
+    updatedItem?: KwitansiArsipItem,
+  ) => {
     setItems(newItems);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newItems));
     } catch {
       // Ignore storage error
+    }
+
+    if (updatedItem) {
+      void fetch("/api/admin/kwitansi/arsip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedItem),
+      }).catch(() => {});
     }
   };
 
@@ -320,7 +375,7 @@ export function KwitansiArsipTable() {
         const updatedList = items.map((it) =>
           it.id === row.id ? { ...it, kasSyncMode: direction } : it,
         );
-        updateItems(updatedList);
+        updateItems(updatedList, { ...row, kasSyncMode: direction });
         toast.success(
           `Kwitansi ${row.no} berhasil dicatat ke Jurnal Kas (${direction === "in" ? "Kas Masuk +" : "Kas Keluar -"})!`,
         );
@@ -338,9 +393,18 @@ export function KwitansiArsipTable() {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     const target = deleteTarget;
-    const next = items.filter((i) => i.id !== target.id);
+    const next = items.filter((i) => i.id !== target.id && i.no !== target.no);
     updateItems(next);
     setDeleteTarget(null);
+
+    try {
+      await fetch(
+        `/api/admin/kwitansi/arsip?id=${encodeURIComponent(target.id)}&no=${encodeURIComponent(target.no)}`,
+        { method: "DELETE" },
+      );
+    } catch {
+      /* ignore server delete error */
+    }
 
     try {
       await fetch(

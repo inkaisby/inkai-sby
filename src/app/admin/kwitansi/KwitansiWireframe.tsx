@@ -290,6 +290,57 @@ export function KwitansiWireframe({
       } catch {
         /* ignore */
       }
+
+      if (!loadedFromArsip) {
+        void fetch("/api/admin/kwitansi/arsip")
+          .then((r) => r.json())
+          .then((data) => {
+            if (Array.isArray(data.items)) {
+              const found = data.items.find(
+                (item: { no?: string }) => item.no === initialNo,
+              );
+              if (found) {
+                const isNp = found.no.startsWith("NP");
+                if (isNp) {
+                  setJenis("pengeluaran");
+                  setNoNota(found.no);
+                } else {
+                  setNo(found.no);
+                  if (found.jenis?.toLowerCase().includes("prestasi")) {
+                    setJenis("prestasi");
+                  } else if (found.jenis?.toLowerCase().includes("lainnya")) {
+                    setJenis("lainnya");
+                  } else {
+                    setJenis("iuran");
+                  }
+                }
+                setPeriodeNama(found.periodeNama || "");
+                setTerimaDari(found.terimaDari || "");
+                setPenyetorName(found.penyetorName || "");
+                setUntukPembayaran(found.untukPembayaran || "");
+                if (Array.isArray(found.penerima) && found.penerima.length > 0) {
+                  setPenerima(found.penerima);
+                }
+                if (Array.isArray(found.notaItems) && found.notaItems.length > 0) {
+                  setNotaItems(found.notaItems);
+                }
+                if (typeof found.pajakPersen === "number") setPajakPersen(found.pajakPersen);
+                if (found.bidangUjianName) setBidangUjianName(found.bidangUjianName);
+                if (found.bendaharaName) setBendaharaName(found.bendaharaName);
+                if (found.bidangUjianSignUrl) setBidangUjianSignUrl(found.bidangUjianSignUrl);
+                if (found.bendaharaSignUrl) setBendaharaSignUrl(found.bendaharaSignUrl);
+                if (found.penyetorSignUrl) setPenyetorSignUrl(found.penyetorSignUrl);
+                if (found.kasSyncMode) {
+                  setKasSyncMode(found.kasSyncMode);
+                } else {
+                  setKasSyncMode(isNp ? "out" : "in");
+                }
+                toast.info(`Memuat kwitansi ${found.no} dari Database Arsip`);
+              }
+            }
+          })
+          .catch(() => {});
+      }
     }
 
     if (!loadedFromArsip) {
@@ -711,6 +762,7 @@ export function KwitansiWireframe({
       let entryId: string;
       let updatedList: typeof existing;
       let isUpdate = false;
+      let savedEntry: any = null;
 
       if (existingIndex >= 0) {
         isUpdate = true;
@@ -740,6 +792,7 @@ export function KwitansiWireframe({
           bendaharaSignUrl: isNota ? bendaharaSignUrl : undefined,
           updatedAt: new Date().toISOString(),
         };
+        savedEntry = updatedEntry;
         existing[existingIndex] = updatedEntry;
         updatedList = [...existing];
       } else {
@@ -768,10 +821,18 @@ export function KwitansiWireframe({
           bendaharaSignUrl: isNota ? bendaharaSignUrl : undefined,
           createdAt: new Date().toISOString(),
         };
+        savedEntry = newEntry;
         updatedList = [newEntry, ...existing];
       }
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
+
+      // Simpan ke database server terpusat
+      void fetch("/api/admin/kwitansi/arsip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(savedEntry),
+      }).catch(() => {});
 
       if (kasSyncMode !== "none") {
         const nominal = Math.round(isNota ? notaGrand : jumlah);
@@ -864,6 +925,11 @@ export function KwitansiWireframe({
           };
           existing[existingIndex] = updatedEntry;
           localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+          void fetch("/api/admin/kwitansi/arsip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updatedEntry),
+          }).catch(() => {});
         }
       } catch {
         /* silent auto-save error ignore */

@@ -183,6 +183,9 @@ model Member {
   bpjsCardUrl           String?
   bpjsCardNumber        String?
   bpjsOcrExtracted      Json?
+  bloodType             String?
+  height                Float?
+  weight                Float?
   /// Anggota sudah 1x mengubah email akun sendiri → selanjutnya pengajuan
   emailSelfEditedAt     DateTime?
   /// Anggota sudah 1x mengubah NIA sendiri → selanjutnya pengajuan
@@ -685,6 +688,37 @@ model SuratEntry {
   @@index([scopeType, scopeId, status])
   @@index([nomorSurat])
   @@index([eventId])
+}
+
+/// Arsip kwitansi dan nota pengeluaran resmi organisasi INKAI.
+model KwitansiArsip {
+  id                 String    @id @default(uuid())
+  no                 String    @unique
+  periodeNama        String    @default("")
+  jenis              String    @default("Iuran/tagihan")
+  tanggal            String
+  terimaDari         String    @default("")
+  total              Int       @default(0)
+  scope              String    @default("Cabang Surabaya")
+  untukPembayaran    String    @default("")
+  penerimaName       String    @default("")
+  penyetorName       String    @default("")
+  penerimaSignUrl    String?   @db.Text
+  penyetorSignUrl    String?   @db.Text
+  notaItems          Json?     // Rincian item nota pengeluaran
+  penerima           Json?     // Rincian daftar penerima kwitansi
+  pajakPersen        Int?      @default(0)
+  bidangUjianName    String?
+  bendaharaName      String?
+  bidangUjianSignUrl String?   @db.Text
+  bendaharaSignUrl   String?   @db.Text
+  kasSyncMode        String    @default("none") // in | out | none
+  createdById        String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([jenis, createdAt])
+  @@index([tanggal])
 }
 
 /// Repository arsip berkas digital & SK pengurus.

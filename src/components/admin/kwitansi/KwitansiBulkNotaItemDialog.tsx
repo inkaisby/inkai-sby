@@ -1,7 +1,17 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, Trash2, Clipboard, Table, Check, Copy } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Clipboard,
+  Table,
+  Check,
+  Copy,
+  Printer,
+  FileText,
+  Receipt,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,16 +20,39 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { KwitansiMemberPicker } from "@/components/admin/kwitansi/KwitansiMemberPicker";
 import { NotaItemRow } from "@/components/admin/kwitansi/NotaItemTable";
 import { formatRp } from "@/lib/terbilang";
+import {
+  printKwitansi,
+  printKwitansiBatch,
+  printNotaPengeluaran,
+  printNotaPengeluaranBatch,
+  formatTanggalId,
+  type KwitansiPrintData,
+  type NotaPengeluaranPrintData,
+} from "@/lib/kwitansi-print-html";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddBulk: (newRows: Omit<NotaItemRow, "id">[]) => void;
+  noNota?: string;
+  tanggal?: string;
+  bidangUjianName?: string;
+  bendaharaName?: string;
+  bidangUjianSignUrl?: string | null;
+  bendaharaSignUrl?: string | null;
 };
 
 type BulkItem = {
@@ -77,6 +110,12 @@ export function KwitansiBulkNotaItemDialog({
   open,
   onOpenChange,
   onAddBulk,
+  noNota,
+  tanggal,
+  bidangUjianName,
+  bendaharaName,
+  bidangUjianSignUrl,
+  bendaharaSignUrl,
 }: Props) {
   const [pasteText, setPasteText] = useState("");
   const [showPaste, setShowPaste] = useState(false);
@@ -84,6 +123,112 @@ export function KwitansiBulkNotaItemDialog({
   const [defaultPetugas, setDefaultPetugas] = useState("");
 
   const [items, setItems] = useState<BulkItem[]>(() => [createEmptyRow()]);
+
+  const getOrigin = () =>
+    typeof window !== "undefined" ? window.location.origin : "";
+
+  const buildRowKwitansiData = (
+    row: BulkItem,
+    index: number,
+  ): KwitansiPrintData => {
+    const numJm = Math.max(1, parseNumber(row.jumlah) || 1);
+    const numHg = parseNumber(row.harga);
+    const total = numJm * numHg;
+    const docNo = noNota
+      ? `${noNota.replace(/^NP/, "KW")}-${index + 1}`
+      : `KW/${new Date().getFullYear()}/${index + 1}`;
+    const docTgl = tanggal
+      ? formatTanggalId(tanggal)
+      : formatTanggalId(new Date().toISOString().slice(0, 10));
+
+    return {
+      no: docNo,
+      tanggal: docTgl,
+      terimaDari: bendaharaName || "Bendahara INKAI Kota Surabaya",
+      jumlah: total,
+      untukPembayaran: `${row.deskripsi.trim()}${
+        numJm > 1 ? ` (${numJm} x ${formatRp(numHg)})` : ""
+      }`,
+      penerimaName: row.petugas.trim() || bidangUjianName || "Penerima",
+      penyetorName: bendaharaName || "Bendahara Cabang",
+      penerimaSignUrl: null,
+      penyetorSignUrl: bendaharaSignUrl || null,
+      origin: getOrigin(),
+      draft: false,
+    };
+  };
+
+  const buildRowNotaData = (
+    row: BulkItem,
+    index: number,
+  ): NotaPengeluaranPrintData => {
+    const numJm = Math.max(1, parseNumber(row.jumlah) || 1);
+    const numHg = parseNumber(row.harga);
+    const total = numJm * numHg;
+    const docNo = noNota
+      ? `${noNota}-${index + 1}`
+      : `NP/${new Date().getFullYear()}/${index + 1}`;
+    const docTgl = tanggal
+      ? formatTanggalId(tanggal)
+      : formatTanggalId(new Date().toISOString().slice(0, 10));
+
+    return {
+      noNota: docNo,
+      tanggal: docTgl,
+      items: [
+        {
+          no: 1,
+          deskripsi: row.deskripsi.trim(),
+          jumlah: numJm,
+          harga: numHg,
+          total,
+          petugas: row.petugas.trim() || "—",
+        },
+      ],
+      subTotal: total,
+      pajakPersen: 0,
+      pajakAmount: 0,
+      grandTotal: total,
+      bidangUjianName: bidangUjianName || row.petugas.trim(),
+      bendaharaName: bendaharaName || "Bendahara Cabang",
+      bidangUjianSignUrl: bidangUjianSignUrl || null,
+      bendaharaSignUrl: bendaharaSignUrl || null,
+      origin: getOrigin(),
+      draft: false,
+    };
+  };
+
+  const handlePrintSingleKwitansi = (row: BulkItem, index: number) => {
+    if (!row.deskripsi.trim()) return;
+    printKwitansi(buildRowKwitansiData(row, index));
+  };
+
+  const handlePrintSingleNota = (row: BulkItem, index: number) => {
+    if (!row.deskripsi.trim()) return;
+    printNotaPengeluaran(buildRowNotaData(row, index));
+  };
+
+  const handlePrintAllKwitansi = () => {
+    const validRows = items
+      .map((r, idx) => ({ r, idx }))
+      .filter(({ r }) => r.deskripsi.trim().length > 0);
+    if (validRows.length === 0) return;
+    const batchData = validRows.map(({ r, idx }) =>
+      buildRowKwitansiData(r, idx),
+    );
+    printKwitansiBatch(batchData);
+  };
+
+  const handlePrintAllNota = () => {
+    const validRows = items
+      .map((r, idx) => ({ r, idx }))
+      .filter(({ r }) => r.deskripsi.trim().length > 0);
+    if (validRows.length === 0) return;
+    const batchData = validRows.map(({ r, idx }) =>
+      buildRowNotaData(r, idx),
+    );
+    printNotaPengeluaranBatch(batchData);
+  };
 
   const handleParsePaste = () => {
     if (!pasteText.trim()) return;
@@ -299,7 +444,7 @@ Banner & Spanduk	2	150000	Agus`}
               </p>
 
               <div className="flex-1 overflow-auto border rounded-md min-h-[220px] p-2 space-y-2">
-                <table className="w-full text-xs min-w-[700px]">
+                <table className="w-full text-xs min-w-[760px]">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
                       <th className="p-1.5 w-10 text-center">No</th>
@@ -307,7 +452,7 @@ Banner & Spanduk	2	150000	Agus`}
                       <th className="p-1.5 w-20 text-center">Jumlah</th>
                       <th className="p-1.5 w-36">Harga (Rp)</th>
                       <th className="p-1.5 w-48 sm:w-56">Petugas (Opsional)</th>
-                      <th className="p-1.5 w-16 text-center"></th>
+                      <th className="p-1.5 w-24 text-center">Aksi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -369,6 +514,51 @@ Banner & Spanduk	2	150000	Agus`}
                         </td>
                         <td className="p-1.5 text-center">
                           <div className="flex items-center justify-center gap-0.5">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  title="Opsi cetak baris ini (Kwitansi / Nota)"
+                                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                                  disabled={!row.deskripsi.trim()}
+                                >
+                                  <Printer className="h-3.5 w-3.5 text-primary" />
+                                  <span className="sr-only">Cetak baris</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuLabel className="text-xs">
+                                  Cetak Baris #{index + 1}
+                                </DropdownMenuLabel>
+                                <DropdownMenuItem
+                                  onClick={() => handlePrintSingleKwitansi(row, index)}
+                                  className="text-xs cursor-pointer"
+                                >
+                                  <FileText className="mr-2 h-4 w-4 text-emerald-600" />
+                                  <div>
+                                    <div className="font-medium">Cetak Kwitansi</div>
+                                    <div className="text-[10px] text-muted-foreground">
+                                      Slip pembayaran resmi (A4 Landscape)
+                                    </div>
+                                  </div>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handlePrintSingleNota(row, index)}
+                                  className="text-xs cursor-pointer"
+                                >
+                                  <Receipt className="mr-2 h-4 w-4 text-rose-600" />
+                                  <div>
+                                    <div className="font-medium">Cetak Nota</div>
+                                    <div className="text-[10px] text-muted-foreground">
+                                      Nota pengeluaran resmi (A4 Portrait)
+                                    </div>
+                                  </div>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+
                             <Button
                               type="button"
                               size="icon"
@@ -401,15 +591,63 @@ Banner & Spanduk	2	150000	Agus`}
               </div>
 
               <div className="flex items-center justify-between shrink-0 pt-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleAddRow}
-                  className="text-xs h-8"
-                >
-                  <Plus className="mr-1 h-3.5 w-3.5" /> Tambah Baris
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddRow}
+                    className="text-xs h-8"
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" /> Tambah Baris
+                  </Button>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-8"
+                        disabled={validCount === 0}
+                        title="Cetak semua baris yang terisi satu per satu"
+                      >
+                        <Printer className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
+                        Cetak Semua ({validCount})
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-60">
+                      <DropdownMenuLabel className="text-xs">
+                        Cetak Satu Per Satu ({validCount} item terisi)
+                      </DropdownMenuLabel>
+                      <DropdownMenuItem
+                        onClick={handlePrintAllKwitansi}
+                        className="text-xs cursor-pointer"
+                      >
+                        <FileText className="mr-2 h-4 w-4 text-emerald-600" />
+                        <div>
+                          <div className="font-medium">Semua Lembar Kwitansi</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            Tiap baris jadi 1 lembar kwitansi terpisah
+                          </div>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={handlePrintAllNota}
+                        className="text-xs cursor-pointer"
+                      >
+                        <Receipt className="mr-2 h-4 w-4 text-rose-600" />
+                        <div>
+                          <div className="font-medium">Semua Lembar Nota</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            Tiap baris jadi 1 lembar nota terpisah
+                          </div>
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
                 <div className="text-right text-xs">
                   <span className="text-muted-foreground">Total {validCount} item valid: </span>
                   <span className="font-bold text-foreground">{formatRp(totalNominal)}</span>

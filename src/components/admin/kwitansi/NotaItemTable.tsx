@@ -497,6 +497,12 @@ export function NotaItemTable({
       <KwitansiBulkNotaItemDialog
         open={bulkOpen}
         onOpenChange={setBulkOpen}
+        noNota={noNota}
+        tanggal={tanggal}
+        bidangUjianName={bidangUjianName}
+        bendaharaName={bendaharaName}
+        bidangUjianSignUrl={bidangUjianSignUrl}
+        bendaharaSignUrl={bendaharaSignUrl}
         onAddBulk={(newRows) => {
           const formattedRows: NotaItemRow[] = newRows.map((r) => ({
             ...r,
