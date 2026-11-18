@@ -49,6 +49,7 @@ type Props = {
   onAddBulk: (newRows: Omit<NotaItemRow, "id">[]) => void;
   noNota?: string;
   tanggal?: string;
+  eventLabel?: string;
   bidangUjianRole?: string;
   bidangUjianName?: string;
   bendaharaRole?: string;
@@ -114,6 +115,7 @@ export function KwitansiBulkNotaItemDialog({
   onAddBulk,
   noNota,
   tanggal,
+  eventLabel,
   bidangUjianRole,
   bidangUjianName,
   bendaharaRole,
@@ -145,22 +147,21 @@ export function KwitansiBulkNotaItemDialog({
       ? formatTanggalId(tanggal)
       : formatTanggalId(new Date().toISOString().slice(0, 10));
 
-    const baseDeskripsi = row.deskripsi.trim();
-    const petugasTrim = row.petugas.trim();
-    const petugasPart =
-      petugasTrim && !baseDeskripsi.toLowerCase().includes(petugasTrim.toLowerCase())
-        ? `, ${petugasTrim}`
-        : "";
-    const qtyPart = numJm > 1 ? ` (${numJm} x ${formatRp(numHg)})` : "";
-    const untukPembayaranText = `${baseDeskripsi}${petugasPart}${qtyPart}`;
+    const itemDesc = `${row.deskripsi.trim()}${
+      numJm > 1 ? ` (${numJm} x ${formatRp(numHg)})` : ""
+    }`;
+    const ev = (eventLabel || "").trim();
+    const untukPembayaran =
+      itemDesc && ev && !itemDesc.toLowerCase().includes(ev.toLowerCase())
+        ? `${itemDesc}, ${ev}`
+        : itemDesc || ev || "—";
 
     return {
       no: docNo,
       tanggal: docTgl,
       terimaDari: bendaharaName || "Bendahara INKAI Kota Surabaya",
       jumlah: total,
-      untukPembayaran: untukPembayaranText,
-      petugas: petugasTrim,
+      untukPembayaran,
       penerimaRole: "Penerima",
       penyetorRole: bendaharaRole || "Bendahara",
       penerimaName: row.petugas.trim() || bidangUjianName || "Penerima",

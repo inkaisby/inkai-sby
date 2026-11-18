@@ -9,7 +9,8 @@ export type KwitansiPreviewData = {
   terimaDari: string;
   jumlah: number;
   untukPembayaran: string;
-  petugas?: string;
+  eventLabel?: string;
+  kegiatan?: string;
   penerimaName?: string;
   penyetorName?: string;
   penerimaSignUrl?: string | null;
@@ -26,14 +27,13 @@ export function KwitansiPreview({ data, className }: Props) {
   const terbilang = data.jumlah > 0 ? terbilangId(data.jumlah) : "—";
   const rp = data.jumlah > 0 ? formatRp(data.jumlah) : "—";
 
+  const eventText = (data.eventLabel || data.kegiatan || "").trim();
   const untukPembayaranText = (() => {
-    const raw = (data.untukPembayaran || "").trim();
-    const pet = (data.petugas || "").trim();
-    if (!raw) return pet || "—";
-    if (pet && !raw.toLowerCase().includes(pet.toLowerCase())) {
-      return `${raw}, ${pet}`;
+    const base = (data.untukPembayaran || "").trim();
+    if (base && eventText && !base.toLowerCase().includes(eventText.toLowerCase())) {
+      return `${base}, ${eventText}`;
     }
-    return raw;
+    return base || eventText || "—";
   })();
 
   return (
@@ -67,7 +67,7 @@ export function KwitansiPreview({ data, className }: Props) {
           <p className="mt-2">
             Untuk pembayaran:
             <br />
-            {untukPembayaranText || "—"}
+            {untukPembayaranText}
           </p>
         </aside>
 
@@ -104,7 +104,7 @@ export function KwitansiPreview({ data, className }: Props) {
           <div className="mb-3 flex items-end gap-2 text-sm">
             <span className="shrink-0">Untuk pembayaran</span>
             <span className="min-w-0 flex-1 border-b border-dotted border-zinc-500 pb-0.5">
-              {untukPembayaranText || "\u00a0"}
+              {untukPembayaranText === "—" ? "\u00a0" : untukPembayaranText}
             </span>
           </div>
           <div className="flex items-center justify-between">

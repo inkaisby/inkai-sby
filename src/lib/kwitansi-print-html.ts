@@ -18,7 +18,6 @@ export type KwitansiPrintData = {
   terimaDari: string;
   jumlah: number;
   untukPembayaran: string;
-  petugas?: string;
   penerimaRole?: string;
   penyetorRole?: string;
   penerimaName?: string;
@@ -105,15 +104,6 @@ function kwitansiSheetInner(data: KwitansiPrintData): string {
   const rp = formatRp(data.jumlah);
   const penerimaLabel = data.penerimaRole?.trim() || "Penerima";
   const penyetorLabel = data.penyetorRole?.trim() || "Penyetor";
-  const untukPembayaranText = (() => {
-    const raw = (data.untukPembayaran || "").trim();
-    const pet = (data.petugas || "").trim();
-    if (!raw) return pet || "—";
-    if (pet && !raw.toLowerCase().includes(pet.toLowerCase())) {
-      return `${raw}, ${pet}`;
-    }
-    return raw;
-  })();
   return `
   <div class="sheet draft-wrap">
     ${draftMark(data.draft)}
@@ -130,7 +120,7 @@ function kwitansiSheetInner(data: KwitansiPrintData): string {
       <div style="margin-top:6px">Terima dari:<br/><strong>${escapeHtml(data.terimaDari || "—")}</strong></div>
       <div style="margin-top:6px">Jumlah: <strong>${escapeHtml(rp)}</strong></div>
       <div class="muted" style="margin-top:4px">${escapeHtml(terbilang)}</div>
-      <div style="margin-top:6px">Untuk pembayaran:<br/>${escapeHtml(untukPembayaranText || "—")}</div>
+      <div style="margin-top:6px">Untuk pembayaran:<br/>${escapeHtml(data.untukPembayaran || "—")}</div>
     </aside>
     <section class="body">
       <div class="header-wrap">
@@ -146,7 +136,7 @@ function kwitansiSheetInner(data: KwitansiPrintData): string {
       </div>
       <div class="field inline"><span>Sudah terima dari</span><span class="dots">${escapeHtml(data.terimaDari || "")}</span></div>
       <div class="terbilang">Terbilang: ${escapeHtml(terbilang)}</div>
-      <div class="field inline"><span>Untuk pembayaran</span><span class="dots">${escapeHtml(untukPembayaranText || "")}</span></div>
+      <div class="field inline"><span>Untuk pembayaran</span><span class="dots">${escapeHtml(data.untukPembayaran || "")}</span></div>
       <div class="amount-row">
         <div class="rp-box"><span>RP. ${escapeHtml(rp.replace(/^Rp\s?/, ""))}</span></div>
         <div class="stamp-lunas">LUNAS</div>

@@ -34,6 +34,7 @@ export type KwitansiArsipItem = {
   no: string;
   periodeNama: string;
   jenis: string;
+  eventLabel?: string;
   tanggal: string;
   terimaDari?: string;
   total: number;
@@ -75,6 +76,7 @@ const INITIAL_DUMMY_ARSIP: KwitansiArsipItem[] = [
     no: "KW/2026/08/0001",
     periodeNama: "Iuran Agustus 2026",
     jenis: "Iuran/tagihan",
+    eventLabel: "Latihan Rutin & Kas Ranting",
     tanggal: "10 Agustus 2026",
     terimaDari: "MOHAMMAD IQBAL",
     total: 1_500_000,
@@ -89,6 +91,7 @@ const INITIAL_DUMMY_ARSIP: KwitansiArsipItem[] = [
     no: "KW/2026/08/0002",
     periodeNama: "Walikota Cup 2026",
     jenis: "Prestasi/hadiah",
+    eventLabel: "Kejuaraan Walikota Cup 2026",
     tanggal: "12 Agustus 2026",
     terimaDari: "Tim Kumite Cabang",
     total: 3_000_000,
@@ -103,11 +106,12 @@ const INITIAL_DUMMY_ARSIP: KwitansiArsipItem[] = [
     no: "NP/2026/08/0001",
     periodeNama: "Konsumsi panitia",
     jenis: "Pengeluaran event",
+    eventLabel: "Seleksi Kejurprov Forki",
     tanggal: "14 Agustus 2026",
     terimaDari: "Konsumsi Panitia Latber",
     total: 750_000,
     scope: "Cabang Surabaya",
-    untukPembayaran: "Pembelian Konsumsi Panitia Latber",
+    untukPembayaran: "Pembelian Konsumsi Panitia Latber, Seleksi Kejurprov Forki",
     penerimaName: "Seksi Konsumsi",
     penyetorName: "Bendahara Cabang",
     kasSyncMode: "out",
@@ -287,6 +291,8 @@ export function KwitansiArsipTable() {
         !search.trim() ||
         item.no.toLowerCase().includes(search.toLowerCase()) ||
         item.periodeNama.toLowerCase().includes(search.toLowerCase()) ||
+        (item.eventLabel && item.eventLabel.toLowerCase().includes(search.toLowerCase())) ||
+        (item.untukPembayaran && item.untukPembayaran.toLowerCase().includes(search.toLowerCase())) ||
         (item.terimaDari && item.terimaDari.toLowerCase().includes(search.toLowerCase())) ||
         item.jenis.toLowerCase().includes(search.toLowerCase());
 
@@ -444,7 +450,7 @@ export function KwitansiArsipTable() {
     const headers = [
       "No Kwitansi",
       "Periode / Nama",
-      "Jenis",
+      "Event Terkait / Kegiatan",
       "Tanggal",
       "Terima Dari",
       "Total (Rp)",
@@ -454,7 +460,7 @@ export function KwitansiArsipTable() {
     const rows = filteredItems.map((r) => [
       `"${r.no}"`,
       `"${r.periodeNama}"`,
-      `"${r.jenis}"`,
+      `"${r.eventLabel ? `${r.jenis} (${r.eventLabel})` : r.jenis}"`,
       `"${r.tanggal}"`,
       `"${r.terimaDari || ""}"`,
       r.total,
@@ -492,10 +498,11 @@ export function KwitansiArsipTable() {
             onChange={(e) => setFilterJenis(e.target.value)}
             className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <option value="all">Semua Jenis Kwitansi</option>
+            <option value="all">Semua Jenis / Kegiatan</option>
             <option value="iuran">Iuran / Tagihan</option>
             <option value="prestasi">Prestasi / Hadiah</option>
-            <option value="pengeluaran">Pengeluaran Event</option>
+            <option value="pengeluaran">Pengeluaran Event / Kegiatan</option>
+            <option value="lainnya">Lainnya</option>
           </select>
         </div>
         <div className="flex items-center gap-2">
@@ -519,7 +526,7 @@ export function KwitansiArsipTable() {
             <tr className="border-b bg-muted/40 text-left font-medium text-muted-foreground">
               <th className="p-3">No</th>
               <th className="p-3">Periode / Nama</th>
-              <th className="p-3">Jenis</th>
+              <th className="p-3">Event Terkait / Kegiatan</th>
               <th className="p-3">Tanggal</th>
               <th className="p-3 text-right">Total</th>
               <th className="p-3">Status Kas</th>
@@ -545,9 +552,30 @@ export function KwitansiArsipTable() {
                     ) : null}
                   </td>
                   <td className="p-3">
-                    <span className="rounded-full border px-2.5 py-0.5 text-xs font-medium">
-                      {row.jenis}
-                    </span>
+                    <div className="flex flex-col items-start gap-1">
+                      <span className="rounded-full border px-2.5 py-0.5 text-xs font-medium bg-muted/40 text-foreground">
+                        {row.jenis}
+                      </span>
+                      {(() => {
+                        const ev =
+                          row.eventLabel ||
+                          (row.untukPembayaran && row.untukPembayaran.includes(",")
+                            ? row.untukPembayaran.split(",").slice(1).join(",").trim()
+                            : "") ||
+                          (row.jenis?.toLowerCase().includes("pengeluaran") ||
+                          row.jenis?.toLowerCase().includes("prestasi")
+                            ? row.periodeNama
+                            : "");
+                        return ev ? (
+                          <span
+                            className="text-xs font-semibold text-primary/90 dark:text-primary-foreground line-clamp-1"
+                            title={ev}
+                          >
+                            {ev}
+                          </span>
+                        ) : null;
+                      })()}
+                    </div>
                   </td>
                   <td className="p-3 whitespace-nowrap text-muted-foreground">{row.tanggal}</td>
                   <td className="p-3 text-right font-semibold text-foreground whitespace-nowrap">

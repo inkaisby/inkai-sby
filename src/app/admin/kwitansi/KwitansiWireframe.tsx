@@ -241,6 +241,7 @@ export function KwitansiWireframe({
                 }
               }
               setPeriodeNama(found.periodeNama || "");
+              setEventLabel(found.eventLabel || "");
               setTerimaDari(found.terimaDari || "");
               setPenyetorName(found.penyetorName || "");
               setUntukPembayaran(found.untukPembayaran || "");
@@ -589,9 +590,11 @@ export function KwitansiWireframe({
     let base = untukPembayaran;
     if (!base.trim() && periodeNama.trim()) base = periodeNama.trim();
     if (eventLabel && base) {
-      return base.includes(eventLabel) ? base : `${base} — ${eventLabel}`;
+      return base.toLowerCase().includes(eventLabel.toLowerCase())
+        ? base
+        : `${base}, ${eventLabel}`;
     }
-    return base;
+    return base || eventLabel;
   })();
 
   const buildKwData = (row?: PenerimaRow | null) => ({
@@ -796,6 +799,7 @@ export function KwitansiWireframe({
           terimaDari: previewTerimaDari,
           total: isNota ? notaGrand : jumlah,
           scope: scopeLabel,
+          eventLabel: eventLabel.trim() || undefined,
           untukPembayaran: untukWithEvent,
           penerimaName: previewPenerimaName,
           penyetorName: penyetorName,
@@ -827,6 +831,7 @@ export function KwitansiWireframe({
           terimaDari: previewTerimaDari,
           total: isNota ? notaGrand : jumlah,
           scope: scopeLabel,
+          eventLabel: eventLabel.trim() || undefined,
           untukPembayaran: untukWithEvent,
           penerimaName: previewPenerimaName,
           penyetorName: penyetorName,
@@ -1154,6 +1159,7 @@ export function KwitansiWireframe({
             tanggal={notaTanggal}
             pajakPersen={pajakPersen}
             items={notaItems}
+            eventLabel={eventLabel || periodeNama}
             bidangUjianRole={bidangUjianRole}
             bidangUjianName={bidangUjianName}
             bidangUjianMemberId={bidangUjianMemberId}
@@ -1296,6 +1302,7 @@ export function KwitansiWireframe({
                   terimaDari: previewTerimaDari,
                   jumlah,
                   untukPembayaran: untukWithEvent,
+                  eventLabel,
                   penerimaName: previewPenerimaName,
                   penyetorName,
                   penerimaSignUrl: previewPenerimaSign,
