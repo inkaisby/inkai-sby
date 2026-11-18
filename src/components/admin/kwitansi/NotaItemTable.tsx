@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -52,6 +52,7 @@ import {
   formatUntukPembayaran,
   cleanEventLabel,
   type KwitansiPrintData,
+  type KwitansiPrintLayout,
   type NotaPengeluaranPrintData,
 } from "@/lib/kwitansi-print-html";
 
@@ -70,6 +71,7 @@ type Props = {
   pajakPersen: number;
   items: NotaItemRow[];
   eventLabel?: string;
+  onEventLabelChange?: (v: string) => void;
   bidangUjianRole?: string;
   bidangUjianName: string;
   bidangUjianMemberId: string | null;
@@ -113,6 +115,7 @@ export function NotaItemTable({
   pajakPersen,
   items,
   eventLabel,
+  onEventLabelChange,
   bidangUjianRole = "Ketua Panitia / Penanggung Jawab",
   bidangUjianName,
   bidangUjianMemberId,
@@ -143,6 +146,7 @@ export function NotaItemTable({
   const [mailMergeIndex, setMailMergeIndex] = useState(0);
   const [mailMergeFormat, setMailMergeFormat] = useState<"kwitansi" | "nota">("kwitansi");
   const [mailMergeView, setMailMergeView] = useState<"single" | "all">("single");
+  const [kwitansiLayout, setKwitansiLayout] = useState<KwitansiPrintLayout>("f4-2");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deskripsi, setDeskripsi] = useState("");
   const [jumlah, setJumlah] = useState("1");
@@ -159,6 +163,43 @@ export function NotaItemTable({
 
   const getOrigin = () =>
     typeof window !== "undefined" ? window.location.origin : "";
+
+  const effectiveEventLabel = useMemo(() => {
+    const ev = cleanEventLabel(eventLabel);
+    if (ev) return ev;
+    // Coba temukan dari arsip lokal jika ada noNota
+    if (noNota && typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("inkai_kwitansi_arsip_list");
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            const found = list.find((it: { no?: string }) => it.no === noNota);
+            if (found) {
+              const evFromArsip =
+                cleanEventLabel(found.eventLabel) ||
+                cleanEventLabel(found.kegiatan) ||
+                (found.untukPembayaran && found.untukPembayaran.includes(",")
+                  ? cleanEventLabel(
+                      found.untukPembayaran.split(",").slice(1).join(",").trim(),
+                    )
+                  : "") ||
+                cleanEventLabel(found.periodeNama);
+              if (evFromArsip) return evFromArsip;
+            }
+          }
+        }
+      } catch {}
+    }
+    return "";
+  }, [eventLabel, noNota]);
+
+  // Otomatis sinkronkan eventLabel ke parent jika berhasil dipulihkan dari arsip
+  useEffect(() => {
+    if (!cleanEventLabel(eventLabel) && effectiveEventLabel && onEventLabelChange) {
+      onEventLabelChange(effectiveEventLabel);
+    }
+  }, [effectiveEventLabel, eventLabel, onEventLabelChange]);
 
   const buildRowKwitansiData = (
     row: NotaItemRow,
@@ -177,7 +218,7 @@ export function NotaItemTable({
     const itemDesc = `${row.deskripsi.trim()}${
       numJm > 1 ? ` (${numJm} x ${formatRp(numHg)})` : ""
     }`;
-    const untukPembayaran = formatUntukPembayaran(itemDesc, eventLabel);
+    const untukPembayaran = formatUntukPembayaran(itemDesc, effectiveEventLabel);
 
     return {
       no: docNo,
@@ -185,7 +226,7 @@ export function NotaItemTable({
       terimaDari: bendaharaName || "Bendahara INKAI Kota Surabaya",
       jumlah: total,
       untukPembayaran,
-      eventLabel: cleanEventLabel(eventLabel) || undefined,
+      eventLabel: cleanEventLabel(effectiveEventLabel) || undefined,
       penerimaRole: "Penerima",
       penyetorRole: bendaharaRole || "Bendahara",
       penerimaName: row.petugas.trim() || bidangUjianName || "Penerima",
@@ -260,9 +301,9 @@ export function NotaItemTable({
                 .join(", ")}${items.length > 3 ? "…" : ""})`
             : ""
         }`,
-        eventLabel,
+        effectiveEventLabel,
       ),
-      eventLabel: cleanEventLabel(eventLabel) || undefined,
+      eventLabel: cleanEventLabel(effectiveEventLabel) || undefined,
       penerimaRole: bidangUjianRole || "Penerima",
       penyetorRole: bendaharaRole || "Bendahara",
       penerimaName: bidangUjianName || "Penanggung Jawab",
@@ -330,9 +371,9 @@ export function NotaItemTable({
               ? ` (${currentMailMergeItem.jumlah} x ${formatRp(currentMailMergeItem.harga)})`
               : ""
           }`;
-          return formatUntukPembayaran(itemDesc, eventLabel);
+          return formatUntukPembayaran(itemDesc, effectiveEventLabel);
         })(),
-        eventLabel: cleanEventLabel(eventLabel) || undefined,
+        eventLabel: cleanEventLabel(effectiveEventLabel) || undefined,
         penerimaName:
           currentMailMergeItem.petugas.trim() ||
           bidangUjianName ||
@@ -447,7 +488,10 @@ export function NotaItemTable({
         e.preventDefault();
         if (currentMailMergeItem) {
           if (mailMergeFormat === "kwitansi") {
-            printKwitansi(buildRowKwitansiData(currentMailMergeItem, mailMergeIndex));
+            printKwitansi(
+              buildRowKwitansiData(currentMailMergeItem, mailMergeIndex),
+              { layout: kwitansiLayout },
+            );
           } else {
             printNotaPengeluaran(buildRowNotaData(currentMailMergeItem, mailMergeIndex));
           }
@@ -456,7 +500,7 @@ export function NotaItemTable({
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [mailMergeOpen, mailMergeIndex, mailMergeFormat, items, currentMailMergeItem]);
+  }, [mailMergeOpen, mailMergeIndex, mailMergeFormat, items, currentMailMergeItem, kwitansiLayout]);
 
   return (
     <div className="space-y-4 rounded-lg border p-4">
@@ -521,15 +565,60 @@ export function NotaItemTable({
                 onClick={() => {
                   const valid = items.filter((r) => r.deskripsi.trim().length > 0);
                   if (valid.length === 0) return;
-                  printKwitansiBatch(valid.map((r, i) => buildRowKwitansiData(r, i)));
+                  printKwitansiBatch(
+                    valid.map((r, i) => buildRowKwitansiData(r, i)),
+                    { layout: "f4-2" },
+                  );
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <Printer className="mr-2 h-4 w-4 text-emerald-600" />
+                <div>
+                  <div className="font-semibold text-emerald-700 dark:text-emerald-400">
+                    Cetak F4 Portrait — Muat 2 ({items.length} item)
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    Hemat kertas, 2 slip/lembar F4 (~{Math.ceil(items.length / 2)} lbr F4)
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  const valid = items.filter((r) => r.deskripsi.trim().length > 0);
+                  if (valid.length === 0) return;
+                  printKwitansiBatch(
+                    valid.map((r, i) => buildRowKwitansiData(r, i)),
+                    { layout: "f4-3" },
+                  );
                 }}
                 className="text-xs cursor-pointer"
               >
                 <Printer className="mr-2 h-4 w-4 text-primary" />
                 <div>
-                  <div className="font-medium">Semua Lembar Kwitansi ({items.length})</div>
+                  <div className="font-medium">
+                    Cetak F4 Portrait — Muat 3 ({items.length} item)
+                  </div>
                   <div className="text-[10px] text-muted-foreground">
-                    Tiap baris jadi 1 lembar kwitansi terpisah
+                    Format slip ringkas 3/lembar F4 (~{Math.ceil(items.length / 3)} lbr F4)
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  const valid = items.filter((r) => r.deskripsi.trim().length > 0);
+                  if (valid.length === 0) return;
+                  printKwitansiBatch(
+                    valid.map((r, i) => buildRowKwitansiData(r, i)),
+                    { layout: "landscape" },
+                  );
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <FileText className="mr-2 h-4 w-4 text-muted-foreground" />
+                <div>
+                  <div className="font-medium">Cetak Kwitansi A4 Landscape</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    1 lembar penuh per item (format klasik)
                   </div>
                 </div>
               </DropdownMenuItem>
@@ -684,14 +773,36 @@ export function NotaItemTable({
                               </div>
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => printKwitansi(buildRowKwitansiData(row, idx))}
+                              onClick={() =>
+                                printKwitansi(buildRowKwitansiData(row, idx), {
+                                  layout: "f4-2",
+                                })
+                              }
                               className="text-xs cursor-pointer"
                             >
-                              <Printer className="mr-2 h-4 w-4 text-primary" />
+                              <Printer className="mr-2 h-4 w-4 text-emerald-600" />
                               <div>
-                                <div className="font-medium">Cetak Langsung Kwitansi</div>
+                                <div className="font-semibold text-emerald-700 dark:text-emerald-400">
+                                  Cetak Kwitansi F4 Portrait
+                                </div>
                                 <div className="text-[10px] text-muted-foreground">
-                                  Format kwitansi resmi (A4 Landscape)
+                                  Format kwitansi resmi F4 dengan garis potong
+                                </div>
+                              </div>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() =>
+                                printKwitansi(buildRowKwitansiData(row, idx), {
+                                  layout: "landscape",
+                                })
+                              }
+                              className="text-xs cursor-pointer"
+                            >
+                              <FileText className="mr-2 h-4 w-4 text-muted-foreground" />
+                              <div>
+                                <div className="font-medium">Cetak Kwitansi A4 Landscape</div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  Format kwitansi klasik landscape
                                 </div>
                               </div>
                             </DropdownMenuItem>
@@ -1108,8 +1219,83 @@ export function NotaItemTable({
               )}
             </div>
 
-            {/* Right: Format and View Toggles */}
-            <div className="flex items-center gap-2">
+            {/* Right: Format and View Toggles + Print Layout Selector */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Event Terkait Quick Editor */}
+              <div className="flex items-center gap-1.5 rounded-lg border bg-background px-2.5 py-1 shadow-2xs">
+                <span className="text-[10px] font-semibold text-muted-foreground whitespace-nowrap">
+                  Event:
+                </span>
+                <input
+                  type="text"
+                  value={effectiveEventLabel}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (onEventLabelChange) onEventLabelChange(val);
+                  }}
+                  placeholder="Isi event/kegiatan…"
+                  className="h-5 text-xs bg-transparent border-0 outline-none w-28 sm:w-44 font-medium text-foreground placeholder:text-muted-foreground/60"
+                  title="Event atau kegiatan terkait (contoh: Seleksi Kejurprov Forki)"
+                />
+              </div>
+
+              {/* Kwitansi Print Layout Selector */}
+              {mailMergeFormat === "kwitansi" ? (
+                <div className="flex items-center gap-0.5 rounded-lg border bg-background p-0.5 shadow-2xs">
+                  <span className="text-[10px] text-muted-foreground px-1.5 font-medium hidden md:inline">
+                    Layout:
+                  </span>
+                  <button
+                    type="button"
+                    className={`px-2 py-1 text-xs rounded-md font-medium transition-all ${
+                      kwitansiLayout === "f4-2"
+                        ? "bg-emerald-700 text-white shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => setKwitansiLayout("f4-2")}
+                    title="Kertas F4 Portrait — Muat 2 Kwitansi per Lembar (Hemat Kertas & Garis Potong ✂)"
+                  >
+                    F4 (Muat 2)
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-2 py-1 text-xs rounded-md font-medium transition-all ${
+                      kwitansiLayout === "f4-3"
+                        ? "bg-emerald-700 text-white shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => setKwitansiLayout("f4-3")}
+                    title="Kertas F4 Portrait — Muat 3 Kwitansi per Lembar (Format Slip Ringkas)"
+                  >
+                    F4 (Muat 3)
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-2 py-1 text-xs rounded-md font-medium transition-all ${
+                      kwitansiLayout === "portrait-1"
+                        ? "bg-emerald-700 text-white shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => setKwitansiLayout("portrait-1")}
+                    title="1 Kwitansi per Lembar Portrait (F4 / A4) dengan batas potong/lampiran nota"
+                  >
+                    1 Lembar
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-2 py-1 text-xs rounded-md font-medium transition-all ${
+                      kwitansiLayout === "landscape"
+                        ? "bg-emerald-700 text-white shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => setKwitansiLayout("landscape")}
+                    title="Kertas A4 Landscape (Format Klasik Penuh)"
+                  >
+                    Landscape
+                  </button>
+                </div>
+              ) : null}
+
               {/* Format Toggle */}
               <div className="flex items-center rounded-lg border bg-background p-0.5 shadow-2xs">
                 <button
@@ -1300,20 +1486,24 @@ export function NotaItemTable({
                               .join(", ")}${items.length > 3 ? "…" : ""})`
                           : ""
                       }`;
-                      return formatUntukPembayaran(desc, eventLabel);
+                      return formatUntukPembayaran(desc, effectiveEventLabel);
                     })(),
-                    eventLabel: cleanEventLabel(eventLabel) || undefined,
+                    eventLabel: cleanEventLabel(effectiveEventLabel) || undefined,
                     penerimaName: bidangUjianName || "Penanggung Jawab",
                     penyetorName: bendaharaName || "Bendahara Cabang",
                     penerimaSignUrl: bidangUjianSignUrl || null,
                     penyetorSignUrl: bendaharaSignUrl || null,
                     penerimaLabel: bidangUjianRole || "Penerima",
                   }}
+                  layout={kwitansiLayout}
                 />
               </div>
             ) : currentPreviewData && mailMergeFormat === "kwitansi" ? (
               <div className="w-full max-w-4xl shadow-md rounded-lg overflow-hidden bg-white border border-zinc-200">
-                <KwitansiPreview data={currentPreviewData} />
+                <KwitansiPreview
+                  data={currentPreviewData}
+                  layout={kwitansiLayout}
+                />
               </div>
             ) : currentMailMergeItem ? (
               <div className="w-full max-w-xl shadow-md rounded-lg bg-white p-6 sm:p-8 text-zinc-900 border border-zinc-200">
@@ -1417,15 +1607,33 @@ export function NotaItemTable({
                   const valid = items.filter((r) => r.deskripsi.trim().length > 0);
                   if (valid.length === 0) return;
                   if (mailMergeFormat === "kwitansi") {
-                    printKwitansiBatch(valid.map((r, i) => buildRowKwitansiData(r, i)));
+                    printKwitansiBatch(
+                      valid.map((r, i) => buildRowKwitansiData(r, i)),
+                      { layout: kwitansiLayout },
+                    );
                   } else {
                     printNotaPengeluaranBatch(valid.map((r, i) => buildRowNotaData(r, i)));
                   }
                 }}
-                title="Cetak semua lembar satu per satu (Mail Merge Batch)"
+                title={
+                  mailMergeFormat === "kwitansi"
+                    ? kwitansiLayout === "f4-2"
+                      ? `Cetak ${items.length} kwitansi dalam kertas F4 Portrait (2 kwitansi per lembar, hemat ~${Math.ceil(items.length / 2)} lbr F4)`
+                      : kwitansiLayout === "f4-3"
+                      ? `Cetak ${items.length} kwitansi dalam kertas F4 Portrait (3 slip per lembar, hemat ~${Math.ceil(items.length / 3)} lbr F4)`
+                      : kwitansiLayout === "portrait-1"
+                      ? `Cetak ${items.length} kwitansi masing-masing 1 lembar Portrait F4/A4`
+                      : `Cetak ${items.length} kwitansi masing-masing 1 lembar A4 Landscape`
+                    : "Cetak semua lembar nota satu per satu"
+                }
               >
                 <Printer className="mr-1.5 h-3.5 w-3.5 text-primary" />
-                Cetak Semua ({items.length})
+                <span>Cetak Semua ({items.length})</span>
+                {mailMergeFormat === "kwitansi" && (kwitansiLayout === "f4-2" || kwitansiLayout === "f4-3") ? (
+                  <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                    ({kwitansiLayout === "f4-2" ? `${Math.ceil(items.length / 2)} lbr F4` : `${Math.ceil(items.length / 3)} lbr F4`})
+                  </span>
+                ) : null}
               </Button>
               <Button
                 type="button"
@@ -1437,12 +1645,17 @@ export function NotaItemTable({
                     if (mailMergeFormat === "nota") {
                       onPrint();
                     } else {
-                      printKwitansi(buildTotalKwitansiData());
+                      printKwitansi(buildTotalKwitansiData(), {
+                        layout: kwitansiLayout,
+                      });
                     }
                   } else {
                     if (!currentMailMergeItem) return;
                     if (mailMergeFormat === "kwitansi") {
-                      printKwitansi(buildRowKwitansiData(currentMailMergeItem, mailMergeIndex));
+                      printKwitansi(
+                        buildRowKwitansiData(currentMailMergeItem, mailMergeIndex),
+                        { layout: kwitansiLayout },
+                      );
                     } else {
                       printNotaPengeluaran(buildRowNotaData(currentMailMergeItem, mailMergeIndex));
                     }

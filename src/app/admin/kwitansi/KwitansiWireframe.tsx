@@ -388,7 +388,36 @@ export function KwitansiWireframe({
         setKasSyncMode(
           d.kasSyncMode ?? (d.jenis === "pengeluaran" ? "out" : "in"),
         );
-        setEventLabel(d.eventLabel || initialEventLabel);
+        let resolvedDraftEvent =
+          cleanEventLabel(d.eventLabel) ||
+          cleanEventLabel(initialEventLabel) ||
+          (d.untukPembayaran && d.untukPembayaran.includes(",")
+            ? cleanEventLabel(d.untukPembayaran.split(",").slice(1).join(",").trim())
+            : "") ||
+          cleanEventLabel(d.periodeNama);
+
+        if (!resolvedDraftEvent && (d.noNota || d.no)) {
+          try {
+            const savedRaw = localStorage.getItem("inkai_kwitansi_arsip_list");
+            if (savedRaw) {
+              const list = JSON.parse(savedRaw);
+              if (Array.isArray(list)) {
+                const found = list.find((it: { no?: string }) => it.no === d.noNota || it.no === d.no);
+                if (found) {
+                  resolvedDraftEvent =
+                    cleanEventLabel(found.eventLabel) ||
+                    cleanEventLabel(found.kegiatan) ||
+                    (found.untukPembayaran && found.untukPembayaran.includes(",")
+                      ? cleanEventLabel(found.untukPembayaran.split(",").slice(1).join(",").trim())
+                      : "") ||
+                    cleanEventLabel(found.periodeNama);
+                }
+              }
+            }
+          } catch {}
+        }
+
+        setEventLabel(resolvedDraftEvent);
         setPeriodeNama(d.periodeNama ?? "");
         setNo(d.no);
         setTanggal(d.tanggal);
@@ -1189,7 +1218,14 @@ export function KwitansiWireframe({
             tanggal={notaTanggal}
             pajakPersen={pajakPersen}
             items={notaItems}
-            eventLabel={cleanEventLabel(eventLabel) || cleanEventLabel(periodeNama)}
+            eventLabel={
+              cleanEventLabel(eventLabel) ||
+              cleanEventLabel(periodeNama) ||
+              (untukPembayaran && untukPembayaran.includes(",")
+                ? cleanEventLabel(untukPembayaran.split(",").slice(1).join(",").trim())
+                : "")
+            }
+            onEventLabelChange={setEventLabel}
             bidangUjianRole={bidangUjianRole}
             bidangUjianName={bidangUjianName}
             bidangUjianMemberId={bidangUjianMemberId}

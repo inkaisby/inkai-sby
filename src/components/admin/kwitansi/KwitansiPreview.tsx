@@ -1,7 +1,10 @@
 "use client";
 
 import { formatRp, terbilangId } from "@/lib/terbilang";
-import { formatUntukPembayaran } from "@/lib/kwitansi-print-html";
+import {
+  formatUntukPembayaran,
+  type KwitansiPrintLayout,
+} from "@/lib/kwitansi-print-html";
 import { cn } from "@/lib/utils";
 
 export type KwitansiPreviewData = {
@@ -21,133 +24,264 @@ export type KwitansiPreviewData = {
 
 type Props = {
   data: KwitansiPreviewData;
+  layout?: KwitansiPrintLayout;
+  showCutLine?: boolean;
   className?: string;
 };
 
-export function KwitansiPreview({ data, className }: Props) {
+export function KwitansiPreview({
+  data,
+  layout = "f4-2",
+  showCutLine,
+  className,
+}: Props) {
   const terbilang = data.jumlah > 0 ? terbilangId(data.jumlah) : "—";
   const rp = data.jumlah > 0 ? formatRp(data.jumlah) : "—";
 
   const eventText = data.eventLabel || data.kegiatan || "";
   const untukPembayaranText = formatUntukPembayaran(data.untukPembayaran, eventText);
+  const isF43 = layout === "f4-3";
+
+  const layoutBadgeLabel =
+    layout === "f4-2"
+      ? "F4 Portrait (Muat 2 Kwitansi)"
+      : layout === "f4-3"
+      ? "F4 Portrait (Muat 3 Kwitansi)"
+      : layout === "portrait-1"
+      ? "Portrait (1 Lembar)"
+      : "Landscape (A4 Klasik)";
 
   return (
-    <div
-      className={cn(
-        "overflow-hidden rounded-lg border border-zinc-800 bg-white text-zinc-900 shadow-sm",
-        className,
-      )}
-    >
-      <div className="flex min-h-0 flex-col md:flex-row">
-        <aside className="border-b border-dashed border-zinc-500 p-3 text-[11px] leading-relaxed md:w-[32%] md:border-b-0 md:border-r">
-          <div className="mb-2 flex items-center gap-1.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-inkai.png" alt="INKAI" className="h-5 w-5 object-contain" />
-            <div>
-              <p className="text-xs font-bold tracking-wide">KWITANSI</p>
-              <p className="text-[9px] font-semibold text-zinc-500">INKAI SURABAYA</p>
-            </div>
-          </div>
-          <p>No. {data.no || "—"}</p>
-          <p>Tanggal: {data.tanggal || "—"}</p>
-          <p className="mt-2">
-            Terima dari:
-            <br />
-            <strong>{data.terimaDari || "—"}</strong>
-          </p>
-          <p className="mt-2">
-            Jumlah: <strong>{rp}</strong>
-          </p>
-          <p className="mt-1 text-zinc-600">{terbilang}</p>
-          <p className="mt-2">
-            Untuk pembayaran:
-            <br />
-            {untukPembayaranText}
-          </p>
-        </aside>
+    <div className="space-y-1.5">
+      {/* Header Info Layout Cetak */}
+      <div className="flex items-center justify-between px-1 text-[11px] text-muted-foreground">
+        <span className="font-medium text-zinc-700 dark:text-zinc-300">
+          Format Dokumen Kwitansi Resmi
+        </span>
+        <span className="inline-flex items-center gap-1 rounded bg-zinc-200/80 px-2 py-0.5 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          <span>📄</span>
+          <span>{layoutBadgeLabel}</span>
+        </span>
+      </div>
 
-        <section className="flex-1 p-4">
-          <div className="relative mb-3 flex min-h-[44px] items-center justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/logo-inkai.png"
-              alt="INKAI"
-              className="absolute left-0 top-1/2 h-10 w-10 -translate-y-1/2 object-contain"
-            />
-            <div className="text-center">
-              <h2 className="text-base font-bold tracking-[0.06em] sm:text-lg">
-                KWITANSI PEMBAYARAN
-              </h2>
-              <p className="text-[10px] font-semibold text-zinc-600">
-                INSTITUT KARATE-DO INDONESIA (INKAI) CABANG SURABAYA
-              </p>
+      <div
+        className={cn(
+          "overflow-hidden rounded-lg border border-zinc-800 bg-white text-zinc-900 shadow-sm",
+          className,
+        )}
+      >
+        <div className="flex min-h-0 flex-col md:flex-row">
+          <aside
+            className={cn(
+              "border-b border-dashed border-zinc-500 leading-relaxed md:border-b-0 md:border-r bg-zinc-50/50",
+              isF43
+                ? "p-2.5 text-[10px] md:w-[30%]"
+                : "p-3 text-[11px] md:w-[32%]",
+            )}
+          >
+            <div className="mb-2 flex items-center gap-1.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo-inkai.png"
+                alt="INKAI"
+                className={cn("object-contain", isF43 ? "h-4 w-4" : "h-5 w-5")}
+              />
+              <div>
+                <p className="text-xs font-bold tracking-wide">KWITANSI</p>
+                <p className="text-[9px] font-semibold text-zinc-500">
+                  INKAI SURABAYA
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="mb-2 flex justify-between gap-3 text-sm">
-            <span>No. {data.no || "—"}</span>
-            <span>Tanggal: {data.tanggal || "—"}</span>
-          </div>
-          <div className="mb-2 flex items-end gap-2 text-sm">
-            <span className="shrink-0">Sudah terima dari</span>
-            <span className="min-w-0 flex-1 border-b border-dotted border-zinc-500 pb-0.5">
-              {data.terimaDari || "\u00a0"}
-            </span>
-          </div>
-          <p className="mb-2 text-sm italic text-zinc-700">
-            Terbilang: {terbilang}
-          </p>
-          <div className="mb-3 flex items-end gap-2 text-sm">
-            <span className="shrink-0">Untuk pembayaran</span>
-            <span className="min-w-0 flex-1 border-b border-dotted border-zinc-500 pb-0.5">
-              {untukPembayaranText === "—" ? "\u00a0" : untukPembayaranText}
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="inline-block -skew-x-[8deg] border-2 border-zinc-900 px-4 py-1.5 text-base font-bold">
-              <span className="inline-block skew-x-[8deg]">
-                RP. {data.jumlah > 0 ? rp.replace(/^Rp\s?/, "") : "—"}
+            <p>No. {data.no || "—"}</p>
+            <p>Tanggal: {data.tanggal || "—"}</p>
+            <p className="mt-2">
+              Terima dari:
+              <br />
+              <strong>{data.terimaDari || "—"}</strong>
+            </p>
+            <p className="mt-2">
+              Jumlah: <strong>{rp}</strong>
+            </p>
+            <p className="mt-1 text-zinc-600">{terbilang}</p>
+            <p className="mt-2">
+              Untuk pembayaran:
+              <br />
+              {untukPembayaranText}
+            </p>
+          </aside>
+
+          <section
+            className={cn(
+              "flex-1",
+              isF43 ? "p-3" : "p-4",
+            )}
+          >
+            <div
+              className={cn(
+                "relative flex items-center justify-center",
+                isF43 ? "mb-2 min-h-[36px]" : "mb-3 min-h-[44px]",
+              )}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo-inkai.png"
+                alt="INKAI"
+                className={cn(
+                  "absolute left-0 top-1/2 -translate-y-1/2 object-contain",
+                  isF43 ? "h-8 w-8" : "h-10 w-10",
+                )}
+              />
+              <div className="text-center">
+                <h2
+                  className={cn(
+                    "font-bold tracking-[0.06em]",
+                    isF43 ? "text-sm sm:text-base" : "text-base sm:text-lg",
+                  )}
+                >
+                  KWITANSI PEMBAYARAN
+                </h2>
+                <p
+                  className={cn(
+                    "font-semibold text-zinc-600",
+                    isF43 ? "text-[9px]" : "text-[10px]",
+                  )}
+                >
+                  INSTITUT KARATE-DO INDONESIA (INKAI) CABANG SURABAYA
+                </p>
+              </div>
+            </div>
+            <div
+              className={cn(
+                "mb-2 flex justify-between gap-3",
+                isF43 ? "text-xs" : "text-sm",
+              )}
+            >
+              <span>No. {data.no || "—"}</span>
+              <span>Tanggal: {data.tanggal || "—"}</span>
+            </div>
+            <div
+              className={cn(
+                "mb-2 flex items-end gap-2",
+                isF43 ? "text-xs" : "text-sm",
+              )}
+            >
+              <span className="shrink-0">Sudah terima dari</span>
+              <span className="min-w-0 flex-1 border-b border-dotted border-zinc-500 pb-0.5">
+                {data.terimaDari || "\u00a0"}
               </span>
             </div>
-            <div className="-rotate-6 rounded border-2 border-emerald-700 px-2.5 py-0.5 font-sans text-xs font-extrabold tracking-widest text-emerald-700">
-              LUNAS
+            <p
+              className={cn(
+                "mb-2 italic text-zinc-700",
+                isF43 ? "text-xs" : "text-sm",
+              )}
+            >
+              Terbilang: {terbilang}
+            </p>
+            <div
+              className={cn(
+                "mb-3 flex items-end gap-2",
+                isF43 ? "text-xs" : "text-sm",
+              )}
+            >
+              <span className="shrink-0">Untuk pembayaran</span>
+              <span className="min-w-0 flex-1 border-b border-dotted border-zinc-500 pb-0.5">
+                {untukPembayaranText === "—" ? "\u00a0" : untukPembayaranText}
+              </span>
             </div>
-          </div>
+            <div className="flex items-center justify-between">
+              <div
+                className={cn(
+                  "inline-block -skew-x-[8deg] border-2 border-zinc-900 font-bold",
+                  isF43 ? "px-3 py-1 text-sm" : "px-4 py-1.5 text-base",
+                )}
+              >
+                <span className="inline-block skew-x-[8deg]">
+                  RP. {data.jumlah > 0 ? rp.replace(/^Rp\s?/, "") : "—"}
+                </span>
+              </div>
+              <div
+                className={cn(
+                  "-rotate-6 rounded border-2 border-emerald-700 font-sans font-extrabold tracking-widest text-emerald-700",
+                  isF43 ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-0.5 text-xs",
+                )}
+              >
+                LUNAS
+              </div>
+            </div>
 
-          <div className="mt-6 flex justify-between gap-6">
-            <div className="w-[42%] text-center text-xs">
-              <div className="flex min-h-24 items-end justify-center rounded-sm bg-white">
-                {data.penerimaSignUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={data.penerimaSignUrl}
-                    alt="TTD Penerima"
-                    className="max-h-24 max-w-[200px] object-contain"
-                  />
-                ) : null}
+            <div
+              className={cn(
+                "flex justify-between gap-6",
+                isF43 ? "mt-4" : "mt-6",
+              )}
+            >
+              <div className="w-[44%] text-center text-xs">
+                <div
+                  className={cn(
+                    "flex items-end justify-center rounded-sm bg-white",
+                    isF43 ? "min-h-16" : "min-h-24",
+                  )}
+                >
+                  {data.penerimaSignUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={data.penerimaSignUrl}
+                      alt="TTD Penerima"
+                      className={cn(
+                        "object-contain",
+                        isF43
+                          ? "max-h-16 max-w-[150px]"
+                          : "max-h-24 max-w-[200px]",
+                      )}
+                    />
+                  ) : null}
+                </div>
+                <div className="mt-1 border-t border-zinc-700 pt-1 font-medium">
+                  {data.penerimaName || "………………"}
+                </div>
+                <div className="text-[11px] text-zinc-600">
+                  {data.penerimaLabel || "Penerima"}
+                </div>
               </div>
-              <div className="mt-1 border-t border-zinc-700 pt-1">
-                {data.penerimaName || "………………"}
+              <div className="w-[44%] text-center text-xs">
+                <div
+                  className={cn(
+                    "flex items-end justify-center rounded-sm bg-white",
+                    isF43 ? "min-h-16" : "min-h-24",
+                  )}
+                >
+                  {data.penyetorSignUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={data.penyetorSignUrl}
+                      alt="TTD Penyetor"
+                      className={cn(
+                        "object-contain",
+                        isF43
+                          ? "max-h-16 max-w-[150px]"
+                          : "max-h-24 max-w-[200px]",
+                      )}
+                    />
+                  ) : null}
+                </div>
+                <div className="mt-1 border-t border-zinc-700 pt-1 font-medium">
+                  {data.penyetorName || "………………"}
+                </div>
+                <div className="text-[11px] text-zinc-600">Penyetor</div>
               </div>
-              <div>{data.penerimaLabel || "Penerima"}</div>
             </div>
-            <div className="w-[42%] text-center text-xs">
-              <div className="flex min-h-24 items-end justify-center rounded-sm bg-white">
-                {data.penyetorSignUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={data.penyetorSignUrl}
-                    alt="TTD Penyetor"
-                    className="max-h-24 max-w-[200px] object-contain"
-                  />
-                ) : null}
-              </div>
-              <div className="mt-1 border-t border-zinc-700 pt-1">
-                {data.penyetorName || "………………"}
-              </div>
-              <div>Penyetor</div>
-            </div>
+          </section>
+        </div>
+
+        {/* Garis Potong simulasi jika layout portrait/F4 */}
+        {(showCutLine || layout !== "landscape") ? (
+          <div className="flex items-center justify-center gap-2 border-t border-dashed border-zinc-400 bg-zinc-50/80 px-4 py-1.5 text-[10px] font-semibold text-zinc-500 tracking-wider">
+            <span>✂</span>
+            <span>GARIS POTONG (KERTAS F4 PORTRAIT)</span>
           </div>
-        </section>
+        ) : null}
       </div>
     </div>
   );
