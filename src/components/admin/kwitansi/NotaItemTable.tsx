@@ -11,6 +11,7 @@ import {
   Printer,
   Receipt,
   Trash2,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -983,43 +984,122 @@ export function NotaItemTable({
       />
 
       <Dialog open={mailMergeOpen} onOpenChange={setMailMergeOpen}>
-        <DialogContent className="max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-6 overflow-hidden">
-          <DialogHeader className="flex flex-row items-center justify-between pb-3 border-b space-y-0">
-            <div>
-              <DialogTitle className="text-base font-semibold flex items-center gap-2">
+        <DialogContent
+          showCloseButton={false}
+          className="flex max-h-[94vh] w-[96vw] max-w-5xl sm:max-w-5xl flex-col gap-0 p-0 overflow-hidden rounded-xl border bg-card shadow-2xl"
+        >
+          {/* Header Tier 1: Title, Subtitle, Badges, and Close Button */}
+          <div className="flex items-center justify-between border-b px-5 py-3.5 bg-muted/20">
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={`p-2 rounded-lg shrink-0 ${
+                  mailMergeFormat === "nota"
+                    ? "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
+                    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                }`}
+              >
                 {mailMergeFormat === "nota" ? (
-                  <Receipt className="h-4 w-4 text-rose-600" />
+                  <Receipt className="h-5 w-5" />
                 ) : (
-                  <FileText className="h-4 w-4 text-emerald-600" />
+                  <FileText className="h-5 w-5" />
                 )}
-                {mailMergeFormat === "nota"
-                  ? "Pratinjau Cetak Nota"
-                  : "Pratinjau Cetak Kwitansi"}
-                {mailMergeView === "single" ? " (Mail Merge)" : " (Dokumen Utuh)"}
-              </DialogTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {mailMergeView === "single" ? (
-                  <>
-                    Item {items.length > 0 ? mailMergeIndex + 1 : 0} dari {items.length} ·{" "}
-                    <span className="font-medium text-foreground">
-                      {currentMailMergeItem?.deskripsi || "—"}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    Rekap Dokumen Lengkap · {items.length} item pengeluaran · Total {formatRp(grandTotal)}
-                  </>
-                )}
-              </p>
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="text-base font-semibold leading-tight flex flex-wrap items-center gap-2">
+                  <span>
+                    {mailMergeFormat === "nota"
+                      ? "Pratinjau Nota Pengeluaran"
+                      : "Pratinjau Kwitansi Pembayaran"}
+                  </span>
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground border">
+                    {mailMergeView === "single" ? "Mail Merge (Per Item)" : "Dokumen Utuh"}
+                  </span>
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                  {mailMergeView === "single" ? (
+                    <>
+                      Lembar ke-{items.length > 0 ? mailMergeIndex + 1 : 0} dari {items.length} item
+                      {currentMailMergeItem?.deskripsi ? (
+                        <>
+                          {" "}·{" "}
+                          <span className="font-medium text-foreground">
+                            {currentMailMergeItem.deskripsi}
+                          </span>
+                        </>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      Rekap dokumen lengkap · {items.length} item pengeluaran · Total {formatRp(grandTotal)}
+                    </>
+                  )}
+                </p>
+              </div>
             </div>
 
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={() => setMailMergeOpen(false)}
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Tutup</span>
+            </Button>
+          </div>
+
+          {/* Header Tier 2: Controls Toolbar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/40 px-5 py-2.5 text-xs">
+            {/* Left: Navigation or Status */}
+            <div className="flex items-center gap-2 min-w-0">
+              {mailMergeView === "single" ? (
+                <div className="flex items-center gap-1.5 bg-background border rounded-lg p-1 shadow-2xs">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs gap-1 font-medium"
+                    disabled={mailMergeIndex <= 0}
+                    onClick={handlePrevMailMerge}
+                    title="Lembar sebelumnya (←)"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Sebelumnya</span>
+                  </Button>
+                  <span className="text-xs font-semibold px-2 text-muted-foreground min-w-[65px] text-center tabular-nums">
+                    {items.length > 0 ? mailMergeIndex + 1 : 0} / {items.length}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs gap-1 font-medium"
+                    disabled={mailMergeIndex >= items.length - 1}
+                    onClick={handleNextMailMerge}
+                    title="Lembar berikutnya (→)"
+                  >
+                    <span className="hidden sm:inline">Berikutnya</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                  Menampilkan seluruh {items.length} rincian pengeluaran sekaligus
+                </div>
+              )}
+            </div>
+
+            {/* Right: Format and View Toggles */}
             <div className="flex items-center gap-2">
-              <div className="flex items-center rounded-md border p-0.5 bg-muted/40">
+              {/* Format Toggle */}
+              <div className="flex items-center rounded-lg border bg-background p-0.5 shadow-2xs">
                 <button
                   type="button"
-                  className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
+                  className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
                     mailMergeFormat === "nota"
-                      ? "bg-white text-foreground shadow-sm dark:bg-zinc-800"
+                      ? "bg-rose-600 text-white shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                   onClick={() => setMailMergeFormat("nota")}
@@ -1028,9 +1108,9 @@ export function NotaItemTable({
                 </button>
                 <button
                   type="button"
-                  className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
+                  className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
                     mailMergeFormat === "kwitansi"
-                      ? "bg-white text-foreground shadow-sm dark:bg-zinc-800"
+                      ? "bg-emerald-600 text-white shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                   onClick={() => setMailMergeFormat("kwitansi")}
@@ -1039,70 +1119,40 @@ export function NotaItemTable({
                 </button>
               </div>
 
-              <div className="flex items-center rounded-md border p-0.5 bg-muted/40">
+              {/* View Toggle */}
+              <div className="flex items-center rounded-lg border bg-background p-0.5 shadow-2xs">
                 <button
                   type="button"
-                  className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
+                  className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
                     mailMergeView === "single"
-                      ? "bg-white text-foreground shadow-sm dark:bg-zinc-800"
+                      ? "bg-primary text-primary-foreground shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                   onClick={() => setMailMergeView("single")}
-                  title="Lihat item satu per satu (Mail Merge)"
+                  title="Tampilkan lembar per item rincian (Mail Merge)"
                 >
                   Per Item
                 </button>
                 <button
                   type="button"
-                  className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
+                  className={`px-3 py-1 text-xs rounded-md font-medium transition-all ${
                     mailMergeView === "all"
-                      ? "bg-white text-foreground shadow-sm dark:bg-zinc-800"
+                      ? "bg-primary text-primary-foreground shadow-xs font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                   onClick={() => setMailMergeView("all")}
-                  title="Lihat dokumen rekap utuh"
+                  title="Tampilkan lembar rekap utuh"
                 >
                   Dokumen Utuh
                 </button>
               </div>
-
-              {mailMergeView === "single" ? (
-                <div className="flex items-center gap-1 border-l pl-2">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    className="h-7 w-7"
-                    disabled={mailMergeIndex <= 0}
-                    onClick={handlePrevMailMerge}
-                    title="Item sebelumnya (Panah Kiri)"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    <span className="sr-only">Sebelumnya</span>
-                  </Button>
-                  <span className="text-xs font-semibold px-1 text-muted-foreground min-w-[50px] text-center">
-                    {items.length > 0 ? mailMergeIndex + 1 : 0} / {items.length}
-                  </span>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    className="h-7 w-7"
-                    disabled={mailMergeIndex >= items.length - 1}
-                    onClick={handleNextMailMerge}
-                    title="Item berikutnya (Panah Kanan)"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                    <span className="sr-only">Berikutnya</span>
-                  </Button>
-                </div>
-              ) : null}
             </div>
-          </DialogHeader>
+          </div>
 
-          <div className="flex-1 overflow-y-auto py-3">
+          {/* Canvas Preview Area */}
+          <div className="flex-1 overflow-y-auto overflow-x-auto bg-zinc-100/90 dark:bg-zinc-950/60 p-4 sm:p-6 flex items-center justify-center min-h-[460px]">
             {mailMergeView === "all" && mailMergeFormat === "nota" ? (
-              <div className="rounded-lg border bg-white p-6 text-zinc-900 shadow-sm max-w-2xl mx-auto">
+              <div className="w-full max-w-2xl shadow-md rounded-lg bg-white p-6 sm:p-8 text-zinc-900 border border-zinc-200">
                 <div className="flex justify-between items-start border-b pb-3 mb-4">
                   <div>
                     <h4 className="text-lg font-bold text-rose-700 tracking-wide">NOTA PENGELUARAN</h4>
@@ -1216,7 +1266,7 @@ export function NotaItemTable({
                 </div>
               </div>
             ) : mailMergeView === "all" && mailMergeFormat === "kwitansi" ? (
-              <div className="max-w-3xl mx-auto">
+              <div className="w-full max-w-4xl shadow-md rounded-lg overflow-hidden bg-white border border-zinc-200">
                 <KwitansiPreview
                   data={{
                     no: noNota ? noNota.replace(/^NP/, "KW") : "KW-TOTAL",
@@ -1241,9 +1291,11 @@ export function NotaItemTable({
                 />
               </div>
             ) : currentPreviewData && mailMergeFormat === "kwitansi" ? (
-              <KwitansiPreview data={currentPreviewData} />
+              <div className="w-full max-w-4xl shadow-md rounded-lg overflow-hidden bg-white border border-zinc-200">
+                <KwitansiPreview data={currentPreviewData} />
+              </div>
             ) : currentMailMergeItem ? (
-              <div className="rounded-lg border bg-white p-6 text-zinc-900 shadow-sm max-w-xl mx-auto">
+              <div className="w-full max-w-xl shadow-md rounded-lg bg-white p-6 sm:p-8 text-zinc-900 border border-zinc-200">
                 <div className="flex justify-between items-start border-b pb-3 mb-4">
                   <div>
                     <h4 className="text-base font-bold text-rose-700">NOTA PENGELUARAN</h4>
@@ -1308,7 +1360,8 @@ export function NotaItemTable({
             )}
           </div>
 
-          <DialogFooter className="flex flex-row items-center justify-between border-t pt-3 gap-2">
+          {/* Footer */}
+          <DialogFooter className="flex flex-row items-center justify-between border-t bg-background px-5 py-3 gap-2">
             <p className="text-[11px] text-muted-foreground hidden sm:block">
               {mailMergeView === "single" ? (
                 <>
