@@ -9,6 +9,7 @@ export type KwitansiPreviewData = {
   terimaDari: string;
   jumlah: number;
   untukPembayaran: string;
+  petugas?: string;
   penerimaName?: string;
   penyetorName?: string;
   penerimaSignUrl?: string | null;
@@ -24,6 +25,16 @@ type Props = {
 export function KwitansiPreview({ data, className }: Props) {
   const terbilang = data.jumlah > 0 ? terbilangId(data.jumlah) : "—";
   const rp = data.jumlah > 0 ? formatRp(data.jumlah) : "—";
+
+  const untukPembayaranText = (() => {
+    const raw = (data.untukPembayaran || "").trim();
+    const pet = (data.petugas || "").trim();
+    if (!raw) return pet || "—";
+    if (pet && !raw.toLowerCase().includes(pet.toLowerCase())) {
+      return `${raw}, ${pet}`;
+    }
+    return raw;
+  })();
 
   return (
     <div
@@ -56,7 +67,7 @@ export function KwitansiPreview({ data, className }: Props) {
           <p className="mt-2">
             Untuk pembayaran:
             <br />
-            {data.untukPembayaran || "—"}
+            {untukPembayaranText || "—"}
           </p>
         </aside>
 
@@ -93,7 +104,7 @@ export function KwitansiPreview({ data, className }: Props) {
           <div className="mb-3 flex items-end gap-2 text-sm">
             <span className="shrink-0">Untuk pembayaran</span>
             <span className="min-w-0 flex-1 border-b border-dotted border-zinc-500 pb-0.5">
-              {data.untukPembayaran || "\u00a0"}
+              {untukPembayaranText || "\u00a0"}
             </span>
           </div>
           <div className="flex items-center justify-between">

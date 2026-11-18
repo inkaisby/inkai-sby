@@ -145,14 +145,22 @@ export function KwitansiBulkNotaItemDialog({
       ? formatTanggalId(tanggal)
       : formatTanggalId(new Date().toISOString().slice(0, 10));
 
+    const baseDeskripsi = row.deskripsi.trim();
+    const petugasTrim = row.petugas.trim();
+    const petugasPart =
+      petugasTrim && !baseDeskripsi.toLowerCase().includes(petugasTrim.toLowerCase())
+        ? `, ${petugasTrim}`
+        : "";
+    const qtyPart = numJm > 1 ? ` (${numJm} x ${formatRp(numHg)})` : "";
+    const untukPembayaranText = `${baseDeskripsi}${petugasPart}${qtyPart}`;
+
     return {
       no: docNo,
       tanggal: docTgl,
       terimaDari: bendaharaName || "Bendahara INKAI Kota Surabaya",
       jumlah: total,
-      untukPembayaran: `${row.deskripsi.trim()}${
-        numJm > 1 ? ` (${numJm} x ${formatRp(numHg)})` : ""
-      }`,
+      untukPembayaran: untukPembayaranText,
+      petugas: petugasTrim,
       penerimaRole: "Penerima",
       penyetorRole: bendaharaRole || "Bendahara",
       penerimaName: row.petugas.trim() || bidangUjianName || "Penerima",

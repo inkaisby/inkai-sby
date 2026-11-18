@@ -170,17 +170,25 @@ export function NotaItemTable({
       ? formatTanggalId(tanggal)
       : formatTanggalId(new Date().toISOString().slice(0, 10));
 
+    const baseDeskripsi = row.deskripsi.trim();
+    const petugasTrim = row.petugas.trim();
+    const petugasPart =
+      petugasTrim && !baseDeskripsi.toLowerCase().includes(petugasTrim.toLowerCase())
+        ? `, ${petugasTrim}`
+        : "";
+    const qtyPart = numJm > 1 ? ` (${numJm} x ${formatRp(numHg)})` : "";
+    const untukPembayaranText = `${baseDeskripsi}${petugasPart}${qtyPart}`;
+
     return {
       no: docNo,
       tanggal: docTgl,
       terimaDari: bendaharaName || "Bendahara INKAI Kota Surabaya",
       jumlah: total,
-      untukPembayaran: `${row.deskripsi.trim()}${
-        numJm > 1 ? ` (${numJm} x ${formatRp(numHg)})` : ""
-      }`,
+      untukPembayaran: untukPembayaranText,
+      petugas: petugasTrim,
       penerimaRole: "Penerima",
       penyetorRole: bendaharaRole || "Bendahara",
-      penerimaName: row.petugas.trim() || bidangUjianName || "Penerima",
+      penerimaName: petugasTrim || bidangUjianName || "Penerima",
       penyetorName: bendaharaName || "Bendahara Cabang",
       penerimaSignUrl: null,
       penyetorSignUrl: bendaharaSignUrl || null,
@@ -301,31 +309,39 @@ export function NotaItemTable({
   };
 
   const currentPreviewData: KwitansiPreviewData | null = currentMailMergeItem
-    ? {
-        no: noNota
-          ? `${noNota.replace(/^NP/, "KW")}-${mailMergeIndex + 1}`
-          : `KW/${new Date().getFullYear()}/${mailMergeIndex + 1}`,
-        tanggal: tanggal
-          ? formatTanggalId(tanggal)
-          : formatTanggalId(new Date().toISOString().slice(0, 10)),
-        terimaDari: bendaharaName || "Bendahara INKAI Kota Surabaya",
-        jumlah:
-          (Number(currentMailMergeItem.jumlah) || 1) *
-          (Number(currentMailMergeItem.harga) || 0),
-        untukPembayaran: `${currentMailMergeItem.deskripsi.trim()}${
-          (Number(currentMailMergeItem.jumlah) || 1) > 1
-            ? ` (${currentMailMergeItem.jumlah} x ${formatRp(currentMailMergeItem.harga)})`
-            : ""
-        }`,
-        penerimaName:
-          currentMailMergeItem.petugas.trim() ||
-          bidangUjianName ||
-          "Penerima",
-        penyetorName: bendaharaName || "Bendahara Cabang",
-        penerimaSignUrl: null,
-        penyetorSignUrl: bendaharaSignUrl || null,
-        penerimaLabel: "Penerima",
-      }
+    ? (() => {
+        const numJm = Math.max(1, Number(currentMailMergeItem.jumlah) || 1);
+        const numHg = Number(currentMailMergeItem.harga) || 0;
+        const baseDeskripsi = currentMailMergeItem.deskripsi.trim();
+        const petugasTrim = currentMailMergeItem.petugas.trim();
+        const petugasPart =
+          petugasTrim && !baseDeskripsi.toLowerCase().includes(petugasTrim.toLowerCase())
+            ? `, ${petugasTrim}`
+            : "";
+        const qtyPart = numJm > 1 ? ` (${numJm} x ${formatRp(numHg)})` : "";
+        const untukPembayaranText = `${baseDeskripsi}${petugasPart}${qtyPart}`;
+
+        return {
+          no: noNota
+            ? `${noNota.replace(/^NP/, "KW")}-${mailMergeIndex + 1}`
+            : `KW/${new Date().getFullYear()}/${mailMergeIndex + 1}`,
+          tanggal: tanggal
+            ? formatTanggalId(tanggal)
+            : formatTanggalId(new Date().toISOString().slice(0, 10)),
+          terimaDari: bendaharaName || "Bendahara INKAI Kota Surabaya",
+          jumlah: numJm * numHg,
+          untukPembayaran: untukPembayaranText,
+          petugas: petugasTrim,
+          penerimaName:
+            petugasTrim ||
+            bidangUjianName ||
+            "Penerima",
+          penyetorName: bendaharaName || "Bendahara Cabang",
+          penerimaSignUrl: null,
+          penyetorSignUrl: bendaharaSignUrl || null,
+          penerimaLabel: "Penerima",
+        };
+      })()
     : null;
 
   const reset = () => {
