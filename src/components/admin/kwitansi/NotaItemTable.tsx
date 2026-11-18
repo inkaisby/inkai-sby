@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Copy, FileText, Pencil, Plus, Printer, Receipt, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,6 +10,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SignaturePadField } from "@/components/admin/SignaturePadField";
@@ -19,6 +27,15 @@ import {
 } from "@/components/admin/kwitansi/KwitansiMemberPicker";
 import { KwitansiBulkNotaItemDialog } from "@/components/admin/kwitansi/KwitansiBulkNotaItemDialog";
 import { formatRp } from "@/lib/terbilang";
+import {
+  printKwitansi,
+  printKwitansiBatch,
+  printNotaPengeluaran,
+  printNotaPengeluaranBatch,
+  formatTanggalId,
+  type KwitansiPrintData,
+  type NotaPengeluaranPrintData,
+} from "@/lib/kwitansi-print-html";
 
 export type NotaItemRow = {
   id: string;
@@ -116,6 +133,128 @@ export function NotaItemTable({
   const pajakAmount = Math.round((subTotal * (pajakPersen || 0)) / 100);
   const grandTotal = subTotal + pajakAmount;
 
+  const getOrigin = () =>
+    typeof window !== "undefined" ? window.location.origin : "";
+
+  const buildRowKwitansiData = (
+    row: NotaItemRow,
+    index: number,
+  ): KwitansiPrintData => {
+    const numJm = Math.max(1, Number(row.jumlah) || 1);
+    const numHg = Number(row.harga) || 0;
+    const total = numJm * numHg;
+    const docNo = noNota
+      ? `${noNota.replace(/^NP/, "KW")}-${index + 1}`
+      : `KW/${new Date().getFullYear()}/${index + 1}`;
+    const docTgl = tanggal
+      ? formatTanggalId(tanggal)
+      : formatTanggalId(new Date().toISOString().slice(0, 10));
+
+    return {
+      no: docNo,
+      tanggal: docTgl,
+      terimaDari: bendaharaName || "Bendahara INKAI Kota Surabaya",
+      jumlah: total,
+      untukPembayaran: `${row.deskripsi.trim()}${
+        numJm > 1 ? ` (${numJm} x ${formatRp(numHg)})` : ""
+      }`,
+      penerimaRole: "Penerima",
+      penyetorRole: bendaharaRole || "Bendahara",
+      penerimaName: row.petugas.trim() || bidangUjianName || "Penerima",
+      penyetorName: bendaharaName || "Bendahara Cabang",
+      penerimaSignUrl: null,
+      penyetorSignUrl: bendaharaSignUrl || null,
+      origin: getOrigin(),
+      draft: false,
+    };
+  };
+
+  const buildRowNotaData = (
+    row: NotaItemRow,
+    index: number,
+  ): NotaPengeluaranPrintData => {
+    const numJm = Math.max(1, Number(row.jumlah) || 1);
+    const numHg = Number(row.harga) || 0;
+    const total = numJm * numHg;
+    const docNo = noNota
+      ? `${noNota}-${index + 1}`
+      : `NP/${new Date().getFullYear()}/${index + 1}`;
+    const docTgl = tanggal
+      ? formatTanggalId(tanggal)
+      : formatTanggalId(new Date().toISOString().slice(0, 10));
+
+    return {
+      noNota: docNo,
+      tanggal: docTgl,
+      items: [
+        {
+          no: 1,
+          deskripsi: row.deskripsi.trim(),
+          jumlah: numJm,
+          harga: numHg,
+          total,
+          petugas: row.petugas.trim() || "—",
+        },
+      ],
+      subTotal: total,
+      pajakPersen: 0,
+      pajakAmount: 0,
+      grandTotal: total,
+      bidangUjianRole: bidangUjianRole || "Ketua Panitia / Penanggung Jawab",
+      bidangUjianName: bidangUjianName || row.petugas.trim(),
+      bendaharaRole: bendaharaRole || "Bendahara",
+      bendaharaName: bendaharaName || "Bendahara Cabang",
+      bidangUjianSignUrl: bidangUjianSignUrl || null,
+      bendaharaSignUrl: bendaharaSignUrl || null,
+      origin: getOrigin(),
+      draft: false,
+    };
+  };
+
+  const buildTotalKwitansiData = (): KwitansiPrintData => {
+    const docNo = noNota ? noNota.replace(/^NP/, "KW") : "KW-TOTAL";
+    const docTgl = tanggal
+      ? formatTanggalId(tanggal)
+      : formatTanggalId(new Date().toISOString().slice(0, 10));
+
+    return {
+      no: docNo,
+      tanggal: docTgl,
+      terimaDari: bendaharaName || "Bendahara INKAI Kota Surabaya",
+      jumlah: grandTotal,
+      untukPembayaran: `Pengeluaran ${noNota || "Nota"}${
+        items.length > 0
+          ? ` (${items.length} item: ${items
+              .map((it) => it.deskripsi)
+              .filter(Boolean)
+              .slice(0, 3)
+              .join(", ")}${items.length > 3 ? "…" : ""})`
+          : ""
+      }`,
+      penerimaRole: bidangUjianRole || "Penerima",
+      penyetorRole: bendaharaRole || "Bendahara",
+      penerimaName: bidangUjianName || "Penanggung Jawab",
+      penyetorName: bendaharaName || "Bendahara Cabang",
+      penerimaSignUrl: bidangUjianSignUrl || null,
+      penyetorSignUrl: bendaharaSignUrl || null,
+      origin: getOrigin(),
+      draft: false,
+    };
+  };
+
+  const handleDuplicateRow = (id: string) => {
+    const idx = items.findIndex((r) => r.id === id);
+    if (idx === -1) return;
+    const target = items[idx];
+    const cloned: NotaItemRow = {
+      ...target,
+      id: newId(),
+    };
+    const next = [...items];
+    next.splice(idx + 1, 0, cloned);
+    onItemsChange(next);
+  };
+
   const reset = () => {
     setEditingId(null);
     setDeskripsi("");
@@ -211,9 +350,75 @@ export function NotaItemTable({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">Rincian Pengeluaran / Nota</h3>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={onPrint}>
+          <Button type="button" size="sm" variant="outline" onClick={onPrint} title="Cetak Nota Pengeluaran (A4 Portrait)">
+            <Receipt className="mr-1 h-3.5 w-3.5 text-rose-600" />
             Cetak nota
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="text-xs"
+                disabled={items.length === 0}
+                title="Cetak format Kwitansi Pembayaran resmi INKAI (A4 Landscape dengan stub/bonggol)"
+              >
+                <FileText className="mr-1.5 h-3.5 w-3.5 text-emerald-600" />
+                Cetak kwitansi
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="text-xs">
+                Opsi Format Kwitansi INKAI
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => printKwitansi(buildTotalKwitansiData())}
+                className="text-xs cursor-pointer"
+              >
+                <FileText className="mr-2 h-4 w-4 text-emerald-600" />
+                <div>
+                  <div className="font-medium">Kwitansi Total Pengeluaran</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    1 lembar kwitansi untuk total {formatRp(grandTotal)}
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  const valid = items.filter((r) => r.deskripsi.trim().length > 0);
+                  if (valid.length === 0) return;
+                  printKwitansiBatch(valid.map((r, i) => buildRowKwitansiData(r, i)));
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <Printer className="mr-2 h-4 w-4 text-primary" />
+                <div>
+                  <div className="font-medium">Semua Lembar Kwitansi ({items.length})</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    Tiap baris jadi 1 lembar kwitansi terpisah
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  const valid = items.filter((r) => r.deskripsi.trim().length > 0);
+                  if (valid.length === 0) return;
+                  printNotaPengeluaranBatch(valid.map((r, i) => buildRowNotaData(r, i)));
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <Receipt className="mr-2 h-4 w-4 text-rose-600" />
+                <div>
+                  <div className="font-medium">Semua Lembar Nota ({items.length})</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    Tiap baris jadi 1 lembar nota terpisah
+                  </div>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button type="button" size="sm" variant="outline" onClick={onPdf}>
             PDF nota
           </Button>
@@ -282,7 +487,7 @@ export function NotaItemTable({
               <th className="p-2 text-right">Harga</th>
               <th className="p-2 text-right">Total</th>
               <th className="p-2">Petugas</th>
-              <th className="w-24 p-2">Aksi</th>
+              <th className="w-32 p-2 text-center">Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -304,13 +509,68 @@ export function NotaItemTable({
                     <td className="p-2 text-right">{formatRp(total)}</td>
                     <td className="p-2">{row.petugas || "—"}</td>
                     <td className="p-2">
-                      <div className="flex gap-1">
+                      <div className="flex items-center justify-center gap-1">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              title="Cetak baris ini"
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            >
+                              <Printer className="h-3.5 w-3.5 text-primary" />
+                              <span className="sr-only">Cetak baris</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel className="text-xs">
+                              Cetak Item #{idx + 1}
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => printKwitansi(buildRowKwitansiData(row, idx))}
+                              className="text-xs cursor-pointer"
+                            >
+                              <FileText className="mr-2 h-4 w-4 text-emerald-600" />
+                              <div>
+                                <div className="font-medium">Cetak Kwitansi</div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  Format kwitansi resmi (A4 Landscape)
+                                </div>
+                              </div>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => printNotaPengeluaran(buildRowNotaData(row, idx))}
+                              className="text-xs cursor-pointer"
+                            >
+                              <Receipt className="mr-2 h-4 w-4 text-rose-600" />
+                              <div>
+                                <div className="font-medium">Cetak Nota</div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  Format nota resmi (A4 Portrait)
+                                </div>
+                              </div>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+
                         <Button
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8"
-
+                          title="Duplikat baris"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                          onClick={() => handleDuplicateRow(row.id)}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          <span className="sr-only">Duplikat baris</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          title="Edit baris"
                           onClick={() => {
                             setEditingId(row.id);
                             setDeskripsi(row.deskripsi);
@@ -322,17 +582,20 @@ export function NotaItemTable({
                           }}
                         >
                           <Pencil className="h-3.5 w-3.5" />
+                          <span className="sr-only">Edit baris</span>
                         </Button>
                         <Button
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 text-destructive"
+                          className="h-7 w-7 text-destructive"
+                          title="Hapus baris"
                           onClick={() =>
                             onItemsChange(items.filter((r) => r.id !== row.id))
                           }
                         >
                           <Trash2 className="h-3.5 w-3.5" />
+                          <span className="sr-only">Hapus baris</span>
                         </Button>
                       </div>
                     </td>

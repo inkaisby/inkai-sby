@@ -18,6 +18,8 @@ export type KwitansiPrintData = {
   terimaDari: string;
   jumlah: number;
   untukPembayaran: string;
+  penerimaRole?: string;
+  penyetorRole?: string;
   penerimaName?: string;
   penyetorName?: string;
   penerimaSignUrl?: string | null;
@@ -100,6 +102,8 @@ function draftMark(draft?: boolean): string {
 function kwitansiSheetInner(data: KwitansiPrintData): string {
   const terbilang = terbilangId(data.jumlah);
   const rp = formatRp(data.jumlah);
+  const penerimaLabel = data.penerimaRole?.trim() || "Penerima";
+  const penyetorLabel = data.penyetorRole?.trim() || "Penyetor";
   return `
   <div class="sheet draft-wrap">
     ${draftMark(data.draft)}
@@ -139,14 +143,14 @@ function kwitansiSheetInner(data: KwitansiPrintData): string {
       </div>
       <div class="signs">
         <div class="sign">
-          <div class="sign-space">${signImg(data.penerimaSignUrl, "TTD Penerima")}</div>
+          <div class="sign-space">${signImg(data.penerimaSignUrl, `TTD ${escapeHtml(penerimaLabel)}`)}</div>
           <div class="sign-line">${escapeHtml(data.penerimaName || "………………")}</div>
-          <div>Penerima</div>
+          <div>${escapeHtml(penerimaLabel)}</div>
         </div>
         <div class="sign">
-          <div class="sign-space">${signImg(data.penyetorSignUrl, "TTD Penyetor")}</div>
+          <div class="sign-space">${signImg(data.penyetorSignUrl, `TTD ${escapeHtml(penyetorLabel)}`)}</div>
           <div class="sign-line">${escapeHtml(data.penyetorName || "………………")}</div>
-          <div>Penyetor</div>
+          <div>${escapeHtml(penyetorLabel)}</div>
         </div>
       </div>
     </section>

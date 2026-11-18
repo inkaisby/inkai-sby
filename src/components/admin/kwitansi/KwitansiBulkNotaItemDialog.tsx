@@ -153,6 +153,8 @@ export function KwitansiBulkNotaItemDialog({
       untukPembayaran: `${row.deskripsi.trim()}${
         numJm > 1 ? ` (${numJm} x ${formatRp(numHg)})` : ""
       }`,
+      penerimaRole: "Penerima",
+      penyetorRole: bendaharaRole || "Bendahara",
       penerimaName: row.petugas.trim() || bidangUjianName || "Penerima",
       penyetorName: bendaharaName || "Bendahara Cabang",
       penerimaSignUrl: null,
