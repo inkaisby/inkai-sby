@@ -171,7 +171,7 @@ export type KwitansiPrintOptions = {
 
 export function kwitansiCardHtml(
   data: KwitansiPrintData,
-  layout: KwitansiPrintLayout = "landscape",
+  layout: KwitansiPrintLayout = "portrait-1",
 ): string {
   const terbilang = terbilangId(data.jumlah);
   const rp = formatRp(data.jumlah);
@@ -240,10 +240,10 @@ export function kwitansiCardHtml(
 }
 
 function kwitansiSheetInner(data: KwitansiPrintData): string {
-  return kwitansiCardHtml(data, "landscape");
+  return kwitansiCardHtml(data, "portrait-1");
 }
 
-function kwitansiStyles(layout: KwitansiPrintLayout = "landscape"): string {
+function kwitansiStyles(layout: KwitansiPrintLayout = "portrait-1"): string {
   const isLandscape = layout === "landscape";
   const isF43 = layout === "f4-3";
   const isF42 = layout === "f4-2";
@@ -442,7 +442,7 @@ export function buildKwitansiPrintHtml(
   data: KwitansiPrintData,
   options?: KwitansiPrintOptions,
 ): string {
-  const layout = options?.layout || "f4-2";
+  const layout = options?.layout || "portrait-1";
   const styles = kwitansiStyles(layout);
 
   let content = "";
