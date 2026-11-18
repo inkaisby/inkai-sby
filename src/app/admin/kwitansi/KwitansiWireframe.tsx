@@ -29,6 +29,9 @@ import {
   printKwitansi,
   printKwitansiBatch,
   printNotaPengeluaran,
+  formatUntukPembayaran,
+  cleanEventLabel,
+  isGenericDocTitle,
 } from "@/lib/kwitansi-print-html";
 
 export type KwitansiJenis =
@@ -240,8 +243,19 @@ export function KwitansiWireframe({
                   setJenis("iuran");
                 }
               }
+              const resolvedEvent =
+                cleanEventLabel(found.eventLabel) ||
+                cleanEventLabel(found.kegiatan) ||
+                (found.untukPembayaran && found.untukPembayaran.includes(",")
+                  ? cleanEventLabel(
+                      found.untukPembayaran.split(",").slice(1).join(",").trim(),
+                    )
+                  : "") ||
+                cleanEventLabel(found.periodeNama) ||
+                cleanEventLabel(initialEventLabel);
+
               setPeriodeNama(found.periodeNama || "");
-              setEventLabel(found.eventLabel || "");
+              setEventLabel(resolvedEvent);
               setTerimaDari(found.terimaDari || "");
               setPenyetorName(found.penyetorName || "");
               setUntukPembayaran(found.untukPembayaran || "");
@@ -323,7 +337,19 @@ export function KwitansiWireframe({
                     setJenis("iuran");
                   }
                 }
+                const resolvedEvent =
+                  cleanEventLabel(found.eventLabel) ||
+                  cleanEventLabel(found.kegiatan) ||
+                  (found.untukPembayaran && found.untukPembayaran.includes(",")
+                    ? cleanEventLabel(
+                        found.untukPembayaran.split(",").slice(1).join(",").trim(),
+                      )
+                    : "") ||
+                  cleanEventLabel(found.periodeNama) ||
+                  cleanEventLabel(initialEventLabel);
+
                 setPeriodeNama(found.periodeNama || "");
+                setEventLabel(resolvedEvent);
                 setTerimaDari(found.terimaDari || "");
                 setPenyetorName(found.penyetorName || "");
                 setUntukPembayaran(found.untukPembayaran || "");
@@ -588,13 +614,11 @@ export function KwitansiWireframe({
 
   const untukWithEvent = (() => {
     let base = untukPembayaran;
-    if (!base.trim() && periodeNama.trim()) base = periodeNama.trim();
-    if (eventLabel && base) {
-      return base.toLowerCase().includes(eventLabel.toLowerCase())
-        ? base
-        : `${base}, ${eventLabel}`;
+    if (!base.trim() && cleanEventLabel(periodeNama)) {
+      base = cleanEventLabel(periodeNama);
     }
-    return base || eventLabel;
+    const ev = cleanEventLabel(eventLabel) || cleanEventLabel(periodeNama);
+    return formatUntukPembayaran(base, ev);
   })();
 
   const buildKwData = (row?: PenerimaRow | null) => ({
@@ -799,7 +823,10 @@ export function KwitansiWireframe({
           terimaDari: previewTerimaDari,
           total: isNota ? notaGrand : jumlah,
           scope: scopeLabel,
-          eventLabel: eventLabel.trim() || undefined,
+          eventLabel:
+            cleanEventLabel(eventLabel) ||
+            cleanEventLabel(periodeNama) ||
+            undefined,
           untukPembayaran: untukWithEvent,
           penerimaName: previewPenerimaName,
           penyetorName: penyetorName,
@@ -831,7 +858,10 @@ export function KwitansiWireframe({
           terimaDari: previewTerimaDari,
           total: isNota ? notaGrand : jumlah,
           scope: scopeLabel,
-          eventLabel: eventLabel.trim() || undefined,
+          eventLabel:
+            cleanEventLabel(eventLabel) ||
+            cleanEventLabel(periodeNama) ||
+            undefined,
           untukPembayaran: untukWithEvent,
           penerimaName: previewPenerimaName,
           penyetorName: penyetorName,
@@ -1159,7 +1189,7 @@ export function KwitansiWireframe({
             tanggal={notaTanggal}
             pajakPersen={pajakPersen}
             items={notaItems}
-            eventLabel={eventLabel || periodeNama}
+            eventLabel={cleanEventLabel(eventLabel) || cleanEventLabel(periodeNama)}
             bidangUjianRole={bidangUjianRole}
             bidangUjianName={bidangUjianName}
             bidangUjianMemberId={bidangUjianMemberId}
@@ -1302,7 +1332,10 @@ export function KwitansiWireframe({
                   terimaDari: previewTerimaDari,
                   jumlah,
                   untukPembayaran: untukWithEvent,
-                  eventLabel,
+                  eventLabel:
+                    cleanEventLabel(eventLabel) ||
+                    cleanEventLabel(periodeNama) ||
+                    undefined,
                   penerimaName: previewPenerimaName,
                   penyetorName,
                   penerimaSignUrl: previewPenerimaSign,

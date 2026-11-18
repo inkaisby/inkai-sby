@@ -6,7 +6,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatRp } from "@/lib/terbilang";
-import { printKwitansi, printNotaPengeluaran } from "@/lib/kwitansi-print-html";
+import {
+  printKwitansi,
+  printNotaPengeluaran,
+  cleanEventLabel,
+  isGenericDocTitle,
+} from "@/lib/kwitansi-print-html";
 import { parseToYmd } from "@/lib/kas";
 import {
   Dialog,
@@ -364,7 +369,17 @@ export function KwitansiArsipTable() {
 
   const handleEdit = (row: KwitansiArsipItem) => {
     toast.info(`Memuat kwitansi ${row.no} di editor`);
-    router.push(`/admin/kwitansi?no=${encodeURIComponent(row.no)}`);
+    const ev =
+      cleanEventLabel(row.eventLabel) ||
+      (row.untukPembayaran && row.untukPembayaran.includes(",")
+        ? cleanEventLabel(
+            row.untukPembayaran.split(",").slice(1).join(",").trim(),
+          )
+        : "") ||
+      cleanEventLabel(row.periodeNama);
+    const query = new URLSearchParams({ no: row.no });
+    if (ev) query.set("event", ev);
+    router.push(`/admin/kwitansi?${query.toString()}`);
   };
 
   const executeSyncToKas = async (
@@ -558,14 +573,13 @@ export function KwitansiArsipTable() {
                       </span>
                       {(() => {
                         const ev =
-                          row.eventLabel ||
+                          cleanEventLabel(row.eventLabel) ||
                           (row.untukPembayaran && row.untukPembayaran.includes(",")
-                            ? row.untukPembayaran.split(",").slice(1).join(",").trim()
+                            ? cleanEventLabel(
+                                row.untukPembayaran.split(",").slice(1).join(",").trim(),
+                              )
                             : "") ||
-                          (row.jenis?.toLowerCase().includes("pengeluaran") ||
-                          row.jenis?.toLowerCase().includes("prestasi")
-                            ? row.periodeNama
-                            : "");
+                          cleanEventLabel(row.periodeNama);
                         return ev ? (
                           <span
                             className="text-xs font-semibold text-primary/90 dark:text-primary-foreground line-clamp-1"

@@ -18,6 +18,7 @@ export type KwitansiPrintData = {
   terimaDari: string;
   jumlah: number;
   untukPembayaran: string;
+  eventLabel?: string;
   penerimaRole?: string;
   penyetorRole?: string;
   penerimaName?: string;
@@ -28,6 +29,54 @@ export type KwitansiPrintData = {
   /** Watermark DRAFT (default false). */
   draft?: boolean;
 };
+
+/**
+ * Mengecek apakah judul dokumen merupakan teks placeholder umum
+ * (bukan nama event/kegiatan spesifik).
+ */
+export function isGenericDocTitle(title?: string | null): boolean {
+  if (!title) return true;
+  const s = title.trim().toLowerCase();
+  return (
+    s === "" ||
+    s === "kwitansi pembayaran" ||
+    s === "kwitansi" ||
+    s === "nota pengeluaran" ||
+    s === "nota" ||
+    s === "pembayaran"
+  );
+}
+
+/**
+ * Membersihkan nama event agar tidak mengembalikan judul generik.
+ */
+export function cleanEventLabel(label?: string | null): string {
+  if (!label || isGenericDocTitle(label)) return "";
+  return label.trim();
+}
+
+/**
+ * Menggabungkan deskripsi/rincian item dengan event terkait secara harmonis.
+ * Menghilangkan suffix generik seperti ", Kwitansi Pembayaran" atau ", Nota Pengeluaran" jika ada.
+ */
+export function formatUntukPembayaran(
+  deskripsi?: string | null,
+  event?: string | null,
+): string {
+  let base = (deskripsi || "").trim();
+  // Bersihkan jika ada akhiran generik
+  if (base.toLowerCase().endsWith(", kwitansi pembayaran")) {
+    base = base.slice(0, -", kwitansi pembayaran".length).trim();
+  } else if (base.toLowerCase().endsWith(", nota pengeluaran")) {
+    base = base.slice(0, -", nota pengeluaran".length).trim();
+  }
+
+  const ev = cleanEventLabel(event);
+  if (base && ev && !base.toLowerCase().includes(ev.toLowerCase())) {
+    return `${base}, ${ev}`;
+  }
+  return base || ev || "—";
+}
 
 export type DaftarPenerimaPrintRow = {
   no: number;
@@ -104,6 +153,7 @@ function kwitansiSheetInner(data: KwitansiPrintData): string {
   const rp = formatRp(data.jumlah);
   const penerimaLabel = data.penerimaRole?.trim() || "Penerima";
   const penyetorLabel = data.penyetorRole?.trim() || "Penyetor";
+  const untukText = formatUntukPembayaran(data.untukPembayaran, data.eventLabel);
   return `
   <div class="sheet draft-wrap">
     ${draftMark(data.draft)}
@@ -120,7 +170,7 @@ function kwitansiSheetInner(data: KwitansiPrintData): string {
       <div style="margin-top:6px">Terima dari:<br/><strong>${escapeHtml(data.terimaDari || "—")}</strong></div>
       <div style="margin-top:6px">Jumlah: <strong>${escapeHtml(rp)}</strong></div>
       <div class="muted" style="margin-top:4px">${escapeHtml(terbilang)}</div>
-      <div style="margin-top:6px">Untuk pembayaran:<br/>${escapeHtml(data.untukPembayaran || "—")}</div>
+      <div style="margin-top:6px">Untuk pembayaran:<br/>${escapeHtml(untukText || "—")}</div>
     </aside>
     <section class="body">
       <div class="header-wrap">
@@ -136,7 +186,7 @@ function kwitansiSheetInner(data: KwitansiPrintData): string {
       </div>
       <div class="field inline"><span>Sudah terima dari</span><span class="dots">${escapeHtml(data.terimaDari || "")}</span></div>
       <div class="terbilang">Terbilang: ${escapeHtml(terbilang)}</div>
-      <div class="field inline"><span>Untuk pembayaran</span><span class="dots">${escapeHtml(data.untukPembayaran || "")}</span></div>
+      <div class="field inline"><span>Untuk pembayaran</span><span class="dots">${escapeHtml(untukText || "")}</span></div>
       <div class="amount-row">
         <div class="rp-box"><span>RP. ${escapeHtml(rp.replace(/^Rp\s?/, ""))}</span></div>
         <div class="stamp-lunas">LUNAS</div>

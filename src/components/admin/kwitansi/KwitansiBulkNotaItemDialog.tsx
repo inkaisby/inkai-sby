@@ -39,6 +39,8 @@ import {
   printNotaPengeluaran,
   printNotaPengeluaranBatch,
   formatTanggalId,
+  formatUntukPembayaran,
+  cleanEventLabel,
   type KwitansiPrintData,
   type NotaPengeluaranPrintData,
 } from "@/lib/kwitansi-print-html";
@@ -150,11 +152,7 @@ export function KwitansiBulkNotaItemDialog({
     const itemDesc = `${row.deskripsi.trim()}${
       numJm > 1 ? ` (${numJm} x ${formatRp(numHg)})` : ""
     }`;
-    const ev = (eventLabel || "").trim();
-    const untukPembayaran =
-      itemDesc && ev && !itemDesc.toLowerCase().includes(ev.toLowerCase())
-        ? `${itemDesc}, ${ev}`
-        : itemDesc || ev || "—";
+    const untukPembayaran = formatUntukPembayaran(itemDesc, eventLabel);
 
     return {
       no: docNo,
@@ -162,6 +160,7 @@ export function KwitansiBulkNotaItemDialog({
       terimaDari: bendaharaName || "Bendahara INKAI Kota Surabaya",
       jumlah: total,
       untukPembayaran,
+      eventLabel: cleanEventLabel(eventLabel) || undefined,
       penerimaRole: "Penerima",
       penyetorRole: bendaharaRole || "Bendahara",
       penerimaName: row.petugas.trim() || bidangUjianName || "Penerima",

@@ -49,6 +49,8 @@ import {
   printNotaPengeluaran,
   printNotaPengeluaranBatch,
   formatTanggalId,
+  formatUntukPembayaran,
+  cleanEventLabel,
   type KwitansiPrintData,
   type NotaPengeluaranPrintData,
 } from "@/lib/kwitansi-print-html";
@@ -175,11 +177,7 @@ export function NotaItemTable({
     const itemDesc = `${row.deskripsi.trim()}${
       numJm > 1 ? ` (${numJm} x ${formatRp(numHg)})` : ""
     }`;
-    const ev = (eventLabel || "").trim();
-    const untukPembayaran =
-      itemDesc && ev && !itemDesc.toLowerCase().includes(ev.toLowerCase())
-        ? `${itemDesc}, ${ev}`
-        : itemDesc || ev || "—";
+    const untukPembayaran = formatUntukPembayaran(itemDesc, eventLabel);
 
     return {
       no: docNo,
@@ -187,6 +185,7 @@ export function NotaItemTable({
       terimaDari: bendaharaName || "Bendahara INKAI Kota Surabaya",
       jumlah: total,
       untukPembayaran,
+      eventLabel: cleanEventLabel(eventLabel) || undefined,
       penerimaRole: "Penerima",
       penyetorRole: bendaharaRole || "Bendahara",
       penerimaName: row.petugas.trim() || bidangUjianName || "Penerima",
@@ -251,15 +250,19 @@ export function NotaItemTable({
       tanggal: docTgl,
       terimaDari: bendaharaName || "Bendahara INKAI Kota Surabaya",
       jumlah: grandTotal,
-      untukPembayaran: `Pengeluaran ${noNota || "Nota"}${
-        items.length > 0
-          ? ` (${items.length} item: ${items
-              .map((it) => it.deskripsi)
-              .filter(Boolean)
-              .slice(0, 3)
-              .join(", ")}${items.length > 3 ? "…" : ""})`
-          : ""
-      }`,
+      untukPembayaran: formatUntukPembayaran(
+        `Pengeluaran ${noNota || "Nota"}${
+          items.length > 0
+            ? ` (${items.length} item: ${items
+                .map((it) => it.deskripsi)
+                .filter(Boolean)
+                .slice(0, 3)
+                .join(", ")}${items.length > 3 ? "…" : ""})`
+            : ""
+        }`,
+        eventLabel,
+      ),
+      eventLabel: cleanEventLabel(eventLabel) || undefined,
       penerimaRole: bidangUjianRole || "Penerima",
       penyetorRole: bendaharaRole || "Bendahara",
       penerimaName: bidangUjianName || "Penanggung Jawab",
@@ -327,12 +330,9 @@ export function NotaItemTable({
               ? ` (${currentMailMergeItem.jumlah} x ${formatRp(currentMailMergeItem.harga)})`
               : ""
           }`;
-          const ev = (eventLabel || "").trim();
-          return itemDesc && ev && !itemDesc.toLowerCase().includes(ev.toLowerCase())
-            ? `${itemDesc}, ${ev}`
-            : itemDesc || ev || "—";
+          return formatUntukPembayaran(itemDesc, eventLabel);
         })(),
-        eventLabel,
+        eventLabel: cleanEventLabel(eventLabel) || undefined,
         penerimaName:
           currentMailMergeItem.petugas.trim() ||
           bidangUjianName ||
@@ -1300,12 +1300,9 @@ export function NotaItemTable({
                               .join(", ")}${items.length > 3 ? "…" : ""})`
                           : ""
                       }`;
-                      const ev = (eventLabel || "").trim();
-                      return desc && ev && !desc.toLowerCase().includes(ev.toLowerCase())
-                        ? `${desc}, ${ev}`
-                        : desc || ev || "—";
+                      return formatUntukPembayaran(desc, eventLabel);
                     })(),
-                    eventLabel,
+                    eventLabel: cleanEventLabel(eventLabel) || undefined,
                     penerimaName: bidangUjianName || "Penanggung Jawab",
                     penyetorName: bendaharaName || "Bendahara Cabang",
                     penerimaSignUrl: bidangUjianSignUrl || null,

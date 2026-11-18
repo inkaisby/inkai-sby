@@ -1,6 +1,7 @@
 "use client";
 
 import { formatRp, terbilangId } from "@/lib/terbilang";
+import { formatUntukPembayaran } from "@/lib/kwitansi-print-html";
 import { cn } from "@/lib/utils";
 
 export type KwitansiPreviewData = {
@@ -27,14 +28,8 @@ export function KwitansiPreview({ data, className }: Props) {
   const terbilang = data.jumlah > 0 ? terbilangId(data.jumlah) : "—";
   const rp = data.jumlah > 0 ? formatRp(data.jumlah) : "—";
 
-  const eventText = (data.eventLabel || data.kegiatan || "").trim();
-  const untukPembayaranText = (() => {
-    const base = (data.untukPembayaran || "").trim();
-    if (base && eventText && !base.toLowerCase().includes(eventText.toLowerCase())) {
-      return `${base}, ${eventText}`;
-    }
-    return base || eventText || "—";
-  })();
+  const eventText = data.eventLabel || data.kegiatan || "";
+  const untukPembayaranText = formatUntukPembayaran(data.untukPembayaran, eventText);
 
   return (
     <div

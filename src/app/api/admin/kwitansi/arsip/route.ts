@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
+import { cleanEventLabel } from "@/lib/kwitansi-print-html";
 
 export async function GET() {
   const authResult = await requireAdmin();
@@ -20,6 +21,12 @@ export async function GET() {
       terimaDari: r.terimaDari,
       total: r.total,
       scope: r.scope,
+      eventLabel:
+        r.untukPembayaran && r.untukPembayaran.includes(",")
+          ? cleanEventLabel(
+              r.untukPembayaran.split(",").slice(1).join(",").trim(),
+            )
+          : cleanEventLabel(r.periodeNama),
       untukPembayaran: r.untukPembayaran,
       penerimaName: r.penerimaName,
       penyetorName: r.penyetorName,
