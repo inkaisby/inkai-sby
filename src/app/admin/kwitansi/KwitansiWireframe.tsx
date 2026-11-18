@@ -140,9 +140,11 @@ type DraftShape = {
   notaTanggal: string;
   pajakPersen: number;
   notaItems: NotaItemRow[];
+  bidangUjianRole?: string;
   bidangUjianName: string;
   bidangUjianMemberId: string | null;
   bidangUjianSignUrl: string | null;
+  bendaharaRole?: string;
   bendaharaName: string;
   bendaharaMemberId: string | null;
   bendaharaSignUrl: string | null;
@@ -188,6 +190,9 @@ export function KwitansiWireframe({
   const [notaTanggal, setNotaTanggal] = useState(todayInput);
   const [pajakPersen, setPajakPersen] = useState(0);
   const [notaItems, setNotaItems] = useState<NotaItemRow[]>([]);
+  const [bidangUjianRole, setBidangUjianRole] = useState(
+    "Ketua Panitia / Penanggung Jawab",
+  );
   const [bidangUjianName, setBidangUjianName] = useState("");
   const [bidangUjianMemberId, setBidangUjianMemberId] = useState<string | null>(
     null,
@@ -195,6 +200,7 @@ export function KwitansiWireframe({
   const [bidangUjianSignUrl, setBidangUjianSignUrl] = useState<string | null>(
     null,
   );
+  const [bendaharaRole, setBendaharaRole] = useState("Bendahara");
   const [bendaharaName, setBendaharaName] = useState("");
   const [bendaharaMemberId, setBendaharaMemberId] = useState<string | null>(
     null,
@@ -272,7 +278,9 @@ export function KwitansiWireframe({
                 setNotaItems(found.notaItems);
               }
               if (typeof found.pajakPersen === "number") setPajakPersen(found.pajakPersen);
+              if (found.bidangUjianRole) setBidangUjianRole(found.bidangUjianRole);
               if (found.bidangUjianName) setBidangUjianName(found.bidangUjianName);
+              if (found.bendaharaRole) setBendaharaRole(found.bendaharaRole);
               if (found.bendaharaName) setBendaharaName(found.bendaharaName);
               if (found.bidangUjianSignUrl) setBidangUjianSignUrl(found.bidangUjianSignUrl);
               if (found.bendaharaSignUrl) setBendaharaSignUrl(found.bendaharaSignUrl);
@@ -325,7 +333,9 @@ export function KwitansiWireframe({
                   setNotaItems(found.notaItems);
                 }
                 if (typeof found.pajakPersen === "number") setPajakPersen(found.pajakPersen);
+                if (found.bidangUjianRole) setBidangUjianRole(found.bidangUjianRole);
                 if (found.bidangUjianName) setBidangUjianName(found.bidangUjianName);
+                if (found.bendaharaRole) setBendaharaRole(found.bendaharaRole);
                 if (found.bendaharaName) setBendaharaName(found.bendaharaName);
                 if (found.bidangUjianSignUrl) setBidangUjianSignUrl(found.bidangUjianSignUrl);
                 if (found.bendaharaSignUrl) setBendaharaSignUrl(found.bendaharaSignUrl);
@@ -366,9 +376,11 @@ export function KwitansiWireframe({
         setNotaTanggal(d.notaTanggal);
         setPajakPersen(d.pajakPersen ?? 0);
         setNotaItems(d.notaItems ?? []);
+        if (d.bidangUjianRole) setBidangUjianRole(d.bidangUjianRole);
         setBidangUjianName(d.bidangUjianName);
         setBidangUjianMemberId(d.bidangUjianMemberId);
         setBidangUjianSignUrl(d.bidangUjianSignUrl);
+        if (d.bendaharaRole) setBendaharaRole(d.bendaharaRole);
         setBendaharaName(d.bendaharaName);
         setBendaharaMemberId(d.bendaharaMemberId);
         setBendaharaSignUrl(d.bendaharaSignUrl);
@@ -400,9 +412,11 @@ export function KwitansiWireframe({
         notaTanggal,
         pajakPersen,
         notaItems,
+        bidangUjianRole,
         bidangUjianName,
         bidangUjianMemberId,
         bidangUjianSignUrl,
+        bendaharaRole,
         bendaharaName,
         bendaharaMemberId,
         bendaharaSignUrl,
@@ -436,9 +450,11 @@ export function KwitansiWireframe({
     notaTanggal,
     pajakPersen,
     notaItems,
+    bidangUjianRole,
     bidangUjianName,
     bidangUjianMemberId,
     bidangUjianSignUrl,
+    bendaharaRole,
     bendaharaName,
     bendaharaMemberId,
     bendaharaSignUrl,
@@ -731,7 +747,9 @@ export function KwitansiWireframe({
     pajakPersen,
     pajakAmount: notaPajak,
     grandTotal: notaGrand,
+    bidangUjianRole,
     bidangUjianName,
+    bendaharaRole,
     bendaharaName,
     bidangUjianSignUrl,
     bendaharaSignUrl,
@@ -786,7 +804,9 @@ export function KwitansiWireframe({
           notaItems: isNota ? notaItems : undefined,
           penerima: !isNota ? penerima : undefined,
           pajakPersen: isNota ? pajakPersen : undefined,
+          bidangUjianRole: isNota ? bidangUjianRole : undefined,
           bidangUjianName: isNota ? bidangUjianName : undefined,
+          bendaharaRole: isNota ? bendaharaRole : undefined,
           bendaharaName: isNota ? bendaharaName : undefined,
           bidangUjianSignUrl: isNota ? bidangUjianSignUrl : undefined,
           bendaharaSignUrl: isNota ? bendaharaSignUrl : undefined,
@@ -815,7 +835,9 @@ export function KwitansiWireframe({
           notaItems: isNota ? notaItems : undefined,
           penerima: !isNota ? penerima : undefined,
           pajakPersen: isNota ? pajakPersen : undefined,
+          bidangUjianRole: isNota ? bidangUjianRole : undefined,
           bidangUjianName: isNota ? bidangUjianName : undefined,
+          bendaharaRole: isNota ? bendaharaRole : undefined,
           bendaharaName: isNota ? bendaharaName : undefined,
           bidangUjianSignUrl: isNota ? bidangUjianSignUrl : undefined,
           bendaharaSignUrl: isNota ? bendaharaSignUrl : undefined,
@@ -1132,9 +1154,11 @@ export function KwitansiWireframe({
             tanggal={notaTanggal}
             pajakPersen={pajakPersen}
             items={notaItems}
+            bidangUjianRole={bidangUjianRole}
             bidangUjianName={bidangUjianName}
             bidangUjianMemberId={bidangUjianMemberId}
             bidangUjianSignUrl={bidangUjianSignUrl}
+            bendaharaRole={bendaharaRole}
             bendaharaName={bendaharaName}
             bendaharaMemberId={bendaharaMemberId}
             bendaharaSignUrl={bendaharaSignUrl}
@@ -1142,9 +1166,11 @@ export function KwitansiWireframe({
             onTanggalChange={setNotaTanggal}
             onPajakPersenChange={setPajakPersen}
             onItemsChange={setNotaItems}
+            onBidangUjianRoleChange={setBidangUjianRole}
             onBidangUjianName={setBidangUjianName}
             onBidangUjianMemberId={setBidangUjianMemberId}
             onBidangUjianSignUrl={setBidangUjianSignUrl}
+            onBendaharaRoleChange={setBendaharaRole}
             onBendaharaName={setBendaharaName}
             onBendaharaMemberId={setBendaharaMemberId}
             onBendaharaSignUrl={setBendaharaSignUrl}

@@ -49,7 +49,9 @@ type Props = {
   onAddBulk: (newRows: Omit<NotaItemRow, "id">[]) => void;
   noNota?: string;
   tanggal?: string;
+  bidangUjianRole?: string;
   bidangUjianName?: string;
+  bendaharaRole?: string;
   bendaharaName?: string;
   bidangUjianSignUrl?: string | null;
   bendaharaSignUrl?: string | null;
@@ -112,7 +114,9 @@ export function KwitansiBulkNotaItemDialog({
   onAddBulk,
   noNota,
   tanggal,
+  bidangUjianRole,
   bidangUjianName,
+  bendaharaRole,
   bendaharaName,
   bidangUjianSignUrl,
   bendaharaSignUrl,
@@ -189,7 +193,9 @@ export function KwitansiBulkNotaItemDialog({
       pajakPersen: 0,
       pajakAmount: 0,
       grandTotal: total,
+      bidangUjianRole: bidangUjianRole || "Ketua Panitia / Penanggung Jawab",
       bidangUjianName: bidangUjianName || row.petugas.trim(),
+      bendaharaRole: bendaharaRole || "Bendahara",
       bendaharaName: bendaharaName || "Bendahara Cabang",
       bidangUjianSignUrl: bidangUjianSignUrl || null,
       bendaharaSignUrl: bendaharaSignUrl || null,

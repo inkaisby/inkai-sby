@@ -63,7 +63,9 @@ export type NotaPengeluaranPrintData = {
   pajakPersen: number;
   pajakAmount: number;
   grandTotal: number;
+  bidangUjianRole?: string;
   bidangUjianName?: string;
+  bendaharaRole?: string;
   bendaharaName?: string;
   bidangUjianSignUrl?: string | null;
   bendaharaSignUrl?: string | null;
@@ -392,6 +394,9 @@ export function notaPengeluaranSheetInner(
     ? data.sekretariatAddress.trim()
     : "Sekretariat INKAI Kota Surabaya";
   const phone = data.contactPhone?.trim() || "";
+  const rolePenanggungJawab =
+    data.bidangUjianRole?.trim() || "Ketua Panitia / Penanggung Jawab";
+  const roleBendahara = data.bendaharaRole?.trim() || "Bendahara";
 
   return `
   <div class="page draft-wrap">
@@ -429,13 +434,13 @@ export function notaPengeluaranSheetInner(
   </div>
   <div class="signs">
     <div class="sign">
-      <div>Bidang Ujian,</div>
-      <div class="sign-space">${signImg(data.bidangUjianSignUrl, "TTD Bidang Ujian")}</div>
+      <div>${escapeHtml(rolePenanggungJawab)},</div>
+      <div class="sign-space">${signImg(data.bidangUjianSignUrl, `TTD ${escapeHtml(rolePenanggungJawab)}`)}</div>
       <div class="sign-line">${escapeHtml(data.bidangUjianName || "………………")}</div>
     </div>
     <div class="sign">
-      <div>Bendahara,</div>
-      <div class="sign-space">${signImg(data.bendaharaSignUrl, "TTD Bendahara")}</div>
+      <div>${escapeHtml(roleBendahara)},</div>
+      <div class="sign-space">${signImg(data.bendaharaSignUrl, `TTD ${escapeHtml(roleBendahara)}`)}</div>
       <div class="sign-line">${escapeHtml(data.bendaharaName || "………………")}</div>
     </div>
   </div>

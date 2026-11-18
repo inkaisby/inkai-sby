@@ -59,7 +59,9 @@ export type KwitansiArsipItem = {
     selected: boolean;
   }>;
   pajakPersen?: number;
+  bidangUjianRole?: string;
   bidangUjianName?: string;
+  bendaharaRole?: string;
   bendaharaName?: string;
   bidangUjianSignUrl?: string | null;
   bendaharaSignUrl?: string | null;
@@ -299,25 +301,41 @@ export function KwitansiArsipTable() {
   const handleCetak = (row: KwitansiArsipItem) => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     if (row.no.startsWith("NP")) {
+      const itemsList =
+        Array.isArray(row.notaItems) && row.notaItems.length > 0
+          ? row.notaItems.map((it, idx) => ({
+              no: idx + 1,
+              deskripsi: it.deskripsi,
+              jumlah: it.jumlah,
+              harga: it.harga,
+              total: it.jumlah * it.harga,
+              petugas: it.petugas,
+            }))
+          : [
+              {
+                no: 1,
+                deskripsi: row.periodeNama || "Pengeluaran",
+                jumlah: 1,
+                harga: row.total,
+                total: row.total,
+                petugas: row.penyetorName || "Petugas",
+              },
+            ];
+
       printNotaPengeluaran({
         noNota: row.no,
         tanggal: row.tanggal,
-        items: [
-          {
-            no: 1,
-            deskripsi: row.periodeNama || "Pengeluaran",
-            jumlah: 1,
-            harga: row.total,
-            total: row.total,
-            petugas: row.penyetorName || "Petugas",
-          },
-        ],
+        items: itemsList,
         subTotal: row.total,
-        pajakPersen: 0,
+        pajakPersen: row.pajakPersen || 0,
         pajakAmount: 0,
         grandTotal: row.total,
-        bidangUjianName: row.penerimaName,
-        bendaharaName: row.penyetorName,
+        bidangUjianRole: row.bidangUjianRole || "Ketua Panitia / Penanggung Jawab",
+        bidangUjianName: row.bidangUjianName || row.penerimaName,
+        bendaharaRole: row.bendaharaRole || "Bendahara",
+        bendaharaName: row.bendaharaName || row.penyetorName,
+        bidangUjianSignUrl: row.bidangUjianSignUrl || null,
+        bendaharaSignUrl: row.bendaharaSignUrl || null,
         origin,
         draft: false,
       });

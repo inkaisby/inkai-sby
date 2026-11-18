@@ -34,9 +34,11 @@ type Props = {
   tanggal: string;
   pajakPersen: number;
   items: NotaItemRow[];
+  bidangUjianRole?: string;
   bidangUjianName: string;
   bidangUjianMemberId: string | null;
   bidangUjianSignUrl: string | null;
+  bendaharaRole?: string;
   bendaharaName: string;
   bendaharaMemberId: string | null;
   bendaharaSignUrl: string | null;
@@ -44,9 +46,11 @@ type Props = {
   onTanggalChange: (v: string) => void;
   onPajakPersenChange: (v: number) => void;
   onItemsChange: (items: NotaItemRow[]) => void;
+  onBidangUjianRoleChange?: (v: string) => void;
   onBidangUjianName: (v: string) => void;
   onBidangUjianMemberId: (v: string | null) => void;
   onBidangUjianSignUrl: (v: string | null) => void;
+  onBendaharaRoleChange?: (v: string) => void;
   onBendaharaName: (v: string) => void;
   onBendaharaMemberId: (v: string | null) => void;
   onBendaharaSignUrl: (v: string | null) => void;
@@ -72,9 +76,11 @@ export function NotaItemTable({
   tanggal,
   pajakPersen,
   items,
+  bidangUjianRole = "Ketua Panitia / Penanggung Jawab",
   bidangUjianName,
   bidangUjianMemberId,
   bidangUjianSignUrl,
+  bendaharaRole = "Bendahara",
   bendaharaName,
   bendaharaMemberId,
   bendaharaSignUrl,
@@ -82,9 +88,11 @@ export function NotaItemTable({
   onTanggalChange,
   onPajakPersenChange,
   onItemsChange,
+  onBidangUjianRoleChange,
   onBidangUjianName,
   onBidangUjianMemberId,
   onBidangUjianSignUrl,
+  onBendaharaRoleChange,
   onBendaharaName,
   onBendaharaMemberId,
   onBendaharaSignUrl,
@@ -371,51 +379,109 @@ export function NotaItemTable({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2 rounded-md border p-3">
-          <Label>Bidang Ujian (dari keanggotaan)</Label>
-          <KwitansiMemberPicker
-            value={bidangUjianName}
-            onChange={(v) => {
-              onBidangUjianName(v);
-              onBidangUjianMemberId(null);
-            }}
-            onPick={(item: KwitansiMemberSuggestItem) => {
-              onBidangUjianName(item.fullName);
-              onBidangUjianMemberId(item.id);
-              if (item.signatureUrl) onBidangUjianSignUrl(item.signatureUrl);
-            }}
-            placeholder="Cari Bidang Ujian (≥2 huruf)…"
-          />
-          <p className="text-[11px] text-muted-foreground">
-            Ketik ≥2 huruf untuk cari pejabat dari keanggotaan.
-          </p>
+        <div className="space-y-3 rounded-md border p-3">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Jabatan / Peran Penandatangan</Label>
+              <div className="flex flex-wrap gap-1 text-[11px]">
+                <button
+                  type="button"
+                  className="rounded px-1.5 py-0.5 text-[11px] bg-muted hover:bg-muted/80 text-foreground transition-colors"
+                  onClick={() => onBidangUjianRoleChange?.("Ketua Panitia")}
+                >
+                  Panitia
+                </button>
+                <button
+                  type="button"
+                  className="rounded px-1.5 py-0.5 text-[11px] bg-muted hover:bg-muted/80 text-foreground transition-colors"
+                  onClick={() => onBidangUjianRoleChange?.("Bidang Ujian")}
+                >
+                  Ujian
+                </button>
+                <button
+                  type="button"
+                  className="rounded px-1.5 py-0.5 text-[11px] bg-muted hover:bg-muted/80 text-foreground transition-colors"
+                  onClick={() => onBidangUjianRoleChange?.("Koordinator Kegiatan")}
+                >
+                  Koordinator
+                </button>
+              </div>
+            </div>
+            <Input
+              value={bidangUjianRole}
+              onChange={(e) => onBidangUjianRoleChange?.(e.target.value)}
+              placeholder="Contoh: Ketua Panitia / Penanggung Jawab"
+              className="h-8 text-xs font-medium"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Bisa diedit bebas untuk semua kegiatan (Ujian, Kejuaraan, Pelatihan, Operasional, dll).
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">Nama Pejabat / Anggota (dari keanggotaan)</Label>
+            <KwitansiMemberPicker
+              value={bidangUjianName}
+              onChange={(v) => {
+                onBidangUjianName(v);
+                onBidangUjianMemberId(null);
+              }}
+              onPick={(item: KwitansiMemberSuggestItem) => {
+                onBidangUjianName(item.fullName);
+                onBidangUjianMemberId(item.id);
+                if (item.signatureUrl) onBidangUjianSignUrl(item.signatureUrl);
+              }}
+              placeholder={`Cari nama ${bidangUjianRole || "pejabat"} (≥2 huruf)…`}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Ketik ≥2 huruf untuk cari pejabat dari keanggotaan atau isi nama bebas.
+            </p>
+          </div>
+
           <SignaturePadField
-            label="Bidang Ujian"
+            label={bidangUjianRole?.trim() || "Penanggung Jawab"}
             valueUrl={bidangUjianSignUrl}
             memberId={bidangUjianMemberId}
             onChange={onBidangUjianSignUrl}
           />
         </div>
-        <div className="space-y-2 rounded-md border p-3">
-          <Label>Bendahara (dari keanggotaan)</Label>
-          <KwitansiMemberPicker
-            value={bendaharaName}
-            onChange={(v) => {
-              onBendaharaName(v);
-              onBendaharaMemberId(null);
-            }}
-            onPick={(item: KwitansiMemberSuggestItem) => {
-              onBendaharaName(item.fullName);
-              onBendaharaMemberId(item.id);
-              if (item.signatureUrl) onBendaharaSignUrl(item.signatureUrl);
-            }}
-            placeholder="Cari Bendahara (≥2 huruf)…"
-          />
-          <p className="text-[11px] text-muted-foreground">
-            Ketik ≥2 huruf untuk cari pejabat dari keanggotaan.
-          </p>
+
+        <div className="space-y-3 rounded-md border p-3">
+          <div className="space-y-1">
+            <Label className="text-xs font-semibold">Jabatan / Peran Bendahara</Label>
+            <Input
+              value={bendaharaRole}
+              onChange={(e) => onBendaharaRoleChange?.(e.target.value)}
+              placeholder="Bendahara"
+              className="h-8 text-xs font-medium"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Bisa disesuaikan jika perlu (misal: Bendahara Panitia / Cabang).
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <Label className="text-xs">Nama Bendahara (dari keanggotaan)</Label>
+            <KwitansiMemberPicker
+              value={bendaharaName}
+              onChange={(v) => {
+                onBendaharaName(v);
+                onBendaharaMemberId(null);
+              }}
+              onPick={(item: KwitansiMemberSuggestItem) => {
+                onBendaharaName(item.fullName);
+                onBendaharaMemberId(item.id);
+                if (item.signatureUrl) onBendaharaSignUrl(item.signatureUrl);
+              }}
+              placeholder="Cari Bendahara (≥2 huruf)…"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Ketik ≥2 huruf untuk cari pejabat dari keanggotaan.
+            </p>
+          </div>
+
           <SignaturePadField
-            label="Bendahara"
+            label={bendaharaRole?.trim() || "Bendahara"}
             valueUrl={bendaharaSignUrl}
             memberId={bendaharaMemberId}
             onChange={onBendaharaSignUrl}
@@ -499,7 +565,9 @@ export function NotaItemTable({
         onOpenChange={setBulkOpen}
         noNota={noNota}
         tanggal={tanggal}
+        bidangUjianRole={bidangUjianRole}
         bidangUjianName={bidangUjianName}
+        bendaharaRole={bendaharaRole}
         bendaharaName={bendaharaName}
         bidangUjianSignUrl={bidangUjianSignUrl}
         bendaharaSignUrl={bendaharaSignUrl}
