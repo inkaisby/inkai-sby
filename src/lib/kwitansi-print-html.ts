@@ -156,13 +156,21 @@ function draftMark(draft?: boolean): string {
   return `<div class="draft-mark" aria-hidden="true">DRAFT</div>`;
 }
 
-export type KwitansiPrintLayout = "f4-2" | "f4-3" | "portrait-1" | "landscape";
+export type KwitansiPrintLayout =
+  | "f4-4"
+  | "f4-5"
+  | "f4-3"
+  | "f4-2"
+  | "portrait-1"
+  | "landscape";
 
 export type KwitansiPrintOptions = {
   /**
    * Pilihan tata letak cetak kwitansi:
-   * - "f4-2": Kertas F4 Portrait, memuat 2 kwitansi bertingkat dengan garis potong gunting (Hemat Kertas).
-   * - "f4-3": Kertas F4 Portrait, memuat 3 kwitansi bertingkat dengan garis potong gunting (Ringkas / Slip Banyak).
+   * - "f4-4": Kertas F4 Portrait, memuat 4 kwitansi bertingkat dengan garis potong gunting (Hemat Kertas & Proporsional).
+   * - "f4-5": Kertas F4 Portrait, memuat 5 kwitansi bertingkat dengan garis potong gunting (Super Ringkas / 5 slip per lembar F4).
+   * - "f4-3": Kertas F4 Portrait, memuat 3 kwitansi bertingkat dengan garis potong gunting.
+   * - "f4-2": Kertas F4 Portrait, memuat 2 kwitansi bertingkat dengan garis potong gunting.
    * - "portrait-1": Kertas F4/A4 Portrait, 1 kwitansi per lembar dengan batas potong/lampiran nota asli di bawah.
    * - "landscape": Kertas A4 Landscape, 1 kwitansi klasik selebar halaman penuh.
    */
@@ -171,7 +179,7 @@ export type KwitansiPrintOptions = {
 
 export function kwitansiCardHtml(
   data: KwitansiPrintData,
-  layout: KwitansiPrintLayout = "portrait-1",
+  layout: KwitansiPrintLayout = "f4-4",
 ): string {
   const terbilang = terbilangId(data.jumlah);
   const rp = formatRp(data.jumlah);
@@ -240,11 +248,13 @@ export function kwitansiCardHtml(
 }
 
 function kwitansiSheetInner(data: KwitansiPrintData): string {
-  return kwitansiCardHtml(data, "portrait-1");
+  return kwitansiCardHtml(data, "f4-4");
 }
 
-function kwitansiStyles(layout: KwitansiPrintLayout = "portrait-1"): string {
+function kwitansiStyles(layout: KwitansiPrintLayout = "f4-4"): string {
   const isLandscape = layout === "landscape";
+  const isF45 = layout === "f4-5";
+  const isF44 = layout === "f4-4";
   const isF43 = layout === "f4-3";
   const isF42 = layout === "f4-2";
   const isPortrait1 = layout === "portrait-1";
@@ -255,6 +265,10 @@ function kwitansiStyles(layout: KwitansiPrintLayout = "portrait-1"): string {
 
   const pageMargin = isLandscape
     ? "8mm"
+    : isF45
+    ? "4mm 8mm"
+    : isF44
+    ? "5mm 8mm"
     : isF43
     ? "6mm 10mm"
     : "8mm 10mm";
@@ -274,6 +288,20 @@ function kwitansiStyles(layout: KwitansiPrintLayout = "portrait-1"): string {
     page-break-after: always; break-after: page;
   }
   .sheet-landscape:last-child { page-break-after: auto; break-after: auto; }
+
+  .page-f4-4 {
+    width: 100%; height: 320mm; max-height: 320mm;
+    display: flex; flex-direction: column; justify-content: flex-start;
+    page-break-after: always; break-after: page; overflow: hidden;
+  }
+  .page-f4-4:last-child { page-break-after: auto; break-after: auto; }
+
+  .page-f4-5 {
+    width: 100%; height: 322mm; max-height: 322mm;
+    display: flex; flex-direction: column; justify-content: flex-start;
+    page-break-after: always; break-after: page; overflow: hidden;
+  }
+  .page-f4-5:last-child { page-break-after: auto; break-after: auto; }
 
   .page-f4 {
     width: 100%; height: 314mm; max-height: 314mm;
@@ -303,34 +331,43 @@ function kwitansiStyles(layout: KwitansiPrintLayout = "portrait-1"): string {
   }
   .kw-card-landscape:last-child { page-break-after: auto; break-after: auto; }
 
+  .kw-card-f4-4 {
+    height: 73mm; max-height: 73mm; border: 1.2px solid #222; overflow: hidden;
+  }
+  .kw-card-f4-5 {
+    height: 58mm; max-height: 58mm; border: 1.2px solid #222; overflow: hidden;
+  }
+  .kw-card-f4-3 {
+    height: 98mm; max-height: 98mm; border: 1.5px solid #222; overflow: hidden;
+  }
   .kw-card-f4-2 {
     height: 144mm; max-height: 144mm; border: 1.5px solid #222; overflow: hidden;
   }
   .kw-card-portrait-1 {
-    height: 146mm; max-height: 146mm; border: 1.5px solid #222; overflow: hidden;
+    height: 76mm; max-height: 76mm; border: 1.2px solid #222; overflow: hidden;
   }
 
   /* Stub Bonggol Kiri */
   .kw-stub {
-    width: ${isF43 ? "29%" : "31%"};
-    padding: ${isF43 ? "5px 8px" : "8px 10px"};
-    border-right: 1.5px dashed #444;
-    font-size: ${isF43 ? "9.5px" : "11px"};
-    line-height: ${isF43 ? "1.25" : "1.35"};
+    width: ${isF45 ? "28%" : isF44 ? "29%" : isF43 ? "29%" : "31%"};
+    padding: ${isF45 ? "3px 6px" : isF44 ? "4px 8px" : isF43 ? "5px 8px" : "8px 10px"};
+    border-right: 1.2px dashed #444;
+    font-size: ${isF45 ? "8px" : isF44 ? "8.8px" : isF43 ? "9.5px" : "11px"};
+    line-height: ${isF45 ? "1.15" : isF44 ? "1.2" : isF43 ? "1.25" : "1.35"};
     background: #fafafa;
   }
-  .kw-stub-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-  .kw-stub-logo { width: ${isF43 ? "20px" : "24px"}; height: ${isF43 ? "20px" : "24px"}; object-fit: contain; }
-  .kw-stub-sub { font-size: ${isF43 ? "8px" : "9px"}; color: #555; font-weight: 600; }
-  .kw-stub h2 { font-size: ${isF43 ? "11px" : "13px"}; margin: 0; letter-spacing: 0.04em; }
-  .kw-stub-meta { font-size: ${isF43 ? "9px" : "10px"}; margin-bottom: 2px; }
-  .kw-stub-field { margin-top: ${isF43 ? "4px" : "6px"}; }
-  .kw-stub-muted { color: #555; font-size: ${isF43 ? "8.5px" : "10px"}; font-style: italic; margin-top: 2px; }
+  .kw-stub-head { display: flex; align-items: center; gap: 4px; margin-bottom: ${isF45 ? "2px" : isF44 ? "3px" : "6px"}; }
+  .kw-stub-logo { width: ${isF45 ? "16px" : isF44 ? "18px" : isF43 ? "20px" : "24px"}; height: ${isF45 ? "16px" : isF44 ? "18px" : isF43 ? "20px" : "24px"}; object-fit: contain; }
+  .kw-stub-sub { font-size: ${isF45 ? "6.5px" : isF44 ? "7px" : isF43 ? "8px" : "9px"}; color: #555; font-weight: 600; }
+  .kw-stub h2 { font-size: ${isF45 ? "9px" : isF44 ? "10px" : isF43 ? "11px" : "13px"}; margin: 0; letter-spacing: 0.04em; }
+  .kw-stub-meta { font-size: ${isF45 ? "7.5px" : isF44 ? "8px" : isF43 ? "9px" : "10px"}; margin-bottom: 1px; }
+  .kw-stub-field { margin-top: ${isF45 ? "1.5px" : isF44 ? "2.5px" : isF43 ? "4px" : "6px"}; }
+  .kw-stub-muted { color: #555; font-size: ${isF45 ? "7px" : isF44 ? "7.8px" : isF43 ? "8.5px" : "10px"}; font-style: italic; margin-top: 1px; }
 
   /* Body Kwitansi Kanan */
   .kw-body {
     flex: 1;
-    padding: ${isF43 ? "6px 12px" : "8px 14px"};
+    padding: ${isF45 ? "3px 8px" : isF44 ? "4px 10px" : isF43 ? "6px 12px" : "8px 14px"};
     position: relative;
     display: flex;
     flex-direction: column;
@@ -338,84 +375,108 @@ function kwitansiStyles(layout: KwitansiPrintLayout = "portrait-1"): string {
   }
   .kw-head-wrap {
     display: flex; align-items: center; justify-content: center; position: relative;
-    margin-bottom: ${isF43 ? "3px" : "6px"};
-    min-height: ${isF43 ? "30px" : "40px"};
+    margin-bottom: ${isF45 ? "1px" : isF44 ? "2px" : isF43 ? "3px" : "6px"};
+    min-height: ${isF45 ? "20px" : isF44 ? "24px" : isF43 ? "30px" : "40px"};
   }
   .kw-head-logo {
     position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-    width: ${isF43 ? "32px" : "42px"}; height: ${isF43 ? "32px" : "42px"}; object-fit: contain;
+    width: ${isF45 ? "20px" : isF44 ? "24px" : isF43 ? "32px" : "42px"};
+    height: ${isF45 ? "20px" : isF44 ? "24px" : isF43 ? "32px" : "42px"};
+    object-fit: contain;
   }
   .kw-head-titles { text-align: center; }
   .kw-title {
-    text-align: center; font-size: ${isF43 ? "14px" : "18px"}; font-weight: 700;
+    text-align: center;
+    font-size: ${isF45 ? "11px" : isF44 ? "12.5px" : isF43 ? "14px" : "18px"};
+    font-weight: 700;
     letter-spacing: 0.05em; margin: 0;
   }
   .kw-subtitle {
-    font-size: ${isF43 ? "8px" : "9.5px"}; font-weight: 600; letter-spacing: 0.04em; color: #444; margin-top: 1px;
+    font-size: ${isF45 ? "6.5px" : isF44 ? "7.2px" : isF43 ? "8px" : "9.5px"};
+    font-weight: 600; letter-spacing: 0.04em; color: #444; margin-top: 1px;
   }
   .kw-row {
-    display: flex; justify-content: space-between; gap: 8px;
-    margin-bottom: ${isF43 ? "3px" : "5px"};
-    font-size: ${isF43 ? "10px" : "12px"};
+    display: flex; justify-content: space-between; gap: 6px;
+    margin-bottom: ${isF45 ? "1px" : isF44 ? "1.5px" : isF43 ? "3px" : "5px"};
+    font-size: ${isF45 ? "7.8px" : isF44 ? "8.5px" : isF43 ? "10px" : "12px"};
   }
   .kw-field {
-    margin: ${isF43 ? "3px 0" : "5px 0"};
-    font-size: ${isF43 ? "10.5px" : "12px"};
+    margin: ${isF45 ? "1px 0" : isF44 ? "1.5px 0" : isF43 ? "3px 0" : "5px 0"};
+    font-size: ${isF45 ? "8px" : isF44 ? "8.8px" : isF43 ? "10.5px" : "12px"};
   }
   .kw-field-lbl { shrink-0: 0; white-space: nowrap; }
-  .kw-dots { border-bottom: 1px dotted #333; min-height: 1.1em; flex: 1; margin-left: 6px; }
+  .kw-dots { border-bottom: 1px dotted #333; min-height: 1em; flex: 1; margin-left: 4px; }
   .kw-inline { display: flex; align-items: flex-end; gap: 4px; }
   .kw-terbilang {
-    font-style: italic; margin: ${isF43 ? "3px 0" : "5px 0"};
-    font-size: ${isF43 ? "10px" : "12px"}; color: #222;
+    font-style: italic;
+    margin: ${isF45 ? "1px 0" : isF44 ? "1.5px 0" : isF43 ? "3px 0" : "5px 0"};
+    font-size: ${isF45 ? "7.5px" : isF44 ? "8.2px" : isF43 ? "10px" : "12px"};
+    color: #222;
   }
   .kw-amount-row {
     display: flex; align-items: center; justify-content: space-between;
-    margin-top: ${isF43 ? "4px" : "6px"};
+    margin-top: ${isF45 ? "1.5px" : isF44 ? "2.5px" : isF43 ? "4px" : "6px"};
   }
   .kw-rp-box {
     display: inline-block;
-    padding: ${isF43 ? "3px 12px 3px 8px" : "4px 16px 4px 10px"};
-    border: 2px solid #111; font-weight: 700;
-    font-size: ${isF43 ? "12px" : "14px"};
+    padding: ${isF45 ? "1.5px 6px" : isF44 ? "2px 8px" : isF43 ? "3px 12px 3px 8px" : "4px 16px 4px 10px"};
+    border: 1.5px solid #111; font-weight: 700;
+    font-size: ${isF45 ? "9.5px" : isF44 ? "11px" : isF43 ? "12px" : "14px"};
     transform: skewX(-8deg);
   }
   .kw-rp-box span { display: inline-block; transform: skewX(8deg); }
   .kw-stamp-lunas {
-    border: 2px solid #15803d; color: #15803d;
-    font-size: ${isF43 ? "11px" : "13px"}; font-weight: 800;
-    letter-spacing: 0.14em;
-    padding: ${isF43 ? "2px 8px" : "3px 12px"};
-    border-radius: 4px; transform: rotate(-5deg);
+    border: 1.5px solid #15803d; color: #15803d;
+    font-size: ${isF45 ? "8px" : isF44 ? "9.5px" : isF43 ? "11px" : "13px"};
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    padding: ${isF45 ? "1px 4px" : isF44 ? "1.5px 6px" : isF43 ? "2px 8px" : "3px 12px"};
+    border-radius: 3px; transform: rotate(-5deg);
     font-family: Arial, Helvetica, sans-serif;
   }
   .kw-signs {
     display: flex; justify-content: space-between;
-    margin-top: ${isF43 ? "6px" : "12px"};
-    gap: 16px;
+    margin-top: ${isF45 ? "2px" : isF44 ? "2.5px" : isF43 ? "6px" : "12px"};
+    gap: 12px;
   }
-  .kw-sign { width: 44%; text-align: center; font-size: ${isF43 ? "9.5px" : "11px"}; }
+  .kw-sign { width: 44%; text-align: center; font-size: ${isF45 ? "7.5px" : isF44 ? "8.2px" : isF43 ? "9.5px" : "11px"}; }
   .kw-sign-space {
-    min-height: ${isF43 ? "34px" : "52px"};
+    min-height: ${isF45 ? "18px" : isF44 ? "22px" : isF43 ? "34px" : "52px"};
     display: flex; align-items: flex-end; justify-content: center;
   }
   .kw-sign-space img {
-    max-height: ${isF43 ? "34px" : "50px"} !important;
+    max-height: ${isF45 ? "18px" : isF44 ? "22px" : isF43 ? "34px" : "50px"} !important;
   }
   .kw-sign-line {
-    border-top: 1px solid #333; margin-top: 3px; padding-top: 2px;
+    border-top: 1px solid #333; margin-top: 2px; padding-top: 1px;
     font-weight: 600;
   }
-  .kw-sign-role { font-size: ${isF43 ? "8.5px" : "10px"}; color: #444; }
+  .kw-sign-role { font-size: ${isF45 ? "6.8px" : isF44 ? "7.5px" : isF43 ? "8.5px" : "10px"}; color: #444; }
 
   /* Cut dividers */
   .kw-cut-divider {
-    height: 12mm; display: flex; align-items: center; justify-content: center;
+    height: 10mm; display: flex; align-items: center; justify-content: center;
     position: relative; width: 100%; margin: 2mm 0;
   }
   .kw-cut-divider::before {
     content: ""; position: absolute; left: 0; right: 0; top: 50%;
     border-top: 1.5px dashed #777;
+  }
+  .kw-cut-divider-4 {
+    height: 6mm; display: flex; align-items: center; justify-content: center;
+    position: relative; width: 100%; margin: 0.5mm 0;
+  }
+  .kw-cut-divider-4::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 50%;
+    border-top: 1.2px dashed #777;
+  }
+  .kw-cut-divider-5 {
+    height: 4.5mm; display: flex; align-items: center; justify-content: center;
+    position: relative; width: 100%; margin: 0.3mm 0;
+  }
+  .kw-cut-divider-5::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 50%;
+    border-top: 1px dashed #777;
   }
   .kw-cut-divider-3 {
     height: 8mm; display: flex; align-items: center; justify-content: center;
@@ -426,23 +487,23 @@ function kwitansiStyles(layout: KwitansiPrintLayout = "portrait-1"): string {
     border-top: 1.2px dashed #777;
   }
   .kw-cut-text {
-    position: relative; background: #fff; padding: 0 10px;
-    font-size: 8.5px; font-family: Arial, Helvetica, sans-serif; color: #555;
-    letter-spacing: 0.1em; font-weight: bold;
+    position: relative; background: #fff; padding: 0 8px;
+    font-size: 8px; font-family: Arial, Helvetica, sans-serif; color: #555;
+    letter-spacing: 0.08em; font-weight: bold;
   }
   .kw-cut-icon {
-    position: relative; background: #fff; padding-right: 4px; font-size: 13px; color: #333;
+    position: relative; background: #fff; padding-right: 3px; font-size: 11px; color: #333;
   }
 
   ${draftCss()}`;
 }
 
-/** Kwitansi cetak (mendukung Portrait F4, F4 Multi-up 2-3 slip, dan Landscape). */
+/** Kwitansi cetak (mendukung Portrait F4 Muat 4-5 Slip, Multi-up 2-3 slip, dan Landscape). */
 export function buildKwitansiPrintHtml(
   data: KwitansiPrintData,
   options?: KwitansiPrintOptions,
 ): string {
-  const layout = options?.layout || "portrait-1";
+  const layout = options?.layout || "f4-4";
   const styles = kwitansiStyles(layout);
 
   let content = "";
@@ -457,6 +518,15 @@ export function buildKwitansiPrintHtml(
         <span class="kw-cut-text">POTONG DI SINI / LAMPIRAN BUKTI FISIK NOTA</span>
       </div>
     </div>`;
+  } else if (layout === "f4-5") {
+    content = `
+    <div class="page-f4-5">
+      ${kwitansiCardHtml(data, "f4-5")}
+      <div class="kw-cut-divider-5">
+        <span class="kw-cut-icon">✂</span>
+        <span class="kw-cut-text">POTONG DI SINI</span>
+      </div>
+    </div>`;
   } else if (layout === "f4-3") {
     content = `
     <div class="page-f4-3">
@@ -466,12 +536,21 @@ export function buildKwitansiPrintHtml(
         <span class="kw-cut-text">POTONG DI SINI</span>
       </div>
     </div>`;
-  } else {
-    // f4-2 default
+  } else if (layout === "f4-2") {
     content = `
     <div class="page-f4">
       ${kwitansiCardHtml(data, "f4-2")}
       <div class="kw-cut-divider">
+        <span class="kw-cut-icon">✂</span>
+        <span class="kw-cut-text">POTONG DI SINI</span>
+      </div>
+    </div>`;
+  } else {
+    // f4-4 default (muat 4 kwitansi per lembar F4)
+    content = `
+    <div class="page-f4-4">
+      ${kwitansiCardHtml(data, "f4-4")}
+      <div class="kw-cut-divider-4">
         <span class="kw-cut-icon">✂</span>
         <span class="kw-cut-text">POTONG DI SINI</span>
       </div>
@@ -491,12 +570,12 @@ export function buildKwitansiPrintHtml(
 </html>`;
 }
 
-/** Beberapa lembar kwitansi dalam satu dokumen (mendukung F4 muat 2 atau 3 per lembar). */
+/** Beberapa lembar kwitansi dalam satu dokumen (mendukung F4 muat 4, 5, 2, atau 3 per lembar). */
 export function buildKwitansiBatchPrintHtml(
   items: KwitansiPrintData[],
   options?: KwitansiPrintOptions,
 ): string {
-  const layout = options?.layout || "f4-2";
+  const layout = options?.layout || "f4-4";
   if (items.length === 0) {
     return buildKwitansiPrintHtml({
       no: "",
@@ -557,6 +636,40 @@ export function buildKwitansiBatchPrintHtml(
 </html>`;
   }
 
+  if (layout === "f4-5") {
+    const chunks: KwitansiPrintData[][] = [];
+    for (let i = 0; i < items.length; i += 5) {
+      chunks.push(items.slice(i, i + 5));
+    }
+    const pages = chunks
+      .map((chunk) => {
+        const chunkHtml = chunk
+          .map((d, idx) => {
+            const isLast = idx === chunk.length - 1;
+            return `${kwitansiCardHtml(d, "f4-5")}${
+              !isLast || chunk.length < 5
+                ? `<div class="kw-cut-divider-5"><span class="kw-cut-icon">✂</span><span class="kw-cut-text">POTONG DI SINI</span></div>`
+                : ""
+            }`;
+          })
+          .join("\n");
+        return `<div class="page-f4-5">${chunkHtml}</div>`;
+      })
+      .join("\n");
+
+    return `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<title>Kwitansi F4 (5 Kwitansi/Lembar) ${escapeHtml(title)}</title>
+<style>${styles}</style>
+</head>
+<body>
+  ${pages}
+</body>
+</html>`;
+  }
+
   if (layout === "f4-3") {
     const chunks: KwitansiPrintData[][] = [];
     for (let i = 0; i < items.length; i += 3) {
@@ -591,24 +704,58 @@ export function buildKwitansiBatchPrintHtml(
 </html>`;
   }
 
-  // Default: f4-2 (2 kwitansi per lembar F4 Portrait)
+  if (layout === "f4-2") {
+    const chunks: KwitansiPrintData[][] = [];
+    for (let i = 0; i < items.length; i += 2) {
+      chunks.push(items.slice(i, i + 2));
+    }
+    const pages = chunks
+      .map((chunk) => {
+        const chunkHtml = chunk
+          .map((d, idx) => {
+            const isLast = idx === chunk.length - 1;
+            return `${kwitansiCardHtml(d, "f4-2")}${
+              !isLast || chunk.length < 2
+                ? `<div class="kw-cut-divider"><span class="kw-cut-icon">✂</span><span class="kw-cut-text">POTONG DI SINI</span></div>`
+                : ""
+            }`;
+          })
+          .join("\n");
+        return `<div class="page-f4">${chunkHtml}</div>`;
+      })
+      .join("\n");
+
+    return `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8"/>
+<title>Kwitansi F4 (2 Kwitansi/Lembar) ${escapeHtml(title)}</title>
+<style>${styles}</style>
+</head>
+<body>
+  ${pages}
+</body>
+</html>`;
+  }
+
+  // Default: f4-4 (4 kwitansi per lembar F4 Portrait)
   const chunks: KwitansiPrintData[][] = [];
-  for (let i = 0; i < items.length; i += 2) {
-    chunks.push(items.slice(i, i + 2));
+  for (let i = 0; i < items.length; i += 4) {
+    chunks.push(items.slice(i, i + 4));
   }
   const pages = chunks
     .map((chunk) => {
       const chunkHtml = chunk
         .map((d, idx) => {
           const isLast = idx === chunk.length - 1;
-          return `${kwitansiCardHtml(d, "f4-2")}${
-            !isLast || chunk.length < 2
-              ? `<div class="kw-cut-divider"><span class="kw-cut-icon">✂</span><span class="kw-cut-text">POTONG DI SINI</span></div>`
+          return `${kwitansiCardHtml(d, "f4-4")}${
+            !isLast || chunk.length < 4
+              ? `<div class="kw-cut-divider-4"><span class="kw-cut-icon">✂</span><span class="kw-cut-text">POTONG DI SINI</span></div>`
               : ""
           }`;
         })
         .join("\n");
-      return `<div class="page-f4">${chunkHtml}</div>`;
+      return `<div class="page-f4-4">${chunkHtml}</div>`;
     })
     .join("\n");
 
@@ -616,7 +763,7 @@ export function buildKwitansiBatchPrintHtml(
 <html lang="id">
 <head>
 <meta charset="utf-8"/>
-<title>Kwitansi F4 (2 Kwitansi/Lembar) ${escapeHtml(title)}</title>
+<title>Kwitansi F4 (4 Kwitansi/Lembar) ${escapeHtml(title)}</title>
 <style>${styles}</style>
 </head>
 <body>

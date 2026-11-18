@@ -146,7 +146,7 @@ export function NotaItemTable({
   const [mailMergeIndex, setMailMergeIndex] = useState(0);
   const [mailMergeFormat, setMailMergeFormat] = useState<"kwitansi" | "nota">("kwitansi");
   const [mailMergeView, setMailMergeView] = useState<"single" | "all">("single");
-  const [kwitansiLayout, setKwitansiLayout] = useState<KwitansiPrintLayout>("f4-2");
+  const [kwitansiLayout, setKwitansiLayout] = useState<KwitansiPrintLayout>("f4-4");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deskripsi, setDeskripsi] = useState("");
   const [jumlah, setJumlah] = useState("1");
@@ -567,7 +567,7 @@ export function NotaItemTable({
                   if (valid.length === 0) return;
                   printKwitansiBatch(
                     valid.map((r, i) => buildRowKwitansiData(r, i)),
-                    { layout: "f4-2" },
+                    { layout: "f4-4" },
                   );
                 }}
                 className="text-xs cursor-pointer"
@@ -575,10 +575,10 @@ export function NotaItemTable({
                 <Printer className="mr-2 h-4 w-4 text-emerald-600" />
                 <div>
                   <div className="font-semibold text-emerald-700 dark:text-emerald-400">
-                    Cetak F4 Portrait — Muat 2 ({items.length} item)
+                    Cetak F4 Portrait — Muat 4 ({items.length} item)
                   </div>
                   <div className="text-[10px] text-muted-foreground">
-                    Hemat kertas, 2 slip/lembar F4 (~{Math.ceil(items.length / 2)} lbr F4)
+                    Hemat kertas, 4 slip/lembar F4 (~{Math.ceil(items.length / 4)} lbr F4)
                   </div>
                 </div>
               </DropdownMenuItem>
@@ -588,18 +588,39 @@ export function NotaItemTable({
                   if (valid.length === 0) return;
                   printKwitansiBatch(
                     valid.map((r, i) => buildRowKwitansiData(r, i)),
-                    { layout: "f4-3" },
+                    { layout: "f4-5" },
                   );
                 }}
                 className="text-xs cursor-pointer"
               >
-                <Printer className="mr-2 h-4 w-4 text-primary" />
+                <Printer className="mr-2 h-4 w-4 text-emerald-600" />
                 <div>
-                  <div className="font-medium">
-                    Cetak F4 Portrait — Muat 3 ({items.length} item)
+                  <div className="font-medium text-emerald-700 dark:text-emerald-400">
+                    Cetak F4 Portrait — Muat 5 ({items.length} item)
                   </div>
                   <div className="text-[10px] text-muted-foreground">
-                    Format slip ringkas 3/lembar F4 (~{Math.ceil(items.length / 3)} lbr F4)
+                    Super hemat kertas, 5 slip/lembar F4 (~{Math.ceil(items.length / 5)} lbr F4)
+                  </div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  const valid = items.filter((r) => r.deskripsi.trim().length > 0);
+                  if (valid.length === 0) return;
+                  printKwitansiBatch(
+                    valid.map((r, i) => buildRowKwitansiData(r, i)),
+                    { layout: "f4-2" },
+                  );
+                }}
+                className="text-xs cursor-pointer"
+              >
+                <Printer className="mr-2 h-4 w-4 text-muted-foreground" />
+                <div>
+                  <div className="font-medium">
+                    Cetak F4 Portrait — Muat 2 ({items.length} item)
+                  </div>
+                  <div className="text-[10px] text-muted-foreground">
+                    Format 2 kwitansi per lembar F4 (~{Math.ceil(items.length / 2)} lbr F4)
                   </div>
                 </div>
               </DropdownMenuItem>
@@ -775,7 +796,7 @@ export function NotaItemTable({
                             <DropdownMenuItem
                               onClick={() =>
                                 printKwitansi(buildRowKwitansiData(row, idx), {
-                                  layout: "f4-2",
+                                  layout: "f4-4",
                                 })
                               }
                               className="text-xs cursor-pointer"
@@ -783,7 +804,7 @@ export function NotaItemTable({
                               <Printer className="mr-2 h-4 w-4 text-emerald-600" />
                               <div>
                                 <div className="font-semibold text-emerald-700 dark:text-emerald-400">
-                                  Cetak Kwitansi F4 Portrait
+                                  Cetak Kwitansi F4 Portrait (Slip)
                                 </div>
                                 <div className="text-[10px] text-muted-foreground">
                                   Format kwitansi resmi F4 dengan garis potong
@@ -1248,14 +1269,26 @@ export function NotaItemTable({
                   <button
                     type="button"
                     className={`px-2 py-1 text-xs rounded-md font-medium transition-all ${
-                      kwitansiLayout === "f4-2"
+                      kwitansiLayout === "f4-4"
                         ? "bg-emerald-700 text-white shadow-xs font-semibold"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
-                    onClick={() => setKwitansiLayout("f4-2")}
-                    title="Kertas F4 Portrait — Muat 2 Kwitansi per Lembar (Hemat Kertas & Garis Potong ✂)"
+                    onClick={() => setKwitansiLayout("f4-4")}
+                    title="Kertas F4 Portrait — Muat 4 Kwitansi per Lembar (Hemat Kertas & Proporsional ✂)"
                   >
-                    F4 (Muat 2)
+                    F4 (Muat 4)
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-2 py-1 text-xs rounded-md font-medium transition-all ${
+                      kwitansiLayout === "f4-5"
+                        ? "bg-emerald-700 text-white shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => setKwitansiLayout("f4-5")}
+                    title="Kertas F4 Portrait — Muat 5 Kwitansi per Lembar (Super Hemat / Slip Banyak)"
+                  >
+                    F4 (Muat 5)
                   </button>
                   <button
                     type="button"
@@ -1265,9 +1298,21 @@ export function NotaItemTable({
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                     onClick={() => setKwitansiLayout("f4-3")}
-                    title="Kertas F4 Portrait — Muat 3 Kwitansi per Lembar (Format Slip Ringkas)"
+                    title="Kertas F4 Portrait — Muat 3 Kwitansi per Lembar"
                   >
                     F4 (Muat 3)
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-2 py-1 text-xs rounded-md font-medium transition-all ${
+                      kwitansiLayout === "f4-2"
+                        ? "bg-emerald-700 text-white shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => setKwitansiLayout("f4-2")}
+                    title="Kertas F4 Portrait — Muat 2 Kwitansi per Lembar"
+                  >
+                    F4 (Muat 2)
                   </button>
                   <button
                     type="button"
@@ -1617,10 +1662,14 @@ export function NotaItemTable({
                 }}
                 title={
                   mailMergeFormat === "kwitansi"
-                    ? kwitansiLayout === "f4-2"
-                      ? `Cetak ${items.length} kwitansi dalam kertas F4 Portrait (2 kwitansi per lembar, hemat ~${Math.ceil(items.length / 2)} lbr F4)`
+                    ? kwitansiLayout === "f4-4"
+                      ? `Cetak ${items.length} kwitansi dalam kertas F4 Portrait (4 kwitansi per lembar, hemat ~${Math.ceil(items.length / 4)} lbr F4)`
+                      : kwitansiLayout === "f4-5"
+                      ? `Cetak ${items.length} kwitansi dalam kertas F4 Portrait (5 kwitansi per lembar, hemat ~${Math.ceil(items.length / 5)} lbr F4)`
                       : kwitansiLayout === "f4-3"
                       ? `Cetak ${items.length} kwitansi dalam kertas F4 Portrait (3 slip per lembar, hemat ~${Math.ceil(items.length / 3)} lbr F4)`
+                      : kwitansiLayout === "f4-2"
+                      ? `Cetak ${items.length} kwitansi dalam kertas F4 Portrait (2 kwitansi per lembar, hemat ~${Math.ceil(items.length / 2)} lbr F4)`
                       : kwitansiLayout === "portrait-1"
                       ? `Cetak ${items.length} kwitansi masing-masing 1 lembar Portrait F4/A4`
                       : `Cetak ${items.length} kwitansi masing-masing 1 lembar A4 Landscape`
@@ -1629,9 +1678,17 @@ export function NotaItemTable({
               >
                 <Printer className="mr-1.5 h-3.5 w-3.5 text-primary" />
                 <span>Cetak Semua ({items.length})</span>
-                {mailMergeFormat === "kwitansi" && (kwitansiLayout === "f4-2" || kwitansiLayout === "f4-3") ? (
+                {mailMergeFormat === "kwitansi" && (kwitansiLayout === "f4-4" || kwitansiLayout === "f4-5" || kwitansiLayout === "f4-3" || kwitansiLayout === "f4-2") ? (
                   <span className="ml-1 text-[10px] text-muted-foreground font-normal">
-                    ({kwitansiLayout === "f4-2" ? `${Math.ceil(items.length / 2)} lbr F4` : `${Math.ceil(items.length / 3)} lbr F4`})
+                    ({
+                      kwitansiLayout === "f4-4"
+                        ? `${Math.ceil(items.length / 4)} lbr F4`
+                        : kwitansiLayout === "f4-5"
+                        ? `${Math.ceil(items.length / 5)} lbr F4`
+                        : kwitansiLayout === "f4-3"
+                        ? `${Math.ceil(items.length / 3)} lbr F4`
+                        : `${Math.ceil(items.length / 2)} lbr F4`
+                    })
                   </span>
                 ) : null}
               </Button>

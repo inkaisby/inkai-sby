@@ -31,7 +31,7 @@ type Props = {
 
 export function KwitansiPreview({
   data,
-  layout = "f4-2",
+  layout = "f4-4",
   showCutLine,
   className,
 }: Props) {
@@ -40,13 +40,20 @@ export function KwitansiPreview({
 
   const eventText = data.eventLabel || data.kegiatan || "";
   const untukPembayaranText = formatUntukPembayaran(data.untukPembayaran, eventText);
+  const isF45 = layout === "f4-5";
+  const isF44 = layout === "f4-4";
   const isF43 = layout === "f4-3";
+  const isCompact = isF45 || isF44 || isF43;
 
   const layoutBadgeLabel =
-    layout === "f4-2"
-      ? "F4 Portrait (Muat 2 Kwitansi)"
+    layout === "f4-4"
+      ? "F4 Portrait (Muat 4 Kwitansi)"
+      : layout === "f4-5"
+      ? "F4 Portrait (Muat 5 Kwitansi)"
       : layout === "f4-3"
       ? "F4 Portrait (Muat 3 Kwitansi)"
+      : layout === "f4-2"
+      ? "F4 Portrait (Muat 2 Kwitansi)"
       : layout === "portrait-1"
       ? "Portrait (1 Lembar)"
       : "Landscape (A4 Klasik)";
@@ -74,7 +81,9 @@ export function KwitansiPreview({
           <aside
             className={cn(
               "border-b border-dashed border-zinc-500 leading-relaxed md:border-b-0 md:border-r bg-zinc-50/50",
-              isF43
+              isF45
+                ? "p-2 text-[9.5px] md:w-[28%]"
+                : isCompact
                 ? "p-2.5 text-[10px] md:w-[30%]"
                 : "p-3 text-[11px] md:w-[32%]",
             )}
@@ -84,7 +93,7 @@ export function KwitansiPreview({
               <img
                 src="/logo-inkai.png"
                 alt="INKAI"
-                className={cn("object-contain", isF43 ? "h-4 w-4" : "h-5 w-5")}
+                className={cn("object-contain", isCompact ? "h-4 w-4" : "h-5 w-5")}
               />
               <div>
                 <p className="text-xs font-bold tracking-wide">KWITANSI</p>
@@ -114,13 +123,17 @@ export function KwitansiPreview({
           <section
             className={cn(
               "flex-1",
-              isF43 ? "p-3" : "p-4",
+              isF45 ? "p-2.5" : isCompact ? "p-3" : "p-4",
             )}
           >
             <div
               className={cn(
                 "relative flex items-center justify-center",
-                isF43 ? "mb-2 min-h-[36px]" : "mb-3 min-h-[44px]",
+                isF45
+                  ? "mb-1.5 min-h-[30px]"
+                  : isCompact
+                  ? "mb-2 min-h-[36px]"
+                  : "mb-3 min-h-[44px]",
               )}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -129,14 +142,18 @@ export function KwitansiPreview({
                 alt="INKAI"
                 className={cn(
                   "absolute left-0 top-1/2 -translate-y-1/2 object-contain",
-                  isF43 ? "h-8 w-8" : "h-10 w-10",
+                  isF45 ? "h-6 w-6" : isCompact ? "h-7 w-7" : "h-10 w-10",
                 )}
               />
               <div className="text-center">
                 <h2
                   className={cn(
                     "font-bold tracking-[0.06em]",
-                    isF43 ? "text-sm sm:text-base" : "text-base sm:text-lg",
+                    isF45
+                      ? "text-xs sm:text-sm"
+                      : isCompact
+                      ? "text-sm sm:text-base"
+                      : "text-base sm:text-lg",
                   )}
                 >
                   KWITANSI PEMBAYARAN
@@ -144,7 +161,7 @@ export function KwitansiPreview({
                 <p
                   className={cn(
                     "font-semibold text-zinc-600",
-                    isF43 ? "text-[9px]" : "text-[10px]",
+                    isCompact ? "text-[8.5px]" : "text-[10px]",
                   )}
                 >
                   INSTITUT KARATE-DO INDONESIA (INKAI) CABANG SURABAYA
@@ -154,7 +171,7 @@ export function KwitansiPreview({
             <div
               className={cn(
                 "mb-2 flex justify-between gap-3",
-                isF43 ? "text-xs" : "text-sm",
+                isCompact ? "text-xs" : "text-sm",
               )}
             >
               <span>No. {data.no || "—"}</span>
@@ -163,7 +180,7 @@ export function KwitansiPreview({
             <div
               className={cn(
                 "mb-2 flex items-end gap-2",
-                isF43 ? "text-xs" : "text-sm",
+                isCompact ? "text-xs" : "text-sm",
               )}
             >
               <span className="shrink-0">Sudah terima dari</span>
@@ -174,7 +191,7 @@ export function KwitansiPreview({
             <p
               className={cn(
                 "mb-2 italic text-zinc-700",
-                isF43 ? "text-xs" : "text-sm",
+                isCompact ? "text-xs" : "text-sm",
               )}
             >
               Terbilang: {terbilang}
@@ -182,7 +199,7 @@ export function KwitansiPreview({
             <div
               className={cn(
                 "mb-3 flex items-end gap-2",
-                isF43 ? "text-xs" : "text-sm",
+                isCompact ? "text-xs" : "text-sm",
               )}
             >
               <span className="shrink-0">Untuk pembayaran</span>
@@ -194,7 +211,7 @@ export function KwitansiPreview({
               <div
                 className={cn(
                   "inline-block -skew-x-[8deg] border-2 border-zinc-900 font-bold",
-                  isF43 ? "px-3 py-1 text-sm" : "px-4 py-1.5 text-base",
+                  isCompact ? "px-3 py-1 text-sm" : "px-4 py-1.5 text-base",
                 )}
               >
                 <span className="inline-block skew-x-[8deg]">
@@ -204,7 +221,7 @@ export function KwitansiPreview({
               <div
                 className={cn(
                   "-rotate-6 rounded border-2 border-emerald-700 font-sans font-extrabold tracking-widest text-emerald-700",
-                  isF43 ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-0.5 text-xs",
+                  isCompact ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-0.5 text-xs",
                 )}
               >
                 LUNAS
@@ -214,14 +231,14 @@ export function KwitansiPreview({
             <div
               className={cn(
                 "flex justify-between gap-6",
-                isF43 ? "mt-4" : "mt-6",
+                isCompact ? "mt-3" : "mt-6",
               )}
             >
               <div className="w-[44%] text-center text-xs">
                 <div
                   className={cn(
                     "flex items-end justify-center rounded-sm bg-white",
-                    isF43 ? "min-h-16" : "min-h-24",
+                    isF45 ? "min-h-12" : isCompact ? "min-h-14" : "min-h-24",
                   )}
                 >
                   {data.penerimaSignUrl ? (
@@ -231,8 +248,8 @@ export function KwitansiPreview({
                       alt="TTD Penerima"
                       className={cn(
                         "object-contain",
-                        isF43
-                          ? "max-h-16 max-w-[150px]"
+                        isCompact
+                          ? "max-h-14 max-w-[140px]"
                           : "max-h-24 max-w-[200px]",
                       )}
                     />
@@ -249,7 +266,7 @@ export function KwitansiPreview({
                 <div
                   className={cn(
                     "flex items-end justify-center rounded-sm bg-white",
-                    isF43 ? "min-h-16" : "min-h-24",
+                    isF45 ? "min-h-12" : isCompact ? "min-h-14" : "min-h-24",
                   )}
                 >
                   {data.penyetorSignUrl ? (
@@ -259,8 +276,8 @@ export function KwitansiPreview({
                       alt="TTD Penyetor"
                       className={cn(
                         "object-contain",
-                        isF43
-                          ? "max-h-16 max-w-[150px]"
+                        isCompact
+                          ? "max-h-14 max-w-[140px]"
                           : "max-h-24 max-w-[200px]",
                       )}
                     />
