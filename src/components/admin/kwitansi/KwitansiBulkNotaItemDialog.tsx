@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, Trash2, Clipboard, Table, Check } from "lucide-react";
+import { Plus, Trash2, Clipboard, Table, Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -55,6 +55,24 @@ function createEmptyRow(): BulkItem {
   };
 }
 
+function isRowFilled(row: BulkItem): boolean {
+  return Boolean(
+    row.deskripsi.trim() ||
+      row.harga.trim() ||
+      row.petugas.trim() ||
+      (row.jumlah.trim() !== "" && row.jumlah.trim() !== "1"),
+  );
+}
+
+function ensureTrailingEmptyRow(rows: BulkItem[]): BulkItem[] {
+  if (rows.length === 0) return [createEmptyRow()];
+  const last = rows[rows.length - 1];
+  if (last && isRowFilled(last)) {
+    return [...rows, createEmptyRow()];
+  }
+  return rows;
+}
+
 export function KwitansiBulkNotaItemDialog({
   open,
   onOpenChange,
@@ -65,11 +83,7 @@ export function KwitansiBulkNotaItemDialog({
   const [defaultJumlah, setDefaultJumlah] = useState("1");
   const [defaultPetugas, setDefaultPetugas] = useState("");
 
-  const [items, setItems] = useState<BulkItem[]>(() => [
-    createEmptyRow(),
-    createEmptyRow(),
-    createEmptyRow(),
-  ]);
+  const [items, setItems] = useState<BulkItem[]>(() => [createEmptyRow()]);
 
   const handleParsePaste = () => {
     if (!pasteText.trim()) return;
@@ -111,7 +125,7 @@ export function KwitansiBulkNotaItemDialog({
     });
 
     if (parsedItems.length > 0) {
-      setItems(parsedItems);
+      setItems(ensureTrailingEmptyRow(parsedItems));
       setShowPaste(false);
       setPasteText("");
     }
@@ -121,14 +135,44 @@ export function KwitansiBulkNotaItemDialog({
     setItems((prev) => [...prev, createEmptyRow()]);
   };
 
-  const handleRemoveRow = (key: string) => {
-    setItems((prev) => (prev.length > 1 ? prev.filter((i) => i.key !== key) : prev));
+  const handleDuplicateRow = (key: string) => {
+    setItems((prev) => {
+      const index = prev.findIndex((i) => i.key === key);
+      if (index === -1) return prev;
+      const target = prev[index];
+      const duplicated: BulkItem = {
+        ...target,
+        key: `bulk-nota-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      };
+      const next = [...prev];
+      next.splice(index + 1, 0, duplicated);
+      return ensureTrailingEmptyRow(next);
+    });
   };
 
-  const handleRowChange = (key: string, field: keyof BulkItem, value: any) => {
-    setItems((prev) =>
-      prev.map((i) => (i.key === key ? { ...i, [field]: value } : i)),
-    );
+  const handleRemoveRow = (key: string) => {
+    setItems((prev) => {
+      if (prev.length <= 1) return prev;
+      const next = prev.filter((i) => i.key !== key);
+      return ensureTrailingEmptyRow(next);
+    });
+  };
+
+  const handleRowChange = (
+    key: string,
+    fieldOrUpdates: keyof BulkItem | Partial<BulkItem>,
+    value?: any,
+  ) => {
+    setItems((prev) => {
+      const updated = prev.map((i) => {
+        if (i.key !== key) return i;
+        if (typeof fieldOrUpdates === "string") {
+          return { ...i, [fieldOrUpdates]: value };
+        }
+        return { ...i, ...fieldOrUpdates };
+      });
+      return ensureTrailingEmptyRow(updated);
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -149,7 +193,7 @@ export function KwitansiBulkNotaItemDialog({
     onAddBulk(validRows);
     onOpenChange(false);
     // Reset to default empty rows
-    setItems([createEmptyRow(), createEmptyRow(), createEmptyRow()]);
+    setItems([createEmptyRow()]);
     setPasteText("");
     setShowPaste(false);
   };
@@ -251,11 +295,11 @@ Banner & Spanduk	2	150000	Agus`}
           ) : (
             <div className="flex-1 flex flex-col min-h-0 space-y-3">
               <p className="text-xs text-muted-foreground shrink-0">
-                Isi baris rincian item pengeluaran event di bawah ini. Baris tanpa deskripsi akan diabaikan.
+                Isi baris rincian item pengeluaran event di bawah ini. Baris baru otomatis ditambahkan saat baris terisi (baris tanpa deskripsi akan diabaikan).
               </p>
 
               <div className="flex-1 overflow-auto border rounded-md min-h-[220px] p-2 space-y-2">
-                <table className="w-full text-xs min-w-[680px]">
+                <table className="w-full text-xs min-w-[700px]">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
                       <th className="p-1.5 w-10 text-center">No</th>
@@ -263,7 +307,7 @@ Banner & Spanduk	2	150000	Agus`}
                       <th className="p-1.5 w-20 text-center">Jumlah</th>
                       <th className="p-1.5 w-36">Harga (Rp)</th>
                       <th className="p-1.5 w-48 sm:w-56">Petugas (Opsional)</th>
-                      <th className="p-1.5 w-10 text-center"></th>
+                      <th className="p-1.5 w-16 text-center"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -309,31 +353,46 @@ Banner & Spanduk	2	150000	Agus`}
                           <KwitansiMemberPicker
                             value={row.petugas}
                             onChange={(v) => {
-                              handleRowChange(row.key, "petugas", v);
-                              handleRowChange(row.key, "petugasMemberId", null);
+                              handleRowChange(row.key, {
+                                petugas: v,
+                                petugasMemberId: null,
+                              });
                             }}
                             onPick={(item) => {
-                              handleRowChange(row.key, "petugas", item.fullName);
-                              handleRowChange(
-                                row.key,
-                                "petugasMemberId",
-                                item.id,
-                              );
+                              handleRowChange(row.key, {
+                                petugas: item.fullName,
+                                petugasMemberId: item.id,
+                              });
                             }}
                             placeholder="Nama / Cari anggota..."
                           />
                         </td>
                         <td className="p-1.5 text-center">
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => handleRemoveRow(row.key)}
-                            disabled={items.length <= 1}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          <div className="flex items-center justify-center gap-0.5">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              title="Duplikat baris"
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              onClick={() => handleDuplicateRow(row.key)}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              <span className="sr-only">Duplikat baris</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              title="Hapus baris"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleRemoveRow(row.key)}
+                              disabled={items.length <= 1}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span className="sr-only">Hapus baris</span>
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
